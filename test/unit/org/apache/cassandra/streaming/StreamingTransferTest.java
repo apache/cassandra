@@ -264,7 +264,7 @@ public class StreamingTransferTest
                 cf.addColumn(new BufferCell(cellname("birthdate"), ByteBufferUtil.bytes(val), timestamp));
                 Mutation rm = new Mutation(KEYSPACE1, ByteBufferUtil.bytes(key), cf);
                 logger.debug("Applying row to transfer {}", rm);
-                rm.apply();
+                rm.applyUnsafe();
             }
         }, transferSSTables);
 
@@ -304,7 +304,7 @@ public class StreamingTransferTest
         // add RangeTombstones
         cf.delete(new DeletionInfo(cellname(2), cellname(3), cf.getComparator(), 1, (int) (System.currentTimeMillis() / 1000)));
         cf.delete(new DeletionInfo(cellname(5), cellname(7), cf.getComparator(), 1, (int) (System.currentTimeMillis() / 1000)));
-        rm.apply();
+        rm.applyUnsafe();
         cfs.forceBlockingFlush();
 
         SSTableReader sstable = cfs.getSSTables().iterator().next();
@@ -488,7 +488,7 @@ public class StreamingTransferTest
                 cf.addColumn(new BufferCell(cellname("birthdate"), ByteBufferUtil.bytes(new Date(timestamp).toString()), timestamp));
                 Mutation rm = new Mutation(KEYSPACE1, ByteBufferUtil.bytes(key), cf);
                 logger.debug("Applying row to transfer {}", rm);
-                rm.apply();
+                rm.applyUnsafe();
             }
         };
         // write a lot more data so the data is spread in more than 1 chunk.

@@ -63,12 +63,12 @@ public class TimeSortTest
 
         rm = new Mutation(KEYSPACE1, key.getKey());
         rm.add(CF_STANDARD1, cellname(100), ByteBufferUtil.bytes("a"), 100);
-        rm.apply();
+        rm.applyUnsafe();
         cfStore.forceBlockingFlush();
 
         rm = new Mutation(KEYSPACE1, key.getKey());
         rm.add(CF_STANDARD1, cellname(0), ByteBufferUtil.bytes("b"), 0);
-        rm.apply();
+        rm.applyUnsafe();
 
         ColumnFamily cf = cfStore.getColumnFamily(key, cellname(10), Composites.EMPTY, false, 1000, System.currentTimeMillis());
         Collection<Cell> cells = cf.getSortedColumns();
@@ -88,7 +88,7 @@ public class TimeSortTest
             {
                 rm.add(CF_STANDARD1, cellname(j * 2), ByteBufferUtil.bytes("a"), j * 2);
             }
-            rm.apply();
+            rm.applyUnsafe();
         }
 
         validateTimeSort(keyspace);
@@ -103,12 +103,12 @@ public class TimeSortTest
         {
             rm.add(CF_STANDARD1, cellname(j * 2 + 1), ByteBufferUtil.bytes("b"), j * 2 + 1);
         }
-        rm.apply();
+        rm.applyUnsafe();
         // and some overwrites
         rm = new Mutation(KEYSPACE1, key.getKey());
         rm.add(CF_STANDARD1, cellname(0), ByteBufferUtil.bytes("c"), 100);
         rm.add(CF_STANDARD1, cellname(10), ByteBufferUtil.bytes("c"), 100);
-        rm.apply();
+        rm.applyUnsafe();
 
         // verify
         ColumnFamily cf = cfStore.getColumnFamily(key, cellname(0), Composites.EMPTY, false, 1000, System.currentTimeMillis());

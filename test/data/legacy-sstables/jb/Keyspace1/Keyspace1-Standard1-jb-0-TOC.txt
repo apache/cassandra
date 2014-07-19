@@ -1,7 +1,8 @@
-Data.db
-TOC.txt
 Index.db
+TOC.txt
 Summary.db
 Filter.db
 Statistics.db
+Data.db
+CRC.db
 Digest.sha1

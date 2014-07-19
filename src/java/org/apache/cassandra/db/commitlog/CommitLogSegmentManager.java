@@ -176,11 +176,12 @@ public class CommitLogSegmentManager
      *
      * @return the provided Allocation object
      */
-    public Allocation allocate(Mutation mutation, int size, Allocation alloc)
+    public Allocation allocate(Mutation mutation, int size)
     {
         CommitLogSegment segment = allocatingFrom();
 
-        while (!segment.allocate(mutation, size, alloc))
+        Allocation alloc;
+        while ( null == (alloc = segment.allocate(mutation, size)) )
         {
             // failed to allocate, so move to a new segment with enough room
             advanceAllocatingFrom(segment);

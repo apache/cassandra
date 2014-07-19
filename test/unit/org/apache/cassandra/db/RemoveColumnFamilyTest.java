@@ -58,12 +58,12 @@ public class RemoveColumnFamilyTest
         // add data
         rm = new Mutation(KEYSPACE1, dk.getKey());
         rm.add("Standard1", Util.cellname("Column1"), ByteBufferUtil.bytes("asdf"), 0);
-        rm.apply();
+        rm.applyUnsafe();
 
         // remove
         rm = new Mutation(KEYSPACE1, dk.getKey());
         rm.delete("Standard1", 1);
-        rm.apply();
+        rm.applyUnsafe();
 
         ColumnFamily retrieved = store.getColumnFamily(QueryFilter.getIdentityFilter(dk, "Standard1", System.currentTimeMillis()));
         assert retrieved.isMarkedForDelete();

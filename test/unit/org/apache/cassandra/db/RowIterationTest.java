@@ -67,7 +67,7 @@ public class RowIterationTest
             DecoratedKey key = Util.dk(String.valueOf(i));
             Mutation rm = new Mutation(KEYSPACE1, key.getKey());
             rm.add("Super3", CellNames.compositeDense(ByteBufferUtil.bytes("sc"), ByteBufferUtil.bytes(String.valueOf(i))), ByteBuffer.wrap(new byte[ROWS_PER_SSTABLE * 10 - i * 2]), i);
-            rm.apply();
+            rm.applyUnsafe();
             inserted.add(key);
         }
         store.forceBlockingFlush();
@@ -86,7 +86,7 @@ public class RowIterationTest
         Mutation rm = new Mutation(KEYSPACE1, key.getKey());
         rm.delete(CF_NAME, 0);
         rm.add(CF_NAME, Util.cellname("c"), ByteBufferUtil.bytes("values"), 0L);
-        rm.apply();
+        rm.applyUnsafe();
         store.forceBlockingFlush();
 
         // Delete row in second sstable with higher timestamp
@@ -95,7 +95,7 @@ public class RowIterationTest
         rm.add(CF_NAME, Util.cellname("c"), ByteBufferUtil.bytes("values"), 1L);
         DeletionInfo delInfo2 = rm.getColumnFamilies().iterator().next().deletionInfo();
         assert delInfo2.getTopLevelDeletion().markedForDeleteAt == 1L;
-        rm.apply();
+        rm.applyUnsafe();
         store.forceBlockingFlush();
 
         ColumnFamily cf = Util.getRangeSlice(store).get(0).cf;
@@ -113,7 +113,7 @@ public class RowIterationTest
         // Delete a row in first sstable
         Mutation rm = new Mutation(KEYSPACE1, key.getKey());
         rm.delete(CF_NAME, 0);
-        rm.apply();
+        rm.applyUnsafe();
         store.forceBlockingFlush();
 
         ColumnFamily cf = Util.getRangeSlice(store).get(0).cf;

@@ -364,17 +364,11 @@ public class Keyspace
         try (OpOrder.Group opGroup = writeOrder.start())
         {
             // write the mutation to the commitlog and memtables
-            final ReplayPosition replayPosition;
+            ReplayPosition replayPosition = null;
             if (writeCommitLog)
             {
                 Tracing.trace("Appending to commitlog");
                 replayPosition = CommitLog.instance.add(mutation);
-            }
-            else
-            {
-                // we don't need the replayposition, but grab one anyway so that it stays stack allocated.
-                // (the JVM will not stack allocate if the object may be null.)
-                replayPosition = CommitLog.instance.getContext();
             }
 
             DecoratedKey key = StorageService.getPartitioner().decorateKey(mutation.key());

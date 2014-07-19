@@ -97,7 +97,7 @@ public class BatchlogManagerTest
                                                    UUIDGen.getTimeUUID(),
                                                    MessagingService.current_version,
                                                    timestamp)
-                           .apply();
+                           .applyUnsafe();
         }
 
         // Flush the batchlog to disk (see CASSANDRA-6822).
@@ -167,7 +167,7 @@ public class BatchlogManagerTest
                                                    UUIDGen.getTimeUUID(),
                                                    MessagingService.current_version,
                                                    timestamp * 1000)
-                           .apply();
+                           .applyUnsafe();
         }
 
         // Flush the batchlog to disk (see CASSANDRA-6822).

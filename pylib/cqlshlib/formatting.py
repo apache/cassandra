@@ -110,7 +110,7 @@ def formatter_for(typname):
 
 @formatter_for('bytearray')
 def format_value_blob(val, colormap, **_):
-    bval = '0x' + ''.join('%02x' % ord(c) for c in val)
+    bval = '0x' + ''.join('%02x' % c for c in val)
     return colorme(bval, colormap, 'blob')
 formatter_for('buffer')(format_value_blob)
 
@@ -215,7 +215,11 @@ def format_simple_collection(val, lbracket, rbracket, encoding,
 def format_value_list(val, encoding, colormap, time_format, float_precision, nullval, **_):
     return format_simple_collection(val, '[', ']', encoding, colormap,
                                     time_format, float_precision, nullval)
-formatter_for('tuple')(format_value_list)
+
+@formatter_for('tuple')
+def format_value_tuple(val, encoding, colormap, time_format, float_precision, nullval, **_):
+    return format_simple_collection(val, '(', ')', encoding, colormap,
+                                    time_format, float_precision, nullval)
 
 @formatter_for('set')
 def format_value_set(val, encoding, colormap, time_format, float_precision, nullval, **_):

@@ -57,7 +57,7 @@ public class AutoSavingCacheTest
         {
             Mutation rm = new Mutation(KEYSPACE1, ByteBufferUtil.bytes("key1"));
             rm.add(CF_STANDARD1, Util.cellname("c1"), ByteBufferUtil.bytes(i), 0);
-            rm.apply();
+            rm.applyUnsafe();
             cfs.forceBlockingFlush();
         }
 

@@ -21,12 +21,10 @@ import java.io.*;
 import java.lang.management.ManagementFactory;
 import java.nio.ByteBuffer;
 import java.util.*;
-import java.util.concurrent.TimeUnit;
 
 import javax.management.MBeanServer;
 import javax.management.ObjectName;
 
-import com.google.common.util.concurrent.Uninterruptibles;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -133,9 +131,20 @@ public class CommitLog implements CommitLogMBean
      */
     public int recover(File... clogs) throws IOException
     {
-        CommitLogReplayer recovery = new CommitLogReplayer();
-        recovery.recover(clogs);
-        return recovery.blockForWrites();
+        try
+        {
+            CommitLogReplayer recovery = new CommitLogReplayer();
+            recovery.recover(clogs);
+            return recovery.blockForWrites();
+        }
+        catch (IOException e)
+        {
+            if (e instanceof UnknownColumnFamilyException)
+                logger.error("Commit log replay failed due to replaying a mutation for a missing table. This error can be ignored by providing -Dcassandra.commitlog.stop_on_missing_tables=false on the command line");
+            if (e instanceof MalformedCommitLogException)
+                logger.error("Commit log replay failed due to a non-fatal exception. This error can be ignored by providing -Dcassandra.commitlog.stop_on_errors=false on the command line");
+            throw e;
+        }
     }
 
     /**
@@ -200,12 +209,6 @@ public class CommitLog implements CommitLogMBean
      */
     public ReplayPosition add(Mutation mutation)
     {
-        Allocation alloc = add(mutation, new Allocation());
-        return alloc.getReplayPosition();
-    }
-
-    private Allocation add(Mutation mutation, Allocation alloc)
-    {
         assert mutation != null;
 
         long size = Mutation.serializer.serializedSize(mutation, MessagingService.current_version);
@@ -217,7 +220,7 @@ public class CommitLog implements CommitLogMBean
                                                              totalSize, MAX_MUTATION_SIZE));
         }
 
-        allocator.allocate(mutation, (int) totalSize, alloc);
+        Allocation alloc = allocator.allocate(mutation, (int) totalSize);
         try
         {
             PureJavaCrc32 checksum = new PureJavaCrc32();
@@ -245,7 +248,7 @@ public class CommitLog implements CommitLogMBean
         }
 
         executor.finishWriteFor(alloc);
-        return alloc;
+        return alloc.getReplayPosition();
     }
 
     /**

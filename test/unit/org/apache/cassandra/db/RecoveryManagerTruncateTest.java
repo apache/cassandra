@@ -65,7 +65,7 @@ public class RecoveryManagerTruncateTest
         cf = ArrayBackedSortedColumns.factory.create(KEYSPACE1, "Standard1");
 		cf.addColumn(column("col1", "val1", 1L));
         rm = new Mutation(KEYSPACE1, ByteBufferUtil.bytes("keymulti"), cf);
-		rm.apply();
+		rm.applyUnsafe();
 
 		// Make sure data was written
 		assertNotNull(getFromTable(keyspace, "Standard1", "keymulti", "col1"));

@@ -65,6 +65,7 @@ except ImportError:
 
 CQL_LIB_PREFIX = 'cassandra-driver-internal-only-'
 FUTURES_LIB_PREFIX = 'futures-'
+SIX_LIB_PREFIX = 'six-'
 
 CASSANDRA_PATH = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..')
 
@@ -91,6 +92,9 @@ if cql_zip:
 futures_zip = find_zip(FUTURES_LIB_PREFIX)
 if futures_zip:
     sys.path.insert(0, futures_zip)
+six_zip = find_zip(SIX_LIB_PREFIX)
+if six_zip:
+    sys.path.insert(0, six_zip)
 
 warnings.filterwarnings("ignore", r".*blist.*")
 try:
@@ -106,6 +110,7 @@ from cassandra.cluster import Cluster
 from cassandra.query import SimpleStatement
 from cassandra.policies import WhiteListRoundRobinPolicy
 from cassandra.metadata import protect_name, protect_names, protect_value
+from cassandra.auth import PlainTextAuthProvider
 
 # cqlsh should run correctly when run out of a Cassandra source tree,
 # out of an unpacked Cassandra tarball, and after a proper package install.
@@ -113,13 +118,12 @@ cqlshlibdir = os.path.join(CASSANDRA_PATH, 'pylib')
 if os.path.isdir(cqlshlibdir):
     sys.path.insert(0, cqlshlibdir)
 
-from cqlshlib import cqlhandling, cql3handling, pylexotron, usertypes, sslhandling
-from cqlshlib.displaying import (RED, BLUE, ANSI_RESET, COLUMN_NAME_COLORS,
+from cqlshlib import cqlhandling, cql3handling, pylexotron, sslhandling
+from cqlshlib.displaying import (RED, BLUE, CYAN, ANSI_RESET, COLUMN_NAME_COLORS,
                                  FormattedValue, colorme)
-from cqlshlib.formatting import format_by_type
+from cqlshlib.formatting import format_by_type, formatter_for, format_value_utype
 from cqlshlib.util import trim_if_present
 from cqlshlib.tracing import print_trace_session
-from cqlshlib.usertypes import deserialize_safe_collection, deserialize_safe_map
 
 HISTORY_DIR = os.path.expanduser(os.path.join('~', '.cassandra'))
 CONFIG_FILE = os.path.join(HISTORY_DIR, 'cqlshrc')
@@ -139,7 +143,8 @@ if os.path.exists(OLD_HISTORY):
 
 DEFAULT_HOST = '127.0.0.1'
 DEFAULT_PORT = 9042
-DEFAULT_CQLVER = '3.1.7'
+DEFAULT_CQLVER = '3.2.0'
+DEFAULT_PROTOCOL_VERSION = 3
 
 DEFAULT_TIME_FORMAT = '%Y-%m-%d %H:%M:%S%z'
 DEFAULT_FLOAT_PRECISION = 5
@@ -179,7 +184,7 @@ CQL_ERRORS = (
     cassandra.Timeout, cassandra.Unauthorized, cassandra.OperationTimedOut,
     cassandra.cluster.NoHostAvailable,
     cassandra.connection.ConnectionBusy, cassandra.connection.ProtocolError, cassandra.connection.ConnectionException,
-    cassandra.decoder.ErrorMessage, cassandra.decoder.InternalError, cassandra.query.TraceUnavailable
+    cassandra.protocol.ErrorMessage, cassandra.protocol.InternalError, cassandra.query.TraceUnavailable
 )
 
 debug_completion = bool(os.environ.get('CQLSH_DEBUG_COMPLETION', '') == 'YES')
@@ -443,6 +448,26 @@ def describe_interval(seconds):
         words = desc[0] + ' and ' + words
     return words
 
+
+def auto_format_udts():
+    # when we see a new user defined type, set up the shell formatting for it
+    udt_apply_params = cassandra.cqltypes.UserType.apply_parameters
+    def new_apply_params(cls, *args, **kwargs):
+        udt_class = udt_apply_params(*args, **kwargs)
+        formatter_for(udt_class.typename)(format_value_utype)
+        return udt_class
+
+    cassandra.cqltypes.UserType.udt_apply_parameters = classmethod(new_apply_params)
+
+    make_udt_class = cassandra.cqltypes.UserType.make_udt_class
+    def new_make_udt_class(cls, *args, **kwargs):
+        udt_class = make_udt_class(*args, **kwargs)
+        formatter_for(udt_class.typename)(format_value_utype)
+        return udt_class
+
+    cassandra.cqltypes.UserType.make_udt_class = classmethod(new_make_udt_class)
+
+
 class Shell(cmd.Cmd):
     custom_prompt = os.getenv('CQLSH_PROMPT', '')
     if custom_prompt is not '':
@@ -467,7 +492,8 @@ class Shell(cmd.Cmd):
                  display_time_format=DEFAULT_TIME_FORMAT,
                  display_float_precision=DEFAULT_FLOAT_PRECISION,
                  ssl=False,
-                 single_statement=None):
+                 single_statement=None,
+                 client_timeout=10):
         cmd.Cmd.__init__(self, completekey=completekey)
         self.hostname = hostname
         self.port = port
@@ -475,7 +501,7 @@ class Shell(cmd.Cmd):
         if username:
             if not password:
                 password = getpass.getpass()
-            self.auth_provider = lambda host: dict(username=username, password=password)
+            self.auth_provider = PlainTextAuthProvider(username=username, password=password)
         self.keyspace = keyspace
         self.tracing_enabled = tracing_enabled
         self.expand_enabled = expand_enabled
@@ -483,6 +509,7 @@ class Shell(cmd.Cmd):
             self.conn = use_conn
         else:
             self.conn = Cluster(contact_points=(self.hostname,), port=self.port, cql_version=cqlver,
+                                protocol_version=DEFAULT_PROTOCOL_VERSION,
                                 auth_provider=self.auth_provider,
                                 ssl_options=sslhandling.ssl_settings(hostname, CONFIG_FILE) if ssl else None,
                                 load_balancing_policy=WhiteListRoundRobinPolicy([self.hostname]))
@@ -493,6 +520,7 @@ class Shell(cmd.Cmd):
             self.session = self.conn.connect(keyspace)
         else:
             self.session = self.conn.connect()
+        self.session.default_timeout = client_timeout
         self.get_connection_versions()
 
         self.current_keyspace = keyspace
@@ -525,17 +553,12 @@ class Shell(cmd.Cmd):
         #Python driver returns BLOBs as string, but we expect them as buffer()
         cassandra.cqltypes.BytesType.deserialize = staticmethod(cassandra.cqltypes.BytesType.validate)
         cassandra.cqltypes.CassandraType.support_empty_values = True
-        # see CASSANDRA-7267
-        cassandra.cqltypes._SimpleParameterizedType.deserialize_safe = classmethod(deserialize_safe_collection)
-        # see CASSANDRA-7267
-        cassandra.cqltypes.MapType.deserialize_safe = classmethod(deserialize_safe_map)
+
+        auto_format_udts()
+
         self.empty_lines = 0
         self.statement_error = False
         self.single_statement = single_statement
-        #see CASSANDRA-7399
-        type_for_composites = lambda cls: "'%s'" % cls.cass_parameterized_type_with(cls.subtypes, True)
-        cassandra.cqltypes.CompositeType.cql_parameterized_type = classmethod(type_for_composites)
-        cassandra.cqltypes.DynamicCompositeType.cql_parameterized_type = classmethod(type_for_composites)
 
     def set_expanded_cql_version(self, ver):
         ver, vertuple = full_cql_version(ver)
@@ -560,8 +583,14 @@ class Shell(cmd.Cmd):
             self.decoding_errors.append(err)
             return format_value(err, self.output_codec.name, addcolor=self.color)
 
-    def myformat_colname(self, name):
-        return self.myformat_value(name, colormap=COLUMN_NAME_COLORS)
+    def myformat_colname(self, name, cfMetaData):
+        column_colors = COLUMN_NAME_COLORS.copy()
+        # check column role and color appropriately
+        if name in [col.name for col in cfMetaData.partition_key]:
+            column_colors.default_factory = lambda : RED
+        elif name in [col.name for col in cfMetaData.clustering_key]:
+            column_colors.default_factory = lambda : CYAN
+        return self.myformat_value(name, colormap=column_colors)
 
     def report_connection(self):
         self.show_host()
@@ -887,7 +916,11 @@ class Shell(cmd.Cmd):
                 return False
 
         if statement.query_string[:6].lower() == 'select' or statement.query_string.lower().startswith("list"):
-            self.print_result(rows, with_default_limit)
+            parsed = cqlruleset.cql_parse(statement.query_string)[1]
+            ks =  self.cql_unprotect_name(parsed.get_binding('ksname', None))
+            cf = self.cql_unprotect_name(parsed.get_binding('cfname'))
+            cfMetaData = self.get_table_meta(ks, cf)
+            self.print_result(rows, with_default_limit, cfMetaData)
         elif rows:
             # CAS INSERT/UPDATE
             self.writeresult("")
@@ -895,12 +928,12 @@ class Shell(cmd.Cmd):
         self.flush_output()
         return True
 
-    def print_result(self, rows, with_default_limit):
+    def print_result(self, rows, with_default_limit, cfMetaData):
         self.decoding_errors = []
 
         self.writeresult("")
-        if rows :
-            self.print_static_result(rows)
+        self.print_static_result(rows, cfMetaData)
+
         self.writeresult("(%d rows)" % len(rows))
         self.writeresult("")
 
@@ -918,12 +951,16 @@ class Shell(cmd.Cmd):
                                  % DEFAULT_SELECT_LIMIT, color=RED)
                 self.writeresult("")
 
-
-    def print_static_result(self, rows):
+    def print_static_result(self, rows, cfMetaData):
         if not rows:
+            # print header only
+            colnames = cfMetaData.columns.keys()  # full header
+            formatted_names = [self.myformat_colname(name, cfMetaData) for name in colnames]
+            self.print_formatted_result(formatted_names, None)
             return
+
         colnames = rows[0]._fields
-        formatted_names = [self.myformat_colname(name) for name in colnames]
+        formatted_names = [self.myformat_colname(name, cfMetaData) for name in colnames]
         formatted_values = [map(self.myformat_value, row) for row in rows]
         if self.expand_enabled:
             self.print_formatted_result_vertically(formatted_names, formatted_values)
@@ -933,14 +970,20 @@ class Shell(cmd.Cmd):
     def print_formatted_result(self, formatted_names, formatted_values):
         # determine column widths
         widths = [n.displaywidth for n in formatted_names]
-        for fmtrow in formatted_values:
-            for num, col in enumerate(fmtrow):
-                widths[num] = max(widths[num], col.displaywidth)
+        if formatted_values is not None:
+            for fmtrow in formatted_values:
+                for num, col in enumerate(fmtrow):
+                    widths[num] = max(widths[num], col.displaywidth)
 
         # print header
         header = ' | '.join(hdr.ljust(w, color=self.color) for (hdr, w) in zip(formatted_names, widths))
         self.writeresult(' ' + header.rstrip())
         self.writeresult('-%s-' % '-+-'.join('-' * w for w in widths))
+
+        # stop if there are no rows
+        if formatted_values is None:
+            self.writeresult("")
+            return;
 
         # print row data
         for row in formatted_values:
@@ -1778,6 +1821,11 @@ def read_options(cmdlineargs, environment):
 
     hostname = option_with_default(configs.get, 'connection', 'hostname', DEFAULT_HOST)
     port = option_with_default(configs.get, 'connection', 'port', DEFAULT_PORT)
+    options.client_timeout = option_with_default(configs.get, 'connection', 'client_timeout', '10')
+    if options.client_timeout.lower() == 'none':
+        options.client_timeout = None
+    else:
+        options.client_timeout = int(options.client_timeout)
 
     hostname = environment.get('CQLSH_HOST', hostname)
     port = environment.get('CQLSH_PORT', port)
@@ -1874,7 +1922,8 @@ def main(options, hostname, port):
                       display_time_format=options.time_format,
                       display_float_precision=options.float_precision,
                       ssl=options.ssl,
-                      single_statement=options.execute)
+                      single_statement=options.execute,
+                      client_timeout=options.client_timeout)
     except KeyboardInterrupt:
         sys.exit('Connection aborted.')
     except CQL_ERRORS, e:

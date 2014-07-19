@@ -61,26 +61,26 @@ public class CollationControllerTest
         // add data
         rm = new Mutation(keyspace.getName(), dk.getKey());
         rm.add(cfs.name, Util.cellname("Column1"), ByteBufferUtil.bytes("asdf"), 0);
-        rm.apply();
+        rm.applyUnsafe();
         cfs.forceBlockingFlush();
         
         // remove
         rm = new Mutation(keyspace.getName(), dk.getKey());
         rm.delete(cfs.name, 10);
-        rm.apply();
+        rm.applyUnsafe();
         
         // add another mutation because sstable maxtimestamp isn't set
         // correctly during flush if the most recent mutation is a row delete
         rm = new Mutation(keyspace.getName(), Util.dk("key2").getKey());
         rm.add(cfs.name, Util.cellname("Column1"), ByteBufferUtil.bytes("zxcv"), 20);
-        rm.apply();
+        rm.applyUnsafe();
         
         cfs.forceBlockingFlush();
 
         // add yet one more mutation
         rm = new Mutation(keyspace.getName(), dk.getKey());
         rm.add(cfs.name, Util.cellname("Column1"), ByteBufferUtil.bytes("foobar"), 30);
-        rm.apply();
+        rm.applyUnsafe();
         cfs.forceBlockingFlush();
 
         // A NamesQueryFilter goes down one code path (through collectTimeOrderedData())
@@ -113,13 +113,13 @@ public class CollationControllerTest
         // add data
         rm = new Mutation(keyspace.getName(), dk.getKey());
         rm.add(cfs.name, cellName, ByteBufferUtil.bytes("asdf"), 0);
-        rm.apply();
+        rm.applyUnsafe();
         cfs.forceBlockingFlush();
 
         // remove
         rm = new Mutation(keyspace.getName(), dk.getKey());
         rm.delete(cfs.name, cellName, 0);
-        rm.apply();
+        rm.applyUnsafe();
         cfs.forceBlockingFlush();
 
         // use "realistic" query times since we'll compare these numbers to the local deletion time of the tombstone

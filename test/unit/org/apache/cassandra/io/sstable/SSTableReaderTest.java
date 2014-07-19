@@ -119,7 +119,7 @@ public class SSTableReaderTest
             ByteBuffer key = ByteBufferUtil.bytes(String.valueOf(j));
             Mutation rm = new Mutation(KEYSPACE1, key);
             rm.add("Standard2", cellname("0"), ByteBufferUtil.EMPTY_BYTE_BUFFER, j);
-            rm.apply();
+            rm.applyUnsafe();
         }
         store.forceBlockingFlush();
         CompactionManager.instance.performMaximal(store);
@@ -160,7 +160,7 @@ public class SSTableReaderTest
             ByteBuffer key = ByteBufferUtil.bytes(String.valueOf(j));
             Mutation rm = new Mutation(KEYSPACE1, key);
             rm.add("Standard1", cellname("0"), ByteBufferUtil.EMPTY_BYTE_BUFFER, j);
-            rm.apply();
+            rm.applyUnsafe();
         }
         store.forceBlockingFlush();
         CompactionManager.instance.performMaximal(store);
@@ -195,7 +195,7 @@ public class SSTableReaderTest
             ByteBuffer key = ByteBufferUtil.bytes(String.valueOf(j));
             Mutation rm = new Mutation(KEYSPACE1, key);
             rm.add("Standard1", cellname("0"), ByteBufferUtil.EMPTY_BYTE_BUFFER, j);
-            rm.apply();
+            rm.applyUnsafe();
         }
         store.forceBlockingFlush();
 
@@ -223,7 +223,7 @@ public class SSTableReaderTest
             ByteBuffer key = ByteBufferUtil.bytes(String.valueOf(j));
             Mutation rm = new Mutation(KEYSPACE1, key);
             rm.add("Standard2", cellname("0"), ByteBufferUtil.EMPTY_BYTE_BUFFER, j);
-            rm.apply();
+            rm.applyUnsafe();
         }
         store.forceBlockingFlush();
         CompactionManager.instance.performMaximal(store);
@@ -252,7 +252,7 @@ public class SSTableReaderTest
         ByteBuffer key = ByteBufferUtil.bytes(String.valueOf("k1"));
         Mutation rm = new Mutation(KEYSPACE1, key);
         rm.add("Indexed1", cellname("birthdate"), ByteBufferUtil.bytes(1L), System.currentTimeMillis());
-        rm.apply();
+        rm.applyUnsafe();
         store.forceBlockingFlush();
 
         // check if opening and querying works
@@ -285,7 +285,7 @@ public class SSTableReaderTest
             Mutation rm = new Mutation(ks, key.getKey());
             rm.add(cf, cellname("col"),
                    ByteBufferUtil.EMPTY_BYTE_BUFFER, timestamp);
-            rm.apply();
+            rm.applyUnsafe();
         }
         store.forceBlockingFlush();
 
@@ -308,7 +308,7 @@ public class SSTableReaderTest
         ByteBuffer key = ByteBufferUtil.bytes(String.valueOf("k1"));
         Mutation rm = new Mutation(KEYSPACE1, key);
         rm.add("Indexed1", cellname("birthdate"), ByteBufferUtil.bytes(1L), System.currentTimeMillis());
-        rm.apply();
+        rm.applyUnsafe();
         store.forceBlockingFlush();
 
         ColumnFamilyStore indexCfs = store.indexManager.getIndexForColumn(ByteBufferUtil.bytes("birthdate")).getIndexCfs();
@@ -335,7 +335,7 @@ public class SSTableReaderTest
         ByteBuffer key = ByteBufferUtil.bytes(String.valueOf("k1"));
         Mutation rm = new Mutation(KEYSPACE1, key);
         rm.add("Standard1", cellname("xyz"), ByteBufferUtil.bytes("abc"), 0);
-        rm.apply();
+        rm.applyUnsafe();
         store.forceBlockingFlush();
         boolean foundScanner = false;
         for (SSTableReader s : store.getSSTables())
@@ -362,7 +362,7 @@ public class SSTableReaderTest
             ByteBuffer key = ByteBufferUtil.bytes(String.valueOf(j));
             Mutation rm = new Mutation(KEYSPACE1, key);
             rm.add("Standard2", cellname("0"), ByteBufferUtil.EMPTY_BYTE_BUFFER, j);
-            rm.apply();
+            rm.applyUnsafe();
         }
         store.forceBlockingFlush();
         CompactionManager.instance.performMaximal(store);
@@ -396,7 +396,7 @@ public class SSTableReaderTest
             ByteBuffer key = ByteBufferUtil.bytes(String.format("%3d", j));
             Mutation rm = new Mutation(KEYSPACE1, key);
             rm.add("StandardLowIndexInterval", Util.cellname("0"), ByteBufferUtil.bytes(String.format("%3d", j)), j);
-            rm.apply();
+            rm.applyUnsafe();
         }
         store.forceBlockingFlush();
         CompactionManager.instance.performMaximal(store);
