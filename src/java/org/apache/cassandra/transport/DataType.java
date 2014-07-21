@@ -146,8 +146,9 @@ public enum DataType implements OptionCodec.Codecable<DataType>
         // shouldn't have to care about it.
         if (type instanceof ReversedType)
             type = ((ReversedType)type).baseType;
+
         // For compatibility sake, we still return DateType as the timestamp type in resultSet metadata (#5723)
-        else if (type instanceof DateType)
+        if (type instanceof DateType)
             type = TimestampType.instance;
 
         DataType dt = dataTypeMap.get(type);
