@@ -90,7 +90,7 @@ calculate_heap_sizes()
 
 java_ver_output=`"${JAVA:-java}" -version 2>&1`
 
-jvmver=`echo "$java_ver_output" | awk -F'"' 'NR==1 {print $2}'`
+jvmver=`echo "$java_ver_output" | grep 'java version' | awk -F'"' 'NR==1 {print $2}'`
 JVM_VERSION=${jvmver%_*}
 JVM_PATCH_VERSION=${jvmver#*_}
 
@@ -100,7 +100,7 @@ if [ "$JVM_VERSION" \< "1.7" ] ; then
 fi
 
 
-jvm=`echo "$java_ver_output" | awk 'NR==2 {print $1}'`
+jvm=`echo "$java_ver_output" | grep -A 1 'java version' | awk 'NR==2 {print $1}'`
 case "$jvm" in
     OpenJDK)
         JVM_VENDOR=OpenJDK
