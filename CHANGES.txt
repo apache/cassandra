@@ -7,6 +7,8 @@
  * Configurable client timeout for cqlsh (CASSANDRA-7516)
  * Include snippet of CQL query near syntax error in messages (CASSANDRA-7111)
  * Fix native protocol drop user type notification (CASSANDRA-7571)
+ * Give read access to system.schema_usertypes to all authenticated users
+   (CASSANDRA-7578)
 
 
 2.1.0-rc4
