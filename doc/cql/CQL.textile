@@ -2,6 +2,8 @@
 
 h1. Cassandra Query Language (CQL) v2.0
 
+<b>%{color:red}NOTICE%</b>: CQL 2 has been deprecated since Cassandra 2.0, and will be removed in Cassandra 3.0.  It is recommended that you upgrade to CQL 3, which has much better driver support and many new features.  For further reading, see the "CQL 3 documentation":http://cassandra.apache.org/doc/cql3/CQL.html and the "CQL 3 drivers":http://wiki.apache.org/cassandra/ClientOptions.
+
 h2. Table of Contents
 
 {toc}
