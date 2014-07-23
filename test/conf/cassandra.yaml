@@ -32,3 +32,5 @@ server_encryption_options:
     truststore_password: cassandra
 incremental_backups: true
 compaction_throughput_mb_per_sec: 0
+start_native_transport: true
+native_transport_port: 9052

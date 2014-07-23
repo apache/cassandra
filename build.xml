@@ -1275,6 +1275,7 @@
   <classpathentry kind="src" path="interface/thrift/gen-java"/>
   <classpathentry kind="src" path="test/unit"/>
   <classpathentry kind="src" path="test/long"/>
+  <classpathentry kind="src" path="test/pig"/>
   <classpathentry kind="src" path="tools/stress/src"/>
   <classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER"/>
   <classpathentry kind="output" path="build/classes/main"/>

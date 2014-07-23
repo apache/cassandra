@@ -1,4 +1,5 @@
 2.0.10
+ * Pig support for hadoop CqlInputFormat (CASSANDRA-6454)
  * Fix ReversedType(DateType) mapping to native protocol (CASSANDRA-7576)
  * (Windows) force range-based repair to non-sequential mode (CASSANDRA-7541)
  * Fix range merging when DES scores are zero (CASSANDRA-7535)

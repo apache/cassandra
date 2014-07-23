@@ -66,6 +66,9 @@ public class PigTestBase extends SchemaLoader
     protected static MiniCluster cluster; 
     protected static PigServer pig;
     protected static String defaultParameters= "init_address=localhost&rpc_port=9170&partitioner=org.apache.cassandra.dht.ByteOrderedPartitioner";
+    protected static String nativeParameters = "&core_conns=2&max_conns=10&min_simult_reqs=3&max_simult_reqs=10&native_timeout=10000000"  +
+                                               "&native_read_timeout=10000000&send_buff_size=4096&receive_buff_size=4096&solinger=3" +
+                                               "&tcp_nodelay=true&reuse_address=true&keep_alive=true&native_port=9052";
 
     @AfterClass
     public static void oneTimeTearDown() throws Exception {

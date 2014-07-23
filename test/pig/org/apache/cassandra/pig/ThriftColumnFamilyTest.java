@@ -183,6 +183,13 @@ public class ThriftColumnFamilyTest extends PigTestBase
                         "and comparator = LongType;"
     };
 
+    private static String[] deleteCopyOfSomeAppTableData = { "use thriftKs;",
+            "DEL CopyOfSomeApp ['foo']",
+            "DEL CopyOfSomeApp ['bar']",
+            "DEL CopyOfSomeApp ['baz']",
+            "DEL CopyOfSomeApp ['qux']"
+    };
+
     @BeforeClass
     public static void setup() throws TTransportException, IOException, InterruptedException, ConfigurationException,
                                       AuthenticationException, AuthorizationException, InvalidRequestException, UnavailableException, TimedOutException, TException, NotFoundException, CharacterCodingException, ClassNotFoundException, NoSuchFieldException, IllegalAccessException, InstantiationException
@@ -196,7 +203,35 @@ public class ThriftColumnFamilyTest extends PigTestBase
     public void testCqlStorage() throws IOException, ClassNotFoundException, TException, TimedOutException, NotFoundException, InvalidRequestException, NoSuchFieldException, UnavailableException, IllegalAccessException, InstantiationException, AuthenticationException, AuthorizationException
     {
         //regular thrift column families
-        pig.registerQuery("data = load 'cql://thriftKs/SomeApp?" + defaultParameters + "' using CqlStorage();");
+        cqlStorageTest("data = load 'cql://thriftKs/SomeApp?" + defaultParameters + "' using CqlStorage();");
+
+        //Test counter colun family
+        // This test fails for CASSANDRA-7059
+        //cqlStorageCounterTableTest("cc_data = load 'cql://thriftKs/CC?" + defaultParameters + "' using CqlStorage();");
+
+        //Test composite column family
+        cqlStorageCompositeTableTest("compo_data = load 'cql://thriftKs/Compo?" + defaultParameters + "' using CqlStorage();");
+    }
+
+    @Test
+    public void testCqlNativeStorage() throws IOException, ClassNotFoundException, TException, TimedOutException, NotFoundException, InvalidRequestException, NoSuchFieldException, UnavailableException, IllegalAccessException, InstantiationException, AuthenticationException, AuthorizationException
+    {
+        //regular thrift column families
+        //input_cql=select * from "SomeApp" where token(key) > ? and token(key) <= ?
+        cqlStorageTest("data = load 'cql://thriftKs/SomeApp?" + defaultParameters + nativeParameters + "&input_cql=select%20*%20from%20%22SomeApp%22%20where%20token(key)%20%3E%20%3F%20and%20token(key)%20%3C%3D%20%3F' using CqlNativeStorage();");
+
+        //Test counter colun family
+        //input_cql=select * from "CC" where token(key) > ? and token(key) <= ?
+        cqlStorageCounterTableTest("cc_data = load 'cql://thriftKs/CC?" + defaultParameters + nativeParameters + "&input_cql=select%20*%20from%20%22CC%22%20where%20token(key)%20%3E%20%3F%20and%20token(key)%20%3C%3D%20%3F' using CqlNativeStorage();");
+
+        //Test composite column family
+        //input_cql=select * from "Compo" where token(key) > ? and token(key) <= ?
+        cqlStorageCompositeTableTest("compo_data = load 'cql://thriftKs/Compo?" + defaultParameters + nativeParameters + "&input_cql=select%20*%20from%20%22Compo%22%20where%20token(key)%20%3E%20%3F%20and%20token(key)%20%3C%3D%20%3F' using CqlNativeStorage();");
+    }
+
+    private void cqlStorageTest(String initialQuery) throws IOException
+    {
+        pig.registerQuery(initialQuery);
 
         //(bar,3.141592653589793,1335890877,User Bar,35.0,9,15000,like)
         //(baz,1.61803399,1335890877,User Baz,95.3,3,512000,dislike)
@@ -249,16 +284,18 @@ public class ThriftColumnFamilyTest extends PigTestBase
             }
         }
         Assert.assertEquals(count, 4);
+    }
 
-        //Test counter colun family
-        pig.registerQuery("cc_data = load 'cql://thriftKs/CC?" + defaultParameters + "' using CqlStorage();");
+    private void cqlStorageCounterTableTest(String initialQuery) throws IOException
+    {
+        pig.registerQuery(initialQuery);
 
         //(chuck,fist,1)
         //(chuck,kick,3)
 
         // {key: chararray,column1: chararray,value: long}
-        it = pig.openIterator("cc_data");
-        count = 0;
+        Iterator<Tuple> it = pig.openIterator("cc_data");
+        int count = 0;
         while (it.hasNext()) {
             count ++;
             Tuple t = it.next();
@@ -268,9 +305,11 @@ public class ThriftColumnFamilyTest extends PigTestBase
                 Assert.assertEquals(t.get(2), 3L);
         }
         Assert.assertEquals(count, 2);
+    }
 
-        //Test composite column family
-        pig.registerQuery("compo_data = load 'cql://thriftKs/Compo?" + defaultParameters + "' using CqlStorage();");
+    private void cqlStorageCompositeTableTest(String initialQuery) throws IOException
+    {
+        pig.registerQuery(initialQuery);
 
         //(kick,bruce,bruce,watch it, mate)
         //(kick,bruce,lee,oww)
@@ -278,8 +317,8 @@ public class ThriftColumnFamilyTest extends PigTestBase
         //(punch,bruce,lee,ouch)
 
         //{key: chararray,column1: chararray,column2: chararray,value: chararray}
-        it = pig.openIterator("compo_data");
-        count = 0;
+        Iterator<Tuple> it = pig.openIterator("compo_data");
+        int count = 0;
         while (it.hasNext()) {
             count ++;
             Tuple t = it.next();
@@ -351,7 +390,6 @@ public class ThriftColumnFamilyTest extends PigTestBase
     @Test
     public void testCassandraStorageFullCopy() throws IOException, ClassNotFoundException, TException, TimedOutException, NotFoundException, InvalidRequestException, NoSuchFieldException, UnavailableException, IllegalAccessException, InstantiationException, AuthenticationException, AuthorizationException
     {
-        createColumnFamily("thriftKs", "CopyOfSomeApp", statements[3]);
         pig.setBatchOn();
         pig.registerQuery("rows = LOAD 'cassandra://thriftKs/SomeApp?" + defaultParameters + "' USING CassandraStorage();");
         //full copy
@@ -365,7 +403,7 @@ public class ThriftColumnFamilyTest extends PigTestBase
     @Test
     public void testCassandraStorageSigleTupleCopy() throws IOException, ClassNotFoundException, TException, TimedOutException, NotFoundException, InvalidRequestException, NoSuchFieldException, UnavailableException, IllegalAccessException, InstantiationException, AuthenticationException, AuthorizationException
     {
-        createColumnFamily("thriftKs", "CopyOfSomeApp", statements[3]);
+        executeCliStatements(deleteCopyOfSomeAppTableData);
         pig.setBatchOn();
         pig.registerQuery("rows = LOAD 'cassandra://thriftKs/SomeApp?" + defaultParameters + "' USING CassandraStorage();");
         //sigle tuple
@@ -399,7 +437,7 @@ public class ThriftColumnFamilyTest extends PigTestBase
     @Test
     public void testCassandraStorageBagOnlyCopy() throws IOException, ClassNotFoundException, TException, TimedOutException, NotFoundException, InvalidRequestException, NoSuchFieldException, UnavailableException, IllegalAccessException, InstantiationException, AuthenticationException, AuthorizationException
     {
-        createColumnFamily("thriftKs", "CopyOfSomeApp", statements[3]);
+        executeCliStatements(deleteCopyOfSomeAppTableData);
         pig.setBatchOn();
         pig.registerQuery("rows = LOAD 'cassandra://thriftKs/SomeApp?" + defaultParameters + "' USING CassandraStorage();");
         //bag only
@@ -443,7 +481,7 @@ public class ThriftColumnFamilyTest extends PigTestBase
     @Test
     public void testCassandraStorageFilter() throws IOException, ClassNotFoundException, TException, TimedOutException, NotFoundException, InvalidRequestException, NoSuchFieldException, UnavailableException, IllegalAccessException, InstantiationException, AuthenticationException, AuthorizationException
     {
-        createColumnFamily("thriftKs", "CopyOfSomeApp", statements[3]);
+        executeCliStatements(deleteCopyOfSomeAppTableData);
         pig.setBatchOn();
         pig.registerQuery("rows = LOAD 'cassandra://thriftKs/SomeApp?" + defaultParameters + "' USING CassandraStorage();");
 
@@ -476,7 +514,7 @@ public class ThriftColumnFamilyTest extends PigTestBase
         if (value != null)
             Assert.fail();
 
-        createColumnFamily("thriftKs", "CopyOfSomeApp", statements[3]);
+        executeCliStatements(deleteCopyOfSomeAppTableData);
         pig.setBatchOn();
         pig.registerQuery("rows = LOAD 'cassandra://thriftKs/SomeApp?" + defaultParameters + "' USING CassandraStorage();");
         pig.registerQuery("dislikes_extras = FILTER rows by vote_type.value eq 'dislike' AND COUNT(columns) > 0;");
@@ -746,17 +784,16 @@ public class ThriftColumnFamilyTest extends PigTestBase
         return parseType(validator).getString(got.getColumn().value);
     }
 
-    private void createColumnFamily(String ks, String cf, String statement) throws CharacterCodingException, ClassNotFoundException, TException, TimedOutException, NotFoundException, InvalidRequestException, NoSuchFieldException, UnavailableException, IllegalAccessException, InstantiationException
+    private void executeCliStatements(String[] statements) throws CharacterCodingException, ClassNotFoundException, TException, TimedOutException, NotFoundException, InvalidRequestException, NoSuchFieldException, UnavailableException, IllegalAccessException, InstantiationException
     {
         CliMain.connect("127.0.0.1", 9170);
         try
         {
-            CliMain.processStatement("use " + ks + ";");
-            CliMain.processStatement("drop column family " + cf + ";");
+            for (String stmt : statements)
+                CliMain.processStatement(stmt);
         }
         catch (Exception e)
         {
         }
-        CliMain.processStatement(statement);
     }
 }
