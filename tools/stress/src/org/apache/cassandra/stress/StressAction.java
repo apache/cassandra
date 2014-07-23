@@ -68,7 +68,8 @@ public class StressAction implements Runnable
         if (settings.rate.auto)
             success = runAuto();
         else
-            success = null != run(settings.command.getFactory(settings), settings.rate.threadCount, settings.command.count, output);
+            success = null != run(settings.command.getFactory(settings), settings.rate.threadCount, settings.command.count,
+                                  settings.command.duration, settings.command.durationUnits, output);
 
         if (success)
             output.println("END");
@@ -89,7 +90,7 @@ public class StressAction implements Runnable
             // we need to warm up all the nodes in the cluster ideally, but we may not be the only stress instance;
             // so warm up all the nodes we're speaking to only.
             output.println(String.format("Warming up %s with %d iterations...", single.desc(), iterations));
-            run(single, 20, iterations, warmupOutput);
+            run(single, 20, iterations, 0, null, warmupOutput);
         }
     }
 
@@ -105,7 +106,8 @@ public class StressAction implements Runnable
         {
             output.println(String.format("Running with %d threadCount", threadCount));
 
-            StressMetrics result = run(settings.command.getFactory(settings), threadCount, settings.command.count, output);
+            StressMetrics result = run(settings.command.getFactory(settings), threadCount, settings.command.count,
+                                       settings.command.duration, settings.command.durationUnits, output);
             if (result == null)
                 return false;
             results.add(result);
@@ -162,13 +164,14 @@ public class StressAction implements Runnable
         return improvement / count;
     }
 
-    private StressMetrics run(OpDistributionFactory operations, int threadCount, long opCount, PrintStream output)
+    private StressMetrics run(OpDistributionFactory operations, int threadCount, long opCount, long duration, TimeUnit durationUnits, PrintStream output)
     {
-
         output.println(String.format("Running %s with %d threads %s",
                                      operations.desc(),
                                      threadCount,
-                                     opCount > 0 ? " for " + opCount + " iterations" : "until stderr of mean < " + settings.command.targetUncertainty));
+                                     durationUnits != null ? duration + " " + durationUnits.toString().toLowerCase()
+                                        : opCount > 0      ? "for " + opCount + " iteration"
+                                                           : "until stderr of mean < " + settings.command.targetUncertainty));
         final WorkQueue workQueue;
         if (opCount < 0)
             workQueue = new ContinuousWorkQueue(50);
@@ -193,7 +196,12 @@ public class StressAction implements Runnable
 
         metrics.start();
 
-        if (opCount <= 0)
+        if (durationUnits != null)
+        {
+            Uninterruptibles.sleepUninterruptibly(duration, durationUnits);
+            workQueue.stop();
+        }
+        else if (opCount <= 0)
         {
             try
             {

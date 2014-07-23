@@ -25,9 +25,10 @@ import java.io.PrintStream;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.TimeUnit;
 
+import com.google.common.util.concurrent.Uninterruptibles;
 import org.apache.commons.lang3.time.DurationFormatUtils;
-
 import org.apache.cassandra.concurrent.NamedThreadFactory;
 import org.apache.cassandra.stress.util.Timing;
 import org.apache.cassandra.stress.util.TimingInterval;
