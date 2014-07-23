@@ -118,7 +118,8 @@ public class SettingsCommandUser extends SettingsCommand
     {
         GroupedOptions.printOptions(System.out, "user",
                                     new Options(new Uncertainty()),
-                                    new Options(new Count()));
+                                    new Options(new Count()),
+                                    new Options(new Duration()));
     }
 
     public static Runnable helpPrinter()
