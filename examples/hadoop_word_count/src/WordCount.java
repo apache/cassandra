@@ -18,8 +18,11 @@
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.*;
 
 import org.apache.cassandra.db.Cell;
+import org.apache.cassandra.thrift.*;
+import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.hadoop.ColumnFamilyOutputFormat;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -83,7 +86,7 @@ public class WordCount extends Configured implements Tool
         {
             for (Cell cell : columns.values())
             {
-                String name  = ByteBufferUtil.string(cell.name());
+                String name  = ByteBufferUtil.string(cell.name().toByteBuffer());
                 String value = null;
                 
                 if (name.contains("int"))

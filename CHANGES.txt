@@ -15,6 +15,8 @@
 
 
 2.1.1
+ * Pig support for hadoop CqlInputFormat (CASSANDRA-6454)
+ * Add duration mode to cassandra-stress (CASSANDRA-7468)
  * Add listen_interface and rpc_interface options (CASSANDRA-7417)
  * Fail to start if commit log replay detects a problem (CASSANDRA-7125)
  * Improve schema merge performance (CASSANDRA-7444)
@@ -24,9 +26,13 @@
  * Include snippet of CQL query near syntax error in messages (CASSANDRA-7111)
 Merged from 2.0:
  * Catch errors when the JVM pulls the rug out from GCInspector (CASSANDRA-5345)
+ * Fix native protocol drop user type notification (CASSANDRA-7571)
+ * Give read access to system.schema_usertypes to all authenticated users
+   (CASSANDRA-7578)
+ * Fix ReversedType(DateType) mapping to native protocol (CASSANDRA-7576)
 
 
-2.1.0-final
+2.1.0-rc4
  * Updated memtable_cleanup_threshold and memtable_flush_writers defaults 
    (CASSANDRA-7551)
  * (Windows) fix startup when WMI memory query fails (CASSANDRA-7505)
