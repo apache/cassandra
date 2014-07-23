@@ -18,8 +18,6 @@
 package org.apache.cassandra.hadoop.cql3;
 
 import java.io.IOException;
-import java.nio.ByteBuffer;
-import java.util.Map;
 
 import org.apache.cassandra.hadoop.AbstractColumnFamilyInputFormat;
 import org.apache.hadoop.mapred.InputSplit;
