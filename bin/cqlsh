@@ -922,7 +922,7 @@ class Shell(cmd.Cmd):
         self.writeresult("")
         if rows :
             self.print_static_result(rows)
-        self.writeresult("(%d rows)" % len(rows))
+        self.writeresult("(%d rows)" % len(rows or []))
         self.writeresult("")
 
         if self.decoding_errors:
