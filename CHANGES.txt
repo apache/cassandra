@@ -14,8 +14,12 @@ Merged from 2.0:
    (CASSANDRA-7578)
  * Fix ReversedType(DateType) mapping to native protocol (CASSANDRA-7576)
 
+2.1.0-final
+ * Fix cqlsh display when zero rows are returned (CASSANDRA-7580)
+ * Get java version correctly when JAVA_TOOL_OPTIONS is set (CASSANDRA-7572)
 
 2.1.0-rc4
+ * Fix word count hadoop example (CASSANDRA-7200)
  * Updated memtable_cleanup_threshold and memtable_flush_writers defaults 
    (CASSANDRA-7551)
  * (Windows) fix startup when WMI memory query fails (CASSANDRA-7505)
