@@ -318,6 +318,10 @@ public class DynamicEndpointSnitch extends AbstractEndpointSnitch implements ILa
         if (!subsnitch.isWorthMergingForRangeQuery(merged, l1, l2))
             return false;
 
+        // skip checking scores in the single-node case
+        if (l1.size() == 1 && l2.size() == 1 && l1.get(0).equals(l2.get(0)))
+            return true;
+
         // Make sure we return the subsnitch decision (i.e true if we're here) if we lack too much scores
         double maxMerged = maxScore(merged);
         double maxL1 = maxScore(l1);

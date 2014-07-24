@@ -1,4 +1,5 @@
 2.0.10
+ * Always merge ranges owned by a single node (CASSANDRA-6930)
  * Pig support for hadoop CqlInputFormat (CASSANDRA-6454)
  * Fix ReversedType(DateType) mapping to native protocol (CASSANDRA-7576)
  * (Windows) force range-based repair to non-sequential mode (CASSANDRA-7541)
