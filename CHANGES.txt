@@ -21,6 +21,7 @@ Merged from 2.0:
    dropping non-existent index with IF EXISTS (CASSANDRA-7590)
 Merged from 2.0:
  * Fix ReversedType(DateType) mapping to native protocol (CASSANDRA-7576)
+ * Always merge ranges owned by a single node (CASSANDRA-6930)
 
 
 2.1.0-rc4
