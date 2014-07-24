@@ -1002,7 +1002,7 @@ syntax_rules += r'''
 <username> ::= name=( <identifier> | <stringLiteral> )
              ;
 
-<createUserStatement> ::= "CREATE" "USER" <username>
+<createUserStatement> ::= "CREATE" "USER" ( "IF" "NOT" "EXISTS" )? <username>
                               ( "WITH" "PASSWORD" <stringLiteral> )?
                               ( "SUPERUSER" | "NOSUPERUSER" )?
                         ;
@@ -1012,7 +1012,7 @@ syntax_rules += r'''
                               ( "SUPERUSER" | "NOSUPERUSER" )?
                        ;
 
-<dropUserStatement> ::= "DROP" "USER" <username>
+<dropUserStatement> ::= "DROP" "USER" ( "IF" "EXISTS" )? <username>
                       ;
 
 <listUsersStatement> ::= "LIST" "USERS"
