@@ -2573,6 +2573,11 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         int cmd = nextRepairCommand.incrementAndGet();
         if (ranges.size() > 0)
         {
+            if (!FBUtilities.isUnix() && isSequential)
+            {
+                logger.warn("Snapshot-based repair is not yet supported on Windows.  Reverting to parallel repair.");
+                isSequential = false;
+            }
             new Thread(createRepairTask(cmd, keyspace, ranges, isSequential, dataCenters, hosts, fullRepair, columnFamilies)).start();
         }
         return cmd;

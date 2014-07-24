@@ -51,7 +51,7 @@ options {
 }
 
 @members {
-    private final List<String> recognitionErrors = new ArrayList<String>();
+    private final List<ErrorListener> listeners = new ArrayList<ErrorListener>();
     private final List<ColumnIdentifier> bindVariables = new ArrayList<ColumnIdentifier>();
 
     public static final Set<String> reservedTypeNames = new HashSet<String>()
@@ -94,27 +94,26 @@ options {
         return marker;
     }
 
+    public void addErrorListener(ErrorListener listener)
+    {
+        this.listeners.add(listener);
+    }
+
+    public void removeErrorListener(ErrorListener listener)
+    {
+        this.listeners.remove(listener);
+    }
+
     public void displayRecognitionError(String[] tokenNames, RecognitionException e)
     {
-        String hdr = getErrorHeader(e);
-        String msg = getErrorMessage(e, tokenNames);
-        recognitionErrors.add(hdr + " " + msg);
+        for (int i = 0, m = listeners.size(); i < m; i++)
+            listeners.get(i).syntaxError(this, tokenNames, e);
     }
 
-    public void addRecognitionError(String msg)
+    private void addRecognitionError(String msg)
     {
-        recognitionErrors.add(msg);
-    }
-
-    public List<String> getRecognitionErrors()
-    {
-        return recognitionErrors;
-    }
-
-    public void throwLastRecognitionError() throws SyntaxException
-    {
-        if (recognitionErrors.size() > 0)
-            throw new SyntaxException(recognitionErrors.get((recognitionErrors.size()-1)));
+        for (int i = 0, m = listeners.size(); i < m; i++)
+            listeners.get(i).syntaxError(this, msg);
     }
 
     public Map<String, String> convertPropertyMap(Maps.Literal map)
@@ -189,24 +188,22 @@ options {
         return tokens.remove(0);
     }
 
-    private List<String> recognitionErrors = new ArrayList<String>();
+    private final List<ErrorListener> listeners = new ArrayList<ErrorListener>();
+
+    public void addErrorListener(ErrorListener listener)
+    {
+        this.listeners.add(listener);
+    }
+
+    public void removeErrorListener(ErrorListener listener)
+    {
+        this.listeners.remove(listener);
+    }
 
     public void displayRecognitionError(String[] tokenNames, RecognitionException e)
     {
-        String hdr = getErrorHeader(e);
-        String msg = getErrorMessage(e, tokenNames);
-        recognitionErrors.add(hdr + " " + msg);
-    }
-
-    public List<String> getRecognitionErrors()
-    {
-        return recognitionErrors;
-    }
-
-    public void throwLastRecognitionError() throws SyntaxException
-    {
-        if (recognitionErrors.size() > 0)
-            throw new SyntaxException(recognitionErrors.get((recognitionErrors.size()-1)));
+        for (int i = 0, m = listeners.size(); i < m; i++)
+            listeners.get(i).syntaxError(this, tokenNames, e);
     }
 }
 

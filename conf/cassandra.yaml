@@ -282,15 +282,20 @@ concurrent_counter_writes: 32
 # memtable_total_space_in_mb: 2048
 
 # Ratio of occupied non-flushing memtable size to total permitted size
-# that will trigger a flush of the largest memtable.
-memtable_cleanup_threshold: 0.4
+# that will trigger a flush of the largest memtable.  Lager mct will
+# mean larger flushes and hence less compaction, but also less concurrent
+# flush activity which can make it difficult to keep your disks fed
+# under heavy write load.
+#
+# memtable_cleanup_threshold defaults to 1 / (memtable_flush_writers + 1)
+#memtable_cleanup_threshold: 0.11
 
 # Specify the way Cassandra allocates and manages memtable memory.
 # Options are:
 #   heap_buffers:    on heap nio buffers
 #   offheap_buffers: off heap (direct) nio buffers
 #   offheap_objects: native memory, eliminating nio buffer heap overhead
-memtable_allocation_type: offheap_objects
+memtable_allocation_type: heap_buffers
 
 # Total space to use for commitlogs.  Since commitlog segments are
 # mmapped, and hence use up address space, the default size is 32
@@ -304,9 +309,14 @@ memtable_allocation_type: offheap_objects
 
 # This sets the amount of memtable flush writer threads.  These will
 # be blocked by disk io, and each one will hold a memtable in memory
-# while blocked. If your flush directory is backed by SSD, you may
-# want to increase this.
-memtable_flush_writers: 2
+# while blocked. 
+#
+# memtable_flush_writers defaults to the smaller of (number of disks,
+# number of cores), with a minimum of 2 and a maximum of 8.
+# 
+# If your data directories are backed by SSD, you should increase this
+# to the number of cores.
+#memtable_flush_writers: 8
 
 # A fixed memory pool size in MB for for SSTable index summaries. If left
 # empty, this will default to 5% of the heap size. If the memory usage of
@@ -337,17 +347,20 @@ storage_port: 7000
 # encryption_options
 ssl_storage_port: 7001
 
-# Address to bind to and tell other Cassandra nodes to connect to. You
-# _must_ change this if you want multiple nodes to be able to
-# communicate!
-# 
+# Address or interface to bind to and tell other Cassandra nodes to connect to.
+# You _must_ change this if you want multiple nodes to be able to communicate!
+#
+# Set listen_address OR listen_interface, not both. Interfaces must correspond
+# to a single address, IP aliasing is not supported.
+#
 # Leaving it blank leaves it up to InetAddress.getLocalHost(). This
 # will always do the Right Thing _if_ the node is properly configured
 # (hostname, name resolution, etc), and the Right Thing is to use the
 # address associated with the hostname (it might not be).
 #
-# Setting this to 0.0.0.0 is always wrong.
+# Setting listen_address to 0.0.0.0 is always wrong.
 listen_address: localhost
+# listen_interface: eth0
 
 # Address to broadcast to other Cassandra nodes
 # Leaving this blank will set it to the same value as listen_address
@@ -376,15 +389,20 @@ native_transport_port: 9042
 # Whether to start the thrift rpc server.
 start_rpc: true
 
-# The address to bind the Thrift RPC service and native transport
+# The address or interface to bind the Thrift RPC service and native transport
 # server to.
 #
-# Leaving this blank has the same effect as on listen_address
+# Set rpc_address OR rpc_interface, not both. Interfaces must correspond
+# to a single address, IP aliasing is not supported.
+#
+# Leaving rpc_address blank has the same effect as on listen_address
 # (i.e. it will be based on the configured hostname of the node).
 #
 # Note that unlike listen_address, you can specify 0.0.0.0, but you must also
 # set broadcast_rpc_address to a value other than 0.0.0.0.
 rpc_address: localhost
+# rpc_interface: eth1
+
 # port for Thrift to listen for clients on
 rpc_port: 9160
 
@@ -478,13 +496,15 @@ auto_snapshot: true
 tombstone_warn_threshold: 1000
 tombstone_failure_threshold: 100000
 
-# Add column indexes to a row after its contents reach this size.
-# Increase if your column values are large, or if you have a very large
-# number of columns.  The competing causes are, Cassandra has to
-# deserialize this much of the row to read a single column, so you want
-# it to be small - at least if you do many partial-row reads - but all
-# the index data is read for each access, so you don't want to generate
-# that wastefully either.
+# Granularity of the collation index of rows within a partition.
+# Increase if your rows are large, or if you have a very large
+# number of rows per partition.  The competing goals are these:
+#   1) a smaller granularity means more index entries are generated
+#      and looking up rows withing the partition by collation column
+#      is faster
+#   2) but, Cassandra will keep the collation index in memory for hot
+#      rows (as part of the key cache), so a larger granularity means
+#      you can cache more hot rows
 column_index_size_in_kb: 64
 
 
@@ -503,6 +523,9 @@ batch_size_warn_threshold_in_kb: 5
 #
 # concurrent_compactors defaults to the smaller of (number of disks,
 # number of cores), with a minimum of 2 and a maximum of 8.
+# 
+# If your data directories are backed by SSD, you should increase this
+# to the number of cores.
 #concurrent_compactors: 1
 
 # Throttles compaction to the given total throughput across the entire

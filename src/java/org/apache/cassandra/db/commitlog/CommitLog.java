@@ -21,12 +21,10 @@ import java.io.*;
 import java.lang.management.ManagementFactory;
 import java.nio.ByteBuffer;
 import java.util.*;
-import java.util.concurrent.TimeUnit;
 
 import javax.management.MBeanServer;
 import javax.management.ObjectName;
 
-import com.google.common.util.concurrent.Uninterruptibles;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -211,12 +209,6 @@ public class CommitLog implements CommitLogMBean
      */
     public ReplayPosition add(Mutation mutation)
     {
-        Allocation alloc = add(mutation, new Allocation());
-        return alloc.getReplayPosition();
-    }
-
-    private Allocation add(Mutation mutation, Allocation alloc)
-    {
         assert mutation != null;
 
         long size = Mutation.serializer.serializedSize(mutation, MessagingService.current_version);
@@ -228,7 +220,7 @@ public class CommitLog implements CommitLogMBean
                                                              totalSize, MAX_MUTATION_SIZE));
         }
 
-        allocator.allocate(mutation, (int) totalSize, alloc);
+        Allocation alloc = allocator.allocate(mutation, (int) totalSize);
         try
         {
             PureJavaCrc32 checksum = new PureJavaCrc32();
@@ -256,7 +248,7 @@ public class CommitLog implements CommitLogMBean
         }
 
         executor.finishWriteFor(alloc);
-        return alloc;
+        return alloc.getReplayPosition();
     }
 
     /**

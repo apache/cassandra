@@ -49,7 +49,7 @@ import org.apache.cassandra.utils.SemanticVersion;
 
 public class QueryProcessor implements QueryHandler
 {
-    public static final SemanticVersion CQL_VERSION = new SemanticVersion("3.1.7");
+    public static final SemanticVersion CQL_VERSION = new SemanticVersion("3.2.0");
 
     public static final QueryProcessor instance = new QueryProcessor();
 
@@ -441,18 +441,21 @@ public class QueryProcessor implements QueryHandler
         try
         {
             // Lexer and parser
+            ErrorCollector errorCollector = new ErrorCollector(queryStr);
             CharStream stream = new ANTLRStringStream(queryStr);
             CqlLexer lexer = new CqlLexer(stream);
+            lexer.addErrorListener(errorCollector);
+
             TokenStream tokenStream = new CommonTokenStream(lexer);
             CqlParser parser = new CqlParser(tokenStream);
+            parser.addErrorListener(errorCollector);
 
             // Parse the query string to a statement instance
             ParsedStatement statement = parser.query();
 
-            // The lexer and parser queue up any errors they may have encountered
-            // along the way, if necessary, we turn them into exceptions here.
-            lexer.throwLastRecognitionError();
-            parser.throwLastRecognitionError();
+            // The errorCollector has queue up any errors that the lexer and parser may have encountered
+            // along the way, if necessary, we turn the last error into exceptions here.
+            errorCollector.throwFirstSyntaxError();
 
             return statement;
         }

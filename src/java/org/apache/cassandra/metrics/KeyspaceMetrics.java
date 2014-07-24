@@ -223,7 +223,7 @@ public class KeyspaceMetrics
      * @param MetricValue 
      * @return Gauge&gt;Long> that computes sum of MetricValue.getValue()
      */
-    private <T extends Number> Gauge<Long> createKeyspaceGauge(String name, final MetricValue extractor)
+    private Gauge<Long> createKeyspaceGauge(String name, final MetricValue extractor)
     {
         allMetrics.add(name);
         return Metrics.newGauge(factory.createMetricName(name), new Gauge<Long>()

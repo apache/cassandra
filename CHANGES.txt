@@ -15,18 +15,52 @@
 
 
 2.1.1
+ * Pig support for hadoop CqlInputFormat (CASSANDRA-6454)
+ * Add duration mode to cassandra-stress (CASSANDRA-7468)
+ * Add listen_interface and rpc_interface options (CASSANDRA-7417)
  * Fail to start if commit log replay detects a problem (CASSANDRA-7125)
  * Improve schema merge performance (CASSANDRA-7444)
- * Fix NPE when unknown prepared statement ID is used (CASSANDRA-7454)
  * Adjust MT depth based on # of partition validating (CASSANDRA-5263)
  * Optimise NativeCell comparisons (CASSANDRA-6755)
+ * Configurable client timeout for cqlsh (CASSANDRA-7516)
+ * Include snippet of CQL query near syntax error in messages (CASSANDRA-7111)
+Merged from 2.0:
+ * Catch errors when the JVM pulls the rug out from GCInspector (CASSANDRA-5345)
 
 
 2.1.0-final
+ * Fix native protocol drop user type notification (CASSANDRA-7571)
+ * Give read access to system.schema_usertypes to all authenticated users
+   (CASSANDRA-7578)
+ * Fix cqlsh display when zero rows are returned (CASSANDRA-7580)
+ * Get java version correctly when JAVA_TOOL_OPTIONS is set (CASSANDRA-7572)
+ * Fix NPE when dropping index from non-existent keyspace, AssertionError when
+   dropping non-existent index with IF EXISTS (CASSANDRA-7590)
+Merged from 2.0:
+ * Fix ReversedType(DateType) mapping to native protocol (CASSANDRA-7576)
+
+
+2.1.0-rc4
+ * Fix word count hadoop example (CASSANDRA-7200)
+ * Updated memtable_cleanup_threshold and memtable_flush_writers defaults 
+   (CASSANDRA-7551)
  * (Windows) fix startup when WMI memory query fails (CASSANDRA-7505)
  * Anti-compaction proceeds if any part of the repair failed (CASANDRA-7521)
+ * Add missing table name to DROP INDEX responses and notifications (CASSANDRA-7539)
+ * Bump CQL version to 3.2.0 and update CQL documentation (CASSANDRA-7527)
+ * Fix configuration error message when running nodetool ring (CASSANDRA-7508)
+ * Support conditional updates, tuple type, and the v3 protocol in cqlsh (CASSANDRA-7509)
+ * Handle queries on multiple secondary index types (CASSANDRA-7525)
+ * Fix cqlsh authentication with v3 native protocol (CASSANDRA-7564)
+ * Fix NPE when unknown prepared statement ID is used (CASSANDRA-7454)
 Merged from 2.0:
+ * (Windows) force range-based repair to non-sequential mode (CASSANDRA-7541)
+ * Fix range merging when DES scores are zero (CASSANDRA-7535)
+ * Warn when SSL certificates have expired (CASSANDRA-7528)
  * Fix error when doing reversed queries with static columns (CASSANDRA-7490)
+Merged from 1.2:
+ * Set correct stream ID on responses when non-Exception Throwables
+   are thrown while handling native protocol messages (CASSANDRA-7470)
 
 
 2.1.0-rc3
@@ -70,6 +104,7 @@ Merged from 2.0:
  * Fix exception when querying a composite-keyed table with a collection index
    (CASSANDRA-7372)
  * Use node's host id in place of counter ids (CASSANDRA-7366)
+ * Handle empty CFs in Memtable#maybeUpdateLiveRatio() (CASSANDRA-7401)
  * Fix native protocol CAS batches (CASSANDRA-7337)
  * Reduce likelihood of contention on local paxos locking (CASSANDRA-7359)
  * Upgrade to Pig 0.12.1 (CASSANDRA-6556)

@@ -66,7 +66,8 @@ public class ClientState
                                        SystemKeyspace.PEERS_CF,
                                        SystemKeyspace.SCHEMA_KEYSPACES_CF,
                                        SystemKeyspace.SCHEMA_COLUMNFAMILIES_CF,
-                                       SystemKeyspace.SCHEMA_COLUMNS_CF };
+                                       SystemKeyspace.SCHEMA_COLUMNS_CF,
+                                       SystemKeyspace.SCHEMA_USER_TYPES_CF};
         for (String cf : cfs)
             READABLE_SYSTEM_RESOURCES.add(DataResource.columnFamily(Keyspace.SYSTEM_KS, cf));
 

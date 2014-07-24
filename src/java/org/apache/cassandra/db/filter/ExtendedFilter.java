@@ -18,13 +18,12 @@
 package org.apache.cassandra.db.filter;
 
 import java.nio.ByteBuffer;
-import java.util.Collections;
-import java.util.Iterator;
-import java.util.List;
-import java.util.SortedSet;
-import java.util.TreeSet;
+import java.util.*;
 
+import com.google.common.base.Predicate;
+import com.google.common.collect.Iterators;
 import org.apache.cassandra.db.marshal.CollectionType;
+import org.apache.cassandra.utils.ByteBufferUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -328,6 +327,19 @@ public abstract class ExtendedFilter
         private static boolean collectionSatisfies(ColumnDefinition def, ColumnFamily data, Composite prefix, IndexExpression expr, ByteBuffer collectionElement)
         {
             assert def.type.isCollection();
+
+            if (expr.operator == IndexExpression.Operator.CONTAINS)
+            {
+                // get a slice of the collection cells
+                Iterator<Cell> iter = data.iterator(new ColumnSlice[]{ data.getComparator().create(prefix, def).slice() });
+                while (iter.hasNext())
+                {
+                    if (((CollectionType) def.type).valueComparator().compare(iter.next().value(), expr.value) == 0)
+                        return true;
+                }
+
+                return false;
+            }
 
             CollectionType type = (CollectionType)def.type;
             switch (type.kind)

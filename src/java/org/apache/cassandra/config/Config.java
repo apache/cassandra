@@ -90,21 +90,21 @@ public class Config
     @Deprecated
     public Integer concurrent_replicates = null;
 
-    // we don't want a lot of contention, but we also don't want to starve all other tables
-    // if a big one flushes. OS buffering should be able to minimize contention with 2 threads.
-    public int memtable_flush_writers = 2;
+    public Integer memtable_flush_writers = null;
     public Integer memtable_heap_space_in_mb;
     public Integer memtable_offheap_space_in_mb;
-    public float memtable_cleanup_threshold = 0.4f;
+    public Float memtable_cleanup_threshold = null;
 
     public Integer storage_port = 7000;
     public Integer ssl_storage_port = 7001;
     public String listen_address;
+    public String listen_interface;
     public String broadcast_address;
     public String internode_authenticator;
 
     public Boolean start_rpc = true;
     public String rpc_address;
+    public String rpc_interface;
     public String broadcast_rpc_address;
     public Integer rpc_port = 9160;
     public Integer rpc_listen_backlog = 50;

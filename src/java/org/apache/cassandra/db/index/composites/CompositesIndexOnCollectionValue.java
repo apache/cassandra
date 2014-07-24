@@ -73,7 +73,14 @@ public class CompositesIndexOnCollectionValue extends CompositesIndex
         builder.add(rowKey);
         for (int i = 0; i < Math.min(columnDef.position(), cellName.size()); i++)
             builder.add(cellName.get(i));
-        builder.add(cellName.get(columnDef.position() + 1));
+
+        // When indexing, cellName is a full name including the collection
+        // key. When searching, restricted clustering columns are included
+        // but the collection key is not. In this case, don't try to add an
+        // element to the builder for it, as it will just end up null and
+        // error out when retrieving cells from the index cf (CASSANDRA-7525)
+        if (cellName.size() >= columnDef.position() + 1)
+            builder.add(cellName.get(columnDef.position() + 1));
         return builder.build();
     }
 
