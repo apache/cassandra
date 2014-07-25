@@ -127,6 +127,8 @@ public class CqlNativeStorage extends CqlStorage
             CqlConfigHelper.setInputMaxConnections(conf, nativeMaxConnections);
         if (nativeMinSimultReqs != null)
             CqlConfigHelper.setInputMinSimultReqPerConnections(conf, nativeMinSimultReqs);
+        if (nativeMaxSimultReqs != null)
+            CqlConfigHelper.setInputMaxSimultReqPerConnections(conf, nativeMaxSimultReqs);
         if (nativeConnectionTimeout != null)
             CqlConfigHelper.setInputNativeConnectionTimeout(conf, nativeConnectionTimeout);
         if (nativeReadConnectionTimeout != null)
