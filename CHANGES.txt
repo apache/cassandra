@@ -37,6 +37,7 @@ Merged from 2.0:
  * Get java version correctly when JAVA_TOOL_OPTIONS is set (CASSANDRA-7572)
  * Fix NPE when dropping index from non-existent keyspace, AssertionError when
    dropping non-existent index with IF EXISTS (CASSANDRA-7590)
+ * Fix sstablelevelresetter hang (CASSANDRA-7614)
 Merged from 2.0:
  * Fix ReversedType(DateType) mapping to native protocol (CASSANDRA-7576)
  * Always merge ranges owned by a single node (CASSANDRA-6930)
