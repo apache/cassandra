@@ -2,11 +2,12 @@
  * Fix native protocol drop user type notification (CASSANDRA-7571)
  * Give read access to system.schema_usertypes to all authenticated users
    (CASSANDRA-7578)
- * Fix cqlsh display when zero rows are returned (CASSANDRA-7580)
+ * (cqlsh) Fix cqlsh display when zero rows are returned (CASSANDRA-7580)
  * Get java version correctly when JAVA_TOOL_OPTIONS is set (CASSANDRA-7572)
  * Fix NPE when dropping index from non-existent keyspace, AssertionError when
    dropping non-existent index with IF EXISTS (CASSANDRA-7590)
  * Fix sstablelevelresetter hang (CASSANDRA-7614)
+ * (cqlsh) Fix deserialization of blobs (CASSANDRA-7603)
 Merged from 2.0:
  * Fix ReversedType(DateType) mapping to native protocol (CASSANDRA-7576)
  * Always merge ranges owned by a single node (CASSANDRA-6930)
