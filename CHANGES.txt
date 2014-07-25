@@ -1,4 +1,5 @@
 2.1.0-final
+ * Clean up Windows batch scripts (CASSANDRA-7619)
  * Fix native protocol drop user type notification (CASSANDRA-7571)
  * Give read access to system.schema_usertypes to all authenticated users
    (CASSANDRA-7578)
