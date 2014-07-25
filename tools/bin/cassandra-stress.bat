@@ -14,22 +14,9 @@
 @REM  limitations under the License.
 
 @echo off
+if "%OS%" == "Windows_NT" setlocal
 
-setlocal
-
-if NOT DEFINED CASSANDRA_HOME set CASSANDRA_HOME=%CD%\..\..
+pushd "%~dp0"
+call cassandra.in.bat
 if NOT DEFINED STRESS_HOME set STRESS_HOME=%CD%\..
-
-@REM Include the build\classes\main directory so it works in development
-set CLASSPATH="%CASSANDRA_HOME%\build\classes\stress";"%CASSANDRA_HOME%\build\classes\main";"%CASSANDRA_HOME%\build\classes\thrift"
-
-for %%i in ("%STRESS_HOME%\lib\*.jar") do call :append "%%i"
-for %%i in ("%CASSANDRA_HOME%\lib\*.jar") do call :append "%%i"
-goto start
-
-:append
-set CLASSPATH=%CLASSPATH%;%1
-goto :eof
-
-:start
-"%JAVA_HOME%\bin\java" -cp %CLASSPATH% org.apache.cassandra.stress.Stress %*
+"%JAVA_HOME%\bin\java" -cp %CASSANDRA_CLASSPATH% org.apache.cassandra.stress.Stress %*

@@ -86,7 +86,8 @@ goto :eof
 REM Include the build\classes\main directory so it works in development
 set CASSANDRA_CLASSPATH=%CLASSPATH%;"%CASSANDRA_HOME%\build\classes\main";"%CASSANDRA_HOME%\build\classes\thrift"
 set CASSANDRA_PARAMS=-Dcassandra -Dcassandra-foreground=yes
-set CASSANDRA_PARAMS=%CASSANDRA_PARAMS% "-Dcassandra.logdir=%CASSANDRA_HOME%\logs" "-Dcassandra.storagedir=%CASSANDRA_HOME%\data"
+set CASSANDRA_PARAMS=%CASSANDRA_PARAMS% "-Dcassandra.logdir=%CASSANDRA_HOME%\logs"
+set CASSANDRA_PARAMS=%CASSANDRA_PARAMS% "-Dcassandra.storagedir=%CASSANDRA_HOME%\data"
 if /i "%ARG%" == "INSTALL" goto doInstallOperation
 if /i "%ARG%" == "UNINSTALL" goto doInstallOperation
 goto runDaemon
