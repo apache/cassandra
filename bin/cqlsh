@@ -550,8 +550,8 @@ class Shell(cmd.Cmd):
         self.stdin = stdin
         self.query_out = sys.stdout
         self.consistency_level = cassandra.ConsistencyLevel.ONE
-        #Python driver returns BLOBs as string, but we expect them as buffer()
-        cassandra.cqltypes.BytesType.deserialize = staticmethod(cassandra.cqltypes.BytesType.validate)
+        # the python driver returns BLOBs as string, but we expect them as bytearrays
+        cassandra.cqltypes.BytesType.deserialize = staticmethod(lambda byts, protocol_version: bytearray(byts))
         cassandra.cqltypes.CassandraType.support_empty_values = True
 
         auto_format_udts()
