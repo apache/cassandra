@@ -88,6 +88,7 @@ esac
 
 "$JAVA" $JAVA_AGENT -cp "$CLASSPATH" \
       -Xmx32m \
+      -Dcassandra.storagedir="$cassandra_storagedir" \
       -Dlogback.configurationFile=logback-tools.xml \
       -Dstorage-config="$CASSANDRA_CONF" \
       org.apache.cassandra.tools.NodeTool -p $JMX_PORT $ARGS

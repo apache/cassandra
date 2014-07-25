@@ -51,6 +51,7 @@ esac
 
 "$JAVA" -cp "$CLASSPATH" \
       -Xmx32m \
+      -Dcassandra.storagedir="$cassandra_storagedir" \
       -Dlogback.configurationFile=logback-tools.xml \
       org.apache.cassandra.tools.Shuffle $@
 

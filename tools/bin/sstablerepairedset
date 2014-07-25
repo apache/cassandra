@@ -42,5 +42,6 @@ else
 fi
 
 $JAVA -cp $CLASSPATH \
+        -Dcassandra.storagedir="$cassandra_storagedir" \
         -Dlogback.configurationFile=logback-tools.xml \
         org.apache.cassandra.tools.SSTableRepairedAtSetter "$@"
