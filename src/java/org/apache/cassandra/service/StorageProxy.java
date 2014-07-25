@@ -1408,7 +1408,7 @@ public class StorageProxy implements StorageProxyMBean
 
         LocalRangeSliceRunnable(AbstractRangeCommand command, ReadCallback<RangeSliceReply, Iterable<Row>> handler)
         {
-            super(MessagingService.Verb.READ);
+            super(MessagingService.Verb.RANGE_SLICE);
             this.command = command;
             this.handler = handler;
         }
@@ -1593,7 +1593,7 @@ public class StorageProxy implements StorageProxyMBean
                         && filteredEndpoints.get(0).equals(FBUtilities.getBroadcastAddress())
                         && OPTIMIZE_LOCAL_REQUESTS)
                     {
-                        StageManager.getStage(Stage.READ).execute(new LocalRangeSliceRunnable(nodeCmd, handler));
+                        StageManager.getStage(Stage.READ).execute(new LocalRangeSliceRunnable(nodeCmd, handler), Tracing.instance.get());
                     }
                     else
                     {
