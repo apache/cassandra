@@ -48,6 +48,7 @@ if [ "x$MAX_HEAP_SIZE" = "x" ]; then
 fi
 
 $JAVA $JAVA_AGENT -ea -cp $CLASSPATH -Xmx$MAX_HEAP_SIZE \
+        -Dcassandra.storagedir="$cassandra_storagedir" \
         -Dlogback.configurationFile=logback-tools.xml \
         org.apache.cassandra.tools.StandaloneUpgrader "$@"
 

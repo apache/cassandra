@@ -44,6 +44,7 @@ if [ -z "$CLASSPATH" ]; then
 fi
 
 "$JAVA" -ea -cp "$CLASSPATH" -Xmx256M \
+        -Dcassandra.storagedir="$cassandra_storagedir" \
         -Dlogback.configurationFile=logback-tools.xml \
         org.apache.cassandra.cli.CliMain "$@"
 
