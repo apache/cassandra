@@ -150,7 +150,7 @@ public class RecoveryManagerTest extends SchemaLoader
 
             ColumnFamily cf = ArrayBackedSortedColumns.factory.create("Keyspace1", "Standard1");
             cf.addColumn(column("name-" + i, "value", ts));
-            RowMutation rm = new RowMutation("Keyspace1", dk.key, cf);
+            RowMutation rm = new RowMutation("Keyspace1", dk.getKey(), cf);
             rm.apply();
         }
 
