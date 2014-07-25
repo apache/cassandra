@@ -8,6 +8,8 @@
    dropping non-existent index with IF EXISTS (CASSANDRA-7590)
  * Fix sstablelevelresetter hang (CASSANDRA-7614)
  * (cqlsh) Fix deserialization of blobs (CASSANDRA-7603)
+ * Use "keyspace updated" schema change message for UDT changes in v1 and
+   v2 protocols (CASSANDRA-7617)
 Merged from 2.0:
  * Fix ReversedType(DateType) mapping to native protocol (CASSANDRA-7576)
  * Always merge ranges owned by a single node (CASSANDRA-6930)

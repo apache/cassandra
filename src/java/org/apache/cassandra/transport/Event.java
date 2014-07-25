@@ -258,9 +258,20 @@ public abstract class Event
             }
             else
             {
-                CBUtil.writeEnumValue(change, dest);
-                CBUtil.writeString(keyspace, dest);
-                CBUtil.writeString(target == Target.KEYSPACE ? "" : tableOrType, dest);
+                if (target == Target.TYPE)
+                {
+                    // For the v1/v2 protocol, we have no way to represent type changes, so we simply say the keyspace
+                    // was updated.  See CASSANDRA-7617.
+                    CBUtil.writeEnumValue(Change.UPDATED, dest);
+                    CBUtil.writeString(keyspace, dest);
+                    CBUtil.writeString("", dest);
+                }
+                else
+                {
+                    CBUtil.writeEnumValue(change, dest);
+                    CBUtil.writeString(keyspace, dest);
+                    CBUtil.writeString(target == Target.KEYSPACE ? "" : tableOrType, dest);
+                }
             }
         }
 
@@ -279,6 +290,12 @@ public abstract class Event
             }
             else
             {
+                if (target == Target.TYPE)
+                {
+                    return CBUtil.sizeOfEnumValue(Change.UPDATED)
+                         + CBUtil.sizeOfString(keyspace)
+                         + CBUtil.sizeOfString("");
+                }
                 return CBUtil.sizeOfEnumValue(change)
                      + CBUtil.sizeOfString(keyspace)
                      + CBUtil.sizeOfString(target == Target.KEYSPACE ? "" : tableOrType);

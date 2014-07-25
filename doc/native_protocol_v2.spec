@@ -590,8 +590,10 @@ Table of Contents
       the empty string "") if the change was affecting a keyspace and not a
       table.
 
-  Note that queries to create and drop an index are considered as change
-  updating the table the index is on.
+  Note that queries to create and drop an index are considered changes
+  updating the table the index is on.  Queries that create, alter, or drop
+  user-defined types (availble in Cassandra 2.1+) are considered changes
+  updating the keyspace the type is defined in.
 
 
 4.2.6. EVENT
@@ -617,6 +619,9 @@ Table of Contents
       followed by the name of the affected keyspace and the name of the
       affected table within that keyspace. For changes that affect a keyspace
       directly, the table name will be empty (i.e. the empty string "").
+      Changes to user-defined types (available in Cassandra 2.1+) will result
+      in an "UPDATED" change for the keyspace containing the type, and the
+      table name will be empty.
 
   All EVENT message have a streamId of -1 (Section 2.3).
 
