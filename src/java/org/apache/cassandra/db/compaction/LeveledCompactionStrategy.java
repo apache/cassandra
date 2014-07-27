@@ -33,6 +33,7 @@ import org.apache.cassandra.db.columniterator.OnDiskAtomIterator;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.io.sstable.CorruptSSTableException;
 import org.apache.cassandra.io.sstable.SSTable;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.notifications.INotification;
@@ -247,6 +248,11 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy implem
                     }
                     currentScanner = sstableIterator.next().getDirectScanner(range, CompactionManager.instance.getRateLimiter());
                 }
+            }
+            catch (CorruptSSTableException csste)
+            {
+                logger.error("Corrupt sstable :" + csste.getPath());
+                throw new RuntimeException(csste);
             }
             catch (IOException e)
             {

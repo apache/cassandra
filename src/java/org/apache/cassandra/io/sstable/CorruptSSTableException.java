@@ -33,4 +33,8 @@ public class CorruptSSTableException extends RuntimeException
     {
         this(cause, new File(path));
     }
+
+    public File getPath() {
+        return path;
+    }
 }
