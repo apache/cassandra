@@ -28,6 +28,7 @@ Merged from 2.0:
  * Fix tracing of range slices and secondary index lookups that are local
    to the coordinator (CASSANDRA-7599)
  * Set -Dcassandra.storagedir for all tool shell scripts (CASSANDRA-7587)
+ * Don't swap max/min col names when mutating sstable metadata (CASSANDRA-7596)
 Merged from 2.0:
  * Fix ReversedType(DateType) mapping to native protocol (CASSANDRA-7576)
  * Always merge ranges owned by a single node (CASSANDRA-6930)

@@ -124,8 +124,8 @@ public class StatsMetadata extends MetadataComponent
                                  compressionRatio,
                                  estimatedTombstoneDropTime,
                                  newLevel,
-                                 maxColumnNames,
                                  minColumnNames,
+                                 maxColumnNames,
                                  hasLegacyCounterShards,
                                  repairedAt);
     }
@@ -141,8 +141,8 @@ public class StatsMetadata extends MetadataComponent
                                  compressionRatio,
                                  estimatedTombstoneDropTime,
                                  sstableLevel,
-                                 maxColumnNames,
                                  minColumnNames,
+                                 maxColumnNames,
                                  hasLegacyCounterShards,
                                  newRepairedAt);
     }
