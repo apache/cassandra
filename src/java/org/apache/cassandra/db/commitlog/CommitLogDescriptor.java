@@ -28,8 +28,6 @@ import java.nio.ByteBuffer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import com.google.common.annotations.VisibleForTesting;
-
 import org.apache.cassandra.io.FSReadError;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.utils.PureJavaCrc32;
@@ -49,11 +47,10 @@ public class CommitLogDescriptor
      * Increment this number if there is a changes in the commit log disc layout or MessagingVersion changes.
      * Note: make sure to handle {@link #getMessagingVersion()}
      */
-    @VisibleForTesting
     public static final int current_version = VERSION_21;
 
     // [version, id, checksum]
-    public static final int HEADER_SIZE = 4 + 8 + 4;
+    static final int HEADER_SIZE = 4 + 8 + 4;
 
     final int version;
     public final long id;
@@ -69,8 +66,7 @@ public class CommitLogDescriptor
         this(current_version, id);
     }
 
-    @VisibleForTesting
-    public static void writeHeader(ByteBuffer out, CommitLogDescriptor descriptor)
+    static void writeHeader(ByteBuffer out, CommitLogDescriptor descriptor)
     {
         out.putInt(0, descriptor.version);
         out.putLong(4, descriptor.id);

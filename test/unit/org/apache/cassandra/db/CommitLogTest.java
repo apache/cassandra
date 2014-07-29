@@ -38,15 +38,12 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.KSMetaData;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.commitlog.CommitLogDescriptor;
-import org.apache.cassandra.db.commitlog.CommitLogReplayer;
 import org.apache.cassandra.db.commitlog.CommitLogSegment;
-import org.apache.cassandra.db.commitlog.MalformedCommitLogException;
 import org.apache.cassandra.db.composites.CellName;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.locator.SimpleStrategy;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.utils.PureJavaCrc32;
 
 import static org.apache.cassandra.utils.ByteBufferUtil.bytes;
 
@@ -71,32 +68,34 @@ public class CommitLogTest
     @Test
     public void testRecoveryWithEmptyLog() throws Exception
     {
-        testMalformed(badLogFile(new byte[0]));
+        CommitLog.instance.recover(new File[]{ tmpFile() });
     }
 
     @Test
     public void testRecoveryWithShortLog() throws Exception
     {
         // force EOF while reading log
-        testMalformed(badLogFile(100, 10));
+        testRecoveryWithBadSizeArgument(100, 10);
     }
 
     @Test
     public void testRecoveryWithShortSize() throws Exception
     {
-        testMalformed(new byte[2]);
+        testRecovery(new byte[2]);
     }
 
     @Test
     public void testRecoveryWithShortCheckSum() throws Exception
     {
-        testMalformed(new byte[6]);
+        testRecovery(new byte[6]);
     }
 
     @Test
     public void testRecoveryWithGarbageLog() throws Exception
     {
-        testMalformed(garbage(100));
+        byte[] garbage = new byte[100];
+        (new java.util.Random()).nextBytes(garbage);
+        testRecovery(garbage);
     }
 
     @Test
@@ -104,30 +103,21 @@ public class CommitLogTest
     {
         Checksum checksum = new CRC32();
         checksum.update(100);
-        testMalformed(badLogFile(100, checksum.getValue(), new byte[100]));
-        testMalformed(badLogFile(100, checksum.getValue(), garbage(100)));
-    }
-
-    @Test
-    public void testRecoveryWithBadSize() throws Exception
-    {
-        Checksum checksum = new CRC32();
-        checksum.update(100);
-        testMalformed(badLogFile(120, checksum.getValue(), garbage(100)));
+        testRecoveryWithBadSizeArgument(100, 100, ~checksum.getValue());
     }
 
     @Test
     public void testRecoveryWithZeroSegmentSizeArgument() throws Exception
     {
         // many different combinations of 4 bytes (garbage) will be read as zero by readInt()
-        testMalformed(badLogFile(0, -1L, 10)); // zero size, but no EOF
+        testRecoveryWithBadSizeArgument(0, 10); // zero size, but no EOF
     }
 
     @Test
     public void testRecoveryWithNegativeSizeArgument() throws Exception
     {
         // garbage from a partial/bad flush could be read as a negative size even if there is no EOF
-        testMalformed(badLogFile(-10, 10)); // zero size, but no EOF
+        testRecoveryWithBadSizeArgument(-10, 10); // negative size, but no EOF
     }
 
     @Test
@@ -204,8 +194,8 @@ public class CommitLogTest
 
     private static int getMaxRecordDataSize(String keyspace, ByteBuffer key, String table, CellName column)
     {
-        Mutation rm = new Mutation(keyspace, key);
-        rm.add(table, column, ByteBuffer.allocate(0), 0);
+        Mutation rm = new Mutation("Keyspace1", bytes("k"));
+        rm.add("Standard1", Util.cellname("c1"), ByteBuffer.allocate(0), 0);
 
         int max = (DatabaseDescriptor.getCommitLogSegmentSize() / 2);
         max -= CommitLogSegment.ENTRY_OVERHEAD_SIZE; // log entry overhead
@@ -245,73 +235,22 @@ public class CommitLogTest
         }
     }
 
-    // construct log file with correct chunk checksum for the provided size/position
-    protected File badLogFile(int markerSize, int realSize) throws Exception
+    protected void testRecoveryWithBadSizeArgument(int size, int dataSize) throws Exception
     {
-        return badLogFile(markerSize, garbage(realSize));
+        Checksum checksum = new CRC32();
+        checksum.update(size);
+        testRecoveryWithBadSizeArgument(size, dataSize, checksum.getValue());
     }
 
-    protected File badLogFile(int markerSize, byte[] data) throws Exception
-    {
-        File logFile = tmpFile();
-        CommitLogDescriptor descriptor = CommitLogDescriptor.fromFileName(logFile.getName());
-        PureJavaCrc32 crc = new PureJavaCrc32();
-        crc.updateInt((int) (descriptor.id & 0xFFFFFFFFL));
-        crc.updateInt((int) (descriptor.id >>> 32));
-        crc.updateInt(CommitLogDescriptor.HEADER_SIZE);
-        return badLogFile(markerSize, crc.getCrc(), data, logFile);
-    }
-
-    protected byte[] garbage(int size)
-    {
-        byte[] garbage = new byte[size];
-        (new java.util.Random()).nextBytes(garbage);
-        return garbage;
-    }
-
-    protected File badLogFile(int markerSize, long checksum, int realSize) throws Exception
-    {
-        return badLogFile(markerSize, checksum, realSize, tmpFile());
-    }
-
-    protected File badLogFile(int markerSize, long checksum, int realSize, File logFile) throws Exception
-    {
-        return badLogFile(markerSize, checksum, new byte[realSize], logFile);
-    }
-
-    protected File badLogFile(int markerSize, long checksum, byte[] chunk) throws Exception
-    {
-        return badLogFile(markerSize, checksum, chunk, tmpFile());
-    }
-
-    protected File badLogFile(int markerSize, long checksum, byte[] chunk, File logFile) throws Exception
+    protected void testRecoveryWithBadSizeArgument(int size, int dataSize, long checksum) throws Exception
     {
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         DataOutputStream dout = new DataOutputStream(out);
-        ByteBuffer buffer = ByteBuffer.allocate(CommitLogDescriptor.HEADER_SIZE);
-        CommitLogDescriptor.writeHeader(buffer, CommitLogDescriptor.fromFileName(logFile.getName()));
-        out.write(buffer.array());
-        dout.writeInt(markerSize);
+        dout.writeInt(size);
         dout.writeLong(checksum);
-        dout.write(chunk);
+        dout.write(new byte[dataSize]);
         dout.close();
-        try (OutputStream lout = new FileOutputStream(logFile))
-        {
-            lout.write(out.toByteArray());
-            lout.close();
-        }
-        return logFile;
-    }
-
-    protected File badLogFile(byte[] contents) throws Exception
-    {
-        File logFile = tmpFile();
-        try (OutputStream lout = new FileOutputStream(logFile))
-        {
-            lout.write(contents);
-            lout.close();
-        }
-        return logFile;
+        testRecovery(out.toByteArray());
     }
 
     protected File tmpFile() throws IOException
@@ -322,29 +261,17 @@ public class CommitLogTest
         return logFile;
     }
 
-    private void testMalformed(byte[] contents) throws Exception
+    protected void testRecovery(byte[] logData) throws Exception
     {
-        testMalformed(badLogFile(contents));
-        testMalformed(badLogFile(contents.length, contents));
-    }
-
-    private void testMalformed(File logFile) throws Exception
-    {
-        CommitLogReplayer.setIgnoreErrors(true);
-        CommitLog.instance.recover(new File[]{ logFile });
-        CommitLogReplayer.setIgnoreErrors(false);
-        try
+        File logFile = tmpFile();
+        try (OutputStream lout = new FileOutputStream(logFile))
         {
-            CommitLog.instance.recover(new File[]{ logFile });
-            Assert.assertFalse(true);
-        }
-        catch (Throwable t)
-        {
-            if (!(t instanceof MalformedCommitLogException))
-                throw t;
+            lout.write(logData);
+            //statics make it annoying to test things correctly
+            CommitLog.instance.recover(new File[]{ logFile }); //CASSANDRA-1119 / CASSANDRA-1179 throw on failure*/
         }
     }
-
+    
     @Test
     public void testVersions()
     {
