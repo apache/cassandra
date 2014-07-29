@@ -1,7 +1,6 @@
 2.1.1
  * Pig support for hadoop CqlInputFormat (CASSANDRA-6454)
  * Add listen_interface and rpc_interface options (CASSANDRA-7417)
- * Fail to start if commit log replay detects a problem (CASSANDRA-7125)
  * Improve schema merge performance (CASSANDRA-7444)
  * Adjust MT depth based on # of partition validating (CASSANDRA-5263)
  * Optimise NativeCell comparisons (CASSANDRA-6755)
