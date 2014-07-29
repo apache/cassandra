@@ -932,8 +932,9 @@ class Shell(cmd.Cmd):
         self.decoding_errors = []
 
         self.writeresult("")
+        if rows:
+            rows = list(rows)  # this may be an iterator if the result is large enough to page
         self.print_static_result(rows, cfMetaData)
-
         self.writeresult("(%d rows)" % len(rows or []))
 
         if self.decoding_errors:
