@@ -5,7 +5,7 @@
  * Remove CQL2 (CASSANDRA-5918)
  * Add Thrift get_multi_slice call (CASSANDRA-6757)
  * Optimize fetching multiple cells by name (CASSANDRA-6933)
- * Allow compilation in java 8 (CASSANDRA-7208)
+ * Allow compilation in java 8 (CASSANDRA-7028)
  * Make incremental repair default (CASSANDRA-7250)
  * Enable code coverage thru JaCoCo (CASSANDRA-7226)
  * Switch external naming of 'column families' to 'tables' (CASSANDRA-4369) 
