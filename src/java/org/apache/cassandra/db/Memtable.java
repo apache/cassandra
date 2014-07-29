@@ -467,7 +467,7 @@ public class Memtable
                 }
                 if (newRatio > MAX_SANE_LIVE_RATIO)
                 {
-                    logger.warn("setting live ratio to maximum of {} instead of {}", MAX_SANE_LIVE_RATIO, newRatio);
+                    logger.debug("setting live ratio to maximum of {} instead of {}", MAX_SANE_LIVE_RATIO, newRatio);
                     newRatio = MAX_SANE_LIVE_RATIO;
                 }
 
@@ -478,8 +478,8 @@ public class Memtable
                 else
                     memtable.liveRatio = (memtable.liveRatio + newRatio) / 2.0;
 
-                logger.info("{} liveRatio is {} (just-counted was {}).  calculation took {}ms for {} cells",
-                            cfs, memtable.liveRatio, newRatio, TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start), objects);
+                logger.debug("{} liveRatio is {} (just-counted was {}).  calculation took {}ms for {} cells",
+                             cfs, memtable.liveRatio, newRatio, TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start), objects);
             }
             finally
             {
