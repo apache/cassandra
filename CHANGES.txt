@@ -45,6 +45,7 @@ Merged from 2.0:
    to the coordinator (CASSANDRA-7599)
  * Set -Dcassandra.storagedir for all tool shell scripts (CASSANDRA-7587)
  * Don't swap max/min col names when mutating sstable metadata (CASSANDRA-7596)
+ * (cqlsh) Correctly handle paged result sets (CASSANDRA-7625)
 Merged from 2.0:
  * Fix ReversedType(DateType) mapping to native protocol (CASSANDRA-7576)
  * Always merge ranges owned by a single node (CASSANDRA-6930)
