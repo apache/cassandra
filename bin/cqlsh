@@ -921,6 +921,7 @@ class Shell(cmd.Cmd):
 
         self.writeresult("")
         if rows :
+            rows = list(rows)  # this may be an iterator if the result is large enough to page
             self.print_static_result(rows)
         self.writeresult("(%d rows)" % len(rows or []))
         self.writeresult("")
