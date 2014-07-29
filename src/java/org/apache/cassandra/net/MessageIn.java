@@ -105,7 +105,7 @@ public class MessageIn<T>
         return MessagingService.verbStages.get(verb);
     }
 
-    public boolean isFailureCallback()
+    public boolean doCallbackOnFailure()
     {
         return parameters.containsKey(MessagingService.FAILURE_CALLBACK_PARAM);
     }

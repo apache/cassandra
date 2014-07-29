@@ -63,7 +63,7 @@ public class MessageDeliveryTask implements Runnable
         }
         catch (Throwable t)
         {
-            if (message.isFailureCallback())
+            if (message.doCallbackOnFailure())
             {
                 MessageOut response = new MessageOut(MessagingService.Verb.INTERNAL_RESPONSE)
                                                     .withParameter(MessagingService.FAILURE_RESPONSE_PARAM, MessagingService.ONE_BYTE);
