@@ -24,7 +24,7 @@ import java.util.concurrent.RunnableFuture;
 import com.google.common.util.concurrent.AbstractFuture;
 
 import org.apache.cassandra.db.SnapshotCommand;
-import org.apache.cassandra.net.IAsyncCallback;
+import org.apache.cassandra.net.IAsyncCallbackWithFailure;
 import org.apache.cassandra.net.MessageIn;
 import org.apache.cassandra.net.MessagingService;
 
@@ -44,18 +44,18 @@ public class SnapshotTask extends AbstractFuture<InetAddress> implements Runnabl
 
     public void run()
     {
-        MessagingService.instance().sendRR(new SnapshotCommand(desc.keyspace,
-                                                               desc.columnFamily,
-                                                               desc.sessionId.toString(),
-                                                               false).createMessage(),
-                                           endpoint,
-                                           new SnapshotCallback(this));
+        MessagingService.instance().sendRRWithFailure(new SnapshotCommand(desc.keyspace,
+                                                                          desc.columnFamily,
+                                                                          desc.sessionId.toString(),
+                                                                          false).createMessage(),
+                                                      endpoint,
+                                                      new SnapshotCallback(this));
     }
 
     /**
      * Callback for snapshot request. Run on INTERNAL_RESPONSE stage.
      */
-    static class SnapshotCallback implements IAsyncCallback
+    static class SnapshotCallback implements IAsyncCallbackWithFailure
     {
         final SnapshotTask task;
 
@@ -75,5 +75,10 @@ public class SnapshotTask extends AbstractFuture<InetAddress> implements Runnabl
         }
 
         public boolean isLatencyForSnitch() { return false; }
+
+        public void onFailure(InetAddress from)
+        {
+            task.setException(new RuntimeException("Could not create snapshot at " + from));
+        }
     }
 }

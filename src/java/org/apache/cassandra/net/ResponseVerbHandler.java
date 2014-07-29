@@ -42,7 +42,15 @@ public class ResponseVerbHandler implements IVerbHandler
 
         Tracing.trace("Processing response from {}", message.from);
         IAsyncCallback cb = callbackInfo.callback;
-        MessagingService.instance().maybeAddLatency(cb, message.from, latency);
-        cb.response(message);
+        if (message.isFailureResponse())
+        {
+            ((IAsyncCallbackWithFailure) cb).onFailure(message.from);
+        }
+        else
+        {
+            //TODO: Should we add latency only in success cases?
+            MessagingService.instance().maybeAddLatency(cb, message.from, latency);
+            cb.response(message);
+        }
     }
 }

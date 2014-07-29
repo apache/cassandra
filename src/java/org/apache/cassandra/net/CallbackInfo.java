@@ -31,6 +31,12 @@ public class CallbackInfo
     protected final InetAddress target;
     protected final IAsyncCallback callback;
     protected final IVersionedSerializer<?> serializer;
+    private final boolean failureCallback;
+
+    public CallbackInfo(InetAddress target, IAsyncCallback callback, IVersionedSerializer<?> serializer)
+    {
+        this(target, callback, serializer, false);
+    }
 
     /**
      * Create CallbackInfo without sent message
@@ -39,16 +45,22 @@ public class CallbackInfo
      * @param callback
      * @param serializer serializer to deserialize response message
      */
-    public CallbackInfo(InetAddress target, IAsyncCallback callback, IVersionedSerializer<?> serializer)
+    public CallbackInfo(InetAddress target, IAsyncCallback callback, IVersionedSerializer<?> serializer, boolean failureCallback)
     {
         this.target = target;
         this.callback = callback;
         this.serializer = serializer;
+        this.failureCallback = failureCallback;
     }
 
     public boolean shouldHint()
     {
         return false;
+    }
+
+    public boolean isFailureCallback()
+    {
+        return failureCallback;
     }
 
     public String toString()
@@ -57,6 +69,7 @@ public class CallbackInfo
                "target=" + target +
                ", callback=" + callback +
                ", serializer=" + serializer +
+               ", failureCallback=" + failureCallback +
                ')';
     }
 }

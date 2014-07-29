@@ -105,6 +105,16 @@ public class MessageIn<T>
         return MessagingService.verbStages.get(verb);
     }
 
+    public boolean doCallbackOnFailure()
+    {
+        return parameters.containsKey(MessagingService.FAILURE_CALLBACK_PARAM);
+    }
+
+    public boolean isFailureResponse()
+    {
+        return parameters.containsKey(MessagingService.FAILURE_RESPONSE_PARAM);
+    }
+
     public long getTimeout()
     {
         return DatabaseDescriptor.getTimeout(verb);

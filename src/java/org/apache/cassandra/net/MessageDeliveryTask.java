@@ -57,7 +57,21 @@ public class MessageDeliveryTask implements Runnable
             return;
         }
 
-        verbHandler.doVerb(message, id);
+        try
+        {
+            verbHandler.doVerb(message, id);
+        }
+        catch (Throwable t)
+        {
+            if (message.doCallbackOnFailure())
+            {
+                MessageOut response = new MessageOut(MessagingService.Verb.INTERNAL_RESPONSE)
+                                                    .withParameter(MessagingService.FAILURE_RESPONSE_PARAM, MessagingService.ONE_BYTE);
+                MessagingService.instance().sendReply(response, id, message.from);
+            }
+
+            throw t;
+        }
         if (GOSSIP_VERBS.contains(message.verb))
             Gossiper.instance.setLastProcessedMessageAt(constructionTime);
     }
