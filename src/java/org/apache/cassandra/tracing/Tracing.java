@@ -140,9 +140,10 @@ public class Tracing
         return sessionId;
     }
 
-    public void stopNonLocal(TraceState state)
+    public void doneWithNonLocalSession(TraceState state)
     {
-        sessions.remove(state.sessionId);
+        if (state.releaseReference() == 0)
+            sessions.remove(state.sessionId);
     }
 
     /**
@@ -229,7 +230,7 @@ public class Tracing
         assert sessionBytes.length == 16;
         UUID sessionId = UUIDGen.getUUID(ByteBuffer.wrap(sessionBytes));
         TraceState ts = sessions.get(sessionId);
-        if (ts != null)
+        if (ts != null && ts.acquireReference())
             return ts;
 
         if (message.verb == MessagingService.Verb.REQUEST_RESPONSE)
