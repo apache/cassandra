@@ -219,7 +219,7 @@ public class OutboundTcpConnection extends Thread
                 {
                     state.trace(message);
                     if (qm.message.verb == MessagingService.Verb.REQUEST_RESPONSE)
-                        Tracing.instance.stopNonLocal(state);
+                        Tracing.instance.doneWithNonLocalSession(state);
                 }
             }
 
