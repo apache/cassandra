@@ -426,7 +426,8 @@ public abstract class ColumnFamily implements Iterable<Column>, IRowCacheEntry
         {
             RangeTombstone rangeTombstone = it.next();
             tombstones.update(rangeTombstone.getLocalDeletionTime());
-
+            minTimestampSeen = Math.min(minTimestampSeen, rangeTombstone.minTimestamp());
+            maxTimestampSeen = Math.max(maxTimestampSeen, rangeTombstone.maxTimestamp());
             minColumnNamesSeen = ColumnNameHelper.minComponents(minColumnNamesSeen, rangeTombstone.min, metadata.comparator);
             maxColumnNamesSeen = ColumnNameHelper.maxComponents(maxColumnNamesSeen, rangeTombstone.max, metadata.comparator);
         }
