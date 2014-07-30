@@ -446,7 +446,7 @@ Table of Contents
   Indicates an error processing a request. The body of the message will be an
   error code ([int]) followed by a [string] error message. Then, depending on
   the exception, more content may follow. The error codes are defined in
-  Section 8, along with their additional content if any.
+  Section 9, along with their additional content if any.
 
 
 4.2.2. READY
