@@ -512,11 +512,6 @@ public class NodeProbe implements AutoCloseable
         ssProxy.move(newToken);
     }
 
-    public void takeTokens(List<String> tokens) throws IOException
-    {
-        ssProxy.relocate(tokens);
-    }
-
     public void removeNode(String token)
     {
         ssProxy.removeNode(token);
