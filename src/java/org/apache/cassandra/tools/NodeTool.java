@@ -139,7 +139,6 @@ public class NodeTool
                 Drain.class,
                 TruncateHints.class,
                 TpStats.class,
-                TakeToken.class,
                 SetLoggingLevel.class,
                 GetLoggingLevels.class
         );
@@ -1406,26 +1405,6 @@ public class NodeTool
         public void execute(NodeProbe probe)
         {
             probe.invalidateCounterCache();
-        }
-    }
-
-    @Command(name = "taketoken", description = "Move the token(s) from the existing owner(s) to this node.  For vnodes only.")
-    public static class TakeToken extends NodeToolCmd
-    {
-        @Arguments(usage = "<token, ...>", description = "Token(s) to take", required = true)
-        private List<String> tokens = new ArrayList<String>();
-
-        @Override
-        public void execute(NodeProbe probe)
-        {
-            try
-            {
-                probe.takeTokens(tokens);
-            }
-            catch (IOException e)
-            {
-                throw new RuntimeException("Error taking tokens", e);
-            }
         }
     }
 

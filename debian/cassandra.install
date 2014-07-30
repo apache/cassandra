@@ -18,7 +18,6 @@ bin/sstableloader usr/bin
 bin/cqlsh usr/bin
 bin/sstablescrub usr/bin
 bin/sstableupgrade usr/bin
-bin/cassandra-shuffle usr/bin
 tools/bin/cassandra-stress usr/bin
 lib/*.jar usr/share/cassandra/lib
 lib/*.zip usr/share/cassandra/lib
