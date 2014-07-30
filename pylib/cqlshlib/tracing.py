@@ -17,14 +17,29 @@
 from cqlshlib.displaying import MAGENTA
 from datetime import datetime
 import time
-from cassandra.query import QueryTrace
+from cassandra.query import QueryTrace, TraceUnavailable
 
 
 def print_trace_session(shell, session, session_id):
+    """
+    Lookup a trace by session and trace session ID, then print it.
+    """
     trace = QueryTrace(session_id, session)
-    rows = fetch_trace_session(trace)
-    if not rows:
+    try:
+        trace.populate()
+    except TraceUnavailable:
         shell.printerr("Session %s wasn't found." % session_id)
+    else:
+        print_trace(shell, trace)
+
+
+def print_trace(shell, trace):
+    """
+    Print an already populated cassandra.query.QueryTrace instance.
+    """
+    rows = make_trace_rows(trace)
+    if not rows:
+        shell.printerr("No rows for session %s found." % (trace.trace_id,))
         return
     names = ['activity', 'timestamp', 'source', 'source_elapsed']
 
@@ -33,14 +48,13 @@ def print_trace_session(shell, session, session_id):
 
     shell.writeresult('')
     shell.writeresult('Tracing session: ', color=MAGENTA, newline=False)
-    shell.writeresult(session_id)
+    shell.writeresult(trace.trace_id)
     shell.writeresult('')
     shell.print_formatted_result(formatted_names, formatted_values)
     shell.writeresult('')
 
 
-def fetch_trace_session(trace):
-    trace.populate()
+def make_trace_rows(trace):
     if not trace.events:
         return []
 
@@ -51,7 +65,7 @@ def fetch_trace_session(trace):
         rows.append(["%s [%s]" % (event.description, event.thread_name),
                      str(datetime_from_utc_to_local(event.datetime)),
                      event.source,
-                     event.source_elapsed.microseconds])
+                     event.source_elapsed.microseconds if event.source_elapsed else "--"])
     # append footer row (from sessions table).
     if trace.duration:
         finished_at = (datetime_from_utc_to_local(trace.started_at) + trace.duration)
@@ -67,4 +81,3 @@ def datetime_from_utc_to_local(utc_datetime):
     now_timestamp = time.time()
     offset = datetime.fromtimestamp(now_timestamp) - datetime.utcfromtimestamp(now_timestamp)
     return utc_datetime + offset
-

@@ -21,6 +21,7 @@ import java.net.InetAddress;
 import java.nio.ByteBuffer;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import com.google.common.base.Stopwatch;
 import org.slf4j.helpers.MessageFormatter;
@@ -46,6 +47,10 @@ public class TraceState
     public final InetAddress coordinator;
     public final Stopwatch watch;
     public final ByteBuffer sessionIdBytes;
+
+    // Multiple requests can use the same TraceState at a time, so we need to reference count.
+    // See CASSANDRA-7626 for more details.
+    private final AtomicInteger references = new AtomicInteger(1);
 
     public TraceState(InetAddress coordinator, UUID sessionId)
     {
@@ -103,5 +108,22 @@ public class TraceState
                 Tracing.mutateWithCatch(new Mutation(Tracing.TRACE_KS, sessionIdBytes, cf));
             }
         });
+    }
+
+    public boolean acquireReference()
+    {
+        while (true)
+        {
+            int n = references.get();
+            if (n <= 0)
+                return false;
+            if (references.compareAndSet(n, n + 1))
+                return true;
+        }
+    }
+
+    public int releaseReference()
+    {
+        return references.decrementAndGet();
     }
 }

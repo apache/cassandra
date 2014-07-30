@@ -32,6 +32,9 @@ version = 3.1.5
 hostname = 127.0.0.1
 port = 9042
 
+[tracing]
+max_trace_wait = 10.0
+
 ;[ssl]
 ;certfile = ~/keys/cassandra.cert
 ;; optional - true by default.
