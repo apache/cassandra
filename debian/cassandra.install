@@ -21,7 +21,6 @@ bin/cqlsh usr/bin
 bin/sstablescrub usr/bin
 bin/sstableupgrade usr/bin
 bin/sstablesplit usr/bin
-bin/cassandra-shuffle usr/bin
 tools/bin/cassandra-stress usr/bin
 tools/bin/token-generator usr/bin
 tools/bin/sstablelevelreset usr/bin
