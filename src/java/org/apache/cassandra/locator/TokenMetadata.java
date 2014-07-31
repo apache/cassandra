@@ -701,10 +701,10 @@ public class TokenMetadata
         {
             Multimap<Range<Token>, InetAddress> newPendingRanges = HashMultimap.create();
 
-            if (bootstrapTokens.isEmpty() && leavingEndpoints.isEmpty() && movingEndpoints.isEmpty() && relocatingTokens.isEmpty())
+            if (bootstrapTokens.isEmpty() && leavingEndpoints.isEmpty() && movingEndpoints.isEmpty())
             {
                 if (logger.isDebugEnabled())
-                    logger.debug("No bootstrapping, leaving or moving nodes, and no relocating tokens -> empty pending ranges for {}", keyspaceName);
+                    logger.debug("No bootstrapping, leaving or moving nodes -> empty pending ranges for {}", keyspaceName);
 
                 pendingRanges.put(keyspaceName, newPendingRanges);
                 return;
@@ -746,7 +746,7 @@ public class TokenMetadata
             }
 
             // At this stage newPendingRanges has been updated according to leaving and bootstrapping nodes.
-            // We can now finish the calculation by checking moving and relocating nodes.
+            // We can now finish the calculation by checking moving nodes.
 
             // For each of the moving nodes, we do the same thing we did for bootstrapping:
             // simply add and remove them one by one to allLeftMetadata and check in between what their ranges would be.
@@ -761,20 +761,6 @@ public class TokenMetadata
                 {
                     newPendingRanges.put(range, endpoint);
                 }
-
-                allLeftMetadata.removeEndpoint(endpoint);
-            }
-
-            // Ranges being relocated.
-            for (Map.Entry<Token, InetAddress> relocating : relocatingTokens.entrySet())
-            {
-                InetAddress endpoint = relocating.getValue(); // address of the moving node
-                Token token = relocating.getKey();
-
-                allLeftMetadata.updateNormalToken(token, endpoint);
-
-                for (Range<Token> range : strategy.getAddressRanges(allLeftMetadata).get(endpoint))
-                    newPendingRanges.put(range, endpoint);
 
                 allLeftMetadata.removeEndpoint(endpoint);
             }
@@ -936,7 +922,6 @@ public class TokenMetadata
             leavingEndpoints.clear();
             pendingRanges.clear();
             movingEndpoints.clear();
-            relocatingTokens.clear();
             sortedTokens.clear();
             topology.clear();
             invalidateCachedRings();
