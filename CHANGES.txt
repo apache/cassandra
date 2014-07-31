@@ -12,6 +12,7 @@ Merged from 2.0:
 
 
 2.1.0-final
+ * Fix tracing on the new SEPExecutor (CASSANDRA-7644)
  * Remove shuffle and taketoken (CASSANDRA-7601)
  * Clean up Windows batch scripts (CASSANDRA-7619)
  * Fix native protocol drop user type notification (CASSANDRA-7571)
