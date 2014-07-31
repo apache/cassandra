@@ -52,6 +52,7 @@ Merged from 2.0:
 Merged from 2.0:
  * Fix ReversedType(DateType) mapping to native protocol (CASSANDRA-7576)
  * Always merge ranges owned by a single node (CASSANDRA-6930)
+ * Track max/min timestamps for range tombstones (CASSANDRA-7647)
 
 
 2.1.0-rc4
