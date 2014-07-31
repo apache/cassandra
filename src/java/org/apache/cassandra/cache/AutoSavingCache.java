@@ -261,19 +261,24 @@ public class AutoSavingCache<K extends CacheKey, V> extends InstrumentingCache<K
         {
             File savedCachesDir = new File(DatabaseDescriptor.getSavedCachesLocation());
             assert savedCachesDir.exists() && savedCachesDir.isDirectory();
-
-            for (File file : savedCachesDir.listFiles())
+            File[] files = savedCachesDir.listFiles();
+            if (files != null)
             {
-                if (!file.isFile())
-                    continue; // someone's been messing with our directory.  naughty!
-
-                if (file.getName().endsWith(cacheType.toString())
-                    || file.getName().endsWith(String.format("%s-%s.db", cacheType.toString(), CURRENT_VERSION)))
+                for (File file : files)
                 {
-                    if (!file.delete())
-                        logger.warn("Failed to delete {}", file.getAbsolutePath());
+                    if (!file.isFile())
+                        continue; // someone's been messing with our directory.  naughty!
+
+                    if (file.getName().endsWith(cacheType.toString())
+                            || file.getName().endsWith(String.format("%s-%s.db", cacheType.toString(), CURRENT_VERSION)))
+                    {
+                        if (!file.delete())
+                            logger.warn("Failed to delete {}", file.getAbsolutePath());
+                    }
                 }
             }
+            else
+                logger.warn("Could not list files in {}", savedCachesDir);
         }
     }
 

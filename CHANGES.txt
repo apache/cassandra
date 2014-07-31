@@ -22,6 +22,7 @@
  * Fix error when doing reversed queries with static columns (CASSANDRA-7490)
  * Backport CASSANDRA-6747 (CASSANDRA-7560)
  * Track max/min timestamps for range tombstones (CASSANDRA-7647)
+ * Fix NPE when listing saved caches dir (CASSANDRA-7632)
 Merged from 1.2:
  * Set correct stream ID on responses when non-Exception Throwables
    are thrown while handling native protocol messages (CASSANDRA-7470)
