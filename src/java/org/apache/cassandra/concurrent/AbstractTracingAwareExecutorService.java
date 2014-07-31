@@ -81,12 +81,12 @@ public abstract class AbstractTracingAwareExecutorService implements TracingAwar
 
     protected <T> FutureTask<T> newTaskFor(Runnable runnable, T result)
     {
-        return newTaskFor(runnable, result, null);
+        return newTaskFor(runnable, result, Tracing.instance.get());
     }
 
     protected <T> FutureTask<T> newTaskFor(Runnable runnable, T result, TraceState traceState)
     {
-        if (traceState != null || isTracing())
+        if (traceState != null)
         {
             if (runnable instanceof TraceSessionFutureTask)
                 return (TraceSessionFutureTask<T>) runnable;
@@ -103,7 +103,7 @@ public abstract class AbstractTracingAwareExecutorService implements TracingAwar
         {
             if (callable instanceof TraceSessionFutureTask)
                 return (TraceSessionFutureTask<T>) callable;
-            return new TraceSessionFutureTask<T>(callable, null);
+            return new TraceSessionFutureTask<T>(callable, Tracing.instance.get());
         }
         if (callable instanceof FutureTask)
             return (FutureTask<T>) callable;
@@ -128,6 +128,7 @@ public abstract class AbstractTracingAwareExecutorService implements TracingAwar
 
         public void run()
         {
+            TraceState oldState = Tracing.instance.get();
             Tracing.instance.set(state);
             try
             {
@@ -135,7 +136,7 @@ public abstract class AbstractTracingAwareExecutorService implements TracingAwar
             }
             finally
             {
-                Tracing.instance.set(null);
+                Tracing.instance.set(oldState);
             }
         }
     }
@@ -223,5 +224,4 @@ public abstract class AbstractTracingAwareExecutorService implements TracingAwar
     {
         addTask(newTaskFor(command, null, state));
     }
-
 }
