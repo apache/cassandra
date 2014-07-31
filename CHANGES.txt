@@ -1,4 +1,5 @@
 2.1.0-final
+ * Tolerate min/max cell names of different lengths (CASSANDRA-7651)
  * Filter cached results correctly (CASSANDRA-7636)
  * Fix tracing on the new SEPExecutor (CASSANDRA-7644)
  * Remove shuffle and taketoken (CASSANDRA-7601)

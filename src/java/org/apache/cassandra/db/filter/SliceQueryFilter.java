@@ -344,7 +344,6 @@ public class SliceQueryFilter implements IDiskAtomFilter
     {
         List<ByteBuffer> minColumnNames = sstable.getSSTableMetadata().minColumnNames;
         List<ByteBuffer> maxColumnNames = sstable.getSSTableMetadata().maxColumnNames;
-        assert minColumnNames.size() == maxColumnNames.size();
         CellNameType comparator = sstable.metadata.comparator;
 
         if (minColumnNames.isEmpty() || maxColumnNames.isEmpty())
