@@ -1522,7 +1522,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             {
                 metric.rowCacheHit.inc();
                 Tracing.trace("Row cache hit");
-                return cachedCf;
+                return filterColumnFamily(cachedCf, filter);
             }
 
             metric.rowCacheHitOutOfRange.inc();

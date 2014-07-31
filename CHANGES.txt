@@ -29,6 +29,7 @@ Merged from 2.0:
 
 
 2.1.0-final
+ * Filter cached results correctly (CASSANDRA-7636)
  * Fix tracing on the new SEPExecutor (CASSANDRA-7644)
  * Remove shuffle and taketoken (CASSANDRA-7601)
  * Clean up Windows batch scripts (CASSANDRA-7619)
