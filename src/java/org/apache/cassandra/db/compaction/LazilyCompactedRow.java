@@ -245,8 +245,8 @@ public class LazilyCompactedRow extends AbstractCompactedRow
                 else
                 {
                     tombstones.update(t.getLocalDeletionTime());
-                    minTimestampSeen = Math.min(minTimestampSeen, t.minTimestamp());
-                    maxTimestampSeen = Math.max(maxTimestampSeen, t.maxTimestamp());
+                    minTimestampSeen = Math.min(minTimestampSeen, t.timestamp());
+                    maxTimestampSeen = Math.max(maxTimestampSeen, t.timestamp());
                     minColumnNameSeen = ColumnNameHelper.minComponents(minColumnNameSeen, t.min, controller.cfs.metadata.comparator);
                     maxColumnNameSeen = ColumnNameHelper.maxComponents(maxColumnNameSeen, t.max, controller.cfs.metadata.comparator);
                     return t;
