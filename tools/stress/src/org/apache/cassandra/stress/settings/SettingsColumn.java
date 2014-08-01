@@ -21,7 +21,10 @@ package org.apache.cassandra.stress.settings;
  */
 
 
+import java.io.IOException;
 import java.io.Serializable;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
 import java.nio.ByteBuffer;
 import java.nio.charset.CharacterCodingException;
 import java.util.ArrayList;
@@ -41,7 +44,7 @@ public class SettingsColumn implements Serializable
 {
 
     public final int maxColumnsPerKey;
-    public transient final List<ByteBuffer> names;
+    public transient List<ByteBuffer> names;
     public final List<String> namestrs;
     public final String comparator;
     public final boolean variableColumnCount;
@@ -130,7 +133,6 @@ public class SettingsColumn implements Serializable
             {
                 throw new RuntimeException(e);
             }
-
             this.names = Arrays.asList(names);
             this.namestrs = Arrays.asList(namestrs);
         }
@@ -205,4 +207,29 @@ public class SettingsColumn implements Serializable
             }
         };
     }
+
+    /* Custom serializaiton invoked here to make legacy thrift based table creation work with StressD. This code requires
+     * the names attribute to be populated. Since the names attribute is set as a List[ByteBuffer] we switch it
+     * to an array on the way out and back to a buffer when it's being read in.
+     */
+
+    private void writeObject(ObjectOutputStream oos) throws IOException
+    {
+        oos.defaultWriteObject();
+        ArrayList<byte[]> namesBytes = new ArrayList<>();
+        for (ByteBuffer buffer : this.names)
+            namesBytes.add(ByteBufferUtil.getArray(buffer));
+        oos.writeObject(namesBytes);
+    }
+
+    private void readObject(ObjectInputStream ois) throws ClassNotFoundException, IOException
+    {
+        ois.defaultReadObject();
+        List<ByteBuffer> namesBuffer = new ArrayList<>();
+        List<byte[]> namesBytes = (List<byte[]>) ois.readObject();
+        for (byte[] bytes : namesBytes)
+            namesBuffer.add(ByteBuffer.wrap(bytes));
+        this.names = new ArrayList<>(namesBuffer);
+    }
+
 }
