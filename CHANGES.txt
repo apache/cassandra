@@ -12,6 +12,8 @@ Merged from 2.0:
 
 
 2.1.0-final
+ * Fix min/max cell name collection on 2.0 SSTables with range
+   tombstones (CASSANDRA-7593)
  * Tolerate min/max cell names of different lengths (CASSANDRA-7651)
  * Filter cached results correctly (CASSANDRA-7636)
  * Fix tracing on the new SEPExecutor (CASSANDRA-7644)
