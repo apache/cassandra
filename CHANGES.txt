@@ -29,6 +29,7 @@ Merged from 2.0:
 
 
 2.1.0-final
+ * Don't use strict consistency when replacing (CASSANDRA-7568)
  * Fix min/max cell name collection on 2.0 SSTables with range
    tombstones (CASSANDRA-7593)
  * Tolerate min/max cell names of different lengths (CASSANDRA-7651)
