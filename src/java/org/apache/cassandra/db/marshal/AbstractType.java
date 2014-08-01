@@ -89,6 +89,19 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>
         getSerializer().validate(bytes);
     }
 
+    /**
+     * Validate cell value. Unlike {@linkplain #validate(java.nio.ByteBuffer)},
+     * cell value is passed to validate its content.
+     * Usually, this is the same as validate except collection.
+     *
+     * @param cellValue ByteBuffer representing cell value
+     * @throws MarshalException
+     */
+    public void validateCellValue(ByteBuffer cellValue) throws MarshalException
+    {
+        validate(cellValue);
+    }
+
     /* Most of our internal type should override that. */
     public CQL3Type asCQL3Type()
     {
