@@ -128,7 +128,7 @@ public class RangeStreamer
 
     public void addRanges(String keyspaceName, Collection<Range<Token>> ranges)
     {
-        Multimap<Range<Token>, InetAddress> rangesForKeyspace = useStrictConsistency && tokens != null
+        Multimap<Range<Token>, InetAddress> rangesForKeyspace = !DatabaseDescriptor.isReplacing() && useStrictConsistency && tokens != null
                 ? getAllRangesWithStrictSourcesFor(keyspaceName, ranges) : getAllRangesWithSourcesFor(keyspaceName, ranges);
 
         if (logger.isDebugEnabled())
