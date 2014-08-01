@@ -123,24 +123,6 @@ public class DataTracker
         return toFlushMemtable;
     }
 
-    /**
-     * Renew the current memtable without putting the old one for a flush.
-     * Used when we flush but a memtable is clean (in which case we must
-     * change it because it was frozen).
-     */
-    public void renewMemtable()
-    {
-        Memtable newMemtable = new Memtable(cfstore, view.get().memtable);
-        View currentView, newView;
-        do
-        {
-            currentView = view.get();
-            newView = currentView.renewMemtable(newMemtable);
-        }
-        while (!view.compareAndSet(currentView, newView));
-        notifyRenewed(currentView.memtable);
-    }
-
     public void replaceFlushed(Memtable memtable, SSTableReader sstable)
     {
         // sstable may be null if we flushed batchlog and nothing needed to be retained

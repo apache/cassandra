@@ -1,4 +1,5 @@
 2.0.10
+ * Fix truncate to always flush (CASSANDRA-7511)
  * Remove shuffle and taketoken (CASSANDRA-7601)
  * Switch liveRatio-related log messages to DEBUG (CASSANDRA-7467)
  * (cqlsh) Add tab-completion for CREATE/DROP USER IF [NOT] EXISTS (CASSANDRA-7611)
