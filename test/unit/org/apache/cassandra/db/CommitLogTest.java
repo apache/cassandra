@@ -22,6 +22,7 @@ package org.apache.cassandra.db;
 import java.io.*;
 import java.nio.ByteBuffer;
 import java.util.UUID;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.zip.CRC32;
 import java.util.zip.Checksum;
@@ -38,12 +39,14 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.KSMetaData;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.commitlog.CommitLogDescriptor;
+import org.apache.cassandra.db.commitlog.ReplayPosition;
 import org.apache.cassandra.db.commitlog.CommitLogSegment;
 import org.apache.cassandra.db.composites.CellName;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.locator.SimpleStrategy;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.utils.FBUtilities;
 
 import static org.apache.cassandra.utils.ByteBufferUtil.bytes;
 
@@ -313,6 +316,35 @@ public class CommitLogTest
         {
             commitDir.setWritable(true);
         }
+    }
+
+    @Test
+    public void testTruncateWithoutSnapshot()  throws ExecutionException, InterruptedException
+    {
+        CommitLog.instance.resetUnsafe();
+        boolean prev = DatabaseDescriptor.isAutoSnapshot();
+        DatabaseDescriptor.setAutoSnapshot(false);
+        ColumnFamilyStore cfs1 = Keyspace.open("Keyspace1").getColumnFamilyStore("Standard1");
+        ColumnFamilyStore cfs2 = Keyspace.open("Keyspace1").getColumnFamilyStore("Standard2");
+
+        final Mutation rm1 = new Mutation("Keyspace1", bytes("k"));
+        rm1.add("Standard1", Util.cellname("c1"), ByteBuffer.allocate(100), 0);
+        rm1.apply();
+        cfs1.truncateBlocking();
+        DatabaseDescriptor.setAutoSnapshot(prev);
+        final Mutation rm2 = new Mutation("Keyspace1", bytes("k"));
+        rm2.add("Standard2", Util.cellname("c1"), ByteBuffer.allocate(DatabaseDescriptor.getCommitLogSegmentSize() / 4), 0);
+
+        for (int i = 0 ; i < 5 ; i++)
+            CommitLog.instance.add(rm2);
+
+        Assert.assertEquals(2, CommitLog.instance.activeSegments());
+        ReplayPosition position = CommitLog.instance.getContext();
+        for (Keyspace ks : Keyspace.system())
+            for (ColumnFamilyStore syscfs : ks.getColumnFamilyStores())
+                CommitLog.instance.discardCompletedSegments(syscfs.metadata.cfId, position);
+        CommitLog.instance.discardCompletedSegments(cfs2.metadata.cfId, position);
+        Assert.assertEquals(1, CommitLog.instance.activeSegments());
     }
 
 }

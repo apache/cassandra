@@ -2420,25 +2420,12 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         // position in the System keyspace.
         logger.debug("truncating {}", name);
 
-        if (DatabaseDescriptor.isAutoSnapshot())
-        {
-            // flush the CF being truncated before forcing the new segment
-            forceBlockingFlush();
+        // flush the CF being truncated before forcing the new segment
+        forceBlockingFlush();
 
-            // sleep a little to make sure that our truncatedAt comes after any sstable
-            // that was part of the flushed we forced; otherwise on a tie, it won't get deleted.
-            Uninterruptibles.sleepUninterruptibly(1, TimeUnit.MILLISECONDS);
-        }
-        else
-        {
-            // just nuke the memtable data w/o writing to disk first
-            synchronized (data)
-            {
-                final Flush flush = new Flush(true);
-                flushExecutor.execute(flush);
-                postFlushExecutor.submit(flush.postFlush);
-            }
-        }
+        // sleep a little to make sure that our truncatedAt comes after any sstable
+        // that was part of the flushed we forced; otherwise on a tie, it won't get deleted.
+        Uninterruptibles.sleepUninterruptibly(1, TimeUnit.MILLISECONDS);
 
         Runnable truncateRunnable = new Runnable()
         {
