@@ -1,4 +1,5 @@
 1.2.19
+ * SimpleSeedProvider no longer caches seeds forever (CASSANDRA-7663)
  * Set correct stream ID on responses when non-Exception Throwables
    are thrown while handling native protocol messages (CASSANDRA-7470)
  * Fix row size miscalculation in LazilyCompactedRow (CASSANDRA-7543)

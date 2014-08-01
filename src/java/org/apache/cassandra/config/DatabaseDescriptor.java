@@ -103,7 +103,7 @@ public class DatabaseDescriptor
     /**
      * Inspect the classpath to find storage configuration file
      */
-    static URL getStorageConfigURL() throws ConfigurationException
+    public static URL getStorageConfigURL() throws ConfigurationException
     {
         String configUrl = System.getProperty("cassandra.config");
         if (configUrl == null)
