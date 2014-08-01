@@ -306,11 +306,6 @@ public interface StorageServiceMBean extends NotificationEmitter
     public void move(String newToken) throws IOException;
 
     /**
-     * @param srcTokens tokens to move to this node
-     */
-    public void relocate(Collection<String> srcTokens) throws IOException;
-
-    /**
      * removeToken removes token (and all data associated with
      * enpoint that had it) from the ring
      */
@@ -466,11 +461,6 @@ public interface StorageServiceMBean extends NotificationEmitter
      * Returns the configured tracing probability.
      */
     public double getTracingProbability();
-
-    /** Begin processing of queued range transfers. */
-    public void enableScheduledRangeXfers();
-    /** Disable processing of queued range transfers. */
-    public void disableScheduledRangeXfers();
 
     /** Returns the name of the cluster */
     public String getClusterName();

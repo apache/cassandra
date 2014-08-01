@@ -13,6 +13,15 @@ restore snapshots created with the previous major version using the
 'sstableloader' tool. You can upgrade the file format of your snapshots
 using the provided 'sstableupgrade' tool.
 
+1.2.19
+======
+
+Upgrading
+---------
+    - Shuffle and taketoken have been removed.  For clusters that choose to
+      upgrade to vnodes, creating a new datacenter with vnodes and migrating is
+      recommended. See http://goo.gl/Sna2S1 for further information.
+
 1.2.18
 ======
 
