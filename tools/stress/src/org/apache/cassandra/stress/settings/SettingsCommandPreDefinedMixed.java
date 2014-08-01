@@ -23,6 +23,7 @@ package org.apache.cassandra.stress.settings;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 import org.apache.cassandra.stress.Operation;
 import org.apache.cassandra.stress.generate.DistributionFactory;
@@ -39,7 +40,7 @@ public class SettingsCommandPreDefinedMixed extends SettingsCommandPreDefined
 {
 
     // Ratios for selecting commands - index for each Command, NaN indicates the command is not requested
-    private final List<Pair<Command, Double>> ratios;
+    private final Map<Command, Double> ratios;
     private final DistributionFactory clustering;
 
     public SettingsCommandPreDefinedMixed(Options options)
@@ -54,7 +55,11 @@ public class SettingsCommandPreDefinedMixed extends SettingsCommandPreDefined
 
     public OpDistributionFactory getFactory(final StressSettings settings)
     {
-        return new SampledOpDistributionFactory<Command>(ratios, clustering)
+        final List<Pair<Command,Double>> mathPairs = new ArrayList<>();
+        for (Map.Entry entry: ratios.entrySet())
+            mathPairs.add(new Pair(entry.getKey(),entry.getValue()));
+
+        return new SampledOpDistributionFactory<Command>(mathPairs, clustering)
         {
             protected Operation get(Timer timer, PartitionGenerator generator, Command key)
             {

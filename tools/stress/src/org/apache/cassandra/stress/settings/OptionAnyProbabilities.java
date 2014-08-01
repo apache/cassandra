@@ -27,8 +27,8 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.HashMap;
 
-import org.apache.commons.math3.util.Pair;
 
 public final class OptionAnyProbabilities extends OptionMulti
 {
@@ -88,12 +88,9 @@ public final class OptionAnyProbabilities extends OptionMulti
         return Arrays.asList(ratios);
     }
 
-    List<Pair<String, Double>> ratios()
+    Map<String, Double> ratios()
     {
-        List<Pair<String, Double>> ratiosOut = new ArrayList<>();
-        for (Map.Entry<String, Double> e : ratios.options.entrySet())
-            ratiosOut.add(new Pair<String, Double>(e.getKey(), e.getValue()));
-        return ratiosOut;
+        return ratios.options;
     }
 }
 

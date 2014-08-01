@@ -24,8 +24,7 @@ package org.apache.cassandra.stress.settings;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
-
-import org.apache.commons.math3.util.Pair;
+import java.util.Map;
 
 import org.apache.cassandra.stress.Operation;
 import org.apache.cassandra.stress.StressProfile;
@@ -35,12 +34,14 @@ import org.apache.cassandra.stress.operations.OpDistributionFactory;
 import org.apache.cassandra.stress.operations.SampledOpDistributionFactory;
 import org.apache.cassandra.stress.util.Timer;
 
+import org.apache.commons.math3.util.Pair;
+
 // Settings unique to the mixed command type
 public class SettingsCommandUser extends SettingsCommand
 {
 
     // Ratios for selecting commands - index for each Command, NaN indicates the command is not requested
-    private final List<Pair<String, Double>> ratios;
+    private final Map<String, Double> ratios;
     private final DistributionFactory clustering;
     public final StressProfile profile;
 
@@ -58,7 +59,11 @@ public class SettingsCommandUser extends SettingsCommand
 
     public OpDistributionFactory getFactory(final StressSettings settings)
     {
-        return new SampledOpDistributionFactory<String>(ratios, clustering)
+        final List<Pair<String,Double>> mathPairs = new ArrayList<>();
+        for (Map.Entry entry: ratios.entrySet())
+            mathPairs.add(new Pair(entry.getKey(), entry.getValue()));
+
+        return new SampledOpDistributionFactory<String>(mathPairs, clustering)
         {
             protected Operation get(Timer timer, PartitionGenerator generator, String key)
             {
