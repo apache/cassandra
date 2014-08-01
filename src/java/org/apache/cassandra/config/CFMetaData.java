@@ -108,7 +108,7 @@ public final class CFMetaData
                                                                   + "durable_writes boolean,"
                                                                   + "strategy_class text,"
                                                                   + "strategy_options text"
-                                                                  + ") WITH COMPACT STORAGE AND COMMENT='keyspace definitions' AND gc_grace_seconds=8640");
+                                                                  + ") WITH COMPACT STORAGE AND COMMENT='keyspace definitions' AND gc_grace_seconds=604800");
 
     public static final CFMetaData SchemaColumnFamiliesCf = compile(9, "CREATE TABLE " + SystemTable.SCHEMA_COLUMNFAMILIES_CF + "("
                                                                        + "keyspace_name text,"
@@ -137,7 +137,7 @@ public final class CFMetaData
                                                                        + "column_aliases text,"
                                                                        + "compaction_strategy_options text,"
                                                                        + "PRIMARY KEY (keyspace_name, columnfamily_name)"
-                                                                       + ") WITH COMMENT='ColumnFamily definitions' AND gc_grace_seconds=8640");
+                                                                       + ") WITH COMMENT='ColumnFamily definitions' AND gc_grace_seconds=604800");
 
     public static final CFMetaData SchemaColumnsCf = compile(10, "CREATE TABLE " + SystemTable.SCHEMA_COLUMNS_CF + "("
                                                                  + "keyspace_name text,"
@@ -149,7 +149,7 @@ public final class CFMetaData
                                                                  + "index_name text,"
                                                                  + "component_index int,"
                                                                  + "PRIMARY KEY(keyspace_name, columnfamily_name, column_name)"
-                                                                 + ") WITH COMMENT='ColumnFamily column attributes' AND gc_grace_seconds=8640");
+                                                                 + ") WITH COMMENT='ColumnFamily column attributes' AND gc_grace_seconds=604800");
 
     public static final CFMetaData HintsCf = compile("CREATE TABLE " + SystemTable.HINTS_CF + " ("
                                                      + "target_id uuid,"
