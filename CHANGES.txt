@@ -56,6 +56,7 @@ Merged from 2.0:
  * (cqlsh) Improve waiting for a trace to complete (CASSANDRA-7626)
  * Fix tracing of concurrent range slices and 2ary index queries (CASSANDRA-7626)
 Merged from 2.0:
+ * Set gc_grace_seconds to seven days for system schema tables (CASSANDRA-7668)
  * SimpleSeedProvider no longer caches seeds forever (CASSANDRA-7663)
  * Always flush on truncate (CASSANDRA-7511)
  * Fix ReversedType(DateType) mapping to native protocol (CASSANDRA-7576)
