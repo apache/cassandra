@@ -111,7 +111,7 @@ public class StressProfile implements Serializable
         keyspaceCql = yaml.keyspace_definition;
         tableName = yaml.table;
         tableCql = yaml.table_definition;
-        seedStr = yaml.seed;
+        seedStr = "seed for stress";
         queries = yaml.queries;
         insert = yaml.insert;
 
@@ -140,21 +140,25 @@ public class StressProfile implements Serializable
         }
 
         columnConfigs = new HashMap<>();
-        for (Map<String,Object> spec : yaml.columnspec)
+
+        if (yaml.columnspec != null)
         {
-            lowerCase(spec);
-            String name = (String) spec.remove("name");
-            DistributionFactory population = !spec.containsKey("population") ? null : OptionDistribution.get((String) spec.remove("population"));
-            DistributionFactory size = !spec.containsKey("size") ? null : OptionDistribution.get((String) spec.remove("size"));
-            DistributionFactory clustering = !spec.containsKey("cluster") ? null : OptionDistribution.get((String) spec.remove("cluster"));
+            for (Map<String, Object> spec : yaml.columnspec)
+            {
+                lowerCase(spec);
+                String name = (String) spec.remove("name");
+                DistributionFactory population = !spec.containsKey("population") ? null : OptionDistribution.get((String) spec.remove("population"));
+                DistributionFactory size = !spec.containsKey("size") ? null : OptionDistribution.get((String) spec.remove("size"));
+                DistributionFactory clustering = !spec.containsKey("cluster") ? null : OptionDistribution.get((String) spec.remove("cluster"));
 
-            if (!spec.isEmpty())
-                throw new IllegalArgumentException("Unrecognised option(s) in column spec: " + spec);
-            if (name == null)
-                throw new IllegalArgumentException("Missing name argument in column spec");
+                if (!spec.isEmpty())
+                    throw new IllegalArgumentException("Unrecognised option(s) in column spec: " + spec);
+                if (name == null)
+                    throw new IllegalArgumentException("Missing name argument in column spec");
 
-            GeneratorConfig config = new GeneratorConfig(yaml.seed + name, clustering, size, population);
-            columnConfigs.put(name, config);
+                GeneratorConfig config = new GeneratorConfig(seedStr + name, clustering, size, population);
+                columnConfigs.put(name, config);
+            }
         }
     }
 

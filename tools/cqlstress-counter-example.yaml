@@ -52,12 +52,11 @@ table_definition: |
 #
 #      If preceded by ~, the distribution is inverted
 #
-# Defaults for all columns are size: uniform(1..256), identity: uniform(1..1024)
+# Defaults for all columns are size: uniform(4..8), population: uniform(1..100B), cluster: fixed(1)
 #
 
 columnspec:
   - name: name
-    clustering: uniform(1..100)
     size: uniform(1..4)
   - name: count
     population: fixed(1)
@@ -79,7 +78,3 @@ insert:
 queries:
    simple1: select * from counttest where name = ?
 
-#
-# In order to generate data consistently we need something to generate a unique key for this schema profile.
-#
-seed: changing this string changes the generated data. its hashcode is used as the random seed.
