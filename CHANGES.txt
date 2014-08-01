@@ -38,6 +38,7 @@ Merged from 2.0:
  * (cqlsh) Improve waiting for a trace to complete (CASSANDRA-7626)
  * Fix tracing of concurrent range slices and 2ary index queries (CASSANDRA-7626)
 Merged from 2.0:
+ * SimpleSeedProvider no longer caches seeds forever (CASSANDRA-7663)
  * Always flush on truncate (CASSANDRA-7511)
  * Fix ReversedType(DateType) mapping to native protocol (CASSANDRA-7576)
  * Always merge ranges owned by a single node (CASSANDRA-6930)
@@ -109,6 +110,18 @@ Merged from 2.0:
  * Fix exception when querying a composite-keyed table with a collection index
    (CASSANDRA-7372)
  * Use node's host id in place of counter ids (CASSANDRA-7366)
+ * Fix error when doing reversed queries with static columns (CASSANDRA-7490)
+ * Backport CASSANDRA-6747 (CASSANDRA-7560)
+ * Track max/min timestamps for range tombstones (CASSANDRA-7647)
+ * Fix NPE when listing saved caches dir (CASSANDRA-7632)
+Merged from 1.2:
+ * Set correct stream ID on responses when non-Exception Throwables
+   are thrown while handling native protocol messages (CASSANDRA-7470)
+
+
+2.0.9
+ * Fix CC#collectTimeOrderedData() tombstone optimisations (CASSANDRA-7394)
+ * Fix assertion error in CL.ANY timeout handling (CASSANDRA-7364)
  * Handle empty CFs in Memtable#maybeUpdateLiveRatio() (CASSANDRA-7401)
  * Fix native protocol CAS batches (CASSANDRA-7337)
  * Reduce likelihood of contention on local paxos locking (CASSANDRA-7359)
