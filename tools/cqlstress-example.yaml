@@ -62,13 +62,12 @@ table_definition: |
 #
 #      If preceded by ~, the distribution is inverted
 #
-# Defaults for all columns are size: uniform(1..256), identity: uniform(1..1024)
+# Defaults for all columns are size: uniform(4..8), population: uniform(1..100B), cluster: fixed(1)
 #
 columnspec:
   - name: name
     size: uniform(1..10)
     population: uniform(1..1M)     # the range of unique values to select for the field (default is 100Billion)
-  - name: choice
   - name: date
     cluster: uniform(1..4)
   - name: lval
@@ -92,8 +91,3 @@ insert:
 queries:
    simple1: select * from typestest where name = ? and choice = ? LIMIT 100
    range1: select * from typestest where name = ? and choice = ? and date >= ? LIMIT 100
-
-#
-# In order to generate data consistently we need something to generate a unique key for this schema profile.
-#
-seed: changing this string changes the generated data. its hashcode is used as the random seed.

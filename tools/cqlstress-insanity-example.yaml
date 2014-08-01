@@ -64,26 +64,20 @@ table_definition: |
 #
 #      If preceded by ~, the distribution is inverted
 #
-# Defaults for all columns are size: uniform(1..256), population: uniform(1..100B)
+# Defaults for all columns are size: uniform(4..8), population: uniform(1..100B), cluster: fixed(1)
 #
 columnspec:
-  - name: name
-    clustering: uniform(1..4)
   - name: date
-    clustering: gaussian(1..20)
+    cluster: gaussian(1..20)
   - name: lval
     population: fixed(1)
-  - name: dates
-    clustering: uniform(1..100)
-  - name: inets
-    clustering: uniform(1..200)
-  - name: value
+
 
 insert:
   partitions: fixed(1)            # number of unique partitions to update in a single operation
                                   # if perbatch < 1, multiple batches will be used but all partitions will
                                   # occur in all batches (unless already finished); only the row counts will vary
-  pervisit: uniform(1..10)/100K   # ratio of rows each partition should update in a single visit to the partition,
+  pervisit: uniform(1..10)/10     # ratio of rows each partition should update in a single visit to the partition,
                                   # as a proportion of the total possible for the partition
   perbatch: fixed(1)/1            # number of rows each partition should update in a single batch statement,
                                   # as a proportion of the proportion we are inserting this visit
@@ -96,7 +90,3 @@ insert:
 queries:
    simple1: select * from insanitytest where name = ? and choice = ? LIMIT 100
 
-#
-# In order to generate data consistently we need something to generate a unique key for this schema profile.
-#
-seed: changing this string changes the generated data. its hashcode is used as the random seed.
