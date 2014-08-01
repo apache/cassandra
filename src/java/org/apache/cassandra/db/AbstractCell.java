@@ -164,7 +164,7 @@ public abstract class AbstractCell implements Cell
 
         AbstractType<?> valueValidator = metadata.getValueValidator(name());
         if (valueValidator != null)
-            valueValidator.validate(value());
+            valueValidator.validateCellValue(value());
     }
 
     public static Cell create(CellName name, ByteBuffer value, long timestamp, int ttl, CFMetaData metadata)

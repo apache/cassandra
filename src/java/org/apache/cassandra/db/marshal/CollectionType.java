@@ -64,6 +64,12 @@ public abstract class CollectionType<T> extends AbstractType<T>
     public abstract CollectionSerializer<T> getSerializer();
 
     @Override
+    public void validateCellValue(ByteBuffer cellValue) throws MarshalException
+    {
+        valueComparator().validate(cellValue);
+    }
+
+    @Override
     public String toString()
     {
         StringBuilder sb = new StringBuilder();
