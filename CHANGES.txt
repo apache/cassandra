@@ -23,6 +23,7 @@
  * (cqlsh) Improve waiting for a trace to complete (CASSANDRA-7626)
  * Fix tracing of concurrent range slices and 2ary index queries (CASSANDRA-7626)
 Merged from 2.0:
+ * Always flush on truncate (CASSANDRA-7511)
  * Fix ReversedType(DateType) mapping to native protocol (CASSANDRA-7576)
  * Always merge ranges owned by a single node (CASSANDRA-6930)
  * Track max/min timestamps for range tombstones (CASSANDRA-7647)
