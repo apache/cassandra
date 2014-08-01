@@ -331,7 +331,7 @@ public class StressProfile implements Serializable
                     partitions = OptionDistribution.get(!insert.containsKey("partitions") ? "fixed(1)" : insert.remove("partitions"));
                     pervisit = OptionRatioDistribution.get(!insert.containsKey("pervisit") ? "fixed(1)/1" : insert.remove("pervisit"));
                     perbatch = OptionRatioDistribution.get(!insert.containsKey("perbatch") ? "fixed(1)/1" : insert.remove("perbatch"));
-                    batchType = !insert.containsKey("batchtype") ? BatchStatement.Type.UNLOGGED : BatchStatement.Type.valueOf(insert.remove("batchtype"));
+                    batchType = !insert.containsKey("batchtype") ? BatchStatement.Type.LOGGED : BatchStatement.Type.valueOf(insert.remove("batchtype"));
                     if (!insert.isEmpty())
                         throw new IllegalArgumentException("Unrecognised insert option(s): " + insert);
 
