@@ -183,7 +183,7 @@ public class StreamCoordinator
         return data;
     }
 
-    private class StreamSessionConnector implements Runnable
+    private static class StreamSessionConnector implements Runnable
     {
         private final StreamSession session;
         public StreamSessionConnector(StreamSession session)
@@ -191,6 +191,7 @@ public class StreamCoordinator
             this.session = session;
         }
 
+        @Override
         public void run()
         {
             session.start();
