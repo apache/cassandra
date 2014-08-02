@@ -572,9 +572,6 @@ class Shell(cmd.Cmd):
     def cqlver_atleast(self, major, minor=0, patch=0):
         return self.cql_ver_tuple[:3] >= (major, minor, patch)
 
-    def cassandraver_atleast(self, major, minor=0, patch=0):
-        return self.cass_ver_tuple[:3] >= (major, minor, patch)
-
     def myformat_value(self, val, **kwargs):
         if isinstance(val, DecodeError):
             self.decoding_errors.append(val)
@@ -625,7 +622,6 @@ class Shell(cmd.Cmd):
             'cql': result.cql_version,
         }
         self.connection_versions = vers
-        self.cass_ver_tuple = tuple(map(int, vers['build'].split('-', 1)[0].split('.')[:3]))
 
     def get_keyspace_names(self):
         return map(str, self.conn.metadata.keyspaces.keys())
