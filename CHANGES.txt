@@ -1,4 +1,5 @@
 2.1.0-final
+ * Reject counters inside user types (CASSANDRA-7672)
  * Switch to notification-based GCInspector (CASSANDRA-7638)
  * (cqlsh) Handle nulls in UDTs and tuples correctly (CASSANDRA-7656)
  * Don't use strict consistency when replacing (CASSANDRA-7568)
