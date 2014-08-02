@@ -68,8 +68,13 @@ public class CreateTypeStatement extends SchemaAlteringStatement
         KSMetaData ksm = Schema.instance.getKSMetaData(name.getKeyspace());
         if (ksm == null)
             throw new InvalidRequestException(String.format("Cannot add type in unknown keyspace %s", name.getKeyspace()));
+
         if (ksm.userTypes.getType(name.getUserTypeName()) != null && !ifNotExists)
-            throw new InvalidRequestException(String.format("A user type of name %s already exists.", name));
+            throw new InvalidRequestException(String.format("A user type of name %s already exists", name));
+
+        for (CQL3Type.Raw type : columnTypes)
+            if (type.isCounter())
+                throw new InvalidRequestException("A user type cannot contain counters");
     }
 
     public static void checkForDuplicateNames(UserType type) throws InvalidRequestException
