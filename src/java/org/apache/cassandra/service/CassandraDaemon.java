@@ -281,7 +281,7 @@ public class CassandraDaemon
 
         try
         {
-            GCInspector.instance.start();
+            GCInspector.register();
         }
         catch (Throwable t)
         {
