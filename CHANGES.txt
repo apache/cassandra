@@ -26,6 +26,7 @@
 Merged from 2.0:
  * (cqlsh) Add tab-completion for CREATE/DROP USER IF [NOT] EXISTS (CASSANDRA-7611)
  * Catch errors when the JVM pulls the rug out from GCInspector (CASSANDRA-5345)
+ * cqlsh fails when version number parts are not int (CASSANDRA-7524)
 
 
 2.1.0-final
