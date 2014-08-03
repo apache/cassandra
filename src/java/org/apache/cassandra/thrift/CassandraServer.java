@@ -21,6 +21,7 @@ import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.nio.ByteBuffer;
 import java.nio.charset.CharacterCodingException;
+import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.concurrent.Callable;
 import java.util.concurrent.TimeoutException;
@@ -1870,7 +1871,7 @@ public class CassandraServer implements Cassandra.Iface
 
                     decompressor.end();
 
-                    queryString = new String(decompressed.getData(), 0, decompressed.getLength(), "UTF-8");
+                    queryString = new String(decompressed.getData(), 0, decompressed.getLength(), StandardCharsets.UTF_8);
                     break;
                 case NONE:
                     try
@@ -1887,10 +1888,6 @@ public class CassandraServer implements Cassandra.Iface
         catch (DataFormatException e)
         {
             throw new InvalidRequestException("Error deflating query string.");
-        }
-        catch (UnsupportedEncodingException e)
-        {
-            throw new InvalidRequestException("Unknown query string encoding.");
         }
         return queryString;
     }
