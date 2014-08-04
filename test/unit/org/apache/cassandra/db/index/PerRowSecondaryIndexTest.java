@@ -18,8 +18,11 @@
 package org.apache.cassandra.db.index;
 
 
+import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
 import java.util.Set;
 
 import org.junit.Before;
@@ -28,14 +31,16 @@ import org.junit.Test;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.db.Cell;
-import org.apache.cassandra.db.ColumnFamily;
-import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.db.DecoratedKey;
-import org.apache.cassandra.db.Mutation;
+import org.apache.cassandra.cql3.QueryProcessor;
+import org.apache.cassandra.cql3.UntypedResultSet;
+import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.columniterator.IdentityQueryFilter;
 import org.apache.cassandra.db.composites.CellName;
+import org.apache.cassandra.db.filter.ExtendedFilter;
 import org.apache.cassandra.db.filter.QueryFilter;
+import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.concurrent.OpOrder;
 
@@ -114,6 +119,30 @@ public class PerRowSecondaryIndexTest extends SchemaLoader
 
         assertTrue(Arrays.equals("k3".getBytes(), PerRowSecondaryIndexTest.TestIndex.LAST_INDEXED_KEY.array()));
     }
+    
+    @Test
+    public void testInvalidSearch() throws IOException
+    {
+        Mutation rm;
+        rm = new Mutation("PerRowSecondaryIndex", ByteBufferUtil.bytes("k4"));
+        rm.add("Indexed1", Util.cellname("indexed"), ByteBufferUtil.bytes("foo"), 1);
+        rm.apply();
+        
+        // test we can search:
+        UntypedResultSet result = QueryProcessor.executeInternal("SELECT * FROM \"PerRowSecondaryIndex\".\"Indexed1\" WHERE indexed = 'foo'");
+        assertEquals(1, result.size());
+
+        // test we can't search if the searcher doesn't validate the expression:
+        try
+        {
+            QueryProcessor.executeInternal("SELECT * FROM \"PerRowSecondaryIndex\".\"Indexed1\" WHERE indexed = 'invalid'");
+            fail("Query should have been invalid!");
+        }
+        catch (Exception e)
+        {
+            assertTrue(e instanceof InvalidRequestException || (e.getCause() != null && (e.getCause() instanceof InvalidRequestException)));
+        }
+    }
 
     public static class TestIndex extends PerRowSecondaryIndex
     {
@@ -165,7 +194,23 @@ public class PerRowSecondaryIndexTest extends SchemaLoader
         @Override
         protected SecondaryIndexSearcher createSecondaryIndexSearcher(Set<ByteBuffer> columns)
         {
-            return null;
+            return new SecondaryIndexSearcher(baseCfs.indexManager, columns)
+            {
+                
+                @Override
+                public List<Row> search(ExtendedFilter filter)
+                {
+                    return Arrays.asList(new Row(LAST_INDEXED_KEY, LAST_INDEXED_ROW));
+                }
+
+                @Override
+                public void validate(IndexExpression indexExpression) throws InvalidRequestException
+                {
+                    if (indexExpression.value.equals(ByteBufferUtil.bytes("invalid")))
+                        throw new InvalidRequestException("Invalid search!");
+                }
+                
+            };
         }
 
         @Override
@@ -176,7 +221,7 @@ public class PerRowSecondaryIndexTest extends SchemaLoader
         @Override
         public ColumnFamilyStore getIndexCfs()
         {
-            return null;
+            return baseCfs;
         }
 
         @Override

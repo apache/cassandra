@@ -36,6 +36,7 @@ import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.*;
+import org.apache.cassandra.db.index.SecondaryIndexManager;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.dht.*;
 import org.apache.cassandra.exceptions.*;
@@ -357,7 +358,7 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
         if (filter == null)
             return null;
 
-        List<IndexExpression> expressions = getIndexExpressions(options);
+        List<IndexExpression> expressions = getValidatedIndexExpressions(options);
         // The LIMIT provided by the user is the number of CQL row he wants returned.
         // We want to have getRangeSlice to count the number of columns, not the number of keys.
         AbstractBounds<RowPosition> keyBounds = getKeyBounds(options);
@@ -1012,7 +1013,7 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
         return buildBound(b, cfm.clusteringColumns(), columnRestrictions, isReversed, cfm.comparator, options);
     }
 
-    public List<IndexExpression> getIndexExpressions(QueryOptions options) throws InvalidRequestException
+    public List<IndexExpression> getValidatedIndexExpressions(QueryOptions options) throws InvalidRequestException
     {
         if (!usesSecondaryIndexing || restrictedColumns.isEmpty())
             return Collections.emptyList();
@@ -1081,6 +1082,14 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
                 expressions.add(new IndexExpression(def.name.bytes, IndexExpression.Operator.EQ, value));
             }
         }
+        
+        if (usesSecondaryIndexing)
+        {
+            ColumnFamilyStore cfs = Keyspace.open(keyspace()).getColumnFamilyStore(columnFamily());
+            SecondaryIndexManager secondaryIndexManager = cfs.indexManager;
+            secondaryIndexManager.validateIndexSearchersForQuery(expressions);
+        }
+        
         return expressions;
     }
 
@@ -1858,7 +1867,7 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
             // the static parts. But 1) we don't have an easy way to do that with 2i and 2) since we don't support index on static columns
             // so far, 2i means that you've restricted a non static column, so the query is somewhat non-sensical.
             if (stmt.selectsOnlyStaticColumns)
-                throw new InvalidRequestException("Queries using 2ndary indexes don't support selecting only static columns");
+                throw new InvalidRequestException("Queries using 2ndary indexes don't support selecting only static columns");            
         }
 
         private void verifyOrderingIsAllowed(SelectStatement stmt) throws InvalidRequestException
