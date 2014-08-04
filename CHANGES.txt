@@ -14,6 +14,9 @@ Merged from 2.0:
 
 
 2.1.0-final
+Merged from 2.0:
+ * Support connecting to ipv6 jmx with nodetool (CASSANDRA-7669)
+
 
 2.1.0-rc5
  * Reject counters inside user types (CASSANDRA-7672)
@@ -125,6 +128,8 @@ Merged from 2.0:
  * Track max/min timestamps for range tombstones (CASSANDRA-7647)
  * Fix NPE when listing saved caches dir (CASSANDRA-7632)
 Merged from 1.2:
+ * Set gc_grace_seconds to seven days for system schema tables (CASSANDRA-7668)
+ * SimpleSeedProvider no longer caches seeds forever (CASSANDRA-7663)
  * Set correct stream ID on responses when non-Exception Throwables
    are thrown while handling native protocol messages (CASSANDRA-7470)
 
@@ -160,6 +165,12 @@ Merged from 2.0:
    are broken (CASSANDRA-7059)
 Merged from 1.2:
  * Expose global ColumnFamily metrics (CASSANDRA-7273)
+||||||| merged common ancestors
+1.2.17
+=======
+
+1.2.17
+>>>>>>> cassandra-1.2
  * cqlsh: Fix CompositeType columns in DESCRIBE TABLE output (CASSANDRA-7399)
  * Expose global ColumnFamily metrics (CASSANDRA-7273)
  * Handle possible integer overflow in FastByteArrayOutputStream (CASSANDRA-7373)
