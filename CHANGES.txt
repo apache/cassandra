@@ -1,4 +1,5 @@
 2.1.0-final
+ * cqlsh DESC CLUSTER fails retrieving ring information (CASSANDRA-7687)
 Merged from 2.0:
  * Support connecting to ipv6 jmx with nodetool (CASSANDRA-7669)
 
