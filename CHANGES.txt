@@ -15,6 +15,7 @@
 
 
 2.1.1
+ * Avoid NPEs when receiving type changes for an unknown keyspace (CASSANDRA-7689)
  * Add support for custom 2i validation (CASSANDRA-7575)
  * Pig support for hadoop CqlInputFormat (CASSANDRA-6454)
  * Add duration mode to cassandra-stress (CASSANDRA-7468)
