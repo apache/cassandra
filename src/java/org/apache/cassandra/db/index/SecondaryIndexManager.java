@@ -50,6 +50,7 @@ import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.composites.CellName;
 import org.apache.cassandra.db.filter.ExtendedFilter;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.io.sstable.ReducingKeyIterator;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.utils.FBUtilities;
@@ -560,6 +561,52 @@ public class SecondaryIndexManager
             indexSearchers.add(getIndexForColumn(column.iterator().next()).createSecondaryIndexSearcher(column));
 
         return indexSearchers;
+    }
+
+    /**
+     * Validates an union of expression index types. It will throw a {@link RuntimeException} if
+     * any of the expressions in the provided clause is not valid for its index implementation.
+     * @param clause the query clause
+     * @throws org.apache.cassandra.exceptions.InvalidRequestException in case of validation errors
+     */
+    public void validateIndexSearchersForQuery(List<IndexExpression> clause) throws InvalidRequestException
+    {
+        // Group by index type
+        Map<String, Set<IndexExpression>> expressionsByIndexType = new HashMap<>();
+        Map<String, Set<ByteBuffer>> columnsByIndexType = new HashMap<>();
+        for (IndexExpression indexExpression : clause)
+        {
+            SecondaryIndex index = getIndexForColumn(indexExpression.column);
+
+            if (index == null)
+                continue;
+
+            String canonicalIndexName = index.getClass().getCanonicalName();
+            Set<IndexExpression> expressions = expressionsByIndexType.get(canonicalIndexName);
+            Set<ByteBuffer> columns = columnsByIndexType.get(canonicalIndexName);
+            if (expressions == null)
+            {
+                expressions = new HashSet<>();
+                columns = new HashSet<>();
+                expressionsByIndexType.put(canonicalIndexName, expressions);
+                columnsByIndexType.put(canonicalIndexName, columns);
+            }
+
+            expressions.add(indexExpression);
+            columns.add(indexExpression.column);
+        }
+
+        // Validate
+        for (Map.Entry<String, Set<IndexExpression>> expressions : expressionsByIndexType.entrySet())
+        {
+            Set<ByteBuffer> columns = columnsByIndexType.get(expressions.getKey());
+            SecondaryIndex secondaryIndex = getIndexForColumn(columns.iterator().next());
+            SecondaryIndexSearcher searcher = secondaryIndex.createSecondaryIndexSearcher(columns);
+            for (IndexExpression expression : expressions.getValue())
+            {
+                searcher.validate(expression);
+            }
+        }
     }
 
     /**

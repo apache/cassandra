@@ -22,6 +22,7 @@ import java.util.*;
 
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.ExtendedFilter;
+import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.FBUtilities;
 
@@ -61,6 +62,17 @@ public abstract class SecondaryIndexSearcher
                 return true;
         }
         return false;
+    }
+    
+    /**
+     * Validates the specified {@link IndexExpression}. It will throw an {@link org.apache.cassandra.exceptions.InvalidRequestException}
+     * if the provided clause is not valid for the index implementation.
+     *
+     * @param indexExpression An {@link IndexExpression} to be validated
+     * @throws org.apache.cassandra.exceptions.InvalidRequestException in case of validation errors
+     */
+    public void validate(IndexExpression indexExpression) throws InvalidRequestException
+    {
     }
 
     protected IndexExpression highestSelectivityPredicate(List<IndexExpression> clause)
