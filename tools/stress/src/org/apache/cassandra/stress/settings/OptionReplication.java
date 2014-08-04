@@ -80,8 +80,9 @@ class OptionReplication extends OptionMulti
                         throw new IllegalArgumentException(clazz + " is not a replication strategy");
                     strategy = fullname;
                     break;
-                } catch (Exception _)
+                } catch (Exception ignore)
                 {
+                    // will throw below if strategy is still null
                 }
             }
             if (strategy == null)

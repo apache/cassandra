@@ -189,7 +189,7 @@ public class OptionDistribution extends Option
                     stdev = ((max - min) / 2d) / stdevsToEdge;
                 }
                 return new GaussianFactory(min, max, mean, stdev);
-            } catch (Exception _)
+            } catch (Exception e)
             {
                 throw new IllegalArgumentException("Invalid parameter list for uniform distribution: " + params);
             }
@@ -213,7 +213,7 @@ public class OptionDistribution extends Option
                 // over entire range, but this results in overly skewed distribution, so take sqrt
                 final double mean = (max - min) / findBounds.inverseCumulativeProbability(1d - Math.sqrt(1d/(max-min)));
                 return new ExpFactory(min, max, mean);
-            } catch (Exception _)
+            } catch (Exception e)
             {
                 throw new IllegalArgumentException("Invalid parameter list for uniform distribution: " + params);
             }
@@ -238,7 +238,7 @@ public class OptionDistribution extends Option
                 // over entire range, but this results in overly skewed distribution, so take sqrt
                 final double scale = (max - min) / findBounds.inverseCumulativeProbability(1d - Math.sqrt(1d/(max-min)));
                 return new ExtremeFactory(min, max, shape, scale);
-            } catch (Exception _)
+            } catch (Exception e)
             {
                 throw new IllegalArgumentException("Invalid parameter list for extreme (Weibull) distribution: " + params);
             }
@@ -259,7 +259,7 @@ public class OptionDistribution extends Option
                 final long min = parseLong(bounds[0]);
                 final long max = parseLong(bounds[1]);
                 return new UniformFactory(min, max);
-            } catch (Exception _)
+            } catch (Exception e)
             {
                 throw new IllegalArgumentException("Invalid parameter list for uniform distribution: " + params);
             }
@@ -278,7 +278,7 @@ public class OptionDistribution extends Option
             {
                 final long key = parseLong(params.get(0));
                 return new FixedFactory(key);
-            } catch (Exception _)
+            } catch (Exception e)
             {
                 throw new IllegalArgumentException("Invalid parameter list for uniform distribution: " + params);
             }
