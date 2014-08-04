@@ -1,13 +1,16 @@
 1.2.19
+ * Support connecting to ipv6 jmx with nodetool (CASSANDRA-7669)
  * Set gc_grace_seconds to seven days for system schema tables (CASSANDRA-7668)
  * SimpleSeedProvider no longer caches seeds forever (CASSANDRA-7663)
  * Set correct stream ID on responses when non-Exception Throwables
    are thrown while handling native protocol messages (CASSANDRA-7470)
  * Fix row size miscalculation in LazilyCompactedRow (CASSANDRA-7543)
 
+
 1.2.18
  * Support Thrift tables clustering columns on CqlPagingInputFormat (CASSANDRA-7445)
  * Fix compilation with java 6 broke by CASSANDRA-7147
+
 
 1.2.17
  * cqlsh: Fix CompositeType columns in DESCRIBE TABLE output (CASSANDRA-7399)
