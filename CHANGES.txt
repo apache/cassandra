@@ -13,6 +13,8 @@ Merged from 2.0:
 
 
 2.1.0-final
+
+2.1.0-rc5
  * Reject counters inside user types (CASSANDRA-7672)
  * Switch to notification-based GCInspector (CASSANDRA-7638)
  * (cqlsh) Handle nulls in UDTs and tuples correctly (CASSANDRA-7656)
