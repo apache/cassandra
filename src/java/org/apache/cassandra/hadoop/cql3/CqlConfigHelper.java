@@ -518,7 +518,6 @@ public class CqlConfigHelper
                 liveRemoteHosts.add(host);
             }
 
-            @Override
             public void onSuspected(Host host)
             {
             }
