@@ -27,6 +27,8 @@ import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
 
+import org.apache.cassandra.db.marshal.AsciiType;
+import org.apache.cassandra.db.marshal.BytesType;
 import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
@@ -36,7 +38,6 @@ import org.apache.cassandra.db.columniterator.OnDiskAtomIterator;
 import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.SSTableReader;
-import org.apache.cassandra.utils.ByteBufferUtil;
 
 public class SSTableImportTest extends SchemaLoader
 {
@@ -137,5 +138,42 @@ public class SSTableImportTest extends SchemaLoader
         Cell c = cf.getColumn(Util.cellname("colAA"));
         assert c instanceof CounterCell : c;
         assert ((CounterCell) c).total() == 42;
+    }
+
+    @Test
+    public void testImportWithAsciiKeyValidator() throws IOException, URISyntaxException
+    {
+        // Import JSON to temp SSTable file
+        String jsonUrl = resourcePath("SimpleCF.json");
+        File tempSS = tempSSTableFile("Keyspace1", "AsciiKeys");
+        new SSTableImport(true).importJson(jsonUrl, "Keyspace1", "AsciiKeys", tempSS.getPath());
+
+        // Verify results
+        SSTableReader reader = SSTableReader.open(Descriptor.fromFilename(tempSS.getPath()));
+        // check that keys are treated as ascii
+        QueryFilter qf = QueryFilter.getIdentityFilter(Util.dk("726f7741", AsciiType.instance), "AsciiKeys", System.currentTimeMillis());
+        OnDiskAtomIterator iter = qf.getSSTableColumnIterator(reader);
+        assert iter.hasNext(); // "ascii" key exists
+        QueryFilter qf2 = QueryFilter.getIdentityFilter(Util.dk("726f7741", BytesType.instance), "AsciiKeys", System.currentTimeMillis());
+        OnDiskAtomIterator iter2 = qf2.getSSTableColumnIterator(reader);
+        assert !iter2.hasNext(); // "bytes" key does not exist
+    }
+
+    @Test
+    public void testBackwardCompatibilityOfImportWithAsciiKeyValidator() throws IOException, URISyntaxException
+    {
+        // Import JSON to temp SSTable file
+        String jsonUrl = resourcePath("SimpleCF.json");
+        File tempSS = tempSSTableFile("Keyspace1", "AsciiKeys");
+        // To ignore current key validator
+        System.setProperty("skip.key.validator", "true");
+        new SSTableImport(true).importJson(jsonUrl, "Keyspace1", "AsciiKeys", tempSS.getPath());
+
+        // Verify results
+        SSTableReader reader = SSTableReader.open(Descriptor.fromFilename(tempSS.getPath()));
+        // check that keys are treated as bytes
+        QueryFilter qf = QueryFilter.getIdentityFilter(Util.dk("rowA"), "AsciiKeys", System.currentTimeMillis());
+        OnDiskAtomIterator iter = qf.getSSTableColumnIterator(reader);
+        assert iter.hasNext(); // "bytes" key exists
     }
 }

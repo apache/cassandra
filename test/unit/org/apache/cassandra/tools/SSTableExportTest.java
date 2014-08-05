@@ -28,7 +28,6 @@ import static org.apache.cassandra.utils.ByteBufferUtil.hexToBytes;
 import java.io.File;
 import java.io.FileReader;
 import java.io.IOException;
-import java.io.OutputStream;
 import java.io.PrintStream;
 
 import org.apache.cassandra.SchemaLoader;
@@ -36,6 +35,8 @@ import org.apache.cassandra.Util;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.QueryFilter;
+import org.apache.cassandra.db.marshal.AsciiType;
+import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.SSTableReader;
@@ -77,7 +78,9 @@ public class SSTableExportTest extends SchemaLoader
 
         // Enumerate and verify
         File temp = File.createTempFile("Standard1", ".txt");
-        SSTableExport.enumeratekeys(Descriptor.fromFilename(writer.getFilename()), new PrintStream(temp.getPath()));
+        final Descriptor descriptor = Descriptor.fromFilename(writer.getFilename());
+        SSTableExport.enumeratekeys(descriptor, new PrintStream(temp.getPath()),
+                CFMetaData.sparseCFMetaData(descriptor.ksname, descriptor.cfname, BytesType.instance));
 
 
         try (FileReader file = new FileReader(temp))
@@ -119,7 +122,8 @@ public class SSTableExportTest extends SchemaLoader
 
         // Export to JSON and verify
         File tempJson = File.createTempFile("Standard1", ".json");
-        SSTableExport.export(reader, new PrintStream(tempJson.getPath()), new String[]{asHex("rowExclude")});
+        SSTableExport.export(reader, new PrintStream(tempJson.getPath()), new String[]{asHex("rowExclude")},
+                CFMetaData.sparseCFMetaData("Keyspace1", "Standard1", BytesType.instance));
 
         JSONArray json = (JSONArray)JSONValue.parseWithException(new FileReader(tempJson));
         assertEquals("unexpected number of rows", 2, json.size());
@@ -168,7 +172,8 @@ public class SSTableExportTest extends SchemaLoader
 
         // Export to JSON and verify
         File tempJson = File.createTempFile("Standard1", ".json");
-        SSTableExport.export(reader, new PrintStream(tempJson.getPath()), new String[]{asHex("rowExclude")});
+        SSTableExport.export(reader, new PrintStream(tempJson.getPath()), new String[]{asHex("rowExclude")},
+                CFMetaData.sparseCFMetaData("Keyspace1", "Standard1", BytesType.instance));
 
         // Import JSON to another SSTable file
         File tempSS2 = tempSSTableFile("Keyspace1", "Standard1");
@@ -202,7 +207,8 @@ public class SSTableExportTest extends SchemaLoader
 
         // Export to JSON and verify
         File tempJson = File.createTempFile("Counter1", ".json");
-        SSTableExport.export(reader, new PrintStream(tempJson.getPath()), new String[0]);
+        SSTableExport.export(reader, new PrintStream(tempJson.getPath()), new String[0],
+                CFMetaData.sparseCFMetaData("Keyspace1", "Counter1", BytesType.instance));
         JSONArray json = (JSONArray)JSONValue.parseWithException(new FileReader(tempJson));
         assertEquals("unexpected number of rows", 1, json.size());
 
@@ -233,7 +239,8 @@ public class SSTableExportTest extends SchemaLoader
 
         // Export to JSON and verify
         File tempJson = File.createTempFile("ValuesWithQuotes", ".json");
-        SSTableExport.export(reader, new PrintStream(tempJson.getPath()), new String[0]);
+        SSTableExport.export(reader, new PrintStream(tempJson.getPath()), new String[0],
+                CFMetaData.sparseCFMetaData("Keyspace1", "ValuesWithQuotes", BytesType.instance));
 
         JSONArray json = (JSONArray)JSONValue.parseWithException(new FileReader(tempJson));
         assertEquals("unexpected number of rows", 1, json.size());
@@ -264,7 +271,8 @@ public class SSTableExportTest extends SchemaLoader
         SSTableReader reader = writer.closeAndOpenReader();
         // Export to JSON and verify
         File tempJson = File.createTempFile("CFWithDeletionInfo", ".json");
-        SSTableExport.export(reader, new PrintStream(tempJson.getPath()), new String[0]);
+        SSTableExport.export(reader, new PrintStream(tempJson.getPath()), new String[0],
+                CFMetaData.sparseCFMetaData("Keyspace1", "Counter1", BytesType.instance));
 
         JSONArray json = (JSONArray)JSONValue.parseWithException(new FileReader(tempJson));
         assertEquals("unexpected number of rows", 1, json.size());
@@ -323,7 +331,8 @@ public class SSTableExportTest extends SchemaLoader
         SSTableReader reader = writer.closeAndOpenReader();
         // Export to JSON and verify
         File tempJson = File.createTempFile("CFWithColumnNameEqualToDefaultKeyAlias", ".json");
-        SSTableExport.export(reader, new PrintStream(tempJson.getPath()), new String[0]);
+        SSTableExport.export(reader, new PrintStream(tempJson.getPath()), new String[0],
+                CFMetaData.sparseCFMetaData("Keyspace1", "UUIDKeys", BytesType.instance));
 
         JSONArray json = (JSONArray)JSONValue.parseWithException(new FileReader(tempJson));
         assertEquals(1, json.size());
@@ -336,5 +345,32 @@ public class SSTableExportTest extends SchemaLoader
         JSONArray col = (JSONArray) cols.get(0);
         assertEquals(CFMetaData.DEFAULT_KEY_ALIAS, ByteBufferUtil.string(hexToBytes((String) col.get(0))));
         assertEquals("not a uuid", ByteBufferUtil.string(hexToBytes((String) col.get(1))));
+    }
+
+    @Test
+    public void testAsciiKeyValidator() throws IOException, ParseException
+    {
+        File tempSS = tempSSTableFile("Keyspace1", "AsciiKeys");
+        ColumnFamily cfamily = ArrayBackedSortedColumns.factory.create("Keyspace1", "AsciiKeys");
+        SSTableWriter writer = new SSTableWriter(tempSS.getPath(), 2, ActiveRepairService.UNREPAIRED_SSTABLE);
+
+        // Add a row
+        cfamily.addColumn(column("column", "value", 1L));
+        writer.append(Util.dk("key", AsciiType.instance), cfamily);
+
+        SSTableReader reader = writer.closeAndOpenReader();
+        // Export to JSON and verify
+        File tempJson = File.createTempFile("CFWithAsciiKeys", ".json");
+        SSTableExport.export(reader,
+                             new PrintStream(tempJson.getPath()),
+                             new String[0],
+                             CFMetaData.sparseCFMetaData("Keyspace1", "AsciiKeys", BytesType.instance));
+
+        JSONArray json = (JSONArray)JSONValue.parseWithException(new FileReader(tempJson));
+        assertEquals(1, json.size());
+
+        JSONObject row = (JSONObject)json.get(0);
+        // check row key
+        assertEquals("key", row.get("key"));
     }
 }
