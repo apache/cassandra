@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.locator;
 
+import java.io.IOException;
 import java.io.InputStream;
 import java.net.InetAddress;
 import java.net.URL;
@@ -29,6 +30,7 @@ import java.util.Map;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.SeedProviderDef;
+import org.apache.cassandra.exceptions.ConfigurationException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.yaml.snakeyaml.Loader;
@@ -39,20 +41,36 @@ public class SimpleSeedProvider implements SeedProvider
 {
     private static final Logger logger = LoggerFactory.getLogger(SimpleSeedProvider.class);
 
-    public SimpleSeedProvider(Map<String, String> args) {}
-
-    public List<InetAddress> getSeeds()
-    {
-        InputStream input;
+    List<InetAddress> seeds;
+    public SimpleSeedProvider(Map<String, String> args) {
         try
         {
-            URL url = DatabaseDescriptor.getStorageConfigURL();
-            input = url.openStream();
+            seeds = loadSeeds();
         }
         catch (Exception e)
         {
             throw new AssertionError(e);
         }
+    }
+
+    public List<InetAddress> getSeeds()
+    {
+        try
+        {
+            seeds = loadSeeds();
+        }
+        catch (Exception e)
+        {
+            logger.warn("Could not refresh seeds from configuration file: {}", e);
+        }
+        return Collections.unmodifiableList(seeds);
+    }
+
+    private List<InetAddress> loadSeeds() throws IOException, ConfigurationException
+    {
+        InputStream input;
+        URL url = DatabaseDescriptor.getStorageConfigURL();
+        input = url.openStream();
         org.yaml.snakeyaml.constructor.Constructor constructor = new org.yaml.snakeyaml.constructor.Constructor(Config.class);
         TypeDescription seedDesc = new TypeDescription(SeedProviderDef.class);
         seedDesc.putMapPropertyType("parameters", String.class, String.class);
@@ -73,6 +91,6 @@ public class SimpleSeedProvider implements SeedProvider
                 logger.warn("Seed provider couldn't lookup host " + host);
             }
         }
-        return Collections.unmodifiableList(seeds);
+        return seeds;
     }
 }
