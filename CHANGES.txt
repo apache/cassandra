@@ -1,4 +1,5 @@
 2.0.10
+ * Update java driver (for hadoop) (CASSANDRA-7618)
  * Fix truncate to always flush (CASSANDRA-7511)
  * Remove shuffle and taketoken (CASSANDRA-7601)
  * Switch liveRatio-related log messages to DEBUG (CASSANDRA-7467)
