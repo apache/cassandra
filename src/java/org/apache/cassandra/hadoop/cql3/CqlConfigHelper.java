@@ -423,15 +423,15 @@ public class CqlConfigHelper
             poolingOptions.setCoreConnectionsPerHost(HostDistance.LOCAL, coreConnections.get());
         if (maxConnections.isPresent())
             poolingOptions.setMaxConnectionsPerHost(HostDistance.LOCAL, maxConnections.get());
-        if (maxSimultaneousRequests.isPresent())
-            poolingOptions.setMaxSimultaneousRequestsPerConnectionThreshold(HostDistance.LOCAL, maxSimultaneousRequests.get());
         if (minSimultaneousRequests.isPresent())
             poolingOptions.setMinSimultaneousRequestsPerConnectionThreshold(HostDistance.LOCAL, minSimultaneousRequests.get());
+        if (maxSimultaneousRequests.isPresent())
+            poolingOptions.setMaxSimultaneousRequestsPerConnectionThreshold(HostDistance.LOCAL, maxSimultaneousRequests.get());
 
         poolingOptions.setCoreConnectionsPerHost(HostDistance.REMOTE, 0)
                       .setMaxConnectionsPerHost(HostDistance.REMOTE, 0)
-                      .setMaxSimultaneousRequestsPerConnectionThreshold(HostDistance.REMOTE, 0)
-                      .setMinSimultaneousRequestsPerConnectionThreshold(HostDistance.REMOTE, 0);
+                      .setMinSimultaneousRequestsPerConnectionThreshold(HostDistance.REMOTE, 0)
+                      .setMaxSimultaneousRequestsPerConnectionThreshold(HostDistance.REMOTE, 0);
 
         return poolingOptions;
     }  
