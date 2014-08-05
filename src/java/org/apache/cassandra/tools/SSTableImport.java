@@ -17,8 +17,6 @@
  */
 package org.apache.cassandra.tools;
 
-import static org.apache.cassandra.utils.ByteBufferUtil.hexToBytes;
-
 import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -308,7 +306,7 @@ public class SSTableImport
         for (Object row : data)
         {
             Map<?,?> rowAsMap = (Map<?, ?>)row;
-            decoratedKeys.put(partitioner.decorateKey(hexToBytes((String)rowAsMap.get("key"))), rowAsMap);
+            decoratedKeys.put(partitioner.decorateKey(getKeyValidator(columnFamily).fromString((String) rowAsMap.get("key"))), rowAsMap);
         }
 
         for (Map.Entry<DecoratedKey, Map<?, ?>> row : decoratedKeys.entrySet())
@@ -381,7 +379,7 @@ public class SSTableImport
         {
             String key = parser.getCurrentName();
             Map<?, ?> row = parser.readValueAs(new TypeReference<Map<?, ?>>(){});
-            DecoratedKey currentKey = partitioner.decorateKey(hexToBytes((String) row.get("key")));
+            DecoratedKey currentKey = partitioner.decorateKey(getKeyValidator(columnFamily).fromString((String) row.get("key")));
 
             if (row.containsKey("metadata"))
                 parseMeta((Map<?, ?>) row.get("metadata"), columnFamily, null);
@@ -420,6 +418,21 @@ public class SSTableImport
         writer.closeAndOpenReader();
 
         return importedKeys;
+    }
+
+    /**
+     * Get key validator for column family
+     * @param columnFamily column family instance
+     * @return key validator for given column family
+     */
+    private AbstractType<?> getKeyValidator(ColumnFamily columnFamily) {
+        // this is a fix to support backward compatibility
+        // which allows to skip the current key validator
+        // please, take a look onto CASSANDRA-7498 for more details
+        if ("true".equals(System.getProperty("skip.key.validator", "false"))) {
+            return BytesType.instance;
+        }
+        return columnFamily.metadata().getKeyValidator();
     }
 
     /**
@@ -526,7 +539,7 @@ public class SSTableImport
     {
         try
         {
-            return (type == BytesType.instance) ? hexToBytes(content) : type.fromString(content);
+            return type.fromString(content);
         }
         catch (MarshalException e)
         {
