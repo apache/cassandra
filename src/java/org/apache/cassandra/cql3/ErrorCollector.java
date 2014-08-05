@@ -115,7 +115,7 @@ public final class ErrorCollector implements ErrorListener
 
         Token from = tokenStream.get(getSnippetFirstTokenIndex(index));
         Token to = tokenStream.get(getSnippetLastTokenIndex(index, size));
-        Token offending = tokenStream.get(index);
+        Token offending = tokenStream.get(getOffendingTokenIndex(index, size));
 
         appendSnippet(builder, from, to, offending);
     }
@@ -154,6 +154,21 @@ public final class ErrorCollector implements ErrorListener
             builder.append("...");
 
         builder.append(")");
+    }
+
+    /**
+     * Returns the index of the offending token. <p>In the case where the offending token is an extra
+     * character at the end, the index returned by the <code>TokenStream</code> might be after the last token.
+     * To avoid that problem we need to make sure that the index of the offending token is a valid index 
+     * (one for which a token exist).</p>
+     *
+     * @param index the token index returned by the <code>TokenStream</code>
+     * @param size the <code>TokenStream</code> size
+     * @return the valid index of the offending token
+     */
+    private static int getOffendingTokenIndex(int index, int size)
+    {
+        return Math.min(index, size - 1);
     }
 
     /**
