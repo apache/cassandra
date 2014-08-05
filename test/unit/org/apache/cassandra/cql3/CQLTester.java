@@ -85,7 +85,7 @@ public abstract class CQLTester
         currentTypes.clear();
 
         // We want to clean up after the test, but dropping a table is rather long so just do that asynchronously
-        StorageService.tasks.execute(new Runnable()
+        StorageService.optionalTasks.execute(new Runnable()
         {
             public void run()
             {
