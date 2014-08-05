@@ -15,6 +15,7 @@
 
 
 2.1.1
+ * Avoid IOOBE when building SyntaxError message snippet (CASSANDRA-7569)
  * SSTableExport uses correct validator to create string representation of partition
    keys (CASSANDRA-7498)
  * Avoid NPEs when receiving type changes for an unknown keyspace (CASSANDRA-7689)
