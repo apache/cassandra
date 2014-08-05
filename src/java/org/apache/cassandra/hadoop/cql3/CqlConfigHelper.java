@@ -429,8 +429,8 @@ public class CqlConfigHelper
 
         poolingOptions.setCoreConnectionsPerHost(HostDistance.REMOTE, 0)
                       .setMaxConnectionsPerHost(HostDistance.REMOTE, 0)
-                      .setMinSimultaneousRequestsPerConnectionThreshold(HostDistance.REMOTE, 0)
-                      .setMaxSimultaneousRequestsPerConnectionThreshold(HostDistance.REMOTE, 0);
+                      .setMaxSimultaneousRequestsPerConnectionThreshold(HostDistance.REMOTE, 0)
+                      .setMinSimultaneousRequestsPerConnectionThreshold(HostDistance.REMOTE, 0);
 
         return poolingOptions;
     }  
