@@ -466,7 +466,10 @@ public abstract class Selection
 
         public ByteBuffer compute(ResultSetBuilder rs) throws InvalidRequestException
         {
-            ByteBuffer[] buffers = type.split(selected.compute(rs));
+            ByteBuffer value = selected.compute(rs);
+            if (value == null)
+                return null;
+            ByteBuffer[] buffers = type.split(value);
             return field < buffers.length ? buffers[field] : null;
         }
 
