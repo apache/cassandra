@@ -519,11 +519,6 @@ public class CqlConfigHelper
             }
 
             @Override
-            public void onSuspected(Host host)
-            {
-            }
-
-            @Override
             public HostDistance distance(Host host)
             {
                 if (host.getAddress().getHostName().equals(stickHost))
