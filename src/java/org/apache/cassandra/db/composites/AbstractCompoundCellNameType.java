@@ -217,20 +217,17 @@ public abstract class AbstractCompoundCellNameType extends AbstractCellNameType
             return ((nextFull[nextIdx++] & 0xFF) << 8) | (nextFull[nextIdx++] & 0xFF);
         }
 
+        private int peekShort()
+        {
+            return ((nextFull[nextIdx] & 0xFF) << 8) | (nextFull[nextIdx+1] & 0xFF);
+        }
+
         private boolean deserializeOne()
         {
             if (allComponentsDeserialized())
                 return false;
 
-            nextIsStatic = false;
-
             int length = readShort();
-            if (length == CompositeType.STATIC_MARKER)
-            {
-                nextIsStatic = true;
-                length = readShort();
-            }
-
             ByteBuffer component = ByteBuffer.wrap(nextFull, nextIdx, length);
             nextIdx += length;
             nextComponents[nextSize++] = component;
@@ -267,6 +264,14 @@ public abstract class AbstractCompoundCellNameType extends AbstractCellNameType
 
             nextFull = new byte[length];
             in.readFully(nextFull);
+
+            // Is is a static?
+            nextIsStatic = false;
+            if (peekShort() == CompositeType.STATIC_MARKER)
+            {
+                nextIsStatic = true;
+                readShort(); // Skip the static marker
+            }
         }
 
         public Composite readNext() throws IOException
