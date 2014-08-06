@@ -124,55 +124,6 @@ Merged from 2.0:
  * Fix NPE when listing saved caches dir (CASSANDRA-7632)
 
 
-2.0.9
- * Fix CC#collectTimeOrderedData() tombstone optimisations (CASSANDRA-7394)
- * Fix assertion error in CL.ANY timeout handling (CASSANDRA-7364)
- * Handle empty CFs in Memtable#maybeUpdateLiveRatio() (CASSANDRA-7401)
- * Fix native protocol CAS batches (CASSANDRA-7337)
- * Reduce likelihood of contention on local paxos locking (CASSANDRA-7359)
- * Upgrade to Pig 0.12.1 (CASSANDRA-6556)
- * Make sure we clear out repair sessions from netstats (CASSANDRA-7329)
- * Don't fail streams on failure detector downs (CASSANDRA-3569)
- * Add optional keyspace to DROP INDEX statement (CASSANDRA-7314)
- * Reduce run time for CQL tests (CASSANDRA-7327)
- * Fix heap size calculation on Windows (CASSANDRA-7352, 7353)
- * RefCount native frames from netty (CASSANDRA-7245)
- * Use tarball dir instead of /var for default paths (CASSANDRA-7136)
- * Remove rows_per_partition_to_cache keyword (CASSANDRA-7193)
- * Fix schema change response in native protocol v3 (CASSANDRA-7413)
-Merged from 2.0:
- * Fix assertion error in CL.ANY timeout handling (CASSANDRA-7364)
- * Add per-CF range read request latency metrics (CASSANDRA-7338)
- * Fix NPE in StreamTransferTask.createMessageForRetry() (CASSANDRA-7323)
- * Make StreamSession#closeSession() idempotent (CASSANDRA-7262)
- * Fix infinite loop on exception while streaming (CASSANDRA-7330)
- * Account for range tombstones in min/max column names (CASSANDRA-7235)
- * Improve sub range repair validation (CASSANDRA-7317)
- * Accept subtypes for function results, type casts (CASSANDRA-6766)
- * Support DISTINCT for static columns and fix behaviour when DISTINC is
-   not use (CASSANDRA-7305).
- * Refuse range queries with strict bounds on compact tables since they
-   are broken (CASSANDRA-7059)
-Merged from 1.2:
- * Expose global ColumnFamily metrics (CASSANDRA-7273)
- * cqlsh: Fix CompositeType columns in DESCRIBE TABLE output (CASSANDRA-7399)
- * Expose global ColumnFamily metrics (CASSANDRA-7273)
- * Handle possible integer overflow in FastByteArrayOutputStream (CASSANDRA-7373)
- * cqlsh: 'ascii' values weren't formatted as text (CASSANDRA-7407)
- * cqlsh: ignore .cassandra permission errors (CASSANDRA-7266)
- * reduce failure detector initial value to 2s (CASSANDRA-7307)
- * Fix problem truncating on a node that was previously in a dead state (CASSANDRA-7318)
- * Don't insert tombstones that hide indexed values into 2i (CASSANDRA-7268)
- * Track metrics at a keyspace level (CASSANDRA-6539)
- * Add replace_address_first_boot flag to only replace if not bootstrapped
-   (CASSANDRA-7356)
- * Enable keepalive for native protocol (CASSANDRA-7380)
- * Check internal addresses for seeds (CASSANDRA-6523)
- * Fix potential / by 0 in HHOM page size calculation (CASSANDRA-7354)
- * Use LOCAL_ONE for non-superuser auth queries (CASSANDRA-7328)
- * Fix RangeTombstone copy bug (CASSANDRA-7371)
-
-
 2.1.0-rc1
  * Revert flush directory (CASSANDRA-6357)
  * More efficient executor service for fast operations (CASSANDRA-4718)
