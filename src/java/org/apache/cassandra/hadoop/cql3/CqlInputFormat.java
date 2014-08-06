@@ -21,7 +21,9 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Map;
 
+import org.apache.cassandra.hadoop.HadoopCompat;
 import org.apache.cassandra.hadoop.AbstractColumnFamilyInputFormat;
+import org.apache.cassandra.hadoop.ReporterWrapper;
 import org.apache.hadoop.mapred.InputSplit;
 import org.apache.hadoop.mapred.JobConf;
 import org.apache.hadoop.mapred.RecordReader;
@@ -55,14 +57,15 @@ public class CqlInputFormat extends AbstractColumnFamilyInputFormat<Long, Row>
     public RecordReader<Long, Row> getRecordReader(InputSplit split, JobConf jobConf, final Reporter reporter)
             throws IOException
     {
-        TaskAttemptContext tac = new TaskAttemptContext(jobConf, TaskAttemptID.forName(jobConf.get(MAPRED_TASK_ID)))
-        {
-            @Override
-            public void progress()
-            {
-                reporter.progress();
-            }
-        };
+        TaskAttemptContext tac = HadoopCompat.newMapContext(
+                jobConf,
+                TaskAttemptID.forName(jobConf.get(MAPRED_TASK_ID)),
+                null,
+                null,
+                null,
+                new ReporterWrapper(reporter),
+                null);
+
 
         CqlRecordReader recordReader = new CqlRecordReader();
         recordReader.initialize((org.apache.hadoop.mapreduce.InputSplit)split, tac);
