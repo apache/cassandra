@@ -7,7 +7,6 @@
  * Fix binding null values inside UDT (CASSANDRA-7685)
  * Fix UDT field selection with empty fields (CASSANDRA-7670)
  * Bogus deserialization of static cells from sstable (CASSANDRA-7684)
- * Add stop method to EmbeddedCassandraService (CASSANDRA-7595)
 Merged from 2.0:
  * Update java driver (for hadoop) (CASSANDRA-7618)
  * Remove CqlPagingRecordReader/CqlPagingInputFormat (CASSANDRA-7570)
