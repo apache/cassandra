@@ -21,6 +21,7 @@ import java.io.File;
 import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -36,6 +37,7 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.Directories;
+import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.exceptions.*;
 import org.apache.cassandra.io.util.FileUtils;
@@ -119,6 +121,23 @@ public abstract class CQLTester
                 }
             }
         });
+    }
+
+    public void flush()
+    {
+        try
+        {
+            if (currentTable != null)
+                Keyspace.open(KEYSPACE).getColumnFamilyStore(currentTable).forceFlush().get();
+        }
+        catch (InterruptedException e)
+        {
+            throw new RuntimeException(e);
+        }
+        catch (ExecutionException e)
+        {
+            throw new RuntimeException(e);
+        }
     }
 
     private static void removeAllSSTables(String ks, String table)
@@ -528,6 +547,9 @@ public abstract class CQLTester
 
         if (value instanceof String)
             return UTF8Type.instance;
+
+        if (value instanceof Boolean)
+            return BooleanType.instance;
 
         if (value instanceof List)
         {
