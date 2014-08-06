@@ -8,12 +8,9 @@
  * Fix UDT field selection with empty fields (CASSANDRA-7670)
  * Bogus deserialization of static cells from sstable (CASSANDRA-7684)
 Merged from 2.0:
- * Add 'nodetool sethintedhandoffthrottlekb' (CASSANDRA-7635)
  * Add cassandra.auto_bootstrap system property (CASSANDRA-7650)
- * Remove CqlPagingRecordReader/CqlPagingInputFormat (CASSANDRA-7570)
- * Fix IncompatibleClassChangeError from hadoop2 (CASSANDRA-7229)
- * Add 'nodetool sethintedhandoffthrottlekb' (CASSANDRA-7635)
  * Update java driver (for hadoop) (CASSANDRA-7618)
+ * Remove CqlPagingRecordReader/CqlPagingInputFormat (CASSANDRA-7570)
  * Support connecting to ipv6 jmx with nodetool (CASSANDRA-7669)
 
 
