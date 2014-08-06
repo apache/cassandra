@@ -29,6 +29,8 @@
  * Configurable client timeout for cqlsh (CASSANDRA-7516)
  * Include snippet of CQL query near syntax error in messages (CASSANDRA-7111)
 Merged from 2.0:
+ * Fix IncompatibleClassChangeError from hadoop2 (CASSANDRA-7229)
+ * Add 'nodetool sethintedhandoffthrottlekb' (CASSANDRA-7635)
  * (cqlsh) Add tab-completion for CREATE/DROP USER IF [NOT] EXISTS (CASSANDRA-7611)
  * Catch errors when the JVM pulls the rug out from GCInspector (CASSANDRA-5345)
  * cqlsh fails when version number parts are not int (CASSANDRA-7524)
