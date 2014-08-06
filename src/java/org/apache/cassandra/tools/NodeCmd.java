@@ -188,7 +188,8 @@ public class NodeCmd
         SETCACHEKEYSTOSAVE,
         RELOADTRIGGERS,
         SETLOGGINGLEVEL,
-        GETLOGGINGLEVELS
+        GETLOGGINGLEVELS,
+        SETHINTEDHANDOFFTHROTTLEKB
     }
 
 
@@ -1249,6 +1250,11 @@ public class NodeCmd
                 case RESETLOCALSCHEMA: probe.resetLocalSchema(); break;
                 case ENABLEBACKUP    : probe.setIncrementalBackupsEnabled(true); break;
                 case DISABLEBACKUP   : probe.setIncrementalBackupsEnabled(false); break;
+
+                case SETHINTEDHANDOFFTHROTTLEKB:
+                    if (arguments.length != 1) { badUse("Missing argument for hinted handoff throttle."); }
+                    probe.setHintedHandoffThrottleInKB(Integer.parseInt(arguments[0]));
+                    break;
 
                 case TRUNCATEHINTS:
                     if (arguments.length > 1) badUse("Too many arguments.");

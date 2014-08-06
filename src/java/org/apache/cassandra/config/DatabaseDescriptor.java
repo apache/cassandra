@@ -1250,6 +1250,11 @@ public class DatabaseDescriptor
         return conf.hinted_handoff_throttle_in_kb;
     }
 
+    public static void setHintedHandoffThrottleInKB(Integer throttleInKB)
+    {
+        conf.hinted_handoff_throttle_in_kb = throttleInKB;
+    }
+
     public static int getBatchlogReplayThrottleInKB()
     {
         return conf.batchlog_replay_throttle_in_kb;

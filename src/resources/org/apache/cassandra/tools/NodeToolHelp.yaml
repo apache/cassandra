@@ -223,3 +223,6 @@ commands:
   - name: getlogginglevels
     help: |
       Get the runtime logging levels
+  - name: sethintedhandoffthrottlekb  <throttle-in-kb>
+    help: |
+      Set hinted handoff throttle in kb per second, per delivery thread.

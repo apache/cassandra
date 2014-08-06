@@ -529,6 +529,11 @@ public class NodeProbe
         ssProxy.setIncrementalBackupsEnabled(enabled);
     }
 
+    public void setHintedHandoffThrottleInKB(int throttleInKb)
+    {
+        ssProxy.setHintedHandoffThrottleInKB(throttleInKb);
+    }
+
     public void setCacheCapacities(int keyCacheCapacity, int rowCacheCapacity)
     {
         try
