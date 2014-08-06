@@ -30,4 +30,27 @@ public class UserTypesTest extends CQLTester
         // 's' is not a field of myType
         assertInvalid("INSERT INTO %s (k, v) VALUES (?, {s : ?})", 0, 1);
     }
+
+
+    @Test
+    public void testFor7684() throws Throwable
+    {
+        String myType = createType("CREATE TYPE %s (x double)");
+        createTable("CREATE TABLE %s (k int, v " + myType + ", b boolean static, PRIMARY KEY (k, v))");
+
+        execute("INSERT INTO %s(k, v) VALUES (?, {x:?})", 1, -104.99251);
+        execute("UPDATE %s SET b = ? WHERE k = ?", true, 1);
+
+        System.out.println("-- First query");
+        assertRows(execute("SELECT v.x FROM %s WHERE k = ? AND v = {x:?}", 1, -104.99251),
+            row(-104.99251)
+        );
+
+        flush();
+
+        System.out.println("-- 2nd query");
+        assertRows(execute("SELECT v.x FROM %s WHERE k = ? AND v = {x:?}", 1, -104.99251),
+            row(-104.99251)
+        );
+    }
 }
