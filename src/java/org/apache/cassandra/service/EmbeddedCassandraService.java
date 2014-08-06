@@ -52,4 +52,9 @@ public class EmbeddedCassandraService
         cassandraDaemon.init(null);
         cassandraDaemon.start();
     }
+
+    public void stop() throws IOException
+    {
+        cassandraDaemon.deactivate();
+    }
 }
