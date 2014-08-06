@@ -3,10 +3,6 @@
  * Fix binding null values inside UDT (CASSANDRA-7685)
  * Fix UDT field selection with empty fields (CASSANDRA-7670)
  * Bogus deserialization of static cells from sstable (CASSANDRA-7684)
- * cqlsh DESC CLUSTER fails retrieving ring information (CASSANDRA-7687)
- * Fix binding null values inside UDT (CASSANDRA-7685)
- * Fix UDT field selection with empty fields (CASSANDRA-7670)
- * Bogus deserialization of static cells from sstable (CASSANDRA-7684)
 Merged from 2.0:
  * Add cassandra.auto_bootstrap system property (CASSANDRA-7650)
  * Update java driver (for hadoop) (CASSANDRA-7618)
