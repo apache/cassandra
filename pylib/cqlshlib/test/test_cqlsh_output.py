@@ -222,7 +222,7 @@ class TestCqlshOutput(BaseTestCase):
         self.assertCqlverQueriesGiveColoredOutput((
             ("select a, b from twenty_rows_table where a in ('1', '13', '2');", """
              a  | b
-             MM   MM
+             RR   MM
             ----+----
 
               1 |  1
@@ -241,7 +241,7 @@ class TestCqlshOutput(BaseTestCase):
         self.assertQueriesGiveColoredOutput((
             ('select * from dynamic_columns;', """
              somekey | column1 | value
-             MMMMMMM   MMMMMMM   MMMMM
+             RRRRRRR   CCCCCCC   MMMMM
             ---------+---------+-------------------------
 
                    1 |     1.2 |           one point two
@@ -262,8 +262,14 @@ class TestCqlshOutput(BaseTestCase):
         ), cqlver=cqlsh.DEFAULT_CQLVER)
 
     def test_empty_cf_output(self):
+        # we print the header after CASSANDRA-6910
         self.assertCqlverQueriesGiveColoredOutput((
             ('select * from empty_table;', """
+             lonelykey | lonelycol
+             RRRRRRRRR   MMMMMMMMM
+            -----------+-----------
+
+
             (0 rows)
             """),
         ), cqlver=cqlsh.DEFAULT_CQLVER)
@@ -273,6 +279,11 @@ class TestCqlshOutput(BaseTestCase):
         # same query should show up as empty in cql 3
         self.assertQueriesGiveColoredOutput((
             (q, """
+             num | asciicol | bigintcol | blobcol | booleancol | decimalcol | doublecol | floatcol | intcol | textcol | timestampcol | uuidcol | varcharcol | varintcol
+             RRR   MMMMMMMM   MMMMMMMMM   MMMMMMM   MMMMMMMMMM   MMMMMMMMMM   MMMMMMMMM   MMMMMMMM   MMMMMM   MMMMMMM   MMMMMMMMMMMM   MMMMMMM   MMMMMMMMMM   MMMMMMMMM
+            -----+----------+-----------+---------+------------+------------+-----------+----------+--------+---------+--------------+---------+------------+-----------
+
+
             (0 rows)
             """),
         ), cqlver=cqlsh.DEFAULT_CQLVER)
@@ -283,7 +294,7 @@ class TestCqlshOutput(BaseTestCase):
         self.assertQueriesGiveColoredOutput((
             (q, """
              a
-             M
+             R
             ---
 
              1
@@ -381,7 +392,7 @@ class TestCqlshOutput(BaseTestCase):
         self.assertCqlverQueriesGiveColoredOutput((
             ('select num, booleancol from has_all_types where num in (0, 1, 2, 3);', """
              num | booleancol
-             MMM   MMMMMMMMMM
+             RRR   MMMMMMMMMM
             -----+------------
 
                0 |       True
@@ -404,7 +415,7 @@ class TestCqlshOutput(BaseTestCase):
         self.assertCqlverQueriesGiveColoredOutput((
             ("select k, c, notthere from undefined_values_table where k in ('k1', 'k2');", """
              k  | c  | notthere
-             M    M    MMMMMMMM
+             R    M    MMMMMMMM
             ----+----+----------
 
              k1 | c1 |     null
@@ -422,7 +433,7 @@ class TestCqlshOutput(BaseTestCase):
         self.assertQueriesGiveColoredOutput((
             ("select * from undefined_values_table where k in ('k1', 'k2');", """
              k  | c  | notthere
-             M    M    MMMMMMMM
+             R    M    MMMMMMMM
             ----+----+----------
 
              k1 | c1 |     null
@@ -440,7 +451,7 @@ class TestCqlshOutput(BaseTestCase):
         self.assertCqlverQueriesGiveColoredOutput((
             ("select * from ascii_with_invalid_and_special_chars where k in (0, 1, 2, 3, 4);", r"""
              k | val
-             M   MMM
+             R   MMM
             ---+-----------------------------------------------
 
              0 |                                    newline:\n
@@ -470,7 +481,7 @@ class TestCqlshOutput(BaseTestCase):
         self.assertCqlverQueriesGiveColoredOutput((
             ("select * from utf8_with_special_chars where k in (0, 1, 2, 3, 4, 5, 6);", u"""
              k | val
-             M   MMM
+             R   MMM
             ---+-------------------------------
 
              0 |                 Normal string
@@ -498,7 +509,7 @@ class TestCqlshOutput(BaseTestCase):
         self.assertCqlverQueriesGiveColoredOutput((
             ("select num, blobcol from has_all_types where num in (0, 1, 2, 3);", r"""
              num | blobcol
-             MMM   MMMMMMM
+             RRR   MMMMMMM
             -----+----------------------
 
                0 | 0x000102030405fffefd
@@ -656,6 +667,7 @@ class TestCqlshOutput(BaseTestCase):
                 AND comment = ''
                 AND compaction = {'min_threshold': '4', 'class': 'org.apache.cassandra.db.compaction.SizeTieredCompactionStrategy', 'max_threshold': '32'}
                 AND compression = {'sstable_compression': 'org.apache.cassandra.io.compress.LZ4Compressor'}
+                AND dclocal_read_repair_chance = 0.1
                 AND default_time_to_live = 0
                 AND gc_grace_seconds = 864000
                 AND max_index_interval = 2048
