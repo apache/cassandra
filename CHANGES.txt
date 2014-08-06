@@ -29,7 +29,6 @@
  * Configurable client timeout for cqlsh (CASSANDRA-7516)
  * Include snippet of CQL query near syntax error in messages (CASSANDRA-7111)
 Merged from 2.0:
- * Remove CqlPagingRecordReader/CqlPagingInputFormat (CASSANDRA-7570)
  * Fix IncompatibleClassChangeError from hadoop2 (CASSANDRA-7229)
  * Add 'nodetool sethintedhandoffthrottlekb' (CASSANDRA-7635)
  * (cqlsh) Add tab-completion for CREATE/DROP USER IF [NOT] EXISTS (CASSANDRA-7611)
@@ -43,6 +42,7 @@ Merged from 2.0:
  * Fix UDT field selection with empty fields (CASSANDRA-7670)
  * Bogus deserialization of static cells from sstable (CASSANDRA-7684)
 Merged from 2.0:
+ * Remove CqlPagingRecordReader/CqlPagingInputFormat (CASSANDRA-7570)
  * Add stop method to EmbeddedCassandraService (CASSANDRA-7595)
  * Update java driver (for hadoop) (CASSANDRA-7618)
  * Support connecting to ipv6 jmx with nodetool (CASSANDRA-7669)

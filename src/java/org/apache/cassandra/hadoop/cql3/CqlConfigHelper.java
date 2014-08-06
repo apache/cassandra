@@ -422,15 +422,15 @@ public class CqlConfigHelper
             poolingOptions.setCoreConnectionsPerHost(HostDistance.LOCAL, coreConnections.get());
         if (maxConnections.isPresent())
             poolingOptions.setMaxConnectionsPerHost(HostDistance.LOCAL, maxConnections.get());
-        if (minSimultaneousRequests.isPresent())
-            poolingOptions.setMinSimultaneousRequestsPerConnectionThreshold(HostDistance.LOCAL, minSimultaneousRequests.get());
         if (maxSimultaneousRequests.isPresent())
             poolingOptions.setMaxSimultaneousRequestsPerConnectionThreshold(HostDistance.LOCAL, maxSimultaneousRequests.get());
+        if (minSimultaneousRequests.isPresent())
+            poolingOptions.setMinSimultaneousRequestsPerConnectionThreshold(HostDistance.LOCAL, minSimultaneousRequests.get());
 
         poolingOptions.setCoreConnectionsPerHost(HostDistance.REMOTE, 0)
                       .setMaxConnectionsPerHost(HostDistance.REMOTE, 0)
-                      .setMinSimultaneousRequestsPerConnectionThreshold(HostDistance.REMOTE, 0)
-                      .setMaxSimultaneousRequestsPerConnectionThreshold(HostDistance.REMOTE, 0);
+                      .setMaxSimultaneousRequestsPerConnectionThreshold(HostDistance.REMOTE, 0)
+                      .setMinSimultaneousRequestsPerConnectionThreshold(HostDistance.REMOTE, 0);
 
         return poolingOptions;
     }  
@@ -516,11 +516,6 @@ public class CqlConfigHelper
                 if (host.getAddress().getHostName().equals(stickHost))
                     origHost = host;
                 liveRemoteHosts.add(host);
-            }
-
-            @Override
-            public void onSuspected(Host host)
-            {
             }
 
             @Override
