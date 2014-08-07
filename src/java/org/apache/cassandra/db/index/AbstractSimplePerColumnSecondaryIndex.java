@@ -71,6 +71,12 @@ public abstract class AbstractSimplePerColumnSecondaryIndex extends PerColumnSec
         return new BufferDecoratedKey(new LocalToken(getIndexKeyComparator(), value), value);
     }
 
+    @Override
+    String indexTypeForGrouping()
+    {
+        return "_internal_";
+    }
+
     protected abstract CellName makeIndexColumnName(ByteBuffer rowKey, Cell cell);
 
     protected abstract ByteBuffer getIndexedValue(ByteBuffer rowKey, Cell cell);
