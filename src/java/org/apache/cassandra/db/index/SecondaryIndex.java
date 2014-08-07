@@ -94,6 +94,16 @@ public abstract class SecondaryIndex
      */
     abstract public String getIndexName();
 
+    /**
+     * All internal 2ndary indexes will return "_internal_" for this. Custom
+     * 2ndary indexes will return their class name. This only matter for
+     * SecondaryIndexManager.groupByIndexType.
+     */
+    String indexTypeForGrouping()
+    {
+        // Our internal indexes overwrite this
+        return getClass().getCanonicalName();
+    }
 
     /**
      * Return the unique name for this index and column

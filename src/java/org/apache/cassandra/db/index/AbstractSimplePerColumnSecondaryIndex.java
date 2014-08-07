@@ -55,6 +55,12 @@ public abstract class AbstractSimplePerColumnSecondaryIndex extends PerColumnSec
                                                              indexedCfMetadata);
     }
 
+    @Override
+    String indexTypeForGrouping()
+    {
+        return "_internal_";
+    }
+
     protected abstract ByteBuffer makeIndexColumnName(ByteBuffer rowKey, Column column);
 
     protected abstract ByteBuffer getIndexedValue(ByteBuffer rowKey, Column column);

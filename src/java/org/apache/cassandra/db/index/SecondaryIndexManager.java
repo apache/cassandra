@@ -198,17 +198,15 @@ public class SecondaryIndexManager
         if (clause == null || clause.isEmpty())
             return false;
 
-        // It doesn't seem a clause can have multiple searchers, but since
-        // getIndexSearchersForQuery returns a list ...
         List<SecondaryIndexSearcher> searchers = getIndexSearchersForQuery(clause);
         if (searchers.isEmpty())
             return false;
 
         for (SecondaryIndexSearcher searcher : searchers)
-            if (!searcher.isIndexing(clause))
-                return false;
+            if (searcher.isIndexing(clause))
+                return true;
 
-        return true;
+        return false;
     }
 
     /**
@@ -515,12 +513,12 @@ public class SecondaryIndexManager
             if (index == null)
                 continue;
 
-            Set<ByteBuffer> columns = groupByIndexType.get(index.getClass().getCanonicalName());
+            Set<ByteBuffer> columns = groupByIndexType.get(index.indexTypeForGrouping());
 
             if (columns == null)
             {
                 columns = new HashSet<>();
-                groupByIndexType.put(index.getClass().getCanonicalName(), columns);
+                groupByIndexType.put(index.indexTypeForGrouping(), columns);
             }
 
             columns.add(ix.column_name);
