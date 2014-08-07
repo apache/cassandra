@@ -25,6 +25,8 @@ Merged from 2.0:
  * Fix UDT field selection with empty fields (CASSANDRA-7670)
  * Bogus deserialization of static cells from sstable (CASSANDRA-7684)
 Merged from 2.0:
+ * Avoid logging CompactionInterrupted at ERROR (CASSANDRA-7694)
+ * Minor leak in sstable2jon (CASSANDRA-7709)
  * Add cassandra.auto_bootstrap system property (CASSANDRA-7650)
  * Update java driver (for hadoop) (CASSANDRA-7618)
  * Remove CqlPagingRecordReader/CqlPagingInputFormat (CASSANDRA-7570)
