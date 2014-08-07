@@ -114,6 +114,7 @@ public class NodeTool
                 RemoveNode.class,
                 Repair.class,
                 SetCacheCapacity.class,
+                SetHintedHandoffThrottleInKB.class,
                 SetCompactionThreshold.class,
                 SetCompactionThroughput.class,
                 SetStreamThroughput.class,
@@ -1670,6 +1671,19 @@ public class NodeTool
         public void execute(NodeProbe probe)
         {
             probe.setCompactionThroughput(compactionThroughput);
+        }
+    }
+
+    @Command(name = "sethintedhandoffthrottlekb", description =  "Set hinted handoff throttle in kb per second, per delivery thread.")
+    public static class SetHintedHandoffThrottleInKB extends NodeToolCmd
+    {
+        @Arguments(title = "throttle_in_kb", usage = "<value_in_kb_per_sec>", description = "Value in KB per second", required = true)
+        private Integer throttleInKB = null;
+
+        @Override
+        public void execute(NodeProbe probe)
+        {
+            probe.setHintedHandoffThrottleInKB(throttleInKB);
         }
     }
 
