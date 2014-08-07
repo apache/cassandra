@@ -200,20 +200,6 @@ public class ThriftColumnFamilyTest extends PigTestBase
     }
 
     @Test
-    public void testCqlStorage() throws IOException, ClassNotFoundException, TException, TimedOutException, NotFoundException, InvalidRequestException, NoSuchFieldException, UnavailableException, IllegalAccessException, InstantiationException, AuthenticationException, AuthorizationException
-    {
-        //regular thrift column families
-        cqlStorageTest("data = load 'cql://thriftKs/SomeApp?" + defaultParameters + "' using CqlStorage();");
-
-        //Test counter colun family
-        // This test fails for CASSANDRA-7059
-        //cqlStorageCounterTableTest("cc_data = load 'cql://thriftKs/CC?" + defaultParameters + "' using CqlStorage();");
-
-        //Test composite column family
-        cqlStorageCompositeTableTest("compo_data = load 'cql://thriftKs/Compo?" + defaultParameters + "' using CqlStorage();");
-    }
-
-    @Test
     public void testCqlNativeStorage() throws IOException, ClassNotFoundException, TException, TimedOutException, NotFoundException, InvalidRequestException, NoSuchFieldException, UnavailableException, IllegalAccessException, InstantiationException, AuthenticationException, AuthorizationException
     {
         //regular thrift column families
