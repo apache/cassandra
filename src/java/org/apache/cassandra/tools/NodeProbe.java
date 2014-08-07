@@ -602,6 +602,10 @@ public class NodeProbe implements AutoCloseable
         }
     }
 
+    public void setHintedHandoffThrottleInKB(int throttleInKB)
+    {
+        ssProxy.setHintedHandoffThrottleInKB(throttleInKB);
+    }
 
     public List<InetAddress> getEndpoints(String keyspace, String cf, String key)
     {
