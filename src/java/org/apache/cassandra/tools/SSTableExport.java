@@ -228,20 +228,26 @@ public class SSTableExport
     throws IOException
     {
         KeyIterator iter = new KeyIterator(desc);
-        DecoratedKey lastKey = null;
-        while (iter.hasNext())
+        try
         {
-            DecoratedKey key = iter.next();
+            DecoratedKey lastKey = null;
+            while (iter.hasNext())
+            {
+                DecoratedKey key = iter.next();
 
-            // validate order of the keys in the sstable
-            if (lastKey != null && lastKey.compareTo(key) > 0)
-                throw new IOException("Key out of order! " + lastKey + " > " + key);
-            lastKey = key;
+                // validate order of the keys in the sstable
+                if (lastKey != null && lastKey.compareTo(key) > 0)
+                    throw new IOException("Key out of order! " + lastKey + " > " + key);
+                lastKey = key;
 
-            outs.println(bytesToHex(key.getKey()));
-            checkStream(outs); // flushes
+                outs.println(bytesToHex(key.getKey()));
+                checkStream(outs); // flushes
+            }
         }
-        iter.close();
+        finally
+        {
+            iter.close();
+        }
     }
 
     /**
@@ -257,47 +263,53 @@ public class SSTableExport
     {
         SSTableReader sstable = SSTableReader.open(desc);
         RandomAccessReader dfile = sstable.openDataReader();
-
-        IPartitioner<?> partitioner = sstable.partitioner;
-
-        if (excludes != null)
-            toExport.removeAll(Arrays.asList(excludes));
-
-        outs.println("[");
-
-        int i = 0;
-
-        // last key to compare order
-        DecoratedKey lastKey = null;
-
-        for (String key : toExport)
+        try
         {
-            DecoratedKey decoratedKey = partitioner.decorateKey(hexToBytes(key));
+            IPartitioner<?> partitioner = sstable.partitioner;
 
-            if (lastKey != null && lastKey.compareTo(decoratedKey) > 0)
-                throw new IOException("Key out of order! " + lastKey + " > " + decoratedKey);
+            if (excludes != null)
+                toExport.removeAll(Arrays.asList(excludes));
 
-            lastKey = decoratedKey;
+            outs.println("[");
 
-            RowIndexEntry entry = sstable.getPosition(decoratedKey, SSTableReader.Operator.EQ);
-            if (entry == null)
-                continue;
+            int i = 0;
 
-            dfile.seek(entry.position);
-            ByteBufferUtil.readWithShortLength(dfile); // row key
-            DeletionInfo deletionInfo = new DeletionInfo(DeletionTime.serializer.deserialize(dfile));
-            Iterator<OnDiskAtom> atomIterator = sstable.metadata.getOnDiskIterator(dfile, sstable.descriptor.version);
+            // last key to compare order
+            DecoratedKey lastKey = null;
 
-            checkStream(outs);
+            for (String key : toExport)
+            {
+                DecoratedKey decoratedKey = partitioner.decorateKey(hexToBytes(key));
 
-            if (i != 0)
-                outs.println(",");
-            i++;
-            serializeRow(deletionInfo, atomIterator, sstable.metadata, decoratedKey, outs);
+                if (lastKey != null && lastKey.compareTo(decoratedKey) > 0)
+                    throw new IOException("Key out of order! " + lastKey + " > " + decoratedKey);
+
+                lastKey = decoratedKey;
+
+                RowIndexEntry entry = sstable.getPosition(decoratedKey, SSTableReader.Operator.EQ);
+                if (entry == null)
+                    continue;
+
+                dfile.seek(entry.position);
+                ByteBufferUtil.readWithShortLength(dfile); // row key
+                DeletionInfo deletionInfo = new DeletionInfo(DeletionTime.serializer.deserialize(dfile));
+
+                Iterator<OnDiskAtom> atomIterator = sstable.metadata.getOnDiskIterator(dfile, sstable.descriptor.version);
+                checkStream(outs);
+
+                if (i != 0)
+                    outs.println(",");
+                i++;
+                serializeRow(deletionInfo, atomIterator, sstable.metadata, decoratedKey, outs);
+            }
+
+            outs.println("\n]");
+            outs.flush();
         }
-
-        outs.println("\n]");
-        outs.flush();
+        finally
+        {
+            dfile.close();
+        }
     }
 
     // This is necessary to accommodate the test suite since you cannot open a Reader more
@@ -309,36 +321,39 @@ public class SSTableExport
         if (excludes != null)
             excludeSet = new HashSet<String>(Arrays.asList(excludes));
 
-
         SSTableIdentityIterator row;
         SSTableScanner scanner = reader.getScanner();
-
-        outs.println("[");
-
-        int i = 0;
-
-        // collecting keys to export
-        while (scanner.hasNext())
+        try
         {
-            row = (SSTableIdentityIterator) scanner.next();
+            outs.println("[");
 
-            String currentKey = bytesToHex(row.getKey().getKey());
+            int i = 0;
 
-            if (excludeSet.contains(currentKey))
-                continue;
-            else if (i != 0)
-                outs.println(",");
+            // collecting keys to export
+            while (scanner.hasNext())
+            {
+                row = (SSTableIdentityIterator) scanner.next();
 
-            serializeRow(row, row.getKey(), outs);
-            checkStream(outs);
+                String currentKey = bytesToHex(row.getKey().getKey());
 
-            i++;
+                if (excludeSet.contains(currentKey))
+                    continue;
+                else if (i != 0)
+                    outs.println(",");
+
+                serializeRow(row, row.getKey(), outs);
+                checkStream(outs);
+
+                i++;
+            }
+
+            outs.println("\n]");
+            outs.flush();
         }
-
-        outs.println("\n]");
-        outs.flush();
-
-        scanner.close();
+        finally
+        {
+            scanner.close();
+        }
     }
 
     /**
