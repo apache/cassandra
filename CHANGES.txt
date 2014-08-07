@@ -20,6 +20,7 @@ Merged from 2.0:
 
 
 2.1.0-final
+ * workaround for netty issue causing corrupted data off the wire (CASSANDRA-7695)
  * cqlsh DESC CLUSTER fails retrieving ring information (CASSANDRA-7687)
  * Fix binding null values inside UDT (CASSANDRA-7685)
  * Fix UDT field selection with empty fields (CASSANDRA-7670)
