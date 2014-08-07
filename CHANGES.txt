@@ -1,4 +1,5 @@
 2.0.10
+ * Avoid logging CompactionInterrupted at ERROR (CASSANDRA-7694)
  * Minor leak in sstable2jon (CASSANDRA-7709)
  * Add cassandra.auto_bootstrap system property (CASSANDRA-7650)
  * Remove CqlPagingRecordReader/CqlPagingInputFormat (CASSANDRA-7570)
