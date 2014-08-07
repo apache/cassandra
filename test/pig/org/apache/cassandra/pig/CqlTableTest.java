@@ -90,14 +90,6 @@ public class CqlTableTest extends PigTestBase
     }
 
     @Test
-    public void testCqlStorageSchema()
-    throws AuthenticationException, AuthorizationException, InvalidRequestException, UnavailableException, TimedOutException, TException, NotFoundException, SchemaDisagreementException, IOException
-    {
-        cqlTableSchemaTest("rows = LOAD 'cql://cql3ks/cqltable?" + defaultParameters + "' USING CqlStorage();");
-        compactCqlTableSchemaTest("rows = LOAD 'cql://cql3ks/compactcqltable?" + defaultParameters + "' USING CqlStorage();");
-    }
-
-    @Test
     public void testCqlNativeStorageSchema()
     throws AuthenticationException, AuthorizationException, InvalidRequestException, UnavailableException, TimedOutException, TException, NotFoundException, SchemaDisagreementException, IOException
     {
@@ -144,14 +136,6 @@ public class CqlTableTest extends PigTestBase
     }
 
     @Test
-    public void testCqlStorageSingleKeyTable()
-    throws AuthenticationException, AuthorizationException, InvalidRequestException, UnavailableException, TimedOutException, TException, NotFoundException, SchemaDisagreementException, IOException
-    {
-        SingleKeyTableTest("moretestvalues= LOAD 'cql://cql3ks/moredata?" + defaultParameters + "' USING CqlStorage();");
-
-    }
-
-    @Test
     public void testCqlNativeStorageSingleKeyTable()
     throws AuthenticationException, AuthorizationException, InvalidRequestException, UnavailableException, TimedOutException, TException, NotFoundException, SchemaDisagreementException, IOException
     {
@@ -165,7 +149,7 @@ public class CqlTableTest extends PigTestBase
         pig.setBatchOn();
         pig.registerQuery(initialQuery);
         pig.registerQuery("insertformat= FOREACH moretestvalues GENERATE TOTUPLE(TOTUPLE('a',x)),TOTUPLE(y);");
-        pig.registerQuery("STORE insertformat INTO 'cql://cql3ks/test?" + defaultParameters + "&output_query=UPDATE+cql3ks.test+set+b+%3D+%3F' USING CqlStorage();");
+        pig.registerQuery("STORE insertformat INTO 'cql://cql3ks/test?" + defaultParameters + nativeParameters + "&output_query=UPDATE+cql3ks.test+set+b+%3D+%3F' USING CqlNativeStorage();");
         pig.executeBatch();
         //(5,5)
         //(6,6)
@@ -173,19 +157,13 @@ public class CqlTableTest extends PigTestBase
         //(2,2)
         //(3,3)
         //(1,1)
-        pig.registerQuery("result= LOAD 'cql://cql3ks/test?" + defaultParameters + "' USING CqlStorage();");
+        //input_cql=select * from test where token(a) > ? and token(a) <= ?
+        pig.registerQuery("result= LOAD 'cql://cql3ks/test?" + defaultParameters + nativeParameters + "&input_cql=select%20*%20from%20test%20where%20token(a)%20%3E%20%3F%20and%20token(a)%20%3C%3D%20%3F' USING CqlNativeStorage();");
         Iterator<Tuple> it = pig.openIterator("result");
         while (it.hasNext()) {
             Tuple t = it.next();
             Assert.assertEquals(t.get(0), t.get(1));
         }
-    }
-
-    @Test
-    public void testCqlStorageCompositeKeyTable()
-    throws AuthenticationException, AuthorizationException, InvalidRequestException, UnavailableException, TimedOutException, TException, NotFoundException, SchemaDisagreementException, IOException
-    {
-        CompositeKeyTableTest("moredata= LOAD 'cql://cql3ks/compmore?" + defaultParameters + "' USING CqlStorage();");
     }
 
     @Test
@@ -202,7 +180,7 @@ public class CqlTableTest extends PigTestBase
         pig.setBatchOn();
         pig.registerQuery(initialQuery);
         pig.registerQuery("insertformat = FOREACH moredata GENERATE TOTUPLE (TOTUPLE('a',x),TOTUPLE('b',y), TOTUPLE('c',z)),TOTUPLE(data);");
-        pig.registerQuery("STORE insertformat INTO 'cql://cql3ks/compotable?" + defaultParameters + "&output_query=UPDATE%20cql3ks.compotable%20SET%20d%20%3D%20%3F' USING CqlStorage();");
+        pig.registerQuery("STORE insertformat INTO 'cql://cql3ks/compotable?" + defaultParameters + nativeParameters + "&output_query=UPDATE%20cql3ks.compotable%20SET%20d%20%3D%20%3F' USING CqlNativeStorage();");
         pig.executeBatch();
 
         //(5,6,Fix,nomatch)
@@ -214,7 +192,8 @@ public class CqlTableTest extends PigTestBase
         //(6,5,Sive,nomatch)
         //(4,4,Four,match)
         //(9,10,Ninen,nomatch)
-        pig.registerQuery("result= LOAD 'cql://cql3ks/compotable?" + defaultParameters + "' USING CqlStorage();");
+        //input_cql=select * from compotable where token(a) > ? and token(a) <= ?
+        pig.registerQuery("result= LOAD 'cql://cql3ks/compotable?" + defaultParameters + nativeParameters + "&input_cql=select%20*%20from%20compotable%20where%20token(a)%20%3E%20%3F%20and%20token(a)%20%3C%3D%20%3F' USING CqlNativeStorage();");
         Iterator<Tuple> it = pig.openIterator("result");
         int count = 0;
         while (it.hasNext()) {
@@ -225,18 +204,11 @@ public class CqlTableTest extends PigTestBase
     }
 
     @Test
-    public void testCqlStorageCollectionColumnTable()
-    throws AuthenticationException, AuthorizationException, InvalidRequestException, UnavailableException, TimedOutException, TException, NotFoundException, SchemaDisagreementException, IOException
-    {
-        CollectionColumnTableTest("collectiontable= LOAD 'cql://cql3ks/collectiontable?" + defaultParameters + "' USING CqlStorage();");
-    }
-
-    @Test
     public void testCqlNativeStorageCollectionColumnTable()
     throws AuthenticationException, AuthorizationException, InvalidRequestException, UnavailableException, TimedOutException, TException, NotFoundException, SchemaDisagreementException, IOException
     {
-        //input_cql=select * from collectiontable where token(m) < ? and token(m) <= ?
-        CollectionColumnTableTest("collectiontable= LOAD 'cql://cql3ks/collectiontable?" + defaultParameters + nativeParameters + "&input_cql=input_cql%3Dselect%20*%20from%20collectiontable%20where%20token(m)%20%3C%20%3F%20and%20token(m)%20%3C%3D%20%3F' USING CqlNativeStorage();");
+        //input_cql=select * from collectiontable where token(m) > ? and token(m) <= ?
+        CollectionColumnTableTest("collectiontable= LOAD 'cql://cql3ks/collectiontable?" + defaultParameters + nativeParameters + "&input_cql=select%20*%20from%20collectiontable%20where%20token(m)%20%3E%20%3F%20and%20token(m)%20%3C%3D%20%3F' USING CqlNativeStorage();");
     }
 
     private void CollectionColumnTableTest(String initialQuery)
@@ -245,14 +217,15 @@ public class CqlTableTest extends PigTestBase
         pig.setBatchOn();
         pig.registerQuery(initialQuery);
         pig.registerQuery("recs= FOREACH collectiontable GENERATE TOTUPLE(TOTUPLE('m', m) ), TOTUPLE(TOTUPLE('map', TOTUPLE('m', 'mm'), TOTUPLE('n', 'nn')));");
-        pig.registerQuery("STORE recs INTO 'cql://cql3ks/collectiontable?" + defaultParameters + "&output_query=update+cql3ks.collectiontable+set+n+%3D+%3F' USING CqlStorage();");
+        pig.registerQuery("STORE recs INTO 'cql://cql3ks/collectiontable?" + defaultParameters + nativeParameters + "&output_query=update+cql3ks.collectiontable+set+n+%3D+%3F' USING CqlNativeStorage();");
         pig.executeBatch();
 
         //(book2,((m,mm),(n,nn)))
         //(book3,((m,mm),(n,nn)))
         //(book4,((m,mm),(n,nn)))
         //(book1,((m,mm),(n,nn)))
-        pig.registerQuery("result= LOAD 'cql://cql3ks/collectiontable?" + defaultParameters + "' USING CqlStorage();");
+        //input_cql=select * from collectiontable where token(m) > ? and token(m) <= ?
+        pig.registerQuery("result= LOAD 'cql://cql3ks/collectiontable?" + defaultParameters + nativeParameters + "&input_cql=select%20*%20from%20collectiontable%20where%20token(m)%20%3E%20%3F%20and%20token(m)%20%3C%3D%20%3F' USING CqlNativeStorage();");
         Iterator<Tuple> it = pig.openIterator("result");
         if (it.hasNext()) {
             Tuple t = it.next();
@@ -264,6 +237,10 @@ public class CqlTableTest extends PigTestBase
             Assert.assertEquals(element1.get(1), "mm");
             Assert.assertEquals(element2.get(0), "n");
             Assert.assertEquals(element2.get(1), "nn");
+        }
+        else
+        {
+            Assert.fail("Can't fetch any data");
         }
     }
 
@@ -307,6 +284,10 @@ public class CqlTableTest extends PigTestBase
             }
             Assert.assertEquals(3, columns.size());
         }
+        else
+        {
+            Assert.fail("Can't fetch any data");
+        }
 
         //results: (key1,(column1,100),(column2,10.1))
         pig.registerQuery("compact_rows = LOAD 'cassandra://cql3ks/compactcqltable?" + defaultParameters + "' USING CassandraStorage();");
@@ -323,6 +304,10 @@ public class CqlTableTest extends PigTestBase
             column = (Tuple) t.get(2);
             Assert.assertEquals(column.get(0), "column2");
             Assert.assertEquals(column.get(1), 10.1f);
+        }
+        else
+        {
+            Assert.fail("Can't fetch any data");
         }
     }
 }
