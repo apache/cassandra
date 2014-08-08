@@ -138,7 +138,7 @@ public class RangeTombstoneList implements Iterable<RangeTombstone>
         {
             // Note: insertFrom expect i to be the insertion point in term of interval ends
             int pos = Arrays.binarySearch(ends, 0, size, start, comparator);
-            insertFrom((pos >= 0 ? pos+1 : -pos-1), start, end, markedAt, delTime);
+            insertFrom((pos >= 0 ? pos : -pos-1), start, end, markedAt, delTime);
         }
     }
 
@@ -185,7 +185,7 @@ public class RangeTombstoneList implements Iterable<RangeTombstone>
             int j = 0;
             while (i < size && j < tombstones.size)
             {
-                if (comparator.compare(tombstones.starts[j], ends[i]) < 0)
+                if (comparator.compare(tombstones.starts[j], ends[i]) <= 0)
                 {
                     insertFrom(i, tombstones.starts[j], tombstones.ends[j], tombstones.markedAts[j], tombstones.delTimes[j]);
                     j++;
@@ -380,16 +380,52 @@ public class RangeTombstoneList implements Iterable<RangeTombstone>
     }
 
     /*
-     * Inserts a new element starting at index i. This method assumes that i is the insertion point
-     * in term of intervals for start:
-     *    ends[i-1] <= start < ends[i]
+     * Inserts a new element starting at index i. This method assumes that:
+     *    ends[i-1] <= start <= ends[i]
+     *
+     * A RangeTombstoneList is a list of range [s_0, e_0]...[s_n, e_n] such that:
+     *   - s_i <= e_i
+     *   - e_i <= s_i+1
+     *   - if s_i == e_i and e_i == s_i+1 then s_i+1 < e_i+1
+     * Basically, range are non overlapping except for their bound and in order. And while
+     * we allow ranges with the same value for the start and end, we don't allow repeating
+     * such range (so we can't have [0, 0][0, 0] even though it would respect the first 2
+     * conditions).
+     *
      */
     private void insertFrom(int i, ByteBuffer start, ByteBuffer end, long markedAt, int delTime)
     {
         while (i < size)
         {
-            assert i == 0 || comparator.compare(start, ends[i-1]) >= 0;
-            assert i >= size || comparator.compare(start, ends[i]) < 0;
+            assert i == 0 || comparator.compare(ends[i-1], start) <= 0;
+
+            int c = comparator.compare(start, ends[i]);
+            assert c <= 0;
+            if (c == 0)
+            {
+                // If start == ends[i], then we can insert from the next one (basically the new element
+                // really start at the next element), except for the case where starts[i] == ends[i].
+                // In this latter case, if we were to move to next element, we could end up with ...[x, x][x, x]...
+                if (comparator.compare(starts[i], ends[i]) == 0)
+                {
+                    // The current element cover a single value which is equal to the start of the inserted
+                    // element. If the inserted element overwrites the current one, just remove the current
+                    // (it's included in what we insert) and proceed with the insert.
+                    if (markedAt > markedAts[i])
+                    {
+                        removeInternal(i);
+                        continue;
+                    }
+
+                    // Otherwise (the current singleton interval override the new one), we want to leave the
+                    // current element and move to the next, unless start == end since that means the new element
+                    // is in fact fully covered by the current one (so we're done)
+                    if (comparator.compare(start, end) == 0)
+                        return;
+                }
+                i++;
+                continue;
+            }
 
             // Do we overwrite the current element?
             if (markedAt > markedAts[i])
@@ -407,11 +443,18 @@ public class RangeTombstoneList implements Iterable<RangeTombstone>
 
                 // now, start <= starts[i]
 
-                // If the new element stops before the current one, insert it and
-                // we're done
-                if (comparator.compare(end, starts[i]) <= 0)
+                // Does the new element stops before/at the current one,
+                int endCmp = comparator.compare(end, starts[i]);
+                if (endCmp <= 0)
                 {
-                    addInternal(i, start, end, markedAt, delTime);
+                    // Here start <= starts[i] and end <= starts[i]
+                    // This means the current element is before the current one. However, one special
+                    // case is if end == starts[i] and starts[i] == ends[i]. In that case,
+                    // the new element entirely overwrite the current one and we can just overwrite
+                    if (endCmp == 0 && comparator.compare(starts[i], ends[i]) == 0)
+                        setInternal(i, start, end, markedAt, delTime);
+                    else
+                        addInternal(i, start, end, markedAt, delTime);
                     return;
                 }
 
@@ -501,6 +544,20 @@ public class RangeTombstoneList implements Iterable<RangeTombstone>
 
         setInternal(i, start, end, markedAt, delTime);
         size++;
+    }
+
+    private void removeInternal(int i)
+    {
+        assert i >= 0;
+
+        System.arraycopy(starts, i+1, starts, i, size - i - 1);
+        System.arraycopy(ends, i+1, ends, i, size - i - 1);
+        System.arraycopy(markedAts, i+1, markedAts, i, size - i - 1);
+        System.arraycopy(delTimes, i+1, delTimes, i, size - i - 1);
+
+        --size;
+        starts[size] = null;
+        ends[size] = null;
     }
 
     /*
