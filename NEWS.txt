@@ -14,13 +14,12 @@ restore snapshots created with the previous major version using the
 using the provided 'sstableupgrade' tool.
 
 2.0.10
-====
+======
 New features
 ------------
     - CqlPaginRecordReader and CqlPagingInputFormat have both been removed.
       Use CqlInputFormat instead.
-    - If you are using Leveled Compaction, you can now disable doing
-      size-tiered
+    - If you are using Leveled Compaction, you can now disable doing size-tiered
       compaction in L0 by starting Cassandra with -Dcassandra.disable_stcs_in_l0
       (see CASSANDRA-6621 for details).
     - Shuffle and taketoken have been removed.  For clusters that choose to
