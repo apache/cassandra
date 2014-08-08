@@ -80,6 +80,7 @@ public class SystemKeyspace
     public static final String SCHEMA_COLUMNS_CF = "schema_columns";
     public static final String SCHEMA_TRIGGERS_CF = "schema_triggers";
     public static final String SCHEMA_USER_TYPES_CF = "schema_usertypes";
+    public static final String SCHEMA_FUNCTIONS_CF = "schema_functions";
     public static final String COMPACTION_LOG = "compactions_in_progress";
     public static final String PAXOS_CF = "paxos";
     public static final String SSTABLE_ACTIVITY_CF = "sstable_activity";
@@ -91,7 +92,8 @@ public class SystemKeyspace
                                                                   SCHEMA_COLUMNFAMILIES_CF,
                                                                   SCHEMA_COLUMNS_CF,
                                                                   SCHEMA_TRIGGERS_CF,
-                                                                  SCHEMA_USER_TYPES_CF);
+                                                                  SCHEMA_USER_TYPES_CF,
+                                                                  SCHEMA_FUNCTIONS_CF);
 
     private static volatile Map<UUID, Pair<ReplayPosition, Long>> truncationRecords;
 
@@ -767,6 +769,16 @@ public class SystemKeyspace
 
             mutation.add(schemaRow.cf);
         }
+    }
+
+    public static Map<DecoratedKey, ColumnFamily> getSchema(String cfName)
+    {
+        Map<DecoratedKey, ColumnFamily> schema = new HashMap<>();
+
+        for (Row schemaEntity : SystemKeyspace.serializedSchema(cfName))
+            schema.put(schemaEntity.key, schemaEntity.cf);
+
+        return schema;
     }
 
     public static Map<DecoratedKey, ColumnFamily> getSchema(String schemaCfName, Set<String> keyspaces)

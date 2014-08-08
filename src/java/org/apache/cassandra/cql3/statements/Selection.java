@@ -29,6 +29,8 @@ import org.apache.cassandra.cql3.functions.Function;
 import org.apache.cassandra.cql3.functions.Functions;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
+import org.apache.cassandra.cql3.udf.UDFunction;
+import org.apache.cassandra.cql3.udf.UDFRegistry;
 import org.apache.cassandra.db.Cell;
 import org.apache.cassandra.db.CounterCell;
 import org.apache.cassandra.db.ExpiringCell;
@@ -156,13 +158,26 @@ public abstract class Selection
         else
         {
             Selectable.WithFunction withFun = (Selectable.WithFunction)raw.selectable;
-            List<Selector> args = new ArrayList<Selector>(withFun.args.size());
+            List<Selector> args = new ArrayList<>(withFun.args.size());
             for (Selectable rawArg : withFun.args)
                 args.add(makeSelector(cfm, new RawSelector(rawArg, null), defs, null));
 
+            // resolve built-in functions before user defined functions
             AbstractType<?> returnType = Functions.getReturnType(withFun.functionName, cfm.ksName, cfm.cfName);
             if (returnType == null)
-                throw new InvalidRequestException(String.format("Unknown function '%s'", withFun.functionName));
+            {
+                UDFunction userFun = UDFRegistry.resolveFunction(withFun.namespace, withFun.functionName, cfm.ksName, cfm.cfName, args);
+                if (userFun != null)
+                {
+                    // got a user defined function to call
+                    Function fun = userFun.create(args);
+                    ColumnSpecification spec = makeFunctionSpec(cfm, withFun, fun.returnType(), raw.alias);
+                    if (metadata != null)
+                        metadata.add(spec);
+                    return new FunctionSelector(userFun.create(args), args);
+                }
+                throw new InvalidRequestException(String.format("Unknown function '%s'", withFun.namespace.isEmpty() ? withFun.functionName : withFun.namespace + "::" + withFun.functionName));
+            }
             ColumnSpecification spec = makeFunctionSpec(cfm, withFun, returnType, raw.alias);
             Function fun = Functions.get(cfm.ksName, withFun.functionName, args, spec);
             if (metadata != null)
@@ -193,7 +208,7 @@ public abstract class Selection
                                                         ColumnIdentifier alias) throws InvalidRequestException
     {
         if (returnType == null)
-            throw new InvalidRequestException(String.format("Unknown function %s called in selection clause", fun.functionName));
+            throw new InvalidRequestException(String.format("Unknown function %s called in selection clause", fun.namespace.isEmpty() ? fun.functionName : fun.namespace +"::"+fun.functionName));
 
         return new ColumnSpecification(cfm.ksName,
                                        cfm.cfName,

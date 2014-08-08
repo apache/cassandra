@@ -62,6 +62,11 @@ public abstract class Functions
         declared.put("blobasvarchar", AbstractFunction.factory(BytesConversionFcts.BlobAsVarcharFact));
     }
 
+    public static boolean contains(String functionName)
+    {
+        return declared.containsKey(functionName);
+    }
+
     public static AbstractType<?> getReturnType(String functionName, String ksName, String cfName)
     {
         List<Function.Factory> factories = declared.get(functionName.toLowerCase());
@@ -82,7 +87,7 @@ public abstract class Functions
     {
         List<Function.Factory> factories = declared.get(name.toLowerCase());
         if (factories.isEmpty())
-            throw new InvalidRequestException(String.format("Unknown CQL3 function %s called", name));
+            return null;
 
         // Fast path if there is not choice
         if (factories.size() == 1)

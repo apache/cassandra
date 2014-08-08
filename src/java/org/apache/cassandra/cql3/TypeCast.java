@@ -46,7 +46,7 @@ public class TypeCast implements Term.Raw
         return new ColumnSpecification(receiver.ksName, receiver.cfName, new ColumnIdentifier(toString(), true), type.prepare(keyspace).getType());
     }
 
-    public boolean isAssignableTo(String keyspace, ColumnSpecification receiver) throws InvalidRequestException
+    public boolean isAssignableTo(String keyspace, ColumnSpecification receiver)
     {
         try
         {

@@ -24,6 +24,8 @@ import java.util.*;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.MapDifference;
 import com.google.common.collect.Maps;
+import org.apache.cassandra.config.UFMetaData;
+import org.apache.cassandra.cql3.udf.UDFRegistry;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -177,6 +179,7 @@ public class DefsTables
         Map<DecoratedKey, ColumnFamily> oldKeyspaces = SystemKeyspace.getSchema(SystemKeyspace.SCHEMA_KEYSPACES_CF, keyspaces);
         Map<DecoratedKey, ColumnFamily> oldColumnFamilies = SystemKeyspace.getSchema(SystemKeyspace.SCHEMA_COLUMNFAMILIES_CF, keyspaces);
         Map<DecoratedKey, ColumnFamily> oldTypes = SystemKeyspace.getSchema(SystemKeyspace.SCHEMA_USER_TYPES_CF, keyspaces);
+        Map<DecoratedKey, ColumnFamily> oldFunctions = SystemKeyspace.getSchema(SystemKeyspace.SCHEMA_FUNCTIONS_CF);
 
         for (Mutation mutation : mutations)
             mutation.apply();
@@ -188,10 +191,12 @@ public class DefsTables
         Map<DecoratedKey, ColumnFamily> newKeyspaces = SystemKeyspace.getSchema(SystemKeyspace.SCHEMA_KEYSPACES_CF, keyspaces);
         Map<DecoratedKey, ColumnFamily> newColumnFamilies = SystemKeyspace.getSchema(SystemKeyspace.SCHEMA_COLUMNFAMILIES_CF, keyspaces);
         Map<DecoratedKey, ColumnFamily> newTypes = SystemKeyspace.getSchema(SystemKeyspace.SCHEMA_USER_TYPES_CF, keyspaces);
+        Map<DecoratedKey, ColumnFamily> newFunctions = SystemKeyspace.getSchema(SystemKeyspace.SCHEMA_FUNCTIONS_CF);
 
         Set<String> keyspacesToDrop = mergeKeyspaces(oldKeyspaces, newKeyspaces);
         mergeColumnFamilies(oldColumnFamilies, newColumnFamilies);
         mergeTypes(oldTypes, newTypes);
+        mergeFunctions(oldFunctions, newFunctions);
 
         // it is safe to drop a keyspace only when all nested ColumnFamilies where deleted
         for (String keyspaceToDrop : keyspacesToDrop)
@@ -377,6 +382,54 @@ public class DefsTables
         }
     }
 
+    private static void mergeFunctions(Map<DecoratedKey, ColumnFamily> old, Map<DecoratedKey, ColumnFamily> updated)
+    {
+        MapDifference<DecoratedKey, ColumnFamily> diff = Maps.difference(old, updated);
+
+        // New namespace with functions
+        for (Map.Entry<DecoratedKey, ColumnFamily> entry : diff.entriesOnlyOnRight().entrySet())
+        {
+            ColumnFamily cfFunctions = entry.getValue();
+            if (!cfFunctions.hasColumns())
+                continue;
+
+            for (UFMetaData uf : UFMetaData.fromSchema(new Row(entry.getKey(), cfFunctions)).values())
+                addFunction(uf);
+        }
+
+        for (Map.Entry<DecoratedKey, MapDifference.ValueDifference<ColumnFamily>> modifiedEntry : diff.entriesDiffering().entrySet())
+        {
+            DecoratedKey namespace = modifiedEntry.getKey();
+            ColumnFamily prevCFFunctions = modifiedEntry.getValue().leftValue(); // state before external modification
+            ColumnFamily newCFFunctions = modifiedEntry.getValue().rightValue(); // updated state
+
+            if (!prevCFFunctions.hasColumns()) // whole namespace was deleted and now it's re-created
+            {
+                for (UFMetaData uf : UFMetaData.fromSchema(new Row(namespace, newCFFunctions)).values())
+                    addFunction(uf);
+            }
+            else if (!newCFFunctions.hasColumns()) // whole namespace is deleted
+            {
+                for (UFMetaData uf : UFMetaData.fromSchema(new Row(namespace, prevCFFunctions)).values())
+                    dropFunction(uf);
+            }
+            else // has modifications in the functions, need to perform nested diff to determine what was really changed
+            {
+                MapDifference<String, UFMetaData> functionsDiff = Maps.difference(UFMetaData.fromSchema(new Row(namespace, prevCFFunctions)),
+                    UFMetaData.fromSchema(new Row(namespace, newCFFunctions)));
+
+                for (UFMetaData function : functionsDiff.entriesOnlyOnRight().values())
+                    addFunction(function);
+
+                for (UFMetaData function : functionsDiff.entriesOnlyOnLeft().values())
+                    dropFunction(function);
+
+                for (MapDifference.ValueDifference<UFMetaData> tdiff : functionsDiff.entriesDiffering().values())
+                    updateFunction(tdiff.rightValue()); // use the most recent value
+            }
+        }
+    }
+
     private static void addKeyspace(KSMetaData ksm)
     {
         assert Schema.instance.getKSMetaData(ksm.name) == null;
@@ -425,6 +478,16 @@ public class DefsTables
             MigrationManager.instance.notifyCreateUserType(ut);
     }
 
+    private static void addFunction(UFMetaData uf)
+    {
+        logger.info("Loading {}", uf);
+
+        UDFRegistry.migrateAddFunction(uf);
+
+        if (!StorageService.instance.isClientMode())
+            MigrationManager.instance.notifyCreateFunction(uf);
+    }
+
     private static void updateKeyspace(KSMetaData newState)
     {
         KSMetaData oldKsm = Schema.instance.getKSMetaData(newState.name);
@@ -465,6 +528,16 @@ public class DefsTables
 
         if (!StorageService.instance.isClientMode())
             MigrationManager.instance.notifyUpdateUserType(ut);
+    }
+
+    private static void updateFunction(UFMetaData uf)
+    {
+        logger.info("Updating {}", uf);
+
+        UDFRegistry.migrateUpdateFunction(uf);
+
+        if (!StorageService.instance.isClientMode())
+            MigrationManager.instance.notifyUpdateFunction(uf);
     }
 
     private static void dropKeyspace(String ksName)
@@ -544,6 +617,16 @@ public class DefsTables
 
         if (!StorageService.instance.isClientMode())
             MigrationManager.instance.notifyDropUserType(ut);
+    }
+
+    private static void dropFunction(UFMetaData uf)
+    {
+        logger.info("Drop {}", uf);
+
+        UDFRegistry.migrateDropFunction(uf);
+
+        if (!StorageService.instance.isClientMode())
+            MigrationManager.instance.notifyDropFunction(uf);
     }
 
     private static KSMetaData makeNewKeyspaceDefinition(KSMetaData ksm, CFMetaData toExclude)

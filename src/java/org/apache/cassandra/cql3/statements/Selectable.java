@@ -44,11 +44,13 @@ public interface Selectable
 
     public static class WithFunction implements Selectable
     {
+        public final String namespace;
         public final String functionName;
         public final List<Selectable> args;
 
-        public WithFunction(String functionName, List<Selectable> args)
+        public WithFunction(String namespace, String functionName, List<Selectable> args)
         {
+            this.namespace = namespace;
             this.functionName = functionName;
             this.args = args;
         }
@@ -57,10 +59,13 @@ public interface Selectable
         public String toString()
         {
             StringBuilder sb = new StringBuilder();
+            if (!namespace.isEmpty())
+                sb.append(namespace).append("::");
             sb.append(functionName).append("(");
             for (int i = 0; i < args.size(); i++)
             {
-                if (i > 0) sb.append(", ");
+                if (i > 0)
+                    sb.append(", ");
                 sb.append(args.get(i));
             }
             return sb.append(")").toString();

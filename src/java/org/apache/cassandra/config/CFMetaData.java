@@ -213,6 +213,19 @@ public final class CFMetaData
                                                                + "PRIMARY KEY (keyspace_name, type_name)"
                                                                + ") WITH COMMENT='Defined user types' AND gc_grace_seconds=604800");
 
+    public static final CFMetaData SchemaFunctionsCf = compile("CREATE TABLE " + SystemKeyspace.SCHEMA_FUNCTIONS_CF + " ("
+                                                               + "namespace text,"
+                                                               + "name text,"
+                                                               + "signature text,"
+                                                               + "argument_names list<text>,"
+                                                               + "argument_types list<text>,"
+                                                               + "return_type text,"
+                                                               + "deterministic boolean,"
+                                                               + "language text,"
+                                                               + "body text,"
+                                                               + "primary key ((namespace, name), signature)"
+                                                               + ") WITH COMMENT='user defined functions' AND gc_grace_seconds=604800");
+
     public static final CFMetaData HintsCf = compile("CREATE TABLE " + SystemKeyspace.HINTS_CF + " ("
                                                      + "target_id uuid,"
                                                      + "hint_id timeuuid,"
@@ -330,7 +343,6 @@ public final class CFMetaData
                                                                  + "rows_merged map<int, bigint>,"
                                                                  + "PRIMARY KEY (id)"
                                                                  + ") WITH COMMENT='show all compaction history' AND DEFAULT_TIME_TO_LIVE=604800");
-
 
     public static class SpeculativeRetry
     {

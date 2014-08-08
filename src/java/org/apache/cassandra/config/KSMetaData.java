@@ -101,6 +101,7 @@ public final class KSMetaData
                                                 CFMetaData.SchemaColumnsCf,
                                                 CFMetaData.SchemaTriggersCf,
                                                 CFMetaData.SchemaUserTypesCf,
+                                                CFMetaData.SchemaFunctionsCf,
                                                 CFMetaData.CompactionLogCf,
                                                 CFMetaData.CompactionHistoryCf,
                                                 CFMetaData.PaxosCf,

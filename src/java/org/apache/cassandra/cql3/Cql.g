@@ -242,6 +242,8 @@ cqlStatement returns [ParsedStatement stmt]
     | st25=createTypeStatement         { $stmt = st25; }
     | st26=alterTypeStatement          { $stmt = st26; }
     | st27=dropTypeStatement           { $stmt = st27; }
+    | st28=createFunctionStatement     { $stmt = st28; }
+    | st29=dropFunctionStatement       { $stmt = st29; }
     ;
 
 /*
@@ -298,7 +300,8 @@ unaliasedSelector returns [Selectable s]
     :  ( c=cident                                  { tmp = c; }
        | K_WRITETIME '(' c=cident ')'              { tmp = new Selectable.WritetimeOrTTL(c, true); }
        | K_TTL       '(' c=cident ')'              { tmp = new Selectable.WritetimeOrTTL(c, false); }
-       | f=functionName args=selectionFunctionArgs { tmp = new Selectable.WithFunction(f, args); }
+       | f=functionName args=selectionFunctionArgs { tmp = new Selectable.WithFunction("", f, args); }
+       | bn=udfName '::' fn=udfName args=selectionFunctionArgs { tmp = new Selectable.WithFunction(bn, fn, args); }
        ) ( '.' fi=cident { tmp = new Selectable.WithFieldSelection(tmp, fi); } )* { $s = tmp; }
     ;
 
@@ -483,6 +486,48 @@ batchStatementObjective returns [ModificationStatement.Parsed statement]
     : i=insertStatement  { $statement = i; }
     | u=updateStatement  { $statement = u; }
     | d=deleteStatement  { $statement = d; }
+    ;
+
+createFunctionStatement returns [CreateFunctionStatement expr]
+    @init {
+        boolean orReplace = false;
+        boolean ifNotExists = false;
+
+        boolean deterministic = true;
+        String language = "CLASS";
+        String bodyOrClassName = null;
+        List<CreateFunctionStatement.Argument> args = new ArrayList<CreateFunctionStatement.Argument>();
+    }
+    : K_CREATE (K_OR K_REPLACE { orReplace = true; })?
+      ((K_NON { deterministic = false; })? K_DETERMINISTIC)?
+      K_FUNCTION
+      (K_IF K_NOT K_EXISTS { ifNotExists = true; })?
+      ( bn=udfName '::' )?
+      fn=udfName
+      '('
+        (
+          k=cident v=comparatorType { args.add(new CreateFunctionStatement.Argument(k, v)); }
+          ( ',' k=cident v=comparatorType { args.add(new CreateFunctionStatement.Argument(k, v)); } )*
+        )?
+      ')'
+      K_RETURNS
+      rt=comparatorType
+      (
+          (                      { language="CLASS"; } cls = STRING_LITERAL { bodyOrClassName = $cls.text; } )
+        | ( K_LANGUAGE l = IDENT { language=$l.text; } K_BODY body = ((~K_END_BODY)*) { bodyOrClassName = $body.text; } K_END_BODY )
+      )
+      { $expr = new CreateFunctionStatement(bn, fn, language, bodyOrClassName, deterministic, rt, args, orReplace, ifNotExists); }
+    ;
+
+dropFunctionStatement returns [DropFunctionStatement expr]
+    @init {
+        boolean ifExists = false;
+    }
+    : K_DROP K_FUNCTION
+      (K_IF K_EXISTS { ifExists = true; } )?
+      ( bn=udfName '::' )?
+      fn=udfName
+      { $expr = new DropFunctionStatement(bn, fn, ifExists); }
     ;
 
 /**
@@ -917,6 +962,11 @@ functionName returns [String s]
     | K_TOKEN                       { $s = "token"; }
     ;
 
+udfName returns [String s]
+    : f=IDENT                       { $s = $f.text; }
+    | u=unreserved_function_keyword { $s = u; }
+    ;
+
 functionArgs returns [List<Term.Raw> a]
     : '(' ')' { $a = Collections.emptyList(); }
     | '(' t1=term { List<Term.Raw> args = new ArrayList<Term.Raw>(); args.add(t1); }
@@ -926,7 +976,8 @@ functionArgs returns [List<Term.Raw> a]
 
 term returns [Term.Raw term]
     : v=value                          { $term = v; }
-    | f=functionName args=functionArgs { $term = new FunctionCall.Raw(f, args); }
+    | f=functionName args=functionArgs { $term = new FunctionCall.Raw("", f, args); }
+    | bn=udfName '::' fn=udfName args=functionArgs { $term = new FunctionCall.Raw(bn, fn, args); }
     | '(' c=comparatorType ')' t=term  { $term = new TypeCast(c, t); }
     ;
 
@@ -1180,9 +1231,15 @@ basic_unreserved_keyword returns [String str]
         | K_DISTINCT
         | K_CONTAINS
         | K_STATIC
+        | K_FUNCTION
+        | K_RETURNS
+        | K_LANGUAGE
+        | K_NON
+        | K_DETERMINISTIC
+        | K_BODY
+        | K_END_BODY
         ) { $str = $k.text; }
     ;
-
 
 // Case-insensitive keywords
 K_SELECT:      S E L E C T;
@@ -1286,6 +1343,16 @@ K_TUPLE:       T U P L E;
 
 K_TRIGGER:     T R I G G E R;
 K_STATIC:      S T A T I C;
+
+K_FUNCTION:    F U N C T I O N;
+K_RETURNS:     R E T U R N S;
+K_LANGUAGE:    L A N G U A G E;
+K_NON:         N O N;
+K_OR:          O R;
+K_REPLACE:     R E P L A C E;
+K_DETERMINISTIC: D E T E R M I N I S T I C;
+K_END_BODY:    E N D '_' B O D Y;
+K_BODY:        B O D Y;
 
 // Case-insensitive alpha characters
 fragment A: ('a'|'A');

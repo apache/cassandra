@@ -70,7 +70,8 @@ public abstract class SchemaAlteringStatement extends CFStatement implements CQL
     public ResultMessage execute(QueryState state, QueryOptions options) throws RequestValidationException
     {
         announceMigration(false);
-        return new ResultMessage.SchemaChange(changeEvent());
+        Event.SchemaChange ce = changeEvent();
+        return ce == null ? new ResultMessage.Void() : new ResultMessage.SchemaChange(ce);
     }
 
     public ResultMessage executeInternal(QueryState state, QueryOptions options)
@@ -78,7 +79,8 @@ public abstract class SchemaAlteringStatement extends CFStatement implements CQL
         try
         {
             announceMigration(true);
-            return new ResultMessage.SchemaChange(changeEvent());
+            Event.SchemaChange ce = changeEvent();
+            return ce == null ? new ResultMessage.Void() : new ResultMessage.SchemaChange(ce);
         }
         catch (RequestValidationException e)
         {

@@ -1,4 +1,5 @@
 3.0
+ * Support pure user-defined functions (CASSANDRA-7395)
  * Permit configurable timestamps with cassandra-stress (CASSANDRA-7416)
  * Move sstable RandomAccessReader to nio2, which allows using the
    FILE_SHARE_DELETE flag on Windows (CASSANDRA-4050)

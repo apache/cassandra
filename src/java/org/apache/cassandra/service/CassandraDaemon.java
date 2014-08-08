@@ -33,6 +33,7 @@ import javax.management.StandardMBean;
 
 import com.google.common.collect.Iterables;
 import com.google.common.util.concurrent.Uninterruptibles;
+import org.apache.cassandra.cql3.udf.UDFRegistry;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -371,6 +372,9 @@ public class CassandraDaemon
 
         if (!FBUtilities.getBroadcastAddress().equals(InetAddress.getLoopbackAddress()))
             waitForGossipToSettle();
+
+        // UDF
+        UDFRegistry.init();
 
         // Thift
         InetAddress rpcAddr = DatabaseDescriptor.getRpcAddress();

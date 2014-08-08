@@ -29,6 +29,9 @@ import java.util.concurrent.*;
 import java.lang.management.ManagementFactory;
 import java.lang.management.RuntimeMXBean;
 
+import org.apache.cassandra.config.UFMetaData;
+import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.exceptions.SyntaxException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -171,6 +174,24 @@ public class MigrationManager
     {
         for (IMigrationListener listener : listeners)
             listener.onCreateUserType(ut.keyspace, ut.getNameAsString());
+    }
+
+    public void notifyCreateFunction(UFMetaData uf)
+    {
+        for (IMigrationListener listener : listeners)
+            listener.onCreateFunction(uf.namespace, uf.functionName);
+    }
+
+    public void notifyUpdateFunction(UFMetaData uf)
+    {
+        for (IMigrationListener listener : listeners)
+            listener.onUpdateFunction(uf.namespace, uf.functionName);
+    }
+
+    public void notifyDropFunction(UFMetaData uf)
+    {
+        for (IMigrationListener listener : listeners)
+            listener.onDropFunction(uf.namespace, uf.functionName);
     }
 
     public void notifyUpdateKeyspace(KSMetaData ksm)
@@ -350,6 +371,27 @@ public class MigrationManager
     public static void announceTypeDrop(UserType droppedType, boolean announceLocally)
     {
         announce(addSerializedKeyspace(UTMetaData.dropFromSchema(droppedType, FBUtilities.timestampMicros()), droppedType.keyspace), announceLocally);
+    }
+
+    public static void announceFunctionDrop(String namespace, String functionName, boolean announceLocally) throws InvalidRequestException
+    {
+        Mutation mutation = UFMetaData.dropFunction(FBUtilities.timestampMicros(), namespace, functionName);
+        if (mutation == null)
+            throw new InvalidRequestException(String.format("Cannot drop non existing function '%s'.", functionName));
+
+        logger.info(String.format("Drop Function '%s::%s'", namespace, functionName));
+        announce(mutation, announceLocally);
+    }
+
+    public static void announceNewFunction(UFMetaData function, boolean announceLocally)
+        throws ConfigurationException, SyntaxException
+    {
+        Mutation mutation = UFMetaData.createOrReplaceFunction(FBUtilities.timestampMicros(), function);
+        if (mutation == null)
+            throw new ConfigurationException(String.format("Function '%s' already exists.", function.qualifiedName));
+
+        logger.info(String.format("Create Function '%s'", function));
+        announce(mutation, announceLocally);
     }
 
     /**
