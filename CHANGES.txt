@@ -6,6 +6,7 @@
  * Fix UDT field selection with empty fields (CASSANDRA-7670)
  * Bogus deserialization of static cells from sstable (CASSANDRA-7684)
 Merged from 2.0:
+ * Fix potential AssertionError in RangeTombstoneList (CASSANDRA-7700)
  * Validate arguments of blobAs* functions (CASSANDRA-7707)
  * Fix potential AssertionError with 2ndary indexes (CASSANDRA-6612)
  * Avoid logging CompactionInterrupted at ERROR (CASSANDRA-7694)
