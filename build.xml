@@ -966,6 +966,11 @@
       <copy todir="${dist.dir}/tools/bin">
         <fileset dir="${basedir}/tools/bin"/>
       </copy>
+      <copy todir="${dist.dir}/tools/">
+        <fileset dir="${basedir}/tools/">
+            <include name="*.yaml"/>
+	</fileset>
+      </copy>
       <copy todir="${dist.dir}/tools/lib">
         <fileset dir="${build.dir}/tools/lib/">
             <include name="*.jar" />
