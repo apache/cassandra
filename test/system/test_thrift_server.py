@@ -24,7 +24,6 @@ from . import thrift_client as client
 
 from thrift.Thrift import TApplicationException
 from ttypes import *
-from constants import VERSION
 
 
 def _i64(n):
@@ -1304,7 +1303,7 @@ class TestMutations(ThriftTester):
 
     def test_describe_keyspace(self):
         kspaces = client.describe_keyspaces()
-        assert len(kspaces) == 5, kspaces # ['Keyspace2', 'Keyspace1', 'system', 'system_traces', 'system_auth']
+        assert len(kspaces) == 4, kspaces # ['Keyspace2', 'Keyspace1', 'system', 'system_traces']
 
         sysks = client.describe_keyspace("system")
         assert sysks in kspaces
@@ -1318,8 +1317,6 @@ class TestMutations(ThriftTester):
         assert cf0.comparator_type == "org.apache.cassandra.db.marshal.BytesType"
 
     def test_describe(self):
-        server_version = client.describe_version()
-        assert server_version == VERSION, (server_version, VERSION)
         assert client.describe_cluster_name() == 'Test Cluster'
 
     def test_describe_ring(self):
