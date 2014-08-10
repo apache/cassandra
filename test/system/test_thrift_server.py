@@ -24,7 +24,6 @@ from . import thrift_client as client
 
 from thrift.Thrift import TApplicationException
 from ttypes import *
-from constants import VERSION
 
 
 def _i64(n):
@@ -1236,8 +1235,6 @@ class TestMutations(ThriftTester):
         assert cf0.comparator_type == "org.apache.cassandra.db.marshal.BytesType"
 
     def test_describe(self):
-        server_version = client.describe_version()
-        assert server_version == VERSION, (server_version, VERSION)
         assert client.describe_cluster_name() == 'Test Cluster'
 
     def test_describe_ring(self):
@@ -1685,13 +1682,13 @@ class TestMutations(ThriftTester):
         _assert_no_columnpath('key1', ColumnPath(column_family='Counter1', column='c1'))
 
         # insert again and this time delete the whole row, check that it is gone
-        client.add('key1', ColumnParent(column_family='Counter1'), CounterColumn('c1', d1), ConsistencyLevel.ONE)
+        client.add('key2', ColumnParent(column_family='Counter1'), CounterColumn('c1', d1), ConsistencyLevel.ONE)
         time.sleep(5)
-        rv2 = client.get('key1', ColumnPath(column_family='Counter1', column='c1'), ConsistencyLevel.ONE)
+        rv2 = client.get('key2', ColumnPath(column_family='Counter1', column='c1'), ConsistencyLevel.ONE)
         assert rv2.counter_column.value == d1
-        client.remove_counter('key1', ColumnPath(column_family='Counter1'), ConsistencyLevel.ONE)
+        client.remove_counter('key2', ColumnPath(column_family='Counter1'), ConsistencyLevel.ONE)
         time.sleep(5)
-        _assert_no_columnpath('key1', ColumnPath(column_family='Counter1', column='c1'))
+        _assert_no_columnpath('key2', ColumnPath(column_family='Counter1', column='c1'))
 
     def test_incr_super_remove(self):
         _set_keyspace('Keyspace1')
@@ -1710,13 +1707,13 @@ class TestMutations(ThriftTester):
         _assert_no_columnpath('key1', ColumnPath(column_family='SuperCounter1', super_column='sc1', column='c1'))
 
         # insert again and this time delete the whole row, check that it is gone
-        client.add('key1', ColumnParent(column_family='SuperCounter1', super_column='sc1'), CounterColumn('c1', d1), ConsistencyLevel.ONE)
+        client.add('key2', ColumnParent(column_family='SuperCounter1', super_column='sc1'), CounterColumn('c1', d1), ConsistencyLevel.ONE)
         time.sleep(5)
-        rv2 = client.get('key1', ColumnPath(column_family='SuperCounter1', super_column='sc1', column='c1'), ConsistencyLevel.ONE)
+        rv2 = client.get('key2', ColumnPath(column_family='SuperCounter1', super_column='sc1', column='c1'), ConsistencyLevel.ONE)
         assert rv2.counter_column.value == d1
-        client.remove_counter('key1', ColumnPath(column_family='SuperCounter1', super_column='sc1'), ConsistencyLevel.ONE)
+        client.remove_counter('key2', ColumnPath(column_family='SuperCounter1', super_column='sc1'), ConsistencyLevel.ONE)
         time.sleep(5)
-        _assert_no_columnpath('key1', ColumnPath(column_family='SuperCounter1', super_column='sc1', column='c1'))
+        _assert_no_columnpath('key2', ColumnPath(column_family='SuperCounter1', super_column='sc1', column='c1'))
 
     def test_incr_decr_standard_remove(self):
         _set_keyspace('Keyspace1')
@@ -1735,13 +1732,13 @@ class TestMutations(ThriftTester):
         _assert_no_columnpath('key1', ColumnPath(column_family='Counter1', column='c1'))
 
         # insert again and this time delete the whole row, check that it is gone
-        client.add('key1', ColumnParent(column_family='Counter1'), CounterColumn('c1', d1), ConsistencyLevel.ONE)
+        client.add('key2', ColumnParent(column_family='Counter1'), CounterColumn('c1', d1), ConsistencyLevel.ONE)
         time.sleep(5)
-        rv2 = client.get('key1', ColumnPath(column_family='Counter1', column='c1'), ConsistencyLevel.ONE)
+        rv2 = client.get('key2', ColumnPath(column_family='Counter1', column='c1'), ConsistencyLevel.ONE)
         assert rv2.counter_column.value == d1
-        client.remove_counter('key1', ColumnPath(column_family='Counter1'), ConsistencyLevel.ONE)
+        client.remove_counter('key2', ColumnPath(column_family='Counter1'), ConsistencyLevel.ONE)
         time.sleep(5)
-        _assert_no_columnpath('key1', ColumnPath(column_family='Counter1', column='c1'))
+        _assert_no_columnpath('key2', ColumnPath(column_family='Counter1', column='c1'))
 
     def test_incr_decr_super_remove(self):
         _set_keyspace('Keyspace1')
@@ -1760,13 +1757,13 @@ class TestMutations(ThriftTester):
         _assert_no_columnpath('key1', ColumnPath(column_family='SuperCounter1', super_column='sc1', column='c1'))
 
         # insert again and this time delete the whole row, check that it is gone
-        client.add('key1', ColumnParent(column_family='SuperCounter1', super_column='sc1'), CounterColumn('c1', d1), ConsistencyLevel.ONE)
+        client.add('key2', ColumnParent(column_family='SuperCounter1', super_column='sc1'), CounterColumn('c1', d1), ConsistencyLevel.ONE)
         time.sleep(5)
-        rv2 = client.get('key1', ColumnPath(column_family='SuperCounter1', super_column='sc1', column='c1'), ConsistencyLevel.ONE)
+        rv2 = client.get('key2', ColumnPath(column_family='SuperCounter1', super_column='sc1', column='c1'), ConsistencyLevel.ONE)
         assert rv2.counter_column.value == d1
-        client.remove_counter('key1', ColumnPath(column_family='SuperCounter1', super_column='sc1'), ConsistencyLevel.ONE)
+        client.remove_counter('key2', ColumnPath(column_family='SuperCounter1', super_column='sc1'), ConsistencyLevel.ONE)
         time.sleep(5)
-        _assert_no_columnpath('key1', ColumnPath(column_family='SuperCounter1', super_column='sc1', column='c1'))
+        _assert_no_columnpath('key2', ColumnPath(column_family='SuperCounter1', super_column='sc1', column='c1'))
         
     def test_incr_decr_standard_batch_add(self):
         _set_keyspace('Keyspace1')
@@ -1809,21 +1806,21 @@ class TestMutations(ThriftTester):
         _assert_no_columnpath('key1', ColumnPath(column_family='Counter1', column='c1'))
 
         # insert again and this time delete the whole row, check that it is gone
-        update_map = {'key1': {'Counter1': [
+        update_map = {'key2': {'Counter1': [
             Mutation(column_or_supercolumn=ColumnOrSuperColumn(counter_column=CounterColumn('c1', d1))),
             Mutation(column_or_supercolumn=ColumnOrSuperColumn(counter_column=CounterColumn('c1', d2))),
             ]}}
         client.batch_mutate(update_map, ConsistencyLevel.ONE)
         time.sleep(5)
-        rv2 = client.get('key1', ColumnPath(column_family='Counter1', column='c1'), ConsistencyLevel.ONE)
+        rv2 = client.get('key2', ColumnPath(column_family='Counter1', column='c1'), ConsistencyLevel.ONE)
         assert rv2.counter_column.value == d1+d2
 
-        update_map = {'key1': {'Counter1': [
+        update_map = {'key2': {'Counter1': [
             Mutation(deletion=Deletion()),
             ]}}
         client.batch_mutate(update_map, ConsistencyLevel.ONE)
         time.sleep(5)
-        _assert_no_columnpath('key1', ColumnPath(column_family='Counter1', column='c1'))
+        _assert_no_columnpath('key2', ColumnPath(column_family='Counter1', column='c1'))
         
     def test_incr_decr_standard_slice(self):
         _set_keyspace('Keyspace1')
