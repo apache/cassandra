@@ -654,7 +654,7 @@ class TestMutations(ThriftTester):
             for subcolumn in column.columns:
                 client.insert('key', ColumnParent('Super1', column.name), subcolumn, ConsistencyLevel.ONE)
 
-        d = Deletion(1, predicate=SlicePredicate(slice_range=SliceRange(start='sc2', finish='sc5')))
+        d = Deletion(1, predicate=SlicePredicate(slice_range=SliceRange(start='sc2', finish='sc4')))
         client.batch_mutate({'key': {'Super1' : [Mutation(deletion=d)]}}, ConsistencyLevel.ONE)
 
         _assert_columnpath_exists('key', ColumnPath('Super1', super_column='sc1', column=_i64(1)))
