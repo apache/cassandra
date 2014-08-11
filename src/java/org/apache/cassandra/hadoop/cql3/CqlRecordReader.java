@@ -24,8 +24,16 @@ import java.net.InetAddress;
 import java.nio.ByteBuffer;
 import java.util.*;
 
+import com.google.common.base.Function;
+import com.google.common.base.Joiner;
+import com.google.common.base.Optional;
+import com.google.common.base.Splitter;
 import com.google.common.collect.AbstractIterator;
+import com.google.common.collect.Iterables;
 import com.google.common.collect.Maps;
+
+import org.apache.commons.collections.CollectionUtils;
+import org.apache.commons.lang.StringUtils;
 
 import org.apache.cassandra.hadoop.HadoopCompat;
 import org.slf4j.Logger;
@@ -63,6 +71,8 @@ public class CqlRecordReader extends RecordReader<Long, Row>
 {
     private static final Logger logger = LoggerFactory.getLogger(CqlRecordReader.class);
 
+    public static final int DEFAULT_CQL_PAGE_LIMIT = 1000;
+
     private ColumnFamilySplit split;
     private RowIterator rowIterator;
 
@@ -74,6 +84,12 @@ public class CqlRecordReader extends RecordReader<Long, Row>
     private Cluster cluster;
     private Session session;
     private IPartitioner partitioner;
+    private String inputColumns;
+    private String userDefinedWhereClauses;
+    private int pageRowSize;
+
+    private List<String> partitionKeys = new ArrayList<>();
+    private List<String> clusteringKeys = new ArrayList<>();
 
     // partition keys -- key aliases
     private LinkedHashMap<String, Boolean> partitionBoundColumns = Maps.newLinkedHashMap();
@@ -92,8 +108,18 @@ public class CqlRecordReader extends RecordReader<Long, Row>
                       : ConfigHelper.getInputSplitSize(conf);
         cfName = quote(ConfigHelper.getInputColumnFamily(conf));
         keyspace = quote(ConfigHelper.getInputKeyspace(conf));
-        cqlQuery = CqlConfigHelper.getInputCql(conf);
-        partitioner = ConfigHelper.getInputPartitioner(HadoopCompat.getConfiguration(context));
+        partitioner = ConfigHelper.getInputPartitioner(conf);
+        inputColumns = CqlConfigHelper.getInputcolumns(conf);
+        userDefinedWhereClauses = CqlConfigHelper.getInputWhereClauses(conf);
+        Optional<Integer> pageRowSizeOptional = CqlConfigHelper.getInputPageRowSize(conf);
+        try
+        {
+            pageRowSize = pageRowSizeOptional.isPresent() ? pageRowSizeOptional.get() : DEFAULT_CQL_PAGE_LIMIT;
+        }
+        catch(NumberFormatException e)
+        {
+            pageRowSize = DEFAULT_CQL_PAGE_LIMIT;
+        }
         try
         {
             if (cluster != null)
@@ -125,6 +151,20 @@ public class CqlRecordReader extends RecordReader<Long, Row>
 
         if (cluster != null)
             session = cluster.connect(keyspace);
+
+        if (session == null)
+          throw new RuntimeException("Can't create connection session");
+
+        // If the user provides a CQL query then we will use it without validation
+        // otherwise we will fall back to building a query using the:
+        //   inputColumns
+        //   whereClauses
+        //   pageRowSize
+        cqlQuery = CqlConfigHelper.getInputCql(conf);
+        if (StringUtils.isEmpty(cqlQuery))
+            cqlQuery = buildQuery();
+        logger.debug("cqlQuery {}", cqlQuery);
+
         rowIterator = new RowIterator();
         logger.debug("created {}", rowIterator);
     }
@@ -224,9 +264,6 @@ public class CqlRecordReader extends RecordReader<Long, Row>
 
         public RowIterator()
         {
-            if (session == null)
-                throw new RuntimeException("Can't create connection session");
-
             AbstractType type = partitioner.getTokenValidator();
             ResultSet rs = session.execute(cqlQuery, type.compose(type.fromString(split.getStartToken())), type.compose(type.fromString(split.getEndToken())) );
             for (ColumnMetadata meta : cluster.getMetadata().getKeyspace(keyspace).getTable(cfName).getPartitionKey())
@@ -486,6 +523,97 @@ public class CqlRecordReader extends RecordReader<Long, Row>
             return row.getMap(name, keysClass, valuesClass);
         }
     }
+
+    /**
+     * Build a query for the reader of the form:
+     *
+     * SELECT * FROM ks>cf token(pk1,...pkn)>? AND token(pk1,...pkn)<=? [AND user where clauses]
+     * LIMIT pageRowSize [ALLOW FILTERING]
+     */
+    private String buildQuery()
+    {
+        fetchKeys();
+
+        String selectColumnList = makeColumnList(getSelectColumns());
+        String partitionKeyList = makeColumnList(partitionKeys);
+
+        return String.format("SELECT %s FROM %s.%s WHERE token(%s)>? AND token(%s)<=?" + getAdditionalWhereClauses(),
+                             selectColumnList, keyspace, cfName, partitionKeyList, partitionKeyList);
+    }
+
+    private String getAdditionalWhereClauses()
+    {
+        String whereClause = "";
+        if (StringUtils.isNotEmpty(userDefinedWhereClauses))
+            whereClause += " AND " + userDefinedWhereClauses;
+        whereClause += " LIMIT " + pageRowSize;
+        if (StringUtils.isNotEmpty(userDefinedWhereClauses))
+            whereClause += " ALLOW FILTERING";
+        return whereClause;
+    }
+
+    private List<String> getSelectColumns()
+    {
+        List<String> selectColumns = new ArrayList<>();
+
+        if (StringUtils.isEmpty(inputColumns))
+            selectColumns.add("*");
+        else
+        {
+            // We must select all the partition keys plus any other columns the user wants
+            selectColumns.addAll(partitionKeys);
+            for (String column : Splitter.on(',').split(inputColumns))
+            {
+                if (!partitionKeys.contains(column))
+                    selectColumns.add(column);
+            }
+        }
+        return selectColumns;
+    }
+
+    private String makeColumnList(Collection<String> columns)
+    {
+        return Joiner.on(',').join(Iterables.transform(columns, new Function<String, String>()
+        {
+            public String apply(String column)
+            {
+                return quote(column);
+            }
+        }));
+    }
+
+    private void fetchKeys()
+    {
+        String query = "SELECT column_name, component_index, type FROM system.schema_columns WHERE keyspace_name='" +
+                       keyspace + "' and columnfamily_name='" + cfName + "'";
+        List<Row> rows = session.execute(query).all();
+        if (CollectionUtils.isEmpty(rows))
+        {
+            throw new RuntimeException("No table metadata found for " + keyspace + "." + cfName);
+        }
+        int numberOfPartitionKeys = 0;
+        for (Row row : rows)
+            if (row.getString(2).equals("partition_key"))
+                numberOfPartitionKeys++;
+        String[] partitionKeyArray = new String[numberOfPartitionKeys];
+        for (Row row : rows)
+        {
+            String type = row.getString(2);
+            String column = row.getString(0);
+            if (type.equals("partition_key"))
+            {
+                int componentIndex = row.isNull(1) ? 0 : row.getInt(1);
+                partitionKeyArray[componentIndex] = column;
+            }
+            else if (type.equals("clustering_key"))
+            {
+                clusteringKeys.add(column);
+            }
+        }
+        partitionKeys.addAll(Arrays.asList(partitionKeyArray));
+    }
+
+
 
     private String quote(String identifier)
     {

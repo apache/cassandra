@@ -1,4 +1,5 @@
 2.0.10
+ * Give CRR a default input_cql Statement (CASSANDRA-7226)
  * Better error message when adding a collection with the same name
    than a previously dropped one (CASSANDRA-6276)
  * Fix validation when adding static columns (CASSANDRA-7730)
