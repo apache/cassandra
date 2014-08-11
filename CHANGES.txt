@@ -1,4 +1,6 @@
 2.0.10
+ * Better error message when adding a collection with the same name
+   than a previously dropped one (CASSANDRA-6276)
  * Fix validation when adding static columns (CASSANDRA-7730)
  * (Thrift) fix range deletion of supercolumns (CASSANDRA-7733)
  * Fix potential AssertionError in RangeTombstoneList (CASSANDRA-7700)

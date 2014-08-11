@@ -121,6 +121,14 @@ public class AlterTableStatement extends SchemaAlteringStatement
                                                                 ? new HashMap<ByteBuffer, CollectionType>(cfDef.getCollectionType().defined)
                                                                 : new HashMap<ByteBuffer, CollectionType>();
 
+                    // If there used to be a collection column with the same name (that has been dropped), it will
+                    // still be appear in the ColumnToCollectionType because or reasons explained on #6276. The same
+                    // reason mean that we can't allow adding a new collection with that name (see the ticket for details).
+                    CollectionType previous = collections.get(columnName.key);
+                    if (previous != null && !type.isCompatibleWith(previous))
+                        throw new InvalidRequestException(String.format("Cannot add a collection with the name %s " +
+                                    "because a collection with the same name and a different type has already been used in the past", columnName));
+
                     collections.put(columnName.key, (CollectionType)type);
                     ColumnToCollectionType newColType = ColumnToCollectionType.getInstance(collections);
                     List<AbstractType<?>> ctypes = new ArrayList<AbstractType<?>>(((CompositeType)cfm.comparator).types);
