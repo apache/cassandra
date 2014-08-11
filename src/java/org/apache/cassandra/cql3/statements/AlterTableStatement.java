@@ -89,8 +89,13 @@ public class AlterTableStatement extends SchemaAlteringStatement
                 if (cfDef.isCompact)
                     throw new InvalidRequestException("Cannot add new column to a COMPACT STORAGE table");
 
-                if (isStatic && !cfDef.isComposite)
-                    throw new InvalidRequestException("Static columns are not allowed in COMPACT STORAGE tables");
+                if (isStatic)
+                {
+                    if (!cfDef.isComposite)
+                        throw new InvalidRequestException("Static columns are not allowed in COMPACT STORAGE tables");
+                    if (cfDef.clusteringColumns().isEmpty())
+                        throw new InvalidRequestException("Static columns are only useful (and thus allowed) if the table has at least one clustering column");
+                }
 
                 if (name != null)
                 {

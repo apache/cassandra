@@ -1,4 +1,5 @@
 2.0.10
+ * Fix validation when adding static columns (CASSANDRA-7730)
  * (Thrift) fix range deletion of supercolumns (CASSANDRA-7733)
  * Fix potential AssertionError in RangeTombstoneList (CASSANDRA-7700)
  * Validate arguments of blobAs* functions (CASSANDRA-7707)
