@@ -87,8 +87,15 @@ public class AlterTableStatement extends SchemaAlteringStatement
             case ADD:
                 if (cfm.comparator.isDense())
                     throw new InvalidRequestException("Cannot add new column to a COMPACT STORAGE table");
-                if (isStatic && !cfm.comparator.isCompound())
-                    throw new InvalidRequestException("Static columns are not allowed in COMPACT STORAGE tables");
+
+                if (isStatic)
+                {
+                    if (!cfm.comparator.isCompound())
+                        throw new InvalidRequestException("Static columns are not allowed in COMPACT STORAGE tables");
+                    if (cfm.clusteringColumns().isEmpty())
+                        throw new InvalidRequestException("Static columns are only useful (and thus allowed) if the table has at least one clustering column");
+                }
+
                 if (def != null)
                 {
                     switch (def.kind)
@@ -108,6 +115,18 @@ public class AlterTableStatement extends SchemaAlteringStatement
                         throw new InvalidRequestException("Cannot use collection types with non-composite PRIMARY KEY");
                     if (cfm.isSuper())
                         throw new InvalidRequestException("Cannot use collection types with Super column family");
+
+
+                    // If there used to be a collection column with the same name (that has been dropped), it will
+                    // still be appear in the ColumnToCollectionType because or reasons explained on #6276. The same
+                    // reason mean that we can't allow adding a new collection with that name (see the ticket for details).
+                    if (cfm.comparator.hasCollections())
+                    {
+                        CollectionType previous = cfm.comparator.collectionType() == null ? null : cfm.comparator.collectionType().defined.get(columnName.bytes);
+                        if (previous != null && !type.isCompatibleWith(previous))
+                            throw new InvalidRequestException(String.format("Cannot add a collection with the name %s " +
+                                        "because a collection with the same name and a different type has already been used in the past", columnName));
+                    }
 
                     cfm.comparator = cfm.comparator.addOrUpdateCollection(columnName, (CollectionType)type);
                 }
