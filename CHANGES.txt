@@ -1,8 +1,5 @@
-2.0.11
- * (Thrift) fix range deletion of supercolumns (CASSANDRA-7733)
-
-
 2.0.10
+ * (Thrift) fix range deletion of supercolumns (CASSANDRA-7733)
  * Fix potential AssertionError in RangeTombstoneList (CASSANDRA-7700)
  * Validate arguments of blobAs* functions (CASSANDRA-7707)
  * Fix potential AssertionError with 2ndary indexes (CASSANDRA-6612)
