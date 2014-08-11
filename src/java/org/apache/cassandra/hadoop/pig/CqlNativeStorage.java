@@ -179,7 +179,13 @@ public class CqlNativeStorage extends CqlStorage
         setConnectionInformation();
 
         CqlConfigHelper.setInputCQLPageRowSize(conf, String.valueOf(pageSize));
-        CqlConfigHelper.setInputCql(conf, inputCql);
+        if (inputCql != null)
+            CqlConfigHelper.setInputCql(conf, inputCql);
+        if (columns != null)
+            CqlConfigHelper.setInputColumns(conf, columns);
+        if (whereClause != null)
+            CqlConfigHelper.setInputWhereClauses(conf, whereClause);
+
         if (System.getenv(PIG_INPUT_SPLIT_SIZE) != null)
         {
             try
@@ -272,6 +278,10 @@ public class CqlNativeStorage extends CqlStorage
                     nativeSSLCipherSuites = urlQuery.get("cipher_suites");
                 if (urlQuery.containsKey("input_cql"))
                     inputCql = urlQuery.get("input_cql");
+                if (urlQuery.containsKey("columns"))
+                    columns = urlQuery.get("columns");
+                if (urlQuery.containsKey("where_clause"))
+                    whereClause = urlQuery.get("where_clause");
                 if (urlQuery.containsKey("rpc_port"))
                     rpcPort = urlQuery.get("rpc_port");
             }
@@ -301,7 +311,8 @@ public class CqlNativeStorage extends CqlStorage
                     "[&send_buff_size=<send_buff_size>][&solinger=<solinger>][&tcp_nodelay=<tcp_nodelay>][&reuse_address=<reuse_address>]" +
                     "[&keep_alive=<keep_alive>][&auth_provider=<auth_provider>][&trust_store_path=<trust_store_path>]" +
                     "[&key_store_path=<key_store_path>][&trust_store_password=<trust_store_password>]" +
-                    "[&key_store_password=<key_store_password>][&cipher_suites=<cipher_suites>][&input_cql=<input_cql>]]': " + e.getMessage());
+                    "[&key_store_password=<key_store_password>][&cipher_suites=<cipher_suites>][&input_cql=<input_cql>]" +
+                    "[columns=<columns>][where_clause=<where_clause>]]': " + e.getMessage());
         }
     }
 
