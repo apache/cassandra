@@ -6,6 +6,9 @@
  * Fix UDT field selection with empty fields (CASSANDRA-7670)
  * Bogus deserialization of static cells from sstable (CASSANDRA-7684)
 Merged from 2.0:
+ * Better error message when adding a collection with the same name
+   than a previously dropped one (CASSANDRA-6276)
+ * Fix validation when adding static columns (CASSANDRA-7730)
  * (Thrift) fix range deletion of supercolumns (CASSANDRA-7733)
  * Fix potential AssertionError in RangeTombstoneList (CASSANDRA-7700)
  * Validate arguments of blobAs* functions (CASSANDRA-7707)
