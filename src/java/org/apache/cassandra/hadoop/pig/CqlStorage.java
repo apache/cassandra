@@ -61,9 +61,9 @@ public class CqlStorage extends AbstractCassandraStorage
     protected RecordWriter<Map<String, ByteBuffer>, List<ByteBuffer>> writer;
 
     protected int pageSize = 1000;
-    private String columns;
+    protected String columns;
     protected String outputQuery;
-    private String whereClause;
+    protected String whereClause;
     private boolean hasCompactValueAlias = false;
         
     public CqlStorage()
