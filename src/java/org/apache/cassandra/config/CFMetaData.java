@@ -900,7 +900,14 @@ public final class CFMetaData
         if (cf_def.isSetKey_alias() && !(cfm.keyValidator instanceof CompositeType))
             cfm.column_metadata.put(cf_def.key_alias, ColumnDefinition.partitionKeyDef(cf_def.key_alias, cfm.keyValidator, null));
 
-        return cfm.rebuild();
+        try
+        {
+            return cfm.rebuild();
+        }
+        catch (MarshalException e)
+        {
+            throw new ConfigurationException(e.getMessage());
+        }
     }
 
     public static CFMetaData fromThriftForUpdate(org.apache.cassandra.thrift.CfDef cf_def, CFMetaData toUpdate) throws InvalidRequestException, ConfigurationException
@@ -927,7 +934,14 @@ public final class CFMetaData
             cfm.addOrReplaceColumnDefinition(def);
         }
 
-        return cfm.rebuild();
+        try
+        {
+            return cfm.rebuild();
+        }
+        catch (MarshalException e)
+        {
+            throw new ConfigurationException(e.getMessage());
+        }
     }
 
     // Do most of the work, but don't handle CQL metadata (i.e. skip key_alias and don't rebuild())
