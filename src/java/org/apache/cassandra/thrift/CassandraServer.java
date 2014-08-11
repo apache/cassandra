@@ -911,7 +911,7 @@ public class CassandraServer implements Cassandra.Iface
             if (del.super_column == null && Schema.instance.getColumnFamilyType(rm.getKeyspaceName(), cfName) == ColumnFamilyType.Super)
                 rm.deleteRange(cfName,
                                SuperColumns.startOf(del.predicate.getSlice_range().start),
-                               SuperColumns.startOf(del.predicate.getSlice_range().finish),
+                               SuperColumns.endOf(del.predicate.getSlice_range().finish),
                                del.timestamp);
             else if (del.super_column != null)
                 rm.deleteRange(cfName,
