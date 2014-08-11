@@ -728,6 +728,8 @@ class Shell(cmd.Cmd):
             try:
                 import readline
             except ImportError:
+                if platform.system() == 'Windows':
+                    print "WARNING: pyreadline dependency missing.  Install to enable tab completion."
                 pass
             else:
                 old_completer = readline.get_completer()
