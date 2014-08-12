@@ -150,7 +150,7 @@ public class CqlRecordReader extends RecordReader<Long, Row>
         }
 
         if (cluster != null)
-            session = cluster.connect(keyspace);
+            session = cluster.connect(quote(keyspace));
 
         if (session == null)
           throw new RuntimeException("Can't create connection session");
