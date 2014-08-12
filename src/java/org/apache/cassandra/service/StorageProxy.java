@@ -1416,14 +1416,19 @@ public class StorageProxy implements StorageProxyMBean
         if (command.rowFilter != null && !command.rowFilter.isEmpty())
         {
             List<SecondaryIndexSearcher> searchers = cfs.indexManager.getIndexSearchersForQuery(command.rowFilter);
-            assert !searchers.isEmpty() : "Got row filter with no matching SecondaryIndexSearchers";
-
-            // Secondary index query (cql3 or otherwise).  Estimate result rows based on most selective 2ary index.
-            for (SecondaryIndexSearcher searcher : searchers)
+            if (searchers.isEmpty())
             {
-                // use our own mean column count as our estimate for how many matching rows each node will have
-                SecondaryIndex highestSelectivityIndex = searcher.highestSelectivityIndex(command.rowFilter);
-                resultRowsPerRange = Math.min(resultRowsPerRange, highestSelectivityIndex.estimateResultRows());
+                resultRowsPerRange = calculateResultRowsUsingEstimatedKeys(cfs);
+            }
+            else
+            {
+                // Secondary index query (cql3 or otherwise).  Estimate result rows based on most selective 2ary index.
+                for (SecondaryIndexSearcher searcher : searchers)
+                {
+                    // use our own mean column count as our estimate for how many matching rows each node will have
+                    SecondaryIndex highestSelectivityIndex = searcher.highestSelectivityIndex(command.rowFilter);
+                    resultRowsPerRange = Math.min(resultRowsPerRange, highestSelectivityIndex.estimateResultRows());
+                }
             }
         }
         else if (!command.countCQL3Rows())
@@ -1433,20 +1438,25 @@ public class StorageProxy implements StorageProxyMBean
         }
         else
         {
-            if (cfs.metadata.comparator.isDense())
-            {
-                // one storage row per result row, so use key estimate directly
-                resultRowsPerRange = cfs.estimateKeys();
-            }
-            else
-            {
-                float resultRowsPerStorageRow = ((float) cfs.getMeanColumns()) / cfs.metadata.regularColumns().size();
-                resultRowsPerRange = resultRowsPerStorageRow * (cfs.estimateKeys());
-            }
+            resultRowsPerRange = calculateResultRowsUsingEstimatedKeys(cfs);
         }
 
         // adjust resultRowsPerRange by the number of tokens this node has and the replication factor for this ks
         return (resultRowsPerRange / DatabaseDescriptor.getNumTokens()) / keyspace.getReplicationStrategy().getReplicationFactor();
+    }
+
+    private static float calculateResultRowsUsingEstimatedKeys(ColumnFamilyStore cfs)
+    {
+        if (cfs.metadata.comparator.isDense())
+        {
+            // one storage row per result row, so use key estimate directly
+            return cfs.estimateKeys();
+        }
+        else
+        {
+            float resultRowsPerStorageRow = ((float) cfs.getMeanColumns()) / cfs.metadata.regularColumns().size();
+            return resultRowsPerStorageRow * (cfs.estimateKeys());
+        }
     }
 
     public static List<Row> getRangeSlice(AbstractRangeCommand command, ConsistencyLevel consistency_level)
