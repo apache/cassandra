@@ -22,7 +22,6 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.*;
 
-import org.apache.cassandra.transport.Frame;
 import org.apache.commons.lang3.StringUtils;
 
 import org.apache.cassandra.config.CFMetaData;
@@ -56,8 +55,6 @@ public class Mutation implements IMutation
     // map of column family id to mutations for that column family.
     private final Map<UUID, ColumnFamily> modifications;
 
-    private Frame sourceFrame;
-
     public Mutation(String keyspaceName, ByteBuffer key)
     {
         this(keyspaceName, key, new HashMap<UUID, ColumnFamily>());
@@ -88,8 +85,6 @@ public class Mutation implements IMutation
     public Mutation copy()
     {
         Mutation copy = new Mutation(keyspaceName, key, new HashMap<>(modifications));
-        copy.setSourceFrame(getSourceFrame());
-
         return copy;
     }
 
@@ -111,20 +106,6 @@ public class Mutation implements IMutation
     public Collection<ColumnFamily> getColumnFamilies()
     {
         return modifications.values();
-    }
-
-    @Override
-    public void retain()
-    {
-        if (sourceFrame != null)
-            sourceFrame.retain();
-    }
-
-    @Override
-    public void release()
-    {
-        if (sourceFrame != null)
-            sourceFrame.release();
     }
 
     public ColumnFamily getColumnFamily(UUID cfId)
@@ -229,8 +210,6 @@ public class Mutation implements IMutation
      */
     public void apply()
     {
-        assert sourceFrame == null || sourceFrame.body.refCnt() > 0;
-
         Keyspace ks = Keyspace.open(keyspaceName);
         ks.apply(this, ks.metadata.durableWrites);
     }
@@ -288,16 +267,6 @@ public class Mutation implements IMutation
             if (!entry.getKey().equals(cfId))
                 mutation.add(entry.getValue());
         return mutation;
-    }
-
-    public Frame getSourceFrame()
-    {
-        return sourceFrame;
-    }
-
-    public void setSourceFrame(Frame sourceFrame)
-    {
-        this.sourceFrame = sourceFrame;
     }
 
     public static class MutationSerializer implements IVersionedSerializer<Mutation>

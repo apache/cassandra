@@ -353,15 +353,7 @@ public final class MessagingService implements MessagingServiceMBean
                 {
                     Mutation mutation = (Mutation) ((WriteCallbackInfo) expiredCallbackInfo).sentMessage.payload;
 
-                    try
-                    {
-                        return StorageProxy.submitHint(mutation, expiredCallbackInfo.target, null);
-                    }
-                    finally
-                    {
-                        //We serialized a hint so we don't need this mutation anymore
-                        mutation.release();
-                    }
+                    return StorageProxy.submitHint(mutation, expiredCallbackInfo.target, null);
                 }
 
                 return null;
@@ -579,10 +571,6 @@ public final class MessagingService implements MessagingServiceMBean
     {
         assert message.verb == Verb.MUTATION || message.verb == Verb.COUNTER_MUTATION;
         int messageId = nextId();
-
-        //keep the underlying buffer around till the request completes or times out and
-        //a hint is stored
-        message.payload.retain();
 
         CallbackInfo previous = callbacks.put(messageId,
                                               new WriteCallbackInfo(to,

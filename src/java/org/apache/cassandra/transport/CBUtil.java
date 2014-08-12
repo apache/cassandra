@@ -297,11 +297,8 @@ public abstract class CBUtil
         if (length < 0)
             return null;
         ByteBuf slice = cb.readSlice(length);
-        if (slice.nioBufferCount() == 1)
-            return slice.nioBuffer();
-        else
-            return ByteBuffer.wrap(readRawBytes(slice));
 
+        return ByteBuffer.wrap(readRawBytes(slice));
     }
 
     public static void writeValue(byte[] bytes, ByteBuf cb)
@@ -417,18 +414,9 @@ public abstract class CBUtil
 
     /*
      * Reads *all* readable bytes from {@code cb} and return them.
-     * If {@code cb} is backed by an array, this will return the underlying array directly, without copy.
      */
     public static byte[] readRawBytes(ByteBuf cb)
     {
-        if (cb.hasArray() && cb.readableBytes() == cb.array().length)
-        {
-            // Move the readerIndex just so we consistenly consume the input
-            cb.readerIndex(cb.writerIndex());
-            return cb.array();
-        }
-
-        // Otherwise, just read the bytes in a new array
         byte[] bytes = new byte[cb.readableBytes()];
         cb.readBytes(bytes);
         return bytes;

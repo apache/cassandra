@@ -53,11 +53,5 @@ public class ResponseVerbHandler implements IVerbHandler
             MessagingService.instance().maybeAddLatency(cb, message.from, latency);
             cb.response(message);
         }
-
-        // We don't need to track the mutation anymore since write succeeded
-        if (callbackInfo instanceof WriteCallbackInfo)
-        {
-            ((IMutation)((WriteCallbackInfo) callbackInfo).sentMessage.payload).release();
-        }
     }
 }
