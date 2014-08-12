@@ -23,7 +23,6 @@ import java.util.*;
 import com.google.common.base.Function;
 import com.google.common.collect.*;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.transport.Frame;
 import org.github.jamm.MemoryMeter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -167,7 +166,7 @@ public class BatchStatement implements CQLStatement, MeasurableForPreparedCache
         return statements;
     }
 
-    private Collection<? extends IMutation> getMutations(BatchQueryOptions options, boolean local, long now, Frame sourceFrame)
+    private Collection<? extends IMutation> getMutations(BatchQueryOptions options, boolean local, long now)
     throws RequestExecutionException, RequestValidationException
     {
         Map<String, Map<ByteBuffer, IMutation>> mutations = new HashMap<>();
@@ -176,7 +175,7 @@ public class BatchStatement implements CQLStatement, MeasurableForPreparedCache
             ModificationStatement statement = statements.get(i);
             QueryOptions statementOptions = options.forStatement(i);
             long timestamp = attrs.getTimestamp(now, statementOptions);
-            addStatementMutations(statement, statementOptions, local, timestamp, mutations, sourceFrame);
+            addStatementMutations(statement, statementOptions, local, timestamp, mutations);
         }
         return unzipMutations(mutations);
     }
@@ -197,8 +196,7 @@ public class BatchStatement implements CQLStatement, MeasurableForPreparedCache
                                        QueryOptions options,
                                        boolean local,
                                        long now,
-                                       Map<String, Map<ByteBuffer, IMutation>> mutations,
-                                       Frame sourceFrame)
+                                       Map<String, Map<ByteBuffer, IMutation>> mutations)
     throws RequestExecutionException, RequestValidationException
     {
         String ksName = statement.keyspace();
@@ -223,7 +221,6 @@ public class BatchStatement implements CQLStatement, MeasurableForPreparedCache
             if (mutation == null)
             {
                 mut = new Mutation(ksName, key);
-                mut.setSourceFrame(sourceFrame);
                 mutation = statement.cfm.isCounter() ? new CounterMutation(mut, options.getConsistency()) : mut;
                 ksMap.put(key, mutation);
             }
@@ -280,7 +277,7 @@ public class BatchStatement implements CQLStatement, MeasurableForPreparedCache
         if (hasConditions)
             return executeWithConditions(options, now);
 
-        executeWithoutConditions(getMutations(options, local, now, queryState.getSourceFrame()), options.getConsistency());
+        executeWithoutConditions(getMutations(options, local, now), options.getConsistency());
         return new ResultMessage.Void();
     }
 
@@ -356,7 +353,7 @@ public class BatchStatement implements CQLStatement, MeasurableForPreparedCache
     public ResultMessage executeInternal(QueryState queryState, QueryOptions options) throws RequestValidationException, RequestExecutionException
     {
         assert !hasConditions;
-        for (IMutation mutation : getMutations(BatchQueryOptions.withoutPerStatementVariables(options), true, queryState.getTimestamp(), queryState.getSourceFrame()))
+        for (IMutation mutation : getMutations(BatchQueryOptions.withoutPerStatementVariables(options), true, queryState.getTimestamp()))
         {
             // We don't use counters internally.
             assert mutation instanceof Mutation;

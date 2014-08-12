@@ -72,18 +72,6 @@ public class CounterMutation implements IMutation
         return mutation.getColumnFamilies();
     }
 
-    @Override
-    public void retain()
-    {
-        mutation.retain();
-    }
-
-    @Override
-    public void release()
-    {
-        mutation.release();
-    }
-
     public Mutation getMutation()
     {
         return mutation;

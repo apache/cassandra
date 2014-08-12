@@ -30,15 +30,4 @@ public interface IMutation
     public String toString(boolean shallow);
     public void addAll(IMutation m);
     public Collection<ColumnFamily> getColumnFamilies();
-
-    /**
-     * Call to increment underlying network buffer refcount
-     * So we can avoid recycling too soon
-     */
-    public void retain();
-
-    /**
-     * Call to decrement underlying network buffer refcount
-     */
-    public void release();
 }
