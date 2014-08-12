@@ -130,6 +130,8 @@ public class DataTracker
      */
     public void renewMemtable()
     {
+        assert !cfstore.keyspace.metadata.durableWrites;
+
         Memtable newMemtable = new Memtable(cfstore, view.get().memtable);
         View currentView, newView;
         do
