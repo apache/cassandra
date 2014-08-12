@@ -1,4 +1,5 @@
 1.2.19
+ * Clone token map outside of hot gossip loops (CASSANDRA-7758)
  * Add stop method to EmbeddedCassandraService (CASSANDRA-7595)
  * Support connecting to ipv6 jmx with nodetool (CASSANDRA-7669)
  * Set gc_grace_seconds to seven days for system schema tables (CASSANDRA-7668)
