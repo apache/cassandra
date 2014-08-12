@@ -829,6 +829,9 @@ public class DatabaseDescriptor
                 return getTruncateRpcTimeout();
             case READ_REPAIR:
             case MUTATION:
+            case PAXOS_COMMIT:
+            case PAXOS_PREPARE:
+            case PAXOS_PROPOSE:
             case COUNTER_MUTATION:
                 return getWriteRpcTimeout();
             default:
