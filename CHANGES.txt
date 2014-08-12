@@ -1,4 +1,5 @@
 2.1.0-rc6
+ * Fix Thrift range filtering without 2ary index lookups (CASSANDRA-7741)
  * Add tracing entries about concurrent range requests (CASSANDRA-7599)
  * (cqlsh) Fix DESCRIBE for NTS keyspaces (CASSANDRA-7729)
  * Remove netty buffer ref-counting (CASSANDRA-7735)
