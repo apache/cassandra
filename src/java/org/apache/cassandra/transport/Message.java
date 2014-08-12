@@ -414,7 +414,6 @@ public abstract class Message
                 assert request.connection() instanceof ServerConnection;
                 connection = (ServerConnection)request.connection();
                 QueryState qstate = connection.validateNewMessage(request.type, connection.getVersion(), request.getStreamId());
-                qstate.setSourceFrame(request.getSourceFrame());
 
                 logger.debug("Received: {}, v={}", request, connection.getVersion());
 

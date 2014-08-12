@@ -457,8 +457,6 @@ public class StorageProxy implements StorageProxyMBean
         {
             for (IMutation mutation : mutations)
             {
-                mutation.retain();
-
                 if (mutation instanceof CounterMutation)
                 {
                     responseHandlers.add(mutateCounter((CounterMutation)mutation, localDataCenter));
@@ -524,13 +522,6 @@ public class StorageProxy implements StorageProxyMBean
         }
         finally
         {
-            //Release the mutations we dispatched so far.
-            //An exception may be thrown at anytime.
-            //We can infer the mutations that were dispatched from this list
-            Iterator<? extends IMutation> it = mutations.iterator();
-            for (int i = 0; i < responseHandlers.size(); i++)
-                it.next().release();
-            
             writeMetrics.addNano(System.nanoTime() - startTime);
         }
     }
@@ -797,77 +788,69 @@ public class StorageProxy implements StorageProxyMBean
         boolean insertLocal = false;
 
 
-        mutation.retain();
-        try        
+        for (InetAddress destination : targets)
         {
-            for (InetAddress destination : targets)
+            // avoid OOMing due to excess hints.  we need to do this check even for "live" nodes, since we can
+            // still generate hints for those if it's overloaded or simply dead but not yet known-to-be-dead.
+            // The idea is that if we have over maxHintsInProgress hints in flight, this is probably due to
+            // a small number of nodes causing problems, so we should avoid shutting down writes completely to
+            // healthy nodes.  Any node with no hintsInProgress is considered healthy.
+            if (StorageMetrics.totalHintsInProgress.count() > maxHintsInProgress
+                    && (getHintsInProgressFor(destination).get() > 0 && shouldHint(destination)))
             {
-                // avoid OOMing due to excess hints.  we need to do this check even for "live" nodes, since we can
-                // still generate hints for those if it's overloaded or simply dead but not yet known-to-be-dead.
-                // The idea is that if we have over maxHintsInProgress hints in flight, this is probably due to
-                // a small number of nodes causing problems, so we should avoid shutting down writes completely to
-                // healthy nodes.  Any node with no hintsInProgress is considered healthy.
-                if (StorageMetrics.totalHintsInProgress.count() > maxHintsInProgress
-                        && (getHintsInProgressFor(destination).get() > 0 && shouldHint(destination)))
-                {
-                    throw new OverloadedException("Too many in flight hints: " + StorageMetrics.totalHintsInProgress.count());
-                }
+                throw new OverloadedException("Too many in flight hints: " + StorageMetrics.totalHintsInProgress.count());
+            }
 
-                if (FailureDetector.instance.isAlive(destination))
+            if (FailureDetector.instance.isAlive(destination))
+            {
+                if (destination.equals(FBUtilities.getBroadcastAddress()) && OPTIMIZE_LOCAL_REQUESTS)
                 {
-                    if (destination.equals(FBUtilities.getBroadcastAddress()) && OPTIMIZE_LOCAL_REQUESTS)
-                    {
-                        insertLocal = true;
-                    } else
-                    {
-                        // belongs on a different server
-                        if (message == null)
-                            message = mutation.createMessage();
-                        String dc = DatabaseDescriptor.getEndpointSnitch().getDatacenter(destination);
-                        // direct writes to local DC or old Cassandra versions
-                        // (1.1 knows how to forward old-style String message IDs; updated to int in 2.0)
-                        if (localDataCenter.equals(dc))
-                        {
-                            MessagingService.instance().sendRR(message, destination, responseHandler, true);
-                        } else
-                        {
-                            Collection<InetAddress> messages = (dcGroups != null) ? dcGroups.get(dc) : null;
-                            if (messages == null)
-                            {
-                                messages = new ArrayList<InetAddress>(3); // most DCs will have <= 3 replicas
-                                if (dcGroups == null)
-                                    dcGroups = new HashMap<String, Collection<InetAddress>>();
-                                dcGroups.put(dc, messages);
-                            }
-                            messages.add(destination);
-                        }
-                    }
+                    insertLocal = true;
                 } else
                 {
-                    if (!shouldHint(destination))
-                        continue;
-
-                    // Schedule a local hint
-                    submitHint(mutation, destination, responseHandler);
+                    // belongs on a different server
+                    if (message == null)
+                        message = mutation.createMessage();
+                    String dc = DatabaseDescriptor.getEndpointSnitch().getDatacenter(destination);
+                    // direct writes to local DC or old Cassandra versions
+                    // (1.1 knows how to forward old-style String message IDs; updated to int in 2.0)
+                    if (localDataCenter.equals(dc))
+                    {
+                        MessagingService.instance().sendRR(message, destination, responseHandler, true);
+                    } else
+                    {
+                        Collection<InetAddress> messages = (dcGroups != null) ? dcGroups.get(dc) : null;
+                        if (messages == null)
+                        {
+                            messages = new ArrayList<InetAddress>(3); // most DCs will have <= 3 replicas
+                            if (dcGroups == null)
+                                dcGroups = new HashMap<String, Collection<InetAddress>>();
+                            dcGroups.put(dc, messages);
+                        }
+                        messages.add(destination);
+                    }
                 }
-            }
-
-            if (insertLocal)
-                insertLocal(mutation, responseHandler);
-
-            if (dcGroups != null)
+            } else
             {
-                // for each datacenter, send the message to one node to relay the write to other replicas
-                if (message == null)
-                    message = mutation.createMessage();
+                if (!shouldHint(destination))
+                    continue;
 
-                for (Collection<InetAddress> dcTargets : dcGroups.values())
-                    sendMessagesToNonlocalDC(message, dcTargets, responseHandler);
+                // Schedule a local hint
+                submitHint(mutation, destination, responseHandler);
             }
         }
-        finally
+
+        if (insertLocal)
+            insertLocal(mutation, responseHandler);
+
+        if (dcGroups != null)
         {
-            mutation.release();
+            // for each datacenter, send the message to one node to relay the write to other replicas
+            if (message == null)
+                message = mutation.createMessage();
+
+            for (Collection<InetAddress> dcTargets : dcGroups.values())
+                sendMessagesToNonlocalDC(message, dcTargets, responseHandler);
         }
     }
 
@@ -889,30 +872,22 @@ public class StorageProxy implements StorageProxyMBean
     {
         // local write that time out should be handled by LocalMutationRunnable
         assert !target.equals(FBUtilities.getBroadcastAddress()) : target;
-        mutation.retain();
 
         HintRunnable runnable = new HintRunnable(target)
         {
             public void runMayThrow()
             {
-                try
+                int ttl = HintedHandOffManager.calculateHintTTL(mutation);
+                if (ttl > 0)
                 {
-                    int ttl = HintedHandOffManager.calculateHintTTL(mutation);
-                    if (ttl > 0)
-                    {
-                        logger.debug("Adding hint for {}", target);
-                        writeHintForMutation(mutation, System.currentTimeMillis(), ttl, target);
-                        // Notify the handler only for CL == ANY
-                        if (responseHandler != null && responseHandler.consistencyLevel == ConsistencyLevel.ANY)
-                            responseHandler.response(null);
-                    } else
-                    {
-                        logger.debug("Skipped writing hint for {} (ttl {})", target, ttl);
-                    }
-                }
-                finally
+                    logger.debug("Adding hint for {}", target);
+                    writeHintForMutation(mutation, System.currentTimeMillis(), ttl, target);
+                    // Notify the handler only for CL == ANY
+                    if (responseHandler != null && responseHandler.consistencyLevel == ConsistencyLevel.ANY)
+                        responseHandler.response(null);
+                } else
                 {
-                    mutation.release();
+                    logger.debug("Skipped writing hint for {} (ttl {})", target, ttl);
                 }
             }
         };
@@ -976,24 +951,16 @@ public class StorageProxy implements StorageProxyMBean
 
     private static void insertLocal(final Mutation mutation, final AbstractWriteResponseHandler responseHandler)
     {
-        mutation.retain();
 
         StageManager.getStage(Stage.MUTATION).maybeExecuteImmediately(new LocalMutationRunnable()
         {
             public void runMayThrow()
             {
-                try
+                IMutation processed = SinkManager.processWriteRequest(mutation);
+                if (processed != null)
                 {
-                    IMutation processed = SinkManager.processWriteRequest(mutation);
-                    if (processed != null)
-                    {
-                        ((Mutation) processed).apply();
-                        responseHandler.response(null);
-                    }
-                }
-                finally
-                {
-                    mutation.release();
+                    ((Mutation) processed).apply();
+                    responseHandler.response(null);
                 }
             }
         });
@@ -1099,8 +1066,6 @@ public class StorageProxy implements StorageProxyMBean
                                              final AbstractWriteResponseHandler responseHandler,
                                              final String localDataCenter)
     {
-        mutation.retain();
-
         return new DroppableRunnable(MessagingService.Verb.COUNTER_MUTATION)
         {
             @Override
@@ -1120,12 +1085,6 @@ public class StorageProxy implements StorageProxyMBean
                             ImmutableSet.of(FBUtilities.getBroadcastAddress()));
                 if (!remotes.isEmpty())
                     sendToHintedEndpoints(result, remotes, responseHandler, localDataCenter);
-            }
-
-            @Override
-            public void cleanup()
-            {
-                mutation.release();
             }
         };
     }
@@ -2052,30 +2011,19 @@ public class StorageProxy implements StorageProxyMBean
 
         public final void run()
         {
+
+            if (TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - constructionTime) > DatabaseDescriptor.getTimeout(verb))
+            {
+                MessagingService.instance().incrementDroppedMessages(verb);
+                return;
+            }
             try
             {
-                if (TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - constructionTime) > DatabaseDescriptor.getTimeout(verb))
-                {
-                    MessagingService.instance().incrementDroppedMessages(verb);
-                    return;
-                }
-
-                try
-                {
-                    runMayThrow();
-                } catch (Exception e)
-                {
-                    throw new RuntimeException(e);
-                }
-            }
-            finally
+                runMayThrow();
+            } catch (Exception e)
             {
-                cleanup();
+                throw new RuntimeException(e);
             }
-        }
-
-        public void cleanup()
-        {
         }
 
         abstract protected void runMayThrow() throws Exception;
