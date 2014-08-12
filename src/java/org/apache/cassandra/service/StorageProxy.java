@@ -1452,7 +1452,7 @@ public class StorageProxy implements StorageProxyMBean
     public static List<Row> getRangeSlice(AbstractRangeCommand command, ConsistencyLevel consistency_level)
     throws UnavailableException, ReadTimeoutException
     {
-        Tracing.trace("Determining replicas to query");
+        Tracing.trace("Computing ranges to query");
         long startTime = System.nanoTime();
 
         Keyspace keyspace = Keyspace.open(command.keyspace);
@@ -1481,6 +1481,7 @@ public class StorageProxy implements StorageProxyMBean
                                   : Math.max(1, Math.min(ranges.size(), (int) Math.ceil(command.limit() / resultRowsPerRange)));
             logger.debug("Estimated result rows per range: {}; requested rows: {}, ranges.size(): {}; concurrent range requests: {}",
                          resultRowsPerRange, command.limit(), ranges.size(), concurrencyFactor);
+            Tracing.trace("Submitting range requests on {} ranges with a concurrency of {} ({} rows per range expected)", new Object[]{ ranges.size(), concurrencyFactor, resultRowsPerRange});
 
             boolean haveSufficientRows = false;
             int i = 0;
@@ -1491,6 +1492,7 @@ public class StorageProxy implements StorageProxyMBean
             {
                 List<Pair<AbstractRangeCommand, ReadCallback<RangeSliceReply, Iterable<Row>>>> scanHandlers = new ArrayList<>(concurrencyFactor);
                 int concurrentFetchStartingIndex = i;
+                int concurrentRequests = 0;
                 while ((i - concurrentFetchStartingIndex) < concurrencyFactor)
                 {
                     AbstractBounds<RowPosition> range = nextRange == null
@@ -1503,6 +1505,7 @@ public class StorageProxy implements StorageProxyMBean
                                                         ? consistency_level.filterForQuery(keyspace, liveEndpoints)
                                                         : nextFilteredEndpoints;
                     ++i;
+                    ++concurrentRequests;
 
                     // getRestrictedRange has broken the queried range into per-[vnode] token ranges, but this doesn't take
                     // the replication factor into account. If the intersection of live endpoints for 2 consecutive ranges
@@ -1565,6 +1568,7 @@ public class StorageProxy implements StorageProxyMBean
                     }
                     scanHandlers.add(Pair.create(nodeCmd, handler));
                 }
+                Tracing.trace("Submitted {} concurrent range requests covering {} ranges", concurrentRequests, i - concurrentFetchStartingIndex);
 
                 List<AsyncOneResponse> repairResponses = new ArrayList<>();
                 for (Pair<AbstractRangeCommand, ReadCallback<RangeSliceReply, Iterable<Row>>> cmdPairHandler : scanHandlers)
