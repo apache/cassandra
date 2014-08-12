@@ -51,6 +51,7 @@ Merged from 2.0:
  * Fix UDT field selection with empty fields (CASSANDRA-7670)
  * Bogus deserialization of static cells from sstable (CASSANDRA-7684)
 Merged from 2.0:
+ * Clone token map outside of hot gossip loops (CASSANDRA-7758)
  * Fix MS expiring map timeout for Paxos messages (CASSANDRA-7752)
  * Do not flush on truncate if durable_writes is false (CASSANDRA-7750)
  * Give CRR a default input_cql Statement (CASSANDRA-7226)
@@ -178,6 +179,13 @@ Merged from 2.0:
  * Backport CASSANDRA-6747 (CASSANDRA-7560)
  * Track max/min timestamps for range tombstones (CASSANDRA-7647)
  * Fix NPE when listing saved caches dir (CASSANDRA-7632)
+Merged from 1.2:
+ * Add stop method to EmbeddedCassandraService (CASSANDRA-7595)
+ * Support connecting to ipv6 jmx with nodetool (CASSANDRA-7669)
+ * Set gc_grace_seconds to seven days for system schema tables (CASSANDRA-7668)
+ * SimpleSeedProvider no longer caches seeds forever (CASSANDRA-7663)
+ * Set correct stream ID on responses when non-Exception Throwables
+   are thrown while handling native protocol messages (CASSANDRA-7470)
 
 
 2.1.0-rc1

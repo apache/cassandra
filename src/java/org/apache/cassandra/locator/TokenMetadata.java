@@ -722,9 +722,10 @@ public class TokenMetadata
 
             // for each of those ranges, find what new nodes will be responsible for the range when
             // all leaving nodes are gone.
+            TokenMetadata metadata = cloneOnlyTokenMap(); // don't do this in the loop! #7758
             for (Range<Token> range : affectedRanges)
             {
-                Set<InetAddress> currentEndpoints = ImmutableSet.copyOf(strategy.calculateNaturalEndpoints(range.right, cloneOnlyTokenMap()));
+                Set<InetAddress> currentEndpoints = ImmutableSet.copyOf(strategy.calculateNaturalEndpoints(range.right, metadata));
                 Set<InetAddress> newEndpoints = ImmutableSet.copyOf(strategy.calculateNaturalEndpoints(range.right, allLeftMetadata));
                 newPendingRanges.putAll(range, Sets.difference(newEndpoints, currentEndpoints));
             }
