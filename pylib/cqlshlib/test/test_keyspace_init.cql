@@ -52,24 +52,6 @@ VALUES (4, blobAsInt(0x), '', blobAsBigint(0x), 0x, blobAsBoolean(0x), blobAsDec
         blobAsVarint(0x));
 
 
-CREATE TABLE has_value_encoding_errors (
-    pkey ascii PRIMARY KEY,
-    utf8col blob
-);
-
-INSERT INTO has_value_encoding_errors (pkey, utf8col) VALUES ('A', 0x00ff00ff);
-ALTER TABLE has_value_encoding_errors ALTER utf8col TYPE text;
-
-CREATE TABLE has_key_encoding_errors (
-    pkey blob PRIMARY KEY,
-    col text
-);
-
-INSERT INTO has_key_encoding_errors (pkey, col) VALUES (0x00ff028f, 'whatever');
-ALTER TABLE has_key_encoding_errors ALTER pkey TYPE text;
-
-
-
 CREATE TABLE empty_table (
     lonelykey float primary key,
     lonelycol text
@@ -130,23 +112,19 @@ INSERT INTO undefined_values_table (k, c) VALUES ('k2', 'c2');
 
 
 
-CREATE TABLE ascii_with_invalid_and_special_chars (
+CREATE TABLE ascii_with_special_chars (
     k int PRIMARY KEY,
-    val blob
+    val ascii
 );
 
 -- "newline:\n"
-INSERT INTO ascii_with_invalid_and_special_chars (k, val) VALUES (0, 0x6e65776c696e653a0a);
+INSERT INTO ascii_with_special_chars (k, val) VALUES (0, blobAsAscii(0x6e65776c696e653a0a));
 -- "return\rand null\0!"
-INSERT INTO ascii_with_invalid_and_special_chars (k, val) VALUES (1, 0x72657475726e0d616e64206e756c6c0021);
+INSERT INTO ascii_with_special_chars (k, val) VALUES (1, blobAsAscii(0x72657475726e0d616e64206e756c6c0021));
 -- "\x00\x01\x02\x03\x04\x05control chars\x06\x07"
-INSERT INTO ascii_with_invalid_and_special_chars (k, val) VALUES (2, 0x000102030405636f6e74726f6c2063686172730607);
--- "\xfe\xffbyte order mark"
-INSERT INTO ascii_with_invalid_and_special_chars (k, val) VALUES (3, 0xfeff62797465206f72646572206d61726b);
+INSERT INTO ascii_with_special_chars (k, val) VALUES (2, blobAsAscii(0x000102030405636f6e74726f6c2063686172730607));
 -- "fake special chars\\x00\\n"
-INSERT INTO ascii_with_invalid_and_special_chars (k, val) VALUES (4, 0x66616b65207370656369616c2063686172735c7830305c6e);
-
-ALTER TABLE ascii_with_invalid_and_special_chars ALTER val TYPE ascii;
+INSERT INTO ascii_with_special_chars (k, val) VALUES (3, blobAsAscii(0x66616b65207370656369616c2063686172735c7830305c6e));
 
 
 
