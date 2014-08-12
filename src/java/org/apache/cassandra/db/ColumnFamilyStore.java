@@ -2002,12 +2002,31 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         // position in the System keyspace.
         logger.debug("truncating {}", name);
 
-        // flush the CF being truncated before forcing the new segment
-        forceBlockingFlush();
+        if (keyspace.metadata.durableWrites || DatabaseDescriptor.isAutoSnapshot())
+        {
+            // flush the CF being truncated before forcing the new segment
+            forceBlockingFlush();
 
-        // sleep a little to make sure that our truncatedAt comes after any sstable
-        // that was part of the flushed we forced; otherwise on a tie, it won't get deleted.
-        Uninterruptibles.sleepUninterruptibly(1, TimeUnit.MILLISECONDS);
+            // sleep a little to make sure that our truncatedAt comes after any sstable
+            // that was part of the flushed we forced; otherwise on a tie, it won't get deleted.
+            Uninterruptibles.sleepUninterruptibly(1, TimeUnit.MILLISECONDS);
+        }
+        else
+        {
+            Keyspace.switchLock.writeLock().lock();
+            try
+            {
+                for (ColumnFamilyStore cfs : concatWithIndexes())
+                {
+                    Memtable mt = cfs.getMemtableThreadSafe();
+                    if (!mt.isClean())
+                        mt.cfs.data.renewMemtable();
+                }
+            } finally
+            {
+                Keyspace.switchLock.writeLock().unlock();
+            }
+        }
 
         Runnable truncateRunnable = new Runnable()
         {
