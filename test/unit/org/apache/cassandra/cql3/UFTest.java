@@ -171,7 +171,7 @@ public class UFTest extends CQLTester
     {
         createTable("CREATE TABLE %s (key int primary key, val double)");
 
-        execute("create or replace function sin ( input double ) returns double 'org.apache.cassandra.cql3.udf.StdLibMath'");
+        execute("create or replace function sin ( input double ) returns double 'org.apache.cassandra.cql3.UFTest'");
 
         execute("INSERT INTO %s (key, val) VALUES (?, ?)", 1, 1d);
         execute("INSERT INTO %s (key, val) VALUES (?, ?)", 2, 2d);
