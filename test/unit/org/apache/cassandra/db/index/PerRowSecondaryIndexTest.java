@@ -184,7 +184,7 @@ public class PerRowSecondaryIndexTest
             QueryFilter filter = QueryFilter.getIdentityFilter(DatabaseDescriptor.getPartitioner().decorateKey(rowKey),
                                                                baseCfs.getColumnFamilyName(),
                                                                System.currentTimeMillis());
-            LAST_INDEXED_ROW = baseCfs.getColumnFamily(filter);
+            LAST_INDEXED_ROW = cf;
             LAST_INDEXED_KEY = rowKey;
         }
 

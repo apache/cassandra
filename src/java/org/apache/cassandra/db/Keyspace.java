@@ -382,7 +382,9 @@ public class Keyspace
                 }
 
                 Tracing.trace("Adding to {} memtable", cf.metadata().cfName);
-                SecondaryIndexManager.Updater updater = updateIndexes ? cfs.indexManager.updaterFor(key, opGroup) : SecondaryIndexManager.nullUpdater;
+                SecondaryIndexManager.Updater updater = updateIndexes
+                                                      ? cfs.indexManager.updaterFor(key, cf, opGroup)
+                                                      : SecondaryIndexManager.nullUpdater;
                 cfs.apply(key, cf, updater, opGroup, replayPosition);
             }
         }
