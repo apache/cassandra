@@ -56,6 +56,7 @@ import static org.apache.cassandra.utils.ByteBufferUtil.bytes;
 public class CommitLogTest
 {
     private static final String KEYSPACE1 = "CommitLogTest";
+    private static final String KEYSPACE2 = "CommitLogTestNonDurable";
     private static final String CF1 = "Standard1";
     private static final String CF2 = "Standard2";
 
@@ -64,6 +65,13 @@ public class CommitLogTest
     {
         SchemaLoader.prepareServer();
         SchemaLoader.createKeyspace(KEYSPACE1,
+                                    SimpleStrategy.class,
+                                    KSMetaData.optsWithRF(1),
+                                    SchemaLoader.standardCFMD(KEYSPACE1, CF1),
+                                    SchemaLoader.standardCFMD(KEYSPACE1, CF2));
+        SchemaLoader.createKeyspace(KEYSPACE2,
+                                    false,
+                                    true,
                                     SimpleStrategy.class,
                                     KSMetaData.optsWithRF(1),
                                     SchemaLoader.standardCFMD(KEYSPACE1, CF1),
@@ -200,7 +208,7 @@ public class CommitLogTest
 
     private static int getMaxRecordDataSize(String keyspace, ByteBuffer key, String table, CellName column)
     {
-        Mutation rm = new Mutation("Keyspace1", bytes("k"));
+        Mutation rm = new Mutation(KEYSPACE1, bytes("k"));
         rm.add("Standard1", Util.cellname("c1"), ByteBuffer.allocate(0), 0);
 
         int max = (DatabaseDescriptor.getCommitLogSegmentSize() / 2);
@@ -327,15 +335,15 @@ public class CommitLogTest
         CommitLog.instance.resetUnsafe();
         boolean prev = DatabaseDescriptor.isAutoSnapshot();
         DatabaseDescriptor.setAutoSnapshot(false);
-        ColumnFamilyStore cfs1 = Keyspace.open("Keyspace1").getColumnFamilyStore("Standard1");
-        ColumnFamilyStore cfs2 = Keyspace.open("Keyspace1").getColumnFamilyStore("Standard2");
+        ColumnFamilyStore cfs1 = Keyspace.open(KEYSPACE1).getColumnFamilyStore("Standard1");
+        ColumnFamilyStore cfs2 = Keyspace.open(KEYSPACE1).getColumnFamilyStore("Standard2");
 
-        final Mutation rm1 = new Mutation("Keyspace1", bytes("k"));
+        final Mutation rm1 = new Mutation(KEYSPACE1, bytes("k"));
         rm1.add("Standard1", Util.cellname("c1"), ByteBuffer.allocate(100), 0);
         rm1.apply();
         cfs1.truncateBlocking();
         DatabaseDescriptor.setAutoSnapshot(prev);
-        final Mutation rm2 = new Mutation("Keyspace1", bytes("k"));
+        final Mutation rm2 = new Mutation(KEYSPACE1, bytes("k"));
         rm2.add("Standard2", Util.cellname("c1"), ByteBuffer.allocate(DatabaseDescriptor.getCommitLogSegmentSize() / 4), 0);
 
         for (int i = 0 ; i < 5 ; i++)
@@ -356,7 +364,7 @@ public class CommitLogTest
         CommitLog.instance.resetUnsafe();
         boolean prevAutoSnapshot = DatabaseDescriptor.isAutoSnapshot();
         DatabaseDescriptor.setAutoSnapshot(false);
-        Keyspace notDurableKs = Keyspace.open("NoCommitlogSpace");
+        Keyspace notDurableKs = Keyspace.open(KEYSPACE2);
         Assert.assertFalse(notDurableKs.metadata.durableWrites);
         ColumnFamilyStore cfs = notDurableKs.getColumnFamilyStore("Standard1");
         CellNameType type = notDurableKs.getColumnFamilyStore("Standard1").getComparator();
@@ -364,11 +372,11 @@ public class CommitLogTest
         DecoratedKey dk = Util.dk("key1");
 
         // add data
-        rm = new Mutation("NoCommitlogSpace", dk.getKey());
+        rm = new Mutation(KEYSPACE2, dk.getKey());
         rm.add("Standard1", Util.cellname("Column1"), ByteBufferUtil.bytes("abcd"), 0);
         rm.apply();
 
-        ReadCommand command = new SliceByNamesReadCommand("NoCommitlogSpace", dk.getKey(), "Standard1", System.currentTimeMillis(), new NamesQueryFilter(FBUtilities.singleton(Util.cellname("Column1"), type)));
+        ReadCommand command = new SliceByNamesReadCommand(KEYSPACE2, dk.getKey(), "Standard1", System.currentTimeMillis(), new NamesQueryFilter(FBUtilities.singleton(Util.cellname("Column1"), type)));
         Row row = command.getRow(notDurableKs);
         Cell col = row.cf.getColumn(Util.cellname("Column1"));
         Assert.assertEquals(col.value(), ByteBuffer.wrap("abcd".getBytes()));
