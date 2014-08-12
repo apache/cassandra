@@ -512,14 +512,6 @@ public class SecondaryIndexManager
     /**
      * Updated closure with only the modified row key.
      */
-    public Updater updaterFor(DecoratedKey key, OpOrder.Group opGroup)
-    {
-        return updaterFor(key, null, opGroup);
-    }
-
-    /**
-     * Updated closure with only the modified row key.
-     */
     public Updater gcUpdaterFor(DecoratedKey key)
     {
         return new GCUpdater(key);
