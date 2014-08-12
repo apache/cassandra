@@ -902,9 +902,9 @@
             description="Create Cassandra release artifacts">
       <mkdir dir="${dist.dir}"/>
       <!-- fix the control linefeed so that builds on windows works on linux -->
-      <fixcrlf srcdir="bin" includes="**/*" excludes="**/*.bat" eol="lf" eof="remove" />
-      <fixcrlf srcdir="conf" includes="**/*" excludes="**/*.bat" eol="lf" eof="remove" />
-      <fixcrlf srcdir="tools/bin" includes="**/*" excludes="**/*.bat" eol="lf" eof="remove" />
+      <fixcrlf srcdir="bin" includes="**/*" excludes="**/*.bat, **/*.ps1" eol="lf" eof="remove" />
+      <fixcrlf srcdir="conf" includes="**/*" excludes="**/*.bat, **/*.ps1" eol="lf" eof="remove" />
+      <fixcrlf srcdir="tools/bin" includes="**/*" excludes="**/*.bat, **/*.ps1" eol="lf" eof="remove" />
       <copy todir="${dist.dir}/lib">
         <fileset dir="${build.lib}"/>
         <fileset dir="${build.dir}">
