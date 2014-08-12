@@ -44,8 +44,11 @@ import org.apache.cassandra.db.commitlog.CommitLogSegment;
 import org.apache.cassandra.db.composites.CellName;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.locator.SimpleStrategy;
+import org.apache.cassandra.db.composites.CellNameType;
+import org.apache.cassandra.db.filter.NamesQueryFilter;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 
 import static org.apache.cassandra.utils.ByteBufferUtil.bytes;
@@ -347,4 +350,31 @@ public class CommitLogTest
         Assert.assertEquals(1, CommitLog.instance.activeSegments());
     }
 
+    @Test
+    public void testTruncateWithoutSnapshotNonDurable()  throws ExecutionException, InterruptedException
+    {
+        CommitLog.instance.resetUnsafe();
+        boolean prevAutoSnapshot = DatabaseDescriptor.isAutoSnapshot();
+        DatabaseDescriptor.setAutoSnapshot(false);
+        Keyspace notDurableKs = Keyspace.open("NoCommitlogSpace");
+        Assert.assertFalse(notDurableKs.metadata.durableWrites);
+        ColumnFamilyStore cfs = notDurableKs.getColumnFamilyStore("Standard1");
+        CellNameType type = notDurableKs.getColumnFamilyStore("Standard1").getComparator();
+        Mutation rm;
+        DecoratedKey dk = Util.dk("key1");
+
+        // add data
+        rm = new Mutation("NoCommitlogSpace", dk.getKey());
+        rm.add("Standard1", Util.cellname("Column1"), ByteBufferUtil.bytes("abcd"), 0);
+        rm.apply();
+
+        ReadCommand command = new SliceByNamesReadCommand("NoCommitlogSpace", dk.getKey(), "Standard1", System.currentTimeMillis(), new NamesQueryFilter(FBUtilities.singleton(Util.cellname("Column1"), type)));
+        Row row = command.getRow(notDurableKs);
+        Cell col = row.cf.getColumn(Util.cellname("Column1"));
+        Assert.assertEquals(col.value(), ByteBuffer.wrap("abcd".getBytes()));
+        cfs.truncateBlocking();
+        DatabaseDescriptor.setAutoSnapshot(prevAutoSnapshot);
+        row = command.getRow(notDurableKs);
+        Assert.assertEquals(null, row.cf);
+    }
 }
