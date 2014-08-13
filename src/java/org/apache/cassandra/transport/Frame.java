@@ -23,7 +23,6 @@ import java.util.EnumSet;
 import java.util.List;
 
 import io.netty.buffer.ByteBuf;
-import io.netty.buffer.Unpooled;
 import io.netty.channel.*;
 import io.netty.handler.codec.ByteToMessageDecoder;
 import io.netty.handler.codec.MessageToMessageDecoder;
@@ -296,7 +295,8 @@ public class Frame
             header.writeByte(type.opcode);
             header.writeInt(frame.body.readableBytes());
 
-            results.add(Unpooled.wrappedBuffer(header, frame.body));
+            results.add(header);
+            results.add(frame.body);
         }
     }
 

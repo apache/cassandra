@@ -37,7 +37,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.addthis.metrics.reporter.config.ReporterConfig;
-import io.netty.util.internal.PlatformDependent;
 import org.apache.cassandra.concurrent.JMXEnabledThreadPoolExecutor;
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.concurrent.StageManager;
@@ -70,14 +69,6 @@ import org.apache.cassandra.utils.Pair;
  */
 public class CassandraDaemon
 {
-
-    //Workaround for netty issue
-    static 
-    {
-        System.setProperty("io.netty.noUnsafe","true");
-        assert !PlatformDependent.hasUnsafe();
-    }
-
     public static final String MBEAN_NAME = "org.apache.cassandra.db:type=NativeAccess";
 
     // Have a dedicated thread to call exit to avoid deadlock in the case where the thread that wants to invoke exit
