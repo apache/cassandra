@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.io.sstable;
 
+import java.io.Closeable;
 import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -71,7 +72,7 @@ import org.apache.cassandra.utils.Pair;
  *   writer.close();
  * </pre>
  */
-public class CQLSSTableWriter
+public class CQLSSTableWriter implements Closeable
 {
     private final AbstractSSTableSimpleWriter writer;
     private final UpdateStatement insert;
