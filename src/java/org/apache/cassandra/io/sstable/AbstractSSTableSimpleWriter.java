@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.io.sstable;
 
+import java.io.Closeable;
 import java.io.File;
 import java.io.FilenameFilter;
 import java.io.IOException;
@@ -34,7 +35,7 @@ import org.apache.cassandra.utils.CounterId;
 import org.apache.cassandra.utils.HeapAllocator;
 import org.apache.cassandra.utils.Pair;
 
-public abstract class AbstractSSTableSimpleWriter
+public abstract class AbstractSSTableSimpleWriter implements Closeable
 {
     protected final File directory;
     protected final CFMetaData metadata;
@@ -159,13 +160,6 @@ public abstract class AbstractSSTableSimpleWriter
                                     CounterContext.instance().createRemote(counterid, 1L, value, HeapAllocator.instance),
                                     System.currentTimeMillis()));
     }
-
-    /**
-     * Close this writer.
-     * This method should be called, otherwise the produced sstables are not
-     * guaranteed to be complete (and won't be in practice).
-     */
-    public abstract void close() throws IOException;
 
     /**
      * Package protected for use by AbstractCQLSSTableWriter.

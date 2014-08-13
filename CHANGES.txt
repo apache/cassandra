@@ -1,4 +1,5 @@
 2.0.10
+ * (Hadoop) Add CqlOutputFormat (CASSANDRA-6927)
  * Don't depend on cassandra config for nodetool ring (CASSANDRA-7508)
  * (cqlsh) Fix failing cqlsh formatting tests (CASSANDRA-7703)
  * Fix MS expiring map timeout for Paxos messages (CASSANDRA-7752)
