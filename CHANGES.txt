@@ -1,4 +1,5 @@
 2.1.1
+ * (Hadoop) Add CqlOutputFormat (CASSANDRA-6927)
  * Avoid IOOBE when building SyntaxError message snippet (CASSANDRA-7569)
  * SSTableExport uses correct validator to create string representation of partition
    keys (CASSANDRA-7498)

@@ -30,7 +30,7 @@ import org.apache.hadoop.mapreduce.*;
 /**
  * The <code>ColumnFamilyOutputFormat</code> acts as a Hadoop-specific
  * OutputFormat that allows reduce tasks to store keys (and corresponding
- *  binded variable values) as CQL rows (and respective columns) in a given
+ * bound variable values) as CQL rows (and respective columns) in a given
  * ColumnFamily.
  *
  * <p>
