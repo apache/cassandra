@@ -1416,7 +1416,7 @@
     </path>
     <property name="all-test-classes" refid="all-test-classes-path"/>
     <script language="javascript"> <![CDATA[
-	importClass(java.lang.Integer)
+	var Integer = java.lang.Integer;
 	sep = project.getProperty("path.separator");
 	all = project.getProperty("all-test-classes").split(sep);
 	dir = project.getProperty("test.unit.src");
@@ -1447,7 +1447,7 @@
 	    task.setTarget("testlist");
 	    param = task.createParam();
 	    param.setName("test.file.list");
-	    param.setValue(buckets[i]);
+	    param.setValue("" + buckets[i]);
 
 	    param = task.createParam();
 	    param.setName("testlist.name");
@@ -1455,7 +1455,7 @@
 
 	    param = task.createParam();
 	    param.setName("testlist.offset");
-	    param.setValue(i);  
+	    param.setValue("" + i);
 
 	    p.addTask(task); 
   	}
@@ -1513,7 +1513,7 @@
   	</path>
   	<property name="eclipse-project-libs" refid="eclipse-project-libs-path"/>
   	<script language="javascript"> <![CDATA[
-  		importClass(java.io.File);
+  		var File = java.io.File;
   		jars = project.getProperty("eclipse-project-libs").split(project.getProperty("path.separator"));
   		
   		cp = "";
