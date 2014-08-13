@@ -44,7 +44,7 @@ import org.apache.thrift.transport.TTransportException;
 public class CqlRecordReaderTest extends PigTestBase
 {
     private static String[] statements = {
-        "CREATE KEYSPACE cql3ks WITH replication = {'class': 'SimpleStrategy', 'replication_factor' : 1}",
+        "CREATE KEYSPACE cql3ks WITH replication = {'class': 'SimpleStrategy', 'replication_factor' : 1};",
         "USE cql3ks;",
 
         "CREATE TABLE cqltable (" +
@@ -56,6 +56,16 @@ public class CqlRecordReaderTest extends PigTestBase
         "data text," +
         "primary key((pk1,pk2,pk3),ck1,ck2));",
         "INSERT INTO cqltable(pk1, pk2, pk3, ck1, ck2, data) VALUES (11, 12, 13, 14, 15, 'value1');",
+
+        "CREATE TABLE \"MixedCaseCqlTable\" (" +
+        "pk1 int," +
+        "\"PK2\" int," +
+        "pk3 int," +
+        "\"CK1\" int," +
+        "ck2 int," +
+        "data text," +
+        "primary key((pk1,\"PK2\",pk3),\"CK1\",ck2));",
+        "INSERT INTO \"MixedCaseCqlTable\"(pk1, \"PK2\", pk3, \"CK1\", ck2, data) VALUES (11, 12, 13, 14, 15, 'value1');",
     };
 
     @BeforeClass
@@ -71,6 +81,27 @@ public class CqlRecordReaderTest extends PigTestBase
     public void defaultCqlQueryTest() throws Exception
     {
         String initialQuery = "rows = LOAD 'cql://cql3ks/cqltable?" + defaultParameters + nativeParameters + "' USING CqlNativeStorage();";
+        pig.registerQuery(initialQuery);
+        Iterator<Tuple> it = pig.openIterator("rows");
+        if (it.hasNext()) {
+            Tuple t = it.next();
+            Assert.assertEquals(t.get(0), 11);
+            Assert.assertEquals(t.get(1), 12);
+            Assert.assertEquals(t.get(2), 13);
+            Assert.assertEquals(t.get(3), 14);
+            Assert.assertEquals(t.get(4), 15);
+            Assert.assertEquals(t.get(5), "value1");
+        }
+        else
+        {
+            Assert.fail("Failed to get data for query " + initialQuery);
+        }
+    }
+
+    @Test
+    public void defaultMixedCaseCqlQueryTest() throws Exception
+    {
+        String initialQuery = "rows = LOAD 'cql://cql3ks/MixedCaseCqlTable?" + defaultParameters + nativeParameters + "' USING CqlNativeStorage();";
         pig.registerQuery(initialQuery);
         Iterator<Tuple> it = pig.openIterator("rows");
         if (it.hasNext()) {
