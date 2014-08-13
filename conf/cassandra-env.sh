@@ -144,7 +144,7 @@ esac
 #HEAP_NEWSIZE="800M"
 
 # Set this to control the amount of arenas per-thread in glibc
-#MALLOC_ARENA_MAX=4
+#export MALLOC_ARENA_MAX=4
 
 if [ "x$MAX_HEAP_SIZE" = "x" ] && [ "x$HEAP_NEWSIZE" = "x" ]; then
     calculate_heap_sizes
@@ -157,7 +157,7 @@ fi
 
 if [ "x$MALLOC_ARENA_MAX" = "x" ]
 then
-    MALLOC_ARENA_MAX=4
+    export MALLOC_ARENA_MAX=4
 fi
 
 # Specifies the default port over which Cassandra will be available for
