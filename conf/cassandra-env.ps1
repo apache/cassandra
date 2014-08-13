@@ -274,6 +274,11 @@ Function SetCassandraEnvironment
     {
         $env:JVM_OPTS="$env:JVM_OPTS -XX:+UseCondCardMark"
     }
+    if ( (($env:JVM_VERSION.CompareTo("1.7") -ge 0) -and ($env:JVM_PATCH_VERSION.CompareTo("60") -ge 0)) -or
+         ($env:JVM_VERSION.CompareTo("1.8") -ge 0))
+    {
+        $env:JVM_OPTS="$env:JVM_OPTS -XX:+CMSParallelInitialMarkEnabled -XX:+CMSEdenChunksRecordAlways"
+    }
 
     # GC logging options -- uncomment to enable
     # $env:JVM_OPTS="$env:JVM_OPTS -XX:+PrintGCDetails"
