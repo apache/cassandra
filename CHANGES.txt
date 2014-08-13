@@ -1,5 +1,4 @@
 2.1.1
- * (Hadoop) Add CqlOutputFormat (CASSANDRA-6927)
  * Avoid IOOBE when building SyntaxError message snippet (CASSANDRA-7569)
  * SSTableExport uses correct validator to create string representation of partition
    keys (CASSANDRA-7498)
@@ -13,6 +12,7 @@
  * Configurable client timeout for cqlsh (CASSANDRA-7516)
  * Include snippet of CQL query near syntax error in messages (CASSANDRA-7111)
 Merged from 2.0:
+ * (Hadoop) Add CqlOutputFormat (CASSANDRA-6927)
  * (cqlsh) Fix failing cqlsh formatting tests (CASSANDRA-7703)
  * Fix IncompatibleClassChangeError from hadoop2 (CASSANDRA-7229)
  * Add 'nodetool sethintedhandoffthrottlekb' (CASSANDRA-7635)
