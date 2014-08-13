@@ -66,7 +66,8 @@ public class SSTableImportTest
                                     SimpleStrategy.class,
                                     KSMetaData.optsWithRF(1),
                                     SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARD),
-                                    CFMetaData.denseCFMetaData(KEYSPACE1, CF_COUNTER, BytesType.instance).defaultValidator(CounterColumnType.instance));
+                                    CFMetaData.denseCFMetaData(KEYSPACE1, CF_COUNTER, BytesType.instance).defaultValidator(CounterColumnType.instance),
+                                    SchemaLoader.standardCFMD(KEYSPACE1, "AsciiKeys").keyValidator(AsciiType.instance));
     }
 
     @Test
@@ -173,8 +174,8 @@ public class SSTableImportTest
     {
         // Import JSON to temp SSTable file
         String jsonUrl = resourcePath("SimpleCF.json");
-        File tempSS = tempSSTableFile("Keyspace1", "AsciiKeys");
-        new SSTableImport(true).importJson(jsonUrl, "Keyspace1", "AsciiKeys", tempSS.getPath());
+        File tempSS = tempSSTableFile(KEYSPACE1, "AsciiKeys");
+        new SSTableImport(true).importJson(jsonUrl, KEYSPACE1, "AsciiKeys", tempSS.getPath());
 
         // Verify results
         SSTableReader reader = SSTableReader.open(Descriptor.fromFilename(tempSS.getPath()));
@@ -192,10 +193,10 @@ public class SSTableImportTest
     {
         // Import JSON to temp SSTable file
         String jsonUrl = resourcePath("SimpleCF.json");
-        File tempSS = tempSSTableFile("Keyspace1", "AsciiKeys");
+        File tempSS = tempSSTableFile(KEYSPACE1, "AsciiKeys");
         // To ignore current key validator
         System.setProperty("skip.key.validator", "true");
-        new SSTableImport(true).importJson(jsonUrl, "Keyspace1", "AsciiKeys", tempSS.getPath());
+        new SSTableImport(true).importJson(jsonUrl, KEYSPACE1, "AsciiKeys", tempSS.getPath());
 
         // Verify results
         SSTableReader reader = SSTableReader.open(Descriptor.fromFilename(tempSS.getPath()));
