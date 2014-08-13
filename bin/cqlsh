@@ -911,7 +911,6 @@ class Shell(cmd.Cmd):
             result = self.perform_statement_untraced(statement,
                                                      decoder=decoder,
                                                      with_default_limit=with_default_limit)
-            time.sleep(0.5) # trace writes are async so we wait a little.
             print_trace_session(self, self.cursor, session_id)
             return result
         else:

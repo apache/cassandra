@@ -21,9 +21,10 @@ from cqlshlib.displaying import MAGENTA
 TRACING_KS = 'system_traces'
 SESSIONS_CF = 'sessions'
 EVENTS_CF = 'events'
+MAX_WAIT = 10.0
 
 def print_trace_session(shell, cursor, session_id):
-    rows  = fetch_trace_session(cursor, session_id)
+    rows = fetch_trace_session(cursor, session_id)
     if not rows:
         shell.printerr("Session %s wasn't found." % session_id)
         return
@@ -41,35 +42,40 @@ def print_trace_session(shell, cursor, session_id):
     shell.writeresult('')
 
 def fetch_trace_session(cursor, session_id):
-    cursor.execute("SELECT request, coordinator, started_at, duration "
-                   "FROM %s.%s "
-                   "WHERE session_id = %s" % (TRACING_KS, SESSIONS_CF, session_id),
-                   consistency_level='ONE')
-    session = cursor.fetchone()
-    if not session:
-        return []
-    (request, coordinator, started_at, duration) = session
-    cursor.execute("SELECT activity, event_id, source, source_elapsed "
-                   "FROM %s.%s "
-                   "WHERE session_id = %s" % (TRACING_KS, EVENTS_CF, session_id),
-                   consistency_level='ONE')
-    events = cursor.fetchall()
+    start = time.time()
+    while True:
+        time_spent = time.time() - start
+        if time_spent >= MAX_WAIT:
+            return []
+        cursor.execute("SELECT request, coordinator, started_at, duration "
+                       "FROM %s.%s "
+                       "WHERE session_id = %s" % (TRACING_KS, SESSIONS_CF, session_id),
+                       consistency_level='ONE')
+        session = cursor.fetchone()
 
-    rows = []
-    # append header row (from sessions table).
-    rows.append([request, format_timestamp(started_at), coordinator, 0])
-    # append main rows (from events table).
-    for activity, event_id, source, source_elapsed in events:
-        rows.append([activity, format_timeuuid(event_id), source, source_elapsed])
-    # append footer row (from sessions table).
-    if duration:
+        if not session or session[3] is None: #session[3] is a duration
+            time.sleep(0.5)
+            continue
+
+        (request, coordinator, started_at, duration) = session
+        cursor.execute("SELECT activity, event_id, source, source_elapsed "
+                       "FROM %s.%s "
+                       "WHERE session_id = %s" % (TRACING_KS, EVENTS_CF, session_id),
+                       consistency_level='ONE')
+        events = cursor.fetchall()
+
+        rows = []
+        # append header row (from sessions table).
+        rows.append([request, format_timestamp(started_at), coordinator, 0])
+        # append main rows (from events table).
+        for activity, event_id, source, source_elapsed in events:
+            rows.append([activity, format_timeuuid(event_id), source, source_elapsed])
+        # append footer row (from sessions table).
         finished_at = format_timestamp(started_at + (duration / 1000000.))
-    else:
-        finished_at = duration = "--"
 
-    rows.append(['Request complete', finished_at, coordinator, duration])
+        rows.append(['Request complete', finished_at, coordinator, duration])
 
-    return rows
+        return rows
 
 def format_timestamp(value):
     return format_time(int(value * 1000))
