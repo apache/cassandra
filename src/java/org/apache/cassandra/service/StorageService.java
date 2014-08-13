@@ -2110,7 +2110,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public List<String> getJoiningNodes()
     {
-        return stringify(tokenMetadata.getBootstrapTokens().values());
+        return stringify(tokenMetadata.getBootstrapTokens().valueSet());
     }
 
     public List<String> getLiveNodes()
