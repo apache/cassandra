@@ -138,4 +138,9 @@ public class BiMultiValMap<K, V> implements Map<K, V>
     {
         return reverseMap.keys();
     }
+
+    public Collection<V> valueSet()
+    {
+        return reverseMap.keySet();
+    }
 }
