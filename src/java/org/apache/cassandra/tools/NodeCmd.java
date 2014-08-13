@@ -34,7 +34,6 @@ import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.LinkedHashMultimap;
 import com.google.common.collect.Maps;
 
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.commons.cli.*;
 import org.yaml.snakeyaml.Yaml;
@@ -254,8 +253,12 @@ public class NodeCmd
     {
         Map<String, String> tokensToEndpoints = probe.getTokenToEndpointMap();
         LinkedHashMultimap<String, String> endpointsToTokens = LinkedHashMultimap.create();
+        boolean haveVnodes = false;
         for (Map.Entry<String, String> entry : tokensToEndpoints.entrySet())
+        {
+            haveVnodes |= endpointsToTokens.containsKey(entry.getValue());
             endpointsToTokens.put(entry.getValue(), entry.getKey());
+        }
 
         int maxAddressLength = Collections.max(endpointsToTokens.keys(), new Comparator<String>() {
             @Override
@@ -293,7 +296,7 @@ public class NodeCmd
             throw new RuntimeException(e);
         }
 
-        if(DatabaseDescriptor.getNumTokens() > 1)
+        if(haveVnodes)
         {
             outs.println("  Warning: \"nodetool ring\" is used to output all the tokens of a node.");
             outs.println("  To view status related info of a node use \"nodetool status\" instead.\n");
