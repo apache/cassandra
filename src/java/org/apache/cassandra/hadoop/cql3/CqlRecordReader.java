@@ -548,7 +548,7 @@ public class CqlRecordReader extends RecordReader<Long, Row>
         String partitionKeyList = makeColumnList(partitionKeys);
 
         return String.format("SELECT %s FROM %s.%s WHERE token(%s)>? AND token(%s)<=?" + getAdditionalWhereClauses(),
-                             selectColumnList, keyspace, cfName, partitionKeyList, partitionKeyList);
+                             selectColumnList, quote(keyspace), quote(cfName), partitionKeyList, partitionKeyList);
     }
 
     private String getAdditionalWhereClauses()
