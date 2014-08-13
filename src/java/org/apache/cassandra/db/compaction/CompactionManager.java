@@ -187,8 +187,8 @@ public class CompactionManager implements CompactionManagerMBean
 
         // we must schedule it at least once, otherwise compaction will stop for a CF until next flush
         do {
-            futures.add(executor.submit(new BackgroundCompactionTask(cfs)));
             compactingCF.add(cfs);
+            futures.add(executor.submit(new BackgroundCompactionTask(cfs)));
             // if we have room for more compactions, then fill up executor
         } while (executor.getActiveCount() + futures.size() < executor.getMaximumPoolSize());
 
