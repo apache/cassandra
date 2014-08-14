@@ -1,4 +1,5 @@
 2.1.0-rc6
+ * Fix OOM issue from netty caching over time (CASSANDRA-7743)
  * json2sstable couldn't import JSON for CQL table (CASSANDRA-7477)
  * Invalidate all caches on table drop (CASSANDRA-7561)
  * Skip strict endpoint selection for ranges if RF == nodes (CASSANRA-7765)
