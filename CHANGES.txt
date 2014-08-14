@@ -31,6 +31,7 @@
  * Include snippet of CQL query near syntax error in messages (CASSANDRA-7111)
 Merged from 2.0:
  * (Hadoop) Add CqlOutputFormat (CASSANDRA-6927)
+ * Don't depend on cassandra config for nodetool ring (CASSANDRA-7508)
  * (cqlsh) Fix failing cqlsh formatting tests (CASSANDRA-7703)
  * Fix IncompatibleClassChangeError from hadoop2 (CASSANDRA-7229)
  * Add 'nodetool sethintedhandoffthrottlekb' (CASSANDRA-7635)
