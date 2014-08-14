@@ -242,7 +242,9 @@ public class CassandraDaemon
         for (Pair<String, String> kscf : unfinishedCompactions.keySet())
         {
             CFMetaData cfm = Schema.instance.getCFMetaData(kscf.left, kscf.right);
-            ColumnFamilyStore.removeUnfinishedCompactionLeftovers(cfm, unfinishedCompactions.get(kscf));
+            // CFMetaData can be null if CF is already dropped
+            if (cfm != null)
+                ColumnFamilyStore.removeUnfinishedCompactionLeftovers(cfm, unfinishedCompactions.get(kscf));
         }
         SystemKeyspace.discardCompactionsInProgress();
 
