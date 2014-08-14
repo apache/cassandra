@@ -584,13 +584,14 @@ class Shell(cmd.Cmd):
             self.decoding_errors.append(err)
             return format_value(err, self.output_codec.name, addcolor=self.color)
 
-    def myformat_colname(self, name, cfMetaData):
+    def myformat_colname(self, name, cfMetaData = None):
         column_colors = COLUMN_NAME_COLORS.copy()
         # check column role and color appropriately
-        if name in [col.name for col in cfMetaData.partition_key]:
-            column_colors.default_factory = lambda : RED
-        elif name in [col.name for col in cfMetaData.clustering_key]:
-            column_colors.default_factory = lambda : CYAN
+        if cfMetaData:
+            if name in [col.name for col in cfMetaData.partition_key]:
+                column_colors.default_factory = lambda : RED
+            elif name in [col.name for col in cfMetaData.clustering_key]:
+                column_colors.default_factory = lambda : CYAN
         return self.myformat_value(name, colormap=column_colors)
 
     def report_connection(self):
