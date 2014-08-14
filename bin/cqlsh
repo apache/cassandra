@@ -887,11 +887,16 @@ class Shell(cmd.Cmd):
                 self.current_keyspace = ksname.lower()
 
     def do_select(self, parsed):
+        tracing_was_enabled = self.tracing_enabled
+        ksname = parsed.get_binding('ksname')
+        stop_tracing = ksname == 'system_traces' or (ksname is None and self.current_keyspace == 'system_traces')
+        self.tracing_enabled = self.tracing_enabled and not stop_tracing
         statement = parsed.extract_orig()
         with_default_limit = parsed.get_binding('limit') is None
         if with_default_limit:
             statement = "%s LIMIT %d;" % (statement[:-1], DEFAULT_SELECT_LIMIT)
         self.perform_statement(statement, with_default_limit=with_default_limit)
+        self.tracing_enabled = tracing_was_enabled
 
     def perform_statement(self, statement, with_default_limit=False):
         stmt = SimpleStatement(statement, consistency_level=self.consistency_level)
