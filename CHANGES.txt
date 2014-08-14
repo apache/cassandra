@@ -1,4 +1,5 @@
 2.1.0-rc6
+ * json2sstable couldn't import JSON for CQL table (CASSANDRA-7477)
  * Invalidate all caches on table drop (CASSANDRA-7561)
  * Skip strict endpoint selection for ranges if RF == nodes (CASSANRA-7765)
  * Fix Thrift range filtering without 2ary index lookups (CASSANDRA-7741)
