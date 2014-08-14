@@ -893,6 +893,9 @@ class Shell(cmd.Cmd):
         if ksname is not None:
             ksname = self.cql_unprotect_name(ksname)
         cfname = self.cql_unprotect_name(parsed.get_binding('cfname'))
+        tracing_was_enabled = self.tracing_enabled
+        stop_tracing = ksname == 'system_traces' or (ksname is None and self.current_keyspace == 'system_traces')
+        self.tracing_enabled = self.tracing_enabled and not stop_tracing
         statement = parsed.extract_orig()
         with_default_limit = parsed.get_binding('limit') is None
         if with_default_limit:
@@ -900,6 +903,7 @@ class Shell(cmd.Cmd):
         self.perform_statement(statement,
                                decoder=ErrorHandlingSchemaDecoder,
                                with_default_limit=with_default_limit)
+        self.tracing_enabled = tracing_was_enabled
 
     def perform_statement(self, statement, decoder=None, with_default_limit=False):
         if self.tracing_enabled:
