@@ -128,7 +128,7 @@ public class RangeStreamer
 
     public void addRanges(String keyspaceName, Collection<Range<Token>> ranges)
     {
-        Multimap<Range<Token>, InetAddress> rangesForKeyspace = !DatabaseDescriptor.isReplacing() && useStrictConsistency && tokens != null
+        Multimap<Range<Token>, InetAddress> rangesForKeyspace = useStrictSourcesForRanges(keyspaceName)
                 ? getAllRangesWithStrictSourcesFor(keyspaceName, ranges) : getAllRangesWithSourcesFor(keyspaceName, ranges);
 
         if (logger.isDebugEnabled())
@@ -146,6 +146,15 @@ public class RangeStreamer
             }
             toFetch.put(keyspaceName, entry);
         }
+    }
+
+    private boolean useStrictSourcesForRanges(String keyspaceName)
+    {
+        AbstractReplicationStrategy strat = Keyspace.open(keyspaceName).getReplicationStrategy();
+        return !DatabaseDescriptor.isReplacing()
+                && useStrictConsistency
+                && tokens != null
+                && metadata.getAllEndpoints().size() != strat.getReplicationFactor();
     }
 
     /**
