@@ -154,7 +154,10 @@ public class RandomAccessReader extends RandomAccessFile implements FileDataInpu
 
     public int getTotalBufferSize()
     {
-        return buffer.length;
+        //This may NPE so we make a ref
+        //https://issues.apache.org/jira/browse/CASSANDRA-7756
+        byte[] ref = buffer;
+        return ref != null ? ref.length : 0;
     }
 
     public void reset()
