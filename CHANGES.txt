@@ -16,6 +16,7 @@
 
 
 2.1.1
+ * Add max live/tombstoned cells to nodetool cfstats output (CASSANDRA-7731)
  * Validate IPv6 wildcard addresses properly (CASSANDRA-7680)
  * (cqlsh) Error when tracing query (CASSANDRA-7613)
  * Avoid IOOBE when building SyntaxError message snippet (CASSANDRA-7569)
