@@ -310,6 +310,17 @@ public class CacheService implements CacheServiceMBean
         }
     }
 
+    public void invalidateCounterCacheForCf(UUID cfId)
+    {
+        Iterator<CounterCacheKey> counterCacheIterator = counterCache.getKeySet().iterator();
+        while (counterCacheIterator.hasNext())
+        {
+            CounterCacheKey counterCacheKey = counterCacheIterator.next();
+            if (counterCacheKey.cfId.equals(cfId))
+                counterCacheIterator.remove();
+        }
+    }
+
     public void invalidateCounterCache()
     {
         counterCache.clear();
