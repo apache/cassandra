@@ -128,7 +128,7 @@ public abstract class Message
     public final Type type;
     protected Connection connection;
     private int streamId;
-    private Frame sourceFrame = null;
+    private Frame sourceFrame;
 
     protected Message(Type type)
     {
@@ -321,10 +321,12 @@ public abstract class Message
         private static class FlushItem
         {
             final ChannelHandlerContext ctx;
-            final Response response;
-            private FlushItem(ChannelHandlerContext ctx, Response response)
+            final Object response;
+            final Frame sourceFrame;
+            private FlushItem(ChannelHandlerContext ctx, Object response, Frame sourceFrame)
             {
                 this.ctx = ctx;
+                this.sourceFrame = sourceFrame;
                 this.response = response;
             }
         }
@@ -369,7 +371,7 @@ public abstract class Message
                     for (ChannelHandlerContext channel : channels)
                         channel.flush();
                     for (FlushItem item : flushed)
-                        item.response.getSourceFrame().release();
+                        item.sourceFrame.release();
 
                     channels.clear();
                     flushed.clear();
@@ -420,20 +422,21 @@ public abstract class Message
                 response = request.execute(qstate);
                 response.setStreamId(request.getStreamId());
                 response.attach(connection);
-                response.setSourceFrame(request.getSourceFrame());
                 connection.applyStateTransition(request.type, response.type);
             }
             catch (Throwable ex)
             {
-                request.getSourceFrame().release();
-                // Don't let the exception propagate to exceptionCaught() if we can help it so that we can assign the right streamID.
-                ctx.writeAndFlush(ErrorMessage.fromException(ex).setStreamId(request.getStreamId()), ctx.voidPromise());
+                flush(new FlushItem(ctx, ErrorMessage.fromException(ex).setStreamId(request.getStreamId()), request.getSourceFrame()));
                 return;
             }
 
             logger.debug("Responding: {}, v={}", response, connection.getVersion());
+            flush(new FlushItem(ctx, response, request.getSourceFrame()));
+        }
 
-            EventLoop loop = ctx.channel().eventLoop();
+        private void flush(FlushItem item)
+        {
+            EventLoop loop = item.ctx.channel().eventLoop();
             Flusher flusher = flusherLookup.get(loop);
             if (flusher == null)
             {
@@ -442,7 +445,7 @@ public abstract class Message
                     flusher = alt;
             }
 
-            flusher.queued.add(new FlushItem(ctx, response));
+            flusher.queued.add(item);
             flusher.start();
         }
 
