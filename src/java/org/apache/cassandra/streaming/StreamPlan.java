@@ -38,6 +38,8 @@ public class StreamPlan
     // sessions per InetAddress of the other end.
     private final Map<InetAddress, StreamSession> sessions = new HashMap<>();
 
+    private StreamConnectionFactory connectionFactory = new DefaultConnectionFactory();
+
     private boolean flushBeforeTransfer = true;
 
     /**
@@ -132,6 +134,18 @@ public class StreamPlan
     }
 
     /**
+     * Set custom StreamConnectionFactory to be used for establishing connection
+     *
+     * @param factory StreamConnectionFactory to use
+     * @return self
+     */
+    public StreamPlan connectionFactory(StreamConnectionFactory factory)
+    {
+        this.connectionFactory = factory;
+        return this;
+    }
+
+    /**
      * @return true if this plan has no plan to execute
      */
     public boolean isEmpty()
@@ -167,7 +181,7 @@ public class StreamPlan
         StreamSession session = sessions.get(peer);
         if (session == null)
         {
-            session = new StreamSession(peer);
+            session = new StreamSession(peer, connectionFactory);
             sessions.put(peer, session);
         }
         return session;

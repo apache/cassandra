@@ -18,29 +18,27 @@
 package org.apache.cassandra.tools;
 
 import java.io.File;
-import java.net.InetAddress;
-import java.net.UnknownHostException;
+import java.net.*;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 
 import com.google.common.base.Joiner;
 import com.google.common.collect.Sets;
-import org.apache.cassandra.config.EncryptionOptions;
+
+import org.apache.cassandra.config.*;
+
 import org.apache.commons.cli.*;
 import org.apache.thrift.protocol.TBinaryProtocol;
 import org.apache.thrift.protocol.TProtocol;
-import org.apache.thrift.transport.TFramedTransport;
-import org.apache.thrift.transport.TSocket;
 import org.apache.thrift.transport.TTransport;
 
 import org.apache.cassandra.auth.IAuthenticator;
-import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.sstable.SSTableLoader;
 import org.apache.cassandra.streaming.*;
 import org.apache.cassandra.thrift.*;
@@ -60,7 +58,10 @@ public class BulkLoader
     private static final String USER_OPTION = "username";
     private static final String PASSWD_OPTION = "password";
     private static final String THROTTLE_MBITS = "throttle";
+
     private static final String TRANSPORT_FACTORY = "transport-factory";
+
+    /* client encryption options */
     private static final String SSL_TRUSTSTORE = "truststore";
     private static final String SSL_TRUSTSTORE_PW = "truststore-password";
     private static final String SSL_KEYSTORE = "keystore";
@@ -69,12 +70,20 @@ public class BulkLoader
     private static final String SSL_ALGORITHM = "ssl-alg";
     private static final String SSL_STORE_TYPE = "store-type";
     private static final String SSL_CIPHER_SUITES = "ssl-ciphers";
+    private static final String CONFIG_PATH = "conf-path";
 
     public static void main(String args[])
     {
         LoaderOptions options = LoaderOptions.parseArgs(args);
         OutputHandler handler = new OutputHandler.SystemOutput(options.verbose, options.debug);
-        SSTableLoader loader = new SSTableLoader(options.directory, new ExternalClient(options.hosts, options.rpcPort, options.user, options.passwd, options.transportFactory), handler);
+        SSTableLoader loader = new SSTableLoader(options.directory, new ExternalClient(options.hosts,
+                                                                                       options.rpcPort,
+                                                                                       options.user,
+                                                                                       options.passwd,
+                                                                                       options.transportFactory,
+                                                                                       options.storagePort,
+                                                                                       options.sslStoragePort,
+                                                                                       options.serverEncOptions), handler);
         DatabaseDescriptor.setStreamThroughputOutboundMegabitsPerSec(options.throttle);
         StreamResultFuture future = null;
         try
@@ -207,8 +216,18 @@ public class BulkLoader
         private final String user;
         private final String passwd;
         private final ITransportFactory transportFactory;
+        private final int storagePort;
+        private final int sslStoragePort;
+        private final EncryptionOptions.ServerEncryptionOptions serverEncOptions;
 
-        public ExternalClient(Set<InetAddress> hosts, int port, String user, String passwd, ITransportFactory transportFactory)
+        public ExternalClient(Set<InetAddress> hosts,
+                              int port,
+                              String user,
+                              String passwd,
+                              ITransportFactory transportFactory,
+                              int storagePort,
+                              int sslStoragePort,
+                              EncryptionOptions.ServerEncryptionOptions serverEncryptionOptions)
         {
             super();
             this.hosts = hosts;
@@ -216,8 +235,12 @@ public class BulkLoader
             this.user = user;
             this.passwd = passwd;
             this.transportFactory = transportFactory;
+            this.storagePort = storagePort;
+            this.sslStoragePort = sslStoragePort;
+            this.serverEncOptions = serverEncryptionOptions;
         }
 
+        @Override
         public void init(String keyspace)
         {
             Iterator<InetAddress> hostiter = hosts.iterator();
@@ -234,7 +257,7 @@ public class BulkLoader
 
                     for (TokenRange tr : client.describe_ring(keyspace))
                     {
-                        Range<Token> range = new Range<>(tkFactory.fromString(tr.start_token), tkFactory.fromString(tr.end_token));
+                        Range<Token> range = new Range<>(tkFactory.fromString(tr.start_token), tkFactory.fromString(tr.end_token), getPartitioner());
                         for (String ep : tr.endpoints)
                         {
                             addRangeForEndpoint(range, InetAddress.getByName(ep));
@@ -261,6 +284,13 @@ public class BulkLoader
             }
         }
 
+        @Override
+        public StreamConnectionFactory getConnectionFactory()
+        {
+            return new BulkLoadConnectionFactory(storagePort, sslStoragePort, serverEncOptions, false);
+        }
+
+        @Override
         public CFMetaData getCFMetaData(String keyspace, String cfName)
         {
             return knownCfs.get(cfName);
@@ -273,7 +303,7 @@ public class BulkLoader
             Cassandra.Client client = new Cassandra.Client(protocol);
             if (user != null && passwd != null)
             {
-                Map<String, String> credentials = new HashMap<String, String>();
+                Map<String, String> credentials = new HashMap<>();
                 credentials.put(IAuthenticator.USERNAME_KEY, user);
                 credentials.put(IAuthenticator.PASSWORD_KEY, passwd);
                 AuthenticationRequest authenticationRequest = new AuthenticationRequest(credentials);
@@ -294,11 +324,14 @@ public class BulkLoader
         public String user;
         public String passwd;
         public int throttle = 0;
+        public int storagePort;
+        public int sslStoragePort;
         public ITransportFactory transportFactory = new TFramedTransportFactory();
         public EncryptionOptions encOptions = new EncryptionOptions.ClientEncryptionOptions();
+        public EncryptionOptions.ServerEncryptionOptions serverEncOptions = new EncryptionOptions.ServerEncryptionOptions();
 
-        public final Set<InetAddress> hosts = new HashSet<InetAddress>();
-        public final Set<InetAddress> ignores = new HashSet<InetAddress>();
+        public final Set<InetAddress> hosts = new HashSet<>();
+        public final Set<InetAddress> ignores = new HashSet<>();
 
         LoaderOptions(File directory)
         {
@@ -349,9 +382,6 @@ public class BulkLoader
                 opts.verbose = cmd.hasOption(VERBOSE_OPTION);
                 opts.noProgress = cmd.hasOption(NOPROGRESS_OPTION);
 
-                if (cmd.hasOption(THROTTLE_MBITS))
-                    opts.throttle = Integer.parseInt(cmd.getOptionValue(THROTTLE_MBITS));
-
                 if (cmd.hasOption(RPC_PORT_OPTION))
                     opts.rpcPort = Integer.parseInt(cmd.getOptionValue(RPC_PORT_OPTION));
 
@@ -400,44 +430,71 @@ public class BulkLoader
                     }
                 }
 
-                if(cmd.hasOption(SSL_TRUSTSTORE))
+                // try to load config file first, so that values can be rewritten with other option values.
+                // otherwise use default config.
+                Config config;
+                if (cmd.hasOption(CONFIG_PATH))
+                {
+                    File configFile = new File(cmd.getOptionValue(CONFIG_PATH));
+                    if (!configFile.exists())
+                    {
+                        errorMsg("Config file not found", options);
+                    }
+                    config = new YamlConfigurationLoader().loadConfig(configFile.toURI().toURL());
+                }
+                else
+                {
+                    config = new Config();
+                }
+                opts.storagePort = config.storage_port;
+                opts.sslStoragePort = config.ssl_storage_port;
+                opts.throttle = config.stream_throughput_outbound_megabits_per_sec;
+                opts.encOptions = config.client_encryption_options;
+                opts.serverEncOptions = config.server_encryption_options;
+
+                if (cmd.hasOption(THROTTLE_MBITS))
+                {
+                    opts.throttle = Integer.parseInt(cmd.getOptionValue(THROTTLE_MBITS));
+                }
+
+                if (cmd.hasOption(SSL_TRUSTSTORE))
                 {
                     opts.encOptions.truststore = cmd.getOptionValue(SSL_TRUSTSTORE);
                 }
 
-                if(cmd.hasOption(SSL_TRUSTSTORE_PW))
+                if (cmd.hasOption(SSL_TRUSTSTORE_PW))
                 {
                     opts.encOptions.truststore_password = cmd.getOptionValue(SSL_TRUSTSTORE_PW);
                 }
 
-                if(cmd.hasOption(SSL_KEYSTORE))
+                if (cmd.hasOption(SSL_KEYSTORE))
                 {
                     opts.encOptions.keystore = cmd.getOptionValue(SSL_KEYSTORE);
                     // if a keystore was provided, lets assume we'll need to use it
                     opts.encOptions.require_client_auth = true;
                 }
 
-                if(cmd.hasOption(SSL_KEYSTORE_PW))
+                if (cmd.hasOption(SSL_KEYSTORE_PW))
                 {
                     opts.encOptions.keystore_password = cmd.getOptionValue(SSL_KEYSTORE_PW);
                 }
 
-                if(cmd.hasOption(SSL_PROTOCOL))
+                if (cmd.hasOption(SSL_PROTOCOL))
                 {
                     opts.encOptions.protocol = cmd.getOptionValue(SSL_PROTOCOL);
                 }
 
-                if(cmd.hasOption(SSL_ALGORITHM))
+                if (cmd.hasOption(SSL_ALGORITHM))
                 {
                     opts.encOptions.algorithm = cmd.getOptionValue(SSL_ALGORITHM);
                 }
 
-                if(cmd.hasOption(SSL_STORE_TYPE))
+                if (cmd.hasOption(SSL_STORE_TYPE))
                 {
                     opts.encOptions.store_type = cmd.getOptionValue(SSL_STORE_TYPE);
                 }
 
-                if(cmd.hasOption(SSL_CIPHER_SUITES))
+                if (cmd.hasOption(SSL_CIPHER_SUITES))
                 {
                     opts.encOptions.cipher_suites = cmd.getOptionValue(SSL_CIPHER_SUITES).split(",");
                 }
@@ -451,7 +508,7 @@ public class BulkLoader
 
                 return opts;
             }
-            catch (ParseException e)
+            catch (ParseException | ConfigurationException | MalformedURLException e)
             {
                 errorMsg(e.getMessage(), options);
                 return null;
@@ -508,6 +565,7 @@ public class BulkLoader
             printUsage(options);
             System.exit(1);
         }
+
         private static CmdLineOptions getCmdLineOptions()
         {
             CmdLineOptions options = new CmdLineOptions();
@@ -516,37 +574,38 @@ public class BulkLoader
             options.addOption("h",  HELP_OPTION,         "display this help message");
             options.addOption(null, NOPROGRESS_OPTION,   "don't display progress");
             options.addOption("i",  IGNORE_NODES_OPTION, "NODES", "don't stream to this (comma separated) list of nodes");
-            options.addOption("d",  INITIAL_HOST_ADDRESS_OPTION, "initial hosts", "try to connect to these hosts (comma separated) initially for ring information");
+            options.addOption("d",  INITIAL_HOST_ADDRESS_OPTION, "initial hosts", "Required. try to connect to these hosts (comma separated) initially for ring information");
             options.addOption("p",  RPC_PORT_OPTION, "rpc port", "port used for rpc (default 9160)");
             options.addOption("t",  THROTTLE_MBITS, "throttle", "throttle speed in Mbits (default unlimited)");
             options.addOption("u",  USER_OPTION, "username", "username for cassandra authentication");
             options.addOption("pw", PASSWD_OPTION, "password", "password for cassandra authentication");
             options.addOption("tf", TRANSPORT_FACTORY, "transport factory", "Fully-qualified ITransportFactory class name for creating a connection to cassandra");
             // ssl connection-related options
-            options.addOption("ts", SSL_TRUSTSTORE, "TRUSTSTORE", "SSL: full path to truststore");
-            options.addOption("tspw", SSL_TRUSTSTORE_PW, "TRUSTSTORE-PASSWORD", "SSL: password of the truststore");
-            options.addOption("ks", SSL_KEYSTORE, "KEYSTORE", "SSL: full path to keystore");
-            options.addOption("kspw", SSL_KEYSTORE_PW, "KEYSTORE-PASSWORD", "SSL: password of the keystore");
-            options.addOption("prtcl", SSL_PROTOCOL, "PROTOCOL", "SSL: connections protocol to use (default: TLS)");
-            options.addOption("alg", SSL_ALGORITHM, "ALGORITHM", "SSL: algorithm (default: SunX509)");
-            options.addOption("st", SSL_STORE_TYPE, "STORE-TYPE", "SSL: type of store");
-            options.addOption("ciphers", SSL_CIPHER_SUITES, "CIPHER-SUITES", "SSL: comma-separated list of encryption suites to use");
+            options.addOption("ts", SSL_TRUSTSTORE, "TRUSTSTORE", "Client SSL: full path to truststore");
+            options.addOption("tspw", SSL_TRUSTSTORE_PW, "TRUSTSTORE-PASSWORD", "Client SSL: password of the truststore");
+            options.addOption("ks", SSL_KEYSTORE, "KEYSTORE", "Client SSL: full path to keystore");
+            options.addOption("kspw", SSL_KEYSTORE_PW, "KEYSTORE-PASSWORD", "Client SSL: password of the keystore");
+            options.addOption("prtcl", SSL_PROTOCOL, "PROTOCOL", "Client SSL: connections protocol to use (default: TLS)");
+            options.addOption("alg", SSL_ALGORITHM, "ALGORITHM", "Client SSL: algorithm (default: SunX509)");
+            options.addOption("st", SSL_STORE_TYPE, "STORE-TYPE", "Client SSL: type of store");
+            options.addOption("ciphers", SSL_CIPHER_SUITES, "CIPHER-SUITES", "Client SSL: comma-separated list of encryption suites to use");
+            options.addOption("f", CONFIG_PATH, "path to config file", "cassandra.yaml file path for streaming throughput and client/server SSL.");
             return options;
         }
 
         public static void printUsage(Options options)
         {
             String usage = String.format("%s [options] <dir_path>", TOOL_NAME);
-            StringBuilder header = new StringBuilder();
-            header.append("--\n");
-            header.append("Bulk load the sstables found in the directory <dir_path> to the configured cluster." );
-            header.append("The parent directory of <dir_path> is used as the keyspace name. ");
-            header.append("So for instance, to load an sstable named Standard1-g-1-Data.db into keyspace Keyspace1, ");
-            header.append("you will need to have the files Standard1-g-1-Data.db and Standard1-g-1-Index.db in a ");
-            header.append("directory Keyspace1/Standard1/ in the directory and call: sstableloader Keyspace1/Standard1");
-            header.append("\n--\n");
-            header.append("Options are:");
-            new HelpFormatter().printHelp(usage, header.toString(), options, "");
+            String header = System.lineSeparator() +
+                            "Bulk load the sstables found in the directory <dir_path> to the configured cluster." +
+                            "The parent directories of <dir_path> are used as the target keyspace/table name. " +
+                            "So for instance, to load an sstable named Standard1-g-1-Data.db into Keyspace1/Standard1, " +
+                            "you will need to have the files Standard1-g-1-Data.db and Standard1-g-1-Index.db into a directory /path/to/Keyspace1/Standard1/.";
+            String footer = System.lineSeparator() +
+                            "You can provide cassandra.yaml file with -f command line option to set up streaming throughput, client and server encryption options. " +
+                            "Only stream_throughput_outbound_megabits_per_sec, server_encryption_options and client_encryption_options are read from yaml. " +
+                            "You can override options read from cassandra.yaml with corresponding command line options.";
+            new HelpFormatter().printHelp(usage, header, options, footer);
         }
     }
 

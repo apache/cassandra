@@ -19,6 +19,7 @@ package org.apache.cassandra.streaming;
 
 import java.io.IOException;
 import java.net.InetAddress;
+import java.net.Socket;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -128,6 +129,8 @@ public class StreamSession implements IEndpointStateChangeSubscriber, IFailureDe
     // data receivers, filled after receiving prepare message
     private final Map<UUID, StreamReceiveTask> receivers = new ConcurrentHashMap<>();
     private final StreamingMetrics metrics;
+    /* can be null when session is created in remote */
+    private final StreamConnectionFactory factory;
 
     public final ConnectionHandler handler;
 
@@ -152,10 +155,12 @@ public class StreamSession implements IEndpointStateChangeSubscriber, IFailureDe
      * Create new streaming session with the peer.
      *
      * @param peer Address of streaming peer
+     * @param factory is used for establishing connection
      */
-    public StreamSession(InetAddress peer)
+    public StreamSession(InetAddress peer, StreamConnectionFactory factory)
     {
         this.peer = peer;
+        this.factory = factory;
         this.handler = new ConnectionHandler(this);
         this.metrics = StreamingMetrics.get(peer);
     }
@@ -209,6 +214,12 @@ public class StreamSession implements IEndpointStateChangeSubscriber, IFailureDe
                 }
             }
         });
+    }
+
+    public Socket createConnection() throws IOException
+    {
+        assert factory != null;
+        return factory.createConnection(peer);
     }
 
     /**

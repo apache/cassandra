@@ -18,7 +18,6 @@
 package org.apache.cassandra.streaming;
 
 import java.io.IOException;
-import java.net.InetAddress;
 import java.net.Socket;
 import java.net.SocketException;
 import java.nio.ByteBuffer;
@@ -37,8 +36,6 @@ import com.google.common.util.concurrent.SettableFuture;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.net.OutboundTcpConnectionPool;
 import org.apache.cassandra.streaming.messages.StreamInitMessage;
 import org.apache.cassandra.streaming.messages.StreamMessage;
 import org.apache.cassandra.utils.FBUtilities;
@@ -54,8 +51,6 @@ import org.apache.cassandra.utils.FBUtilities;
 public class ConnectionHandler
 {
     private static final Logger logger = LoggerFactory.getLogger(ConnectionHandler.class);
-
-    private static final int MAX_CONNECT_ATTEMPTS = 3;
 
     private final StreamSession session;
 
@@ -79,12 +74,12 @@ public class ConnectionHandler
     public void initiate() throws IOException
     {
         logger.debug("[Stream #{}] Sending stream init for incoming stream", session.planId());
-        Socket incomingSocket = connect(session.peer);
+        Socket incomingSocket = session.createConnection();
         incoming.start(incomingSocket, StreamMessage.CURRENT_VERSION);
         incoming.sendInitMessage(incomingSocket, true);
 
         logger.debug("[Stream #{}] Sending stream init for outgoing stream", session.planId());
-        Socket outgoingSocket = connect(session.peer);
+        Socket outgoingSocket = session.createConnection();
         outgoing.start(outgoingSocket, StreamMessage.CURRENT_VERSION);
         outgoing.sendInitMessage(outgoingSocket, false);
     }
@@ -102,45 +97,6 @@ public class ConnectionHandler
             outgoing.start(socket, version);
         else
             incoming.start(socket, version);
-    }
-
-    /**
-     * Connect to peer and start exchanging message.
-     * When connect attempt fails, this retries for maximum of MAX_CONNECT_ATTEMPTS times.
-     *
-     * @param peer the peer to connect to.
-     * @return the created socket.
-     *
-     * @throws IOException when connection failed.
-     */
-    private static Socket connect(InetAddress peer) throws IOException
-    {
-        int attempts = 0;
-        while (true)
-        {
-            try
-            {
-                Socket socket = OutboundTcpConnectionPool.newSocket(peer);
-                socket.setSoTimeout(DatabaseDescriptor.getStreamingSocketTimeout());
-                return socket;
-            }
-            catch (IOException e)
-            {
-                if (++attempts >= MAX_CONNECT_ATTEMPTS)
-                    throw e;
-
-                long waitms = DatabaseDescriptor.getRpcTimeout() * (long)Math.pow(2, attempts);
-                logger.warn("Failed attempt " + attempts + " to connect to " + peer + ". Retrying in " + waitms + " ms. (" + e + ")");
-                try
-                {
-                    Thread.sleep(waitms);
-                }
-                catch (InterruptedException wtf)
-                {
-                    throw new IOException("interrupted", wtf);
-                }
-            }
-        }
     }
 
     public ListenableFuture<?> close()

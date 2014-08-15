@@ -69,10 +69,14 @@ public class YamlConfigurationLoader implements ConfigurationLoader
 
     public Config loadConfig() throws ConfigurationException
     {
+        return loadConfig(getStorageConfigURL());
+    }
+
+    public Config loadConfig(URL url) throws ConfigurationException
+    {
         InputStream input = null;
         try
         {
-            URL url = getStorageConfigURL();
             logger.info("Loading settings from {}", url);
             try
             {

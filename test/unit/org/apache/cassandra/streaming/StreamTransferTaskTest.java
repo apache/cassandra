@@ -43,7 +43,7 @@ public class StreamTransferTaskTest extends SchemaLoader
         String ks = "Keyspace1";
         String cf = "Standard1";
 
-        StreamSession session = new StreamSession(FBUtilities.getBroadcastAddress());
+        StreamSession session = new StreamSession(FBUtilities.getBroadcastAddress(), null);
         ColumnFamilyStore cfs = Keyspace.open(ks).getColumnFamilyStore(cf);
 
         // create two sstables
