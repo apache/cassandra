@@ -44,10 +44,17 @@ public class StreamCoordinator
 
     private Map<InetAddress, HostStreamingData> peerSessions = new HashMap<>();
     private final int connectionsPerHost;
+    private StreamConnectionFactory factory;
 
-    public StreamCoordinator(int connectionsPerHost)
+    public StreamCoordinator(int connectionsPerHost, StreamConnectionFactory factory)
     {
         this.connectionsPerHost = connectionsPerHost;
+        this.factory = factory;
+    }
+
+    public void setConnectionFactory(StreamConnectionFactory factory)
+    {
+        this.factory = factory;
     }
 
     /**
@@ -222,7 +229,7 @@ public class StreamCoordinator
             // create
             if (streamSessions.size() < connectionsPerHost)
             {
-                StreamSession session = new StreamSession(peer, streamSessions.size());
+                StreamSession session = new StreamSession(peer, factory, streamSessions.size());
                 streamSessions.put(++lastReturned, session);
                 return session;
             }
@@ -254,7 +261,7 @@ public class StreamCoordinator
             StreamSession session = streamSessions.get(id);
             if (session == null)
             {
-                session = new StreamSession(peer, id);
+                session = new StreamSession(peer, factory, id);
                 streamSessions.put(id, session);
             }
             return session;

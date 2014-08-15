@@ -71,7 +71,7 @@ public final class StreamResultFuture extends AbstractFuture<StreamState>
 
     private StreamResultFuture(UUID planId, String description)
     {
-        this(planId, description, new StreamCoordinator(0));
+        this(planId, description, new StreamCoordinator(0, new DefaultConnectionFactory()));
     }
 
     static StreamResultFuture init(UUID planId, String description, Collection<StreamEventHandler> listeners, StreamCoordinator coordinator)
