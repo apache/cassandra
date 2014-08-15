@@ -530,6 +530,8 @@ public class BufferedRandomAccessFileTest
     {
         //see https://issues.apache.org/jira/browse/CASSANDRA-7756
 
+        final FileCacheService.CacheKey cacheKey = new FileCacheService.CacheKey();
+
         final int THREAD_COUNT = 40;
         ExecutorService executorService = Executors.newFixedThreadPool(THREAD_COUNT);
 
@@ -550,8 +552,8 @@ public class BufferedRandomAccessFileTest
             RandomAccessReader r2 = RandomAccessReader.open(w2);
 
 
-            FileCacheService.instance.put(r1);
-            FileCacheService.instance.put(r2);
+            FileCacheService.instance.put(cacheKey, r1);
+            FileCacheService.instance.put(cacheKey, r2);
 
             final CountDownLatch finished = new CountDownLatch(THREAD_COUNT);
             final AtomicBoolean hadError = new AtomicBoolean(false);
