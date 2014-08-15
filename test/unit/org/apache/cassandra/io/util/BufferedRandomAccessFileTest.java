@@ -19,6 +19,7 @@
  */
 package org.apache.cassandra.io.util;
 
+import org.apache.cassandra.service.FileCacheService;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 import java.io.File;
@@ -28,6 +29,11 @@ import java.nio.ByteBuffer;
 import java.nio.channels.ClosedChannelException;
 import java.util.Arrays;
 import java.util.concurrent.Callable;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.apache.cassandra.Util.expectEOF;
 import static org.apache.cassandra.Util.expectException;
@@ -505,6 +511,70 @@ public class BufferedRandomAccessFileTest
 
         r.seek(0);
         r.bytesPastMark();
+    }
+
+    @Test
+    public void testFileCacheService() throws IOException, InterruptedException
+    {
+        //see https://issues.apache.org/jira/browse/CASSANDRA-7756
+
+        final int THREAD_COUNT = 40;
+        ExecutorService executorService = Executors.newFixedThreadPool(THREAD_COUNT);
+
+        SequentialWriter w1 = createTempFile("fscache1");
+        SequentialWriter w2 = createTempFile("fscache2");
+
+        w1.write(new byte[30]);
+        w1.close();
+
+        w2.write(new byte[30]);
+        w2.close();
+
+        for (int i = 0; i < 20; i++)
+        {
+
+
+            RandomAccessReader r1 = RandomAccessReader.open(w1);
+            RandomAccessReader r2 = RandomAccessReader.open(w2);
+
+
+            FileCacheService.instance.put(r1);
+            FileCacheService.instance.put(r2);
+
+            final CountDownLatch finished = new CountDownLatch(THREAD_COUNT);
+            final AtomicBoolean hadError = new AtomicBoolean(false);
+
+            for (int k = 0; k < THREAD_COUNT; k++)
+            {
+                executorService.execute( new Runnable()
+                {
+                    @Override
+                    public void run()
+                    {
+                        try
+                        {
+                            long size = FileCacheService.instance.sizeInBytes();
+
+                            while (size > 0)
+                                size = FileCacheService.instance.sizeInBytes();
+                        }
+                        catch (Throwable t)
+                        {
+                            t.printStackTrace();
+                            hadError.set(true);
+                        }
+                        finally
+                        {
+                            finished.countDown();
+                        }
+                    }
+                });
+
+            }
+
+            finished.await();
+            assert !hadError.get();
+        }
     }
 
     @Test
