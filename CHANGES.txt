@@ -16,6 +16,7 @@
 
 
 2.1.1
+ * Validate IPv6 wildcard addresses properly (CASSANDRA-7680)
  * (cqlsh) Error when tracing query (CASSANDRA-7613)
  * Avoid IOOBE when building SyntaxError message snippet (CASSANDRA-7569)
  * SSTableExport uses correct validator to create string representation of partition

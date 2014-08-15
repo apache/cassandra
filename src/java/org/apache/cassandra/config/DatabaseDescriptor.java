@@ -309,8 +309,6 @@ public class DatabaseDescriptor
         }
         else if (conf.listen_address != null)
         {
-            if (conf.listen_address.equals("0.0.0.0"))
-                throw new ConfigurationException("listen_address cannot be 0.0.0.0!");
             try
             {
                 listenAddress = InetAddress.getByName(conf.listen_address);
@@ -319,6 +317,9 @@ public class DatabaseDescriptor
             {
                 throw new ConfigurationException("Unknown listen_address '" + conf.listen_address + "'");
             }
+
+            if (listenAddress.isAnyLocalAddress())
+                throw new ConfigurationException("listen_address cannot be a wildcard address (" + conf.listen_address + ")!");
         }
         else if (conf.listen_interface != null)
         {
@@ -339,11 +340,6 @@ public class DatabaseDescriptor
         /* Gossip Address to broadcast */
         if (conf.broadcast_address != null)
         {
-            if (conf.broadcast_address.equals("0.0.0.0"))
-            {
-                throw new ConfigurationException("broadcast_address cannot be 0.0.0.0!");
-            }
-
             try
             {
                 broadcastAddress = InetAddress.getByName(conf.broadcast_address);
@@ -352,6 +348,9 @@ public class DatabaseDescriptor
             {
                 throw new ConfigurationException("Unknown broadcast_address '" + conf.broadcast_address + "'");
             }
+
+            if (broadcastAddress.isAnyLocalAddress())
+                throw new ConfigurationException("broadcast_address cannot be a wildcard address (" + conf.broadcast_address + ")!");
         }
 
         /* Local IP, hostname or interface to bind RPC server to */
@@ -392,33 +391,23 @@ public class DatabaseDescriptor
         /* RPC address to broadcast */
         if (conf.broadcast_rpc_address != null)
         {
-            if (conf.broadcast_rpc_address.equals("0.0.0.0"))
-                throw new ConfigurationException("broadcast_rpc_address cannot be 0.0.0.0");
-
             try
             {
                 broadcastRpcAddress = InetAddress.getByName(conf.broadcast_rpc_address);
             }
             catch (UnknownHostException e)
             {
-                throw new ConfigurationException("Unkown broadcast_rpc_address '" + conf.broadcast_rpc_address + "'");
+                throw new ConfigurationException("Unknown broadcast_rpc_address '" + conf.broadcast_rpc_address + "'");
             }
+
+            if (broadcastRpcAddress.isAnyLocalAddress())
+                throw new ConfigurationException("broadcast_rpc_address cannot be a wildcard address (" + conf.broadcast_rpc_address + ")!");
         }
         else
         {
-            InetAddress bindAll;
-            try
-            {
-                bindAll = InetAddress.getByAddress(new byte[4]);
-            }
-            catch (UnknownHostException e)
-            {
-                throw new RuntimeException("Host 0.0.0.0 is somehow unknown");
-            }
-
-            if (rpcAddress.equals(bindAll))
-                throw new ConfigurationException("If rpc_address is set to 0.0.0.0, you must set broadcast_rpc_address " +
-                                                 "to a value other than 0.0.0.0");
+            if (rpcAddress.isAnyLocalAddress())
+                throw new ConfigurationException("If rpc_address is set to a wildcard address (" + conf.rpc_address + "), then " +
+                                                 "you must set broadcast_rpc_address to a value other than " + conf.rpc_address);
             broadcastRpcAddress = rpcAddress;
         }
 
