@@ -18,7 +18,11 @@
 */
 package org.apache.cassandra.tools;
 
+import static org.hamcrest.CoreMatchers.is;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertThat;
+import static org.junit.matchers.JUnitMatchers.hasItem;
+
 import static org.apache.cassandra.io.sstable.SSTableUtils.tempSSTableFile;
 import static org.apache.cassandra.utils.ByteBufferUtil.hexToBytes;
 
@@ -27,15 +31,21 @@ import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
 
-import org.apache.cassandra.db.marshal.AsciiType;
-import org.apache.cassandra.db.marshal.BytesType;
+import org.hamcrest.Description;
+import org.hamcrest.Matcher;
 import org.junit.Test;
+import org.junit.internal.matchers.TypeSafeMatcher;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
+import org.apache.cassandra.cql3.QueryProcessor;
+import org.apache.cassandra.cql3.UntypedResultSet;
+import org.apache.cassandra.cql3.UntypedResultSet.Row;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.columniterator.OnDiskAtomIterator;
 import org.apache.cassandra.db.filter.QueryFilter;
+import org.apache.cassandra.db.marshal.AsciiType;
+import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.SSTableReader;
 
@@ -175,5 +185,56 @@ public class SSTableImportTest extends SchemaLoader
         QueryFilter qf = QueryFilter.getIdentityFilter(Util.dk("rowA"), "AsciiKeys", System.currentTimeMillis());
         OnDiskAtomIterator iter = qf.getSSTableColumnIterator(reader);
         assert iter.hasNext(); // "bytes" key exists
+    }
+    
+    @Test
+    /* 
+     *  The schema is 
+     *      CREATE TABLE cql_keyspace.table1 (k int PRIMARY KEY, v1 text, v2 int)
+     * */
+    public void shouldImportCqlTable() throws IOException, URISyntaxException
+    {
+        String cql_keyspace = "cql_keyspace";
+        String cql_table = "table1";
+        String jsonUrl = resourcePath("CQLTable.json");
+        File tempSS = tempSSTableFile(cql_keyspace, cql_table);
+        new SSTableImport(true).importJson(jsonUrl, cql_keyspace, cql_table, tempSS.getPath());
+        SSTableReader reader = SSTableReader.open(Descriptor.fromFilename(tempSS.getPath()));
+        Keyspace.open(cql_keyspace).getColumnFamilyStore(cql_table).addSSTable(reader);
+        
+        UntypedResultSet result = QueryProcessor.executeOnceInternal(String.format("SELECT * FROM %s.%s", cql_keyspace, cql_table));
+        assertThat(result.size(), is(2));
+        assertThat(result, hasItem(withElements(1, "NY", 1980)));
+        assertThat(result, hasItem(withElements(2, "CA", 2014)));
+    }
+
+    @Test(expected=AssertionError.class)
+    public void shouldRejectEmptyCellNamesForNonCqlTables() throws IOException, URISyntaxException
+    {
+        String jsonUrl = resourcePath("CQLTable.json");
+        File tempSS = tempSSTableFile("Keyspace1", "Counter1");
+        new SSTableImport(true).importJson(jsonUrl, "Keyspace1", "Counter1", tempSS.getPath());
+    }
+    
+    private static Matcher<UntypedResultSet.Row> withElements(final int key, final String v1, final int v2) {
+        return new TypeSafeMatcher<UntypedResultSet.Row>()
+        {
+            @Override
+            public boolean matchesSafely(Row input)
+            {
+                if (!input.has("k") || !input.has("v1") || !input.has("v2"))
+                    return false;
+                return input.getInt("k") == key
+                        && input.getString("v1").equals(v1)
+                        && input.getInt("v2") == v2;
+            }
+
+            @Override
+            public void describeTo(Description description)
+            {
+                description.appendText(String.format("a row containing: %s, %s, %s", key, v1, v2));
+            }
+        };
+        
     }
 }

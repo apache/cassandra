@@ -140,7 +140,11 @@ public class SSTableImport
                 }
                 else
                 {
-                    value = stringAsType((String) fields.get(1), meta.getValueValidator(comparator.cellFromByteBuffer(name)));
+                    assert meta.isCQL3Table() || name.hasRemaining() : "Cell name should not be empty";
+                    value = stringAsType((String) fields.get(1), 
+                            meta.getValueValidator(name.hasRemaining() 
+                                    ? comparator.cellFromByteBuffer(name)
+                                    : meta.comparator.rowMarker(Composites.EMPTY)));
                 }
             }
         }
@@ -213,8 +217,10 @@ public class SSTableImport
                 cfamily.addAtom(new RangeTombstone(start, end, col.timestamp, col.localExpirationTime));
                 continue;
             }
-
-            CellName cname = cfm.comparator.cellFromByteBuffer(col.getName());
+            
+            assert cfm.isCQL3Table() || col.getName().hasRemaining() : "Cell name should not be empty";
+            CellName cname = col.getName().hasRemaining() ? cfm.comparator.cellFromByteBuffer(col.getName()) 
+                    : cfm.comparator.rowMarker(Composites.EMPTY);
 
             if (col.isExpiring())
             {
