@@ -167,7 +167,10 @@ public class RandomAccessReader extends AbstractDataInput implements FileDataInp
 
     public int getTotalBufferSize()
     {
-        return buffer.capacity();
+        //This may NPE so we make a ref
+        //https://issues.apache.org/jira/browse/CASSANDRA-7756
+        ByteBuffer ref = buffer;
+        return ref != null ? ref.capacity() : 0;
     }
 
     public void reset()
