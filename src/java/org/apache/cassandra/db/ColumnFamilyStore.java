@@ -372,8 +372,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         data.unreferenceSSTables();
         indexManager.invalidate();
 
-        CacheService.instance.invalidateRowCacheForCf(metadata.cfId);
-        CacheService.instance.invalidateKeyCacheForCf(metadata.cfId);
+        invalidateCaches();
     }
 
     /**
@@ -2286,14 +2285,11 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     private void invalidateCaches()
     {
+        CacheService.instance.invalidateKeyCacheForCf(metadata.cfId);
         CacheService.instance.invalidateRowCacheForCf(metadata.cfId);
-
         if (metadata.isCounter())
-            for (CounterCacheKey key : CacheService.instance.counterCache.getKeySet())
-                if (key.cfId == metadata.cfId)
-                    CacheService.instance.counterCache.remove(key);
+            CacheService.instance.invalidateCounterCacheForCf(metadata.cfId);
     }
-
 
     /**
      * @return true if @param key is contained in the row cache
