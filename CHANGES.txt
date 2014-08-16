@@ -1,4 +1,6 @@
 2.0.10
+ * Fix race condition in StreamTransferTask that could lead to
+   infinite loops and premature sstable deletion (CASSANDRA-7704)
  * (cqlsh) Wait up to 10 sec for a tracing session (CASSANDRA-7222)
  * Fix NPE in FileCacheService.sizeInBytes (CASSANDRA-7756)
  * (cqlsh) cqlsh should automatically disable tracing when selecting
