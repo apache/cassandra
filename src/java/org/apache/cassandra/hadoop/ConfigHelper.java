@@ -67,6 +67,7 @@ public class ConfigHelper
     private static final String WRITE_CONSISTENCY_LEVEL = "cassandra.consistencylevel.write";
     private static final String OUTPUT_COMPRESSION_CLASS = "cassandra.output.compression.class";
     private static final String OUTPUT_COMPRESSION_CHUNK_LENGTH = "cassandra.output.compression.length";
+    private static final String OUTPUT_LOCAL_DC_ONLY = "cassandra.output.local.dc.only";
     private static final String THRIFT_FRAMED_TRANSPORT_SIZE_IN_MB = "cassandra.thrift.framed.size_mb";
 
     private static final Logger logger = LoggerFactory.getLogger(ConfigHelper.class);
@@ -511,6 +512,16 @@ public class ConfigHelper
         } catch (ConfigurationException e) {
             throw new RuntimeException(e);
         }
+    }
+
+    public static boolean getOutputLocalDCOnly(Configuration conf)
+    {
+        return Boolean.parseBoolean(conf.get(OUTPUT_LOCAL_DC_ONLY, "false"));
+    }
+
+    public static void setOutputLocalDCOnly(Configuration conf, boolean localDCOnly)
+    {
+        conf.set(OUTPUT_LOCAL_DC_ONLY, Boolean.toString(localDCOnly));
     }
 
     public static Cassandra.Client getClientFromInputAddressList(Configuration conf) throws IOException

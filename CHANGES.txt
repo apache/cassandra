@@ -33,6 +33,7 @@
  * Configurable client timeout for cqlsh (CASSANDRA-7516)
  * Include snippet of CQL query near syntax error in messages (CASSANDRA-7111)
 Merged from 2.0:
+ * (Hadoop) allow ACFRW to limit nodes to local DC (CASSANDRA-7252)
  * (cqlsh) cqlsh should automatically disable tracing when selecting
    from system_traces (CASSANDRA-7641)
  * (Hadoop) Add CqlOutputFormat (CASSANDRA-6927)
