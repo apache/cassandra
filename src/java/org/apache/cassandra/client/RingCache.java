@@ -61,44 +61,47 @@ public class RingCache
 
     public void refreshEndpointMap()
     {
-            try {
+        try
+        {
+            Cassandra.Client client = ConfigHelper.getClientFromOutputAddressList(conf);
 
-                Cassandra.Client client = ConfigHelper.getClientFromOutputAddressList(conf);
+            String keyspace = ConfigHelper.getOutputKeyspace(conf);
+            List<TokenRange> ring = ConfigHelper.getOutputLocalDCOnly(conf)
+                                  ? client.describe_local_ring(keyspace)
+                                  : client.describe_ring(keyspace);
+            rangeMap = ArrayListMultimap.create();
 
-                List<TokenRange> ring = client.describe_ring(ConfigHelper.getOutputKeyspace(conf));
-                rangeMap = ArrayListMultimap.create();
-
-                for (TokenRange range : ring)
+            for (TokenRange range : ring)
+            {
+                Token<?> left = partitioner.getTokenFactory().fromString(range.start_token);
+                Token<?> right = partitioner.getTokenFactory().fromString(range.end_token);
+                Range<Token> r = new Range<Token>(left, right, partitioner);
+                for (String host : range.endpoints)
                 {
-                    Token<?> left = partitioner.getTokenFactory().fromString(range.start_token);
-                    Token<?> right = partitioner.getTokenFactory().fromString(range.end_token);
-                    Range<Token> r = new Range<Token>(left, right, partitioner);
-                    for (String host : range.endpoints)
+                    try
                     {
-                        try
-                        {
-                            rangeMap.put(r, InetAddress.getByName(host));
-                        }
-                        catch (UnknownHostException e)
-                        {
-                            throw new AssertionError(e); // host strings are IPs
-                        }
+                        rangeMap.put(r, InetAddress.getByName(host));
+                    }
+                    catch (UnknownHostException e)
+                    {
+                        throw new AssertionError(e); // host strings are IPs
                     }
                 }
             }
-            catch (InvalidRequestException e)
-            {
-                throw new RuntimeException(e);
-            }
-            catch (IOException e)
-            {
-                throw new RuntimeException(e);
-            }
-            catch (TException e)
-            {
-                logger.debug("Error contacting seed list" + ConfigHelper.getOutputInitialAddress(conf) + " " + e.getMessage());
-            }
         }
+        catch (InvalidRequestException e)
+        {
+            throw new RuntimeException(e);
+        }
+        catch (IOException e)
+        {
+            throw new RuntimeException(e);
+        }
+        catch (TException e)
+        {
+            logger.debug("Error contacting seed list" + ConfigHelper.getOutputInitialAddress(conf) + " " + e.getMessage());
+        }
+    }
 
     /** ListMultimap promises to return a List for get(K) */
     public List<InetAddress> getEndpoint(Range<Token> range)
