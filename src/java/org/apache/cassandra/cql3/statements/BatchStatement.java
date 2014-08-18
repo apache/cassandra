@@ -237,7 +237,7 @@ public class BatchStatement implements CQLStatement, MeasurableForPreparedCache
      * Checks batch size to ensure threshold is met. If not, a warning is logged.
      * @param cfs ColumnFamilies that will store the batch's mutations.
      */
-    private void verifyBatchSize(Iterable<ColumnFamily> cfs)
+    public static void verifyBatchSize(Iterable<ColumnFamily> cfs)
     {
         long size = 0;
         long warnThreshold = DatabaseDescriptor.getBatchSizeWarnThreshold();
@@ -303,8 +303,7 @@ public class BatchStatement implements CQLStatement, MeasurableForPreparedCache
         ByteBuffer key = null;
         String ksName = null;
         String cfName = null;
-        ColumnFamily updates = null;
-        CQL3CasConditions conditions = null;
+        CQL3CasRequest casRequest = null;
         Set<ColumnDefinition> columnsWithConditions = new LinkedHashSet<>();
 
         for (int i = 0; i < statements.size(); i++)
@@ -320,8 +319,7 @@ public class BatchStatement implements CQLStatement, MeasurableForPreparedCache
                 key = pks.get(0);
                 ksName = statement.cfm.ksName;
                 cfName = statement.cfm.cfName;
-                conditions = new CQL3CasConditions(statement.cfm, now);
-                updates = ArrayBackedSortedColumns.factory.create(statement.cfm);
+                casRequest = new CQL3CasRequest(statement.cfm, key, true);
             }
             else if (!key.equals(pks.get(0)))
             {
@@ -331,22 +329,18 @@ public class BatchStatement implements CQLStatement, MeasurableForPreparedCache
             Composite clusteringPrefix = statement.createClusteringPrefix(statementOptions);
             if (statement.hasConditions())
             {
-                statement.addUpdatesAndConditions(key, clusteringPrefix, updates, conditions, statementOptions, timestamp);
+                statement.addConditions(clusteringPrefix, casRequest, statementOptions);
                 // As soon as we have a ifNotExists, we set columnsWithConditions to null so that everything is in the resultSet
                 if (statement.hasIfNotExistCondition() || statement.hasIfExistCondition())
                     columnsWithConditions = null;
                 else if (columnsWithConditions != null)
                     Iterables.addAll(columnsWithConditions, statement.getColumnsWithConditions());
             }
-            else
-            {
-                UpdateParameters params = statement.makeUpdateParameters(Collections.singleton(key), clusteringPrefix, statementOptions, false, now);
-                statement.addUpdateForKey(updates, key, clusteringPrefix, params);
-            }
+            casRequest.addRowUpdate(clusteringPrefix, statement, statementOptions, timestamp);
         }
 
-        verifyBatchSize(Collections.singleton(updates));
-        ColumnFamily result = StorageProxy.cas(ksName, cfName, key, conditions, updates, options.getSerialConsistency(), options.getConsistency());
+        ColumnFamily result = StorageProxy.cas(ksName, cfName, key, casRequest, options.getSerialConsistency(), options.getConsistency());
+
         return new ResultMessage.Rows(ModificationStatement.buildCasResultSet(ksName, key, cfName, result, columnsWithConditions, true, options.forStatement(0)));
     }
 

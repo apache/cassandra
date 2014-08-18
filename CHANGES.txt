@@ -16,6 +16,7 @@
 
 
 2.1.1
+ * Support list index operations with conditions (CASSANDRA-7499)
  * Add max live/tombstoned cells to nodetool cfstats output (CASSANDRA-7731)
  * Validate IPv6 wildcard addresses properly (CASSANDRA-7680)
  * (cqlsh) Error when tracing query (CASSANDRA-7613)
@@ -45,6 +46,11 @@ Merged from 2.0:
  * Catch errors when the JVM pulls the rug out from GCInspector (CASSANDRA-5345)
  * cqlsh fails when version number parts are not int (CASSANDRA-7524)
 
+2.1.0
+Merged from 2.0:
+ * Properly reject operations on list index with conditions (CASSANDRA-7499)
+ * (Hadoop) allow ACFRW to limit nodes to local DC (CASSANDRA-7252)
+
 
 2.1.0-rc6
  * Fix OOM issue from netty caching over time (CASSANDRA-7743)
@@ -64,8 +70,6 @@ Merged from 2.0:
  * Bogus deserialization of static cells from sstable (CASSANDRA-7684)
  * Fix NPE on compaction leftover cleanup for dropped table (CASSANDRA-7770)
 Merged from 2.0:
-=======
-2.0.10
  * Fix race condition in StreamTransferTask that could lead to
    infinite loops and premature sstable deletion (CASSANDRA-7704)
  * (cqlsh) Wait up to 10 sec for a tracing session (CASSANDRA-7222)

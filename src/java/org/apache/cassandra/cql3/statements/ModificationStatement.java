@@ -404,26 +404,22 @@ public abstract class ModificationStatement implements CQLStatement, MeasurableF
         return null;
     }
 
+    public boolean requiresRead()
+    {
+        // Lists SET operation incurs a read.
+        for (Operation op : columnOperations)
+            if (op.requiresRead())
+                return true;
+
+        return false;
+    }
+
     protected Map<ByteBuffer, CQL3Row> readRequiredRows(Collection<ByteBuffer> partitionKeys, Composite clusteringPrefix, boolean local, ConsistencyLevel cl)
     throws RequestExecutionException, RequestValidationException
     {
-        // Lists SET operation incurs a read.
-        boolean requiresRead = false;
-        for (Operation op : columnOperations)
-        {
-            if (op.requiresRead())
-            {
-                requiresRead = true;
-                break;
-            }
-        }
+        if (!requiresRead())
+            return null;
 
-        return requiresRead ? readRows(partitionKeys, clusteringPrefix, cfm, local, cl) : null;
-    }
-
-    protected Map<ByteBuffer, CQL3Row> readRows(Collection<ByteBuffer> partitionKeys, Composite rowPrefix, CFMetaData cfm, boolean local, ConsistencyLevel cl)
-    throws RequestExecutionException, RequestValidationException
-    {
         try
         {
             cl.validateForRead(keyspace());
@@ -433,7 +429,7 @@ public abstract class ModificationStatement implements CQLStatement, MeasurableF
             throw new InvalidRequestException(String.format("Write operation require a read but consistency %s is not supported on reads", cl));
         }
 
-        ColumnSlice[] slices = new ColumnSlice[]{ rowPrefix.slice() };
+        ColumnSlice[] slices = new ColumnSlice[]{ clusteringPrefix.slice() };
         List<ReadCommand> commands = new ArrayList<ReadCommand>(partitionKeys.size());
         long now = System.currentTimeMillis();
         for (ByteBuffer key : partitionKeys)
@@ -511,46 +507,41 @@ public abstract class ModificationStatement implements CQLStatement, MeasurableF
             throw new InvalidRequestException("IN on the partition key is not supported with conditional updates");
 
         ByteBuffer key = keys.get(0);
-
         long now = options.getTimestamp(queryState);
-        CQL3CasConditions conditions = new CQL3CasConditions(cfm, now);
         Composite prefix = createClusteringPrefix(options);
-        ColumnFamily updates = ArrayBackedSortedColumns.factory.create(cfm);
-        addUpdatesAndConditions(key, prefix, updates, conditions, options, getTimestamp(now, options));
+
+        CQL3CasRequest request = new CQL3CasRequest(cfm, key, false);
+        addConditions(prefix, request, options);
+        request.addRowUpdate(prefix, this, options, now);
 
         ColumnFamily result = StorageProxy.cas(keyspace(),
                                                columnFamily(),
                                                key,
-                                               conditions,
-                                               updates,
+                                               request,
                                                options.getSerialConsistency(),
                                                options.getConsistency());
         return new ResultMessage.Rows(buildCasResultSet(key, result, options));
     }
 
-    public void addUpdatesAndConditions(ByteBuffer key, Composite clusteringPrefix, ColumnFamily updates, CQL3CasConditions conditions, QueryOptions options, long now)
-    throws InvalidRequestException
+    public void addConditions(Composite clusteringPrefix, CQL3CasRequest request, QueryOptions options) throws InvalidRequestException
     {
-        UpdateParameters updParams = new UpdateParameters(cfm, options, now, getTimeToLive(options), null);
-        addUpdateForKey(updates, key, clusteringPrefix, updParams);
-
         if (ifNotExists)
         {
             // If we use ifNotExists, if the statement applies to any non static columns, then the condition is on the row of the non-static
             // columns and the prefix should be the clusteringPrefix. But if only static columns are set, then the ifNotExists apply to the existence
             // of any static columns and we should use the prefix for the "static part" of the partition.
-            conditions.addNotExist(clusteringPrefix);
+            request.addNotExist(clusteringPrefix);
         }
         else if (ifExists)
         {
-            conditions.addExist(clusteringPrefix);
+            request.addExist(clusteringPrefix);
         }
         else
         {
             if (columnConditions != null)
-                conditions.addConditions(clusteringPrefix, columnConditions, options);
+                request.addConditions(clusteringPrefix, columnConditions, options);
             if (staticConditions != null)
-                conditions.addConditions(cfm.comparator.staticPrefix(), staticConditions, options);
+                request.addConditions(cfm.comparator.staticPrefix(), staticConditions, options);
         }
     }
 
