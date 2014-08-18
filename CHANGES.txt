@@ -16,6 +16,7 @@
  * Configurable client timeout for cqlsh (CASSANDRA-7516)
  * Include snippet of CQL query near syntax error in messages (CASSANDRA-7111)
 Merged from 2.0:
+ * (cqlsh) enable CTRL-R history search with libedit (CASSANDRA-7577)
  * (Hadoop) allow ACFRW to limit nodes to local DC (CASSANDRA-7252)
  * (cqlsh) cqlsh should automatically disable tracing when selecting
    from system_traces (CASSANDRA-7641)
@@ -27,6 +28,7 @@ Merged from 2.0:
  * (cqlsh) Add tab-completion for CREATE/DROP USER IF [NOT] EXISTS (CASSANDRA-7611)
  * Catch errors when the JVM pulls the rug out from GCInspector (CASSANDRA-5345)
  * cqlsh fails when version number parts are not int (CASSANDRA-7524)
+
 
 2.1.0
  * Fix ordering of static cells (CASSANDRA-7763)
