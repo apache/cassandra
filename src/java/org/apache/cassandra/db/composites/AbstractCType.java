@@ -134,6 +134,17 @@ public abstract class AbstractCType implements CType
 
     static int compareUnsigned(Composite c1, Composite c2)
     {
+        if (c1.isStatic() != c2.isStatic())
+        {
+            // Static sorts before non-static no matter what, except for empty which
+            // always sort first
+            if (c1.isEmpty())
+                return c2.isEmpty() ? 0 : -1;
+            if (c2.isEmpty())
+                return 1;
+            return c1.isStatic() ? -1 : 1;
+        }
+
         int s1 = c1.size();
         int s2 = c2.size();
         int minSize = Math.min(s1, s2);
@@ -152,6 +163,17 @@ public abstract class AbstractCType implements CType
 
     public int compare(Composite c1, Composite c2)
     {
+        if (c1.isStatic() != c2.isStatic())
+        {
+            // Static sorts before non-static no matter what, except for empty which
+            // always sort first
+            if (c1.isEmpty())
+                return c2.isEmpty() ? 0 : -1;
+            if (c2.isEmpty())
+                return 1;
+            return c1.isStatic() ? -1 : 1;
+        }
+
         int s1 = c1.size();
         int s2 = c2.size();
         int minSize = Math.min(s1, s2);

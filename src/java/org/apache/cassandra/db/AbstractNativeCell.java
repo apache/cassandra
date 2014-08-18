@@ -662,6 +662,17 @@ public abstract class AbstractNativeCell extends AbstractCell implements CellNam
     // requires isByteOrderComparable to be true. Compares the name components only; ; may need to compare EOC etc still
     public final int compareTo(final Composite that)
     {
+        if (isStatic() != that.isStatic())
+        {
+            // Static sorts before non-static no matter what, except for empty which
+            // always sort first
+            if (isEmpty())
+                return that.isEmpty() ? 0 : -1;
+            if (that.isEmpty())
+                return 1;
+            return isStatic() ? -1 : 1;
+        }
+
         int size = size();
         int size2 = that.size();
         int minSize = Math.min(size, size2);
