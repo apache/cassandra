@@ -22,9 +22,9 @@ import org.apache.cassandra.db.filter.IDiskAtomFilter;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 
 /**
- * Abstract the conditions to be fulfilled by a CAS operation.
+ * Abstract the conditions and updates for a CAS operation.
  */
-public interface CASConditions
+public interface CASRequest
 {
     /**
      * The filter to use to fetch the value to compare for the CAS.
@@ -36,4 +36,10 @@ public interface CASConditions
      * readFilter(), match the CAS conditions this object stands for.
      */
     public boolean appliesTo(ColumnFamily current) throws InvalidRequestException;
+
+    /**
+     * The updates to perform of a CAS success. The values fetched using the readFilter()
+     * are passed as argument.
+     */
+    public ColumnFamily makeUpdates(ColumnFamily current) throws InvalidRequestException;
 }

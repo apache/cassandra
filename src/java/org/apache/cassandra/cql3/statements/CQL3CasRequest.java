@@ -25,29 +25,42 @@ import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.composites.Composite;
 import org.apache.cassandra.db.filter.*;
+import org.apache.cassandra.db.marshal.CompositeType;
 import org.apache.cassandra.exceptions.InvalidRequestException;
-import org.apache.cassandra.service.CASConditions;
+import org.apache.cassandra.service.CASRequest;
 import org.apache.cassandra.utils.Pair;
 
 /**
- * Processed CAS conditions on potentially multiple rows of the same partition.
+ * Processed CAS conditions and update on potentially multiple rows of the same partition.
  */
-public class CQL3CasConditions implements CASConditions
+public class CQL3CasRequest implements CASRequest
 {
     private final CFMetaData cfm;
+    private final ByteBuffer key;
     private final long now;
+    private final boolean isBatch;
 
     // We index RowCondition by the prefix of the row they applied to for 2 reasons:
     //   1) this allows to keep things sorted to build the ColumnSlice array below
     //   2) this allows to detect when contradictory conditions are set (not exists with some other conditions on the same row)
     private final SortedMap<Composite, RowCondition> conditions;
 
-    public CQL3CasConditions(CFMetaData cfm, long now)
+    private final List<RowUpdate> updates = new ArrayList<>();
+
+    public CQL3CasRequest(CFMetaData cfm, ByteBuffer key, boolean isBatch)
     {
         this.cfm = cfm;
-        // We will use now for Cell.isLive() which expects milliseconds but the argument is in microseconds.
-        this.now = now / 1000;
+        // When checking if conditions apply, we want to use a fixed reference time for a whole request to check
+        // for expired cells. Note that this is unrelated to the cell timestamp.
+        this.now = System.currentTimeMillis();
+        this.key = key;
         this.conditions = new TreeMap<>(cfm.comparator);
+        this.isBatch = isBatch;
+    }
+
+    public void addRowUpdate(Composite prefix, ModificationStatement stmt, QueryOptions options, long timestamp)
+    {
+        updates.add(new RowUpdate(prefix, stmt, options, timestamp));
     }
 
     public void addNotExist(Composite prefix) throws InvalidRequestException
@@ -110,6 +123,58 @@ public class CQL3CasConditions implements CASConditions
                 return false;
         }
         return true;
+    }
+
+    public ColumnFamily makeUpdates(ColumnFamily current) throws InvalidRequestException
+    {
+        ColumnFamily cf = ArrayBackedSortedColumns.factory.create(cfm);
+        for (RowUpdate upd : updates)
+            upd.applyUpdates(current, cf);
+
+        if (isBatch)
+            BatchStatement.verifyBatchSize(Collections.singleton(cf));
+
+        return cf;
+    }
+
+    /**
+     * Due to some operation on lists, we can't generate the update that a given Modification statement does before
+     * we get the values read by the initial read of Paxos. A RowUpdate thus just store the relevant information
+     * (include the statement iself) to generate those updates. We'll have multiple RowUpdate for a Batch, otherwise
+     * we'll have only one.
+     */
+    private class RowUpdate
+    {
+        private final Composite rowPrefix;
+        private final ModificationStatement stmt;
+        private final QueryOptions options;
+        private final long timestamp;
+
+        private RowUpdate(Composite rowPrefix, ModificationStatement stmt, QueryOptions options, long timestamp)
+        {
+            this.rowPrefix = rowPrefix;
+            this.stmt = stmt;
+            this.options = options;
+            this.timestamp = timestamp;
+        }
+
+        public void applyUpdates(ColumnFamily current, ColumnFamily updates) throws InvalidRequestException
+        {
+            Map<ByteBuffer, CQL3Row> map = null;
+            if (stmt.requiresRead())
+            {
+                // Uses the "current" values read by Paxos for lists operation that requires a read
+                Iterator<CQL3Row> iter = cfm.comparator.CQL3RowBuilder(cfm, now).group(current.iterator(new ColumnSlice[]{ rowPrefix.slice() }));
+                if (iter.hasNext())
+                {
+                    map = Collections.singletonMap(key, iter.next());
+                    assert !iter.hasNext() : "We shoudn't be updating more than one CQL row per-ModificationStatement";
+                }
+            }
+
+            UpdateParameters params = new UpdateParameters(cfm, options, timestamp, stmt.getTimeToLive(options), map);
+            stmt.addUpdateForKey(updates, key, rowPrefix, params);
+        }
     }
 
     private static abstract class RowCondition

@@ -63,7 +63,7 @@ import org.apache.cassandra.locator.DynamicEndpointSnitch;
 import org.apache.cassandra.metrics.ClientMetrics;
 import org.apache.cassandra.scheduler.IRequestScheduler;
 import org.apache.cassandra.serializers.MarshalException;
-import org.apache.cassandra.service.CASConditions;
+import org.apache.cassandra.service.CASRequest;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.MigrationManager;
 import org.apache.cassandra.service.StorageProxy;
@@ -784,8 +784,7 @@ public class CassandraServer implements Cassandra.Iface
             ColumnFamily result = StorageProxy.cas(cState.getKeyspace(),
                                                    column_family,
                                                    key,
-                                                   new ThriftCASConditions(cfExpected),
-                                                   cfUpdates,
+                                                   new ThriftCASRequest(cfExpected, cfUpdates),
                                                    ThriftConversion.fromThrift(serial_consistency_level),
                                                    ThriftConversion.fromThrift(commit_consistency_level));
             return result == null
@@ -2249,13 +2248,15 @@ public class CassandraServer implements Cassandra.Iface
         });
     }
 
-    private static class ThriftCASConditions implements CASConditions
+    private static class ThriftCASRequest implements CASRequest
     {
         private final ColumnFamily expected;
+        private final ColumnFamily updates;
 
-        private ThriftCASConditions(ColumnFamily expected)
+        private ThriftCASRequest(ColumnFamily expected, ColumnFamily updates)
         {
             this.expected = expected;
+            this.updates = updates;
         }
 
         public IDiskAtomFilter readFilter()
@@ -2300,10 +2301,9 @@ public class CassandraServer implements Cassandra.Iface
             return cf != null && !cf.hasOnlyTombstones(now);
         }
 
-        @Override
-        public String toString()
+        public ColumnFamily makeUpdates(ColumnFamily current)
         {
-            return expected.toString();
+            return updates;
         }
     }
 }
