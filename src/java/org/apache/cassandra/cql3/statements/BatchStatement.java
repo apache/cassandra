@@ -149,6 +149,9 @@ public class BatchStatement implements CQLStatement, MeasurableForPreparedCache
                     throw new InvalidRequestException("Batch with conditions cannot span multiple tables");
                 ksName = stmt.keyspace();
                 cfName = stmt.columnFamily();
+
+                if (stmt.requiresRead())
+                    throw new InvalidRequestException("Operations using list indexes are not allowed with IF conditions");
             }
         }
     }
