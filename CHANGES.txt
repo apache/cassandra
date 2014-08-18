@@ -1,5 +1,6 @@
 2.1.0
 Merged from 2.0:
+ * Fix dropping collection when it's the last regular column (CASSANDRA-7744)
  * Properly reject operations on list index with conditions (CASSANDRA-7499)
  * (Hadoop) allow ACFRW to limit nodes to local DC (CASSANDRA-7252)
 
