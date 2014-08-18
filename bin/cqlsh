@@ -738,6 +738,7 @@ class Shell(cmd.Cmd):
                 if readline.__doc__ is not None and 'libedit' in readline.__doc__:
                     readline.parse_and_bind("bind -e")
                     readline.parse_and_bind("bind '" + self.completekey + "' rl_complete")
+                    readline.parse_and_bind("bind ^R em-inc-search-prev")
                 else:
                     readline.parse_and_bind(self.completekey + ": complete")
         try:
