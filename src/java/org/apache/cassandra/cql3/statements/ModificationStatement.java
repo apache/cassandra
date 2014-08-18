@@ -147,8 +147,14 @@ public abstract class ModificationStatement implements CQLStatement, MeasurableF
 
     public void validate(ClientState state) throws InvalidRequestException
     {
-        if (hasConditions() && attrs.isTimestampSet())
-            throw new InvalidRequestException("Cannot provide custom timestamp for conditional updates");
+        if (hasConditions())
+        {
+            if (attrs.isTimestampSet())
+                throw new InvalidRequestException("Cannot provide custom timestamp for conditional updates");
+
+            if (requiresRead())
+                throw new InvalidRequestException("Operations using list indexes are not allowed with IF conditions");
+        }
 
         if (isCounter() && attrs.isTimestampSet())
             throw new InvalidRequestException("Cannot provide custom timestamp for counter updates");
@@ -404,6 +410,14 @@ public abstract class ModificationStatement implements CQLStatement, MeasurableF
                 return def;
         }
         return null;
+    }
+
+    public boolean requiresRead()
+    {
+        for (Operation op : columnOperations)
+            if (op.requiresRead())
+                return true;
+        return false;
     }
 
     protected Map<ByteBuffer, CQL3Row> readRequiredRows(Collection<ByteBuffer> partitionKeys, Composite clusteringPrefix, boolean local, ConsistencyLevel cl)

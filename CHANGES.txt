@@ -1,3 +1,9 @@
+2.1.0
+Merged from 2.0:
+ * Properly reject operations on list index with conditions (CASSANDRA-7499)
+ * (Hadoop) allow ACFRW to limit nodes to local DC (CASSANDRA-7252)
+
+
 2.1.0-rc6
  * Fix OOM issue from netty caching over time (CASSANDRA-7743)
  * json2sstable couldn't import JSON for CQL table (CASSANDRA-7477)
@@ -16,6 +22,7 @@
  * Bogus deserialization of static cells from sstable (CASSANDRA-7684)
  * Fix NPE on compaction leftover cleanup for dropped table (CASSANDRA-7770)
 Merged from 2.0:
+ * (cqlsh) Wait up to 10 sec for a tracing session (CASSANDRA-7222)
  * Fix NPE in FileCacheService.sizeInBytes (CASSANDRA-7756)
  * Remove duplicates from StorageService.getJoiningNodes (CASSANDRA-7478)
  * Clone token map outside of hot gossip loops (CASSANDRA-7758)
