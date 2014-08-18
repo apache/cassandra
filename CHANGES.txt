@@ -48,7 +48,7 @@
  * Add inter_dc_stream_throughput_outbound_megabits_per_sec (CASSANDRA-6596)
  * Add option to disable STCS in L0 (CASSANDRA-6621)
  * Fix error when doing reversed queries with static columns (CASSANDRA-7490)
- * Backport CASSANDRA-6747 (CASSANDRA-7560)
+ * Backport CASSNADRA-3569/CASSANDRA-6747 (CASSANDRA-7560)
  * Track max/min timestamps for range tombstones (CASSANDRA-7647)
  * Fix NPE when listing saved caches dir (CASSANDRA-7632)
  * Fix sstableloader unable to connect encrypted node (CASSANDRA-7585)
