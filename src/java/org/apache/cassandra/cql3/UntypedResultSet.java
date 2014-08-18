@@ -219,6 +219,11 @@ public abstract class UntypedResultSet implements Iterable<UntypedResultSet.Row>
             return data.get(column) != null;
         }
 
+        public ByteBuffer getBlob(String column)
+        {
+            return data.get(column);
+        }
+
         public String getString(String column)
         {
             return UTF8Type.instance.compose(data.get(column));

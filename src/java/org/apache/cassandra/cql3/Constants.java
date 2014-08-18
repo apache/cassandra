@@ -67,15 +67,17 @@ public abstract class Constants
 
         public Term prepare(String keyspace, ColumnSpecification receiver) throws InvalidRequestException
         {
-            if (!isAssignableTo(keyspace, receiver))
+            if (!testAssignment(keyspace, receiver).isAssignable())
                 throw new InvalidRequestException("Invalid null value for counter increment/decrement");
 
             return NULL_VALUE;
         }
 
-        public boolean isAssignableTo(String keyspace, ColumnSpecification receiver)
+        public AssignmentTestable.TestResult testAssignment(String keyspace, ColumnSpecification receiver)
         {
-            return !(receiver.type instanceof CounterColumnType);
+            return receiver.type instanceof CounterColumnType
+                 ? AssignmentTestable.TestResult.NOT_ASSIGNABLE
+                 : AssignmentTestable.TestResult.WEAKLY_ASSIGNABLE;
         }
 
         @Override
@@ -129,7 +131,7 @@ public abstract class Constants
 
         public Value prepare(String keyspace, ColumnSpecification receiver) throws InvalidRequestException
         {
-            if (!isAssignableTo(keyspace, receiver))
+            if (!testAssignment(keyspace, receiver).isAssignable())
                 throw new InvalidRequestException(String.format("Invalid %s constant (%s) for \"%s\" of type %s", type, text, receiver.name, receiver.type.asCQL3Type()));
 
             return new Value(parsedValue(receiver.type));
@@ -159,15 +161,15 @@ public abstract class Constants
             return text;
         }
 
-        public boolean isAssignableTo(String keyspace, ColumnSpecification receiver)
+        public AssignmentTestable.TestResult testAssignment(String keyspace, ColumnSpecification receiver)
         {
             CQL3Type receiverType = receiver.type.asCQL3Type();
             if (receiverType.isCollection())
-                return false;
+                return AssignmentTestable.TestResult.NOT_ASSIGNABLE;
 
             if (!(receiverType instanceof CQL3Type.Native))
                 // Skip type validation for custom types. May or may not be a good idea
-                return true;
+                return AssignmentTestable.TestResult.WEAKLY_ASSIGNABLE;
 
             CQL3Type.Native nt = (CQL3Type.Native)receiverType;
             switch (type)
@@ -180,9 +182,9 @@ public abstract class Constants
                         case INET:
                         case VARCHAR:
                         case TIMESTAMP:
-                            return true;
+                            return AssignmentTestable.TestResult.WEAKLY_ASSIGNABLE;
                     }
-                    return false;
+                    break;
                 case INTEGER:
                     switch (nt)
                     {
@@ -194,42 +196,42 @@ public abstract class Constants
                         case INT:
                         case TIMESTAMP:
                         case VARINT:
-                            return true;
+                            return AssignmentTestable.TestResult.WEAKLY_ASSIGNABLE;
                     }
-                    return false;
+                    break;
                 case UUID:
                     switch (nt)
                     {
                         case UUID:
                         case TIMEUUID:
-                            return true;
+                            return AssignmentTestable.TestResult.WEAKLY_ASSIGNABLE;
                     }
-                    return false;
+                    break;
                 case FLOAT:
                     switch (nt)
                     {
                         case DECIMAL:
                         case DOUBLE:
                         case FLOAT:
-                            return true;
+                            return AssignmentTestable.TestResult.WEAKLY_ASSIGNABLE;
                     }
-                    return false;
+                    break;
                 case BOOLEAN:
                     switch (nt)
                     {
                         case BOOLEAN:
-                            return true;
+                            return AssignmentTestable.TestResult.WEAKLY_ASSIGNABLE;
                     }
-                    return false;
+                    break;
                 case HEX:
                     switch (nt)
                     {
                         case BLOB:
-                            return true;
+                            return AssignmentTestable.TestResult.WEAKLY_ASSIGNABLE;
                     }
-                    return false;
+                    break;
             }
-            return false;
+            return AssignmentTestable.TestResult.NOT_ASSIGNABLE;
         }
 
         @Override

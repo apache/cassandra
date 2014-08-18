@@ -217,7 +217,7 @@ public final class CFMetaData
     public static final CFMetaData SchemaFunctionsCf = compile("CREATE TABLE " + SystemKeyspace.SCHEMA_FUNCTIONS_CF + " ("
                                                                + "namespace text,"
                                                                + "name text,"
-                                                               + "signature text,"
+                                                               + "signature blob,"
                                                                + "argument_names list<text>,"
                                                                + "argument_types list<text>,"
                                                                + "return_type text,"

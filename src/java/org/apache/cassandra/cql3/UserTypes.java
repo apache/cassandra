@@ -99,21 +99,21 @@ public abstract class UserTypes
                     continue;
 
                 ColumnSpecification fieldSpec = fieldSpecOf(receiver, i);
-                if (!value.isAssignableTo(keyspace, fieldSpec))
+                if (!value.testAssignment(keyspace, fieldSpec).isAssignable())
                     throw new InvalidRequestException(String.format("Invalid user type literal for %s: field %s is not of type %s", receiver, field, fieldSpec.type.asCQL3Type()));
             }
         }
 
-        public boolean isAssignableTo(String keyspace, ColumnSpecification receiver)
+        public AssignmentTestable.TestResult testAssignment(String keyspace, ColumnSpecification receiver)
         {
             try
             {
                 validateAssignableTo(keyspace, receiver);
-                return true;
+                return AssignmentTestable.TestResult.WEAKLY_ASSIGNABLE;
             }
             catch (InvalidRequestException e)
             {
-                return false;
+                return AssignmentTestable.TestResult.NOT_ASSIGNABLE;
             }
         }
 

@@ -98,24 +98,36 @@ public abstract class Maps
             ColumnSpecification valueSpec = Maps.valueSpecOf(receiver);
             for (Pair<Term.Raw, Term.Raw> entry : entries)
             {
-                if (!entry.left.isAssignableTo(keyspace, keySpec))
+                if (!entry.left.testAssignment(keyspace, keySpec).isAssignable())
                     throw new InvalidRequestException(String.format("Invalid map literal for %s: key %s is not of type %s", receiver.name, entry.left, keySpec.type.asCQL3Type()));
-                if (!entry.right.isAssignableTo(keyspace, valueSpec))
+                if (!entry.right.testAssignment(keyspace, valueSpec).isAssignable())
                     throw new InvalidRequestException(String.format("Invalid map literal for %s: value %s is not of type %s", receiver.name, entry.right, valueSpec.type.asCQL3Type()));
             }
         }
 
-        public boolean isAssignableTo(String keyspace, ColumnSpecification receiver)
+        public AssignmentTestable.TestResult testAssignment(String keyspace, ColumnSpecification receiver)
         {
-            try
+            if (!(receiver.type instanceof MapType))
+                return AssignmentTestable.TestResult.NOT_ASSIGNABLE;
+
+            // If there is no elements, we can't say it's an exact match (an empty map if fundamentally polymorphic).
+            if (entries.isEmpty())
+                return AssignmentTestable.TestResult.WEAKLY_ASSIGNABLE;
+
+            ColumnSpecification keySpec = Maps.keySpecOf(receiver);
+            ColumnSpecification valueSpec = Maps.valueSpecOf(receiver);
+            // It's an exact match if all are exact match, but is not assignable as soon as any is non assignable.
+            AssignmentTestable.TestResult res = AssignmentTestable.TestResult.EXACT_MATCH;
+            for (Pair<Term.Raw, Term.Raw> entry : entries)
             {
-                validateAssignableTo(keyspace, receiver);
-                return true;
+                AssignmentTestable.TestResult t1 = entry.left.testAssignment(keyspace, keySpec);
+                AssignmentTestable.TestResult t2 = entry.right.testAssignment(keyspace, valueSpec);
+                if (t1 == AssignmentTestable.TestResult.NOT_ASSIGNABLE || t2 == AssignmentTestable.TestResult.NOT_ASSIGNABLE)
+                    return AssignmentTestable.TestResult.NOT_ASSIGNABLE;
+                if (t1 != AssignmentTestable.TestResult.EXACT_MATCH || t2 != AssignmentTestable.TestResult.EXACT_MATCH)
+                    res = AssignmentTestable.TestResult.WEAKLY_ASSIGNABLE;
             }
-            catch (InvalidRequestException e)
-            {
-                return false;
-            }
+            return res;
         }
 
         @Override

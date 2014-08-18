@@ -17,9 +17,10 @@
  */
 package org.apache.cassandra.cql3.statements;
 
+import java.util.List;
+
 import org.apache.cassandra.auth.Permission;
-import org.apache.cassandra.config.Schema;
-import org.apache.cassandra.config.UFMetaData;
+import org.apache.cassandra.cql3.functions.*;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.RequestValidationException;
 import org.apache.cassandra.exceptions.UnauthorizedException;
@@ -32,17 +33,12 @@ import org.apache.cassandra.transport.Event;
  */
 public final class DropFunctionStatement extends SchemaAlteringStatement
 {
-    private final String namespace;
-    private final String functionName;
-    private final String qualifiedName;
+    private final FunctionName functionName;
     private final boolean ifExists;
 
-    public DropFunctionStatement(String namespace, String functionName, boolean ifExists)
+    public DropFunctionStatement(FunctionName functionName, boolean ifExists)
     {
-        super();
-        this.namespace = namespace == null ? "" : namespace;
         this.functionName = functionName;
-        this.qualifiedName = UFMetaData.qualifiedName(namespace, functionName);
         this.ifExists = ifExists;
     }
 
@@ -62,14 +58,6 @@ public final class DropFunctionStatement extends SchemaAlteringStatement
      */
     public void validate(ClientState state) throws RequestValidationException
     {
-        if (!namespace.isEmpty() && !namespace.matches("\\w+"))
-            throw new InvalidRequestException(String.format("\"%s\" is not a valid function name", qualifiedName));
-        if (!functionName.matches("\\w+"))
-            throw new InvalidRequestException(String.format("\"%s\" is not a valid function name", qualifiedName));
-        if (namespace.length() > Schema.NAME_LENGTH)
-            throw new InvalidRequestException(String.format("UDF namespace names shouldn't be more than %s characters long (got \"%s\")", Schema.NAME_LENGTH, qualifiedName));
-        if (functionName.length() > Schema.NAME_LENGTH)
-            throw new InvalidRequestException(String.format("UDF function names shouldn't be more than %s characters long (got \"%s\")", Schema.NAME_LENGTH, qualifiedName));
     }
 
     public Event.SchemaChange changeEvent()
@@ -77,20 +65,21 @@ public final class DropFunctionStatement extends SchemaAlteringStatement
         return null;
     }
 
-    // no execute() - drop propagated via MigrationManager
-
     public boolean announceMigration(boolean isLocalOnly) throws RequestValidationException
     {
-        try
-        {
-            MigrationManager.announceFunctionDrop(namespace, functionName, isLocalOnly);
-            return true;
-        }
-        catch (InvalidRequestException e)
+        List<Function> olds = Functions.find(functionName);
+        if (olds == null || olds.isEmpty())
         {
             if (ifExists)
                 return false;
-            throw e;
+            throw new InvalidRequestException(String.format("Cannot drop non existing function '%s'", functionName));
         }
+
+        for (Function f : olds)
+            if (f.isNative())
+                throw new InvalidRequestException(String.format("Cannot drop function '%s' because it has native overloads", functionName));
+
+        MigrationManager.announceFunctionDrop(functionName, isLocalOnly);
+        return true;
     }
 }

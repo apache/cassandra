@@ -21,57 +21,50 @@ import java.util.ArrayList;
 import java.util.List;
 
 import org.apache.cassandra.auth.Permission;
-import org.apache.cassandra.config.Schema;
-import org.apache.cassandra.config.UFMetaData;
 import org.apache.cassandra.cql3.CQL3Type;
 import org.apache.cassandra.cql3.ColumnIdentifier;
-import org.apache.cassandra.cql3.QueryOptions;
-import org.apache.cassandra.cql3.functions.Functions;
-import org.apache.cassandra.cql3.udf.UDFRegistry;
+import org.apache.cassandra.cql3.functions.*;
+import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.RequestValidationException;
 import org.apache.cassandra.exceptions.UnauthorizedException;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.MigrationManager;
-import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.transport.Event;
-import org.apache.cassandra.transport.messages.ResultMessage;
 
 /**
  * A <code>CREATE FUNCTION</code> statement parsed from a CQL query.
  */
 public final class CreateFunctionStatement extends SchemaAlteringStatement
 {
-    final boolean orReplace;
-    final boolean ifNotExists;
-    final String namespace;
-    final String functionName;
-    final String qualifiedName;
-    final String language;
-    final String body;
-    final boolean deterministic;
-    final CQL3Type.Raw returnType;
-    final List<Argument> arguments;
+    private final boolean orReplace;
+    private final boolean ifNotExists;
+    private final FunctionName functionName;
+    private final String language;
+    private final String body;
+    private final boolean deterministic;
 
-    private UFMetaData ufMeta;
+    private final List<ColumnIdentifier> argNames;
+    private final List<CQL3Type.Raw> argRawTypes;
+    private final CQL3Type.Raw rawReturnType;
 
-    public CreateFunctionStatement(String namespace, String functionName, String language, String body, boolean deterministic,
-                                   CQL3Type.Raw returnType, List<Argument> arguments, boolean orReplace, boolean ifNotExists)
+    public CreateFunctionStatement(FunctionName functionName,
+                                   String language,
+                                   String body,
+                                   boolean deterministic,
+                                   List<ColumnIdentifier> argNames,
+                                   List<CQL3Type.Raw> argRawTypes,
+                                   CQL3Type.Raw rawReturnType,
+                                   boolean orReplace,
+                                   boolean ifNotExists)
     {
-        super();
-        this.namespace = namespace != null ? namespace : "";
         this.functionName = functionName;
-        this.qualifiedName = UFMetaData.qualifiedName(namespace, functionName);
         this.language = language;
         this.body = body;
         this.deterministic = deterministic;
-        this.returnType = returnType;
-        this.arguments = arguments;
-        assert functionName != null : "null function name";
-        assert language != null : "null function language";
-        assert body != null : "null function body";
-        assert returnType != null : "null function returnType";
-        assert arguments != null : "null function arguments";
+        this.argNames = argNames;
+        this.argRawTypes = argRawTypes;
+        this.rawReturnType = rawReturnType;
         this.orReplace = orReplace;
         this.ifNotExists = ifNotExists;
     }
@@ -83,23 +76,10 @@ public final class CreateFunctionStatement extends SchemaAlteringStatement
         state.hasAllKeyspacesAccess(Permission.CREATE);
     }
 
-    /**
-     * The <code>CqlParser</code> only goes as far as extracting the keyword arguments
-     * from these statements, so this method is responsible for processing and
-     * validating.
-     *
-     * @throws org.apache.cassandra.exceptions.InvalidRequestException if arguments are missing or unacceptable
-     */
-    public void validate(ClientState state) throws RequestValidationException
+    public void validate(ClientState state) throws InvalidRequestException
     {
-        if (!namespace.isEmpty() && !namespace.matches("\\w+"))
-            throw new InvalidRequestException(String.format("\"%s\" is not a valid function name", qualifiedName));
-        if (!functionName.matches("\\w+"))
-            throw new InvalidRequestException(String.format("\"%s\" is not a valid function name", qualifiedName));
-        if (namespace.length() > Schema.NAME_LENGTH)
-            throw new InvalidRequestException(String.format("UDF namespace names shouldn't be more than %s characters long (got \"%s\")", Schema.NAME_LENGTH, qualifiedName));
-        if (functionName.length() > Schema.NAME_LENGTH)
-            throw new InvalidRequestException(String.format("UDF function names shouldn't be more than %s characters long (got \"%s\")", Schema.NAME_LENGTH, qualifiedName));
+        if (ifNotExists && orReplace)
+            throw new InvalidRequestException("Cannot use both 'OR REPLACE' and 'IF NOT EXISTS' directives");
     }
 
     public Event.SchemaChange changeEvent()
@@ -107,75 +87,34 @@ public final class CreateFunctionStatement extends SchemaAlteringStatement
         return null;
     }
 
-    public ResultMessage executeInternal(QueryState state, QueryOptions options)
-    {
-        try
-        {
-            doExecute();
-            return super.executeInternal(state, options);
-        }
-        catch (RequestValidationException e)
-        {
-            throw new RuntimeException(e);
-        }
-    }
-
-    public ResultMessage execute(QueryState state, QueryOptions options) throws RequestValidationException
-    {
-        doExecute();
-        return super.execute(state, options);
-    }
-
-    private void doExecute() throws RequestValidationException
-    {
-        boolean exists = UDFRegistry.hasFunction(qualifiedName);
-        if (exists && ifNotExists)
-            throw new InvalidRequestException(String.format("Function '%s' already exists.", qualifiedName));
-        if (exists && !orReplace)
-            throw new InvalidRequestException(String.format("Function '%s' already exists.", qualifiedName));
-
-        if (namespace.isEmpty() && Functions.contains(functionName))
-            throw new InvalidRequestException(String.format("Function name '%s' is reserved by CQL.", qualifiedName));
-
-        List<Argument> args = arguments;
-        List<String> argumentNames = new ArrayList<>(args.size());
-        List<String> argumentTypes = new ArrayList<>(args.size());
-        for (Argument arg : args)
-        {
-            argumentNames.add(arg.getName().toString());
-            argumentTypes.add(arg.getType().toString());
-        }
-        this.ufMeta = new UFMetaData(namespace, functionName, deterministic, argumentNames, argumentTypes,
-                                     returnType.toString(), language, body);
-
-        UDFRegistry.tryCreateFunction(ufMeta);
-    }
-
     public boolean announceMigration(boolean isLocalOnly) throws RequestValidationException
     {
-        MigrationManager.announceNewFunction(ufMeta, isLocalOnly);
+        List<AbstractType<?>> argTypes = new ArrayList<>(argRawTypes.size());
+        for (CQL3Type.Raw rawType : argRawTypes)
+            // We have no proper keyspace to give, which means that this will break (NPE currently)
+            // for UDT: #7791 is open to fix this
+            argTypes.add(rawType.prepare(null).getType());
+
+        AbstractType<?> returnType = rawReturnType.prepare(null).getType();
+
+        Function old = Functions.find(functionName, argTypes);
+        if (old != null)
+        {
+            if (ifNotExists)
+                return false;
+            if (!orReplace)
+                throw new InvalidRequestException(String.format("Function %s already exists", old));
+
+            // Means we're replacing the function. We still need to validate that 1) it's not a native function and 2) that the return type
+            // matches (or that could break existing code badly)
+            if (old.isNative())
+                throw new InvalidRequestException(String.format("Cannot replace native function %s", old));
+            if (!old.returnType().isValueCompatibleWith(returnType))
+                throw new InvalidRequestException(String.format("Cannot replace function %s, the new return type %s is not compatible with the return type %s of existing function",
+                                                                functionName, returnType.asCQL3Type(), old.returnType().asCQL3Type()));
+        }
+
+        MigrationManager.announceNewFunction(UDFunction.create(functionName, argNames, argTypes, returnType, language, body, deterministic), isLocalOnly);
         return true;
-    }
-
-    public static final class Argument
-    {
-        final ColumnIdentifier name;
-        final CQL3Type.Raw type;
-
-        public Argument(ColumnIdentifier name, CQL3Type.Raw type)
-        {
-            this.name = name;
-            this.type = type;
-        }
-
-        public ColumnIdentifier getName()
-        {
-            return name;
-        }
-
-        public CQL3Type.Raw getType()
-        {
-            return type;
-        }
     }
 }

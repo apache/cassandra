@@ -66,6 +66,10 @@ public abstract class CQLTester
     private String currentTable;
     private final Set<String> currentTypes = new HashSet<>();
 
+    // We don't use USE_PREPARED_VALUES in the code below so some test can foce value preparation (if the result
+    // is not expected to be the same without preparation)
+    private boolean usePrepared = USE_PREPARED_VALUES;
+
     @BeforeClass
     public static void setUpClass() throws Throwable
     {
@@ -80,6 +84,9 @@ public abstract class CQLTester
     @After
     public void afterTest() throws Throwable
     {
+        // Restore standard behavior in case it was changed
+        usePrepared = USE_PREPARED_VALUES;
+
         if (currentTable == null)
             return;
 
@@ -162,6 +169,16 @@ public abstract class CQLTester
         return currentTable;
     }
 
+    protected void forcePreparedValues()
+    {
+        this.usePrepared = true;
+    }
+
+    protected void stopForcingPreparedValues()
+    {
+        this.usePrepared = USE_PREPARED_VALUES;
+    }
+
     protected String createType(String query)
     {
         String typeName = "type_" + seqNumber.getAndIncrement();
@@ -222,7 +239,7 @@ public abstract class CQLTester
             query = String.format(query, KEYSPACE + "." + currentTable);
 
             UntypedResultSet rs;
-            if (USE_PREPARED_VALUES)
+            if (usePrepared)
             {
                 logger.info("Executing: {} with values {}", query, formatAllValues(values));
                 rs = QueryProcessor.executeOnceInternal(query, transformValues(values));

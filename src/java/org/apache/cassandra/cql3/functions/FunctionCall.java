@@ -22,8 +22,6 @@ import java.util.ArrayList;
 import java.util.List;
 
 import org.apache.cassandra.cql3.*;
-import org.apache.cassandra.cql3.udf.UDFunction;
-import org.apache.cassandra.cql3.udf.UDFRegistry;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.CollectionType;
 import org.apache.cassandra.db.marshal.ListType;
@@ -113,39 +111,33 @@ public class FunctionCall extends Term.NonTerminal
 
     public static class Raw implements Term.Raw
     {
-        private final String namespace;
-        private final String functionName;
+        private final FunctionName name;
         private final List<Term.Raw> terms;
 
-        public Raw(String namespace, String functionName, List<Term.Raw> terms)
+        public Raw(FunctionName name, List<Term.Raw> terms)
         {
-            this.namespace = namespace;
-            this.functionName = functionName;
+            this.name = name;
             this.terms = terms;
         }
 
         public Term prepare(String keyspace, ColumnSpecification receiver) throws InvalidRequestException
         {
-            Function fun = null;
-            if (namespace.isEmpty())
-                fun = Functions.get(keyspace, functionName, terms, receiver);
-
+            Function fun = Functions.get(keyspace, name, terms, receiver.ksName, receiver.cfName);
             if (fun == null)
-            {
-                UDFunction udf = UDFRegistry.resolveFunction(namespace, functionName, receiver.ksName, receiver.cfName, terms);
-                if (udf != null)
-                    // got a user defined function to call
-                    fun = udf.create(terms);
-            }
+                throw new InvalidRequestException(String.format("Unknown function %s called", name));
 
-            if (fun == null)
-                throw new InvalidRequestException(String.format("Unknown function %s called", namespace.isEmpty() ? functionName : namespace + "::" + functionName));
+            // Functions.get() will complain if no function "name" type check with the provided arguments.
+            // We still have to validate that the return type matches however
+            if (!receiver.type.isValueCompatibleWith(fun.returnType()))
+                throw new InvalidRequestException(String.format("Type error: cannot assign result of function %s (type %s) to %s (type %s)",
+                                                                fun.name(), fun.returnType().asCQL3Type(),
+                                                                receiver.name, receiver.type.asCQL3Type()));
 
             List<Term> parameters = new ArrayList<Term>(terms.size());
             boolean allTerminal = true;
             for (int i = 0; i < terms.size(); i++)
             {
-                Term t = terms.get(i).prepare(keyspace, Functions.makeArgSpec(receiver, fun, i));
+                Term t = terms.get(i).prepare(keyspace, Functions.makeArgSpec(receiver.ksName, receiver.cfName, fun, i));
                 if (t instanceof NonTerminal)
                     allTerminal = false;
                 parameters.add(t);
@@ -171,23 +163,33 @@ public class FunctionCall extends Term.NonTerminal
             return executeInternal(fun, buffers);
         }
 
-        public boolean isAssignableTo(String keyspace, ColumnSpecification receiver)
+        public AssignmentTestable.TestResult testAssignment(String keyspace, ColumnSpecification receiver)
         {
-            AbstractType<?> returnType = Functions.getReturnType(functionName, receiver.ksName, receiver.cfName);
-            // Note: if returnType == null, it means the function doesn't exist. We may get this if an undefined function
-            // is used as argument of another, existing, function. In that case, we return true here because we'll catch
-            // the fact that the method is undefined latter anyway and with a more helpful error message that if we were
-            // to return false here.
-            return returnType == null || receiver.type.isValueCompatibleWith(returnType);
+            // Note: Functions.get() will return null if the function doesn't exist, or throw is no function matching
+            // the arguments can be found. We may get one of those if an undefined/wrong function is used as argument
+            // of another, existing, function. In that case, we return true here because we'll throw a proper exception
+            // later with a more helpful error message that if we were to return false here.
+            try
+            {
+                Function fun = Functions.get(keyspace, name, terms, receiver.ksName, receiver.cfName);
+                if (fun != null && receiver.type.equals(fun.returnType()))
+                    return AssignmentTestable.TestResult.EXACT_MATCH;
+                else if (fun == null || receiver.type.isValueCompatibleWith(fun.returnType()))
+                    return AssignmentTestable.TestResult.WEAKLY_ASSIGNABLE;
+                else
+                    return AssignmentTestable.TestResult.NOT_ASSIGNABLE;
+            }
+            catch (InvalidRequestException e)
+            {
+                return AssignmentTestable.TestResult.WEAKLY_ASSIGNABLE;
+            }
         }
 
         @Override
         public String toString()
         {
             StringBuilder sb = new StringBuilder();
-            if (!namespace.isEmpty())
-                sb.append(namespace).append("::");
-            sb.append(functionName).append("(");
+            sb.append(name).append("(");
             for (int i = 0; i < terms.size(); i++)
             {
                 if (i > 0)

@@ -24,9 +24,6 @@ import java.util.*;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.MapDifference;
 import com.google.common.collect.Maps;
-import org.apache.cassandra.config.UFMetaData;
-import org.apache.cassandra.cql3.udf.UDFRegistry;
-import org.apache.cassandra.db.commitlog.CommitLog;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -35,6 +32,9 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.KSMetaData;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.config.UTMetaData;
+import org.apache.cassandra.cql3.functions.Functions;
+import org.apache.cassandra.cql3.functions.UDFunction;
+import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.db.marshal.AsciiType;
@@ -393,8 +393,8 @@ public class DefsTables
             if (!cfFunctions.hasColumns())
                 continue;
 
-            for (UFMetaData uf : UFMetaData.fromSchema(new Row(entry.getKey(), cfFunctions)).values())
-                addFunction(uf);
+            for (UDFunction udf : UDFunction.fromSchema(new Row(entry.getKey(), cfFunctions)).values())
+                addFunction(udf);
         }
 
         for (Map.Entry<DecoratedKey, MapDifference.ValueDifference<ColumnFamily>> modifiedEntry : diff.entriesDiffering().entrySet())
@@ -405,26 +405,26 @@ public class DefsTables
 
             if (!prevCFFunctions.hasColumns()) // whole namespace was deleted and now it's re-created
             {
-                for (UFMetaData uf : UFMetaData.fromSchema(new Row(namespace, newCFFunctions)).values())
-                    addFunction(uf);
+                for (UDFunction udf : UDFunction.fromSchema(new Row(namespace, newCFFunctions)).values())
+                    addFunction(udf);
             }
             else if (!newCFFunctions.hasColumns()) // whole namespace is deleted
             {
-                for (UFMetaData uf : UFMetaData.fromSchema(new Row(namespace, prevCFFunctions)).values())
-                    dropFunction(uf);
+                for (UDFunction udf : UDFunction.fromSchema(new Row(namespace, prevCFFunctions)).values())
+                    dropFunction(udf);
             }
             else // has modifications in the functions, need to perform nested diff to determine what was really changed
             {
-                MapDifference<String, UFMetaData> functionsDiff = Maps.difference(UFMetaData.fromSchema(new Row(namespace, prevCFFunctions)),
-                    UFMetaData.fromSchema(new Row(namespace, newCFFunctions)));
+                MapDifference<ByteBuffer, UDFunction> functionsDiff = Maps.difference(UDFunction.fromSchema(new Row(namespace, prevCFFunctions)),
+                                                                                      UDFunction.fromSchema(new Row(namespace, newCFFunctions)));
 
-                for (UFMetaData function : functionsDiff.entriesOnlyOnRight().values())
-                    addFunction(function);
+                for (UDFunction udf : functionsDiff.entriesOnlyOnRight().values())
+                    addFunction(udf);
 
-                for (UFMetaData function : functionsDiff.entriesOnlyOnLeft().values())
-                    dropFunction(function);
+                for (UDFunction udf : functionsDiff.entriesOnlyOnLeft().values())
+                    dropFunction(udf);
 
-                for (MapDifference.ValueDifference<UFMetaData> tdiff : functionsDiff.entriesDiffering().values())
+                for (MapDifference.ValueDifference<UDFunction> tdiff : functionsDiff.entriesDiffering().values())
                     updateFunction(tdiff.rightValue()); // use the most recent value
             }
         }
@@ -478,14 +478,14 @@ public class DefsTables
             MigrationManager.instance.notifyCreateUserType(ut);
     }
 
-    private static void addFunction(UFMetaData uf)
+    private static void addFunction(UDFunction udf)
     {
-        logger.info("Loading {}", uf);
+        logger.info("Loading {}", udf);
 
-        UDFRegistry.migrateAddFunction(uf);
+        Functions.addFunction(udf);
 
         if (!StorageService.instance.isClientMode())
-            MigrationManager.instance.notifyCreateFunction(uf);
+            MigrationManager.instance.notifyCreateFunction(udf);
     }
 
     private static void updateKeyspace(KSMetaData newState)
@@ -530,14 +530,14 @@ public class DefsTables
             MigrationManager.instance.notifyUpdateUserType(ut);
     }
 
-    private static void updateFunction(UFMetaData uf)
+    private static void updateFunction(UDFunction udf)
     {
-        logger.info("Updating {}", uf);
+        logger.info("Updating {}", udf);
 
-        UDFRegistry.migrateUpdateFunction(uf);
+        Functions.replaceFunction(udf);
 
         if (!StorageService.instance.isClientMode())
-            MigrationManager.instance.notifyUpdateFunction(uf);
+            MigrationManager.instance.notifyUpdateFunction(udf);
     }
 
     private static void dropKeyspace(String ksName)
@@ -619,14 +619,15 @@ public class DefsTables
             MigrationManager.instance.notifyDropUserType(ut);
     }
 
-    private static void dropFunction(UFMetaData uf)
+    private static void dropFunction(UDFunction udf)
     {
-        logger.info("Drop {}", uf);
+        logger.info("Drop {}", udf);
 
-        UDFRegistry.migrateDropFunction(uf);
+        // TODO: this is kind of broken as this remove all overloads of the function name
+        Functions.removeFunction(udf.name(), udf.argTypes());
 
         if (!StorageService.instance.isClientMode())
-            MigrationManager.instance.notifyDropFunction(uf);
+            MigrationManager.instance.notifyDropFunction(udf);
     }
 
     private static KSMetaData makeNewKeyspaceDefinition(KSMetaData ksm, CFMetaData toExclude)
@@ -644,4 +645,3 @@ public class DefsTables
             SystemKeyspace.forceBlockingFlush(cf);
     }
 }
-

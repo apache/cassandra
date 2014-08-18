@@ -25,8 +25,8 @@ import org.apache.cassandra.exceptions.InvalidRequestException;
 
 public interface Function
 {
-    public String name();
-    public List<AbstractType<?>> argsType();
+    public FunctionName name();
+    public List<AbstractType<?>> argTypes();
     public AbstractType<?> returnType();
 
     public ByteBuffer execute(List<ByteBuffer> parameters) throws InvalidRequestException;
@@ -34,12 +34,6 @@ public interface Function
     // Whether the function is a pure function (as in doesn't depend on, nor produce side effects).
     public boolean isPure();
 
-    public interface Factory
-    {
-        // We allow the function to be parametered by the keyspace it is part of because the
-        // "token" function needs it (the argument depends on the keyValidator). However,
-        // for most function, the factory will just always the same function object (see
-        // AbstractFunction).
-        public Function create(String ksName, String cfName);
-    }
+    // Whether the function is a native/harcoded one.
+    public boolean isNative();
 }

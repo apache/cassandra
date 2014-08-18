@@ -15,12 +15,36 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.cql3;
+package org.apache.cassandra.cql3.functions;
 
-public interface AssignementTestable
+import java.util.Arrays;
+
+import org.apache.cassandra.db.marshal.AbstractType;
+
+/**
+ * Base class for our native/hardcoded functions.
+ */
+public abstract class NativeFunction extends AbstractFunction
 {
-    /**
-     * @return whether this object can be assigned to the provided receiver
-     */
-    public boolean isAssignableTo(String keyspace, ColumnSpecification receiver);
+    protected NativeFunction(String name, AbstractType<?> returnType, AbstractType<?>... argTypes)
+    {
+        this(new FunctionName(name), returnType, argTypes);
+    }
+
+    protected NativeFunction(FunctionName name, AbstractType<?> returnType, AbstractType<?>... argTypes)
+    {
+        super(name, Arrays.asList(argTypes), returnType);
+    }
+
+    // Most of our functions are pure, the other ones should override this
+    public boolean isPure()
+    {
+        return true;
+    }
+
+    public boolean isNative()
+    {
+        return true;
+    }
 }
+

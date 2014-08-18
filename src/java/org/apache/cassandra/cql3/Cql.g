@@ -42,7 +42,7 @@ options {
     import org.apache.cassandra.auth.IResource;
     import org.apache.cassandra.cql3.*;
     import org.apache.cassandra.cql3.statements.*;
-    import org.apache.cassandra.cql3.functions.FunctionCall;
+    import org.apache.cassandra.cql3.functions.*;
     import org.apache.cassandra.db.marshal.CollectionType;
     import org.apache.cassandra.exceptions.ConfigurationException;
     import org.apache.cassandra.exceptions.InvalidRequestException;
@@ -300,8 +300,7 @@ unaliasedSelector returns [Selectable s]
     :  ( c=cident                                  { tmp = c; }
        | K_WRITETIME '(' c=cident ')'              { tmp = new Selectable.WritetimeOrTTL(c, true); }
        | K_TTL       '(' c=cident ')'              { tmp = new Selectable.WritetimeOrTTL(c, false); }
-       | f=functionName args=selectionFunctionArgs { tmp = new Selectable.WithFunction("", f, args); }
-       | bn=udfName '::' fn=udfName args=selectionFunctionArgs { tmp = new Selectable.WithFunction(bn, fn, args); }
+       | f=functionName args=selectionFunctionArgs { tmp = new Selectable.WithFunction(f, args); }
        ) ( '.' fi=cident { tmp = new Selectable.WithFieldSelection(tmp, fi); } )* { $s = tmp; }
     ;
 
@@ -494,20 +493,20 @@ createFunctionStatement returns [CreateFunctionStatement expr]
         boolean ifNotExists = false;
 
         boolean deterministic = true;
-        String language = "CLASS";
+        String language = "class";
         String bodyOrClassName = null;
-        List<CreateFunctionStatement.Argument> args = new ArrayList<CreateFunctionStatement.Argument>();
+        List<ColumnIdentifier> argsNames = new ArrayList<>();
+        List<CQL3Type.Raw> argsTypes = new ArrayList<>();
     }
     : K_CREATE (K_OR K_REPLACE { orReplace = true; })?
       ((K_NON { deterministic = false; })? K_DETERMINISTIC)?
       K_FUNCTION
       (K_IF K_NOT K_EXISTS { ifNotExists = true; })?
-      ( bn=udfName '::' )?
-      fn=udfName
+      fn=functionName
       '('
         (
-          k=cident v=comparatorType { args.add(new CreateFunctionStatement.Argument(k, v)); }
-          ( ',' k=cident v=comparatorType { args.add(new CreateFunctionStatement.Argument(k, v)); } )*
+          k=cident v=comparatorType { argsNames.add(k); argsTypes.add(v); }
+          ( ',' k=cident v=comparatorType { argsNames.add(k); argsTypes.add(v); } )*
         )?
       ')'
       K_RETURNS
@@ -523,7 +522,7 @@ createFunctionStatement returns [CreateFunctionStatement expr]
             )
           )
       )
-      { $expr = new CreateFunctionStatement(bn, fn, language, bodyOrClassName, deterministic, rt, args, orReplace, ifNotExists); }
+      { $expr = new CreateFunctionStatement(fn, language.toLowerCase(), bodyOrClassName, deterministic, argsNames, argsTypes, rt, orReplace, ifNotExists); }
     ;
 
 dropFunctionStatement returns [DropFunctionStatement expr]
@@ -532,9 +531,8 @@ dropFunctionStatement returns [DropFunctionStatement expr]
     }
     : K_DROP K_FUNCTION
       (K_IF K_EXISTS { ifExists = true; } )?
-      ( bn=udfName '::' )?
-      fn=udfName
-      { $expr = new DropFunctionStatement(bn, fn, ifExists); }
+      fn=functionName
+      { $expr = new DropFunctionStatement(fn, ifExists); }
     ;
 
 /**
@@ -968,15 +966,15 @@ intValue returns [Term.Raw value]
     | QMARK         { $value = newBindVariables(null); }
     ;
 
-functionName returns [String s]
+functionName returns [FunctionName s]
+    : f=allowedFunctionName                            { $s = new FunctionName(f); }
+    | b=allowedFunctionName '::' f=allowedFunctionName { $s = new FunctionName(b, f); }
+    ;
+
+allowedFunctionName returns [String s]
     : f=IDENT                       { $s = $f.text; }
     | u=unreserved_function_keyword { $s = u; }
     | K_TOKEN                       { $s = "token"; }
-    ;
-
-udfName returns [String s]
-    : f=IDENT                       { $s = $f.text; }
-    | u=unreserved_function_keyword { $s = u; }
     ;
 
 functionArgs returns [List<Term.Raw> a]
@@ -988,8 +986,7 @@ functionArgs returns [List<Term.Raw> a]
 
 term returns [Term.Raw term]
     : v=value                          { $term = v; }
-    | f=functionName args=functionArgs { $term = new FunctionCall.Raw("", f, args); }
-    | bn=udfName '::' fn=udfName args=functionArgs { $term = new FunctionCall.Raw(bn, fn, args); }
+    | f=functionName args=functionArgs { $term = new FunctionCall.Raw(f, args); }
     | '(' c=comparatorType ')' t=term  { $term = new TypeCast(c, t); }
     ;
 

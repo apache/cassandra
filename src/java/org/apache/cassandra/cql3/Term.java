@@ -76,7 +76,7 @@ public interface Term
      *   - a function call
      *   - a marker
      */
-    public interface Raw extends AssignementTestable
+    public interface Raw extends AssignmentTestable
     {
         /**
          * This method validates this RawTerm is valid for provided column

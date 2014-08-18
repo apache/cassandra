@@ -33,6 +33,16 @@ public class UFTest extends CQLTester
         return val != null ? (float)Math.sin(val) : null;
     }
 
+    public static Double badSin(Double val)
+    {
+        return 42.0;
+    }
+
+    public static String badSinBadReturn(Double val)
+    {
+        return "foo";
+    }
+
     public Float nonStaticMethod(Float val)
     {
         return new Float(1.0);
@@ -43,144 +53,138 @@ public class UFTest extends CQLTester
         return new Float(1.0);
     }
 
-    @Test
-    public void ddlCreateFunction() throws Throwable
+    public static String repeat(String v, Integer n)
     {
-        createTable("CREATE TABLE %s (key int primary key, val double)"); // not used, but required by CQLTester
-
-        execute("create function foo::cf ( input double ) returns double using 'org.apache.cassandra.cql3.UFTest#sin'");
-        execute("drop function foo::cf");
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < n; i++)
+            sb.append(v);
+        return sb.toString();
     }
 
-    @Test(expected = InvalidRequestException.class)
-    public void ddlCreateFunctionFail() throws Throwable
+    public static String overloaded(String v)
     {
-        createTable("CREATE TABLE %s (key int primary key, val double)"); // not used, but required by CQLTester
-
-        execute("create function foo::cff ( input double ) returns double using 'org.apache.cassandra.cql3.UFTest#sin'");
-        execute("create function foo::cff ( input double ) returns double using 'org.apache.cassandra.cql3.UFTest#sin'");
+        return "f1";
     }
 
-
-    @Test
-    public void ddlCreateIfNotExistsFunction() throws Throwable
+    public static String overloaded(Integer v)
     {
-        createTable("CREATE TABLE %s (key int primary key, val double)"); // not used, but required by CQLTester
-
-        execute("create function if not exists foo::cfine ( input double ) returns double using 'org.apache.cassandra.cql3.UFTest#sin'");
-        execute("drop function foo::cfine");
+        return "f2";
     }
 
-
-    @Test(expected = InvalidRequestException.class)
-    public void ddlCreateFunctionBadClass() throws Throwable
+    public static String overloaded(String v1, String v2)
     {
-        createTable("CREATE TABLE %s (key int primary key, val double)"); // not used, but required by CQLTester
-        execute("create function foo::cff ( input double ) returns double using 'org.apache.cassandra.cql3.DoesNotExist#doesnotexist'");
-    }
-
-    @Test(expected = InvalidRequestException.class)
-    public void ddlCreateFunctionBadMethod() throws Throwable
-    {
-        createTable("CREATE TABLE %s (key int primary key, val double)"); // not used, but required by CQLTester
-        execute("create function foo::cff ( input double ) returns double using 'org.apache.cassandra.cql3.UFTest#doesnotexist'");
-    }
-
-    @Test(expected = InvalidRequestException.class)
-    public void ddlCreateFunctionBadArgType() throws Throwable
-    {
-        createTable("CREATE TABLE %s (key int primary key, val double)"); // not used, but required by CQLTester
-        execute("create function foo::cff ( input text ) returns double using 'org.apache.cassandra.cql3.UFTest#sin'");
-    }
-
-    @Test(expected = InvalidRequestException.class)
-    public void ddlCreateFunctionBadReturnType() throws Throwable
-    {
-        createTable("CREATE TABLE %s (key int primary key, val double)"); // not used, but required by CQLTester
-        execute("create function foo::cff ( input double ) returns text using 'org.apache.cassandra.cql3.UFTest#sin'");
-    }
-
-    @Test(expected = InvalidRequestException.class)
-    public void ddlCreateFunctionNonStaticMethod() throws Throwable
-    {
-        createTable("CREATE TABLE %s (key int primary key, val double)"); // not used, but required by CQLTester
-        execute("create function foo::cff ( input float ) returns float using 'org.apache.cassandra.cql3.UFTest#nonStaticMethod'");
-    }
-
-    @Test(expected = InvalidRequestException.class)
-    public void ddlCreateFunctionNonPublicMethod() throws Throwable
-    {
-        createTable("CREATE TABLE %s (key int primary key, val double)"); // not used, but required by CQLTester
-        execute("create function foo::cff ( input float ) returns float using 'org.apache.cassandra.cql3.UFTest#privateMethod'");
-    }
-
-    @Test(expected = InvalidRequestException.class)
-    public void ddlCreateIfNotExistsFunctionFail() throws Throwable
-    {
-        createTable("CREATE TABLE %s (key int primary key, val double)"); // not used, but required by CQLTester
-
-        execute("create function if not exists foo::cfinef ( input double ) returns double using 'org.apache.cassandra.cql3.UFTest#sin'");
-        execute("create function if not exists foo::cfinef ( input double ) returns double using 'org.apache.cassandra.cql3.UFTest#sin'");
+        return "f3";
     }
 
     @Test
-    public void ddlCreateOrReplaceFunction() throws Throwable
+    public void testFunctionCreationAndDrop() throws Throwable
     {
-        createTable("CREATE TABLE %s (key int primary key, val double)"); // not used, but required by CQLTester
+        createTable("CREATE TABLE %s (key int PRIMARY KEY, d double)");
 
-        execute("create function foo::corf ( input double ) returns double using 'org.apache.cassandra.cql3.UFTest#sin'");
-        execute("create or replace function foo::corf ( input double ) returns double using 'org.apache.cassandra.cql3.UFTest#sin'");
-    }
+        execute("INSERT INTO %s(key, d) VALUES (?, ?)", 1, 1d);
+        execute("INSERT INTO %s(key, d) VALUES (?, ?)", 2, 2d);
+        execute("INSERT INTO %s(key, d) VALUES (?, ?)", 3, 3d);
 
-    @Test(expected = InvalidRequestException.class)
-    public void ddlDropNonExistingFunction() throws Throwable
-    {
-        createTable("CREATE TABLE %s (key int primary key, val double)"); // not used, but required by CQLTester
+        // creation with a bad class
+        assertInvalid("CREATE FUNCTION foo::sin1 ( input double ) RETURNS double USING 'org.apache.cassandra.cql3.DoesNotExist#doesnotexist'");
+        // and a good class but inexisting method
+        assertInvalid("CREATE FUNCTION foo::sin2 ( input double ) RETURNS double USING 'org.apache.cassandra.cql3.UFTest#doesnotexist'");
+        // with a non static method
+        assertInvalid("CREATE FUNCTION foo::sin3 ( input float ) RETURNS float USING 'org.apache.cassandra.cql3.UFTest#nonStaticMethod'");
+        // with a non public method
+        assertInvalid("CREATE FUNCTION foo::sin4 ( input float ) RETURNS float USING 'org.apache.cassandra.cql3.UFTest#privateMethod'");
 
-        execute("drop function foo::dnef");
-    }
+        // creation with bad argument types
+        assertInvalid("CREATE FUNCTION foo::sin5 ( input text ) RETURNS double USING 'org.apache.cassandra.cql3.UFTest#sin'");
+        // with bad return types
+        assertInvalid("CREATE FUNCTION foo::sin6 ( input double ) RETURNS text USING 'org.apache.cassandra.cql3.UFTest#sin'");
 
-    @Test
-    public void ddlDropIfExistsNonExistingFunction() throws Throwable
-    {
-        createTable("CREATE TABLE %s (key int primary key, val double)"); // not used, but required by CQLTester
+        // simple creation
+        execute("CREATE FUNCTION foo::sin ( input double ) RETURNS double USING 'org.apache.cassandra.cql3.UFTest#sin'");
+        // check we can't recreate the same function
+        assertInvalid("CREATE FUNCTION foo::sin ( input double ) RETURNS double USING 'org.apache.cassandra.cql3.UFTest#sin'");
+        // but that it doesn't complay with "IF NOT EXISTS"
+        execute("CREATE FUNCTION IF NOT EXISTS foo::sin ( input double ) RETURNS double USING 'org.apache.cassandra.cql3.UFTest#sin'");
 
-        execute("drop function if exists foo::dienef");
-    }
-
-    @Test
-    public void namespaceUserFunctions() throws Throwable
-    {
-        createTable("CREATE TABLE %s (key int primary key, val double)");
-
-        execute("create or replace function math::sin ( input double ) returns double using 'org.apache.cassandra.cql3.UFTest'");
-
-        execute("INSERT INTO %s (key, val) VALUES (?, ?)", 1, 1d);
-        execute("INSERT INTO %s (key, val) VALUES (?, ?)", 2, 2d);
-        execute("INSERT INTO %s (key, val) VALUES (?, ?)", 3, 3d);
-
-        assertRows(execute("SELECT key, val, math::sin(val) FROM %s"),
-                   row(1, 1d, Math.sin(1d)),
-                   row(2, 2d, Math.sin(2d)),
-                   row(3, 3d, Math.sin(3d))
+        // Validate that it works as expected
+        assertRows(execute("SELECT key, foo::sin(d) FROM %s"),
+            row(1, Math.sin(1d)),
+            row(2, Math.sin(2d)),
+            row(3, Math.sin(3d))
         );
+
+        // Replace the method with incompatible return type
+        assertInvalid("CREATE OR REPLACE FUNCTION foo::sin ( input double ) RETURNS text USING 'org.apache.cassandra.cql3.UFTest#badSinBadReturn'");
+        // proper replacement
+        execute("CREATE OR REPLACE FUNCTION foo::sin ( input double ) RETURNS double USING 'org.apache.cassandra.cql3.UFTest#badSin'");
+
+        // Validate the method as been replaced
+        assertRows(execute("SELECT key, foo::sin(d) FROM %s"),
+            row(1, 42.0),
+            row(2, 42.0),
+            row(3, 42.0)
+        );
+
+        // same function but without namespace
+        execute("CREATE FUNCTION sin ( input double ) RETURNS double USING 'org.apache.cassandra.cql3.UFTest#sin'");
+        assertRows(execute("SELECT key, sin(d) FROM %s"),
+            row(1, Math.sin(1d)),
+            row(2, Math.sin(2d)),
+            row(3, Math.sin(3d))
+        );
+
+        // Drop with and without namespace
+        execute("DROP FUNCTION foo::sin");
+        execute("DROP FUNCTION sin");
+
+        // Drop unexisting function
+        assertInvalid("DROP FUNCTION foo::sin");
+        // but don't complain with "IF EXISTS"
+        execute("DROP FUNCTION IF EXISTS foo::sin");
     }
 
     @Test
-    public void nonNamespaceUserFunctions() throws Throwable
+    public void testFunctionExecution() throws Throwable
     {
-        createTable("CREATE TABLE %s (key int primary key, val double)");
+        createTable("CREATE TABLE %s (v text PRIMARY KEY)");
 
-        execute("create or replace function sin ( input double ) returns double using 'org.apache.cassandra.cql3.UFTest'");
+        execute("INSERT INTO %s(v) VALUES (?)", "aaa");
 
-        execute("INSERT INTO %s (key, val) VALUES (?, ?)", 1, 1d);
-        execute("INSERT INTO %s (key, val) VALUES (?, ?)", 2, 2d);
-        execute("INSERT INTO %s (key, val) VALUES (?, ?)", 3, 3d);
+        execute("CREATE FUNCTION repeat (v text, n int) RETURNS text USING 'org.apache.cassandra.cql3.UFTest#repeat'");
 
-        assertRows(execute("SELECT key, val, sin(val) FROM %s"),
-                   row(1, 1d, Math.sin(1d)),
-                   row(2, 2d, Math.sin(2d)),
-                   row(3, 3d, Math.sin(3d))
+        assertRows(execute("SELECT v FROM %s WHERE v=repeat(?, ?)", "a", 3), row("aaa"));
+        assertEmpty(execute("SELECT v FROM %s WHERE v=repeat(?, ?)", "a", 2));
+    }
+
+    @Test
+    public void testFunctionOverloading() throws Throwable
+    {
+        createTable("CREATE TABLE %s (k text PRIMARY KEY, v int)");
+
+        execute("INSERT INTO %s(k, v) VALUES (?, ?)", "f2", 1);
+
+        execute("CREATE FUNCTION overloaded(v varchar) RETURNS text USING 'org.apache.cassandra.cql3.UFTest'");
+        execute("CREATE OR REPLACE FUNCTION overloaded(i int) RETURNS text USING 'org.apache.cassandra.cql3.UFTest'");
+        execute("CREATE OR REPLACE FUNCTION overloaded(v1 text, v2 text) RETURNS text USING 'org.apache.cassandra.cql3.UFTest'");
+        execute("CREATE OR REPLACE FUNCTION overloaded(v ascii) RETURNS text USING 'org.apache.cassandra.cql3.UFTest'");
+
+        // text == varchar, so this should be considered as a duplicate
+        assertInvalid("CREATE FUNCTION overloaded(v varchar) RETURNS text USING 'org.apache.cassandra.cql3.UFTest'");
+
+        assertRows(execute("SELECT overloaded(k), overloaded(v), overloaded(k, k) FROM %s"),
+            row("f1", "f2", "f3")
         );
+
+        forcePreparedValues();
+        // This shouldn't work if we use preparation since there no way to know which overload to use
+        assertInvalid("SELECT v FROM %s WHERE k = overloaded(?)", "foo");
+        stopForcingPreparedValues();
+
+        // but those should since we specifically cast
+        assertEmpty(execute("SELECT v FROM %s WHERE k = overloaded((text)?)", "foo"));
+        assertRows(execute("SELECT v FROM %s WHERE k = overloaded((int)?)", 3), row(1));
+        assertEmpty(execute("SELECT v FROM %s WHERE k = overloaded((ascii)?)", "foo"));
+        // And since varchar == text, this should work too
+        assertEmpty(execute("SELECT v FROM %s WHERE k = overloaded((varchar)?)", "foo"));
     }
 }
