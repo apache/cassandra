@@ -330,7 +330,7 @@ public abstract class Constants
                 throw new InvalidRequestException("Invalid null value for counter increment");
             long increment = ByteBufferUtil.toLong(bytes);
             CellName cname = cf.getComparator().create(prefix, column);
-            cf.addCounter(cname, increment);
+            cf.addColumn(params.makeCounter(cname, increment));
         }
     }
 
@@ -352,7 +352,7 @@ public abstract class Constants
                 throw new InvalidRequestException("The negation of " + increment + " overflows supported counter precision (signed 8 bytes integer)");
 
             CellName cname = cf.getComparator().create(prefix, column);
-            cf.addCounter(cname, -increment);
+            cf.addColumn(params.makeCounter(cname, -increment));
         }
     }
 
