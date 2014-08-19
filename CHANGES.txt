@@ -1,4 +1,6 @@
 2.0.10
+ * Throw InvalidRequestException when queries contain relations on entire
+   collection columns (CASSANDRA-7506)
  * Fix PRSI handling of CQL3 row markers for row cleanup (CASSANDRA-7787)
  * (cqlsh) enable CTRL-R history search with libedit (CASSANDRA-7577)
  * Fix dropping collection when it's the last regular column (CASSANDRA-7744)

@@ -1658,6 +1658,13 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
                                                    StorageService.getPartitioner().getTokenValidator());
             }
 
+            // We don't support relations against entire collections, like "numbers = {1, 2, 3}"
+            if (receiver.type.isCollection())
+            {
+                throw new InvalidRequestException(String.format("Collection column '%s' (%s) cannot be restricted by a '%s' relation",
+                                                                name, receiver.type.asCQL3Type(), newRel.operator()));
+            }
+
             switch (newRel.operator())
             {
                 case EQ:
