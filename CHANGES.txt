@@ -60,6 +60,7 @@
  * Track max/min timestamps for range tombstones (CASSANDRA-7647)
  * Fix NPE when listing saved caches dir (CASSANDRA-7632)
  * Fix sstableloader unable to connect encrypted node (CASSANDRA-7585)
+ * Make StreamReceiveTask thread safe and gc friendly (CASSANDRA-7795)
 Merged from 1.2:
  * Validate empty cell names from counter updates (CASSANDRA-7798)
  * Improve PasswordAuthenticator default super user setup (CASSANDRA-7788)
