@@ -27,6 +27,7 @@ import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.composites.CellName;
 import org.apache.cassandra.db.filter.ColumnSlice;
 import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.utils.FBUtilities;
 
 /**
  * A simple container that simplify passing parameters for collections methods.
@@ -57,6 +58,12 @@ public class UpdateParameters
         QueryProcessor.validateCellName(name, metadata.comparator);
         return AbstractCell.create(name, value, timestamp, ttl, metadata);
     }
+
+     public Cell makeCounter(CellName name, long delta) throws InvalidRequestException
+     {
+         QueryProcessor.validateCellName(name, metadata.comparator);
+         return new BufferCounterUpdateCell(name, delta, FBUtilities.timestampMicros());
+     }
 
     public Cell makeTombstone(CellName name) throws InvalidRequestException
     {
