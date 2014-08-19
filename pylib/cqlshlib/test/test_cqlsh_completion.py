@@ -153,10 +153,10 @@ class TestCqlshCompletion(CqlshCompletionCase):
                                "{'class': 'SimpleStrategy', 'repl", "ication_factor'")
         self.trycompletions("create keyspace foo with replication ="
                                "{'class': 'SimpleStrategy', 'replication_factor': ", '',
-                            choices=('<value>',))
+                            choices=('<term>',))
         self.trycompletions("create keyspace foo with replication ="
                                "{'class': 'SimpleStrategy', 'replication_factor': 1", '',
-                            choices=('<value>',))
+                            choices=('<term>',))
         self.trycompletions("create keyspace foo with replication ="
                                "{'class': 'SimpleStrategy', 'replication_factor': 1 ", '}')
         self.trycompletions("create keyspace foo with replication ="
