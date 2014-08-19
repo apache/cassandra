@@ -52,6 +52,8 @@ Merged from 2.0:
 
 
 2.1.0
+ * (cqlsh) Fix COPY FROM handling of null/empty primary key
+   values (CASSANDRA-7792)
  * Fix ordering of static cells (CASSANDRA-7763)
 Merged from 2.0:
  * Fix PRSI handling of CQL3 row markers for row cleanup (CASSANDRA-7787)
