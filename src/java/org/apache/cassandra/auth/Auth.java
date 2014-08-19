@@ -42,7 +42,6 @@ import org.apache.cassandra.locator.SimpleStrategy;
 import org.apache.cassandra.service.*;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.utils.FBUtilities;
 
 public class Auth
 {
@@ -141,18 +140,15 @@ public class Auth
         // the delay is here to give the node some time to see its peers - to reduce
         // "Skipped default superuser setup: some nodes were not ready" log spam.
         // It's the only reason for the delay.
-        if (DatabaseDescriptor.getSeeds().contains(FBUtilities.getBroadcastAddress()) || !DatabaseDescriptor.isAutoBootstrap())
-        {
-            StorageService.tasks.schedule(new Runnable()
+        StorageService.tasks.schedule(new Runnable()
+                                      {
+                                          public void run()
                                           {
-                                              public void run()
-                                              {
-                                                  setupDefaultSuperuser();
-                                              }
-                                          },
-                                          SUPERUSER_SETUP_DELAY,
-                                          TimeUnit.MILLISECONDS);
-        }
+                                              setupDefaultSuperuser();
+                                          }
+                                      },
+                                      SUPERUSER_SETUP_DELAY,
+                                      TimeUnit.MILLISECONDS);
 
         try
         {
@@ -228,7 +224,7 @@ public class Auth
                                                      USERS_CF,
                                                      DEFAULT_SUPERUSER_NAME,
                                                      true),
-                                       ConsistencyLevel.QUORUM);
+                                       ConsistencyLevel.ONE);
                 logger.info("Created default superuser '{}'", DEFAULT_SUPERUSER_NAME);
             }
         }
@@ -243,7 +239,8 @@ public class Auth
         // Try looking up the 'cassandra' default super user first, to avoid the range query if possible.
         String defaultSUQuery = String.format("SELECT * FROM %s.%s WHERE name = '%s'", AUTH_KS, USERS_CF, DEFAULT_SUPERUSER_NAME);
         String allUsersQuery = String.format("SELECT * FROM %s.%s LIMIT 1", AUTH_KS, USERS_CF);
-        return !QueryProcessor.process(defaultSUQuery, ConsistencyLevel.QUORUM).isEmpty()
+        return !QueryProcessor.process(defaultSUQuery, ConsistencyLevel.ONE).isEmpty()
+            || !QueryProcessor.process(defaultSUQuery, ConsistencyLevel.QUORUM).isEmpty()
             || !QueryProcessor.process(allUsersQuery, ConsistencyLevel.QUORUM).isEmpty();
     }
 
