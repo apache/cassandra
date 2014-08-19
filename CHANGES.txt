@@ -1,9 +1,9 @@
 2.1.0
  * Fix ordering of static cells (CASSANDRA-7763)
 Merged from 2.0:
+ * Fix PRSI handling of CQL3 row markers for row cleanup (CASSANDRA-7787)
  * Fix dropping collection when it's the last regular column (CASSANDRA-7744)
  * Properly reject operations on list index with conditions (CASSANDRA-7499)
- * (Hadoop) allow ACFRW to limit nodes to local DC (CASSANDRA-7252)
 
 
 2.1.0-rc6
