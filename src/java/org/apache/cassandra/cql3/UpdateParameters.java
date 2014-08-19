@@ -57,6 +57,12 @@ public class UpdateParameters
              : new Column(name, value, timestamp);
     }
 
+    public Column makeCounter(ByteBuffer name, long delta) throws InvalidRequestException
+    {
+        QueryProcessor.validateColumnName(name);
+        return new CounterUpdateColumn(name, delta, System.currentTimeMillis());
+    }
+
     public Column makeTombstone(ByteBuffer name) throws InvalidRequestException
     {
         QueryProcessor.validateColumnName(name);

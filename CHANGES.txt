@@ -1,4 +1,5 @@
 1.2.19
+ * Validate empty cell names from counter updates (CASSANDRA-7798)
  * Improve PasswordAuthenticator default super user setup (CASSANDRA-7788)
  * Remove duplicates from StorageService.getJoiningNodes (CASSANDRA-7478)
  * Clone token map outside of hot gossip loops (CASSANDRA-7758)
