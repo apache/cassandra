@@ -183,6 +183,7 @@ JUNK ::= /([ \t\r\f\v]+|(--|[/][/])[^\n\r]*([\n\r]|$)|[/][*].*?[*][/])/ ;
          | <uuid>
          | <boolean>
          | <blobLiteral>
+         | <collectionLiteral>
          | <functionName> <functionArguments>
          ;
 
@@ -192,9 +193,6 @@ JUNK ::= /([ \t\r\f\v]+|(--|[/][/])[^\n\r]*([\n\r]|$)|[/][*].*?[*][/])/ ;
 <tokenDefinition> ::= token="TOKEN" "(" <term> ( "," <term> )* ")"
                     | <term>
                     ;
-<value> ::= <term>
-          | <collectionLiteral>
-          ;
 <cident> ::= <quotedName>
            | <identifier>
            | <unreservedKeyword>
@@ -395,7 +393,7 @@ def ks_prop_val_mapval_completer(ctxt, cass):
     currentkey = dequote_value(ctxt.get_binding('propmapkey')[-1])
     if currentkey == 'class':
         return map(escape_value, CqlRuleSet.replication_strategies)
-    return [Hint('<value>')]
+    return [Hint('<term>')]
 
 def ks_prop_val_mapender_completer(ctxt, cass):
     optname = ctxt.get_binding('propname')[-1]
@@ -673,8 +671,8 @@ syntax_rules += r'''
 <insertStatement> ::= "INSERT" "INTO" cf=<columnFamilyName>
                                "(" [colname]=<cident> "," [colname]=<cident>
                                    ( "," [colname]=<cident> )* ")"
-                      "VALUES" "(" [newval]=<value> valcomma="," [newval]=<value>
-                                   ( valcomma="," [newval]=<value> )* valcomma=")"
+                      "VALUES" "(" [newval]=<term> valcomma="," [newval]=<term>
+                                   ( valcomma="," [newval]=<term> )* valcomma=")"
                       ( "USING" [insertopt]=<usingOption>
                                 ( "AND" [insertopt]=<usingOption> )* )?
                     ;
