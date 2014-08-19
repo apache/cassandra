@@ -454,22 +454,19 @@ public class SecondaryIndexManager
 
         for (Column column : indexedColumnsInRow)
         {
-            ColumnDefinition cDef = baseCfs.metadata.getColumnDefinitionFromColumnName(column.name());
-            SecondaryIndex index = indexesByColumn.get(cDef.name);
-            if (index == null)
-                continue;
-
-            if (index instanceof PerRowSecondaryIndex)
+            for (SecondaryIndex index : indexFor(column.name()))
             {
-                if (cleanedRowLevelIndexes == null)
-                    cleanedRowLevelIndexes = new HashSet<>();
-
-                if (cleanedRowLevelIndexes.add(index.getClass()))
-                    ((PerRowSecondaryIndex)index).delete(key);
-            }
-            else
-            {
-                ((PerColumnSecondaryIndex) index).delete(key.key, column);
+                if (index instanceof PerRowSecondaryIndex)
+                {
+                    if (cleanedRowLevelIndexes == null)
+                        cleanedRowLevelIndexes = new HashSet<>();
+                    if (cleanedRowLevelIndexes.add(index.getClass()))
+                        ((PerRowSecondaryIndex) index).delete(key);
+                }
+                else
+                {
+                    ((PerColumnSecondaryIndex) index).delete(key.key, column);
+                }
             }
         }
     }
