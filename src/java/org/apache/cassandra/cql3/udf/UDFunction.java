@@ -20,6 +20,7 @@ package org.apache.cassandra.cql3.udf;
 
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -90,6 +91,9 @@ public class UDFunction
             Class<?> cls = Class.forName(className, false, Thread.currentThread().getContextClassLoader());
 
             Method method = cls.getMethod(methodName, paramTypes);
+
+            if (!Modifier.isStatic(method.getModifiers()))
+                throw new InvalidRequestException("Method " + className + '.' + methodName + '(' + Arrays.toString(paramTypes) + ") is not static");
 
             if (!jReturnType.isAssignableFrom(method.getReturnType()))
             {
