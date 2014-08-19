@@ -1370,7 +1370,7 @@ class Shell(cmd.Cmd):
 
     def do_import_row(self, columns, nullval, table_meta, row):
         rowmap = {}
-        clustering_key_columns = [col.name for col in table_meta.clustering_key]
+        primary_key_columns = [col.name for col in table_meta.primary_key]
         for name, value in zip(columns, row):
             type = table_meta.columns[name].data_type
             cqltype = table_meta.columns[name].typestring
@@ -1380,8 +1380,14 @@ class Shell(cmd.Cmd):
                     rowmap[name] = protect_value(value)
                 else:
                     rowmap[name] = value
-            elif name in clustering_key_columns and not type.empty_binary_ok:
-                rowmap[name] = 'blobAs%s(0x)' % cqltype.title()
+            elif name in primary_key_columns:
+                # By default, nullval is an empty string. See CASSANDRA-7792 for details.
+                message = "Cannot insert null value for primary key column '%s'." % (name,)
+                if nullval == '':
+                    message += " If you want to insert empty strings, consider using " \
+                               "the WITH NULL=<marker> option for COPY."
+                self.printerr(message)
+                return False
             else:
                 rowmap[name] = 'null'
         return self.do_import_insert(table_meta, rowmap)
