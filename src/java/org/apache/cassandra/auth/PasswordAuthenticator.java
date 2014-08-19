@@ -27,7 +27,6 @@ import org.apache.commons.lang.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.cql3.QueryProcessor;
@@ -39,7 +38,6 @@ import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.utils.FBUtilities;
 import org.mindrot.jbcrypt.BCrypt;
 
 /**
@@ -169,18 +167,15 @@ public class PasswordAuthenticator implements IAuthenticator
         // the delay is here to give the node some time to see its peers - to reduce
         // "skipped default user setup: some nodes are were not ready" log spam.
         // It's the only reason for the delay.
-        if (DatabaseDescriptor.getSeeds().contains(FBUtilities.getBroadcastAddress()) || !DatabaseDescriptor.isAutoBootstrap())
-        {
-            StorageService.tasks.schedule(new Runnable()
+        StorageService.tasks.schedule(new Runnable()
+                                      {
+                                          public void run()
                                           {
-                                              public void run()
-                                              {
-                                                  setupDefaultUser();
-                                              }
-                                          },
-                                          Auth.SUPERUSER_SETUP_DELAY,
-                                          TimeUnit.MILLISECONDS);
-        }
+                                              setupDefaultUser();
+                                          }
+                                      },
+                                      Auth.SUPERUSER_SETUP_DELAY,
+                                      TimeUnit.MILLISECONDS);
 
         try
         {
@@ -224,7 +219,7 @@ public class PasswordAuthenticator implements IAuthenticator
                                       CREDENTIALS_CF,
                                       DEFAULT_USER_NAME,
                                       escape(hashpw(DEFAULT_USER_PASSWORD))),
-                        ConsistencyLevel.QUORUM);
+                        ConsistencyLevel.ONE);
                 logger.info("PasswordAuthenticator created default user '{}'", DEFAULT_USER_NAME);
             }
         }
@@ -239,7 +234,9 @@ public class PasswordAuthenticator implements IAuthenticator
         // Try looking up the 'cassandra' default user first, to avoid the range query if possible.
         String defaultSUQuery = String.format("SELECT * FROM %s.%s WHERE username = '%s'", Auth.AUTH_KS, CREDENTIALS_CF, DEFAULT_USER_NAME);
         String allUsersQuery = String.format("SELECT * FROM %s.%s LIMIT 1", Auth.AUTH_KS, CREDENTIALS_CF);
-        return !process(defaultSUQuery, ConsistencyLevel.QUORUM).isEmpty() || !process(allUsersQuery, ConsistencyLevel.QUORUM).isEmpty();
+        return !process(defaultSUQuery, ConsistencyLevel.ONE).isEmpty()
+            || !process(defaultSUQuery, ConsistencyLevel.QUORUM).isEmpty()
+            || !process(allUsersQuery, ConsistencyLevel.QUORUM).isEmpty();
     }
 
     private static String hashpw(String password)
