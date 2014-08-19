@@ -1,4 +1,6 @@
 2.0.10
+ * Throw EOFException if we run out of chunks in compressed datafile
+   (CASSANDRA-7664)
  * Throw InvalidRequestException when queries contain relations on entire
    collection columns (CASSANDRA-7506)
  * Fix PRSI handling of CQL3 row markers for row cleanup (CASSANDRA-7787)

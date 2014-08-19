@@ -19,6 +19,7 @@ package org.apache.cassandra.streaming.compress;
 
 import java.io.ByteArrayInputStream;
 import java.io.DataInputStream;
+import java.io.EOFException;
 import java.io.File;
 import java.io.RandomAccessFile;
 import java.util.*;
@@ -42,18 +43,23 @@ public class CompressedInputStreamTest
     @Test
     public void testCompressedRead() throws Exception
     {
-        testCompressedReadWith(new long[]{0L});
-        testCompressedReadWith(new long[]{1L});
-        testCompressedReadWith(new long[]{100L});
+        testCompressedReadWith(new long[]{0L}, false);
+        testCompressedReadWith(new long[]{1L}, false);
+        testCompressedReadWith(new long[]{100L}, false);
 
-        testCompressedReadWith(new long[]{1L, 122L, 123L, 124L, 456L});
+        testCompressedReadWith(new long[]{1L, 122L, 123L, 124L, 456L}, false);
     }
 
+    @Test(expected = EOFException.class)
+    public void testTruncatedRead() throws Exception
+    {
+        testCompressedReadWith(new long[]{1L, 122L, 123L, 124L, 456L}, true);
+    }
     /**
      * @param valuesToCheck array of longs of range(0-999)
      * @throws Exception
      */
-    private void testCompressedReadWith(long[] valuesToCheck) throws Exception
+    private void testCompressedReadWith(long[] valuesToCheck, boolean testTruncate) throws Exception
     {
         assert valuesToCheck != null && valuesToCheck.length > 0;
 
@@ -94,6 +100,13 @@ public class CompressedInputStreamTest
             pos += f.read(toRead, pos, c.length + 4);
         }
         f.close();
+
+        if (testTruncate)
+        {
+            byte [] actuallyRead = new byte[50];
+            System.arraycopy(toRead, 0, actuallyRead, 0, 50);
+            toRead = actuallyRead;
+        }
 
         // read buffer using CompressedInputStream
         CompressionInfo info = new CompressionInfo(chunks, param);
