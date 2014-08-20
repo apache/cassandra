@@ -107,7 +107,7 @@ except ImportError, e:
              'Error: %s\n' % (sys.executable, sys.path, e))
 
 from cassandra.cluster import Cluster
-from cassandra.query import SimpleStatement
+from cassandra.query import SimpleStatement, ordered_dict_factory
 from cassandra.policies import WhiteListRoundRobinPolicy
 from cassandra.metadata import protect_name, protect_names, protect_value
 from cassandra.auth import PlainTextAuthProvider
@@ -523,6 +523,7 @@ class Shell(cmd.Cmd):
         else:
             self.session = self.conn.connect()
         self.session.default_timeout = client_timeout
+        self.session.row_factory = ordered_dict_factory
         self.get_connection_versions()
 
         self.current_keyspace = keyspace
@@ -618,9 +619,9 @@ class Shell(cmd.Cmd):
     def get_connection_versions(self):
         result, = self.session.execute("select * from system.local where key = 'local'")
         vers = {
-            'build': result.release_version,
-            'protocol': result.native_protocol_version,
-            'cql': result.cql_version,
+            'build': result['release_version'],
+            'protocol': result['native_protocol_version'],
+            'cql': result['cql_version'],
         }
         self.connection_versions = vers
 
@@ -972,9 +973,10 @@ class Shell(cmd.Cmd):
             self.print_formatted_result(formatted_names, None)
             return
 
-        colnames = rows[0]._fields
+        colnames = rows[0].keys()
         formatted_names = [self.myformat_colname(name, cfMetaData) for name in colnames]
-        formatted_values = [map(self.myformat_value, row) for row in rows]
+        formatted_values = [map(self.myformat_value, row.values()) for row in rows]
+
         if self.expand_enabled:
             self.print_formatted_result_vertically(formatted_names, formatted_values)
         else:
@@ -1453,7 +1455,7 @@ class Shell(cmd.Cmd):
                     format_value(v, output_encoding=encoding, nullval=nullval,
                                  time_format=self.display_time_format,
                                  float_precision=self.display_float_precision).strval
-                writer.writerow(map(fmt, row))
+                writer.writerow(map(fmt, row.values()))
                 rows += 1
         finally:
             if do_close:
