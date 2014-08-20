@@ -1149,7 +1149,7 @@ def username_name_completer(ctxt, cass):
         return [Hint('<username>')]
 
     session = cass.session
-    return [maybe_quote(row[0].replace("'", "''")) for row in session.execute("LIST USERS")]
+    return [maybe_quote(row.values()[0].replace("'", "''")) for row in session.execute("LIST USERS")]
 
 # END SYNTAX/COMPLETION RULE DEFINITIONS
 
@@ -1167,12 +1167,12 @@ class UserTypesMeta(object):
     def from_layout(cls, layout):
         result = {}
         for row in layout:
-            ksname = row.keyspace_name
+            ksname = row['keyspace_name']
             if ksname not in result:
                 result[ksname] = {}
-            utname = row.type_name
+            utname = row['type_name']
 
-            result[ksname][utname] = zip(row.field_names, row.field_types)
+            result[ksname][utname] = zip(row['field_names'], row['field_types'])
         return cls(meta=result)
 
     def get_usertypes_names(self, keyspace):
