@@ -57,6 +57,8 @@ Merged from 1.2:
 
 
 2.1.0
+ * (cqlsh) Fix column name formatting for functions, CAS operations,
+   and UDT field selections (CASSANDRA-7806)
  * (cqlsh) Fix COPY FROM handling of null/empty primary key
    values (CASSANDRA-7792)
  * Fix ordering of static cells (CASSANDRA-7763)
