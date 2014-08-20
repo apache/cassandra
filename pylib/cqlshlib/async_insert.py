@@ -14,10 +14,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from itertools import count
 from threading import Event, Condition
+from . import meter
 import sys
-
 
 class _CountDownLatch(object):
     def __init__(self, counter=1):
@@ -47,10 +46,10 @@ class _ChainedWriter(object):
         self._session = session
         self._cancellation_event = Event()
         self._first_error = None
-        self._num_finished = count(start=1)
         self._task_counter = _CountDownLatch(self.CONCURRENCY)
         self._enumerated_reader = enumerated_reader
         self._statement_func = statement_func
+        self._meter = meter.Meter()
 
     def insert(self):
         if not self._enumerated_reader:
@@ -65,8 +64,9 @@ class _ChainedWriter(object):
             self._cancellation_event.set()
             sys.stdout.write('Aborting due to keyboard interrupt\n')
             self._task_counter.await()
+        self._meter.done()
+        return self._meter.num_finished(), self._first_error
 
-        return next(self._num_finished), self._first_error
 
     def _abort(self, error, failed_record):
         if not self._first_error:
@@ -83,10 +83,7 @@ class _ChainedWriter(object):
             return
 
         if result is not self._sentinel:
-            finished = next(self._num_finished)
-            if not finished % 1000:
-                sys.stdout.write('Imported %s rows\r' % finished)
-                sys.stdout.flush()
+            self._meter.mark_written()
 
         try:
             (current_record, row) = next(self._enumerated_reader)

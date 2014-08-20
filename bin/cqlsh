@@ -64,8 +64,6 @@ except ImportError:
     pass
 
 CQL_LIB_PREFIX = 'cassandra-driver-internal-only-'
-FUTURES_LIB_PREFIX = 'futures-'
-SIX_LIB_PREFIX = 'six-'
 
 CASSANDRA_PATH = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..')
 
@@ -89,12 +87,13 @@ cql_zip = find_zip(CQL_LIB_PREFIX)
 if cql_zip:
     ver = os.path.splitext(os.path.basename(cql_zip))[0][len(CQL_LIB_PREFIX):]
     sys.path.insert(0, os.path.join(cql_zip, 'cassandra-driver-' + ver))
-futures_zip = find_zip(FUTURES_LIB_PREFIX)
-if futures_zip:
-    sys.path.insert(0, futures_zip)
-six_zip = find_zip(SIX_LIB_PREFIX)
-if six_zip:
-    sys.path.insert(0, six_zip)
+
+third_parties = ('futures-', 'six-')
+
+for lib in third_parties:
+    lib_zip = find_zip(lib)
+    if lib_zip:
+        sys.path.insert(0, lib_zip)
 
 warnings.filterwarnings("ignore", r".*blist.*")
 try:
@@ -118,7 +117,7 @@ cqlshlibdir = os.path.join(CASSANDRA_PATH, 'pylib')
 if os.path.isdir(cqlshlibdir):
     sys.path.insert(0, cqlshlibdir)
 
-from cqlshlib import cqlhandling, cql3handling, pylexotron, sslhandling, async_insert
+from cqlshlib import cqlhandling, cql3handling, pylexotron, sslhandling, async_insert, meter
 from cqlshlib.displaying import (RED, BLUE, CYAN, ANSI_RESET, COLUMN_NAME_COLORS,
                                  FormattedValue, colorme)
 from cqlshlib.formatting import format_by_type, formatter_for, format_value_utype
@@ -1361,7 +1360,7 @@ class Shell(cmd.Cmd):
                 linesource.close()
             elif self.tty:
                 print
-        return rownum-1
+        return rownum
 
     def create_insert_statement(self, columns, nullval, table_meta, row):
 
@@ -1437,23 +1436,25 @@ class Shell(cmd.Cmd):
             except IOError, e:
                 self.printerr("Can't open %r for writing: %s" % (fname, e))
                 return 0
+        wmeter = meter.Meter()
         try:
+
             dump = self.prep_export_dump(ks, cf, columns)
             writer = csv.writer(csvdest, **dialect_options)
             if header:
                 writer.writerow(columns)
-            rows = 0
             for row in dump:
                 fmt = lambda v: \
                     format_value(v, output_encoding=encoding, nullval=nullval,
                                  time_format=self.display_time_format,
                                  float_precision=self.display_float_precision).strval
                 writer.writerow(map(fmt, row.values()))
-                rows += 1
+                wmeter.mark_written()
+            wmeter.done()
         finally:
             if do_close:
                 csvdest.close()
-        return rows
+        return wmeter.num_finished()
 
     def prep_export_dump(self, ks, cf, columns):
         if columns is None:

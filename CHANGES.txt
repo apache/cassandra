@@ -1,4 +1,5 @@
 2.1.1
+ * (cqlsh): Show progress of COPY operations (CASSANDRA-7789)
  * Add syntax to remove multiple elements from a map (CASSANDRA-6599)
  * Support non-equals conditions in lightweight transactions (CASSANDRA-6839)
  * Add IF [NOT] EXISTS to create/drop triggers (CASSANDRA-7606)
