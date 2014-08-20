@@ -125,24 +125,9 @@ public class CqlRecordReader extends RecordReader<Long, Row>
             if (cluster != null)
                 return;
 
-            // create connection using thrift
+            // create a Cluster instance
             String[] locations = split.getLocations();
-            Exception lastException = null;
-            for (String location : locations)
-            {
-                try
-                {
-                    cluster = CqlConfigHelper.getInputCluster(location, conf);
-                    break;
-                }
-                catch (Exception e)
-                {
-                    lastException = e;
-                    logger.warn("Failed to create authenticated client to {}", location);
-                }
-            }
-            if (cluster == null && lastException != null)
-                throw lastException;
+            cluster = CqlConfigHelper.getInputCluster(locations, conf);
         }
         catch (Exception e)
         {

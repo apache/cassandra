@@ -17,6 +17,7 @@
  * Configurable client timeout for cqlsh (CASSANDRA-7516)
  * Include snippet of CQL query near syntax error in messages (CASSANDRA-7111)
 Merged from 2.0:
+ * (Hadoop) fix cluster initialisation for a split fetching (CASSANDRA-7774)
  * Throw InvalidRequestException when queries contain relations on entire
    collection columns (CASSANDRA-7506)
  * (cqlsh) enable CTRL-R history search with libedit (CASSANDRA-7577)
