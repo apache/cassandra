@@ -65,6 +65,7 @@ Merged from 2.0:
  * Fix PRSI handling of CQL3 row markers for row cleanup (CASSANDRA-7787)
  * Fix dropping collection when it's the last regular column (CASSANDRA-7744)
  * Properly reject operations on list index with conditions (CASSANDRA-7499)
+ * Make StreamReceiveTask thread safe and gc friendly (CASSANDRA-7795)
 Merged from 1.2:
  * Validate empty cell names from counter updates (CASSANDRA-7798)
 

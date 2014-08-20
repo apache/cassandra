@@ -21,13 +21,16 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 
+import org.apache.cassandra.concurrent.DebuggableThreadPoolExecutor;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.io.sstable.SSTableWriter;
-import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
 
 /**
@@ -35,11 +38,17 @@ import org.apache.cassandra.utils.Pair;
  */
 public class StreamReceiveTask extends StreamTask
 {
+    private static final ThreadPoolExecutor executor = DebuggableThreadPoolExecutor.createWithMaximumPoolSize("StreamReceiveTask",
+                                                                                                              FBUtilities.getAvailableProcessors(),
+                                                                                                              60, TimeUnit.SECONDS);
+
     // number of files to receive
     private final int totalFiles;
     // total size of files to receive
     private final long totalSize;
-    private volatile boolean aborted;
+
+    // true if task is done (either completed or aborted)
+    private boolean done = false;
 
     //  holds references to SSTables received
     protected Collection<SSTableWriter> sstables;
@@ -57,14 +66,19 @@ public class StreamReceiveTask extends StreamTask
      *
      * @param sstable SSTable file received.
      */
-    public void received(SSTableWriter sstable)
+    public synchronized void received(SSTableWriter sstable)
     {
+        if (done)
+            return;
+
         assert cfId.equals(sstable.metadata.cfId);
-        assert !aborted;
 
         sstables.add(sstable);
         if (sstables.size() == totalFiles)
-            complete();
+        {
+            done = true;
+            executor.submit(new OnCompletionRunnable(this));
+        }
     }
 
     public int getTotalNumberOfFiles()
@@ -75,12 +89,6 @@ public class StreamReceiveTask extends StreamTask
     public long getTotalSize()
     {
         return totalSize;
-    }
-
-    private void complete()
-    {
-        if (!sstables.isEmpty())
-            StorageService.tasks.submit(new OnCompletionRunnable(this));
     }
 
     private static class OnCompletionRunnable implements Runnable
@@ -103,6 +111,7 @@ public class StreamReceiveTask extends StreamTask
             for (SSTableWriter writer : task.sstables)
                 readers.add(writer.closeAndOpenReader());
             lockfile.delete();
+            task.sstables.clear();
 
             if (!SSTableReader.acquireReferences(readers))
                 throw new AssertionError("We shouldn't fail acquiring a reference on a sstable that has just been transferred");
@@ -121,17 +130,20 @@ public class StreamReceiveTask extends StreamTask
         }
     }
 
-    public void abort()
+    /**
+     * Abort this task.
+     * If the task already received all files and
+     * {@link org.apache.cassandra.streaming.StreamReceiveTask.OnCompletionRunnable} task is submitted,
+     * then task cannot be aborted.
+     */
+    public synchronized void abort()
     {
-        aborted = true;
-        Runnable r = new Runnable()
-        {
-            public void run()
-            {
-                for (SSTableWriter writer : sstables)
-                    writer.abort();
-            }
-        };
-        StorageService.tasks.submit(r);
+        if (done)
+            return;
+
+        done = true;
+        for (SSTableWriter writer : sstables)
+            writer.abort();
+        sstables.clear();
     }
 }
