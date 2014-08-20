@@ -34,7 +34,6 @@ import com.google.common.collect.Maps;
 
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
-
 import org.apache.cassandra.hadoop.HadoopCompat;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -67,7 +66,7 @@ import com.datastax.driver.core.Session;
  *       token(partition_key1, ... , partition_keyn) <= ?  (in the right order) 
  */
 public class CqlRecordReader extends RecordReader<Long, Row>
-        implements org.apache.hadoop.mapred.RecordReader<Long, Row>
+        implements org.apache.hadoop.mapred.RecordReader<Long, Row>, AutoCloseable
 {
     private static final Logger logger = LoggerFactory.getLogger(CqlRecordReader.class);
 

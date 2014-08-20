@@ -60,7 +60,7 @@ import org.apache.thrift.transport.TTransport;
  *
  * @see CqlOutputFormat
  */
-class CqlRecordWriter extends AbstractColumnFamilyRecordWriter<Map<String, ByteBuffer>, List<ByteBuffer>>
+class CqlRecordWriter extends AbstractColumnFamilyRecordWriter<Map<String, ByteBuffer>, List<ByteBuffer>> implements AutoCloseable
 {
     private static final Logger logger = LoggerFactory.getLogger(CqlRecordWriter.class);
 
