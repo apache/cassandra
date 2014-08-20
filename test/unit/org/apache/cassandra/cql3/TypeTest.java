@@ -19,6 +19,7 @@ package org.apache.cassandra.cql3;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.db.ConsistencyLevel;
+import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.RequestExecutionException;
 import org.apache.cassandra.exceptions.RequestValidationException;
 import org.apache.cassandra.gms.Gossiper;
@@ -35,6 +36,7 @@ import org.slf4j.LoggerFactory;
 import static org.apache.cassandra.cql3.QueryProcessor.process;
 import static org.apache.cassandra.cql3.QueryProcessor.processInternal;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.fail;
 
 public class TypeTest
 {
@@ -140,5 +142,37 @@ public class TypeTest
         executePrepared(prepare(insert), QueryOptions.DEFAULT);
         results = executePrepared(prepare(select), QueryOptions.DEFAULT);
         assertEquals(2, results.size());
+    }
+
+    @Test
+    // tests CASSANDRA-7797
+    public void testAlterReversedColumn() throws Throwable
+    {
+        executeSchemaChange("CREATE TABLE IF NOT EXISTS %s.test_alter_reversed (a int, b 'org.apache.cassandra.db.marshal.DateType', PRIMARY KEY (a, b)) WITH CLUSTERING ORDER BY (b DESC)");
+        executeSchemaChange("ALTER TABLE %s.test_alter_reversed ALTER b TYPE 'org.apache.cassandra.db.marshal.ReversedType(org.apache.cassandra.db.marshal.TimestampType)'");
+    }
+
+    @Test
+    public void testIncompatibleReversedTypes() throws Throwable
+    {
+        executeSchemaChange("CREATE TABLE IF NOT EXISTS %s.test_incompatible_reversed (a int, b 'org.apache.cassandra.db.marshal.DateType', PRIMARY KEY (a, b)) WITH CLUSTERING ORDER BY (b DESC)");
+        try
+        {
+            executeSchemaChange("ALTER TABLE %s.test_incompatible_reversed ALTER b TYPE 'org.apache.cassandra.db.marshal.ReversedType(org.apache.cassandra.db.marshal.TimeUUIDType)'");
+            fail("Expected error for ALTER statement");
+        }
+        catch (ConfigurationException e) { }
+    }
+
+    @Test
+    public void testReversedAndNonReversed() throws Throwable
+    {
+        executeSchemaChange("CREATE TABLE IF NOT EXISTS %s.test_reversed_and_non_reversed (a int, b 'org.apache.cassandra.db.marshal.DateType', PRIMARY KEY (a, b))");
+        try
+        {
+            executeSchemaChange("ALTER TABLE %s.test_reversed_and_non_reversed ALTER b TYPE 'org.apache.cassandra.db.marshal.ReversedType(org.apache.cassandra.db.marshal.DateType)'");
+            fail("Expected error for ALTER statement");
+        }
+        catch (ConfigurationException e) { }
     }
 }
