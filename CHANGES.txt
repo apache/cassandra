@@ -1,4 +1,6 @@
 2.0.10
+ * Stop inheriting liveRatio and liveRatioComputedAt from previous
+   memtables (CASSANDRA-7796)
  * Throw EOFException if we run out of chunks in compressed datafile
    (CASSANDRA-7664)
  * Throw InvalidRequestException when queries contain relations on entire
