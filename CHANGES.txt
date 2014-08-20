@@ -2,7 +2,9 @@
  * (cqlsh) Fix COPY FROM handling of null/empty primary key
    values (CASSANDRA-7792)
  * Fix ordering of static cells (CASSANDRA-7763)
-Merged from 2.0:
+2.0.10
+ * Fix ALTER clustering column type from DateType to TimestampType when
+   using DESC clustering order (CASSANRDA-7797)
  * Throw EOFException if we run out of chunks in compressed datafile
    (CASSANDRA-7664)
  * Fix PRSI handling of CQL3 row markers for row cleanup (CASSANDRA-7787)
