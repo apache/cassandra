@@ -18,7 +18,13 @@
 package org.apache.cassandra.db.compaction;
 
 import java.nio.ByteBuffer;
-import java.util.*;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 
 import org.junit.After;
 import org.junit.Before;
@@ -30,7 +36,10 @@ import org.apache.cassandra.OrderedJUnit4ClassRunner;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.config.KSMetaData;
-import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.ConfigurationException;
@@ -82,6 +91,54 @@ public class LeveledCompactionStrategyTest
     public void truncateSTandardLeveled()
     {
         cfs.truncateBlocking();
+    }
+
+    /**
+     * Ensure that the grouping operation preserves the levels of grouped tables
+     */
+    @Test
+    public void testGrouperLevels() throws Exception{
+        ByteBuffer value = ByteBuffer.wrap(new byte[100 * 1024]); // 100 KB value, make it easy to have multiple files
+
+        // Enough data to have a level 1 and 2
+        int rows = 20;
+        int columns = 10;
+
+        // Adds enough data to trigger multiple sstable per level
+        for (int r = 0; r < rows; r++)
+        {
+            DecoratedKey key = Util.dk(String.valueOf(r));
+            Mutation rm = new Mutation(KEYSPACE1, key.getKey());
+            for (int c = 0; c < columns; c++)
+            {
+                rm.add(CF_STANDARDDLEVELED, Util.cellname("column" + c), value, 0);
+            }
+            rm.apply();
+            cfs.forceBlockingFlush();
+        }
+
+        waitForLeveling(cfs);
+        LeveledCompactionStrategy strategy = (LeveledCompactionStrategy) cfs.getCompactionStrategy();
+        // Checking we're not completely bad at math
+        assert strategy.getLevelSize(1) > 0;
+        assert strategy.getLevelSize(2) > 0;
+
+        Collection<Collection<SSTableReader>> groupedSSTables = cfs.getCompactionStrategy().groupSSTablesForAntiCompaction(cfs.getSSTables());
+        for (Collection<SSTableReader> sstableGroup : groupedSSTables)
+        {
+            int groupLevel = -1;
+            Iterator<SSTableReader> it = sstableGroup.iterator();
+            while (it.hasNext())
+            {
+
+                SSTableReader sstable = it.next();
+                int tableLevel = sstable.getSSTableLevel();
+                if (groupLevel == -1)
+                    groupLevel = tableLevel;
+                assert groupLevel == tableLevel;
+            }
+        }
+
     }
 
     /*

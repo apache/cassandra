@@ -399,4 +399,35 @@ public abstract class AbstractCompactionStrategy
 
         return optionValue == null || Boolean.parseBoolean(optionValue);
     }
+
+
+    /**
+     * Method for grouping similar SSTables together, This will be used by
+     * anti-compaction to determine which SSTables should be anitcompacted
+     * as a group. If a given compaction strategy creates sstables which
+     * cannot be merged due to some constraint it must override this method.
+     */
+    public Collection<Collection<SSTableReader>> groupSSTablesForAntiCompaction(Collection<SSTableReader> sstablesToGroup)
+    {
+        int groupSize = 2;
+        List<SSTableReader> sortedSSTablesToGroup = new ArrayList<>(sstablesToGroup);
+        Collections.sort(sortedSSTablesToGroup, SSTableReader.sstableComparator);
+
+        Collection<Collection<SSTableReader>> groupedSSTables = new ArrayList<>();
+        Collection<SSTableReader> currGroup = new ArrayList<>();
+
+        for (SSTableReader sstable : sortedSSTablesToGroup)
+        {
+            currGroup.add(sstable);
+            if (currGroup.size() == groupSize)
+            {
+                groupedSSTables.add(currGroup);
+                currGroup = new ArrayList<>();
+            }
+        }
+
+        if (currGroup.size() != 0)
+            groupedSSTables.add(currGroup);
+        return groupedSSTables;
+    }
 }
