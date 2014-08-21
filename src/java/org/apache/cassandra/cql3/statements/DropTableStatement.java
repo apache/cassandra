@@ -54,16 +54,18 @@ public class DropTableStatement extends SchemaAlteringStatement
         // validated in announceMigration()
     }
 
-    public void announceMigration(boolean isLocalOnly) throws ConfigurationException
+    public boolean announceMigration(boolean isLocalOnly) throws ConfigurationException
     {
         try
         {
             MigrationManager.announceColumnFamilyDrop(keyspace(), columnFamily(), isLocalOnly);
+            return true;
         }
         catch (ConfigurationException e)
         {
-            if (!ifExists)
-                throw e;
+            if (ifExists)
+                return false;
+            throw e;
         }
     }
 

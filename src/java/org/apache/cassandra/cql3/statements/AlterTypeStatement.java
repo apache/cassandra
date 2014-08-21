@@ -89,7 +89,7 @@ public abstract class AlterTypeStatement extends SchemaAlteringStatement
         return name.getKeyspace();
     }
 
-    public void announceMigration(boolean isLocalOnly) throws InvalidRequestException, ConfigurationException
+    public boolean announceMigration(boolean isLocalOnly) throws InvalidRequestException, ConfigurationException
     {
         KSMetaData ksm = Schema.instance.getKSMetaData(name.getKeyspace());
         if (ksm == null)
@@ -134,6 +134,7 @@ public abstract class AlterTypeStatement extends SchemaAlteringStatement
                     MigrationManager.announceTypeUpdate((UserType)upd, isLocalOnly);
             }
         }
+        return true;
     }
 
     private static int getIdxOfField(UserType type, ColumnIdentifier field)
