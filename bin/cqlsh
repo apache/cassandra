@@ -652,16 +652,21 @@ class Shell(cmd.Cmd):
         if ksname is None:
             ksname = self.current_keyspace
 
-        return self.get_usertypes_meta().get_usertypes_names(ksname)
+        return self.get_keyspace_meta(ksname).user_types.keys()
 
     def get_usertype_layout(self, ksname, typename):
         if ksname is None:
             ksname = self.current_keyspace
-        layout = self.get_usertypes_meta().get_fields_with_types(ksname, typename)
 
-        if not layout:
+        ks_meta = self.get_keyspace_meta(ksname)
+
+        try:
+            user_type = ks_meta.user_types[typename]
+        except KeyError:
             raise UserTypeNotFound("User type %r not found" % typename)
-        return layout
+
+        return [(field_name, field_type.cql_parameterized_type())
+                for field_name, field_type in zip(user_type.field_names, user_type.field_types)]
 
     def get_cluster_name(self):
         return self.conn.metadata.cluster_name
@@ -1070,32 +1075,8 @@ class Shell(cmd.Cmd):
             return cqlruleset.dequote_value(valstr)
 
     def print_recreate_keyspace(self, ksdef, out):
-        ksname = protect_name(ksdef.name)
-        out.write(ksdef.as_cql_query())
-        out.write("\n\n")
-
-        uts = self.get_usertypes_meta().get_usertypes_names(ksdef.name)
-        if uts:
-            out.write("USE %s;\n" % ksname)
-            for ut in uts:
-                out.write('\n')
-                self.print_recreate_usertype(ksdef.name, ut, out)
-
-        cfs = self.get_columnfamily_names(ksdef.name)
-        if cfs:
-            for cf in cfs:
-                out.write('\n')
-                self.print_recreate_columnfamily(ksdef.name, cf, out)
-
-    def print_recreate_usertype(self, ksname, utname, out):
-        layout = self.get_usertype_layout(ksname, utname)
-        out.write("CREATE TYPE %s (\n" % utname)
-        for (index,(tname,ttype)) in enumerate(layout, 1):
-            out.write("  %s %s" % (tname, ttype))
-            if index < len(layout):
-                out.write(",\n")
-            else:
-                out.write("\n); \n")
+        out.write(ksdef.export_as_string())
+        out.write("\n")
 
     def print_recreate_columnfamily(self, ksname, cfname, out):
         """
@@ -1140,21 +1121,27 @@ class Shell(cmd.Cmd):
     def describe_usertypes(self, ksname):
         print
         if ksname is None:
-            for k in self.get_keyspaces():
-                name = protect_name(k.name)
+            for ksmeta in self.get_keyspaces():
+                name = protect_name(ksmeta.name)
                 print 'Keyspace %s' % (name,)
                 print '---------%s' % ('-' * len(name))
-                cmd.Cmd.columnize(self, protect_names(self.get_usertype_names(k.name)))
+                cmd.Cmd.columnize(self, protect_names(ksmeta.user_types.keys()))
                 print
         else:
-            cmd.Cmd.columnize(self, protect_names(self.get_usertype_names(ksname)))
+            ksmeta = self.get_keyspace_meta(ksname)
+            cmd.Cmd.columnize(self, protect_names(ksmeta.user_types.keys()))
             print
 
     def describe_usertype(self, ksname, typename):
         if ksname is None:
             ksname = self.current_keyspace
         print
-        self.print_recreate_usertype(ksname, typename, sys.stdout)
+        ksmeta = self.get_keyspace_meta(ksname)
+        try:
+            usertype = ksmeta.user_types[typename]
+        except KeyError:
+            raise UserTypeNotFound("User type %r not found" % typename)
+        print usertype.as_cql_query(formatted=True)
         print
 
     def describe_cluster(self):

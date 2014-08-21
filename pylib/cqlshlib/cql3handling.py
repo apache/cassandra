@@ -26,11 +26,6 @@ simple_cql_types.difference_update(('set', 'map', 'list'))
 from . import helptopics
 cqldocs = helptopics.CQL3HelpTopics()
 
-try:
-    import json
-except ImportError:
-    import simplejson as json
-
 class UnexpectedTableStructure(UserWarning):
     def __init__(self, msg):
         self.msg = msg
@@ -131,13 +126,12 @@ class Cql3ParsingRuleSet(CqlParsingRuleSet):
 CqlRuleSet = Cql3ParsingRuleSet()
 
 # convenience for remainder of module
-shorthands = ('completer_for', 'explain_completion',
-              'dequote_value', 'dequote_name',
-              'escape_value',
-              'maybe_escape_name')
-
-for shorthand in shorthands:
-    globals()[shorthand] = getattr(CqlRuleSet, shorthand)
+completer_for = CqlRuleSet.completer_for
+explain_completion = CqlRuleSet.explain_completion
+dequote_value = CqlRuleSet.dequote_value
+dequote_name = CqlRuleSet.dequote_name
+escape_value = CqlRuleSet.escape_value
+maybe_escape_name = CqlRuleSet.maybe_escape_name
 
 
 # BEGIN SYNTAX/COMPLETION RULE DEFINITIONS
@@ -1186,33 +1180,3 @@ def username_name_completer(ctxt, cass):
 # END SYNTAX/COMPLETION RULE DEFINITIONS
 
 CqlRuleSet.append_rules(syntax_rules)
-
-from cassandra.cqltypes import lookup_casstype
-
-class UserTypesMeta(object):
-    _meta = {}
-
-    def __init__(self, meta):
-        self._meta = meta
-
-    @classmethod
-    def from_layout(cls, layout):
-        result = {}
-        for row in layout:
-            ksname = row['keyspace_name']
-            if ksname not in result:
-                result[ksname] = {}
-            utname = row['type_name']
-
-            result[ksname][utname] = zip(row['field_names'], row['field_types'])
-        return cls(meta=result)
-
-    def get_usertypes_names(self, keyspace):
-        return map(str, self._meta.get(keyspace, {}).keys())
-
-    def get_field_names(self, keyspace, type):
-        return [row[0] for row in self._meta.get(keyspace, {}).get(type, [])]
-
-    def get_fields_with_types(self, ksname, typename):
-        return [(field[0], lookup_casstype(field[1]).cql_parameterized_type()) for field in
-                self._meta.get(ksname, {}).get(typename, [])]
