@@ -276,10 +276,12 @@ concurrent_counter_writes: 32
 # the smaller of 1/4 of heap or 512MB.
 # file_cache_size_in_mb: 512
 
-# Total memory to use for memtables.  Cassandra will flush the largest
-# memtable when this much memory is used.
-# If omitted, Cassandra will set it to 1/4 of the heap.
-# memtable_total_space_in_mb: 2048
+# Total permitted memory to use for memtables. Cassandra will stop 
+# accepting writes when the limit is exceeded until a flush completes,
+# and will trigger a flush based on memtable_cleanup_threshold
+# If omitted, Cassandra will set both to 1/4 the size of the heap.
+# memtable_heap_space_in_mb: 2048
+# memtable_offheap_space_in_mb: 2048
 
 # Ratio of occupied non-flushing memtable size to total permitted size
 # that will trigger a flush of the largest memtable.  Lager mct will
@@ -288,7 +290,7 @@ concurrent_counter_writes: 32
 # under heavy write load.
 #
 # memtable_cleanup_threshold defaults to 1 / (memtable_flush_writers + 1)
-#memtable_cleanup_threshold: 0.11
+# memtable_cleanup_threshold: 0.11
 
 # Specify the way Cassandra allocates and manages memtable memory.
 # Options are:
