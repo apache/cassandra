@@ -1,4 +1,5 @@
 2.1.1
+ * (cqlsh) Fix handling of CAS statement results (CASSANDRA-7671)
  * (cqlsh) COPY TO/FROM improvements (CASSANDRA-7405)
  * Support list index operations with conditions (CASSANDRA-7499)
  * Add max live/tombstoned cells to nodetool cfstats output (CASSANDRA-7731)

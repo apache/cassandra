@@ -14,7 +14,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from functools import partial
 import re
 from .saferscanner import SaferScanner
 
@@ -24,6 +23,9 @@ class LexingError(Exception):
         bad_char = len(rulestr) - len(unmatched)
         linenum = rulestr[:bad_char].count('\n') + 1
         charnum = len(rulestr[:bad_char].rsplit('\n', 1)[-1]) + 1
+        snippet_start = max(0, min(len(rulestr), bad_char - 10))
+        snippet_end = max(0, min(len(rulestr), bad_char + 10))
+        msg += " (Error at: '...%s...')" % (rulestr[snippet_start:snippet_end],)
         raise cls(linenum, charnum, msg)
 
     def __init__(self, linenum, charnum, msg='Lexing error'):

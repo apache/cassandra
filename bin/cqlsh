@@ -585,13 +585,13 @@ class Shell(cmd.Cmd):
             self.decoding_errors.append(err)
             return format_value(err, self.output_codec.name, addcolor=self.color)
 
-    def myformat_colname(self, name, cfMetaData = None):
+    def myformat_colname(self, name, table_meta=None):
         column_colors = COLUMN_NAME_COLORS.copy()
         # check column role and color appropriately
-        if cfMetaData:
-            if name in [col.name for col in cfMetaData.partition_key]:
+        if table_meta:
+            if name in [col.name for col in table_meta.partition_key]:
                 column_colors.default_factory = lambda : RED
-            elif name in [col.name for col in cfMetaData.clustering_key]:
+            elif name in [col.name for col in table_meta.clustering_key]:
                 column_colors.default_factory = lambda : CYAN
         return self.myformat_value(name, colormap=column_colors)
 
@@ -913,6 +913,12 @@ class Shell(cmd.Cmd):
 
         return result
 
+    def parse_for_table_meta(self, query_string):
+        parsed = cqlruleset.cql_parse(query_string)[1]
+        ks =  self.cql_unprotect_name(parsed.get_binding('ksname', None))
+        cf = self.cql_unprotect_name(parsed.get_binding('cfname'))
+        return self.get_table_meta(ks, cf)
+
     def perform_simple_statement(self, statement, with_default_limit=False):
         if not statement:
             return False
@@ -930,25 +936,21 @@ class Shell(cmd.Cmd):
                 return False
 
         if statement.query_string[:6].lower() == 'select' or statement.query_string.lower().startswith("list"):
-            parsed = cqlruleset.cql_parse(statement.query_string)[1]
-            ks =  self.cql_unprotect_name(parsed.get_binding('ksname', None))
-            cf = self.cql_unprotect_name(parsed.get_binding('cfname'))
-            cfMetaData = self.get_table_meta(ks, cf)
-            self.print_result(rows, with_default_limit, cfMetaData)
+            self.print_result(rows, with_default_limit, self.parse_for_table_meta(statement.query_string))
         elif rows:
             # CAS INSERT/UPDATE
             self.writeresult("")
-            self.print_static_result(rows)
+            self.print_static_result(rows, self.parse_for_table_meta(statement.query_string))
         self.flush_output()
         return True
 
-    def print_result(self, rows, with_default_limit, cfMetaData):
+    def print_result(self, rows, with_default_limit, table_meta):
         self.decoding_errors = []
 
         self.writeresult("")
         if rows:
             rows = list(rows)  # this may be an iterator if the result is large enough to page
-        self.print_static_result(rows, cfMetaData)
+        self.print_static_result(rows, table_meta)
         self.writeresult("(%d rows)" % len(rows or []))
 
         if self.decoding_errors:
@@ -965,16 +967,16 @@ class Shell(cmd.Cmd):
                                  % DEFAULT_SELECT_LIMIT, color=RED)
                 self.writeresult("")
 
-    def print_static_result(self, rows, cfMetaData):
+    def print_static_result(self, rows, table_meta):
         if not rows:
             # print header only
-            colnames = cfMetaData.columns.keys()  # full header
-            formatted_names = [self.myformat_colname(name, cfMetaData) for name in colnames]
+            colnames = table_meta.columns.keys()  # full header
+            formatted_names = [self.myformat_colname(name, table_meta) for name in colnames]
             self.print_formatted_result(formatted_names, None)
             return
 
         colnames = rows[0].keys()
-        formatted_names = [self.myformat_colname(name, cfMetaData) for name in colnames]
+        formatted_names = [self.myformat_colname(name, table_meta) for name in colnames]
         formatted_values = [map(self.myformat_value, row.values()) for row in rows]
 
         if self.expand_enabled:
