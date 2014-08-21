@@ -185,6 +185,7 @@ JUNK ::= /([ \t\r\f\v]+|(--|[/][/])[^\n\r]*([\n\r]|$)|[/][*].*?[*][/])/ ;
          | <blobLiteral>
          | <collectionLiteral>
          | <functionName> <functionArguments>
+         | "NULL"
          ;
 
 <functionArguments> ::= "(" ( <term> ( "," <term> )* )? ")"
@@ -675,6 +676,7 @@ syntax_rules += r'''
                                    ( "," [colname]=<cident> )* ")"
                       "VALUES" "(" [newval]=<term> valcomma="," [newval]=<term>
                                    ( valcomma="," [newval]=<term> )* valcomma=")"
+                      ( "IF" "NOT" "EXISTS")?
                       ( "USING" [insertopt]=<usingOption>
                                 ( "AND" [insertopt]=<usingOption> )* )?
                     ;
@@ -743,13 +745,19 @@ syntax_rules += r'''
                                   ( "AND" [updateopt]=<usingOption> )* )?
                         "SET" <assignment> ( "," <assignment> )*
                         "WHERE" <whereClause>
+                        ( "IF" <conditions> )?
                     ;
 <assignment> ::= updatecol=<cident>
-                    ( "=" update_rhs=( <value> | <cident> )
+                    ( "=" update_rhs=( <term> | <cident> )
                                 ( counterop=( "+" | "-" ) inc=<wholenumber>
-                                | listadder="+" listcol=<cident> )
+                                | listadder="+" listcol=<cident> )?
                     | indexbracket="[" <term> "]" "=" <term> )
                ;
+<conditions> ::=  <condition> ( "AND" <condition> )*
+               ;
+<condition> ::= <cident> ( "[" <term> "]" )? ( ( "=" | "<" | ">" | "<=" | ">=" | "!=" ) <term>
+                                             | "IN" "(" <term> ( "," <term> )* ")")
+              ;
 '''
 
 @completer_for('updateStatement', 'updateopt')
@@ -821,6 +829,7 @@ syntax_rules += r'''
                         "FROM" cf=<columnFamilyName>
                         ( "USING" [delopt]=<deleteOption> )?
                         "WHERE" <whereClause>
+                        ( "IF" ( "EXISTS" | <conditions> ) )?
                     ;
 <deleteSelector> ::= delcol=<cident> ( memberbracket="[" memberselector=<term> "]" )?
                    ;
