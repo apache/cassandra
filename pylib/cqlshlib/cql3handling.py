@@ -46,7 +46,7 @@ class Cql3ParsingRuleSet(CqlParsingRuleSet):
         'select', 'from', 'where', 'and', 'key', 'insert', 'update', 'with',
         'limit', 'using', 'use', 'count', 'set',
         'begin', 'apply', 'batch', 'truncate', 'delete', 'in', 'create',
-        'keyspace', 'schema', 'columnfamily', 'table', 'index', 'on', 'drop',
+        'function', 'keyspace', 'schema', 'columnfamily', 'table', 'index', 'on', 'drop',
         'primary', 'into', 'values', 'timestamp', 'ttl', 'alter', 'add', 'type',
         'compact', 'storage', 'order', 'by', 'asc', 'desc', 'clustering',
         'token', 'writetime', 'map', 'list', 'to', 'custom', 'if', 'not'
@@ -232,6 +232,7 @@ JUNK ::= /([ \t\r\f\v]+|(--|[/][/])[^\n\r]*([\n\r]|$)|[/][*].*?[*][/])/ ;
                           | <createColumnFamilyStatement>
                           | <createIndexStatement>
                           | <createUserTypeStatement>
+                          | <createFunctionStatement>
                           | <dropKeyspaceStatement>
                           | <dropColumnFamilyStatement>
                           | <dropIndexStatement>
@@ -981,6 +982,25 @@ syntax_rules += r'''
                                 ( "," [newcolname]=<cident> <storageType> )*
                             ")"
                          ;
+
+<createFunctionStatement> ::= "CREATE" ("OR" "REPLACE")? "FUNCTION"
+                            ("IF" "NOT" "EXISTS")?
+                            ("NON"? "DETERMINISTIC")?
+                            ( namespace=<nonSystemKeyspaceName> dot="::" )? function=<cfOrKsName>
+                            ( "(" ( newcol=<cident> <storageType>
+                              ( "," [newcolname]=<cident> <storageType> )* )?
+                            ")" )?
+                            "RETURNS" <storageType>
+                            (
+                              ("LANGUAGE" <cident> "AS"
+                                (
+                                  <stringLiteral>
+                                )
+                              )
+                              | (<stringLiteral>)
+                            )
+                         ;
+
 '''
 
 explain_completion('createIndexStatement', 'indexname', '<new_index_name>')
@@ -1010,6 +1030,10 @@ syntax_rules += r'''
                        ;
 
 <dropUserTypeStatement> ::= "DROP" "TYPE" ut=<userTypeName>
+                              ;
+
+<dropFunctionStatement> ::= "DROP" "FUNCTION" ("IF" "EXISTS")?
+                              ( namespace=<nonSystemKeyspaceName> dot="." )? function=<cfOrKsName>
                               ;
 
 '''

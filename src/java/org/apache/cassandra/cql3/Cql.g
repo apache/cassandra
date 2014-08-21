@@ -514,7 +514,14 @@ createFunctionStatement returns [CreateFunctionStatement expr]
       rt=comparatorType
       (
           (                      { language="CLASS"; } cls = STRING_LITERAL { bodyOrClassName = $cls.text; } )
-        | ( K_LANGUAGE l = IDENT { language=$l.text; } K_BODY body = ((~K_END_BODY)*) { bodyOrClassName = $body.text; } K_END_BODY )
+        | ( K_LANGUAGE l = IDENT { language=$l.text; } K_AS
+            (
+              ( body = STRING_LITERAL
+                { bodyOrClassName = $body.text; }
+              )
+              /* TODO placeholder for pg-style function body */
+            )
+          )
       )
       { $expr = new CreateFunctionStatement(bn, fn, language, bodyOrClassName, deterministic, rt, args, orReplace, ifNotExists); }
     ;
@@ -1236,8 +1243,6 @@ basic_unreserved_keyword returns [String str]
         | K_LANGUAGE
         | K_NON
         | K_DETERMINISTIC
-        | K_BODY
-        | K_END_BODY
         ) { $str = $k.text; }
     ;
 
@@ -1351,8 +1356,6 @@ K_NON:         N O N;
 K_OR:          O R;
 K_REPLACE:     R E P L A C E;
 K_DETERMINISTIC: D E T E R M I N I S T I C;
-K_END_BODY:    E N D '_' B O D Y;
-K_BODY:        B O D Y;
 
 // Case-insensitive alpha characters
 fragment A: ('a'|'A');
