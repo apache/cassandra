@@ -103,14 +103,14 @@ public class CreateIndexStatement extends SchemaAlteringStatement
             throw new InvalidRequestException(String.format("Cannot add secondary index to already primarily indexed column %s", columnName));
     }
 
-    public void announceMigration() throws RequestValidationException
+    public boolean announceMigration() throws RequestValidationException
     {
         logger.debug("Updating column {} definition for index {}", columnName, indexName);
         CFMetaData cfm = Schema.instance.getCFMetaData(keyspace(), columnFamily()).clone();
         ColumnDefinition cd = cfm.getColumnDefinition(columnName.key);
 
         if (cd.getIndexType() != null && ifNotExists)
-            return;
+            return false;
 
         if (properties.isCustom)
             cd.setIndexType(IndexType.CUSTOM, properties.getOptions());
@@ -122,6 +122,7 @@ public class CreateIndexStatement extends SchemaAlteringStatement
         cd.setIndexName(indexName);
         cfm.addDefaultIndexNames();
         MigrationManager.announceColumnFamilyUpdate(cfm, false);
+        return true;
     }
 
     public ResultMessage.SchemaChange.Change changeType()

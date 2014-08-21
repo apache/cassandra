@@ -79,7 +79,7 @@ public class AlterKeyspaceStatement extends SchemaAlteringStatement
         }
     }
 
-    public void announceMigration() throws RequestValidationException
+    public boolean announceMigration() throws RequestValidationException
     {
         KSMetaData ksm = Schema.instance.getKSMetaData(name);
         // In the (very) unlikely case the keyspace was dropped since validate()
@@ -87,6 +87,7 @@ public class AlterKeyspaceStatement extends SchemaAlteringStatement
             throw new InvalidRequestException("Unknown keyspace " + name);
 
         MigrationManager.announceKeyspaceUpdate(attrs.asKSMetadataUpdate(ksm));
+        return true;
     }
 
     public ResultMessage.SchemaChange.Change changeType()

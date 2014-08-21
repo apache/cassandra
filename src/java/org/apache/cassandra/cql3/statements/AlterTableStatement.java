@@ -76,7 +76,7 @@ public class AlterTableStatement extends SchemaAlteringStatement
         // validated in announceMigration()
     }
 
-    public void announceMigration() throws RequestValidationException
+    public boolean announceMigration() throws RequestValidationException
     {
         CFMetaData meta = validateColumnFamily(keyspace(), columnFamily());
         CFMetaData cfm = meta.clone();
@@ -266,6 +266,7 @@ public class AlterTableStatement extends SchemaAlteringStatement
         }
 
         MigrationManager.announceColumnFamilyUpdate(cfm, false);
+        return true;
     }
 
     public String toString()

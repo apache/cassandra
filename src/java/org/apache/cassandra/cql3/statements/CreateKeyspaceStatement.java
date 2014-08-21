@@ -97,16 +97,18 @@ public class CreateKeyspaceStatement extends SchemaAlteringStatement
                                                                 attrs.getReplicationOptions());
     }
 
-    public void announceMigration() throws RequestValidationException
+    public boolean announceMigration() throws RequestValidationException
     {
         try
         {
             MigrationManager.announceNewKeyspace(attrs.asKSMetadata(name));
+            return true;
         }
         catch (AlreadyExistsException e)
         {
-            if (!ifNotExists)
-                throw e;
+            if (ifNotExists)
+                return false;
+            throw e;
         }
     }
 

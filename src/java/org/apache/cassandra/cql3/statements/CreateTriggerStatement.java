@@ -65,12 +65,13 @@ public class CreateTriggerStatement extends SchemaAlteringStatement
         }
     }
 
-    public void announceMigration() throws ConfigurationException
+    public boolean announceMigration() throws ConfigurationException
     {
         CFMetaData cfm = Schema.instance.getCFMetaData(keyspace(), columnFamily()).clone();
         cfm.addTriggerDefinition(TriggerDefinition.create(triggerName, triggerClass));
         logger.info("Adding trigger with name {} and class {}", triggerName, triggerClass);
         MigrationManager.announceColumnFamilyUpdate(cfm, false);
+        return true;
     }
 
     public ResultMessage.SchemaChange.Change changeType()
