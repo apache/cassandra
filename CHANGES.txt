@@ -1,4 +1,6 @@
 2.1.1
+ * (cqlsh) Order UDTs according to cross-type dependencies in DESCRIBE
+   output (CASSANDRA-7659)
  * (cqlsh) Fix handling of CAS statement results (CASSANDRA-7671)
  * (cqlsh) COPY TO/FROM improvements (CASSANDRA-7405)
  * Support list index operations with conditions (CASSANDRA-7499)
