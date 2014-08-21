@@ -33,7 +33,9 @@ class _CountDownLatch(object):
     def await(self):
         with self._lock:
             while self._count > 0:
-                self._lock.wait()
+                # use a timeout so that the main thread wakes up occasionally
+                # so it can see keyboard interrupts (CASSANDRA-7815)
+                self._lock.wait(0.5)
 
 
 class _ChainedWriter(object):
@@ -57,7 +59,13 @@ class _ChainedWriter(object):
         for i in xrange(self.CONCURRENCY):
             self._execute_next(self._sentinel, 0)
 
-        self._task_counter.await()
+        try:
+            self._task_counter.await()
+        except KeyboardInterrupt:
+            self._cancellation_event.set()
+            sys.stdout.write('Aborting due to keyboard interrupt\n')
+            self._task_counter.await()
+
         return next(self._num_finished), self._first_error
 
     def _abort(self, error, failed_record):
