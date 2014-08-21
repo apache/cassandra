@@ -210,7 +210,7 @@ JUNK ::= /([ \t\r\f\v]+|(--|[/][/])[^\n\r]*([\n\r]|$)|[/][*].*?[*][/])/ ;
 <mapLiteral> ::= "{" <term> ":" <term> ( "," <term> ":" <term> )* "}"
                ;
 
-<functionName> ::= ( <identifier> ":" ":" )? <identifier>
+<functionName> ::= <identifier> ( ":" ":" <identifier> )?
                  ;
 
 <statementBody> ::= <useStatement>
@@ -237,6 +237,7 @@ JUNK ::= /([ \t\r\f\v]+|(--|[/][/])[^\n\r]*([\n\r]|$)|[/][*].*?[*][/])/ ;
                           | <dropColumnFamilyStatement>
                           | <dropIndexStatement>
                           | <dropUserTypeStatement>
+                          | <dropFunctionStatement>
                           | <alterTableStatement>
                           | <alterKeyspaceStatement>
                           | <alterUserTypeStatement>
@@ -986,7 +987,7 @@ syntax_rules += r'''
 <createFunctionStatement> ::= "CREATE" ("OR" "REPLACE")? "FUNCTION"
                             ("IF" "NOT" "EXISTS")?
                             ("NON"? "DETERMINISTIC")?
-                            ( namespace=<nonSystemKeyspaceName> dot="::" )? function=<cfOrKsName>
+                            <functionName>
                             ( "(" ( newcol=<cident> <storageType>
                               ( "," [newcolname]=<cident> <storageType> )* )?
                             ")" )?
@@ -1030,11 +1031,10 @@ syntax_rules += r'''
                        ;
 
 <dropUserTypeStatement> ::= "DROP" "TYPE" ut=<userTypeName>
-                              ;
+                          ;
 
-<dropFunctionStatement> ::= "DROP" "FUNCTION" ("IF" "EXISTS")?
-                              ( namespace=<nonSystemKeyspaceName> dot="." )? function=<cfOrKsName>
-                              ;
+<dropFunctionStatement> ::= "DROP" "FUNCTION" ( "IF" "EXISTS" )? <functionName>
+                          ;
 
 '''
 
