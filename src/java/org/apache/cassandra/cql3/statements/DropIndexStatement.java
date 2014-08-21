@@ -73,15 +73,16 @@ public class DropIndexStatement extends SchemaAlteringStatement
         return indexedCF == null ? null : new ResultMessage.SchemaChange(changeEvent());
     }
 
-    public void announceMigration(boolean isLocalOnly) throws InvalidRequestException, ConfigurationException
+    public boolean announceMigration(boolean isLocalOnly) throws InvalidRequestException, ConfigurationException
     {
         CFMetaData cfm = findIndexedCF();
         if (cfm == null)
-            return;
+            return false;
 
         CFMetaData updatedCfm = updateCFMetadata(cfm);
         indexedCF = updatedCfm.cfName;
         MigrationManager.announceColumnFamilyUpdate(updatedCfm, false, isLocalOnly);
+        return true;
     }
 
     private CFMetaData updateCFMetadata(CFMetaData cfm)

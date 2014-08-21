@@ -65,12 +65,13 @@ public class CreateTriggerStatement extends SchemaAlteringStatement
         }
     }
 
-    public void announceMigration(boolean isLocalOnly) throws ConfigurationException
+    public boolean announceMigration(boolean isLocalOnly) throws ConfigurationException
     {
         CFMetaData cfm = Schema.instance.getCFMetaData(keyspace(), columnFamily()).copy();
         cfm.addTriggerDefinition(TriggerDefinition.create(triggerName, triggerClass));
         logger.info("Adding trigger with name {} and class {}", triggerName, triggerClass);
         MigrationManager.announceColumnFamilyUpdate(cfm, false, isLocalOnly);
+        return true;
     }
 
     public Event.SchemaChange changeEvent()

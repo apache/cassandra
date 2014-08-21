@@ -53,13 +53,14 @@ public class DropTriggerStatement extends SchemaAlteringStatement
         ThriftValidation.validateColumnFamily(keyspace(), columnFamily());
     }
 
-    public void announceMigration(boolean isLocalOnly) throws ConfigurationException
+    public boolean announceMigration(boolean isLocalOnly) throws ConfigurationException
     {
         CFMetaData cfm = Schema.instance.getCFMetaData(keyspace(), columnFamily()).copy();
         if (!cfm.removeTrigger(triggerName))
             throw new ConfigurationException(String.format("Trigger %s was not found", triggerName));
         logger.info("Dropping trigger with name {}", triggerName);
         MigrationManager.announceColumnFamilyUpdate(cfm, false, isLocalOnly);
+        return true;
     }
 
     public Event.SchemaChange changeEvent()

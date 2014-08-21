@@ -65,11 +65,22 @@ public abstract class SchemaAlteringStatement extends CFStatement implements CQL
 
     public abstract Event.SchemaChange changeEvent();
 
-    public abstract void announceMigration(boolean isLocalOnly) throws RequestValidationException;
+    /**
+     * Announces the migration to other nodes in the cluster.
+     * @return true if the execution of this statement resulted in a schema change, false otherwise (when IF NOT EXISTS
+     * is used, for example)
+     * @throws RequestValidationException
+     */
+    public abstract boolean announceMigration(boolean isLocalOnly) throws RequestValidationException;
 
     public ResultMessage execute(QueryState state, QueryOptions options) throws RequestValidationException
     {
-        announceMigration(false);
+        // If an IF [NOT] EXISTS clause was used, this may not result in an actual schema change.  To avoid doing
+        // extra work in the drivers to handle schema changes, we return an empty message in this case. (CASSANDRA-7600)
+        boolean didChangeSchema = announceMigration(false);
+        if (!didChangeSchema)
+            return new ResultMessage.Void();
+
         Event.SchemaChange ce = changeEvent();
         return ce == null ? new ResultMessage.Void() : new ResultMessage.SchemaChange(ce);
     }
@@ -78,7 +89,10 @@ public abstract class SchemaAlteringStatement extends CFStatement implements CQL
     {
         try
         {
-            announceMigration(true);
+            boolean didChangeSchema = announceMigration(true);
+            if (!didChangeSchema)
+                return new ResultMessage.Void();
+
             Event.SchemaChange ce = changeEvent();
             return ce == null ? new ResultMessage.Void() : new ResultMessage.SchemaChange(ce);
         }

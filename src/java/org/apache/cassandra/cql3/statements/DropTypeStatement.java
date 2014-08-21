@@ -137,14 +137,17 @@ public class DropTypeStatement extends SchemaAlteringStatement
         return name.getKeyspace();
     }
 
-    public void announceMigration(boolean isLocalOnly) throws InvalidRequestException, ConfigurationException
+    public boolean announceMigration(boolean isLocalOnly) throws InvalidRequestException, ConfigurationException
     {
         KSMetaData ksm = Schema.instance.getKSMetaData(name.getKeyspace());
         assert ksm != null;
 
         UserType toDrop = ksm.userTypes.getType(name.getUserTypeName());
         // Can be null with ifExists
-        if (toDrop != null)
-            MigrationManager.announceTypeDrop(toDrop, isLocalOnly);
+        if (toDrop == null)
+            return false;
+
+        MigrationManager.announceTypeDrop(toDrop, isLocalOnly);
+        return true;
     }
 }

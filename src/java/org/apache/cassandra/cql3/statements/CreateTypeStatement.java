@@ -116,17 +116,18 @@ public class CreateTypeStatement extends SchemaAlteringStatement
         return new UserType(name.getKeyspace(), name.getUserTypeName(), names, types);
     }
 
-    public void announceMigration(boolean isLocalOnly) throws InvalidRequestException, ConfigurationException
+    public boolean announceMigration(boolean isLocalOnly) throws InvalidRequestException, ConfigurationException
     {
         KSMetaData ksm = Schema.instance.getKSMetaData(name.getKeyspace());
         assert ksm != null; // should haven't validate otherwise
 
         // Can happen with ifNotExists
         if (ksm.userTypes.getType(name.getUserTypeName()) != null)
-            return;
+            return false;
 
         UserType type = createType();
         checkForDuplicateNames(type);
         MigrationManager.announceNewType(type, isLocalOnly);
+        return true;
     }
 }

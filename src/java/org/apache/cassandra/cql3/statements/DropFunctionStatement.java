@@ -79,16 +79,18 @@ public final class DropFunctionStatement extends SchemaAlteringStatement
 
     // no execute() - drop propagated via MigrationManager
 
-    public void announceMigration(boolean isLocalOnly) throws RequestValidationException
+    public boolean announceMigration(boolean isLocalOnly) throws RequestValidationException
     {
         try
         {
             MigrationManager.announceFunctionDrop(namespace, functionName, isLocalOnly);
+            return true;
         }
         catch (InvalidRequestException e)
         {
-            if (!ifExists)
-                throw e;
+            if (ifExists)
+                return false;
+            throw e;
         }
     }
 }

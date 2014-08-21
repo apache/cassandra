@@ -151,9 +151,10 @@ public final class CreateFunctionStatement extends SchemaAlteringStatement
         UDFRegistry.tryCreateFunction(ufMeta);
     }
 
-    public void announceMigration(boolean isLocalOnly) throws RequestValidationException
+    public boolean announceMigration(boolean isLocalOnly) throws RequestValidationException
     {
         MigrationManager.announceNewFunction(ufMeta, isLocalOnly);
+        return true;
     }
 
     public static final class Argument
