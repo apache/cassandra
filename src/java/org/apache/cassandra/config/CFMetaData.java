@@ -2020,9 +2020,12 @@ public final class CFMetaData
 
     public CFMetaData rebuild()
     {
+        if (isDense == null)
+            setDense(isDense(comparator.asAbstractType(), allColumns()));
+
         List<ColumnDefinition> pkCols = nullInitializedList(keyValidator.componentsCount());
         List<ColumnDefinition> ckCols = nullInitializedList(comparator.clusteringPrefixSize());
-        // We keep things sorted to get consistent/predicatable order in select queries
+        // We keep things sorted to get consistent/predictable order in select queries
         SortedSet<ColumnDefinition> regCols = new TreeSet<>(regularColumnComparator);
         SortedSet<ColumnDefinition> statCols = new TreeSet<>(regularColumnComparator);
         ColumnDefinition compactCol = null;
