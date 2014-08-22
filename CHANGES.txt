@@ -18,6 +18,7 @@
 
 
 2.1.1
+ * (cqlsh) Display the current logged-in user (CASSANDRA-7785)
  * (cqlsh) Don't ignore CTRL-C during COPY FROM execution (CASSANDRA-7815)
  * (cqlsh) Order UDTs according to cross-type dependencies in DESCRIBE
    output (CASSANDRA-7659)

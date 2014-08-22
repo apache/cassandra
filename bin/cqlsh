@@ -504,6 +504,7 @@ class Shell(cmd.Cmd):
             if not password:
                 password = getpass.getpass()
             self.auth_provider = PlainTextAuthProvider(username=username, password=password)
+        self.username = username
         self.keyspace = keyspace
         self.tracing_enabled = tracing_enabled
         self.expand_enabled = expand_enabled
@@ -712,9 +713,9 @@ class Shell(cmd.Cmd):
 
     def reset_prompt(self):
         if self.current_keyspace is None:
-            self.set_prompt(self.default_prompt)
+            self.set_prompt(self.default_prompt, True)
         else:
-            self.set_prompt(self.keyspace_prompt % self.current_keyspace)
+            self.set_prompt(self.keyspace_prompt % self.current_keyspace, True)
 
     def set_continue_prompt(self):
         if self.empty_lines >=3:
@@ -1062,7 +1063,10 @@ class Shell(cmd.Cmd):
         return cqlruleset.cql_complete(stuff_to_complete, text, cassandra_conn=self,
                                        debug=debug_completion, startsymbol='cqlshCommand')
 
-    def set_prompt(self, prompt):
+    def set_prompt(self, prompt, prepend_user=False):
+        if prepend_user and self.username:
+            self.prompt = "%s@%s" % (self.username, prompt)
+            return
         self.prompt = prompt
 
     def cql_unprotect_name(self, namestr):
