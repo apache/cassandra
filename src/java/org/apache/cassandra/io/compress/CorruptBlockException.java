@@ -23,11 +23,21 @@ public class CorruptBlockException extends IOException
 {
     public CorruptBlockException(String filePath, CompressionMetadata.Chunk chunk)
     {
-        this(filePath, chunk.offset, chunk.length);
+        this(filePath, chunk, null);
+    }
+
+    public CorruptBlockException(String filePath, CompressionMetadata.Chunk chunk, Throwable cause)
+    {
+        this(filePath, chunk.offset, chunk.length, cause);
     }
 
     public CorruptBlockException(String filePath, long offset, int length)
     {
-        super(String.format("(%s): corruption detected, chunk at %d of length %d.", filePath, offset, length));
+        this(filePath, offset, length, null);
+    }
+
+    public CorruptBlockException(String filePath, long offset, int length, Throwable cause)
+    {
+        super(String.format("(%s): corruption detected, chunk at %d of length %d.", filePath, offset, length), cause);
     }
 }

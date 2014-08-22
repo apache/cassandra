@@ -119,7 +119,7 @@ public class CompressedRandomAccessReader extends RandomAccessReader
         }
         catch (IOException e)
         {
-            throw new CorruptBlockException(getPath(), chunk);
+            throw new CorruptBlockException(getPath(), chunk, e);
         }
 
         if (metadata.parameters.getCrcCheckChance() > FBUtilities.threadLocalRandom().nextDouble())
