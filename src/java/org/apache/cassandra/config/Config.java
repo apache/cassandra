@@ -263,8 +263,10 @@ public class Config
 
     public static List<String> parseHintedHandoffEnabledDCs(final String dcNames) throws IOException
     {
-        final CsvListReader csvListReader = new CsvListReader(new StringReader(dcNames), STANDARD_SURROUNDING_SPACES_NEED_QUOTES);
-        return csvListReader.read();
+        try (final CsvListReader csvListReader = new CsvListReader(new StringReader(dcNames), STANDARD_SURROUNDING_SPACES_NEED_QUOTES))
+        {
+        	return csvListReader.read();
+        }
     }
 
     public static enum CommitLogSync
