@@ -69,16 +69,16 @@ public class RangeTombstone extends Interval<Composite, DeletionTime> implements
     {
         digest.update(min.toByteBuffer().duplicate());
         digest.update(max.toByteBuffer().duplicate());
-        DataOutputBuffer buffer = new DataOutputBuffer();
-        try
+
+        try (DataOutputBuffer buffer = new DataOutputBuffer())
         {
             buffer.writeLong(data.markedForDeleteAt);
+            digest.update(buffer.getData(), 0, buffer.getLength());
         }
         catch (IOException e)
         {
             throw new RuntimeException(e);
         }
-        digest.update(buffer.getData(), 0, buffer.getLength());
     }
 
     /**
