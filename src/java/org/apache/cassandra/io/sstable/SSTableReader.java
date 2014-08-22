@@ -1071,7 +1071,7 @@ public class SSTableReader extends SSTable
         return indexSummary.getEffectiveIndexInterval();
     }
 
-    public void releaseSummary() throws IOException
+    public void releaseSummary()
     {
         indexSummary.close();
         indexSummary = null;

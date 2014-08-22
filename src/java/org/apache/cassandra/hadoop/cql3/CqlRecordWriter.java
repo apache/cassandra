@@ -89,7 +89,7 @@ class CqlRecordWriter extends AbstractColumnFamilyRecordWriter<Map<String, ByteB
         this.context = context;
     }
 
-    CqlRecordWriter(Configuration conf, Progressable progressable) throws IOException
+    CqlRecordWriter(Configuration conf, Progressable progressable)
     {
         this(conf);
         this.progressable = progressable;

@@ -178,7 +178,7 @@ public abstract class ModificationStatement implements CQLStatement, MeasurableF
                                 staticConditions == null ? Collections.<ColumnDefinition>emptyList() : Iterables.transform(staticConditions, getColumnForCondition));
     }
 
-    public void addCondition(ColumnCondition cond) throws InvalidRequestException
+    public void addCondition(ColumnCondition cond)
     {
         List<ColumnCondition> conds = null;
         if (cond.column.isStatic())

@@ -168,7 +168,7 @@ public class CloudstackSnitch extends AbstractNetworkTopologySnitch
         throw new ConfigurationException("No valid DHCP lease file could be found.");
     }
 
-    String csEndpointFromLease(File lease) throws ConfigurationException, IOException
+    String csEndpointFromLease(File lease) throws ConfigurationException
     {
         BufferedReader reader = null;
 

@@ -285,7 +285,7 @@ public class Tuples
             super(bindIndex);
         }
 
-        private static ColumnSpecification makeReceiver(List<? extends ColumnSpecification> receivers) throws InvalidRequestException
+        private static ColumnSpecification makeReceiver(List<? extends ColumnSpecification> receivers)
         {
             List<AbstractType<?>> types = new ArrayList<>(receivers.size());
             StringBuilder inName = new StringBuilder("(");

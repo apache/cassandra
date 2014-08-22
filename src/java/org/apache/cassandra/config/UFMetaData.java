@@ -208,7 +208,6 @@ public final class UFMetaData
     }
 
     public static Mutation createOrReplaceFunction(long timestamp, UFMetaData f)
-    throws ConfigurationException, SyntaxException
     {
         Mutation mutation = new Mutation(Keyspace.SYSTEM_KS, partKey.decompose(f.namespace, f.functionName));
         ColumnFamily cf = mutation.addOrGet(SystemKeyspace.SCHEMA_FUNCTIONS_CF);

@@ -113,7 +113,7 @@ public class UDFunction
         }
     }
 
-    public Function create(List<? extends AssignementTestable> providedArgs) throws InvalidRequestException
+    public Function create(List<? extends AssignementTestable> providedArgs)
     {
         final int argCount = providedArgs.size();
         final List<AbstractType<?>> argsType = new ArrayList<>(argCount);

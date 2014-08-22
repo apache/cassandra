@@ -384,7 +384,7 @@ public class MigrationManager
     }
 
     public static void announceNewFunction(UFMetaData function, boolean announceLocally)
-        throws ConfigurationException, SyntaxException
+        throws ConfigurationException
     {
         Mutation mutation = UFMetaData.createOrReplaceFunction(FBUtilities.timestampMicros(), function);
         if (mutation == null)
@@ -406,7 +406,7 @@ public class MigrationManager
             {
                 DefsTables.mergeSchemaInternal(Collections.singletonList(schema), false);
             }
-            catch (ConfigurationException | IOException e)
+            catch (IOException e)
             {
                 throw new RuntimeException(e);
             }

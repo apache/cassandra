@@ -137,7 +137,7 @@ public abstract class Functions
         }
     }
 
-    private static boolean isValidType(String keyspace, Function fun, List<? extends AssignementTestable> providedArgs, ColumnSpecification receiver) throws InvalidRequestException
+    private static boolean isValidType(String keyspace, Function fun, List<? extends AssignementTestable> providedArgs, ColumnSpecification receiver)
     {
         if (!receiver.type.isValueCompatibleWith(fun.returnType()))
             return false;

@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.tools;
 
-import java.io.IOException;
 import java.io.PrintStream;
 import java.util.Map;
 import java.util.Set;
@@ -39,7 +38,7 @@ public class SSTableLevelResetter
     /**
      * @param args a list of sstables whose metadata we are changing
      */
-    public static void main(String[] args) throws IOException
+    public static void main(String[] args)
     {
         PrintStream out = System.out;
         if (args.length == 0)

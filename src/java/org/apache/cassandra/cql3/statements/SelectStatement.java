@@ -1282,7 +1282,7 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
     /**
      * Orders results when multiple keys are selected (using IN)
      */
-    private void orderResults(ResultSet cqlRows) throws InvalidRequestException
+    private void orderResults(ResultSet cqlRows)
     {
         if (cqlRows.size() == 0 || !needsPostQueryOrdering())
             return;

@@ -319,7 +319,6 @@ public class Memtable
         }
 
         private SSTableReader writeSortedContents(ReplayPosition context, File sstableDirectory)
-        throws ExecutionException, InterruptedException
         {
             logger.info("Writing {}", Memtable.this.toString());
 
@@ -375,7 +374,7 @@ public class Memtable
             }
         }
 
-        public SSTableWriter createFlushWriter(String filename) throws ExecutionException, InterruptedException
+        public SSTableWriter createFlushWriter(String filename)
         {
             MetadataCollector sstableMetadataCollector = new MetadataCollector(cfs.metadata.comparator).replayPosition(context);
             return new SSTableWriter(filename,

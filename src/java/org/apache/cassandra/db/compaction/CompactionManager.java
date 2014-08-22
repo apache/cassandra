@@ -396,7 +396,7 @@ public class CompactionManager implements CompactionManagerMBean
     public void performAnticompaction(ColumnFamilyStore cfs,
                                       Collection<Range<Token>> ranges,
                                       Collection<SSTableReader> validatedForRepair,
-                                      long repairedAt) throws InterruptedException, ExecutionException, IOException
+                                      long repairedAt) throws InterruptedException, IOException
     {
         logger.info("Starting anticompaction for {}/{}", cfs.keyspace.getName(), cfs.getColumnFamilyName());
         logger.debug("Starting anticompaction for ranges {}", ranges);
