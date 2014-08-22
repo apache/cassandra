@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.tools;
 
-import java.io.IOException;
 import java.util.*;
 
 import org.apache.commons.cli.*;

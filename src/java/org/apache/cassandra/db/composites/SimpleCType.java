@@ -18,11 +18,9 @@
 package org.apache.cassandra.db.composites;
 
 import java.nio.ByteBuffer;
-import java.util.Comparator;
 import java.util.List;
 
 import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.utils.ByteBufferUtil;
 
 /**
  * A not truly-composite CType.

@@ -22,7 +22,6 @@ import java.nio.Buffer;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 
-import com.google.common.primitives.*;
 import sun.misc.Unsafe;
 
 public abstract class MemoryUtil

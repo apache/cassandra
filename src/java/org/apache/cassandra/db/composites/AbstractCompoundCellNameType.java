@@ -20,9 +20,7 @@ package org.apache.cassandra.db.composites;
 import java.io.DataInput;
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.Comparator;
 
-import org.apache.cassandra.db.Cell;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.CompositeType;
 

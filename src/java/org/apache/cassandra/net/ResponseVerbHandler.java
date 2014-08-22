@@ -19,7 +19,6 @@ package org.apache.cassandra.net;
 
 import java.util.concurrent.TimeUnit;
 
-import org.apache.cassandra.db.IMutation;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 

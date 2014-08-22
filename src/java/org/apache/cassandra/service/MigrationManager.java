@@ -31,7 +31,6 @@ import java.lang.management.RuntimeMXBean;
 
 import org.apache.cassandra.config.UFMetaData;
 import org.apache.cassandra.exceptions.InvalidRequestException;
-import org.apache.cassandra.exceptions.SyntaxException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 

@@ -21,9 +21,7 @@ import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicBoolean;
 
-import io.netty.util.concurrent.*;
 import org.apache.cassandra.concurrent.NamedThreadFactory;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.streaming.messages.OutgoingFileMessage;

@@ -20,10 +20,7 @@ package org.apache.cassandra.db.filter;
 import java.nio.ByteBuffer;
 import java.util.*;
 
-import com.google.common.base.Predicate;
-import com.google.common.collect.Iterators;
 import org.apache.cassandra.db.marshal.CollectionType;
-import org.apache.cassandra.utils.ByteBufferUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
