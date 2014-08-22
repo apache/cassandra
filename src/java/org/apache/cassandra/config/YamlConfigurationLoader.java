@@ -79,6 +79,7 @@ public class YamlConfigurationLoader implements ConfigurationLoader
         return url;
     }
 
+    @Override
     public Config loadConfig() throws ConfigurationException
     {
         return loadConfig(getStorageConfigURL());
@@ -86,7 +87,6 @@ public class YamlConfigurationLoader implements ConfigurationLoader
 
     public Config loadConfig(URL url) throws ConfigurationException
     {
-        InputStream input = null;
         try
         {
             logger.info("Loading settings from {}", url);
