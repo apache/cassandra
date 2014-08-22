@@ -1001,7 +1001,7 @@ syntax_rules += r'''
                                   <stringLiteral>
                                 )
                               )
-                              | (<stringLiteral>)
+                              | ("USING" <stringLiteral>)
                             )
                          ;
 

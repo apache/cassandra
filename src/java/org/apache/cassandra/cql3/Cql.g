@@ -513,7 +513,7 @@ createFunctionStatement returns [CreateFunctionStatement expr]
       K_RETURNS
       rt=comparatorType
       (
-          (                      { language="CLASS"; } cls = STRING_LITERAL { bodyOrClassName = $cls.text; } )
+          ( K_USING cls = STRING_LITERAL { bodyOrClassName = $cls.text; } )
         | ( K_LANGUAGE l = IDENT { language=$l.text; } K_AS
             (
               ( body = STRING_LITERAL
