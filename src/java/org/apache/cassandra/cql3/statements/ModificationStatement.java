@@ -157,7 +157,7 @@ public abstract class ModificationStatement implements CQLStatement, MeasurableF
                 throw new InvalidRequestException("Cannot provide custom timestamp for conditional update");
 
             if (requiresRead())
-                throw new InvalidRequestException("Operations using list indexes are not allowed with IF conditions");
+                throw new InvalidRequestException("Operations on lists requiring a read (setting by index and deletions by index or value) are not allowed with IF conditions");
         }
 
         if (isCounter())
