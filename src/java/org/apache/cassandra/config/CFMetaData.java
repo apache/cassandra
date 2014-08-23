@@ -950,6 +950,7 @@ public final class CFMetaData
             .append(speculativeRetry)
             .append(droppedColumns)
             .append(triggers)
+            .append(isDense)
             .toHashCode();
     }
 
