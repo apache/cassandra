@@ -860,6 +860,7 @@ public final class CFMetaData
             .append(populateIoCacheOnFlush)
             .append(droppedColumns)
             .append(triggers)
+            .append(isDense)
             .toHashCode();
     }
 
