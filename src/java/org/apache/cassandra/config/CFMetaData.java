@@ -951,6 +951,7 @@ public final class CFMetaData
             .append(speculativeRetry)
             .append(droppedColumns)
             .append(triggers)
+            .append(isDense)
             .toHashCode();
     }
 
@@ -2252,7 +2253,7 @@ public final class CFMetaData
             .append("keyValidator", keyValidator)
             .append("minCompactionThreshold", minCompactionThreshold)
             .append("maxCompactionThreshold", maxCompactionThreshold)
-            .append("columnMetadata", columnMetadata)
+            .append("columnMetadata", columnMetadata.values())
             .append("compactionStrategyClass", compactionStrategyClass)
             .append("compactionStrategyOptions", compactionStrategyOptions)
             .append("compressionParameters", compressionParameters.asThriftOptions())
@@ -2264,7 +2265,7 @@ public final class CFMetaData
             .append("maxIndexInterval", maxIndexInterval)
             .append("speculativeRetry", speculativeRetry)
             .append("droppedColumns", droppedColumns)
-            .append("triggers", triggers)
+            .append("triggers", triggers.values())
             .append("isDense", isDense)
             .toString();
     }
