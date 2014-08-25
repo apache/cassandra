@@ -251,10 +251,7 @@ public class StorageProxy implements StorageProxyMBean
             Tracing.trace("CAS precondition is met; proposing client-requested updates for {}", ballot);
             if (proposePaxos(proposal, liveEndpoints, requiredParticipants, true, consistencyForPaxos))
             {
-                if (consistencyForCommit == ConsistencyLevel.ANY)
-                    sendCommit(proposal, liveEndpoints);
-                else
-                    commitPaxos(proposal, consistencyForCommit);
+                commitPaxos(proposal, consistencyForCommit);
                 Tracing.trace("CAS successful");
                 return null;
             }
@@ -416,23 +413,34 @@ public class StorageProxy implements StorageProxyMBean
 
     private static void commitPaxos(Commit proposal, ConsistencyLevel consistencyLevel) throws WriteTimeoutException
     {
+        boolean shouldBlock = consistencyLevel != ConsistencyLevel.ANY;
         Keyspace keyspace = Keyspace.open(proposal.update.metadata().ksName);
 
         Token tk = StorageService.getPartitioner().getToken(proposal.key);
         List<InetAddress> naturalEndpoints = StorageService.instance.getNaturalEndpoints(keyspace.getName(), tk);
         Collection<InetAddress> pendingEndpoints = StorageService.instance.getTokenMetadata().pendingEndpointsFor(tk, keyspace.getName());
 
-        AbstractReplicationStrategy rs = keyspace.getReplicationStrategy();
-        AbstractWriteResponseHandler responseHandler = rs.getWriteResponseHandler(naturalEndpoints, pendingEndpoints, consistencyLevel, null, WriteType.SIMPLE);
+        AbstractWriteResponseHandler responseHandler = null;
+        if (shouldBlock)
+        {
+            AbstractReplicationStrategy rs = keyspace.getReplicationStrategy();
+            responseHandler = rs.getWriteResponseHandler(naturalEndpoints, pendingEndpoints, consistencyLevel, null, WriteType.SIMPLE);
+        }
 
         MessageOut<Commit> message = new MessageOut<Commit>(MessagingService.Verb.PAXOS_COMMIT, proposal, Commit.serializer);
         for (InetAddress destination : Iterables.concat(naturalEndpoints, pendingEndpoints))
         {
             if (FailureDetector.instance.isAlive(destination))
-                MessagingService.instance().sendRR(message, destination, responseHandler);
+            {
+                if (shouldBlock)
+                    MessagingService.instance().sendRR(message, destination, responseHandler);
+                else
+                    MessagingService.instance().sendOneWay(message, destination);
+            }
         }
 
-        responseHandler.get();
+        if (shouldBlock)
+            responseHandler.get();
     }
 
     /**
