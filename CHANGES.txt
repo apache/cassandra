@@ -1,4 +1,6 @@
 2.0.11:
+ * Always reject inequality on the partition key without token()
+   (CASSANDRA-7722)
  * Always send Paxos commit to all replicas (CASSANDRA-7479)
 
 2.0.10
