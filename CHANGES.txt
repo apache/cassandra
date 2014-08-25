@@ -1,4 +1,5 @@
 2.1.1
+ * Add IF [NOT] EXISTS to create/drop triggers (CASSANDRA-7606)
  * (cqlsh) Display the current logged-in user (CASSANDRA-7785)
  * (cqlsh) Don't ignore CTRL-C during COPY FROM execution (CASSANDRA-7815)
  * (cqlsh) Order UDTs according to cross-type dependencies in DESCRIBE

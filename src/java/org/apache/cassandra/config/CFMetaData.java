@@ -1976,11 +1976,17 @@ public final class CFMetaData
             cfDef.triggers.put(td.name, td);
     }
 
-    public void addTriggerDefinition(TriggerDefinition def) throws ConfigurationException
+    public void addTriggerDefinition(TriggerDefinition def) throws InvalidRequestException
     {
-        if (triggers.containsKey(def.name))
-            throw new ConfigurationException(String.format("Cannot create trigger %s, a trigger with the same name already exists", def.name));
+        if (containsTriggerDefinition(def))
+            throw new InvalidRequestException(
+                String.format("Cannot create trigger %s, a trigger with the same name already exists", def.name));
         triggers.put(def.name, def);
+    }
+
+    public boolean containsTriggerDefinition(TriggerDefinition def)
+    {
+        return triggers.containsKey(def.name);
     }
 
     public boolean removeTrigger(String name)
