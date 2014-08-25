@@ -52,6 +52,10 @@ Merged from 1.2:
    values (CASSANDRA-7792)
  * Fix ordering of static cells (CASSANDRA-7763)
 Merged from 2.0:
+ * Always send Paxos commit to all replicas (CASSANDRA-7479)
+ * Don't send schema change responses and events for no-op DDL
+   statements (CASSANDRA-7600)
+ * (Hadoop) fix cluster initialisation for a split fetching (CASSANDRA-7774)
  * Configure system.paxos with LeveledCompactionStrategy (CASSANDRA-7753)
  * Fix ALTER clustering column type from DateType to TimestampType when
    using DESC clustering order (CASSANRDA-7797)
