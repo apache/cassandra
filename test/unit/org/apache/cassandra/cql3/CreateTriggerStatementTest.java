@@ -26,9 +26,7 @@ import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.config.TriggerDefinition;
 import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.Mutation;
-import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.triggers.ITrigger;
-import org.junit.Assert;
 import org.junit.Test;
 
 import static org.junit.Assert.assertFalse;
