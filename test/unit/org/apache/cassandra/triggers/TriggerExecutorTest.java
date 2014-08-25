@@ -230,7 +230,7 @@ public class TriggerExecutorTest
             if (trigger != null)
                 metadata.addTriggerDefinition(trigger);
         }
-        catch (ConfigurationException e)
+        catch (InvalidRequestException e)
         {
             throw new AssertionError(e);
         }

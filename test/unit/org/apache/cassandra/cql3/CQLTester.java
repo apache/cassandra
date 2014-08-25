@@ -150,6 +150,16 @@ public abstract class CQLTester
         }
     }
 
+    protected String keyspace()
+    {
+        return KEYSPACE;
+    }
+
+    protected String currentTable()
+    {
+        return currentTable;
+    }
+
     protected String createType(String query)
     {
         String typeName = "type_" + seqNumber.getAndIncrement();

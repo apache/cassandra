@@ -25,6 +25,7 @@ import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.config.TriggerDefinition;
 import org.apache.cassandra.cql3.CFName;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.RequestValidationException;
 import org.apache.cassandra.exceptions.UnauthorizedException;
 import org.apache.cassandra.service.ClientState;
@@ -39,12 +40,14 @@ public class CreateTriggerStatement extends SchemaAlteringStatement
 
     private final String triggerName;
     private final String triggerClass;
+    private final boolean ifNotExists;
 
-    public CreateTriggerStatement(CFName name, String triggerName, String clazz)
+    public CreateTriggerStatement(CFName name, String triggerName, String clazz, boolean ifNotExists)
     {
         super(name);
         this.triggerName = triggerName;
         this.triggerClass = clazz;
+        this.ifNotExists = ifNotExists;
     }
 
     public void checkAccess(ClientState state) throws UnauthorizedException
@@ -65,13 +68,20 @@ public class CreateTriggerStatement extends SchemaAlteringStatement
         }
     }
 
-    public boolean announceMigration(boolean isLocalOnly) throws ConfigurationException
+    public boolean announceMigration(boolean isLocalOnly) throws ConfigurationException, InvalidRequestException
     {
         CFMetaData cfm = Schema.instance.getCFMetaData(keyspace(), columnFamily()).copy();
-        cfm.addTriggerDefinition(TriggerDefinition.create(triggerName, triggerClass));
-        logger.info("Adding trigger with name {} and class {}", triggerName, triggerClass);
-        MigrationManager.announceColumnFamilyUpdate(cfm, false, isLocalOnly);
-        return true;
+
+        TriggerDefinition triggerDefinition = TriggerDefinition.create(triggerName, triggerClass);
+
+        if (!ifNotExists || !cfm.containsTriggerDefinition(triggerDefinition))
+        {
+            cfm.addTriggerDefinition(triggerDefinition);
+            logger.info("Adding trigger with name {} and class {}", triggerName, triggerClass);
+            MigrationManager.announceColumnFamilyUpdate(cfm, false, isLocalOnly);
+            return true;
+        }
+        return false;
     }
 
     public Event.SchemaChange changeEvent()
