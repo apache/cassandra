@@ -6,6 +6,8 @@
    values (CASSANDRA-7792)
  * Fix ordering of static cells (CASSANDRA-7763)
 Merged from 2.0:
+ * Always reject inequality on the partition key without token()
+   (CASSANDRA-7722)
  * Always send Paxos commit to all replicas (CASSANDRA-7479)
  * Don't send schema change responses and events for no-op DDL
    statements (CASSANDRA-7600)

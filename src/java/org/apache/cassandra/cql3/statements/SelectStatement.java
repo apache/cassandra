@@ -1682,6 +1682,11 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
                             throw new InvalidRequestException(String.format("Column \"%s\" cannot be restricted by both an equality and an inequality relation", def.name));
                         else if (existingRestriction.isMultiColumn())
                             throw new InvalidRequestException(String.format("Column \"%s\" cannot be restricted by both a tuple notation inequality and a single column inequality (%s)", def.name, newRel));
+                        else if (existingRestriction.isOnToken() != newRel.onToken)
+                            // For partition keys, we shouldn't have slice restrictions without token(). And while this is rejected later by
+                            // processPartitionKeysRestrictions, we shouldn't update the existing restriction by the new one if the old one was using token()
+                            // and the new one isn't since that would bypass that later test.
+                            throw new InvalidRequestException("Only EQ and IN relation are supported on the partition key (unless you use the token() function)");
 
                         Term t = newRel.getValue().prepare(keyspace(), receiver);
                         t.collectMarkerSpecification(boundNames);
