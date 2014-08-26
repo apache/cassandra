@@ -183,6 +183,7 @@ Merged from 1.2:
    are thrown while handling native protocol messages (CASSANDRA-7470)
  * Fix row size miscalculation in LazilyCompactedRow (CASSANDRA-7543)
  * Fix race in background compaction check (CASSANDRA-7745)
+ * Don't clear out range tombstones during compaction (CASSANDRA-7808)
 
 
 2.1.0-rc1
