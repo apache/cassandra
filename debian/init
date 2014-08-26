@@ -41,6 +41,8 @@ fi
 # Add JNA to EXTRA_CLASSPATH
 export EXTRA_CLASSPATH="/usr/share/java/jna.jar:$EXTRA_CLASSPATH"
 
+export JVM_OPTS
+
 # Export JAVA_HOME, if set.
 [ -n "$JAVA_HOME" ] && export JAVA_HOME
 
