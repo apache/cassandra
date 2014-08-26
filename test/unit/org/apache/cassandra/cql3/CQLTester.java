@@ -35,6 +35,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.SchemaLoader;
+import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.db.Keyspace;
@@ -203,6 +205,11 @@ public abstract class CQLTester
         {
             throw new RuntimeException("Error setting schema for test (query was: " + query + ")", e);
         }
+    }
+
+    protected CFMetaData currentTableMetadata()
+    {
+        return Schema.instance.getCFMetaData(KEYSPACE, currentTable);
     }
 
     protected UntypedResultSet execute(String query, Object... values) throws Throwable
