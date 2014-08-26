@@ -131,6 +131,13 @@ public class MultiColumnRelationTest extends CQLTester
     }
 
     @Test
+    public void testNonEqualsRelation() throws Throwable
+    {
+        createTable("CREATE TABLE %s (a int PRIMARY KEY, b int)");
+        assertInvalid("SELECT * FROM %s WHERE a = 0 AND (b) != (0)");
+    }
+
+    @Test
     public void testMultipleClustering() throws Throwable
     {
         createTable("CREATE TABLE %s (a int, b int, c int, d int, PRIMARY KEY (a, b, c, d))");

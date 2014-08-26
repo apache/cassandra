@@ -24,7 +24,7 @@ public abstract class Relation {
 
     public static enum Type
     {
-        EQ, LT, LTE, GTE, GT, IN, CONTAINS, CONTAINS_KEY;
+        EQ, LT, LTE, GTE, GT, IN, CONTAINS, CONTAINS_KEY, NEQ;
 
         public boolean allowsIndexQuery()
         {
@@ -54,6 +54,8 @@ public abstract class Relation {
                     return ">";
                 case GTE:
                     return ">=";
+                case NEQ:
+                    return "!=";
                 default:
                     return this.name();
             }
