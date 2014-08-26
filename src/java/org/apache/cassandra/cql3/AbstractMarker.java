@@ -105,9 +105,6 @@ public abstract class AbstractMarker extends Term.NonTerminal
         @Override
         public AbstractMarker prepare(String keyspace, ColumnSpecification receiver) throws InvalidRequestException
         {
-            if (receiver.type instanceof CollectionType)
-                throw new InvalidRequestException("Collection columns do not support IN relations");
-
             return new Lists.Marker(bindIndex, makeInReceiver(receiver));
         }
     }

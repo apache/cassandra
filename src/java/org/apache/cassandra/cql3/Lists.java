@@ -37,12 +37,16 @@ import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.UUIDGen;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Static helper methods and classes for lists.
  */
 public abstract class Lists
 {
+    private static final Logger logger = LoggerFactory.getLogger(Lists.class);
+
     private Lists() {}
 
     public static ColumnSpecification indexSpecOf(ColumnSpecification column)
@@ -138,7 +142,8 @@ public abstract class Lists
                 List<?> l = (List<?>)type.getSerializer().deserializeForNativeProtocol(value, version);
                 List<ByteBuffer> elements = new ArrayList<ByteBuffer>(l.size());
                 for (Object element : l)
-                    elements.add(type.elements.decompose(element));
+                    // elements can be null in lists that represent a set of IN values
+                    elements.add(element == null ? null : type.elements.decompose(element));
                 return new Value(elements);
             }
             catch (MarshalException e)

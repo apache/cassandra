@@ -84,9 +84,17 @@ public class ListSerializer<T> extends CollectionSerializer<List<T>>
             List<T> l = new ArrayList<T>(n);
             for (int i = 0; i < n; i++)
             {
+                // We can have nulls in lists that are used for IN values
                 ByteBuffer databb = readValue(input, version);
-                elements.validate(databb);
-                l.add(elements.deserialize(databb));
+                if (databb != null)
+                {
+                    elements.validate(databb);
+                    l.add(elements.deserialize(databb));
+                }
+                else
+                {
+                    l.add(null);
+                }
             }
             return l;
         }
