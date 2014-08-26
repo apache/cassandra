@@ -127,6 +127,7 @@ public class RangeTombstone extends Interval<ByteBuffer, DeletionTime> implement
                 return comparator.compare(t1.max, t2.max);
             }
         });
+        public final Set<RangeTombstone> expired = new HashSet<RangeTombstone>();
         private int atomCount;
 
         public Tracker(Comparator<ByteBuffer> comparator)
@@ -158,6 +159,9 @@ public class RangeTombstone extends Interval<ByteBuffer, DeletionTime> implement
                 // If ever the first column is outside the range, skip it (in
                 // case update() hasn't been called yet)
                 if (comparator.compare(firstColumn.name(), tombstone.max) > 0)
+                    continue;
+
+                if (expired.contains(tombstone))
                     continue;
 
                 RangeTombstone updated = new RangeTombstone(firstColumn.name(), tombstone.max, tombstone.data);
@@ -194,7 +198,7 @@ public class RangeTombstone extends Interval<ByteBuffer, DeletionTime> implement
          * If column is a IColumn, check if any tracked range is useless and
          * can be removed. If it is a RangeTombstone, add it to this tracker.
          */
-        public void update(OnDiskAtom atom)
+        public void update(OnDiskAtom atom, boolean isExpired)
         {
             if (atom instanceof RangeTombstone)
             {
@@ -215,6 +219,8 @@ public class RangeTombstone extends Interval<ByteBuffer, DeletionTime> implement
                 }
                 ranges.addLast(t);
                 maxOrderingSet.add(t);
+                if (isExpired)
+                    expired.add(t);
             }
             else
             {

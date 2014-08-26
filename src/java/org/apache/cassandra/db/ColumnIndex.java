@@ -187,7 +187,7 @@ public class ColumnIndex
 
             // TODO: Should deal with removing unneeded tombstones
             if (tombstoneTracker != null)
-                tombstoneTracker.update(column);
+                tombstoneTracker.update(column, false);
 
             lastColumn = column;
         }
