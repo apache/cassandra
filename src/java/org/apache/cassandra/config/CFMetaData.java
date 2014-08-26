@@ -2162,6 +2162,11 @@ public final class CFMetaData
             if (def.type == ColumnDefinition.Type.REGULAR && !def.isThriftCompatible())
                 return false;
         }
+
+        // The table might also have no REGULAR columns (be PK-only), but still be "thrift incompatible". See #7832.
+        if (isCQL3OnlyPKComparator(comparator) && !isDense)
+            return false;
+
         return true;
     }
 
