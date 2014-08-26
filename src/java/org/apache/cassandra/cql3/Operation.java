@@ -162,7 +162,7 @@ public abstract class Operation
             Term v = value.prepare(keyspace, receiver);
 
             if (receiver.type instanceof CounterColumnType)
-                throw new InvalidRequestException(String.format("Cannot set the value of counter column %s (counters can only be incremented/decremented, not set)", receiver));
+                throw new InvalidRequestException(String.format("Cannot set the value of counter column %s (counters can only be incremented/decremented, not set)", receiver.name));
 
             if (!(receiver.type instanceof CollectionType))
                 return new Constants.Setter(receiver, v);
@@ -206,7 +206,7 @@ public abstract class Operation
         public Operation prepare(String keyspace, ColumnDefinition receiver) throws InvalidRequestException
         {
             if (!(receiver.type instanceof CollectionType))
-                throw new InvalidRequestException(String.format("Invalid operation (%s) for non collection column %s", toString(receiver), receiver));
+                throw new InvalidRequestException(String.format("Invalid operation (%s) for non collection column %s", toString(receiver), receiver.name));
 
             switch (((CollectionType)receiver.type).kind)
             {
@@ -215,7 +215,7 @@ public abstract class Operation
                     Term lval = value.prepare(keyspace, Lists.valueSpecOf(receiver));
                     return new Lists.SetterByIndex(receiver, idx, lval);
                 case SET:
-                    throw new InvalidRequestException(String.format("Invalid operation (%s) for set column %s", toString(receiver), receiver));
+                    throw new InvalidRequestException(String.format("Invalid operation (%s) for set column %s", toString(receiver), receiver.name));
                 case MAP:
                     Term key = selector.prepare(keyspace, Maps.keySpecOf(receiver));
                     Term mval = value.prepare(keyspace, Maps.valueSpecOf(receiver));
@@ -226,7 +226,7 @@ public abstract class Operation
 
         protected String toString(ColumnSpecification column)
         {
-            return String.format("%s[%s] = %s", column, selector, value);
+            return String.format("%s[%s] = %s", column.name, selector, value);
         }
 
         public boolean isCompatibleWith(RawUpdate other)
@@ -253,7 +253,7 @@ public abstract class Operation
             if (!(receiver.type instanceof CollectionType))
             {
                 if (!(receiver.type instanceof CounterColumnType))
-                    throw new InvalidRequestException(String.format("Invalid operation (%s) for non counter column %s", toString(receiver), receiver));
+                    throw new InvalidRequestException(String.format("Invalid operation (%s) for non counter column %s", toString(receiver), receiver.name));
                 return new Constants.Adder(receiver, v);
             }
 
@@ -271,7 +271,7 @@ public abstract class Operation
 
         protected String toString(ColumnSpecification column)
         {
-            return String.format("%s = %s + %s", column, column, value);
+            return String.format("%s = %s + %s", column.name, column.name, value);
         }
 
         public boolean isCompatibleWith(RawUpdate other)
@@ -296,7 +296,7 @@ public abstract class Operation
             if (!(receiver.type instanceof CollectionType))
             {
                 if (!(receiver.type instanceof CounterColumnType))
-                    throw new InvalidRequestException(String.format("Invalid operation (%s) for non counter column %s", toString(receiver), receiver));
+                    throw new InvalidRequestException(String.format("Invalid operation (%s) for non counter column %s", toString(receiver), receiver.name));
                 return new Constants.Substracter(receiver, v);
             }
 
@@ -314,7 +314,7 @@ public abstract class Operation
 
         protected String toString(ColumnSpecification column)
         {
-            return String.format("%s = %s - %s", column, column, value);
+            return String.format("%s = %s - %s", column.name, column.name, value);
         }
 
         public boolean isCompatibleWith(RawUpdate other)
@@ -337,14 +337,14 @@ public abstract class Operation
             Term v = value.prepare(keyspace, receiver);
 
             if (!(receiver.type instanceof ListType))
-                throw new InvalidRequestException(String.format("Invalid operation (%s) for non list column %s", toString(receiver), receiver));
+                throw new InvalidRequestException(String.format("Invalid operation (%s) for non list column %s", toString(receiver), receiver.name));
 
             return new Lists.Prepender(receiver, v);
         }
 
         protected String toString(ColumnSpecification column)
         {
-            return String.format("%s = %s - %s", column, value, column);
+            return String.format("%s = %s - %s", column.name, value, column.name);
         }
 
         public boolean isCompatibleWith(RawUpdate other)
@@ -393,7 +393,7 @@ public abstract class Operation
         public Operation prepare(String keyspace, ColumnDefinition receiver) throws InvalidRequestException
         {
             if (!(receiver.type instanceof CollectionType))
-                throw new InvalidRequestException(String.format("Invalid deletion operation for non collection column %s", receiver));
+                throw new InvalidRequestException(String.format("Invalid deletion operation for non collection column %s", receiver.name));
 
             switch (((CollectionType)receiver.type).kind)
             {
