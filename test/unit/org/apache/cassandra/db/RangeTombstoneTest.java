@@ -18,6 +18,7 @@
 */
 package org.apache.cassandra.db;
 
+import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -25,6 +26,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
+import java.util.concurrent.ExecutionException;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Iterators;
@@ -33,6 +35,7 @@ import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.config.*;
+import org.apache.cassandra.Util;
 import org.apache.cassandra.db.columniterator.OnDiskAtomIterator;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.compaction.SizeTieredCompactionStrategy;
@@ -233,6 +236,59 @@ public class RangeTombstoneTest
         List<RangeTombstone> tombstones = new ArrayList<RangeTombstone>();
         Iterators.addAll(tombstones, cf.deletionInfo().rangeIterator());
         return tombstones;
+    }
+
+    @Test
+    public void test7808_1() throws ExecutionException, InterruptedException
+    {
+        Keyspace ks = Keyspace.open(KSNAME);
+        ColumnFamilyStore cfs = ks.getColumnFamilyStore(CFNAME);
+        cfs.metadata.gcGraceSeconds(2);
+
+        String key = "7808_1";
+        Mutation rm;
+        rm = new Mutation(KSNAME, ByteBufferUtil.bytes(key));
+        for (int i = 0; i < 40; i += 2)
+            add(rm, i, 0);
+        rm.apply();
+        cfs.forceBlockingFlush();
+        rm = new Mutation(KSNAME, ByteBufferUtil.bytes(key));
+        ColumnFamily cf = rm.addOrGet(CFNAME);
+        cf.delete(new DeletionInfo(1, 1));
+        rm.apply();
+        cfs.forceBlockingFlush();
+        Thread.sleep(5);
+        cfs.forceMajorCompaction();
+    }
+
+    @Test
+    public void test7808_2() throws ExecutionException, InterruptedException, IOException
+    {
+        Keyspace ks = Keyspace.open(KSNAME);
+        ColumnFamilyStore cfs = ks.getColumnFamilyStore(CFNAME);
+        cfs.metadata.gcGraceSeconds(2);
+
+        String key = "7808_2";
+        Mutation rm;
+        rm = new Mutation(KSNAME, ByteBufferUtil.bytes(key));
+        for (int i = 10; i < 20; i++)
+            add(rm, i, 0);
+        rm.apply();
+        cfs.forceBlockingFlush();
+
+        rm = new Mutation(KSNAME, ByteBufferUtil.bytes(key));
+        ColumnFamily cf = rm.addOrGet(CFNAME);
+        cf.delete(new DeletionInfo(0,0));
+        rm.apply();
+
+        rm = new Mutation(KSNAME, ByteBufferUtil.bytes(key));
+        add(rm, 5, 1);
+        rm.apply();
+
+        cfs.forceBlockingFlush();
+        Thread.sleep(5);
+        cfs.forceMajorCompaction();
+        assertEquals(1, Util.getColumnFamily(ks, Util.dk(key), CFNAME).getColumnCount());
     }
 
     @Test

@@ -188,7 +188,7 @@ public class LazilyCompactedRow extends AbstractCompactedRow
         // all columns reduced together will have the same name, so there will only be one column
         // in the container; we just want to leverage the conflict resolution code from CF.
         // (Note that we add the row tombstone in getReduced.)
-        final ColumnFamily container = ArrayBackedSortedColumns.factory.create(emptyColumnFamily.metadata());
+        ColumnFamily container = ArrayBackedSortedColumns.factory.create(emptyColumnFamily.metadata());
 
         // tombstone reference; will be reconciled w/ column during getReduced.  Note that the top-level (row) tombstone
         // is held by LCR.deletionInfo.
@@ -261,7 +261,8 @@ public class LazilyCompactedRow extends AbstractCompactedRow
                 Iterator<Cell> iter = container.iterator();
                 if (!iter.hasNext())
                 {
-                    container.clear();
+                    // don't call clear() because that resets the deletion time. See CASSANDRA-7808.
+                    container = ArrayBackedSortedColumns.factory.create(emptyColumnFamily.metadata());
                     return null;
                 }
 
@@ -270,7 +271,7 @@ public class LazilyCompactedRow extends AbstractCompactedRow
                     tombstones.update(localDeletionTime);
 
                 Cell reduced = iter.next();
-                container.clear();
+                container = ArrayBackedSortedColumns.factory.create(emptyColumnFamily.metadata());
 
                 // removeDeleted have only checked the top-level CF deletion times,
                 // not the range tombstone. For that we use the columnIndexer tombstone tracker.
