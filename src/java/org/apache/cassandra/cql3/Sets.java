@@ -72,7 +72,6 @@ public abstract class Sets
             if (receiver.type instanceof MapType && elements.isEmpty())
                 return new Maps.Value(Collections.<ByteBuffer, ByteBuffer>emptyMap());
 
-
             ColumnSpecification valueSpec = Sets.valueSpecOf(receiver);
             Set<Term> values = new HashSet<Term>(elements.size());
             boolean allTerminal = true;
@@ -81,7 +80,7 @@ public abstract class Sets
                 Term t = rt.prepare(keyspace, valueSpec);
 
                 if (t.containsBindMarker())
-                    throw new InvalidRequestException(String.format("Invalid set literal for %s: bind variables are not supported inside collection literals", receiver));
+                    throw new InvalidRequestException(String.format("Invalid set literal for %s: bind variables are not supported inside collection literals", receiver.name));
 
                 if (t instanceof Term.NonTerminal)
                     allTerminal = false;
@@ -101,14 +100,14 @@ public abstract class Sets
                 if (receiver.type instanceof MapType && elements.isEmpty())
                     return;
 
-                throw new InvalidRequestException(String.format("Invalid set literal for %s of type %s", receiver, receiver.type.asCQL3Type()));
+                throw new InvalidRequestException(String.format("Invalid set literal for %s of type %s", receiver.name, receiver.type.asCQL3Type()));
             }
 
             ColumnSpecification valueSpec = Sets.valueSpecOf(receiver);
             for (Term.Raw rt : elements)
             {
                 if (!rt.isAssignableTo(keyspace, valueSpec))
-                    throw new InvalidRequestException(String.format("Invalid set literal for %s: value %s is not of type %s", receiver, rt, valueSpec.type.asCQL3Type()));
+                    throw new InvalidRequestException(String.format("Invalid set literal for %s: value %s is not of type %s", receiver.name, rt, valueSpec.type.asCQL3Type()));
             }
         }
 
@@ -283,6 +282,7 @@ public abstract class Sets
         }
     }
 
+    // Note that this is reused for Map substraction too (we substract a set from a map)
     public static class Discarder extends Operation
     {
         public Discarder(ColumnDefinition column, Term t)
