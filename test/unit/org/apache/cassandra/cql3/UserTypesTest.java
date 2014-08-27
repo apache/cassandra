@@ -41,14 +41,12 @@ public class UserTypesTest extends CQLTester
         execute("INSERT INTO %s(k, v) VALUES (?, {x:?})", 1, -104.99251);
         execute("UPDATE %s SET b = ? WHERE k = ?", true, 1);
 
-        System.out.println("-- First query");
         assertRows(execute("SELECT v.x FROM %s WHERE k = ? AND v = {x:?}", 1, -104.99251),
             row(-104.99251)
         );
 
         flush();
 
-        System.out.println("-- 2nd query");
         assertRows(execute("SELECT v.x FROM %s WHERE k = ? AND v = {x:?}", 1, -104.99251),
             row(-104.99251)
         );

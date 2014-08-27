@@ -91,7 +91,7 @@ public class TupleTypeTest extends CQLTester
     {
         createTable("CREATE TABLE %s (k int PRIMARY KEY, t tuple<int, text, double>)");
 
-        assertInvalid("INSERT INTO %s (k, t) VALUES (0, ())");
+        assertInvalidSyntax("INSERT INTO %s (k, t) VALUES (0, ())");
         assertInvalid("INSERT INTO %s (k, t) VALUES (0, (2, 'foo', 3.1, 'bar'))");
     }
 }
