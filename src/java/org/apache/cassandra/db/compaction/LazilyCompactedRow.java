@@ -246,8 +246,9 @@ public class LazilyCompactedRow extends AbstractCompactedRow implements Iterable
                 RangeTombstone t = tombstone;
                 tombstone = null;
 
-                if (t.data.isGcAble(controller.gcBefore))
+                if (shouldPurge && t.data.isGcAble(controller.gcBefore))
                 {
+                    indexBuilder.tombstoneTracker().update(t, true);
                     return null;
                 }
                 else

@@ -189,7 +189,7 @@ public class ColumnIndex
             atomSerializer.serializeForSSTable(column, output);
 
             // TODO: Should deal with removing unneeded tombstones
-            tombstoneTracker.update(column);
+            tombstoneTracker.update(column, false);
 
             lastColumn = column;
         }

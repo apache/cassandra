@@ -110,6 +110,33 @@ public class RangeTombstoneTest extends SchemaLoader
             assert !isLive(cf, cf.getColumn(b(i))) : "Column " + i + " shouldn't be live";
     }
 
+
+    @Test
+    public void test7810() throws ExecutionException, InterruptedException, IOException
+    {
+        DatabaseDescriptor.setInMemoryCompactionLimit(0);
+        Keyspace ks = Keyspace.open(KSNAME);
+        ColumnFamilyStore cfs = ks.getColumnFamilyStore(CFNAME);
+        cfs.metadata.gcGraceSeconds(2);
+
+        String key = "7810";
+        RowMutation rm;
+        rm = new RowMutation(KSNAME, ByteBufferUtil.bytes(key));
+        for (int i = 10; i < 20; i++)
+            add(rm, i, 0);
+        rm.apply();
+        cfs.forceBlockingFlush();
+
+        rm = new RowMutation(KSNAME, ByteBufferUtil.bytes(key));
+        ColumnFamily cf = rm.addOrGet(CFNAME);
+        cf.delete(new DeletionInfo(b(10),b(11), cfs.getComparator(), 1, 1));
+        rm.apply();
+        cfs.forceBlockingFlush();
+        Thread.sleep(5);
+        cfs.forceMajorCompaction();
+        assertEquals(8, Util.getColumnFamily(ks, Util.dk(key), CFNAME).getColumnCount());
+    }
+
     @Test
     public void test7808_1() throws ExecutionException, InterruptedException
     {
