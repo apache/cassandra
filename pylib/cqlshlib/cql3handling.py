@@ -111,8 +111,9 @@ class Cql3ParsingRuleSet(CqlParsingRuleSet):
         if name == '':
             return name
         if name[0] == '"' and name[-1] == '"':
-            name = name[1:-1].replace('""', '"')
-        return name
+            return name[1:-1].replace('""', '"')
+        else:
+            return name.lower()
 
     @staticmethod
     def dequote_value(cqlword):
