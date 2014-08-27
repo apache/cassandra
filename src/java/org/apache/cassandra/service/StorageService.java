@@ -3179,6 +3179,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
             for (String keyspace : keyspaceNames)
             {
+                logger.debug("Calculating ranges to stream and request for keyspace {}", keyspace);
                 for (Token newToken : newTokens)
                 {
                     // replication strategy of the current keyspace (aka table)
@@ -3263,17 +3264,26 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                         Set<InetAddress> newEndpoints = ImmutableSet.copyOf(strategy.calculateNaturalEndpoints(toStream.right, tokenMetaCloneAllSettled));
                         logger.debug("Range: {} Current endpoints: {} New endpoints: {}", toStream, currentEndpoints, newEndpoints);
                         for (InetAddress address : Sets.difference(newEndpoints, currentEndpoints))
+                        {
+                            logger.debug("Range {} has new owner {}", toStream, address);
                             endpointRanges.put(address, toStream);
+                        }
                     }
 
                     // stream ranges
                     for (InetAddress address : endpointRanges.keySet())
+                    {
+                        logger.debug("Will stream range {} of keyspace {} to endpoint {}", endpointRanges.get(address), keyspace, address);
                         streamPlan.transferRanges(address, keyspace, endpointRanges.get(address));
+                    }
 
                     // stream requests
                     Multimap<InetAddress, Range<Token>> workMap = RangeStreamer.getWorkMap(rangesToFetchWithPreferredEndpoints);
                     for (InetAddress address : workMap.keySet())
+                    {
+                        logger.debug("Will request range {} of keyspace {} from endpoint {}", workMap.get(address), keyspace, address);
                         streamPlan.requestRanges(address, keyspace, workMap.get(address));
+                    }
 
                     if (logger.isDebugEnabled())
                         logger.debug("Keyspace {}: work map {}.", keyspace, workMap);

@@ -1,4 +1,5 @@
 2.1.0
+ * Fix failure to stream ranges when moving (CASSANDRA-7836)
  * Correctly remove tmplink files (CASSANDRA-7803)
  * (cqlsh) Fix column name formatting for functions, CAS operations,
    and UDT field selections (CASSANDRA-7806)
