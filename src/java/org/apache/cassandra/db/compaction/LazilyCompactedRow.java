@@ -238,8 +238,9 @@ public class LazilyCompactedRow extends AbstractCompactedRow
                 RangeTombstone t = tombstone;
                 tombstone = null;
 
-                if (t.data.isGcAble(controller.gcBefore))
+                if (t.timestamp() < maxPurgeableTimestamp && t.data.isGcAble(controller.gcBefore))
                 {
+                    indexBuilder.tombstoneTracker().update(t, true);
                     return null;
                 }
                 else
