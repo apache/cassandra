@@ -171,7 +171,8 @@ public class NodeCmd
         PREDICTCONSISTENCY,
         ENABLEBACKUP,
         DISABLEBACKUP,
-        SETCACHEKEYSTOSAVE
+        SETCACHEKEYSTOSAVE, 
+        DATAAVAILABILITY
     }
 
 
@@ -357,6 +358,129 @@ public class NodeCmd
         outs.println();
     }
 
+    public void printDataAvailability(PrintStream outs, String keyspace)
+    {
+        Map<String, String> tokensToEndpoints = probe.getTokenToEndpointMap();
+        LinkedHashMultimap<String, String> endpointsToTokens = LinkedHashMultimap.create();
+        for (Map.Entry<String, String> entry : tokensToEndpoints.entrySet())
+            endpointsToTokens.put(entry.getValue(), entry.getKey());        
+
+        String format = "%44s %44s %30s %40s%n";               
+
+        // Calculate per-token ownership of the ring
+        Map<InetAddress, Float> ownerships;
+        boolean keyspaceSelected;
+        try
+        {
+            ownerships = probe.effectiveOwnership(keyspace);
+            keyspaceSelected = true;
+        }
+        catch (IllegalStateException ex)
+        {
+            ownerships = probe.getOwnership();
+            outs.printf("Note: Ownership information does not include topology; for complete information, specify a keyspace%n");
+            keyspaceSelected = false;
+        }
+        try
+        {
+            outs.println();
+            for (Entry<String, SetHostStat> entry : getOwnershipByDc(false, tokensToEndpoints, ownerships).entrySet())
+                printDcData(outs, format, entry.getKey(), endpointsToTokens, keyspaceSelected, entry.getValue());
+        }
+        catch (UnknownHostException e)
+        {
+            throw new RuntimeException(e);
+        }
+
+        if(DatabaseDescriptor.getNumTokens() > 1)
+        {
+            outs.println("  Warning: \"nodetool dataavailability\" is used to output all the tokens of a node.");
+            outs.println("  To view status related info of a node use \"nodetool status\" instead.\n");
+        }
+    }
+
+    private void printDcData(PrintStream outs, String format, String dc, LinkedHashMultimap<String, String> endpointsToTokens,
+                         boolean keyspaceSelected, SetHostStat hoststats)
+    {
+        Collection<String> liveNodes = probe.getLiveNodes();        
+
+        outs.println("Datacenter: " + dc);
+        outs.println("==========");
+
+        // get the total amount of replicas for this dc and the last token in this dc's ring
+        List<String> tokens = new ArrayList<String>();
+        float totalReplicas = 0f;
+        String lastToken = "";
+
+        for (HostStat stat : hoststats)
+        {
+            tokens.addAll(endpointsToTokens.get(stat.endpoint.getHostAddress()));
+            lastToken = tokens.get(tokens.size() - 1);
+            if (stat.owns != null)
+                totalReplicas += stat.owns;
+        }
+
+        if (keyspaceSelected)
+            outs.print("Replicas: " + (int) totalReplicas + "\n\n");
+
+        outs.printf(format, "TokenStart", "TokenEnd", "Available on # Machines", "IPs");
+
+        if (hoststats.size() > 1)
+        	outs.printf(format, "", "", "", "" );
+        else
+            outs.println();
+
+        int statindex=0;//apse
+        for (HostStat stat : hoststats)
+        {        	         
+            int availableMachines=0;
+            ArrayList<String> iplist = new ArrayList<String>();
+            int statindexaux=0;                   
+			HostStat statbefore = stat;
+            for (HostStat stataux : hoststats)
+            {            	
+            	String endpointaux = "lalala";
+            	if (totalReplicas == 1 || totalReplicas == 0f ) {
+            		statindexaux = statindexaux + 1;  
+            		break;
+            	} else if (statindex + totalReplicas > hoststats.size()) {
+           			if (hoststats.size() - statindexaux + 1 < totalReplicas) {
+           				endpointaux = stataux.endpoint.getHostAddress();
+           			} else if (statindexaux + totalReplicas < (hoststats.size() + totalReplicas) % statindex ) {           				
+            			endpointaux = stataux.endpoint.getHostAddress();
+            		} else if (statindex - statindexaux == 1) {            			
+                		statbefore = stataux;                	
+            		} else {
+            			statindexaux = statindexaux + 1;  
+            			continue;
+            		}        
+            	} else if (statindexaux < statindex+(int)totalReplicas && statindexaux >= statindex) {
+            		endpointaux = stataux.endpoint.getHostAddress();
+            	} else if (statindex - statindexaux == 1) {
+            		statbefore = stataux;
+            	} else {
+            		statindexaux = statindexaux + 1;  
+            		continue;
+            	}
+           	         	
+            	if (liveNodes.contains(endpointaux)) {
+            		availableMachines = availableMachines + 1;
+            		iplist.add(endpointaux);
+            	}
+            	
+            	statindexaux = statindexaux + 1;            
+            }
+            if (statindex==0){
+            	outs.printf(format, lastToken, stat.token, availableMachines, iplist);
+            } else {
+            	outs.printf(format, statbefore.token, stat.token, availableMachines, iplist);
+            }
+            statindex = statindex + 1;
+        }
+        outs.println();        
+    }
+
+    
     private class ClusterStatus
     {
         String kSpace = null, format = null;
@@ -1186,7 +1310,7 @@ public class NodeCmd
                     if (arguments.length > 0) { nodeCmd.printRing(System.out, arguments[0]); }
                     else                      { nodeCmd.printRing(System.out, null); };
                     break;
-
+                case DATAAVAILABILITY : nodeCmd.printDataAvailability(System.out, arguments[0]); break;                    
                 case INFO            : nodeCmd.printInfo(System.out, cmd); break;
                 case CFSTATS         :
                     boolean ignoreMode = cmd.hasOption(CFSTATS_IGNORE_OPT.left);
