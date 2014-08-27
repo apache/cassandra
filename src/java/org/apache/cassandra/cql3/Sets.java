@@ -288,7 +288,7 @@ public abstract class Sets
         }
     }
 
-    // Note that this is reused for Map substraction too (we substract a set from a map)
+    // Note that this is reused for Map subtraction too (we subtract a set from a map)
     public static class Discarder extends Operation
     {
         public Discarder(ColumnDefinition column, Term t)

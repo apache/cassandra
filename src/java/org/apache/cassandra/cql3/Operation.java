@@ -92,7 +92,7 @@ public abstract class Operation
      * This can be one of:
      *   - Setting a value: c = v
      *   - Setting an element of a collection: c[x] = v
-     *   - An addition/substraction to a variable: c = c +/- v (where v can be a collection literal)
+     *   - An addition/subtraction to a variable: c = c +/- v (where v can be a collection literal)
      *   - An prepend operation: c = v + c
      */
     public interface RawUpdate
@@ -303,7 +303,7 @@ public abstract class Operation
                 case SET:
                     return new Sets.Discarder(receiver, value.prepare(keyspace, receiver));
                 case MAP:
-                    // The value for a map substraction is actually a set
+                    // The value for a map subtraction is actually a set
                     ColumnSpecification vr = new ColumnSpecification(receiver.ksName,
                                                                      receiver.cfName,
                                                                      receiver.name,

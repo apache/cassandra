@@ -76,7 +76,7 @@ public class CollectionsTest extends CQLTester
         assertInvalid("UPDATE %s SET m = m + ? WHERE k = 0", list("a", "b"));
         assertInvalid("UPDATE %s SET m = m - [ 'a', 'b' ] WHERE k = 0");
         assertInvalid("UPDATE %s SET m = m + ? WHERE k = 0", set("a", "b"));
-        // Note that we do allow substracting a set from a map, but not a map from a map
+        // Note that we do allow subtracting a set from a map, but not a map from a map
         // TODO: We should remove this 'if' once #7833 is resolved
         if (!usePrepared())
             assertInvalid("UPDATE %s SET m = m - ? WHERE k = 0", map("a", "b", "c", "d"));
