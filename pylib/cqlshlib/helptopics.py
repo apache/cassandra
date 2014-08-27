@@ -388,7 +388,7 @@ class CQLHelpTopics(object):
 
         Counter columns can be incremented or decremented by an arbitrary
         numeric value though the assignment of an expression that adds or
-        substracts the value.
+        subtracts the value.
         """
 
     def help_update_where(self):
