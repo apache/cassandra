@@ -22,9 +22,7 @@ import java.nio.ByteBuffer;
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.composites.Composite;
-import org.apache.cassandra.db.marshal.CollectionType;
-import org.apache.cassandra.db.marshal.CounterColumnType;
-import org.apache.cassandra.db.marshal.ListType;
+import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 
 /**
@@ -291,23 +289,26 @@ public abstract class Operation
 
         public Operation prepare(String keyspace, ColumnDefinition receiver) throws InvalidRequestException
         {
-            Term v = value.prepare(keyspace, receiver);
-
             if (!(receiver.type instanceof CollectionType))
             {
                 if (!(receiver.type instanceof CounterColumnType))
                     throw new InvalidRequestException(String.format("Invalid operation (%s) for non counter column %s", toString(receiver), receiver.name));
-                return new Constants.Substracter(receiver, v);
+                return new Constants.Substracter(receiver, value.prepare(keyspace, receiver));
             }
 
             switch (((CollectionType)receiver.type).kind)
             {
                 case LIST:
-                    return new Lists.Discarder(receiver, v);
+                    return new Lists.Discarder(receiver, value.prepare(keyspace, receiver));
                 case SET:
-                    return new Sets.Discarder(receiver, v);
+                    return new Sets.Discarder(receiver, value.prepare(keyspace, receiver));
                 case MAP:
-                    throw new InvalidRequestException(String.format("Invalid operation (%s) for map column %s", toString(receiver), receiver));
+                    // The value for a map substraction is actually a set
+                    ColumnSpecification vr = new ColumnSpecification(receiver.ksName,
+                                                                     receiver.cfName,
+                                                                     receiver.name,
+                                                                     SetType.getInstance(((MapType)receiver.type).keys));
+                    return new Sets.Discarder(receiver, value.prepare(keyspace, vr));
             }
             throw new AssertionError();
         }

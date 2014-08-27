@@ -26,7 +26,7 @@ public class MultiColumnRelationTest extends CQLTester
     {
         createTable("CREATE TABLE %s (a int, b int, c int, PRIMARY KEY (a, b))");
 
-        assertInvalid("SELECT * FROM %s WHERE () = (?, ?)", 1, 2);
+        assertInvalidSyntax("SELECT * FROM %s WHERE () = (?, ?)", 1, 2);
         assertInvalid("SELECT * FROM %s WHERE a = 0 AND (b) = (?) AND (b) > (?)", 0, 0);
         assertInvalid("SELECT * FROM %s WHERE a = 0 AND (b) > (?) AND (b) > (?)", 0, 1);
         assertInvalid("SELECT * FROM %s WHERE (a, b) = (?, ?)", 0, 0);
@@ -37,7 +37,7 @@ public class MultiColumnRelationTest extends CQLTester
     {
         createTable("CREATE TABLE %s (a int, b int, c int, d int, PRIMARY KEY (a, b, c, d))");
 
-        assertInvalid("SELECT * FROM %s WHERE a = 0 AND (b, c) > ()");
+        assertInvalidSyntax("SELECT * FROM %s WHERE a = 0 AND (b, c) > ()");
         assertInvalid("SELECT * FROM %s WHERE a = 0 AND (b, c) > (?, ?, ?)", 1, 2, 3);
         assertInvalid("SELECT * FROM %s WHERE a = 0 AND (b, c) > (?, ?)", 1, null);
 
