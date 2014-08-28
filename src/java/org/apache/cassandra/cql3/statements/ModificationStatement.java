@@ -748,7 +748,6 @@ public abstract class ModificationStatement implements CQLStatement, MeasurableF
                         {
                             case PARTITION_KEY:
                             case CLUSTERING_COLUMN:
-                                throw new InvalidRequestException(String.format("PRIMARY KEY part %s found in SET part", entry.left));
                                 throw new InvalidRequestException(String.format("PRIMARY KEY column '%s' cannot have IF conditions", entry.left));
                             default:
                                 stmt.addCondition(condition);
