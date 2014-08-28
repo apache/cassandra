@@ -1,4 +1,4 @@
-2.1.0
+2.1.0-rc7
  * (cqlsh) Fix case insensitivity (CASSANDRA-7834)
  * Fix failure to stream ranges when moving (CASSANDRA-7836)
  * Correctly remove tmplink files (CASSANDRA-7803)
