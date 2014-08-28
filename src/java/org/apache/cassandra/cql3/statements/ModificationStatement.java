@@ -815,7 +815,7 @@ public abstract class ModificationStatement implements CQLStatement, MeasurableF
                         {
                             case KEY_ALIAS:
                             case COLUMN_ALIAS:
-                                throw new InvalidRequestException(String.format("PRIMARY KEY part %s found in SET part", entry.left));
+                                throw new InvalidRequestException(String.format("PRIMARY KEY column '%s' cannot have IF conditions", entry.left));
                             case VALUE_ALIAS:
                             case COLUMN_METADATA:
                             case STATIC:
