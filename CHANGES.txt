@@ -26,6 +26,7 @@
  * Configurable client timeout for cqlsh (CASSANDRA-7516)
  * Include snippet of CQL query near syntax error in messages (CASSANDRA-7111)
 Merged from 2.0:
+ * Better error message when condition is set on PK column (CASSANDRA-7804)
  * Don't send schema change responses and events for no-op DDL
    statements (CASSANDRA-7600)
  * (Hadoop) fix cluster initialisation for a split fetching (CASSANDRA-7774)
