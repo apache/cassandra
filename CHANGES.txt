@@ -8,6 +8,7 @@
    values (CASSANDRA-7792)
  * Fix ordering of static cells (CASSANDRA-7763)
 Merged from 2.0:
+ * Forbid re-adding dropped counter columns (CASSANDRA-7831)
  * Fix CFMetaData#isThriftCompatible() for PK-only tables (CASSANDRA-7832)
  * Always reject inequality on the partition key without token()
    (CASSANDRA-7722)
