@@ -711,6 +711,14 @@ class Shell(cmd.Cmd):
 
         return cql3handling.UserTypesMeta.from_layout(data)
 
+    def get_trigger_names(self, ksname=None):
+        if ksname is None:
+            ksname = self.current_keyspace
+
+        return [trigger.name
+                for table in self.get_keyspace_meta(ksname).tables.values()
+                for trigger in table.triggers.values()]
+
     def reset_statement(self):
         self.reset_prompt()
         self.statement.truncate(0)
