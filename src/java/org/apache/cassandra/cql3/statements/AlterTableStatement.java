@@ -109,6 +109,10 @@ public class AlterTableStatement extends SchemaAlteringStatement
                     }
                 }
 
+                // Cannot re-add a dropped counter column. See #7831.
+                if (meta.getDefaultValidator().isCommutative() && meta.getDroppedColumns().containsKey(columnName.key))
+                    throw new InvalidRequestException(String.format("Cannot re-add previously dropped counter column %s", columnName));
+
                 AbstractType<?> type = validator.getType();
                 if (type instanceof CollectionType)
                 {
