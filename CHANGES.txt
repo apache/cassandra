@@ -1,4 +1,5 @@
 2.1.1
+ * (cqlsh): Support for query paging (CASSANDRA-7514)
  * (cqlsh): Show progress of COPY operations (CASSANDRA-7789)
  * Add syntax to remove multiple elements from a map (CASSANDRA-6599)
  * Support non-equals conditions in lightweight transactions (CASSANDRA-6839)
