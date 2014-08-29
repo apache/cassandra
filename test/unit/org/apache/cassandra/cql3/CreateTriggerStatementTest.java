@@ -43,6 +43,8 @@ public class CreateTriggerStatementTest extends CQLTester
         execute("CREATE TRIGGER trigger_2 ON %s USING '" + TestTrigger.class.getName() + "'");
         assertTriggerExists("trigger_2", TestTrigger.class);
         assertInvalid("CREATE TRIGGER trigger_1 ON %s USING '" + TestTrigger.class.getName() + "'");
+        execute("CREATE TRIGGER \"Trigger 3\" ON %s USING '" + TestTrigger.class.getName() + "'");
+        assertTriggerExists("Trigger 3", TestTrigger.class);
     }
 
     @Test
@@ -72,6 +74,12 @@ public class CreateTriggerStatementTest extends CQLTester
         assertTriggerExists("trigger_1", TestTrigger.class);
 
         assertInvalid("DROP TRIGGER trigger_2 ON %s");
+        
+        execute("CREATE TRIGGER \"Trigger 3\" ON %s USING '" + TestTrigger.class.getName() + "'");
+        assertTriggerExists("Trigger 3", TestTrigger.class);
+
+        execute("DROP TRIGGER \"Trigger 3\" ON %s");
+        assertTriggerDoesNotExists("Trigger 3", TestTrigger.class);
     }
 
     @Test
