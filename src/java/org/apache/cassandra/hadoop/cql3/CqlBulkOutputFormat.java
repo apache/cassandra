@@ -38,7 +38,7 @@ import org.apache.hadoop.util.Progressable;
  * ColumnFamily.
  *
  * <p>
- * As is the case with the {@link org.apache.cassandra.hadoop.CqlOutputFormat}, 
+ * As is the case with the {@link org.apache.cassandra.hadoop.cql3.CqlOutputFormat}, 
  * you need to set the prepared statement in your
  * Hadoop job Configuration. The {@link CqlConfigHelper} class, through its
  * {@link ConfigHelper#setOutputPreparedStatement} method, is provided to make this

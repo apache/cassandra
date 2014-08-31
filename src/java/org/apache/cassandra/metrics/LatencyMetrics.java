@@ -93,7 +93,7 @@ public class LatencyMetrics
      *
      * @param factory MetricName factory to use
      * @param namePrefix Prefix to append to each metric name
-     * @param parents... any amount of parents to replicate updates to
+     * @param parents any amount of parents to replicate updates to
      */
     public LatencyMetrics(MetricNameFactory factory, String namePrefix, LatencyMetrics ... parents)
     {
