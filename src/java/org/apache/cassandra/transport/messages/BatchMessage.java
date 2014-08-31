@@ -73,7 +73,7 @@ public class BatchMessage extends Message.Request
         {
             int queries = msg.queryOrIdList.size();
 
-            dest.writeByte(fromType(msg.type));
+            dest.writeByte(fromType(msg.batchType));
             dest.writeShort(queries);
 
             for (int i = 0; i < queries; i++)
@@ -137,7 +137,7 @@ public class BatchMessage extends Message.Request
         }
     };
 
-    public final BatchStatement.Type type;
+    public final BatchStatement.Type batchType;
     public final List<Object> queryOrIdList;
     public final List<List<ByteBuffer>> values;
     public final QueryOptions options;
@@ -145,7 +145,7 @@ public class BatchMessage extends Message.Request
     public BatchMessage(BatchStatement.Type type, List<Object> queryOrIdList, List<List<ByteBuffer>> values, QueryOptions options)
     {
         super(Message.Type.BATCH);
-        this.type = type;
+        this.batchType = type;
         this.queryOrIdList = queryOrIdList;
         this.values = values;
         this.options = options;
@@ -210,7 +210,7 @@ public class BatchMessage extends Message.Request
 
             // Note: It's ok at this point to pass a bogus value for the number of bound terms in the BatchState ctor
             // (and no value would be really correct, so we prefer passing a clearly wrong one).
-            BatchStatement batch = new BatchStatement(-1, type, statements, Attributes.none());
+            BatchStatement batch = new BatchStatement(-1, batchType, statements, Attributes.none());
             Message.Response response = handler.processBatch(batch, state, batchOptions);
 
             if (tracingId != null)
