@@ -325,7 +325,7 @@ public class ColumnCondition
             return idx;
         }
 
-        static ByteBuffer getListItem(Iterator<Cell> iter, int index) throws InvalidRequestException
+        static ByteBuffer getListItem(Iterator<Cell> iter, int index)
         {
             int adv = Iterators.advance(iter, index);
             if (adv == index && iter.hasNext())

@@ -374,7 +374,7 @@ public class MigrationManager
         announce(addSerializedKeyspace(UTMetaData.dropFromSchema(droppedType, FBUtilities.timestampMicros()), droppedType.keyspace), announceLocally);
     }
 
-    public static void announceFunctionDrop(FunctionName fun, boolean announceLocally) throws InvalidRequestException
+    public static void announceFunctionDrop(FunctionName fun, boolean announceLocally)
     {
         logger.info(String.format("Drop Function '%s'", fun));
         announce(UDFunction.dropFromSchema(FBUtilities.timestampMicros(), fun), announceLocally);
