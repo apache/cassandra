@@ -200,6 +200,18 @@ public class DataTracker
             if (inactive.size() < set.size())
                 return false;
 
+            if (Iterables.any(set, new Predicate<SSTableReader>()
+            {
+                @Override
+                public boolean apply(SSTableReader sstable)
+                {
+                    return sstable.isMarkedCompacted();
+                }
+            }))
+            {
+                return false;
+            }
+
             View newView = currentView.markCompacting(set);
             if (view.compareAndSet(currentView, newView))
                 return true;
