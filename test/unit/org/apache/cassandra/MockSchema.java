@@ -21,7 +21,7 @@ package org.apache.cassandra;
 import java.io.File;
 import java.io.IOException;
 import java.io.RandomAccessFile;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import com.google.common.collect.ImmutableMap;
@@ -32,7 +32,6 @@ import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.KSMetaData;
 import org.apache.cassandra.db.*;
-import org.apache.cassandra.db.composites.SimpleSparseCellNameType;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.io.sstable.Component;
@@ -119,12 +118,13 @@ public class MockSchema
                 throw new RuntimeException(e);
             }
         }
+        SerializationHeader header = SerializationHeader.make(cfs.metadata, Collections.EMPTY_LIST);
         StatsMetadata metadata = (StatsMetadata) new MetadataCollector(cfs.metadata.comparator)
-                                                 .finalizeMetadata(Murmur3Partitioner.instance.getClass().getCanonicalName(), 0.01f, -1)
+                                                 .finalizeMetadata(Murmur3Partitioner.instance.getClass().getCanonicalName(), 0.01f, -1, header)
                                                  .get(MetadataType.STATS);
         SSTableReader reader = SSTableReader.internalOpen(descriptor, components, cfs.metadata, Murmur3Partitioner.instance,
                                                           segmentedFile.sharedCopy(), segmentedFile.sharedCopy(), indexSummary.sharedCopy(),
-                                                          new AlwaysPresentFilter(), 1L, metadata, SSTableReader.OpenReason.NORMAL);
+                                                          new AlwaysPresentFilter(), 1L, metadata, SSTableReader.OpenReason.NORMAL, header);
         reader.first = reader.last = readerBounds(generation);
         if (!keepRef)
             reader.selfRef().release();
@@ -140,10 +140,11 @@ public class MockSchema
 
     private static CFMetaData newCFMetaData(String ksname, String cfname)
     {
-        CFMetaData metadata = new CFMetaData(ksname,
-                                             cfname,
-                                             ColumnFamilyType.Standard,
-                                             new SimpleSparseCellNameType(UTF8Type.instance));
+        CFMetaData metadata = CFMetaData.Builder.create(ksname, cfname)
+                                                .addPartitionKey("key", UTF8Type.instance)
+                                                .addClusteringColumn("col", UTF8Type.instance)
+                                                .addRegularColumn("value", UTF8Type.instance)
+                                                .build();
         metadata.caching(CachingOptions.NONE);
         return metadata;
     }

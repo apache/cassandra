@@ -24,11 +24,11 @@ package org.apache.cassandra.triggers;
 import java.nio.ByteBuffer;
 import java.util.Collection;
 
-import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.Mutation;
+import org.apache.cassandra.db.partitions.Partition;
 
 /**
- * Trigger interface, For every Mutation received by the coordinator {@link #augment(ByteBuffer, ColumnFamily)}
+ * Trigger interface, For every partition update received by the coordinator {@link #augment(Partition)}
  * is called.<p>
  *
  * <b> Contract:</b><br>
@@ -44,9 +44,8 @@ public interface ITrigger
     /**
      * Called exactly once per CF update, returned mutations are atomically updated.
      *
-     * @param partitionKey - partition Key for the update.
      * @param update - update received for the CF
      * @return additional modifications to be applied along with the supplied update
      */
-    public Collection<Mutation> augment(ByteBuffer partitionKey, ColumnFamily update);
+    public Collection<Mutation> augment(Partition update);
 }

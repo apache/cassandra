@@ -20,7 +20,7 @@ package org.apache.cassandra.db.index.composites;
 import java.nio.ByteBuffer;
 
 import org.apache.cassandra.db.*;
-import org.apache.cassandra.db.composites.CellName;
+import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.db.marshal.*;
 
 /**
@@ -38,50 +38,22 @@ public class CompositesIndexOnCollectionKeyAndValue extends CompositesIndexInclu
         return CompositeType.getInstance(colType.nameComparator(), colType.valueComparator());
     }
 
-    @Override
-    protected ByteBuffer getIndexedValue(ByteBuffer rowKey, Cell cell)
+    protected ByteBuffer getIndexedValue(ByteBuffer rowKey, Clustering clustering, ByteBuffer cellValue, CellPath path)
     {
-        final ByteBuffer key = cell.name().get(columnDef.position() + 1);
-        final ByteBuffer value = cell.value();
-        return CompositeType.build(key, value);
+        return CompositeType.build(path.get(0), cellValue);
     }
 
-    @Override
-    public boolean isStale(IndexedEntry entry, ColumnFamily data, long now)
+    public boolean isStale(Row data, ByteBuffer indexValue, int nowInSec)
     {
-        Cell cell = extractTargetCell(entry, data);
-        if (cellIsDead(cell, now))
+        ByteBuffer[] components = ((CompositeType)getIndexKeyComparator()).split(indexValue);
+        ByteBuffer mapKey = components[0];
+        ByteBuffer mapValue = components[1];
+
+        Cell cell = data.getCell(columnDef, CellPath.create(mapKey));
+        if (cell == null || !cell.isLive(nowInSec))
             return true;
-        ByteBuffer indexCollectionValue = extractCollectionValue(entry);
-        ByteBuffer targetCollectionValue = cell.value();
+
         AbstractType<?> valueComparator = ((CollectionType)columnDef.type).valueComparator();
-        return valueComparator.compare(indexCollectionValue, targetCollectionValue) != 0;
-    }
-
-    private Cell extractTargetCell(IndexedEntry entry, ColumnFamily data)
-    {
-        ByteBuffer collectionKey = extractCollectionKey(entry);
-        CellName name = data.getComparator().create(entry.indexedEntryPrefix, columnDef, collectionKey);
-        return data.getColumn(name);
-    }
-
-    private ByteBuffer extractCollectionKey(IndexedEntry entry)
-    {
-        return extractIndexKeyComponent(entry, 0);
-    }
-
-    private ByteBuffer extractIndexKeyComponent(IndexedEntry entry, int component)
-    {
-        return CompositeType.extractComponent(entry.indexValue.getKey(), component);
-    }
-
-    private ByteBuffer extractCollectionValue(IndexedEntry entry)
-    {
-        return extractIndexKeyComponent(entry, 1);
-    }
-
-    private boolean cellIsDead(Cell cell, long now)
-    {
-        return cell == null || !cell.isLive(now);
+        return valueComparator.compare(mapValue, cell.value()) != 0;
     }
 }

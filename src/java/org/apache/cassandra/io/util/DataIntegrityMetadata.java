@@ -112,10 +112,10 @@ public class DataIntegrityMetadata
             }
             catch (Exception e)
             {
+                close();
                 // Attempting to create a FileDigestValidator without a DIGEST file will fail
                 throw new IOException("Corrupted SSTable : " + descriptor.filenameFor(Component.DATA));
             }
-
         }
 
         // Validate the entire file
@@ -133,7 +133,14 @@ public class DataIntegrityMetadata
 
         public void close()
         {
-            this.digestReader.close();
+            try
+            {
+                this.digestReader.close();
+            }
+            finally
+            {
+                this.dataReader.close();
+            }
         }
     }
 

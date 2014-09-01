@@ -75,7 +75,7 @@ public class MetadataSerializer implements IMetadataSerializer
         }
     }
 
-    public Map<MetadataType, MetadataComponent> deserialize(Descriptor descriptor, EnumSet<MetadataType> types) throws IOException
+    public Map<MetadataType, MetadataComponent> deserialize( Descriptor descriptor, EnumSet<MetadataType> types) throws IOException
     {
         Map<MetadataType, MetadataComponent> components;
         logger.debug("Load metadata for {}", descriptor);

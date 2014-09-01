@@ -21,29 +21,44 @@ import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.UUID;
 
-import org.apache.cassandra.db.composites.CellName;
-import org.apache.cassandra.db.composites.CellNames;
+import org.apache.cassandra.config.ColumnDefinition;
+import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.rows.CellPath;
+import org.apache.cassandra.db.marshal.CompositeType;
 import org.apache.cassandra.utils.*;
 
 public class CounterCacheKey implements CacheKey
 {
-    private static final long EMPTY_SIZE = ObjectSizes.measure(new CounterCacheKey(null, ByteBufferUtil.EMPTY_BYTE_BUFFER, CellNames.simpleDense(ByteBuffer.allocate(1))))
+    private static final long EMPTY_SIZE = ObjectSizes.measure(new CounterCacheKey(null, ByteBufferUtil.EMPTY_BYTE_BUFFER, ByteBuffer.allocate(1)))
                                            + ObjectSizes.measure(new UUID(0, 0));
 
     public final UUID cfId;
     public final byte[] partitionKey;
     public final byte[] cellName;
 
-    private CounterCacheKey(UUID cfId, ByteBuffer partitionKey, CellName cellName)
+    public CounterCacheKey(UUID cfId, ByteBuffer partitionKey, ByteBuffer cellName)
     {
         this.cfId = cfId;
         this.partitionKey = ByteBufferUtil.getArray(partitionKey);
-        this.cellName = ByteBufferUtil.getArray(cellName.toByteBuffer());
+        this.cellName = ByteBufferUtil.getArray(cellName);
     }
 
-    public static CounterCacheKey create(UUID cfId, ByteBuffer partitionKey, CellName cellName)
+    public static CounterCacheKey create(UUID cfId, ByteBuffer partitionKey, Clustering clustering, ColumnDefinition c, CellPath path)
     {
-        return new CounterCacheKey(cfId, partitionKey, cellName);
+        return new CounterCacheKey(cfId, partitionKey, makeCellName(clustering, c, path));
+    }
+
+    private static ByteBuffer makeCellName(Clustering clustering, ColumnDefinition c, CellPath path)
+    {
+        int cs = clustering.size();
+        ByteBuffer[] values = new ByteBuffer[cs + 1 + (path == null ? 0 : path.size())];
+        for (int i = 0; i < cs; i++)
+            values[i] = clustering.get(i);
+        values[cs] = c.name.bytes;
+        if (path != null)
+            for (int i = 0; i < path.size(); i++)
+                values[cs + 1 + i] = path.get(i);
+        return CompositeType.build(values);
     }
 
     public UUID getCFId()

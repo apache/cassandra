@@ -18,9 +18,7 @@
 package org.apache.cassandra.cql3.restrictions;
 
 import java.nio.ByteBuffer;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.List;
+import java.util.*;
 
 import com.google.common.base.Joiner;
 
@@ -29,10 +27,8 @@ import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.Term;
 import org.apache.cassandra.cql3.functions.Function;
 import org.apache.cassandra.cql3.statements.Bound;
-import org.apache.cassandra.db.IndexExpression;
-import org.apache.cassandra.db.composites.CType;
-import org.apache.cassandra.db.composites.Composite;
-import org.apache.cassandra.db.composites.CompositesBuilder;
+import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.filter.RowFilter;
 import org.apache.cassandra.db.index.SecondaryIndexManager;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 
@@ -51,12 +47,12 @@ public abstract class TokenRestriction extends AbstractPrimaryKeyRestrictions
     /**
      * Creates a new <code>TokenRestriction</code> that apply to the specified columns.
      *
-     * @param ctype the composite type
+     * @param comparator the clustering comparator
      * @param columnDefs the definition of the columns to which apply the token restriction
      */
-    public TokenRestriction(CType ctype, List<ColumnDefinition> columnDefs)
+    public TokenRestriction(ClusteringComparator comparator, List<ColumnDefinition> columnDefs)
     {
-        super(ctype);
+        super(comparator);
         this.columnDefs = columnDefs;
     }
 
@@ -91,27 +87,25 @@ public abstract class TokenRestriction extends AbstractPrimaryKeyRestrictions
     }
 
     @Override
-    public final void addIndexExpressionTo(List<IndexExpression> expressions,
-                                     SecondaryIndexManager indexManager,
-                                     QueryOptions options)
+    public void addRowFilterTo(RowFilter filter, SecondaryIndexManager indexManager, QueryOptions options)
     {
         throw new UnsupportedOperationException("Index expression cannot be created for token restriction");
     }
 
     @Override
-    public CompositesBuilder appendTo(CompositesBuilder builder, QueryOptions options)
+    public MultiCBuilder appendTo(MultiCBuilder builder, QueryOptions options)
     {
         throw new UnsupportedOperationException();
     }
 
     @Override
-    public List<Composite> valuesAsComposites(QueryOptions options) throws InvalidRequestException
+    public NavigableSet<Clustering> valuesAsClustering(QueryOptions options) throws InvalidRequestException
     {
         throw new UnsupportedOperationException();
     }
 
     @Override
-    public List<Composite> boundsAsComposites(Bound bound, QueryOptions options) throws InvalidRequestException
+    public SortedSet<Slice.Bound> boundsAsClustering(Bound bound, QueryOptions options) throws InvalidRequestException
     {
         throw new UnsupportedOperationException();
     }
@@ -153,16 +147,16 @@ public abstract class TokenRestriction extends AbstractPrimaryKeyRestrictions
         if (restriction instanceof PrimaryKeyRestrictions)
             return (PrimaryKeyRestrictions) restriction;
 
-        return new PrimaryKeyRestrictionSet(ctype).mergeWith(restriction);
+        return new PrimaryKeyRestrictionSet(comparator, true).mergeWith(restriction);
     }
 
-    public static final class EQ extends TokenRestriction
+    public static final class EQRestriction extends TokenRestriction
     {
         private final Term value;
 
-        public EQ(CType ctype, List<ColumnDefinition> columnDefs, Term value)
+        public EQRestriction(ClusteringComparator comparator, List<ColumnDefinition> columnDefs, Term value)
         {
-            super(ctype, columnDefs);
+            super(comparator, columnDefs);
             this.value = value;
         }
 
@@ -192,13 +186,13 @@ public abstract class TokenRestriction extends AbstractPrimaryKeyRestrictions
         }
     }
 
-    public static class Slice extends TokenRestriction
+    public static class SliceRestriction extends TokenRestriction
     {
         private final TermSlice slice;
 
-        public Slice(CType ctype, List<ColumnDefinition> columnDefs, Bound bound, boolean inclusive, Term term)
+        public SliceRestriction(ClusteringComparator comparator, List<ColumnDefinition> columnDefs, Bound bound, boolean inclusive, Term term)
         {
-            super(ctype, columnDefs);
+            super(comparator, columnDefs);
             slice = TermSlice.newInstance(bound, inclusive, term);
         }
 
@@ -246,7 +240,7 @@ public abstract class TokenRestriction extends AbstractPrimaryKeyRestrictions
                 throw invalidRequest("Columns \"%s\" cannot be restricted by both an equality and an inequality relation",
                                      getColumnNamesAsString());
 
-            TokenRestriction.Slice otherSlice = (TokenRestriction.Slice) otherRestriction;
+            TokenRestriction.SliceRestriction otherSlice = (TokenRestriction.SliceRestriction) otherRestriction;
 
             if (hasBound(Bound.START) && otherSlice.hasBound(Bound.START))
                 throw invalidRequest("More than one restriction was found for the start bound on %s",
@@ -256,7 +250,7 @@ public abstract class TokenRestriction extends AbstractPrimaryKeyRestrictions
                 throw invalidRequest("More than one restriction was found for the end bound on %s",
                                      getColumnNamesAsString());
 
-            return new Slice(ctype, columnDefs,  slice.merge(otherSlice.slice));
+            return new SliceRestriction(comparator, columnDefs,  slice.merge(otherSlice.slice));
         }
 
         @Override
@@ -264,10 +258,9 @@ public abstract class TokenRestriction extends AbstractPrimaryKeyRestrictions
         {
             return String.format("SLICE%s", slice);
         }
-
-        private Slice(CType ctype, List<ColumnDefinition> columnDefs, TermSlice slice)
+        private SliceRestriction(ClusteringComparator comparator, List<ColumnDefinition> columnDefs, TermSlice slice)
         {
-            super(ctype, columnDefs);
+            super(comparator, columnDefs);
             this.slice = slice;
         }
     }

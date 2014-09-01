@@ -17,16 +17,14 @@
  */
 package org.apache.cassandra.io.sstable.format.big;
 
+import java.util.Iterator;
+import java.util.Set;
+
 import com.google.common.collect.ImmutableList;
 import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.db.AbstractCell;
-import org.apache.cassandra.db.ColumnSerializer;
-import org.apache.cassandra.db.OnDiskAtom;
 import org.apache.cassandra.db.RowIndexEntry;
-import org.apache.cassandra.db.columniterator.OnDiskAtomIterator;
-import org.apache.cassandra.db.compaction.AbstractCompactedRow;
+import org.apache.cassandra.db.SerializationHeader;
 import org.apache.cassandra.db.compaction.CompactionController;
-import org.apache.cassandra.db.compaction.LazilyCompactedRow;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
@@ -38,9 +36,7 @@ import org.apache.cassandra.io.sstable.format.Version;
 import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
 import org.apache.cassandra.io.sstable.metadata.StatsMetadata;
 import org.apache.cassandra.io.util.FileDataInput;
-
-import java.util.Iterator;
-import java.util.Set;
+import org.apache.cassandra.net.MessagingService;
 
 /**
  * Legacy bigtable format
@@ -82,38 +78,26 @@ public class BigFormat implements SSTableFormat
     }
 
     @Override
-    public Iterator<OnDiskAtom> getOnDiskIterator(FileDataInput in, ColumnSerializer.Flag flag, int expireBefore, CFMetaData cfm, Version version)
+    public RowIndexEntry.IndexSerializer getIndexSerializer(CFMetaData metadata, Version version, SerializationHeader header)
     {
-        return AbstractCell.onDiskIterator(in, flag, expireBefore, version, cfm.comparator);
-    }
-
-    @Override
-    public AbstractCompactedRow getCompactedRowWriter(CompactionController controller, ImmutableList<OnDiskAtomIterator> onDiskAtomIterators)
-    {
-        return new LazilyCompactedRow(controller, onDiskAtomIterators);
-    }
-
-    @Override
-    public RowIndexEntry.IndexSerializer getIndexSerializer(CFMetaData cfMetaData)
-    {
-        return new RowIndexEntry.Serializer(new IndexHelper.IndexInfo.Serializer(cfMetaData.comparator));
+        return new RowIndexEntry.Serializer(metadata, version, header);
     }
 
     static class WriterFactory extends SSTableWriter.Factory
     {
         @Override
-        public SSTableWriter open(Descriptor descriptor, long keyCount, long repairedAt, CFMetaData metadata, IPartitioner partitioner, MetadataCollector metadataCollector)
+        public SSTableWriter open(Descriptor descriptor, long keyCount, long repairedAt, CFMetaData metadata, IPartitioner partitioner, MetadataCollector metadataCollector, SerializationHeader header)
         {
-            return new BigTableWriter(descriptor, keyCount, repairedAt, metadata, partitioner, metadataCollector);
+            return new BigTableWriter(descriptor, keyCount, repairedAt, metadata, partitioner, metadataCollector, header);
         }
     }
 
     static class ReaderFactory extends SSTableReader.Factory
     {
         @Override
-        public SSTableReader open(Descriptor descriptor, Set<Component> components, CFMetaData metadata, IPartitioner partitioner, Long maxDataAge, StatsMetadata sstableMetadata, SSTableReader.OpenReason openReason)
+        public SSTableReader open(Descriptor descriptor, Set<Component> components, CFMetaData metadata, IPartitioner partitioner, Long maxDataAge, StatsMetadata sstableMetadata, SSTableReader.OpenReason openReason, SerializationHeader header)
         {
-            return new BigTableReader(descriptor, components, metadata, partitioner, maxDataAge, sstableMetadata, openReason);
+            return new BigTableReader(descriptor, components, metadata, partitioner, maxDataAge, sstableMetadata, openReason, header);
         }
     }
 
@@ -143,6 +127,8 @@ public class BigFormat implements SSTableFormat
         private final boolean hasRepairedAt;
         private final boolean tracksLegacyCounterShards;
         private final boolean newFileName;
+        public final boolean storeRows;
+        public final int correspondingMessagingVersion; // Only use by storage that 'storeRows' so far
 
         public BigVersion(String version)
         {
@@ -155,6 +141,8 @@ public class BigFormat implements SSTableFormat
             hasRepairedAt = version.compareTo("ka") >= 0;
             tracksLegacyCounterShards = version.compareTo("ka") >= 0;
             newFileName = version.compareTo("la") >= 0;
+            storeRows = version.compareTo("la") >= 0;
+            correspondingMessagingVersion = storeRows ? MessagingService.VERSION_30 : MessagingService.VERSION_21;
         }
 
         @Override
@@ -200,9 +188,27 @@ public class BigFormat implements SSTableFormat
         }
 
         @Override
+        public boolean storeRows()
+        {
+            return storeRows;
+        }
+
+        @Override
+        public int correspondingMessagingVersion()
+        {
+            return correspondingMessagingVersion;
+        }
+
+        @Override
         public boolean isCompatible()
         {
             return version.compareTo(earliest_supported_version) >= 0 && version.charAt(0) <= current_version.charAt(0);
+        }
+
+        @Override
+        public boolean isCompatibleForStreaming()
+        {
+            return isCompatible() && version.charAt(0) == current_version.charAt(0);
         }
     }
 }

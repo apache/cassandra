@@ -30,6 +30,7 @@ import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
@@ -48,15 +49,20 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
+import org.apache.cassandra.UpdateBuilder;
 import org.apache.cassandra.config.Config.CommitLogSync;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.ParameterizedClass;
 import org.apache.cassandra.config.Schema;
-import org.apache.cassandra.db.Cell;
-import org.apache.cassandra.db.ColumnFamily;
-import org.apache.cassandra.db.ColumnSerializer;
 import org.apache.cassandra.db.Mutation;
+import org.apache.cassandra.db.RowUpdateBuilder;
+import org.apache.cassandra.db.rows.Cell;
+import org.apache.cassandra.db.rows.Row;
+import org.apache.cassandra.db.rows.SerializationHelper;
+import org.apache.cassandra.db.partitions.PartitionUpdate;
+import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.io.util.FastByteArrayInputStream;
+import org.apache.cassandra.utils.FBUtilities;
 
 public class CommitLogStressTest
 {
@@ -354,8 +360,7 @@ public class CommitLogStressTest
                 }
                 double time = (System.currentTimeMillis() - start) / 1000.0;
                 double avg = (temp / time);
-                System.out
-                        .println(
+                System.out.println(
                         String.format("second %d mem max %.0fmb allocated %.0fmb free %.0fmb mutations %d since start %d avg %.3f content %.1fmb ondisk %.1fmb transfer %.3fmb",
                                       ((System.currentTimeMillis() - start) / 1000),
                                       mb(maxMemory),
@@ -421,20 +426,20 @@ public class CommitLogStressTest
             {
                 if (rl != null)
                     rl.acquire();
-                String ks = "Keyspace1";
                 ByteBuffer key = randomBytes(16, rand);
-                Mutation mutation = new Mutation(ks, key);
 
+                UpdateBuilder builder = UpdateBuilder.create(Schema.instance.getCFMetaData("Keyspace1", "Standard1"), Util.dk(key));
                 for (int ii = 0; ii < numCells; ii++)
                 {
                     int sz = randomSize ? rand.nextInt(cellSize) : cellSize;
                     ByteBuffer bytes = randomBytes(sz, rand);
-                    mutation.add("Standard1", Util.cellname("name" + ii), bytes, System.currentTimeMillis());
+                    builder.newRow("name" + ii).add("val", bytes);
                     hash = hash(hash, bytes);
                     ++cells;
                     dataSize += sz;
                 }
-                rp = commitLog.add(mutation);
+
+                rp = commitLog.add(new Mutation(builder.build()));
                 counter.incrementAndGet();
             }
         }
@@ -468,7 +473,7 @@ public class CommitLogStressTest
             {
                 mutation = Mutation.serializer.deserialize(new DataInputStream(bufIn),
                                                            desc.getMessagingVersion(),
-                                                           ColumnSerializer.Flag.LOCAL);
+                                                           SerializationHelper.Flag.LOCAL);
             }
             catch (IOException e)
             {
@@ -476,18 +481,24 @@ public class CommitLogStressTest
                 throw new AssertionError(e);
             }
 
-            for (ColumnFamily cf : mutation.getColumnFamilies())
+            for (PartitionUpdate cf : mutation.getPartitionUpdates())
             {
-                for (Cell c : cf.getSortedColumns())
+
+                Iterator<Row> rowIterator = cf.iterator();
+
+                while (rowIterator.hasNext())
                 {
-                    if (new String(c.name().toByteBuffer().array(), StandardCharsets.UTF_8).startsWith("name"))
+                    Row row = rowIterator.next();
+                    if (!(UTF8Type.instance.compose(row.clustering().get(0)).startsWith("name")))
+                        continue;
+
+                    for (Cell cell : row)
                     {
-                        hash = hash(hash, c.value());
+                        hash = hash(hash, cell.value());
                         ++cells;
                     }
                 }
             }
         }
-
     }
 }

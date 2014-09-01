@@ -36,11 +36,10 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.KSMetaData;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.UntypedResultSet;
+import org.apache.cassandra.db.partitions.*;
 import org.apache.cassandra.db.commitlog.ReplayPosition;
 import org.apache.cassandra.db.compaction.CompactionHistoryTabularData;
 import org.apache.cassandra.db.compaction.LeveledCompactionStrategy;
-import org.apache.cassandra.db.composites.Composite;
-import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Range;
@@ -126,8 +125,10 @@ public final class SystemKeyspace
                 + "in_progress_ballot timeuuid,"
                 + "most_recent_commit blob,"
                 + "most_recent_commit_at timeuuid,"
+                + "most_recent_commit_version int,"
                 + "proposal blob,"
                 + "proposal_ballot timeuuid,"
+                + "proposal_version int,"
                 + "PRIMARY KEY ((row_key), cf_id))")
                 .compactionStrategyClass(LeveledCompactionStrategy.class);
 
@@ -831,27 +832,22 @@ public final class SystemKeyspace
 
     public static boolean isIndexBuilt(String keyspaceName, String indexName)
     {
-        ColumnFamilyStore cfs = Keyspace.open(NAME).getColumnFamilyStore(BUILT_INDEXES);
-        QueryFilter filter = QueryFilter.getNamesFilter(decorate(ByteBufferUtil.bytes(keyspaceName)),
-                                                        BUILT_INDEXES,
-                                                        FBUtilities.singleton(cfs.getComparator().makeCellName(indexName), cfs.getComparator()),
-                                                        System.currentTimeMillis());
-        return ColumnFamilyStore.removeDeleted(cfs.getColumnFamily(filter), Integer.MAX_VALUE) != null;
+        String req = "SELECT index_name FROM %s.\"%s\" WHERE table_name=? AND index_name=?";
+        UntypedResultSet result = executeInternal(String.format(req, NAME, BUILT_INDEXES), keyspaceName, indexName);
+        return !result.isEmpty();
     }
 
     public static void setIndexBuilt(String keyspaceName, String indexName)
     {
-        ColumnFamily cf = ArrayBackedSortedColumns.factory.create(NAME, BUILT_INDEXES);
-        cf.addColumn(new BufferCell(cf.getComparator().makeCellName(indexName), ByteBufferUtil.EMPTY_BYTE_BUFFER, FBUtilities.timestampMicros()));
-        new Mutation(NAME, ByteBufferUtil.bytes(keyspaceName), cf).apply();
+        String req = "INSERT INTO %s.\"%s\" (table_name, index_name) VALUES (?, ?)";
+        executeInternal(String.format(req, NAME, BUILT_INDEXES), keyspaceName, indexName);
         forceBlockingFlush(BUILT_INDEXES);
     }
 
     public static void setIndexRemoved(String keyspaceName, String indexName)
     {
-        Mutation mutation = new Mutation(NAME, ByteBufferUtil.bytes(keyspaceName));
-        mutation.delete(BUILT_INDEXES, BuiltIndexes.comparator.makeCellName(indexName), FBUtilities.timestampMicros());
-        mutation.apply();
+        String req = "DELETE FROM %s.\"%s\" WHERE table_name = ? AND index_name = ?";
+        executeInternal(String.format(req, NAME, BUILT_INDEXES), keyspaceName, indexName);
         forceBlockingFlush(BUILT_INDEXES);
     }
 
@@ -884,23 +880,26 @@ public final class SystemKeyspace
         return hostId;
     }
 
-    public static PaxosState loadPaxosState(ByteBuffer key, CFMetaData metadata)
+
+    public static PaxosState loadPaxosState(DecoratedKey key, CFMetaData metadata)
     {
         String req = "SELECT * FROM system.%s WHERE row_key = ? AND cf_id = ?";
-        UntypedResultSet results = executeInternal(String.format(req, PAXOS), key, metadata.cfId);
+        UntypedResultSet results = executeInternal(String.format(req, PAXOS), key.getKey(), metadata.cfId);
         if (results.isEmpty())
             return new PaxosState(key, metadata);
         UntypedResultSet.Row row = results.one();
         Commit promised = row.has("in_progress_ballot")
-                        ? new Commit(key, row.getUUID("in_progress_ballot"), ArrayBackedSortedColumns.factory.create(metadata))
+                        ? new Commit(row.getUUID("in_progress_ballot"), new PartitionUpdate(metadata, key, metadata.partitionColumns(), 1))
                         : Commit.emptyCommit(key, metadata);
         // either we have both a recently accepted ballot and update or we have neither
+        int proposalVersion = row.has("proposal_version") ? row.getInt("proposal_version") : MessagingService.VERSION_21;
         Commit accepted = row.has("proposal")
-                        ? new Commit(key, row.getUUID("proposal_ballot"), ColumnFamily.fromBytes(row.getBytes("proposal")))
+                        ? new Commit(row.getUUID("proposal_ballot"), PartitionUpdate.fromBytes(row.getBytes("proposal"), proposalVersion, key))
                         : Commit.emptyCommit(key, metadata);
         // either most_recent_commit and most_recent_commit_at will both be set, or neither
+        int mostRecentVersion = row.has("most_recent_commit_version") ? row.getInt("most_recent_commit_version") : MessagingService.VERSION_21;
         Commit mostRecent = row.has("most_recent_commit")
-                          ? new Commit(key, row.getUUID("most_recent_commit_at"), ColumnFamily.fromBytes(row.getBytes("most_recent_commit")))
+                          ? new Commit(row.getUUID("most_recent_commit_at"), PartitionUpdate.fromBytes(row.getBytes("most_recent_commit"), mostRecentVersion, key))
                           : Commit.emptyCommit(key, metadata);
         return new PaxosState(promised, accepted, mostRecent);
     }
@@ -910,21 +909,22 @@ public final class SystemKeyspace
         String req = "UPDATE system.%s USING TIMESTAMP ? AND TTL ? SET in_progress_ballot = ? WHERE row_key = ? AND cf_id = ?";
         executeInternal(String.format(req, PAXOS),
                         UUIDGen.microsTimestamp(promise.ballot),
-                        paxosTtl(promise.update.metadata),
+                        paxosTtl(promise.update.metadata()),
                         promise.ballot,
-                        promise.key,
-                        promise.update.id());
+                        promise.update.partitionKey().getKey(),
+                        promise.update.metadata().cfId);
     }
 
     public static void savePaxosProposal(Commit proposal)
     {
-        executeInternal(String.format("UPDATE system.%s USING TIMESTAMP ? AND TTL ? SET proposal_ballot = ?, proposal = ? WHERE row_key = ? AND cf_id = ?", PAXOS),
+        executeInternal(String.format("UPDATE system.%s USING TIMESTAMP ? AND TTL ? SET proposal_ballot = ?, proposal = ?, proposal_version = ? WHERE row_key = ? AND cf_id = ?", PAXOS),
                         UUIDGen.microsTimestamp(proposal.ballot),
-                        paxosTtl(proposal.update.metadata),
+                        paxosTtl(proposal.update.metadata()),
                         proposal.ballot,
-                        proposal.update.toBytes(),
-                        proposal.key,
-                        proposal.update.id());
+                        PartitionUpdate.toBytes(proposal.update, MessagingService.current_version),
+                        MessagingService.current_version,
+                        proposal.update.partitionKey().getKey(),
+                        proposal.update.metadata().cfId);
     }
 
     private static int paxosTtl(CFMetaData metadata)
@@ -937,14 +937,15 @@ public final class SystemKeyspace
     {
         // We always erase the last proposal (with the commit timestamp to no erase more recent proposal in case the commit is old)
         // even though that's really just an optimization  since SP.beginAndRepairPaxos will exclude accepted proposal older than the mrc.
-        String cql = "UPDATE system.%s USING TIMESTAMP ? AND TTL ? SET proposal_ballot = null, proposal = null, most_recent_commit_at = ?, most_recent_commit = ? WHERE row_key = ? AND cf_id = ?";
+        String cql = "UPDATE system.%s USING TIMESTAMP ? AND TTL ? SET proposal_ballot = null, proposal = null, most_recent_commit_at = ?, most_recent_commit = ?, most_recent_commit_version = ? WHERE row_key = ? AND cf_id = ?";
         executeInternal(String.format(cql, PAXOS),
                         UUIDGen.microsTimestamp(commit.ballot),
-                        paxosTtl(commit.update.metadata),
+                        paxosTtl(commit.update.metadata()),
                         commit.ballot,
-                        commit.update.toBytes(),
-                        commit.key,
-                        commit.update.id());
+                        PartitionUpdate.toBytes(commit.update, MessagingService.current_version),
+                        MessagingService.current_version,
+                        commit.update.partitionKey().getKey(),
+                        commit.update.metadata().cfId);
     }
 
     /**
@@ -998,24 +999,24 @@ public final class SystemKeyspace
     public static void updateSizeEstimates(String keyspace, String table, Map<Range<Token>, Pair<Long, Long>> estimates)
     {
         long timestamp = FBUtilities.timestampMicros();
-        Mutation mutation = new Mutation(NAME, UTF8Type.instance.decompose(keyspace));
+        DecoratedKey key = decorate(UTF8Type.instance.decompose(keyspace));
+        PartitionUpdate update = new PartitionUpdate(SizeEstimates, key, SizeEstimates.partitionColumns(), estimates.size());
+        Mutation mutation = new Mutation(update);
 
         // delete all previous values with a single range tombstone.
-        mutation.deleteRange(SIZE_ESTIMATES,
-                             SizeEstimates.comparator.make(table).start(),
-                             SizeEstimates.comparator.make(table).end(),
-                             timestamp - 1);
+        int nowInSec = FBUtilities.nowInSeconds();
+        update.addRangeTombstone(Slice.make(SizeEstimates.comparator, table), new SimpleDeletionTime(timestamp - 1, nowInSec));
 
         // add a CQL row for each primary token range.
-        ColumnFamily cells = mutation.addOrGet(SizeEstimates);
         for (Map.Entry<Range<Token>, Pair<Long, Long>> entry : estimates.entrySet())
         {
             Range<Token> range = entry.getKey();
             Pair<Long, Long> values = entry.getValue();
-            Composite prefix = SizeEstimates.comparator.make(table, range.left.toString(), range.right.toString());
-            CFRowAdder adder = new CFRowAdder(cells, prefix, timestamp);
-            adder.add("partitions_count", values.left)
-                 .add("mean_partition_size", values.right);
+            new RowUpdateBuilder(SizeEstimates, timestamp, mutation)
+                .clustering(table, range.left.toString(), range.right.toString())
+                .add("partitions_count", values.left)
+                .add("mean_partition_size", values.right)
+                .build();
         }
 
         mutation.apply();

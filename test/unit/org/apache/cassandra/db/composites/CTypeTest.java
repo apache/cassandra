@@ -17,98 +17,113 @@
  */
 package org.apache.cassandra.db.composites;
 
-import com.google.common.collect.Lists;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.junit.Test;
 
-import java.util.List;
+import java.nio.ByteBuffer;
 
 public class CTypeTest
 {
-    static final List<AbstractType<?>> types = Lists.newArrayList();
-    static
-    {
-        types.add(UTF8Type.instance);
-        types.add(UUIDType.instance);
-        types.add(Int32Type.instance);
-    }
-
-    static final CellNameType cdtype = new CompoundDenseCellNameType(types);
-    static final CellNameType stype1 = new SimpleDenseCellNameType(BytesType.instance);
-    static final CellNameType stype2 = new SimpleDenseCellNameType(UUIDType.instance);
-
     @Test
     public void testCompoundType()
     {
-        Composite a1 = cdtype.makeCellName("a",UUIDType.instance.fromString("00000000-0000-0000-0000-000000000000"), 1);
-        Composite a2 = cdtype.makeCellName("a",UUIDType.instance.fromString("00000000-0000-0000-0000-000000000000"), 100);
-        Composite b1 = cdtype.makeCellName("a",UUIDType.instance.fromString("ffffffff-ffff-ffff-ffff-ffffffffffff"), 1);
-        Composite b2 = cdtype.makeCellName("a",UUIDType.instance.fromString("ffffffff-ffff-ffff-ffff-ffffffffffff"), 100);
-        Composite c1 = cdtype.makeCellName("z",UUIDType.instance.fromString("00000000-0000-0000-0000-000000000000"), 1);
-        Composite c2 = cdtype.makeCellName("z",UUIDType.instance.fromString("00000000-0000-0000-0000-000000000000"), 100);
-        Composite d1 = cdtype.makeCellName("z",UUIDType.instance.fromString("ffffffff-ffff-ffff-ffff-ffffffffffff"), 1);
-        Composite d2 = cdtype.makeCellName("z",UUIDType.instance.fromString("ffffffff-ffff-ffff-ffff-ffffffffffff"), 100);
+        CompositeType baseType = CompositeType.getInstance(AsciiType.instance, UUIDType.instance, LongType.instance);
 
-        Composite z1 = cdtype.makeCellName(ByteBufferUtil.EMPTY_BYTE_BUFFER,UUIDType.instance.fromString("ffffffff-ffff-ffff-ffff-ffffffffffff"), 100);
+        ByteBuffer a1 = baseType.builder()
+                .add(ByteBufferUtil.bytes("a"))
+                .add(UUIDType.instance.fromString("00000000-0000-0000-0000-000000000000"))
+                .add(ByteBufferUtil.bytes(1)).build();
+        ByteBuffer a2 = baseType.builder()
+                .add(ByteBufferUtil.bytes("a"))
+                .add(UUIDType.instance.fromString("00000000-0000-0000-0000-000000000000"))
+                .add(ByteBufferUtil.bytes(100)).build();
+        ByteBuffer b1 = baseType.builder()
+                .add(ByteBufferUtil.bytes("a"))
+                .add(UUIDType.instance.fromString("ffffffff-ffff-ffff-ffff-ffffffffffff"))
+                .add(ByteBufferUtil.bytes(1)).build();
+        ByteBuffer b2 = baseType.builder()
+                .add(ByteBufferUtil.bytes("a"))
+                .add(UUIDType.instance.fromString("ffffffff-ffff-ffff-ffff-ffffffffffff"))
+                .add(ByteBufferUtil.bytes(100)).build();
+        ByteBuffer c1 = baseType.builder()
+                .add(ByteBufferUtil.bytes("z"))
+                .add(UUIDType.instance.fromString("00000000-0000-0000-0000-000000000000"))
+                .add(ByteBufferUtil.bytes(1)).build();
+        ByteBuffer c2 = baseType.builder()
+                .add(ByteBufferUtil.bytes("z"))
+                .add(UUIDType.instance.fromString("00000000-0000-0000-0000-000000000000"))
+                .add(ByteBufferUtil.bytes(100)).build();
+        ByteBuffer d1 = baseType.builder()
+                .add(ByteBufferUtil.bytes("z"))
+                .add(UUIDType.instance.fromString("ffffffff-ffff-ffff-ffff-ffffffffffff"))
+                .add(ByteBufferUtil.bytes(1)).build();
+        ByteBuffer d2 = baseType.builder()
+                .add(ByteBufferUtil.bytes("z"))
+                .add(UUIDType.instance.fromString("ffffffff-ffff-ffff-ffff-ffffffffffff"))
+                .add(ByteBufferUtil.bytes(100)).build();
+        ByteBuffer z1 = baseType.builder()
+                .add(ByteBufferUtil.EMPTY_BYTE_BUFFER)
+                .add(UUIDType.instance.fromString("ffffffff-ffff-ffff-ffff-ffffffffffff"))
+                .add(ByteBufferUtil.bytes(100)).build();
 
-        assert cdtype.compare(a1,a2) < 0;
-        assert cdtype.compare(a2,b1) < 0;
-        assert cdtype.compare(b1,b2) < 0;
-        assert cdtype.compare(b2,c1) < 0;
-        assert cdtype.compare(c1,c2) < 0;
-        assert cdtype.compare(c2,d1) < 0;
-        assert cdtype.compare(d1,d2) < 0;
+        assert baseType.compare(a1,a2) < 0;
+        assert baseType.compare(a2,b1) < 0;
+        assert baseType.compare(b1,b2) < 0;
+        assert baseType.compare(b2,c1) < 0;
+        assert baseType.compare(c1,c2) < 0;
+        assert baseType.compare(c2,d1) < 0;
+        assert baseType.compare(d1,d2) < 0;
 
-        assert cdtype.compare(a2,a1) > 0;
-        assert cdtype.compare(b1,a2) > 0;
-        assert cdtype.compare(b2,b1) > 0;
-        assert cdtype.compare(c1,b2) > 0;
-        assert cdtype.compare(c2,c1) > 0;
-        assert cdtype.compare(d1,c2) > 0;
-        assert cdtype.compare(d2,d1) > 0;
+        assert baseType.compare(a2,a1) > 0;
+        assert baseType.compare(b1,a2) > 0;
+        assert baseType.compare(b2,b1) > 0;
+        assert baseType.compare(c1,b2) > 0;
+        assert baseType.compare(c2,c1) > 0;
+        assert baseType.compare(d1,c2) > 0;
+        assert baseType.compare(d2,d1) > 0;
 
-        assert cdtype.compare(z1,a1) < 0;
-        assert cdtype.compare(z1,a2) < 0;
-        assert cdtype.compare(z1,b1) < 0;
-        assert cdtype.compare(z1,b2) < 0;
-        assert cdtype.compare(z1,c1) < 0;
-        assert cdtype.compare(z1,c2) < 0;
-        assert cdtype.compare(z1,d1) < 0;
-        assert cdtype.compare(z1,d2) < 0;
+        assert baseType.compare(z1,a1) < 0;
+        assert baseType.compare(z1,a2) < 0;
+        assert baseType.compare(z1,b1) < 0;
+        assert baseType.compare(z1,b2) < 0;
+        assert baseType.compare(z1,c1) < 0;
+        assert baseType.compare(z1,c2) < 0;
+        assert baseType.compare(z1,d1) < 0;
+        assert baseType.compare(z1,d2) < 0;
 
-        assert cdtype.compare(a1,a1) == 0;
-        assert cdtype.compare(a2,a2) == 0;
-        assert cdtype.compare(b1,b1) == 0;
-        assert cdtype.compare(b2,b2) == 0;
-        assert cdtype.compare(c1,c1) == 0;
-        assert cdtype.compare(c2,c2) == 0;
-        assert cdtype.compare(z1,z1) == 0;
+        assert baseType.compare(a1,a1) == 0;
+        assert baseType.compare(a2,a2) == 0;
+        assert baseType.compare(b1,b1) == 0;
+        assert baseType.compare(b2,b2) == 0;
+        assert baseType.compare(c1,c1) == 0;
+        assert baseType.compare(c2,c2) == 0;
+        assert baseType.compare(z1,z1) == 0;
     }
 
     @Test
     public void testSimpleType2()
     {
-        CellName a = stype2.makeCellName(UUIDType.instance.fromString("00000000-0000-0000-0000-000000000000"));
-        CellName z = stype2.makeCellName(UUIDType.instance.fromString("ffffffff-ffff-ffff-ffff-ffffffffffff"));
+        CompositeType baseType = CompositeType.getInstance(UUIDType.instance);
+        ByteBuffer a = baseType.builder().add(UUIDType.instance.fromString("00000000-0000-0000-0000-000000000000")).build();
+        ByteBuffer z = baseType.builder().add(UUIDType.instance.fromString("ffffffff-ffff-ffff-ffff-ffffffffffff")).build();
 
-        assert stype2.compare(a,z) < 0;
-        assert stype2.compare(z,a) > 0;
-        assert stype2.compare(a,a) == 0;
-        assert stype2.compare(z,z) == 0;
+        assert baseType.compare(a,z) < 0;
+        assert baseType.compare(z,a) > 0;
+        assert baseType.compare(a,a) == 0;
+        assert baseType.compare(z,z) == 0;
     }
-
 
     @Test
     public void testSimpleType1()
     {
-        CellName a = stype1.makeCellName(ByteBufferUtil.bytes("a"));
-        CellName z = stype1.makeCellName(ByteBufferUtil.bytes("z"));
+        CompositeType baseType = CompositeType.getInstance(BytesType.instance);
+        ByteBuffer a = baseType.builder().add(ByteBufferUtil.bytes("a")).build();
+        ByteBuffer z = baseType.builder().add(ByteBufferUtil.bytes("z")).build();
 
-        assert stype1.compare(a,z) < 0;
-        assert stype1.compare(z,a) > 0;
-        assert stype1.compare(a,a) == 0;
-        assert stype1.compare(z,z) == 0;
+        assert baseType.compare(a,z) < 0;
+        assert baseType.compare(z,a) > 0;
+        assert baseType.compare(a,a) == 0;
+        assert baseType.compare(z,z) == 0;
     }
-
 }

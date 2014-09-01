@@ -65,32 +65,6 @@ public class TypeValidationTest
     }
 
     @Test
-    public void testValidShort()
-    {
-        ShortType.instance.validate(Util.getBytes((short) 5));
-        ShortType.instance.validate(Util.getBytes(Short.MAX_VALUE));
-    }
-
-    @Test(expected = MarshalException.class)
-    public void testInvalidShort()
-    {
-        ShortType.instance.validate(Util.getBytes(2057022603));
-    }
-
-    @Test
-    public void testValidByte()
-    {
-        ByteType.instance.validate(Util.getBytes((byte) 5));
-        ByteType.instance.validate(Util.getBytes(Byte.MAX_VALUE));
-    }
-
-    @Test(expected = MarshalException.class)
-    public void testInvalidByte()
-    {
-        ByteType.instance.validate(Util.getBytes(2057022603));
-    }
-
-    @Test
     public void testValidUtf8() throws UnsupportedEncodingException
     {
         assert Character.MAX_CODE_POINT == 0x0010ffff;

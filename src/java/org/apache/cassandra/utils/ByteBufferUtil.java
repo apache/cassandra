@@ -33,6 +33,7 @@ import java.util.Arrays;
 import java.util.UUID;
 
 import net.nicoulaj.compilecommand.annotations.Inline;
+import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.io.util.FileDataInput;
 import org.apache.cassandra.io.util.FileUtils;
@@ -322,6 +323,12 @@ public class ByteBufferUtil
         return ByteBufferUtil.read(in, length);
     }
 
+    public static int serializedSizeWithLength(ByteBuffer buffer, TypeSizes sizes)
+    {
+        int size = buffer.remaining();
+        return sizes.sizeof(size) + size;
+    }
+
     /* @return An unsigned short in an integer. */
     public static int readShortLength(DataInput in) throws IOException
     {
@@ -338,16 +345,21 @@ public class ByteBufferUtil
         return ByteBufferUtil.read(in, readShortLength(in));
     }
 
+    public static int serializedSizeWithShortLength(ByteBuffer buffer, TypeSizes sizes)
+    {
+        int size = buffer.remaining();
+        return sizes.sizeof((short)size) + size;
+    }
+
     /**
      * @param in data input
      * @return null
      * @throws IOException if an I/O error occurs.
      */
-    public static ByteBuffer skipShortLength(DataInput in) throws IOException
+    public static void skipShortLength(DataInput in) throws IOException
     {
         int skip = readShortLength(in);
         FileUtils.skipBytesFully(in, skip);
-        return null;
     }
 
     public static ByteBuffer read(DataInput in, int length) throws IOException

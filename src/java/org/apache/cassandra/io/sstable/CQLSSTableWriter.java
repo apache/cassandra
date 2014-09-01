@@ -25,18 +25,13 @@ import java.util.*;
 
 import com.google.common.collect.ImmutableMap;
 
-import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.config.Config;
-import org.apache.cassandra.config.KSMetaData;
-import org.apache.cassandra.config.Schema;
+import org.apache.cassandra.config.*;
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.cql3.statements.CreateTableStatement;
 import org.apache.cassandra.cql3.statements.ParsedStatement;
 import org.apache.cassandra.cql3.statements.UpdateStatement;
-import org.apache.cassandra.db.ArrayBackedSortedColumns;
-import org.apache.cassandra.db.Cell;
-import org.apache.cassandra.db.ColumnFamily;
-import org.apache.cassandra.db.composites.Composite;
+import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.partitions.*;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Murmur3Partitioner;
@@ -208,26 +203,28 @@ public class CQLSSTableWriter implements Closeable
 
         QueryOptions options = QueryOptions.forInternalCalls(null, values);
         List<ByteBuffer> keys = insert.buildPartitionKeyNames(options);
-        Composite clusteringPrefix = insert.createClusteringPrefix(options);
+        CBuilder clustering = insert.createClustering(options);
 
         long now = System.currentTimeMillis() * 1000;
+        // Note that we asks indexes to not validate values (the last 'false' arg below) because that triggers a 'Keyspace.open'
+        // and that forces a lot of initialization that we don't want.
         UpdateParameters params = new UpdateParameters(insert.cfm,
                                                        options,
                                                        insert.getTimestamp(now, options),
                                                        insert.getTimeToLive(options),
-                                                       Collections.<ByteBuffer, CQL3Row>emptyMap());
+                                                       Collections.<DecoratedKey, Partition>emptyMap(),
+                                                       false);
 
         try
         {
             for (ByteBuffer key : keys)
             {
-                if (writer.shouldStartNewRow() || !key.equals(writer.currentKey().getKey()))
-                    writer.newRow(key);
-                insert.addUpdateForKey(writer.currentColumnFamily(), key, clusteringPrefix, params, false);
+                DecoratedKey dk = DatabaseDescriptor.getPartitioner().decorateKey(key);
+                insert.addUpdateForKey(writer.getUpdateFor(dk), clustering, params);
             }
             return this;
         }
-        catch (BufferedWriter.SyncException e)
+        catch (SSTableSimpleUnsortedWriter.SyncException e)
         {
             // If we use a BufferedWriter and had a problem writing to disk, the IOException has been
             // wrapped in a SyncException (see BufferedWriter below). We want to extract that IOE.
@@ -348,7 +345,7 @@ public class CQLSSTableWriter implements Closeable
             {
                 synchronized (CQLSSTableWriter.class)
                 {
-                    this.schema = getStatement(schema, CreateTableStatement.class, "CREATE TABLE").left.getCFMetaData().rebuild();
+                    this.schema = getStatement(schema, CreateTableStatement.class, "CREATE TABLE").left.getCFMetaData();
 
                     // We need to register the keyspace/table metadata through Schema, otherwise we won't be able to properly
                     // build the insert statement in using().
@@ -373,7 +370,7 @@ public class CQLSSTableWriter implements Closeable
         /**
          * Creates the keyspace with the specified table.
          *
-         * @param the table the table that must be created.
+         * @param table the table that must be created.
          */
         private static void createKeyspaceWithTable(CFMetaData table)
         {
@@ -520,90 +517,13 @@ public class CQLSSTableWriter implements Closeable
                 throw new IllegalStateException("No insert statement specified, you should provide an insert statement through using()");
 
             AbstractSSTableSimpleWriter writer = sorted
-                                               ? new SSTableSimpleWriter(directory, schema, partitioner)
-                                               : new BufferedWriter(directory, schema, partitioner, bufferSizeInMB);
+                                               ? new SSTableSimpleWriter(directory, schema, partitioner, insert.updatedColumns())
+                                               : new SSTableSimpleUnsortedWriter(directory, schema, partitioner, insert.updatedColumns(), bufferSizeInMB);
 
             if (formatType != null)
                 writer.setSSTableFormatType(formatType);
 
             return new CQLSSTableWriter(writer, insert, boundNames);
-        }
-    }
-
-    /**
-     * CQLSSTableWriter doesn't use the method addColumn() from AbstractSSTableSimpleWriter.
-     * Instead, it adds cells directly to the ColumnFamily the latter exposes. But this means
-     * that the sync() method of SSTableSimpleUnsortedWriter is not called (at least not for
-     * each CQL row, so adding many rows to the same partition can buffer too much data in
-     * memory - #7360). So we create a slightly modified SSTableSimpleUnsortedWriter that uses
-     * a tweaked ColumnFamily object that calls back the proper method after each added cell
-     * so we sync when we should.
-     */
-    private static class BufferedWriter extends SSTableSimpleUnsortedWriter
-    {
-        private boolean needsSync = false;
-
-        public BufferedWriter(File directory, CFMetaData metadata, IPartitioner partitioner, long bufferSizeInMB)
-        {
-            super(directory, metadata, partitioner, bufferSizeInMB);
-        }
-
-        @Override
-        protected ColumnFamily createColumnFamily()
-        {
-            return new ArrayBackedSortedColumns(metadata, false)
-            {
-                @Override
-                public void addColumn(Cell cell)
-                {
-                    super.addColumn(cell);
-                    try
-                    {
-                        countColumn(cell);
-                    }
-                    catch (IOException e)
-                    {
-                        // addColumn does not throw IOException but we want to report this to the user,
-                        // so wrap it in a temporary RuntimeException that we'll catch in rawAddRow above.
-                        throw new SyncException(e);
-                    }
-                }
-            };
-        }
-
-        @Override
-        protected void replaceColumnFamily() throws IOException
-        {
-            needsSync = true;
-        }
-
-        /**
-         * If we have marked that the column family is being replaced, when we start the next row,
-         * we should sync out the previous partition and create a new row based on the current value.
-         */
-        @Override
-        boolean shouldStartNewRow() throws IOException
-        {
-            if (needsSync)
-            {
-                needsSync = false;
-                super.sync();
-                return true;
-            }
-            return super.shouldStartNewRow();
-        }
-
-        protected void addColumn(Cell cell) throws IOException
-        {
-            throw new UnsupportedOperationException();
-        }
-
-        static class SyncException extends RuntimeException
-        {
-            SyncException(IOException ioe)
-            {
-                super(ioe);
-            }
         }
     }
 }

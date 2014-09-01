@@ -143,14 +143,16 @@ public class ListSerializer<T> extends CollectionSerializer<List<T>>
     {
         StringBuilder sb = new StringBuilder();
         boolean isFirst = true;
+        sb.append('[');
         for (T element : value)
         {
             if (isFirst)
                 isFirst = false;
             else
-                sb.append("; ");
+                sb.append(", ");
             sb.append(elements.toString(element));
         }
+        sb.append(']');
         return sb.toString();
     }
 

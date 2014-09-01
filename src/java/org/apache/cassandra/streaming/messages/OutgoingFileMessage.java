@@ -70,13 +70,14 @@ public class OutgoingFileMessage extends StreamMessage
         }
         this.header = new FileMessageHeader(sstable.metadata.cfId,
                                             sequenceNumber,
-                                            sstable.descriptor.version.toString(),
+                                            sstable.descriptor.version,
                                             sstable.descriptor.formatType,
                                             estimatedKeys,
                                             sections,
                                             compressionInfo,
                                             repairedAt,
-                                            keepSSTableLevel ? sstable.getSSTableLevel() : 0);
+                                            keepSSTableLevel ? sstable.getSSTableLevel() : 0,
+                                            sstable.header == null ? null : sstable.header.toComponent());
     }
 
     public synchronized void serialize(DataOutputStreamPlus out, int version, StreamSession session) throws IOException

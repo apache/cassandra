@@ -15,6 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package org.apache.cassandra.locator;
 
 import java.net.InetAddress;
@@ -23,9 +24,10 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 
 import com.google.common.net.InetAddresses;
-import org.apache.cassandra.utils.FBUtilities;
 import org.junit.Assert;
 import org.junit.Test;
+
+import org.apache.cassandra.utils.FBUtilities;
 
 /**
  * Unit tests for {@link GossipingPropertyFileSnitch}.

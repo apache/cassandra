@@ -83,4 +83,10 @@ public class LexicalUUIDType extends AbstractType<UUID>
     {
         return UUIDSerializer.instance;
     }
+
+    @Override
+    protected int valueLengthIfFixed()
+    {
+        return 16;
+    }
 }

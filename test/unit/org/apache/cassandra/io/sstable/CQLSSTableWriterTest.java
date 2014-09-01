@@ -26,7 +26,6 @@ import java.util.UUID;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.io.Files;
-
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -86,9 +85,10 @@ public class CQLSSTableWriterTest
                                                   .using(insert).build();
 
         writer.addRow(0, "test1", 24);
-        writer.addRow(1, "test2", null);
+        writer.addRow(1, "test2", 44);
         writer.addRow(2, "test3", 42);
         writer.addRow(ImmutableMap.<String, Object>of("k", 3, "v2", 12));
+
         writer.close();
 
         SSTableLoader loader = new SSTableLoader(dataDir, new SSTableLoader.Client()
@@ -103,9 +103,9 @@ public class CQLSSTableWriterTest
                 setPartitioner(StorageService.getPartitioner());
             }
 
-            public CFMetaData getTableMetadata(String tableName)
+            public CFMetaData getTableMetadata(String cfName)
             {
-                return Schema.instance.getCFMetaData(keyspace, tableName);
+                return Schema.instance.getCFMetaData(keyspace, cfName);
             }
         }, new OutputHandler.SystemOutput(false, false));
 
@@ -125,7 +125,8 @@ public class CQLSSTableWriterTest
         row = iter.next();
         assertEquals(1, row.getInt("k"));
         assertEquals("test2", row.getString("v1"));
-        assertFalse(row.has("v2"));
+        //assertFalse(row.has("v2"));
+        assertEquals(44, row.getInt("v2"));
 
         row = iter.next();
         assertEquals(2, row.getInt("k"));
@@ -151,12 +152,10 @@ public class CQLSSTableWriterTest
         File dataDir = new File(tempdir.getAbsolutePath() + File.separator + KS + File.separator + TABLE);
         assert dataDir.mkdirs();
         String schema = "CREATE TABLE ks.test ("
-                      + "  k int,"
-                      + "  c int,"
-                      + "  v blob,"
-                      + "  PRIMARY KEY (k,c)"
+                      + "  k int PRIMARY KEY,"
+                      + "  v blob"
                       + ")";
-        String insert = "INSERT INTO ks.test (k, c, v) VALUES (?, ?, ?)";
+        String insert = "INSERT INTO ks.test (k, v) VALUES (?, ?)";
         CQLSSTableWriter writer = CQLSSTableWriter.builder()
                                                   .inDirectory(dataDir)
                                                   .forTable(schema)
@@ -167,8 +166,8 @@ public class CQLSSTableWriterTest
 
         ByteBuffer val = ByteBuffer.allocate(1024 * 1050);
 
-        writer.addRow(0, 0, val);
-        writer.addRow(0, 1, val);
+        writer.addRow(0, val);
+        writer.addRow(1, val);
         writer.close();
 
         FilenameFilter filterDataFiles = new FilenameFilter()
@@ -293,9 +292,9 @@ public class CQLSSTableWriterTest
                 setPartitioner(StorageService.getPartitioner());
             }
 
-            public CFMetaData getTableMetadata(String tableName)
+            public CFMetaData getTableMetadata(String cfName)
             {
-                return Schema.instance.getCFMetaData(keyspace, tableName);
+                return Schema.instance.getCFMetaData(keyspace, cfName);
             }
         }, new OutputHandler.SystemOutput(false, false));
 

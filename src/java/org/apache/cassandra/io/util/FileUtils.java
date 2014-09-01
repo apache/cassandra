@@ -227,6 +227,19 @@ public class FileUtils
         }
     }
 
+    public static void closeQuietly(AutoCloseable c)
+    {
+        try
+        {
+            if (c != null)
+                c.close();
+        }
+        catch (Exception e)
+        {
+            logger.warn("Failed closing {}", c, e);
+        }
+    }
+
     public static void close(Closeable... cs) throws IOException
     {
         close(Arrays.asList(cs));
@@ -250,6 +263,22 @@ public class FileUtils
         }
         if (e != null)
             throw e;
+    }
+
+    public static void closeQuietly(Iterable<? extends AutoCloseable> cs)
+    {
+        for (AutoCloseable c : cs)
+        {
+            try
+            {
+                if (c != null)
+                    c.close();
+            }
+            catch (Exception ex)
+            {
+                logger.warn("Failed closing {}", c, ex);
+            }
+        }
     }
 
     public static String getCanonicalPath(String filename)

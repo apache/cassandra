@@ -21,7 +21,8 @@ import java.nio.ByteBuffer;
 import java.util.*;
 
 import com.google.common.collect.Iterables;
-import com.google.common.collect.Lists;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.auth.Permission;
 import org.apache.cassandra.config.CFMetaData;
@@ -33,19 +34,20 @@ import org.apache.cassandra.cql3.restrictions.Restriction;
 import org.apache.cassandra.cql3.restrictions.SingleColumnRestriction;
 import org.apache.cassandra.cql3.selection.Selection;
 import org.apache.cassandra.db.*;
-import org.apache.cassandra.db.composites.Composite;
-import org.apache.cassandra.db.composites.CompositesBuilder;
-import org.apache.cassandra.db.filter.ColumnSlice;
-import org.apache.cassandra.db.filter.SliceQueryFilter;
+import org.apache.cassandra.db.rows.*;
+import org.apache.cassandra.db.partitions.*;
+import org.apache.cassandra.db.filter.*;
 import org.apache.cassandra.db.marshal.BooleanType;
 import org.apache.cassandra.exceptions.*;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.service.StorageProxy;
+import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.paxos.Commit;
 import org.apache.cassandra.thrift.ThriftValidation;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.triggers.TriggerExecutor;
+import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.UUIDGen;
 
@@ -58,6 +60,8 @@ import static org.apache.cassandra.cql3.statements.RequestValidations.invalidReq
  */
 public abstract class ModificationStatement implements CQLStatement
 {
+    protected static final Logger logger = LoggerFactory.getLogger(ModificationStatement.class);
+
     private static final ColumnIdentifier CAS_RESULT_COLUMN = new ColumnIdentifier("[applied]", false);
 
     public static enum StatementType { INSERT, UPDATE, DELETE }
@@ -68,7 +72,15 @@ public abstract class ModificationStatement implements CQLStatement
     public final Attributes attrs;
 
     protected final Map<ColumnIdentifier, Restriction> processedKeys = new HashMap<>();
-    private final List<Operation> columnOperations = new ArrayList<Operation>();
+    private final List<Operation> regularOperations = new ArrayList<>();
+    private final List<Operation> staticOperations = new ArrayList<>();
+
+    // TODO: If we had a builder for this statement, we could have updatedColumns/conditionColumns final and only have
+    // updatedColumnsBuilder/conditionColumnsBuilder in the builder ...
+    private PartitionColumns updatedColumns;
+    private PartitionColumns.Builder updatedColumnsBuilder = PartitionColumns.builder();
+    private PartitionColumns conditionColumns;
+    private PartitionColumns.Builder conditionColumnsBuilder = PartitionColumns.builder();
 
     // Separating normal and static conditions makes things somewhat easier
     private List<ColumnCondition> columnConditions;
@@ -103,25 +115,24 @@ public abstract class ModificationStatement implements CQLStatement
         Iterable<Function> functions = attrs.getFunctions();
 
         for (Restriction restriction : processedKeys.values())
-                functions = Iterables.concat(functions, restriction.getFunctions());
+            functions = Iterables.concat(functions, restriction.getFunctions());
 
-        if (columnOperations != null)
-            for (Operation operation : columnOperations)
-                functions = Iterables.concat(functions, operation.getFunctions());
+        for (Operation operation : allOperations())
+            functions = Iterables.concat(functions, operation.getFunctions());
 
-        if (columnConditions != null)
-            for (ColumnCondition condition : columnConditions)
-                functions = Iterables.concat(functions, condition.getFunctions());
-
-        if (staticConditions != null)
-            for (ColumnCondition condition : staticConditions)
-                functions = Iterables.concat(functions, condition.getFunctions());
+        for (ColumnCondition condition : allConditions())
+            functions = Iterables.concat(functions, condition.getFunctions());
 
         return functions;
     }
 
+    public boolean hasNoClusteringColumns()
+    {
+        return hasNoClusteringColumns;
+    }
+
     public abstract boolean requireFullClusteringKey();
-    public abstract void addUpdateForKey(ColumnFamily updates, ByteBuffer key, Composite prefix, UpdateParameters params) throws InvalidRequestException;
+    public abstract void addUpdateForKey(PartitionUpdate update, CBuilder clusteringBuilder, UpdateParameters params) throws InvalidRequestException;
 
     public int getBoundTerms()
     {
@@ -184,16 +195,75 @@ public abstract class ModificationStatement implements CQLStatement
 
     public void addOperation(Operation op)
     {
+        updatedColumnsBuilder.add(op.column);
+        // If the operation requires a read-before-write and we're doing a conditional read, we want to read
+        // the affected column as part of the read-for-conditions paxos phase (see #7499).
+        if (op.requiresRead())
+            conditionColumnsBuilder.add(op.column);
+
         if (op.column.isStatic())
+        {
             setsStaticColumns = true;
+            staticOperations.add(op);
+        }
         else
+        {
             setsRegularColumns = true;
-        columnOperations.add(op);
+            regularOperations.add(op);
+        }
     }
 
-    public List<Operation> getOperations()
+    public PartitionColumns updatedColumns()
     {
-        return columnOperations;
+        return updatedColumns;
+    }
+
+    public PartitionColumns conditionColumns()
+    {
+        return conditionColumns;
+    }
+
+    public boolean updatesRegularRows()
+    {
+        // We're updating regular rows if all the clustering columns are provided.
+        // Note that the only case where we're allowed not to provide clustering
+        // columns is if we set some static columns, and in that case no clustering
+        // columns should be given. So in practice, it's enough to check if we have
+        // either the table has no clustering or if it has at least one of them set.
+        return cfm.clusteringColumns().isEmpty() || !hasNoClusteringColumns;
+    }
+
+    public boolean updatesStaticRow()
+    {
+        return !staticOperations.isEmpty();
+    }
+
+    private void finishPreparation()
+    {
+        updatedColumns = updatedColumnsBuilder.build();
+        // Compact tables have not row marker. So if we don't actually update any particular column,
+        // this means that we're only updating the PK, which we allow if only those were declared in
+        // the definition. In that case however, we do went to write the compactValueColumn (since again
+        // we can't use a "row marker") so add it automatically.
+        if (cfm.isCompactTable() && updatedColumns.isEmpty() && updatesRegularRows())
+            updatedColumns = cfm.partitionColumns();
+
+        conditionColumns = conditionColumnsBuilder.build();
+    }
+
+    public List<Operation> getRegularOperations()
+    {
+        return regularOperations;
+    }
+
+    public List<Operation> getStaticOperations()
+    {
+        return staticOperations;
+    }
+
+    public Iterable<Operation> allOperations()
+    {
+        return Iterables.concat(staticOperations, regularOperations);
     }
 
     public Iterable<ColumnDefinition> getColumnsWithConditions()
@@ -205,8 +275,19 @@ public abstract class ModificationStatement implements CQLStatement
                                 staticConditions == null ? Collections.<ColumnDefinition>emptyList() : Iterables.transform(staticConditions, getColumnForCondition));
     }
 
+    public Iterable<ColumnCondition> allConditions()
+    {
+        if (staticConditions == null)
+            return columnConditions == null ? Collections.<ColumnCondition>emptySet(): columnConditions;
+        if (columnConditions == null)
+            return staticConditions;
+        return Iterables.concat(staticConditions, columnConditions);
+    }
+
     public void addCondition(ColumnCondition cond)
     {
+        conditionColumnsBuilder.add(cond.column);
+
         List<ColumnCondition> conds = null;
         if (cond.column.isStatic())
         {
@@ -255,7 +336,7 @@ public abstract class ModificationStatement implements CQLStatement
 
     public void addKeyValue(ColumnDefinition def, Term value) throws InvalidRequestException
     {
-        addKeyValues(def, new SingleColumnRestriction.EQ(def, value));
+        addKeyValues(def, new SingleColumnRestriction.EQRestriction(def, value));
     }
 
     public void processWhereClause(List<Relation> whereClause, VariableSpecifications names) throws InvalidRequestException
@@ -303,26 +384,25 @@ public abstract class ModificationStatement implements CQLStatement
     public List<ByteBuffer> buildPartitionKeyNames(QueryOptions options)
     throws InvalidRequestException
     {
-        CompositesBuilder keyBuilder = new CompositesBuilder(cfm.getKeyValidatorAsCType());
+        MultiCBuilder keyBuilder = MultiCBuilder.create(cfm.getKeyValidatorAsClusteringComparator());
         for (ColumnDefinition def : cfm.partitionKeyColumns())
         {
             Restriction r = checkNotNull(processedKeys.get(def.name), "Missing mandatory PRIMARY KEY part %s", def.name);
             r.appendTo(keyBuilder, options);
         }
 
-        return Lists.transform(keyBuilder.build(), new com.google.common.base.Function<Composite, ByteBuffer>()
+        NavigableSet<Clustering> clusterings = keyBuilder.build();
+        List<ByteBuffer> keys = new ArrayList<ByteBuffer>(clusterings.size());
+        for (Clustering clustering : clusterings)
         {
-            @Override
-            public ByteBuffer apply(Composite composite)
-            {
-                ByteBuffer byteBuffer = composite.toByteBuffer();
-                ThriftValidation.validateKey(cfm, byteBuffer);
-                return byteBuffer;
-            }
-        });
+            ByteBuffer key = CFMetaData.serializePartitionKey(clustering);
+            ThriftValidation.validateKey(cfm, key);
+            keys.add(key);
+        }
+        return keys;
     }
 
-    public Composite createClusteringPrefix(QueryOptions options)
+    public CBuilder createClustering(QueryOptions options)
     throws InvalidRequestException
     {
         // If the only updated/deleted columns are static, then we don't need clustering columns.
@@ -339,7 +419,7 @@ public abstract class ModificationStatement implements CQLStatement
         {
             // If we set no non-static columns, then it's fine not to have clustering columns
             if (hasNoClusteringColumns)
-                return cfm.comparator.staticPrefix();
+                return CBuilder.STATIC_BUILDER;
 
             // If we do have clustering columns however, then either it's an INSERT and the query is valid
             // but we still need to build a proper prefix, or it's not an INSERT, and then we want to reject
@@ -354,13 +434,15 @@ public abstract class ModificationStatement implements CQLStatement
             }
         }
 
-        return createClusteringPrefixBuilderInternal(options);
+        return createClusteringInternal(options);
     }
 
-    private Composite createClusteringPrefixBuilderInternal(QueryOptions options)
+    private CBuilder createClusteringInternal(QueryOptions options)
     throws InvalidRequestException
     {
-        CompositesBuilder builder = new CompositesBuilder(cfm.comparator);
+        CBuilder builder = CBuilder.create(cfm.comparator);
+        MultiCBuilder multiBuilder = MultiCBuilder.wrap(builder);
+
         ColumnDefinition firstEmptyKey = null;
         for (ColumnDefinition def : cfm.clusteringColumns())
         {
@@ -368,7 +450,7 @@ public abstract class ModificationStatement implements CQLStatement
             if (r == null)
             {
                 firstEmptyKey = def;
-                checkFalse(requireFullClusteringKey() && !cfm.comparator.isDense() && cfm.comparator.isCompound(), 
+                checkFalse(requireFullClusteringKey() && !cfm.isDense() && cfm.isCompound(),
                            "Missing mandatory PRIMARY KEY part %s", def.name);
             }
             else if (firstEmptyKey != null)
@@ -377,10 +459,10 @@ public abstract class ModificationStatement implements CQLStatement
             }
             else
             {
-                r.appendTo(builder, options);
+                r.appendTo(multiBuilder, options);
             }
         }
-        return builder.build().get(0); // We only allow IN for row keys so far
+        return builder;
     }
 
     protected ColumnDefinition getFirstEmptyKey()
@@ -396,14 +478,14 @@ public abstract class ModificationStatement implements CQLStatement
     public boolean requiresRead()
     {
         // Lists SET operation incurs a read.
-        for (Operation op : columnOperations)
+        for (Operation op : allOperations())
             if (op.requiresRead())
                 return true;
 
         return false;
     }
 
-    protected Map<ByteBuffer, CQL3Row> readRequiredRows(Collection<ByteBuffer> partitionKeys, Composite clusteringPrefix, boolean local, ConsistencyLevel cl)
+    protected Map<DecoratedKey, Partition> readRequiredLists(Collection<ByteBuffer> partitionKeys, CBuilder cbuilder, boolean local, ConsistencyLevel cl)
     throws RequestExecutionException, RequestValidationException
     {
         if (!requiresRead())
@@ -418,32 +500,54 @@ public abstract class ModificationStatement implements CQLStatement
             throw new InvalidRequestException(String.format("Write operation require a read but consistency %s is not supported on reads", cl));
         }
 
-        ColumnSlice[] slices = new ColumnSlice[]{ clusteringPrefix.slice() };
-        List<ReadCommand> commands = new ArrayList<ReadCommand>(partitionKeys.size());
-        long now = System.currentTimeMillis();
+        // TODO: no point in recomputing that every time. Should move to preparation phase.
+        PartitionColumns.Builder builder = PartitionColumns.builder();
+        for (Operation op : allOperations())
+            if (op.requiresRead())
+                builder.add(op.column);
+
+        PartitionColumns toRead = builder.build();
+
+        NavigableSet<Clustering> clusterings = FBUtilities.singleton(cbuilder.build(), cfm.comparator);
+        List<SinglePartitionReadCommand<?>> commands = new ArrayList<>(partitionKeys.size());
+        int nowInSec = FBUtilities.nowInSeconds();
         for (ByteBuffer key : partitionKeys)
-            commands.add(new SliceFromReadCommand(keyspace(),
-                                                  key,
-                                                  columnFamily(),
-                                                  now,
-                                                  new SliceQueryFilter(slices, false, Integer.MAX_VALUE)));
+            commands.add(new SinglePartitionNamesCommand(cfm,
+                                                         nowInSec,
+                                                         ColumnFilter.selection(toRead),
+                                                         RowFilter.NONE,
+                                                         DataLimits.NONE,
+                                                         StorageService.getPartitioner().decorateKey(key),
+                                                         new ClusteringIndexNamesFilter(clusterings, false)));
 
-        List<Row> rows = local
-                       ? SelectStatement.readLocally(keyspace(), commands)
-                       : StorageProxy.read(commands, cl);
+        Map<DecoratedKey, Partition> map = new HashMap();
 
-        Map<ByteBuffer, CQL3Row> map = new HashMap<ByteBuffer, CQL3Row>();
-        for (Row row : rows)
+        SinglePartitionReadCommand.Group group = new SinglePartitionReadCommand.Group(commands, DataLimits.NONE);
+
+        if (local)
         {
-            if (row.cf == null || row.cf.isEmpty())
-                continue;
-
-            Iterator<CQL3Row> iter = cfm.comparator.CQL3RowBuilder(cfm, now).group(row.cf.getSortedColumns().iterator());
-            if (iter.hasNext())
+            try (ReadOrderGroup orderGroup = group.startOrderGroup(); PartitionIterator iter = group.executeInternal(orderGroup))
             {
-                map.put(row.key.getKey(), iter.next());
-                // We can only update one CQ3Row per partition key at a time (we don't allow IN for clustering key)
-                assert !iter.hasNext();
+                return asMaterializedMap(iter);
+            }
+        }
+        else
+        {
+            try (PartitionIterator iter = group.execute(cl, null))
+            {
+                return asMaterializedMap(iter);
+            }
+        }
+    }
+
+    private Map<DecoratedKey, Partition> asMaterializedMap(PartitionIterator iterator)
+    {
+        Map<DecoratedKey, Partition> map = new HashMap();
+        while (iterator.hasNext())
+        {
+            try (RowIterator partition = iterator.next())
+            {
+                map.put(partition.partitionKey(), FilteredPartition.create(partition));
             }
         }
         return map;
@@ -492,14 +596,16 @@ public abstract class ModificationStatement implements CQLStatement
     {
         CQL3CasRequest request = makeCasRequest(queryState, options);
 
-        ColumnFamily result = StorageProxy.cas(keyspace(),
-                                               columnFamily(),
-                                               request.key,
-                                               request,
-                                               options.getSerialConsistency(),
-                                               options.getConsistency(),
-                                               queryState.getClientState());
-        return new ResultMessage.Rows(buildCasResultSet(request.key, result, options));
+        try (RowIterator result = StorageProxy.cas(keyspace(),
+                                                   columnFamily(),
+                                                   request.key,
+                                                   request,
+                                                   options.getSerialConsistency(),
+                                                   options.getConsistency(),
+                                                   queryState.getClientState()))
+        {
+            return new ResultMessage.Rows(buildCasResultSet(result, options));
+        }
     }
 
     private CQL3CasRequest makeCasRequest(QueryState queryState, QueryOptions options)
@@ -509,54 +615,54 @@ public abstract class ModificationStatement implements CQLStatement
         if (keys.size() > 1)
             throw new InvalidRequestException("IN on the partition key is not supported with conditional updates");
 
-        ByteBuffer key = keys.get(0);
+        DecoratedKey key = StorageService.getPartitioner().decorateKey(keys.get(0));
         long now = options.getTimestamp(queryState);
-        Composite prefix = createClusteringPrefix(options);
+        CBuilder cbuilder = createClustering(options);
 
-        CQL3CasRequest request = new CQL3CasRequest(cfm, key, false);
-        addConditions(prefix, request, options);
-        request.addRowUpdate(prefix, this, options, now);
+        CQL3CasRequest request = new CQL3CasRequest(cfm, key, false, conditionColumns(), updatesRegularRows(), updatesStaticRow());
+        addConditions(cbuilder.build(), request, options);
+        request.addRowUpdate(cbuilder, this, options, now);
         return request;
     }
 
-    public void addConditions(Composite clusteringPrefix, CQL3CasRequest request, QueryOptions options) throws InvalidRequestException
+    public void addConditions(Clustering clustering, CQL3CasRequest request, QueryOptions options) throws InvalidRequestException
     {
         if (ifNotExists)
         {
             // If we use ifNotExists, if the statement applies to any non static columns, then the condition is on the row of the non-static
-            // columns and the prefix should be the clusteringPrefix. But if only static columns are set, then the ifNotExists apply to the existence
+            // columns and the prefix should be the clustering. But if only static columns are set, then the ifNotExists apply to the existence
             // of any static columns and we should use the prefix for the "static part" of the partition.
-            request.addNotExist(clusteringPrefix);
+            request.addNotExist(clustering);
         }
         else if (ifExists)
         {
-            request.addExist(clusteringPrefix);
+            request.addExist(clustering);
         }
         else
         {
             if (columnConditions != null)
-                request.addConditions(clusteringPrefix, columnConditions, options);
+                request.addConditions(clustering, columnConditions, options);
             if (staticConditions != null)
-                request.addConditions(cfm.comparator.staticPrefix(), staticConditions, options);
+                request.addConditions(Clustering.STATIC_CLUSTERING, staticConditions, options);
         }
     }
 
-    private ResultSet buildCasResultSet(ByteBuffer key, ColumnFamily cf, QueryOptions options) throws InvalidRequestException
+    private ResultSet buildCasResultSet(RowIterator partition, QueryOptions options) throws InvalidRequestException
     {
-        return buildCasResultSet(keyspace(), key, columnFamily(), cf, getColumnsWithConditions(), false, options);
+        return buildCasResultSet(keyspace(), columnFamily(), partition, getColumnsWithConditions(), false, options);
     }
 
-    public static ResultSet buildCasResultSet(String ksName, ByteBuffer key, String cfName, ColumnFamily cf, Iterable<ColumnDefinition> columnsWithConditions, boolean isBatch, QueryOptions options)
+    public static ResultSet buildCasResultSet(String ksName, String tableName, RowIterator partition, Iterable<ColumnDefinition> columnsWithConditions, boolean isBatch, QueryOptions options)
     throws InvalidRequestException
     {
-        boolean success = cf == null;
+        boolean success = partition == null;
 
-        ColumnSpecification spec = new ColumnSpecification(ksName, cfName, CAS_RESULT_COLUMN, BooleanType.instance);
+        ColumnSpecification spec = new ColumnSpecification(ksName, tableName, CAS_RESULT_COLUMN, BooleanType.instance);
         ResultSet.ResultMetadata metadata = new ResultSet.ResultMetadata(Collections.singletonList(spec));
         List<List<ByteBuffer>> rows = Collections.singletonList(Collections.singletonList(BooleanType.instance.decompose(success)));
 
         ResultSet rs = new ResultSet(metadata, rows);
-        return success ? rs : merge(rs, buildCasFailureResultSet(key, cf, columnsWithConditions, isBatch, options));
+        return success ? rs : merge(rs, buildCasFailureResultSet(partition, columnsWithConditions, isBatch, options));
     }
 
     private static ResultSet merge(ResultSet left, ResultSet right)
@@ -582,10 +688,10 @@ public abstract class ModificationStatement implements CQLStatement
         return new ResultSet(new ResultSet.ResultMetadata(specs), rows);
     }
 
-    private static ResultSet buildCasFailureResultSet(ByteBuffer key, ColumnFamily cf, Iterable<ColumnDefinition> columnsWithConditions, boolean isBatch, QueryOptions options)
+    private static ResultSet buildCasFailureResultSet(RowIterator partition, Iterable<ColumnDefinition> columnsWithConditions, boolean isBatch, QueryOptions options)
     throws InvalidRequestException
     {
-        CFMetaData cfm = cf.metadata();
+        CFMetaData cfm = partition.metadata();
         Selection selection;
         if (columnsWithConditions == null)
         {
@@ -609,9 +715,8 @@ public abstract class ModificationStatement implements CQLStatement
 
         }
 
-        long now = System.currentTimeMillis();
-        Selection.ResultSetBuilder builder = selection.resultSetBuilder(now, false);
-        SelectStatement.forSelection(cfm, selection).processColumnFamily(key, cf, options, now, builder);
+        Selection.ResultSetBuilder builder = selection.resultSetBuilder(false);
+        SelectStatement.forSelection(cfm, selection).processPartition(partition, options, builder, FBUtilities.nowInSeconds());
 
         return builder.build(options.getProtocolVersion());
     }
@@ -640,31 +745,31 @@ public abstract class ModificationStatement implements CQLStatement
     public ResultMessage executeInternalWithCondition(QueryState state, QueryOptions options) throws RequestValidationException, RequestExecutionException
     {
         CQL3CasRequest request = makeCasRequest(state, options);
-        ColumnFamily result = casInternal(request, state);
-        return new ResultMessage.Rows(buildCasResultSet(request.key, result, options));
+        try (RowIterator result = casInternal(request, state))
+        {
+            return new ResultMessage.Rows(buildCasResultSet(result, options));
+        }
     }
 
-    static ColumnFamily casInternal(CQL3CasRequest request, QueryState state)
+    static RowIterator casInternal(CQL3CasRequest request, QueryState state)
     {
         UUID ballot = UUIDGen.getTimeUUIDFromMicros(state.getTimestamp());
         CFMetaData metadata = Schema.instance.getCFMetaData(request.cfm.ksName, request.cfm.cfName);
 
-        ReadCommand readCommand = ReadCommand.create(request.cfm.ksName, request.key, request.cfm.cfName, request.now, request.readFilter());
-        Keyspace keyspace = Keyspace.open(request.cfm.ksName);
-
-        Row row = readCommand.getRow(keyspace);
-        ColumnFamily current = row.cf;
-        if (!request.appliesTo(current))
+        SinglePartitionReadCommand readCommand = request.readCommand(FBUtilities.nowInSeconds());
+        FilteredPartition current;
+        try (ReadOrderGroup orderGroup = readCommand.startOrderGroup(); PartitionIterator iter = readCommand.executeInternal(orderGroup))
         {
-            if (current == null)
-                current = ArrayBackedSortedColumns.factory.create(metadata);
-            return current;
+            current = FilteredPartition.create(PartitionIterators.getOnlyElement(iter, readCommand));
         }
 
-        ColumnFamily updates = request.makeUpdates(current);
-        updates = TriggerExecutor.instance.execute(request.key, updates);
+        if (!request.appliesTo(current))
+            return current.rowIterator();
 
-        Commit proposal = Commit.newProposal(request.key, ballot, updates);
+        PartitionUpdate updates = request.makeUpdates(current);
+        updates = TriggerExecutor.instance.execute(updates);
+
+        Commit proposal = Commit.newProposal(ballot, updates);
         proposal.makeMutation().apply();
         return null;
     }
@@ -683,17 +788,18 @@ public abstract class ModificationStatement implements CQLStatement
     throws RequestExecutionException, RequestValidationException
     {
         List<ByteBuffer> keys = buildPartitionKeyNames(options);
-        Composite clusteringPrefix = createClusteringPrefix(options);
+        CBuilder clustering = createClustering(options);
 
-        UpdateParameters params = makeUpdateParameters(keys, clusteringPrefix, options, local, now);
+        UpdateParameters params = makeUpdateParameters(keys, clustering, options, local, now);
 
         Collection<IMutation> mutations = new ArrayList<IMutation>(keys.size());
         for (ByteBuffer key: keys)
         {
             ThriftValidation.validateKey(cfm, key);
-            ColumnFamily cf = ArrayBackedSortedColumns.factory.create(cfm);
-            addUpdateForKey(cf, key, clusteringPrefix, params);
-            Mutation mut = new Mutation(cfm.ksName, key, cf);
+            DecoratedKey dk = StorageService.getPartitioner().decorateKey(key);
+            PartitionUpdate upd = new PartitionUpdate(cfm, dk, updatedColumns(), 1);
+            addUpdateForKey(upd, clustering, params);
+            Mutation mut = new Mutation(upd);
 
             mutations.add(isCounter() ? new CounterMutation(mut, options.getConsistency()) : mut);
         }
@@ -701,15 +807,15 @@ public abstract class ModificationStatement implements CQLStatement
     }
 
     public UpdateParameters makeUpdateParameters(Collection<ByteBuffer> keys,
-                                                 Composite prefix,
+                                                 CBuilder clustering,
                                                  QueryOptions options,
                                                  boolean local,
                                                  long now)
     throws RequestExecutionException, RequestValidationException
     {
         // Some lists operation requires reading
-        Map<ByteBuffer, CQL3Row> rows = readRequiredRows(keys, prefix, local, options.getConsistency());
-        return new UpdateParameters(cfm, options, getTimestamp(now, options), getTimeToLive(options), rows);
+        Map<DecoratedKey, Partition> lists = readRequiredLists(keys, clustering, local, options.getConsistency());
+        return new UpdateParameters(cfm, options, getTimestamp(now, options), getTimeToLive(options), lists, true);
     }
 
     /**
@@ -803,6 +909,8 @@ public abstract class ModificationStatement implements CQLStatement
 
                 stmt.validateWhereClauseForConditions();
             }
+
+            stmt.finishPreparation();
             return stmt;
         }
 

@@ -1,4 +1,4 @@
-/**
+/*
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -7,35 +7,48 @@
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
  *
- *   http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package org.apache.cassandra.dht;
 
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Random;
 
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
+
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
-import org.apache.cassandra.db.*;
-import org.apache.cassandra.db.columniterator.IdentityQueryFilter;
+import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.KSMetaData;
+import org.apache.cassandra.config.Schema;
+import org.apache.cassandra.db.BufferDecoratedKey;
+import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.db.RowUpdateBuilder;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.IntegerType;
-import org.apache.cassandra.config.*;
+import org.apache.cassandra.db.partitions.*;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.locator.SimpleStrategy;
 import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.utils.*;
+import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.Pair;
 
 import static org.apache.cassandra.Util.dk;
 
@@ -82,12 +95,12 @@ public class KeyCollisionTest
         insert("key1", "key2", "key3"); // token = 4
         insert("longKey1", "longKey2"); // token = 8
 
-        List<Row> rows = cfs.getRangeSlice(new Bounds<RowPosition>(dk("k2"), dk("key2")), null, new IdentityQueryFilter(), 10000);
-        assert rows.size() == 4 : "Expecting 4 keys, got " + rows.size();
-        assert rows.get(0).key.getKey().equals(ByteBufferUtil.bytes("k2"));
-        assert rows.get(1).key.getKey().equals(ByteBufferUtil.bytes("kq"));
-        assert rows.get(2).key.getKey().equals(ByteBufferUtil.bytes("key1"));
-        assert rows.get(3).key.getKey().equals(ByteBufferUtil.bytes("key2"));
+        List<FilteredPartition> partitions = Util.getAll(Util.cmd(cfs).fromKeyIncl("k2").toKeyIncl("key2").build());
+
+        assert partitions.get(0).partitionKey().getKey().equals(ByteBufferUtil.bytes("k2"));
+        assert partitions.get(1).partitionKey().getKey().equals(ByteBufferUtil.bytes("kq"));
+        assert partitions.get(2).partitionKey().getKey().equals(ByteBufferUtil.bytes("key1"));
+        assert partitions.get(3).partitionKey().getKey().equals(ByteBufferUtil.bytes("key2"));
     }
 
     private void insert(String... keys)
@@ -98,10 +111,8 @@ public class KeyCollisionTest
 
     private void insert(String key)
     {
-        Mutation rm;
-        rm = new Mutation(KEYSPACE1, ByteBufferUtil.bytes(key));
-        rm.add(CF, Util.cellname("column"), ByteBufferUtil.bytes("asdf"), 0);
-        rm.applyUnsafe();
+        RowUpdateBuilder builder = new RowUpdateBuilder(Schema.instance.getCFMetaData(KEYSPACE1, CF), FBUtilities.timestampMicros(), key);
+        builder.clustering("c").add("val", "asdf").build().applyUnsafe();
     }
 
     static class BigIntegerToken extends ComparableObjectToken<BigInteger>

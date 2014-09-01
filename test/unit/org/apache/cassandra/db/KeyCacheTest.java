@@ -32,19 +32,20 @@ import org.junit.Test;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.cache.KeyCacheKey;
-import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.config.KSMetaData;
 import org.apache.cassandra.concurrent.ScheduledExecutors;
-import org.apache.cassandra.db.composites.*;
+import org.apache.cassandra.config.KSMetaData;
+import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.compaction.CompactionManager;
-import org.apache.cassandra.db.filter.QueryFilter;
+import org.apache.cassandra.db.filter.*;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.locator.SimpleStrategy;
 import org.apache.cassandra.service.CacheService;
 import org.apache.cassandra.utils.ByteBufferUtil;
-
+import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.concurrent.Refs;
+
 import static org.junit.Assert.assertEquals;
 
 public class KeyCacheTest
@@ -58,10 +59,10 @@ public class KeyCacheTest
     {
         SchemaLoader.prepareServer();
         SchemaLoader.createKeyspace(KEYSPACE1,
-                                    SimpleStrategy.class,
-                                    KSMetaData.optsWithRF(1),
-                                    SchemaLoader.standardCFMD(KEYSPACE1, COLUMN_FAMILY1),
-                                    SchemaLoader.standardCFMD(KEYSPACE1, COLUMN_FAMILY2));
+                SimpleStrategy.class,
+                KSMetaData.optsWithRF(1),
+                SchemaLoader.standardCFMD(KEYSPACE1, COLUMN_FAMILY1),
+                SchemaLoader.standardCFMD(KEYSPACE1, COLUMN_FAMILY2));
     }
 
     @AfterClass
@@ -86,7 +87,7 @@ public class KeyCacheTest
         store.forceBlockingFlush();
 
         // populate the cache
-        SchemaLoader.readData(KEYSPACE1, COLUMN_FAMILY2, 0, 100);
+        readData(KEYSPACE1, COLUMN_FAMILY2, 100);
         assertKeyCacheSize(100, KEYSPACE1, COLUMN_FAMILY2);
 
         // really? our caches don't implement the map interface? (hence no .addAll)
@@ -136,37 +137,18 @@ public class KeyCacheTest
         // KeyCache should start at size 0 if we're caching X% of zero data.
         assertKeyCacheSize(0, KEYSPACE1, COLUMN_FAMILY1);
 
-        DecoratedKey key1 = Util.dk("key1");
-        DecoratedKey key2 = Util.dk("key2");
         Mutation rm;
 
         // inserts
-        rm = new Mutation(KEYSPACE1, key1.getKey());
-        rm.add(COLUMN_FAMILY1, Util.cellname("1"), ByteBufferUtil.EMPTY_BYTE_BUFFER, 0);
-        rm.applyUnsafe();
-        rm = new Mutation(KEYSPACE1, key2.getKey());
-        rm.add(COLUMN_FAMILY1, Util.cellname("2"), ByteBufferUtil.EMPTY_BYTE_BUFFER, 0);
-        rm.applyUnsafe();
+        new RowUpdateBuilder(cfs.metadata, 0, "key1").clustering("1").build().applyUnsafe();
+        new RowUpdateBuilder(cfs.metadata, 0, "key2").clustering("2").build().applyUnsafe();
 
         // to make sure we have SSTable
         cfs.forceBlockingFlush();
 
         // reads to cache key position
-        cfs.getColumnFamily(QueryFilter.getSliceFilter(key1,
-                                                       COLUMN_FAMILY1,
-                                                       Composites.EMPTY,
-                                                       Composites.EMPTY,
-                                                       false,
-                                                       10,
-                                                       System.currentTimeMillis()));
-
-        cfs.getColumnFamily(QueryFilter.getSliceFilter(key2,
-                                                       COLUMN_FAMILY1,
-                                                       Composites.EMPTY,
-                                                       Composites.EMPTY,
-                                                       false,
-                                                       10,
-                                                       System.currentTimeMillis()));
+        Util.getAll(Util.cmd(cfs, "key1").build());
+        Util.getAll(Util.cmd(cfs, "key2").build());
 
         assertKeyCacheSize(2, KEYSPACE1, COLUMN_FAMILY1);
 
@@ -176,40 +158,37 @@ public class KeyCacheTest
             throw new IllegalStateException();
 
         Util.compactAll(cfs, Integer.MAX_VALUE).get();
-        boolean noEarlyOpen = DatabaseDescriptor.getSSTablePreempiveOpenIntervalInMB() < 0;
-
         // after compaction cache should have entries for new SSTables,
         // but since we have kept a reference to the old sstables,
         // if we had 2 keys in cache previously it should become 4
-        assertKeyCacheSize(noEarlyOpen ? 2 : 4, KEYSPACE1, COLUMN_FAMILY1);
+        assertKeyCacheSize(4, KEYSPACE1, COLUMN_FAMILY1);
 
         refs.release();
 
-        Uninterruptibles.sleepUninterruptibly(10, TimeUnit.MILLISECONDS);;
-        while (ScheduledExecutors.nonPeriodicTasks.getActiveCount() + ScheduledExecutors.nonPeriodicTasks.getQueue().size() > 0);
+        while (ScheduledExecutors.nonPeriodicTasks.getActiveCount() + ScheduledExecutors.nonPeriodicTasks.getQueue().size() > 0)
+        {
+            Uninterruptibles.sleepUninterruptibly(100, TimeUnit.MILLISECONDS);;
+        }
 
         // after releasing the reference this should drop to 2
         assertKeyCacheSize(2, KEYSPACE1, COLUMN_FAMILY1);
 
         // re-read same keys to verify that key cache didn't grow further
-        cfs.getColumnFamily(QueryFilter.getSliceFilter(key1,
-                                                       COLUMN_FAMILY1,
-                                                       Composites.EMPTY,
-                                                       Composites.EMPTY,
-                                                       false,
-                                                       10,
-                                                       System.currentTimeMillis()));
+        Util.getAll(Util.cmd(cfs, "key1").build());
+        Util.getAll(Util.cmd(cfs, "key2").build());
 
-        cfs.getColumnFamily(QueryFilter.getSliceFilter(key2,
-                                                       COLUMN_FAMILY1,
-                                                       Composites.EMPTY,
-                                                       Composites.EMPTY,
-                                                       false,
-                                                       10,
-                                                       System.currentTimeMillis()));
-
-        assertKeyCacheSize(noEarlyOpen ? 4 : 2, KEYSPACE1, COLUMN_FAMILY1);
+        assertKeyCacheSize(2, KEYSPACE1, COLUMN_FAMILY1);
     }
+
+    private static void readData(String keyspace, String columnFamily, int numberOfRows)
+    {
+        ColumnFamilyStore store = Keyspace.open(keyspace).getColumnFamilyStore(columnFamily);
+        CFMetaData cfm = Schema.instance.getCFMetaData(keyspace, columnFamily);
+
+        for (int i = 0; i < numberOfRows; i++)
+            Util.getAll(Util.cmd(store, "key" + i).includeRow("col" + i).build());
+    }
+
 
     private void assertKeyCacheSize(int expected, String keyspace, String columnFamily)
     {

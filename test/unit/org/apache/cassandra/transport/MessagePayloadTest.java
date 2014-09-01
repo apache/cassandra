@@ -65,8 +65,6 @@ public class MessagePayloadTest extends CQLTester
     {
         try
         {
-            DatabaseDescriptor.setPartitioner(ByteOrderedPartitioner.instance);
-
             cqlQueryHandlerField = ClientState.class.getDeclaredField("cqlQueryHandler");
             cqlQueryHandlerField.setAccessible(true);
 

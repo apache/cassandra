@@ -32,6 +32,7 @@ import org.apache.cassandra.io.sstable.format.Version;
 import org.apache.cassandra.io.sstable.metadata.IMetadataSerializer;
 import org.apache.cassandra.io.sstable.metadata.LegacyMetadataSerializer;
 import org.apache.cassandra.io.sstable.metadata.MetadataSerializer;
+import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.utils.Pair;
 
 import static org.apache.cassandra.io.sstable.Component.separator;
@@ -45,7 +46,6 @@ import static org.apache.cassandra.io.sstable.Component.separator;
  */
 public class Descriptor
 {
-
     public static enum Type
     {
         TEMP("tmp", true), TEMPLINK("tmplink", true), FINAL(null, false);
@@ -57,7 +57,6 @@ public class Descriptor
             this.marker = marker;
         }
     }
-
 
     public final File directory;
     /** version has the following format: <code>[a-z]+</code> */

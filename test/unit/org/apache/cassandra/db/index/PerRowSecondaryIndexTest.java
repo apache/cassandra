@@ -20,41 +20,35 @@ package org.apache.cassandra.db.index;
 
 import java.nio.ByteBuffer;
 import java.util.Arrays;
-import java.util.List;
 import java.util.Set;
 
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import junit.framework.Assert;
 import org.apache.cassandra.SchemaLoader;
-import org.apache.cassandra.Util;
+import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.KSMetaData;
+import org.apache.cassandra.config.Schema;
+import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.UntypedResultSet;
-import org.apache.cassandra.db.Cell;
-import org.apache.cassandra.db.ColumnFamily;
-import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.db.DecoratedKey;
-import org.apache.cassandra.db.IndexExpression;
-import org.apache.cassandra.db.Mutation;
-import org.apache.cassandra.db.Row;
-import org.apache.cassandra.db.composites.CellName;
-import org.apache.cassandra.db.filter.ExtendedFilter;
-import org.apache.cassandra.db.filter.QueryFilter;
+import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.rows.*;
+import org.apache.cassandra.db.filter.RowFilter;
+import org.apache.cassandra.db.partitions.SingletonUnfilteredPartitionIterator;
+import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
+import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.locator.SimpleStrategy;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.concurrent.OpOrder;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
+import static org.junit.Assert.*;
 
 public class PerRowSecondaryIndexTest
 {
@@ -73,9 +67,9 @@ public class PerRowSecondaryIndexTest
     {
         SchemaLoader.prepareServer();
         SchemaLoader.createKeyspace(KEYSPACE1,
-                                    SimpleStrategy.class,
-                                    KSMetaData.optsWithRF(1),
-                                    SchemaLoader.perRowIndexedCFMD(KEYSPACE1, CF_INDEXED));
+                SimpleStrategy.class,
+                KSMetaData.optsWithRF(1),
+                SchemaLoader.perRowIndexedCFMD(KEYSPACE1, CF_INDEXED));
     }
 
     @Before
@@ -87,24 +81,29 @@ public class PerRowSecondaryIndexTest
     @Test
     public void testIndexInsertAndUpdate()
     {
-        // create a row then test that the configured index instance was able to read the row
-        Mutation rm;
-        rm = new Mutation(KEYSPACE1, ByteBufferUtil.bytes("k1"));
-        rm.add("Indexed1", Util.cellname("indexed"), ByteBufferUtil.bytes("foo"), 1);
-        rm.applyUnsafe();
+        int nowInSec = FBUtilities.nowInSeconds();
 
-        ColumnFamily indexedRow = PerRowSecondaryIndexTest.TestIndex.LAST_INDEXED_ROW;
+        // create a row then test that the configured index instance was able to read the row
+        CFMetaData cfm = Schema.instance.getCFMetaData(KEYSPACE1, CF_INDEXED);
+        ColumnDefinition cdef = cfm.getColumnDefinition(new ColumnIdentifier("indexed", true));
+
+        RowUpdateBuilder builder = new RowUpdateBuilder(cfm, FBUtilities.timestampMicros(), "k1");
+        builder.add("indexed", ByteBufferUtil.bytes("foo"));
+        builder.build().apply();
+
+
+        UnfilteredRowIterator indexedRow = PerRowSecondaryIndexTest.TestIndex.LAST_INDEXED_PARTITION;
         assertNotNull(indexedRow);
-        assertEquals(ByteBufferUtil.bytes("foo"), indexedRow.getColumn(Util.cellname("indexed")).value());
+        assertEquals(ByteBufferUtil.bytes("foo"), UnfilteredRowIterators.filter(indexedRow, nowInSec).next().getCell(cdef).value());
 
         // update the row and verify what was indexed
-        rm = new Mutation(KEYSPACE1, ByteBufferUtil.bytes("k1"));
-        rm.add("Indexed1", Util.cellname("indexed"), ByteBufferUtil.bytes("bar"), 2);
-        rm.applyUnsafe();
+        builder = new RowUpdateBuilder(cfm, FBUtilities.timestampMicros() + 1 , "k1");
+        builder.add("indexed", ByteBufferUtil.bytes("bar"));
+        builder.build().apply();
 
-        indexedRow = PerRowSecondaryIndexTest.TestIndex.LAST_INDEXED_ROW;
+        indexedRow = PerRowSecondaryIndexTest.TestIndex.LAST_INDEXED_PARTITION;
         assertNotNull(indexedRow);
-        assertEquals(ByteBufferUtil.bytes("bar"), indexedRow.getColumn(Util.cellname("indexed")).value());
+        assertEquals(ByteBufferUtil.bytes("bar"), UnfilteredRowIterators.filter(indexedRow, nowInSec).next().getCell(cdef).value());
         assertTrue(Arrays.equals("k1".getBytes(), PerRowSecondaryIndexTest.TestIndex.LAST_INDEXED_KEY.array()));
     }
 
@@ -112,17 +111,19 @@ public class PerRowSecondaryIndexTest
     public void testColumnDelete()
     {
         // issue a column delete and test that the configured index instance was notified to update
-        Mutation rm;
-        rm = new Mutation(KEYSPACE1, ByteBufferUtil.bytes("k2"));
-        rm.delete("Indexed1", Util.cellname("indexed"), 1);
-        rm.applyUnsafe();
+        CFMetaData cfm = Schema.instance.getCFMetaData(KEYSPACE1, CF_INDEXED);
 
-        ColumnFamily indexedRow = PerRowSecondaryIndexTest.TestIndex.LAST_INDEXED_ROW;
+        new RowUpdateBuilder(cfm, FBUtilities.timestampMicros(), "k2")
+            .noRowMarker()
+            .delete("indexed")
+            .build()
+            .apply();
+
+        UnfilteredRowIterator indexedRow = PerRowSecondaryIndexTest.TestIndex.LAST_INDEXED_PARTITION;
         assertNotNull(indexedRow);
 
-        for (Cell cell : indexedRow.getSortedColumns())
-            assertFalse(cell.isLive());
-
+        //We filter tombstones now...
+        Assert.assertFalse(UnfilteredRowIterators.filter(indexedRow, FBUtilities.nowInSeconds()).hasNext());
         assertTrue(Arrays.equals("k2".getBytes(), PerRowSecondaryIndexTest.TestIndex.LAST_INDEXED_KEY.array()));
     }
 
@@ -130,26 +131,26 @@ public class PerRowSecondaryIndexTest
     public void testRowDelete()
     {
         // issue a row level delete and test that the configured index instance was notified to update
-        Mutation rm;
-        rm = new Mutation(KEYSPACE1, ByteBufferUtil.bytes("k3"));
-        rm.delete("Indexed1", 1);
-        rm.applyUnsafe();
+        CFMetaData cfm = Schema.instance.getCFMetaData(KEYSPACE1, CF_INDEXED);
+        RowUpdateBuilder.deleteRow(cfm, FBUtilities.timestampMicros(), "k3").apply();
 
-        ColumnFamily indexedRow = PerRowSecondaryIndexTest.TestIndex.LAST_INDEXED_ROW;
+        UnfilteredRowIterator indexedRow = PerRowSecondaryIndexTest.TestIndex.LAST_INDEXED_PARTITION;
         assertNotNull(indexedRow);
-        for (Cell cell : indexedRow.getSortedColumns())
-            assertFalse(cell.isLive());
-
+        assertNotNull(indexedRow.partitionLevelDeletion());
+        Assert.assertFalse(UnfilteredRowIterators.filter(indexedRow, FBUtilities.nowInSeconds()).hasNext());
         assertTrue(Arrays.equals("k3".getBytes(), PerRowSecondaryIndexTest.TestIndex.LAST_INDEXED_KEY.array()));
     }
-    
+
     @Test
     public void testInvalidSearch()
     {
-        Mutation rm;
-        rm = new Mutation(KEYSPACE1, ByteBufferUtil.bytes("k4"));
-        rm.add("Indexed1", Util.cellname("indexed"), ByteBufferUtil.bytes("foo"), 1);
-        rm.apply();
+
+        CFMetaData cfm = Schema.instance.getCFMetaData(KEYSPACE1, CF_INDEXED);
+
+        RowUpdateBuilder builder = new RowUpdateBuilder(cfm, FBUtilities.timestampMicros(), "k1");
+        builder.add("indexed", ByteBufferUtil.bytes("foo"));
+        builder.build().apply();
+
         
         // test we can search:
         UntypedResultSet result = QueryProcessor.executeInternal(String.format("SELECT * FROM \"%s\".\"Indexed1\" WHERE indexed = 'foo'", KEYSPACE1));
@@ -169,41 +170,30 @@ public class PerRowSecondaryIndexTest
 
     public static class TestIndex extends PerRowSecondaryIndex
     {
-        public static volatile boolean ACTIVE = true;
-        public static ColumnFamily LAST_INDEXED_ROW;
+        public static UnfilteredRowIterator LAST_INDEXED_PARTITION;
         public static ByteBuffer LAST_INDEXED_KEY;
 
         public static void reset()
         {
-            ACTIVE = true;
             LAST_INDEXED_KEY = null;
-            LAST_INDEXED_ROW = null;
+            LAST_INDEXED_PARTITION = null;
         }
 
         @Override
-        public boolean indexes(CellName name)
+        public void index(ByteBuffer rowKey, UnfilteredRowIterator cf)
         {
-            return ACTIVE;
+            LAST_INDEXED_PARTITION = cf;
+            LAST_INDEXED_KEY = rowKey;
         }
-        
-        @Override
-        public boolean indexes(ColumnDefinition cdef)
+
+        public void index(ByteBuffer rowKey, PartitionUpdate atoms)
         {
-            return ACTIVE;
-        }
-        
-        @Override
-        public void index(ByteBuffer rowKey, ColumnFamily cf)
-        {
-            QueryFilter filter = QueryFilter.getIdentityFilter(DatabaseDescriptor.getPartitioner().decorateKey(rowKey),
-                                                               baseCfs.getColumnFamilyName(),
-                                                               System.currentTimeMillis());
-            LAST_INDEXED_ROW = cf;
+            LAST_INDEXED_PARTITION = atoms.unfilteredIterator();
             LAST_INDEXED_KEY = rowKey;
         }
 
         @Override
-        public void delete(DecoratedKey key, OpOrder.Group opGroup)
+        public void delete(ByteBuffer key, OpOrder.Group opGroup)
         {
         }
 
@@ -225,28 +215,36 @@ public class PerRowSecondaryIndexTest
         @Override
         public String getIndexName()
         {
-            return this.getClass().getSimpleName();
+            return null;
         }
 
         @Override
-        protected SecondaryIndexSearcher createSecondaryIndexSearcher(Set<ByteBuffer> columns)
+        protected SecondaryIndexSearcher createSecondaryIndexSearcher(Set<ColumnDefinition> columns)
         {
             return new SecondaryIndexSearcher(baseCfs.indexManager, columns)
             {
-                
                 @Override
-                public List<Row> search(ExtendedFilter filter)
+                public UnfilteredPartitionIterator search(ReadCommand filter, ReadOrderGroup orderGroup)
                 {
-                    return Arrays.asList(new Row(LAST_INDEXED_KEY, LAST_INDEXED_ROW));
+                    return new SingletonUnfilteredPartitionIterator(LAST_INDEXED_PARTITION, false);
                 }
 
                 @Override
-                public void validate(IndexExpression indexExpression) throws InvalidRequestException
+                public RowFilter.Expression primaryClause(ReadCommand command)
                 {
-                    if (indexExpression.value.equals(ByteBufferUtil.bytes("invalid")))
+                    RowFilter.Expression expression = command.rowFilter().iterator().next();
+
+                    if (expression.getIndexValue().equals(ByteBufferUtil.bytes("invalid")))
                         throw new InvalidRequestException("Invalid search!");
+
+                    return expression;
                 }
-                
+
+                protected UnfilteredPartitionIterator queryDataFromIndex(AbstractSimplePerColumnSecondaryIndex index, DecoratedKey indexKey, RowIterator indexHits, ReadCommand command, ReadOrderGroup orderGroup)
+                {
+                    // As we override 'search()' directly for the test, we don't care about this.
+                    throw new UnsupportedOperationException();
+                }
             };
         }
 
@@ -259,6 +257,30 @@ public class PerRowSecondaryIndexTest
         public ColumnFamilyStore getIndexCfs()
         {
             return baseCfs;
+        }
+
+        @Override
+        public boolean indexes(ColumnDefinition name)
+        {
+            return true;
+        }
+
+        @Override
+        public void validate(DecoratedKey partitionKey) throws InvalidRequestException
+        {
+
+        }
+
+        @Override
+        public void validate(Clustering clustering) throws InvalidRequestException
+        {
+
+        }
+
+        @Override
+        public void validate(ByteBuffer cellValue, CellPath path) throws InvalidRequestException
+        {
+
         }
 
         @Override

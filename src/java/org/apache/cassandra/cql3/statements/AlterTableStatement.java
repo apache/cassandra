@@ -92,12 +92,12 @@ public class AlterTableStatement extends SchemaAlteringStatement
         {
             case ADD:
                 assert columnName != null;
-                if (cfm.comparator.isDense())
+                if (cfm.isDense())
                     throw new InvalidRequestException("Cannot add new column to a COMPACT STORAGE table");
 
                 if (isStatic)
                 {
-                    if (!cfm.comparator.isCompound())
+                    if (!cfm.isCompound())
                         throw new InvalidRequestException("Static columns are not allowed in COMPACT STORAGE tables");
                     if (cfm.clusteringColumns().isEmpty())
                         throw new InvalidRequestException("Static columns are only useful (and thus allowed) if the table has at least one clustering column");
@@ -122,26 +122,23 @@ public class AlterTableStatement extends SchemaAlteringStatement
                 AbstractType<?> type = validator.getType();
                 if (type.isCollection() && type.isMultiCell())
                 {
-                    if (!cfm.comparator.supportCollections())
-                        throw new InvalidRequestException("Cannot use non-frozen collections with a non-composite PRIMARY KEY");
+                    if (!cfm.isCompound())
+                        throw new InvalidRequestException("Cannot use non-frozen collections in COMPACT STORAGE tables");
                     if (cfm.isSuper())
                         throw new InvalidRequestException("Cannot use non-frozen collections with super column families");
 
-                    // If there used to be a collection column with the same name (that has been dropped), it will
-                    // still be appear in the ColumnToCollectionType because or reasons explained on #6276. The same
-                    // reason mean that we can't allow adding a new collection with that name (see the ticket for details).
-                    if (cfm.comparator.hasCollections())
-                    {
-                        CollectionType previous = cfm.comparator.collectionType() == null ? null : cfm.comparator.collectionType().defined.get(columnName.bytes);
-                        if (previous != null && !type.isCompatibleWith(previous))
-                            throw new InvalidRequestException(String.format("Cannot add a collection with the name %s " +
-                                        "because a collection with the same name and a different type has already been used in the past", columnName));
-                    }
-
-                    cfm.comparator = cfm.comparator.addOrUpdateCollection(columnName, (CollectionType)type);
+                    // If there used to be a collection column with the same name (that has been dropped), we could still have
+                    // some data using the old type, and so we can't allow adding a collection with the same name unless
+                    // the types are compatible (see #6276).
+                    CFMetaData.DroppedColumn dropped = cfm.getDroppedColumns().get(columnName);
+                    // We could have type == null for old dropped columns, in which case we play it safe and refuse
+                    if (dropped != null && (dropped.type == null || (dropped.type instanceof CollectionType && !type.isCompatibleWith(dropped.type))))
+                        throw new InvalidRequestException(String.format("Cannot add a collection with the name %s " +
+                                    "because a collection with the same name and a different type%s has already been used in the past",
+                                    columnName, dropped.type == null ? "" : " (" + dropped.type.asCQL3Type() + ")"));
                 }
 
-                Integer componentIndex = cfm.comparator.isCompound() ? cfm.comparator.clusteringPrefixSize() : null;
+                Integer componentIndex = cfm.isCompound() ? cfm.comparator.size() : null;
                 cfm.addColumnDefinition(isStatic
                                         ? ColumnDefinition.staticDef(cfm, columnName.bytes, type, componentIndex)
                                         : ColumnDefinition.regularDef(cfm, columnName.bytes, type, componentIndex));
@@ -158,28 +155,13 @@ public class AlterTableStatement extends SchemaAlteringStatement
                     case PARTITION_KEY:
                         if (validatorType instanceof CounterColumnType)
                             throw new InvalidRequestException(String.format("counter type is not supported for PRIMARY KEY part %s", columnName));
-                        if (cfm.getKeyValidator() instanceof CompositeType)
-                        {
-                            List<AbstractType<?>> oldTypes = ((CompositeType) cfm.getKeyValidator()).types;
-                            if (!validatorType.isValueCompatibleWith(oldTypes.get(def.position())))
-                                throw new ConfigurationException(String.format("Cannot change %s from type %s to type %s: types are incompatible.",
-                                                                               columnName,
-                                                                               oldTypes.get(def.position()).asCQL3Type(),
-                                                                               validator));
 
-                            List<AbstractType<?>> newTypes = new ArrayList<AbstractType<?>>(oldTypes);
-                            newTypes.set(def.position(), validatorType);
-                            cfm.keyValidator(CompositeType.getInstance(newTypes));
-                        }
-                        else
-                        {
-                            if (!validatorType.isValueCompatibleWith(cfm.getKeyValidator()))
-                                throw new ConfigurationException(String.format("Cannot change %s from type %s to type %s: types are incompatible.",
-                                                                               columnName,
-                                                                               cfm.getKeyValidator().asCQL3Type(),
-                                                                               validator));
-                            cfm.keyValidator(validatorType);
-                        }
+                        AbstractType<?> currentType = cfm.getKeyValidatorAsClusteringComparator().subtype(def.position());
+                        if (!validatorType.isValueCompatibleWith(currentType))
+                            throw new ConfigurationException(String.format("Cannot change %s from type %s to type %s: types are incompatible.",
+                                                                           columnName,
+                                                                           currentType.asCQL3Type(),
+                                                                           validator));
                         break;
                     case CLUSTERING_COLUMN:
                         AbstractType<?> oldType = cfm.comparator.subtype(def.position());
@@ -192,16 +174,6 @@ public class AlterTableStatement extends SchemaAlteringStatement
                                                                            oldType.asCQL3Type(),
                                                                            validator));
 
-                        cfm.comparator = cfm.comparator.setSubtype(def.position(), validatorType);
-                        break;
-                    case COMPACT_VALUE:
-                        // See below
-                        if (!validatorType.isValueCompatibleWith(cfm.getDefaultValidator()))
-                            throw new ConfigurationException(String.format("Cannot change %s from type %s to type %s: types are incompatible.",
-                                                                           columnName,
-                                                                           cfm.getDefaultValidator().asCQL3Type(),
-                                                                           validator));
-                        cfm.defaultValidator(validatorType);
                         break;
                     case REGULAR:
                     case STATIC:
@@ -215,14 +187,6 @@ public class AlterTableStatement extends SchemaAlteringStatement
                                                                            columnName,
                                                                            def.type.asCQL3Type(),
                                                                            validator));
-
-                        // For collections, if we alter the type, we need to update the comparator too since it includes
-                        // the type too (note that isValueCompatibleWith above has validated that the new type doesn't
-                        // change the underlying sorting order, but we still don't want to have a discrepancy between the type
-                        // in the comparator and the one in the ColumnDefinition as that would be dodgy).
-                        if (validatorType.isCollection() && validatorType.isMultiCell())
-                            cfm.comparator = cfm.comparator.addOrUpdateCollection(def.name, (CollectionType)validatorType);
-
                         break;
                 }
                 // In any case, we update the column definition
@@ -231,7 +195,7 @@ public class AlterTableStatement extends SchemaAlteringStatement
 
             case DROP:
                 assert columnName != null;
-                if (!cfm.isCQL3Table())
+                if (!cfm.isCQLTable())
                     throw new InvalidRequestException("Cannot drop columns from a non-CQL3 table");
                 if (def == null)
                     throw new InvalidRequestException(String.format("Column %s was not found in table %s", columnName, columnFamily()));
@@ -244,7 +208,7 @@ public class AlterTableStatement extends SchemaAlteringStatement
                     case REGULAR:
                     case STATIC:
                         ColumnDefinition toDelete = null;
-                        for (ColumnDefinition columnDef : cfm.regularAndStaticColumns())
+                        for (ColumnDefinition columnDef : cfm.partitionColumns())
                         {
                             if (columnDef.name.equals(columnName))
                             {

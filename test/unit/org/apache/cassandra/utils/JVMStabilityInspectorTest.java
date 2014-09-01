@@ -17,14 +17,15 @@
  */
 package org.apache.cassandra.utils;
 
-import org.apache.cassandra.config.Config;
-import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.io.FSReadError;
-import org.junit.Test;
-
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.net.SocketException;
+
+import org.junit.Test;
+
+import org.apache.cassandra.config.Config;
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.io.FSReadError;
 
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;

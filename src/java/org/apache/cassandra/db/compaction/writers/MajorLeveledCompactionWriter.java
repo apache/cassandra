@@ -25,7 +25,8 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.RowIndexEntry;
-import org.apache.cassandra.db.compaction.AbstractCompactedRow;
+import org.apache.cassandra.db.SerializationHeader;
+import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.db.compaction.LeveledManifest;
 import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
@@ -68,16 +69,17 @@ public class MajorLeveledCompactionWriter extends CompactionAwareWriter
                                                     minRepairedAt,
                                                     cfs.metadata,
                                                     cfs.partitioner,
-                                                    new MetadataCollector(allSSTables, cfs.metadata.comparator, currentLevel, skipAncestors));
+                                                    new MetadataCollector(allSSTables, cfs.metadata.comparator, currentLevel, skipAncestors),
+                                                    SerializationHeader.make(cfs.metadata, nonExpiredSSTables));
         sstableWriter.switchWriter(writer);
     }
 
     @Override
     @SuppressWarnings("resource")
-    public boolean append(AbstractCompactedRow row)
+    public boolean append(UnfilteredRowIterator partition)
     {
         long posBefore = sstableWriter.currentWriter().getOnDiskFilePointer();
-        RowIndexEntry rie = sstableWriter.append(row);
+        RowIndexEntry rie = sstableWriter.append(partition);
         totalWrittenInLevel += sstableWriter.currentWriter().getOnDiskFilePointer() - posBefore;
         partitionsWritten++;
         if (sstableWriter.currentWriter().getOnDiskFilePointer() > maxSSTableSize)
@@ -95,7 +97,8 @@ public class MajorLeveledCompactionWriter extends CompactionAwareWriter
                                                         minRepairedAt,
                                                         cfs.metadata,
                                                         cfs.partitioner,
-                                                        new MetadataCollector(allSSTables, cfs.metadata.comparator, currentLevel, skipAncestors));
+                                                        new MetadataCollector(allSSTables, cfs.metadata.comparator, currentLevel, skipAncestors),
+                                                        SerializationHeader.make(cfs.metadata, nonExpiredSSTables));
             sstableWriter.switchWriter(writer);
             partitionsWritten = 0;
             sstablesWritten++;

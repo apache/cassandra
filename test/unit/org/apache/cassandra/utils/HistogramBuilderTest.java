@@ -21,7 +21,7 @@ import java.util.concurrent.atomic.AtomicLongArray;
 
 import org.junit.Test;
 
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertArrayEquals;
 
 public class HistogramBuilderTest
 {

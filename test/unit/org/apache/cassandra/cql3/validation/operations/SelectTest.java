@@ -605,7 +605,7 @@ public class SelectTest extends CQLTester
         execute("INSERT INTO %s (account, id , categories) VALUES (?, ?, ?)", "test", 5, map("lmn", "foo"));
         execute("INSERT INTO %s (account, id , categories) VALUES (?, ?, ?)", "test", 6, map("lmn", "foo2"));
 
-        assertInvalidMessage("No secondary indexes on the restricted columns support the provided operators: 'categories CONTAINS <value>'",
+        assertInvalidMessage("No supported secondary index found for the non primary key columns restrictions",
                              "SELECT * FROM %s WHERE account = ? AND categories CONTAINS ?", "test", "foo");
 
         assertRows(execute("SELECT * FROM %s WHERE account = ? AND categories CONTAINS KEY ?", "test", "lmn"),
@@ -628,7 +628,7 @@ public class SelectTest extends CQLTester
         execute("INSERT INTO %s (account, id , categories) VALUES (?, ?, ?)", "test", 5, map("lmn", "foo"));
         execute("INSERT INTO %s (account, id , categories) VALUES (?, ?, ?)", "test", 6, map("lmn2", "foo"));
 
-        assertInvalidMessage("No secondary indexes on the restricted columns support the provided operators: 'categories CONTAINS KEY <value>'",
+        assertInvalidMessage("No supported secondary index found for the non primary key columns restrictions",
                              "SELECT * FROM %s WHERE account = ? AND categories CONTAINS KEY ?", "test", "lmn");
 
         assertRows(execute("SELECT * FROM %s WHERE account = ? AND categories CONTAINS ?", "test", "foo"),

@@ -118,4 +118,9 @@ public class LongType extends AbstractType<Long>
         return LongSerializer.instance;
     }
 
+    @Override
+    protected int valueLengthIfFixed()
+    {
+        return 8;
+    }
 }

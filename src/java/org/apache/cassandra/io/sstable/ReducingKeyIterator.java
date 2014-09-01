@@ -57,7 +57,7 @@ public class ReducingKeyIterator implements CloseableIterator<DecoratedKey>
                     return true;
                 }
 
-                public void reduce(DecoratedKey current)
+                public void reduce(int idx, DecoratedKey current)
                 {
                     reduced = current;
                 }

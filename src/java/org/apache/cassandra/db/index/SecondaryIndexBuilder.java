@@ -28,6 +28,7 @@ import org.apache.cassandra.db.compaction.CompactionInfo;
 import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.db.compaction.CompactionInterruptedException;
 import org.apache.cassandra.io.sstable.ReducingKeyIterator;
+import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.UUIDGen;
 
 /**
@@ -45,7 +46,7 @@ public class SecondaryIndexBuilder extends CompactionInfo.Holder
         this.cfs = cfs;
         this.idxNames = idxNames;
         this.iter = iter;
-        compactionId = UUIDGen.getTimeUUID();
+        this.compactionId = UUIDGen.getTimeUUID();
     }
 
     public CompactionInfo getCompactionInfo()
@@ -59,21 +60,26 @@ public class SecondaryIndexBuilder extends CompactionInfo.Holder
 
     public void build()
     {
-        while (iter.hasNext())
-        {
-            if (isStopRequested())
-                throw new CompactionInterruptedException(getCompactionInfo());
-            DecoratedKey key = iter.next();
-            Keyspace.indexRow(key, cfs, idxNames);
-        }
-
         try
         {
-            iter.close();
+            while (iter.hasNext())
+            {
+                if (isStopRequested())
+                    throw new CompactionInterruptedException(getCompactionInfo());
+                DecoratedKey key = iter.next();
+                Keyspace.indexPartition(key, cfs, idxNames);
+            }
         }
-        catch (IOException e)
+        finally
         {
-            throw new RuntimeException(e);
+            try
+            {
+                iter.close();
+            }
+            catch (IOException e)
+            {
+                throw new RuntimeException(e);
+            }
         }
     }
 }

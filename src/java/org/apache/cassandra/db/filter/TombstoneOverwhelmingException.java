@@ -18,49 +18,51 @@
  */
 package org.apache.cassandra.db.filter;
 
-import org.apache.cassandra.db.DecoratedKey;
+import java.nio.ByteBuffer;
+
+import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.marshal.*;
 
 public class TombstoneOverwhelmingException extends RuntimeException
 {
-    private final int numTombstones;
-    private final int numRequested;
-    private final String ksName;
-    private final String cfName;
-    private final String lastCellName;
-    private final String slicesInfo;
-    private String partitionKey = null;
-
-    public TombstoneOverwhelmingException(int numTombstones,
-                                          int numRequested,
-                                          String ksName,
-                                          String cfName,
-                                          String lastCellName,
-                                          String slicesInfo)
+    public TombstoneOverwhelmingException(int numTombstones, String query, CFMetaData metadata, DecoratedKey lastPartitionKey, ClusteringPrefix lastClustering)
     {
-        this.numTombstones = numTombstones;
-        this.numRequested = numRequested;
-        this.ksName = ksName;
-        this.cfName = cfName;
-        this.lastCellName = lastCellName;
-        this.slicesInfo = slicesInfo;
+        super(String.format("Scanned over %d tombstones during query '%s' (last scanned row partion key was (%s)); query aborted",
+                            numTombstones, query, makePKString(metadata, lastPartitionKey.getKey(), lastClustering)));
     }
 
-    public void setKey(DecoratedKey key)
+    private static String makePKString(CFMetaData metadata, ByteBuffer partitionKey, ClusteringPrefix clustering)
     {
-        if (key != null)
-            partitionKey = key.toString();
-    }
+        StringBuilder sb = new StringBuilder();
 
-    public String getLocalizedMessage()
-    {
-        return getMessage();
-    }
+        if (clustering.size() > 0)
+            sb.append("(");
 
-    public String getMessage()
-    {
-        return String.format(
-                "Scanned over %d tombstones in %s.%s; %d columns were requested; query aborted " +
-                "(see tombstone_failure_threshold); partitionKey=%s; lastCell=%s; slices=%s",
-                numTombstones, ksName, cfName, numRequested, partitionKey, lastCellName, slicesInfo);
+        // TODO: We should probably make that a lot easier/transparent for partition keys
+        AbstractType<?> pkType = metadata.getKeyValidator();
+        if (pkType instanceof CompositeType)
+        {
+            CompositeType ct = (CompositeType)pkType;
+            ByteBuffer[] values = ct.split(partitionKey);
+            for (int i = 0; i < values.length; i++)
+            {
+                if (i > 0)
+                    sb.append(", ");
+                sb.append(ct.types.get(i).getString(values[i]));
+            }
+        }
+        else
+        {
+            sb.append(pkType.getString(partitionKey));
+        }
+
+        if (clustering.size() > 0)
+            sb.append(")");
+
+        for (int i = 0; i < clustering.size(); i++)
+            sb.append(", ").append(metadata.comparator.subtype(i).getString(clustering.get(i)));
+
+        return sb.toString();
     }
 }

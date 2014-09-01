@@ -140,6 +140,7 @@ public class SSTableMetadataTrackingTest extends CQLTester
         assertEquals(metadata.minTimestamp, metadata2.minTimestamp);
         assertEquals(metadata.maxTimestamp, metadata2.maxTimestamp);
     }
+
     @Test
     public void testTrackMetadata_rowMarkerDelete() throws Throwable
     {

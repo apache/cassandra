@@ -97,7 +97,7 @@ public class SecondaryIndexTest extends CQLTester
             execute("DROP INDEX " + indexName);
         }
 
-        assertInvalidMessage("No secondary indexes on the restricted columns support the provided operators",
+        assertInvalidMessage("No supported secondary index found for the non primary key columns restrictions",
                              "SELECT * FROM %s where b = ?", 1);
         dropIndex("DROP INDEX IF EXISTS " + indexName);
         assertInvalidMessage("Index '" + removeQuotes(indexName.toLowerCase(Locale.US)) + "' could not be found", "DROP INDEX " + indexName);
@@ -484,62 +484,11 @@ public class SecondaryIndexTest extends CQLTester
     }
 
     @Test
-    public void testIndexOnClusteringColumnInsertPartitionKeyAndClusteringsOver64k() throws Throwable
-    {
-        createTable("CREATE TABLE %s(a blob, b blob, c blob, d int, PRIMARY KEY (a, b, c))");
-        createIndex("CREATE INDEX ON %s(b)");
-
-        // CompositeIndexOnClusteringKey creates index entries composed of the
-        // PK plus all of the non-indexed clustering columns from the primary row
-        // so we should reject where len(a) + len(c) > 65560 as this will form the
-        // total clustering in the index table
-        ByteBuffer a = ByteBuffer.allocate(100);
-        ByteBuffer b = ByteBuffer.allocate(10);
-        ByteBuffer c = ByteBuffer.allocate(FBUtilities.MAX_UNSIGNED_SHORT - 99);
-
-        failInsert("INSERT INTO %s (a, b, c, d) VALUES (?, ?, ?, 0)", a, b, c);
-    }
-
-    @Test
     public void testCompactTableWithValueOver64k() throws Throwable
     {
         createTable("CREATE TABLE %s(a int, b blob, PRIMARY KEY (a)) WITH COMPACT STORAGE");
         createIndex("CREATE INDEX ON %s(b)");
         failInsert("INSERT INTO %s (a, b) VALUES (0, ?)", ByteBuffer.allocate(TOO_BIG));
-    }
-
-    @Test
-    public void testIndexOnCollectionValueInsertPartitionKeyAndCollectionKeyOver64k() throws Throwable
-    {
-        createTable("CREATE TABLE %s(a blob , b map<blob, int>, PRIMARY KEY (a))");
-        createIndex("CREATE INDEX ON %s(b)");
-
-        // A collection key > 64k by itself will be rejected from
-        // the primary table.
-        // To test index validation we need to ensure that
-        // len(b) < 64k, but len(a) + len(b) > 64k as that will
-        // form the clustering in the index table
-        ByteBuffer a = ByteBuffer.allocate(100);
-        ByteBuffer b = ByteBuffer.allocate(FBUtilities.MAX_UNSIGNED_SHORT - 100);
-
-        failInsert("UPDATE %s SET b[?] = 0 WHERE a = ?", b, a);
-    }
-
-    @Test
-    public void testIndexOnCollectionKeyInsertPartitionKeyAndClusteringOver64k() throws Throwable
-    {
-        createTable("CREATE TABLE %s(a blob, b blob, c map<blob, int>, PRIMARY KEY (a, b))");
-        createIndex("CREATE INDEX ON %s(KEYS(c))");
-
-        // Basically the same as the case with non-collection clustering
-        // CompositeIndexOnCollectionKeyy creates index entries composed of the
-        // PK plus all of the clustering columns from the primary row, except the
-        // collection element - which becomes the partition key in the index table
-        ByteBuffer a = ByteBuffer.allocate(100);
-        ByteBuffer b = ByteBuffer.allocate(FBUtilities.MAX_UNSIGNED_SHORT - 100);
-        ByteBuffer c = ByteBuffer.allocate(10);
-
-        failInsert("UPDATE %s SET c[?] = 0 WHERE a = ? and b = ?", c, a, b);
     }
 
     @Test

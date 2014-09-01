@@ -18,8 +18,7 @@
 package org.apache.cassandra.cql3.restrictions;
 
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.*;
 
 import com.google.common.collect.BoundType;
 import com.google.common.collect.ImmutableRangeSet;
@@ -28,7 +27,7 @@ import com.google.common.collect.RangeSet;
 
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.statements.Bound;
-import org.apache.cassandra.db.composites.Composite;
+import org.apache.cassandra.db.*;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.InvalidRequestException;
@@ -84,7 +83,7 @@ final class TokenFilter extends ForwardingPrimaryKeyRestrictions
     }
 
     @Override
-    public List<Composite> valuesAsComposites(QueryOptions options) throws InvalidRequestException
+    public NavigableSet<Clustering> valuesAsClustering(QueryOptions options) throws InvalidRequestException
     {
         throw new UnsupportedOperationException();
     }
@@ -117,9 +116,9 @@ final class TokenFilter extends ForwardingPrimaryKeyRestrictions
     }
 
     @Override
-    public List<Composite> boundsAsComposites(Bound bound, QueryOptions options) throws InvalidRequestException
+    public SortedSet<Slice.Bound> boundsAsClustering(Bound bound, QueryOptions options) throws InvalidRequestException
     {
-        return tokenRestriction.boundsAsComposites(bound, options);
+        return tokenRestriction.boundsAsClustering(bound, options);
     }
 
     /**

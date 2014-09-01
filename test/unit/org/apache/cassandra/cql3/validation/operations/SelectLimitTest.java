@@ -105,8 +105,12 @@ public class SelectLimitTest extends CQLTester
                    row(1, 1),
                    row(1, 2),
                    row(1, 3));
-
-        // strict bound (v > 1) over a range of partitions is not supported for compact storage if limit is provided
-        assertInvalidThrow(InvalidRequestException.class, "SELECT * FROM %s WHERE v > 1 AND v <= 3 LIMIT 6 ALLOW FILTERING");
+        assertRows(execute("SELECT * FROM %s WHERE v > 1 AND v <= 3 LIMIT 6 ALLOW FILTERING"),
+                   row(0, 2),
+                   row(0, 3),
+                   row(1, 2),
+                   row(1, 3),
+                   row(2, 2),
+                   row(2, 3));
     }
 }

@@ -1,21 +1,20 @@
 /*
-* Licensed to the Apache Software Foundation (ASF) under one
-* or more contributor license agreements.  See the NOTICE file
-* distributed with this work for additional information
-* regarding copyright ownership.  The ASF licenses this file
-* to you under the Apache License, Version 2.0 (the
-* "License"); you may not use this file except in compliance
-* with the License.  You may obtain a copy of the License at
-*
-*    http://www.apache.org/licenses/LICENSE-2.0
-*
-* Unless required by applicable law or agreed to in writing,
-* software distributed under the License is distributed on an
-* "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
-* KIND, either express or implied.  See the License for the
-* specific language governing permissions and limitations
-* under the License.
-*/
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 package org.apache.cassandra.dht;
 
 import java.nio.ByteBuffer;
@@ -23,14 +22,14 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
-import static java.util.Arrays.asList;
-
 import org.apache.commons.lang3.StringUtils;
 import org.junit.Test;
-import org.apache.cassandra.db.RowPosition;
-import org.apache.cassandra.dht.RandomPartitioner.BigIntegerToken;
-import org.apache.cassandra.dht.ByteOrderedPartitioner.BytesToken;
 
+import org.apache.cassandra.db.PartitionPosition;
+import org.apache.cassandra.dht.ByteOrderedPartitioner.BytesToken;
+import org.apache.cassandra.dht.RandomPartitioner.BigIntegerToken;
+
+import static java.util.Arrays.asList;
 import static org.apache.cassandra.Util.range;
 
 
@@ -183,7 +182,7 @@ public class RangeTest
     }
 
     @SafeVarargs
-    static <T extends RingPosition<T>> void assertIntersection(Range<T> one, Range<T> two, Range<T> ... ranges)
+    static <T extends RingPosition<T>> void assertIntersection(Range<T> one, Range<T> two, Range<T>... ranges)
     {
         Set<Range<T>> correct = Range.rangeSet(ranges);
         Set<Range<T>> result1 = one.intersectionWith(two);
@@ -479,7 +478,7 @@ public class RangeTest
     @Test
     public void testNormalizeNoop()
     {
-        List<Range<RowPosition>> l;
+        List<Range<PartitionPosition>> l;
 
         l = asList(range("1", "3"), range("4", "5"));
         assertNormalize(l, l);
@@ -488,7 +487,7 @@ public class RangeTest
     @Test
     public void testNormalizeSimpleOverlap()
     {
-        List<Range<RowPosition>> input, expected;
+        List<Range<PartitionPosition>> input, expected;
 
         input = asList(range("1", "4"), range("3", "5"));
         expected = asList(range("1", "5"));
@@ -502,7 +501,7 @@ public class RangeTest
     @Test
     public void testNormalizeSort()
     {
-        List<Range<RowPosition>> input, expected;
+        List<Range<PartitionPosition>> input, expected;
 
         input = asList(range("4", "5"), range("1", "3"));
         expected = asList(range("1", "3"), range("4", "5"));
@@ -512,7 +511,7 @@ public class RangeTest
     @Test
     public void testNormalizeUnwrap()
     {
-        List<Range<RowPosition>> input, expected;
+        List<Range<PartitionPosition>> input, expected;
 
         input = asList(range("9", "2"));
         expected = asList(range("", "2"), range("9", ""));
@@ -522,7 +521,7 @@ public class RangeTest
     @Test
     public void testNormalizeComplex()
     {
-        List<Range<RowPosition>> input, expected;
+        List<Range<PartitionPosition>> input, expected;
 
         input = asList(range("8", "2"), range("7", "9"), range("4", "5"));
         expected = asList(range("", "2"), range("4", "5"), range("7", ""));

@@ -37,9 +37,11 @@ import org.junit.Test;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.Schema;
-import org.apache.cassandra.db.Cell;
-import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.Mutation;
+import org.apache.cassandra.db.rows.Cell;
+import org.apache.cassandra.db.rows.Row;
+import org.apache.cassandra.db.marshal.UTF8Type;
+import org.apache.cassandra.db.partitions.PartitionUpdate;
 
 public class CommitLogUpgradeTest
 {
@@ -51,7 +53,6 @@ public class CommitLogUpgradeTest
 
     static final String TABLE = "Standard1";
     static final String KEYSPACE = "Keyspace1";
-    static final String CELLNAME = "name";
 
     @Test
     public void test20() throws Exception
@@ -126,13 +127,13 @@ public class CommitLogUpgradeTest
         @Override
         public boolean apply(Mutation mutation)
         {
-            for (ColumnFamily cf : mutation.getColumnFamilies())
+            for (PartitionUpdate update : mutation.getPartitionUpdates())
             {
-                for (Cell c : cf.getSortedColumns())
+                for (Row row : update)
                 {
-                    if (new String(c.name().toByteBuffer().array(), StandardCharsets.UTF_8).startsWith(CELLNAME))
+                    for (Cell cell : row)
                     {
-                        hash = hash(hash, c.value());
+                        hash = hash(hash, cell.value());
                         ++cells;
                     }
                 }

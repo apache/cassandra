@@ -24,6 +24,7 @@ import org.apache.cassandra.cql3.Term;
 import org.apache.cassandra.db.context.CounterContext;
 import org.apache.cassandra.serializers.TypeSerializer;
 import org.apache.cassandra.serializers.CounterSerializer;
+import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 public class CounterColumnType extends AbstractType<Long>
@@ -57,6 +58,12 @@ public class CounterColumnType extends AbstractType<Long>
     public ByteBuffer decompose(Long value)
     {
         return ByteBufferUtil.bytes(value);
+    }
+
+    @Override
+    public void validateCellValue(ByteBuffer cellValue) throws MarshalException
+    {
+        CounterContext.instance().validateContext(cellValue);
     }
 
     public int compare(ByteBuffer o1, ByteBuffer o2)

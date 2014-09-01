@@ -87,7 +87,7 @@ public class CompressorTest
 
         assertEquals(decompressedLength, len);
         assertArrayEquals(Arrays.copyOfRange(data, off, off + len),
-                Arrays.copyOfRange(restored, restoreOffset, restoreOffset + decompressedLength));
+                          Arrays.copyOfRange(restored, restoreOffset, restoreOffset + decompressedLength));
     }
 
     public void testArrayUncompress(byte[] data) throws IOException

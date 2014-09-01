@@ -21,20 +21,19 @@ package org.apache.cassandra.io.sstable;
 import java.io.File;
 import java.io.IOException;
 
-import org.junit.After;
 import org.junit.BeforeClass;
 
 import junit.framework.Assert;
 import org.apache.cassandra.SchemaLoader;
-import org.apache.cassandra.Util;
+import org.apache.cassandra.UpdateBuilder;
 import org.apache.cassandra.config.KSMetaData;
-import org.apache.cassandra.db.ArrayBackedSortedColumns;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.db.SerializationHeader;
+import org.apache.cassandra.db.marshal.*;
+import org.apache.cassandra.db.rows.RowStats;
 import org.apache.cassandra.io.sstable.format.SSTableWriter;
 import org.apache.cassandra.locator.SimpleStrategy;
-import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.concurrent.AbstractTransactionalTest;
 
 public class BigTableWriterTest extends AbstractTransactionalTest
@@ -51,7 +50,7 @@ public class BigTableWriterTest extends AbstractTransactionalTest
         SchemaLoader.createKeyspace(KEYSPACE1,
                                     SimpleStrategy.class,
                                     KSMetaData.optsWithRF(1),
-                                    SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARD));
+                                    SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARD, 0, Int32Type.instance, AsciiType.instance, Int32Type.instance));
         cfs = Keyspace.open(KEYSPACE1).getColumnFamilyStore(CF_STANDARD);
     }
 
@@ -73,7 +72,7 @@ public class BigTableWriterTest extends AbstractTransactionalTest
 
         private TestableBTW(String file) throws IOException
         {
-            this(file, SSTableWriter.create(file, 0, 0));
+            this(file, SSTableWriter.create(file, 0, 0, new SerializationHeader(cfs.metadata, cfs.metadata.partitionColumns(), RowStats.NO_STATS)));
         }
 
         private TestableBTW(String file, SSTableWriter sw) throws IOException
@@ -82,11 +81,14 @@ public class BigTableWriterTest extends AbstractTransactionalTest
             this.file = new File(file);
             this.descriptor = Descriptor.fromFilename(file);
             this.writer = sw;
-            ArrayBackedSortedColumns cf = ArrayBackedSortedColumns.factory.create(cfs.metadata);
-            for (int i = 0; i < 10; i++)
-                cf.addColumn(Util.cellname(i), SSTableRewriterTest.random(0, 1000), 1);
+
             for (int i = 0; i < 100; i++)
-                writer.append(StorageService.getPartitioner().decorateKey(ByteBufferUtil.bytes(i)), cf);
+            {
+                UpdateBuilder update = UpdateBuilder.create(cfs.metadata, i);
+                for (int j = 0; j < 10; j++)
+                    update.newRow(j).add("val", SSTableRewriterTest.random(0, 1000));
+                writer.append(update.build().unfilteredIterator());
+            }
         }
 
         protected void assertInProgress() throws Exception

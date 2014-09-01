@@ -36,7 +36,7 @@ import org.apache.cassandra.utils.IFilter.FilterKey;
  * if this matters, you can subclass RP to use a stronger hash, or use a non-lossy tokenization scheme (as in the
  * OrderPreservingPartitioner classes).
  */
-public abstract class DecoratedKey implements RowPosition, FilterKey
+public abstract class DecoratedKey implements PartitionPosition, FilterKey
 {
     public static final Comparator<DecoratedKey> comparator = new Comparator<DecoratedKey>()
     {
@@ -72,7 +72,7 @@ public abstract class DecoratedKey implements RowPosition, FilterKey
         return ByteBufferUtil.compareUnsigned(getKey(), other.getKey()) == 0; // we compare faster than BB.equals for array backed BB
     }
 
-    public int compareTo(RowPosition pos)
+    public int compareTo(PartitionPosition pos)
     {
         if (this == pos)
             return 0;
@@ -86,7 +86,7 @@ public abstract class DecoratedKey implements RowPosition, FilterKey
         return cmp == 0 ? ByteBufferUtil.compareUnsigned(getKey(), otherKey.getKey()) : cmp;
     }
 
-    public static int compareTo(IPartitioner partitioner, ByteBuffer key, RowPosition position)
+    public static int compareTo(IPartitioner partitioner, ByteBuffer key, PartitionPosition position)
     {
         // delegate to Token.KeyBound if needed
         if (!(position instanceof DecoratedKey))
@@ -113,9 +113,9 @@ public abstract class DecoratedKey implements RowPosition, FilterKey
         return false;
     }
 
-    public RowPosition.Kind kind()
+    public PartitionPosition.Kind kind()
     {
-        return RowPosition.Kind.ROW_KEY;
+        return PartitionPosition.Kind.ROW_KEY;
     }
 
     @Override

@@ -18,12 +18,9 @@
 
 package org.apache.cassandra.utils;
 
-import static org.junit.Assert.assertArrayEquals;
-import static org.junit.Assert.assertEquals;
-
-import java.io.IOException;
-import java.io.DataInputStream;
 import java.io.ByteArrayInputStream;
+import java.io.DataInputStream;
+import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.charset.CharacterCodingException;
 import java.util.Arrays;
@@ -31,6 +28,9 @@ import java.util.Arrays;
 import org.junit.Test;
 
 import org.apache.cassandra.io.util.DataOutputBuffer;
+
+import static org.junit.Assert.assertArrayEquals;
+import static org.junit.Assert.assertEquals;
 
 public class ByteBufferUtilTest
 {
@@ -101,11 +101,11 @@ public class ByteBufferUtilTest
 
     private void checkLastIndexOf(ByteBuffer bb)
     {
-        assert bb.position() + 8 == ByteBufferUtil.lastIndexOf(bb, (byte)'a', bb.position() + 8);
-        assert bb.position() + 4 == ByteBufferUtil.lastIndexOf(bb, (byte)'a', bb.position() + 7);
-        assert bb.position() + 3 == ByteBufferUtil.lastIndexOf(bb, (byte)'s', bb.position() + 8);
-        assert -1 == ByteBufferUtil.lastIndexOf(bb, (byte)'o', bb.position() + 8);
-        assert -1 == ByteBufferUtil.lastIndexOf(bb, (byte)'d', bb.position() + 5);
+        assert bb.position() + 8 == ByteBufferUtil.lastIndexOf(bb, (byte) 'a', bb.position() + 8);
+        assert bb.position() + 4 == ByteBufferUtil.lastIndexOf(bb, (byte) 'a', bb.position() + 7);
+        assert bb.position() + 3 == ByteBufferUtil.lastIndexOf(bb, (byte) 's', bb.position() + 8);
+        assert -1 == ByteBufferUtil.lastIndexOf(bb, (byte) 'o', bb.position() + 8);
+        assert -1 == ByteBufferUtil.lastIndexOf(bb, (byte) 'd', bb.position() + 5);
     }
 
     @Test

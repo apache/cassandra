@@ -97,4 +97,10 @@ public class DoubleType extends AbstractType<Double>
     {
         return DoubleSerializer.instance;
     }
+
+    @Override
+    protected int valueLengthIfFixed()
+    {
+        return 8;
+    }
 }

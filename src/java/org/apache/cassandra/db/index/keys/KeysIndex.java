@@ -20,14 +20,15 @@ package org.apache.cassandra.db.index.keys;
 import java.nio.ByteBuffer;
 import java.util.Set;
 
-import org.apache.cassandra.db.Cell;
-import org.apache.cassandra.db.composites.CellName;
-import org.apache.cassandra.db.composites.CellNames;
-import org.apache.cassandra.db.ColumnFamily;
+import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.config.ColumnDefinition;
+import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.index.SecondaryIndex;
+import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.db.index.AbstractSimplePerColumnSecondaryIndex;
 import org.apache.cassandra.db.index.SecondaryIndexSearcher;
-import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.utils.concurrent.OpOrder;
 
 /**
  * Implements a secondary index for a column family using a second column family.
@@ -39,41 +40,51 @@ import org.apache.cassandra.exceptions.ConfigurationException;
  */
 public class KeysIndex extends AbstractSimplePerColumnSecondaryIndex
 {
-    protected ByteBuffer getIndexedValue(ByteBuffer rowKey, Cell cell)
+    public static void addIndexClusteringColumns(CFMetaData.Builder indexMetadata, CFMetaData baseMetadata, ColumnDefinition cfDef)
     {
-        return cell.value();
+        indexMetadata.addClusteringColumn("partition_key", SecondaryIndex.keyComparator);
     }
 
-    protected CellName makeIndexColumnName(ByteBuffer rowKey, Cell cell)
+    @Override
+    public void indexRow(DecoratedKey key, Row row, OpOrder.Group opGroup, int nowInSec)
     {
-        return CellNames.simpleDense(rowKey);
+        super.indexRow(key, row, opGroup, nowInSec);
+
+        // This is used when building indexes, in particular when the index is first created. On thrift, this
+        // potentially means the column definition just got created, and so we need to check if's not a "dynamic"
+        // row that actually correspond to the index definition.
+        assert baseCfs.metadata.isCompactTable();
+        if (!row.isStatic())
+        {
+            Clustering clustering = row.clustering();
+            if (clustering.get(0).equals(columnDef.name.bytes))
+            {
+                Cell cell = row.getCell(baseCfs.metadata.compactValueColumn());
+                if (cell != null && cell.isLive(nowInSec))
+                    insert(key.getKey(), clustering, cell, opGroup);
+            }
+        }
     }
 
-    public SecondaryIndexSearcher createSecondaryIndexSearcher(Set<ByteBuffer> columns)
+    protected ByteBuffer getIndexedValue(ByteBuffer rowKey, Clustering clustering, ByteBuffer cellValue, CellPath path)
+    {
+        return cellValue;
+    }
+
+    protected CBuilder buildIndexClusteringPrefix(ByteBuffer rowKey, ClusteringPrefix prefix, CellPath path)
+    {
+        CBuilder builder = CBuilder.create(getIndexComparator());
+        builder.add(rowKey);
+        return builder;
+    }
+
+    public SecondaryIndexSearcher createSecondaryIndexSearcher(Set<ColumnDefinition> columns)
     {
         return new KeysSearcher(baseCfs.indexManager, columns);
-    }
-
-    public boolean isIndexEntryStale(ByteBuffer indexedValue, ColumnFamily data, long now)
-    {
-        Cell cell = data.getColumn(data.getComparator().makeCellName(columnDef.name.bytes));
-        return cell == null || !cell.isLive(now) || columnDef.type.compare(indexedValue, cell.value()) != 0;
     }
 
     public void validateOptions() throws ConfigurationException
     {
         // no options used
-    }
-
-    public boolean indexes(CellName name)
-    {
-        // This consider the full cellName directly
-        AbstractType<?> comparator = baseCfs.metadata.getColumnDefinitionComparator(columnDef);
-        return comparator.compare(columnDef.name.bytes, name.toByteBuffer()) == 0;
-    }
-
-    protected AbstractType getExpressionComparator()
-    {
-        return baseCfs.getComparator().asAbstractType();
     }
 }

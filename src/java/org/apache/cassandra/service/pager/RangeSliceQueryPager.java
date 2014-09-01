@@ -17,16 +17,15 @@
  */
 package org.apache.cassandra.service.pager;
 
-import java.util.List;
-
 import org.apache.cassandra.db.*;
-import org.apache.cassandra.db.composites.CellName;
-import org.apache.cassandra.db.composites.Composite;
-import org.apache.cassandra.db.filter.SliceQueryFilter;
+import org.apache.cassandra.db.rows.*;
+import org.apache.cassandra.db.filter.*;
 import org.apache.cassandra.dht.*;
 import org.apache.cassandra.exceptions.RequestExecutionException;
-import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.service.StorageService;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Pages a RangeSliceCommand whose predicate is a slice query.
@@ -36,27 +35,21 @@ import org.apache.cassandra.service.StorageService;
  */
 public class RangeSliceQueryPager extends AbstractQueryPager
 {
-    private final RangeSliceCommand command;
+    private static final Logger logger = LoggerFactory.getLogger(RangeSliceQueryPager.class);
+
     private volatile DecoratedKey lastReturnedKey;
-    private volatile CellName lastReturnedName;
+    private volatile Clustering lastReturnedClustering;
 
-    // Don't use directly, use QueryPagers method instead
-    RangeSliceQueryPager(RangeSliceCommand command, ConsistencyLevel consistencyLevel, boolean localQuery)
+    public RangeSliceQueryPager(PartitionRangeReadCommand command, PagingState state)
     {
-        super(consistencyLevel, command.maxResults, localQuery, command.keyspace, command.columnFamily, command.predicate, command.timestamp);
-        this.command = command;
-        assert columnFilter instanceof SliceQueryFilter;
-    }
-
-    RangeSliceQueryPager(RangeSliceCommand command, ConsistencyLevel consistencyLevel, boolean localQuery, PagingState state)
-    {
-        this(command, consistencyLevel, localQuery);
+        super(command);
+        assert !command.isNamesQuery();
 
         if (state != null)
         {
             lastReturnedKey = StorageService.getPartitioner().decorateKey(state.partitionKey);
-            lastReturnedName = cfm.comparator.cellFromByteBuffer(state.cellName);
-            restoreState(state.remaining, true);
+            lastReturnedClustering = LegacyLayout.decodeClustering(command.metadata(), state.cellName);
+            restoreState(lastReturnedKey, state.remaining, state.remainingInPartition);
         }
     }
 
@@ -64,67 +57,63 @@ public class RangeSliceQueryPager extends AbstractQueryPager
     {
         return lastReturnedKey == null
              ? null
-             : new PagingState(lastReturnedKey.getKey(), lastReturnedName.toByteBuffer(), maxRemaining());
+             : new PagingState(lastReturnedKey.getKey(), LegacyLayout.encodeClustering(command.metadata(), lastReturnedClustering), maxRemaining(), remainingInPartition());
     }
 
-    protected List<Row> queryNextPage(int pageSize, ConsistencyLevel consistencyLevel, boolean localQuery)
+    protected ReadCommand nextPageReadCommand(int pageSize)
     throws RequestExecutionException
     {
-        SliceQueryFilter sf = (SliceQueryFilter)columnFilter;
-        AbstractBounds<RowPosition> keyRange = lastReturnedKey == null ? command.keyRange : makeIncludingKeyBounds(lastReturnedKey);
-        Composite start = lastReturnedName == null ? sf.start() : lastReturnedName;
-        PagedRangeCommand pageCmd = new PagedRangeCommand(command.keyspace,
-                                                          command.columnFamily,
-                                                          command.timestamp,
-                                                          keyRange,
-                                                          sf,
-                                                          start,
-                                                          sf.finish(),
-                                                          command.rowFilter,
-                                                          pageSize,
-                                                          command.countCQL3Rows);
-
-        return localQuery
-             ? pageCmd.executeLocally()
-             : StorageProxy.getRangeSlice(pageCmd, consistencyLevel);
-    }
-
-    protected boolean containsPreviousLast(Row first)
-    {
-        if (lastReturnedKey == null || !lastReturnedKey.equals(first.key))
-            return false;
-
-        // Same as SliceQueryPager, we ignore a deleted column
-        Cell firstCell = isReversed() ? lastCell(first.cf) : firstNonStaticCell(first.cf);
-        return !first.cf.deletionInfo().isDeleted(firstCell)
-            && firstCell.isLive(timestamp())
-            && lastReturnedName.equals(firstCell.name());
-    }
-
-    protected boolean recordLast(Row last)
-    {
-        lastReturnedKey = last.key;
-        lastReturnedName = (isReversed() ? firstNonStaticCell(last.cf) : lastCell(last.cf)).name();
-        return true;
-    }
-
-    protected boolean isReversed()
-    {
-        return ((SliceQueryFilter)command.predicate).reversed;
-    }
-
-    private AbstractBounds<RowPosition> makeIncludingKeyBounds(RowPosition lastReturnedKey)
-    {
-        // We always include lastReturnedKey since we may still be paging within a row,
-        // and PagedRangeCommand will move over if we're not anyway
-        AbstractBounds<RowPosition> bounds = command.keyRange;
-        if (bounds instanceof Range || bounds instanceof Bounds)
+        DataLimits limits;
+        DataRange fullRange = ((PartitionRangeReadCommand)command).dataRange();
+        DataRange pageRange;
+        if (lastReturnedKey == null)
         {
-            return new Bounds<RowPosition>(lastReturnedKey, bounds.right);
+            pageRange = fullRange;
+            limits = command.limits().forPaging(pageSize);
         }
         else
         {
-            return new IncludingExcludingBounds<RowPosition>(lastReturnedKey, bounds.right);
+            // We want to include the last returned key only if we haven't achieved our per-partition limit, otherwise, don't bother.
+            boolean includeLastKey = remainingInPartition() > 0;
+            AbstractBounds<PartitionPosition> bounds = makeKeyBounds(lastReturnedKey, includeLastKey);
+            if (includeLastKey)
+            {
+                pageRange = fullRange.forPaging(bounds, command.metadata().comparator, lastReturnedClustering, false);
+                limits = command.limits().forPaging(pageSize, lastReturnedKey.getKey(), remainingInPartition());
+            }
+            else
+            {
+                pageRange = fullRange.forSubRange(bounds);
+                limits = command.limits().forPaging(pageSize);
+            }
+        }
+
+        return new PartitionRangeReadCommand(command.metadata(), command.nowInSec(), command.columnFilter(), command.rowFilter(), limits, pageRange);
+    }
+
+    protected void recordLast(DecoratedKey key, Row last)
+    {
+        if (last != null)
+        {
+            lastReturnedKey = key;
+            lastReturnedClustering = last.clustering().takeAlias();
+        }
+    }
+
+    private AbstractBounds<PartitionPosition> makeKeyBounds(PartitionPosition lastReturnedKey, boolean includeLastKey)
+    {
+        AbstractBounds<PartitionPosition> bounds = ((PartitionRangeReadCommand)command).dataRange().keyRange();
+        if (bounds instanceof Range || bounds instanceof Bounds)
+        {
+            return includeLastKey
+                 ? new Bounds<PartitionPosition>(lastReturnedKey, bounds.right)
+                 : new Range<PartitionPosition>(lastReturnedKey, bounds.right);
+        }
+        else
+        {
+            return includeLastKey
+                 ? new IncludingExcludingBounds<PartitionPosition>(lastReturnedKey, bounds.right)
+                 : new ExcludingBounds<PartitionPosition>(lastReturnedKey, bounds.right);
         }
     }
 }

@@ -33,7 +33,7 @@ import junit.framework.Assert;
 import org.apache.cassandra.MockSchema;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Memtable;
-import org.apache.cassandra.db.RowPosition;
+import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 
@@ -59,8 +59,8 @@ public class ViewTest
         {
             for (int j = i ; j < 5 ; j++)
             {
-                RowPosition min = MockSchema.readerBounds(i);
-                RowPosition max = MockSchema.readerBounds(j);
+                PartitionPosition min = MockSchema.readerBounds(i);
+                PartitionPosition max = MockSchema.readerBounds(j);
                 for (boolean minInc : new boolean[] { true, false} )
                 {
                     for (boolean maxInc : new boolean[] { true, false} )

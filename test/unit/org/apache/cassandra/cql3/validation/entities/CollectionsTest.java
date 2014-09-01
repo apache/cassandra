@@ -237,7 +237,7 @@ public class CollectionsTest extends CQLTester
         assertInvalidMessage("Attempted to set an element on a list which is null",
                              "UPDATE %s SET l[0] = ? WHERE k=0", list("v10"));
 
-        execute("UPDATE %s SET l = l - ? WHERE k=0 ", list("v11"));
+        execute("UPDATE %s SET l = l - ? WHERE k=0", list("v11"));
 
         assertRows(execute("SELECT l FROM %s WHERE k = 0"), row((Object) null));
     }

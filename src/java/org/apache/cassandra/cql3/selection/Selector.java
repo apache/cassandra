@@ -59,7 +59,7 @@ public abstract class Selector implements AssignmentTestable
         {
             return new ColumnSpecification(cfm.ksName,
                                            cfm.cfName,
-                                           new ColumnIdentifier(getColumnName(), true),
+                                           ColumnIdentifier.getInterned(getColumnName(), true),
                                            getReturnType());
         }
 

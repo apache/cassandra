@@ -17,6 +17,8 @@
  */
 package org.apache.cassandra.db.marshal;
 
+import java.io.DataInput;
+import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -27,11 +29,15 @@ import java.util.Map;
 
 import org.apache.cassandra.cql3.CQL3Type;
 import org.apache.cassandra.cql3.Term;
+import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.exceptions.SyntaxException;
 import org.apache.cassandra.serializers.TypeSerializer;
 import org.apache.cassandra.serializers.MarshalException;
 
 import org.github.jamm.Unmetered;
+import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.utils.ByteBufferUtil;
 
 /**
  * Specifies a Comparator for a specific type of ByteBuffer.
@@ -87,6 +93,9 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>
     /** get a string representation of the bytes suitable for log messages */
     public String getString(ByteBuffer bytes)
     {
+        if (bytes == null)
+            return "null";
+
         TypeSerializer<T> serializer = getSerializer();
         serializer.validate(bytes);
 
@@ -130,6 +139,17 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>
     public CQL3Type asCQL3Type()
     {
         return new CQL3Type.Custom(this);
+    }
+
+    /**
+     * Same as compare except that this ignore ReversedType. This is to be use when
+     * comparing 2 values to decide for a CQL condition (see Operator.isSatisfiedBy) as
+     * for CQL, ReversedType is simply an "hint" to the storage engine but it does not
+     * change the meaning of queries per-se.
+     */
+    public int compareForCQL(ByteBuffer v1, ByteBuffer v2)
+    {
+        return compare(v1, v2);
     }
 
     public abstract TypeSerializer<T> getSerializer();
@@ -288,6 +308,50 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>
     public List<AbstractType<?>> getComponents()
     {
         return Collections.<AbstractType<?>>singletonList(this);
+    }
+
+    /**
+    * The length of values for this type if all values are of fixed length, -1 otherwise.
+     */
+    protected int valueLengthIfFixed()
+    {
+        return -1;
+    }
+
+    // This assumes that no empty values are passed
+    public void writeValue(ByteBuffer value, DataOutputPlus out) throws IOException
+    {
+        assert value.hasRemaining();
+        if (valueLengthIfFixed() >= 0)
+            out.write(value);
+        else
+            ByteBufferUtil.writeWithLength(value, out);
+    }
+
+    public long writtenLength(ByteBuffer value, TypeSizes sizes)
+    {
+        assert value.hasRemaining();
+        return valueLengthIfFixed() >= 0
+             ? value.remaining()
+             : sizes.sizeofWithLength(value);
+    }
+
+    public ByteBuffer readValue(DataInput in) throws IOException
+    {
+        int length = valueLengthIfFixed();
+        if (length >= 0)
+            return ByteBufferUtil.read(in, length);
+        else
+            return ByteBufferUtil.readWithLength(in);
+    }
+
+    public void skipValue(DataInput in) throws IOException
+    {
+        int length = valueLengthIfFixed();
+        if (length < 0)
+            length = in.readInt();
+
+        FileUtils.skipBytesFully(in, length);
     }
 
     /**

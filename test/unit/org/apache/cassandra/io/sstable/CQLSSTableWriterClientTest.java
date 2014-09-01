@@ -20,19 +20,18 @@ package org.apache.cassandra.io.sstable;
 import java.io.File;
 import java.io.FilenameFilter;
 import java.io.IOException;
-import java.util.Arrays;
 
 import com.google.common.io.Files;
-
-import org.junit.*;
+import org.junit.After;
+import org.junit.AfterClass;
+import org.junit.Before;
+import org.junit.Test;
 
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.io.util.FileUtils;
 
 import static org.junit.Assert.assertEquals;
-
-import static org.junit.Assert.assertTrue;
 
 public class CQLSSTableWriterClientTest
 {

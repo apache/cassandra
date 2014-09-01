@@ -24,9 +24,9 @@ import java.util.List;
 import java.util.Random;
 
 import com.google.common.collect.Lists;
-
-import org.junit.Test;
 import org.junit.Assert;
+import org.junit.Test;
+
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.utils.IFilter.FilterKey;
 import org.apache.cassandra.utils.KeyGenerator.RandomStringGenerator;
@@ -79,7 +79,7 @@ public class BitSetTest
     @Test
     public void testOffHeapCompatibility() throws IOException
     {
-        try (OpenBitSet bs = new OpenBitSet(100000)) 
+        try (OpenBitSet bs = new OpenBitSet(100000))
         {
             populateAndReserialize(bs);
         }

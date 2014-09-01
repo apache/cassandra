@@ -2,18 +2,19 @@ package org.apache.cassandra.utils;
 
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.*;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import junit.framework.Assert;
-
-import org.apache.cassandra.utils.TopKSampler.SamplerResult;
+import com.google.common.collect.Maps;
+import com.google.common.util.concurrent.Uninterruptibles;
 import org.junit.Test;
 
 import com.clearspring.analytics.hash.MurmurHash;
 import com.clearspring.analytics.stream.Counter;
-import com.google.common.collect.Maps;
-import com.google.common.util.concurrent.Uninterruptibles;
+import junit.framework.Assert;
+import org.apache.cassandra.utils.TopKSampler.SamplerResult;
 
 public class TopKSamplerTest
 {

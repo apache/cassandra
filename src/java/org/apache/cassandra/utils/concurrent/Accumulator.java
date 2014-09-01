@@ -100,6 +100,11 @@ public class Accumulator<E> implements Iterable<E>
         return presentCount;
     }
 
+    public int capacity()
+    {
+        return values.length;
+    }
+
     public Iterator<E> iterator()
     {
         return new Iterator<E>()

@@ -23,7 +23,7 @@ import java.util.*;
 import org.apache.cassandra.cql3.Json;
 import org.apache.cassandra.cql3.Maps;
 import org.apache.cassandra.cql3.Term;
-import org.apache.cassandra.db.Cell;
+import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.SyntaxException;
 import org.apache.cassandra.serializers.CollectionSerializer;
@@ -173,6 +173,11 @@ public class MapType<K, V> extends CollectionType<Map<K, V>>
     }
 
     @Override
+    protected int collectionSize(List<ByteBuffer> values)
+    {
+        return values.size() / 2;
+    }
+
     public String toString(boolean ignoreFreezing)
     {
         boolean includeFrozenType = !ignoreFreezing && !isMultiCell();
@@ -186,13 +191,14 @@ public class MapType<K, V> extends CollectionType<Map<K, V>>
         return sb.toString();
     }
 
-    public List<ByteBuffer> serializedValues(List<Cell> cells)
+    public List<ByteBuffer> serializedValues(Iterator<Cell> cells)
     {
         assert isMultiCell;
-        List<ByteBuffer> bbs = new ArrayList<ByteBuffer>(cells.size() * 2);
-        for (Cell c : cells)
+        List<ByteBuffer> bbs = new ArrayList<ByteBuffer>();
+        while (cells.hasNext())
         {
-            bbs.add(c.name().collectionElement());
+            Cell c = cells.next();
+            bbs.add(c.path().get(0));
             bbs.add(c.value());
         }
         return bbs;

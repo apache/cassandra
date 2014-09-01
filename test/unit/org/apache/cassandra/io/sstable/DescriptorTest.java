@@ -21,16 +21,17 @@ import java.io.File;
 import java.io.IOException;
 import java.util.UUID;
 
-import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.commons.lang3.StringUtils;
 import org.junit.Assert;
 import org.junit.Test;
 
 import org.apache.cassandra.db.Directories;
+import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.Pair;
 
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNull;
 
 public class DescriptorTest
 {

@@ -19,18 +19,12 @@ package org.apache.cassandra.db;
 
 import java.io.File;
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.IdentityHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.Callable;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 
+import com.google.common.collect.Lists;
 import org.apache.commons.lang3.StringUtils;
 
 import org.junit.AfterClass;
@@ -38,36 +32,39 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.config.Config.DiskFailurePolicy;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.Directories.DataDirectory;
+import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.io.FSWriteError;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertSame;
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
+import static org.junit.Assert.*;
 
 public class DirectoriesTest
 {
     private static File tempDataDir;
     private static final String KS = "ks";
-    private static final String[] CFS = new String[] { "cf1", "ks" };
+    private static final String[] TABLES = new String[] { "cf1", "ks" };
 
-    private static final Set<CFMetaData> CFM = new HashSet<>(CFS.length);
+    private static final Set<CFMetaData> CFM = new HashSet<>(TABLES.length);
     private static Map<String, List<File>> files = new HashMap<String, List<File>>();
 
     @BeforeClass
     public static void beforeClass() throws IOException
     {
-        for (String cf : CFS)
+        for (String table : TABLES)
         {
-            CFM.add(new CFMetaData(KS, cf, ColumnFamilyType.Standard, null));
+            UUID tableID = CFMetaData.generateLegacyCfId(KS, table);
+            CFM.add(CFMetaData.Builder.create(KS, table)
+                                      .withId(tableID)
+                                      .addPartitionKey("thekey", UTF8Type.instance)
+                                      .addClusteringColumn("thecolumn", UTF8Type.instance)
+                                      .build());
         }
 
         tempDataDir = File.createTempFile("cassandra", "unittest");
@@ -193,8 +190,8 @@ public class DirectoriesTest
     public void testDiskFailurePolicy_best_effort()
     {
         DiskFailurePolicy origPolicy = DatabaseDescriptor.getDiskFailurePolicy();
-        
-        try 
+
+        try
         {
             DatabaseDescriptor.setDiskFailurePolicy(DiskFailurePolicy.best_effort);
             // Fake a Directory creation failure

@@ -21,7 +21,7 @@ import java.nio.ByteBuffer;
 
 import org.apache.cassandra.cql3.Operator;
 import org.apache.cassandra.db.*;
-import org.apache.cassandra.db.composites.CellName;
+import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.db.marshal.*;
 
 /**
@@ -38,22 +38,21 @@ public class CompositesIndexOnCollectionKey extends CompositesIndexIncludingColl
         return ((CollectionType)columnDef.type).nameComparator();
     }
 
-    protected ByteBuffer getIndexedValue(ByteBuffer rowKey, Cell cell)
+    protected ByteBuffer getIndexedValue(ByteBuffer rowKey, Clustering clustering, ByteBuffer cellValue, CellPath path)
     {
-        return cell.name().get(columnDef.position() + 1);
+        return path.get(0);
     }
 
     @Override
     public boolean supportsOperator(Operator operator)
     {
         return operator == Operator.CONTAINS_KEY ||
-                operator == Operator.CONTAINS && columnDef.type instanceof SetType;
+               operator == Operator.CONTAINS && columnDef.type instanceof SetType;
     }
 
-    public boolean isStale(IndexedEntry entry, ColumnFamily data, long now)
+    public boolean isStale(Row data, ByteBuffer indexValue, int nowInSec)
     {
-        CellName name = data.getComparator().create(entry.indexedEntryPrefix, columnDef, entry.indexValue.getKey());
-        Cell cell = data.getColumn(name);
-        return cell == null || !cell.isLive(now);
+        Cell cell = data.getCell(columnDef, CellPath.create(indexValue));
+        return cell == null || !cell.isLive(nowInSec);
     }
 }

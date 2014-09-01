@@ -24,17 +24,21 @@ package org.apache.cassandra.db.compaction;
 import java.io.RandomAccessFile;
 import java.util.*;
 
-import org.apache.cassandra.io.sstable.format.SSTableReader;
+import com.google.common.collect.Iterators;
 import org.junit.After;
-import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
+
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.config.KSMetaData;
 import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.locator.SimpleStrategy;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -42,7 +46,6 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
-import static org.apache.cassandra.Util.cellname;
 
 public class BlacklistingCompactionsTest
 {
@@ -107,22 +110,25 @@ public class BlacklistingCompactionsTest
         //test index corruption
         //now create a few new SSTables
         long maxTimestampExpected = Long.MIN_VALUE;
-        Set<DecoratedKey> inserted = new HashSet<DecoratedKey>();
+        Set<DecoratedKey> inserted = new HashSet<>();
+
         for (int j = 0; j < SSTABLES; j++)
         {
             for (int i = 0; i < ROWS_PER_SSTABLE; i++)
             {
-                DecoratedKey key = Util.dk(String.valueOf(i % 2));
-                Mutation rm = new Mutation(KEYSPACE1, key.getKey());
+                DecoratedKey key = Util.dk(String.valueOf(i));
                 long timestamp = j * ROWS_PER_SSTABLE + i;
-                rm.add("Standard1", cellname(i / 2), ByteBufferUtil.EMPTY_BYTE_BUFFER, timestamp);
+                new RowUpdateBuilder(cfs.metadata, timestamp, key.getKey())
+                        .clustering("cols" + "i")
+                        .add("val", "val" + i)
+                        .build()
+                        .applyUnsafe();
                 maxTimestampExpected = Math.max(timestamp, maxTimestampExpected);
-                rm.applyUnsafe();
                 inserted.add(key);
             }
             cfs.forceBlockingFlush();
             CompactionsTest.assertMaxTimestamp(cfs, maxTimestampExpected);
-            assertEquals(inserted.toString(), inserted.size(), Util.getRangeSlice(cfs).size());
+            assertEquals(inserted.toString(), inserted.size(), Util.getAll(Util.cmd(cfs).build()).size());
         }
 
         Collection<SSTableReader> sstables = cfs.getSSTables();
@@ -132,20 +138,21 @@ public class BlacklistingCompactionsTest
         // corrupt first 'sstablesToCorrupt' SSTables
         for (SSTableReader sstable : sstables)
         {
-            if(currentSSTable + 1 > sstablesToCorrupt)
+            if (currentSSTable + 1 > sstablesToCorrupt)
                 break;
 
             RandomAccessFile raf = null;
 
             try
             {
+                int corruptionSize = 50;
                 raf = new RandomAccessFile(sstable.getFilename(), "rw");
                 assertNotNull(raf);
-                assertTrue(raf.length() > 20);
-                raf.seek(new Random().nextInt((int)(raf.length() - 20)));
+                assertTrue(raf.length() > corruptionSize);
+                raf.seek(new Random().nextInt((int)(raf.length() - corruptionSize)));
                 // We want to write something large enough that the corruption cannot get undetected
                 // (even without compression)
-                byte[] corruption = new byte[20];
+                byte[] corruption = new byte[corruptionSize];
                 Arrays.fill(corruption, (byte)0xFF);
                 raf.write(corruption);
 
@@ -175,8 +182,6 @@ public class BlacklistingCompactionsTest
                 failures++;
                 continue;
             }
-
-            assertEquals(sstablesToCorrupt + 1, cfs.getSSTables().size());
             break;
         }
 

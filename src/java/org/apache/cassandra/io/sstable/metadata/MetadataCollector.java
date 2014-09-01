@@ -19,22 +19,20 @@ package org.apache.cassandra.io.sstable.metadata;
 
 import java.io.File;
 import java.nio.ByteBuffer;
-import java.util.Collection;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Maps;
 
 import com.clearspring.analytics.stream.cardinality.HyperLogLogPlus;
 import com.clearspring.analytics.stream.cardinality.ICardinality;
+import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.commitlog.ReplayPosition;
-import org.apache.cassandra.db.composites.CellNameType;
-import org.apache.cassandra.io.sstable.ColumnNameHelper;
-import org.apache.cassandra.io.sstable.ColumnStats;
+import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.SSTable;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
@@ -47,13 +45,13 @@ public class MetadataCollector
 {
     public static final double NO_COMPRESSION_RATIO = -1.0;
 
-    static EstimatedHistogram defaultColumnCountHistogram()
+    static EstimatedHistogram defaultCellPerPartitionCountHistogram()
     {
         // EH of 114 can track a max value of 2395318855, i.e., > 2B columns
         return new EstimatedHistogram(114);
     }
 
-    static EstimatedHistogram defaultRowSizeHistogram()
+    static EstimatedHistogram defaultPartitionSizeHistogram()
     {
         // EH of 150 can track a max value of 1697806495183, i.e., > 1.5PB
         return new EstimatedHistogram(150);
@@ -66,11 +64,14 @@ public class MetadataCollector
 
     public static StatsMetadata defaultStatsMetadata()
     {
-        return new StatsMetadata(defaultRowSizeHistogram(),
-                                 defaultColumnCountHistogram(),
+        return new StatsMetadata(defaultPartitionSizeHistogram(),
+                                 defaultCellPerPartitionCountHistogram(),
                                  ReplayPosition.NONE,
                                  Long.MIN_VALUE,
                                  Long.MAX_VALUE,
+                                 Integer.MAX_VALUE,
+                                 Integer.MAX_VALUE,
+                                 0,
                                  Integer.MAX_VALUE,
                                  NO_COMPRESSION_RATIO,
                                  defaultTombstoneDropTimeHistogram(),
@@ -78,22 +79,27 @@ public class MetadataCollector
                                  Collections.<ByteBuffer>emptyList(),
                                  Collections.<ByteBuffer>emptyList(),
                                  true,
-                                 ActiveRepairService.UNREPAIRED_SSTABLE);
+                                 ActiveRepairService.UNREPAIRED_SSTABLE,
+                                 -1,
+                                 -1);
     }
 
-    protected EstimatedHistogram estimatedRowSize = defaultRowSizeHistogram();
-    protected EstimatedHistogram estimatedColumnCount = defaultColumnCountHistogram();
+    protected EstimatedHistogram estimatedPartitionSize = defaultPartitionSizeHistogram();
+    // TODO: cound the number of row per partition (either with the number of cells, or instead)
+    protected EstimatedHistogram estimatedCellPerPartitionCount = defaultCellPerPartitionCountHistogram();
     protected ReplayPosition replayPosition = ReplayPosition.NONE;
-    protected long minTimestamp = Long.MAX_VALUE;
-    protected long maxTimestamp = Long.MIN_VALUE;
-    protected int maxLocalDeletionTime = Integer.MIN_VALUE;
+    protected final MinMaxLongTracker timestampTracker = new MinMaxLongTracker();
+    protected final MinMaxIntTracker localDeletionTimeTracker = new MinMaxIntTracker(LivenessInfo.NO_DELETION_TIME, LivenessInfo.NO_DELETION_TIME);
+    protected final MinMaxIntTracker ttlTracker = new MinMaxIntTracker(LivenessInfo.NO_TTL, LivenessInfo.NO_TTL);
     protected double compressionRatio = NO_COMPRESSION_RATIO;
     protected Set<Integer> ancestors = new HashSet<>();
     protected StreamingHistogram estimatedTombstoneDropTime = defaultTombstoneDropTimeHistogram();
     protected int sstableLevel;
-    protected List<ByteBuffer> minColumnNames = Collections.emptyList();
-    protected List<ByteBuffer> maxColumnNames = Collections.emptyList();
+    protected ByteBuffer[] minClusteringValues;
+    protected ByteBuffer[] maxClusteringValues;
     protected boolean hasLegacyCounterShards = false;
+    protected long totalColumnsSet;
+    protected long totalRows;
 
     /**
      * Default cardinality estimation method is to use HyperLogLog++.
@@ -102,16 +108,19 @@ public class MetadataCollector
      * See CASSANDRA-5906 for detail.
      */
     protected ICardinality cardinality = new HyperLogLogPlus(13, 25);
-    private final CellNameType columnNameComparator;
+    private final ClusteringComparator comparator;
 
-    public MetadataCollector(CellNameType columnNameComparator)
+    public MetadataCollector(ClusteringComparator comparator)
     {
-        this.columnNameComparator = columnNameComparator;
+        this.comparator = comparator;
+
+        this.minClusteringValues = new ByteBuffer[comparator.size()];
+        this.maxClusteringValues = new ByteBuffer[comparator.size()];
     }
 
-    public MetadataCollector(Iterable<SSTableReader> sstables, CellNameType columnNameComparator, int level, boolean skipAncestors)
+    public MetadataCollector(Iterable<SSTableReader> sstables, ClusteringComparator comparator, int level, boolean skipAncestors)
     {
-        this(columnNameComparator);
+        this(comparator);
 
         replayPosition(ReplayPosition.getReplayPosition(sstables));
         sstableLevel(level);
@@ -129,9 +138,9 @@ public class MetadataCollector
         }
     }
 
-    public MetadataCollector(Iterable<SSTableReader> sstables, CellNameType columnNameComparator, int level)
+    public MetadataCollector(Iterable<SSTableReader> sstables, ClusteringComparator comparator, int level)
     {
-        this(sstables, columnNameComparator, level, false);
+        this(sstables, comparator, level, false);
     }
 
     public MetadataCollector addKey(ByteBuffer key)
@@ -141,15 +150,15 @@ public class MetadataCollector
         return this;
     }
 
-    public MetadataCollector addRowSize(long rowSize)
+    public MetadataCollector addPartitionSizeInBytes(long partitionSize)
     {
-        estimatedRowSize.add(rowSize);
+        estimatedPartitionSize.add(partitionSize);
         return this;
     }
 
-    public MetadataCollector addColumnCount(long columnCount)
+    public MetadataCollector addCellPerPartitionCount(long cellCount)
     {
-        estimatedColumnCount.add(columnCount);
+        estimatedCellPerPartitionCount.add(cellCount);
         return this;
     }
 
@@ -169,34 +178,50 @@ public class MetadataCollector
         return this;
     }
 
-    public MetadataCollector updateMinTimestamp(long potentialMin)
+    public MetadataCollector update(LivenessInfo newInfo)
     {
-        minTimestamp = Math.min(minTimestamp, potentialMin);
+        // If the info doesn't have a timestamp, this means the info is basically irrelevant (it's a row
+        // update whose only info we care are the cells info basically).
+        if (newInfo.hasTimestamp())
+        {
+            updateTimestamp(newInfo.timestamp());
+            updateTTL(newInfo.ttl());
+            updateLocalDeletionTime(newInfo.localDeletionTime());
+        }
         return this;
     }
 
-    public MetadataCollector updateMaxTimestamp(long potentialMax)
+    public MetadataCollector update(DeletionTime dt)
     {
-        maxTimestamp = Math.max(maxTimestamp, potentialMax);
+        if (!dt.isLive())
+        {
+            updateTimestamp(dt.markedForDeleteAt());
+            updateLocalDeletionTime(dt.localDeletionTime());
+        }
         return this;
     }
 
-    public MetadataCollector updateMaxLocalDeletionTime(int maxLocalDeletionTime)
+    public MetadataCollector updateColumnSetPerRow(long columnSetInRow)
     {
-        this.maxLocalDeletionTime = Math.max(this.maxLocalDeletionTime, maxLocalDeletionTime);
+        totalColumnsSet += columnSetInRow;
+        ++totalRows;
         return this;
     }
 
-    public MetadataCollector estimatedRowSize(EstimatedHistogram estimatedRowSize)
+    private void updateTimestamp(long newTimestamp)
     {
-        this.estimatedRowSize = estimatedRowSize;
-        return this;
+        timestampTracker.update(newTimestamp);
     }
 
-    public MetadataCollector estimatedColumnCount(EstimatedHistogram estimatedColumnCount)
+    private void updateLocalDeletionTime(int newLocalDeletionTime)
     {
-        this.estimatedColumnCount = estimatedColumnCount;
-        return this;
+        localDeletionTimeTracker.update(newLocalDeletionTime);
+        estimatedTombstoneDropTime.update(newLocalDeletionTime);
+    }
+
+    private void updateTTL(int newTTL)
+    {
+        ttlTracker.update(newTTL);
     }
 
     public MetadataCollector replayPosition(ReplayPosition replayPosition)
@@ -217,18 +242,41 @@ public class MetadataCollector
         return this;
     }
 
-    public MetadataCollector updateMinColumnNames(List<ByteBuffer> minColumnNames)
+    public MetadataCollector updateClusteringValues(ClusteringPrefix clustering)
     {
-        if (minColumnNames.size() > 0)
-            this.minColumnNames = ColumnNameHelper.mergeMin(this.minColumnNames, minColumnNames, columnNameComparator);
+        int size = clustering.size();
+        for (int i = 0; i < size; i++)
+        {
+            AbstractType<?> type = comparator.subtype(i);
+            ByteBuffer newValue = clustering.get(i);
+            minClusteringValues[i] = min(minClusteringValues[i], newValue, type);
+            maxClusteringValues[i] = max(maxClusteringValues[i], newValue, type);
+        }
         return this;
     }
 
-    public MetadataCollector updateMaxColumnNames(List<ByteBuffer> maxColumnNames)
+    private static ByteBuffer min(ByteBuffer b1, ByteBuffer b2, AbstractType<?> comparator)
     {
-        if (maxColumnNames.size() > 0)
-            this.maxColumnNames = ColumnNameHelper.mergeMax(this.maxColumnNames, maxColumnNames, columnNameComparator);
-        return this;
+        if (b1 == null)
+            return b2;
+        if (b2 == null)
+            return b1;
+
+        if (comparator.compare(b1, b2) >= 0)
+            return b2;
+        return b1;
+    }
+
+    private static ByteBuffer max(ByteBuffer b1, ByteBuffer b2, AbstractType<?> comparator)
+    {
+        if (b1 == null)
+            return b2;
+        if (b2 == null)
+            return b1;
+
+        if (comparator.compare(b1, b2) >= 0)
+            return b1;
+        return b2;
     }
 
     public MetadataCollector updateHasLegacyCounterShards(boolean hasLegacyCounterShards)
@@ -237,38 +285,136 @@ public class MetadataCollector
         return this;
     }
 
-    public MetadataCollector update(long rowSize, ColumnStats stats)
-    {
-        updateMinTimestamp(stats.minTimestamp);
-        updateMaxTimestamp(stats.maxTimestamp);
-        updateMaxLocalDeletionTime(stats.maxLocalDeletionTime);
-        addRowSize(rowSize);
-        addColumnCount(stats.columnCount);
-        mergeTombstoneHistogram(stats.tombstoneHistogram);
-        updateMinColumnNames(stats.minColumnNames);
-        updateMaxColumnNames(stats.maxColumnNames);
-        updateHasLegacyCounterShards(stats.hasLegacyCounterShards);
-        return this;
-    }
-
-    public Map<MetadataType, MetadataComponent> finalizeMetadata(String partitioner, double bloomFilterFPChance, long repairedAt)
+    public Map<MetadataType, MetadataComponent> finalizeMetadata(String partitioner, double bloomFilterFPChance, long repairedAt, SerializationHeader header)
     {
         Map<MetadataType, MetadataComponent> components = Maps.newHashMap();
         components.put(MetadataType.VALIDATION, new ValidationMetadata(partitioner, bloomFilterFPChance));
-        components.put(MetadataType.STATS, new StatsMetadata(estimatedRowSize,
-                                                             estimatedColumnCount,
+        components.put(MetadataType.STATS, new StatsMetadata(estimatedPartitionSize,
+                                                             estimatedCellPerPartitionCount,
                                                              replayPosition,
-                                                             minTimestamp,
-                                                             maxTimestamp,
-                                                             maxLocalDeletionTime,
+                                                             timestampTracker.min(),
+                                                             timestampTracker.max(),
+                                                             localDeletionTimeTracker.min(),
+                                                             localDeletionTimeTracker.max(),
+                                                             ttlTracker.min(),
+                                                             ttlTracker.max(),
                                                              compressionRatio,
                                                              estimatedTombstoneDropTime,
                                                              sstableLevel,
-                                                             ImmutableList.copyOf(minColumnNames),
-                                                             ImmutableList.copyOf(maxColumnNames),
+                                                             makeList(minClusteringValues),
+                                                             makeList(maxClusteringValues),
                                                              hasLegacyCounterShards,
-                                                             repairedAt));
+                                                             repairedAt,
+                                                             totalColumnsSet,
+                                                             totalRows));
         components.put(MetadataType.COMPACTION, new CompactionMetadata(ancestors, cardinality));
+        components.put(MetadataType.HEADER, header.toComponent());
         return components;
+    }
+
+    private static List<ByteBuffer> makeList(ByteBuffer[] values)
+    {
+        // In most case, l will be the same size than values, but it's possible for it to be smaller
+        List<ByteBuffer> l = new ArrayList<ByteBuffer>(values.length);
+        for (int i = 0; i < values.length; i++)
+            if (values[i] == null)
+                break;
+            else
+                l.add(values[i]);
+        return l;
+    }
+
+    public static class MinMaxLongTracker
+    {
+        private final long defaultMin;
+        private final long defaultMax;
+
+        private boolean isSet = false;
+        private long min;
+        private long max;
+
+        public MinMaxLongTracker()
+        {
+            this(Long.MIN_VALUE, Long.MAX_VALUE);
+        }
+
+        public MinMaxLongTracker(long defaultMin, long defaultMax)
+        {
+            this.defaultMin = defaultMin;
+            this.defaultMax = defaultMax;
+        }
+
+        public void update(long value)
+        {
+            if (!isSet)
+            {
+                min = max = value;
+                isSet = true;
+            }
+            else
+            {
+                if (value < min)
+                    min = value;
+                if (value > max)
+                    max = value;
+            }
+        }
+
+        public long min()
+        {
+            return isSet ? min : defaultMin;
+        }
+
+        public long max()
+        {
+            return isSet ? max : defaultMax;
+        }
+    }
+
+    public static class MinMaxIntTracker
+    {
+        private final int defaultMin;
+        private final int defaultMax;
+
+        private boolean isSet = false;
+        private int min;
+        private int max;
+
+        public MinMaxIntTracker()
+        {
+            this(Integer.MIN_VALUE, Integer.MAX_VALUE);
+        }
+
+        public MinMaxIntTracker(int defaultMin, int defaultMax)
+        {
+            this.defaultMin = defaultMin;
+            this.defaultMax = defaultMax;
+        }
+
+        public void update(int value)
+        {
+            if (!isSet)
+            {
+                min = max = value;
+                isSet = true;
+            }
+            else
+            {
+                if (value < min)
+                    min = value;
+                if (value > max)
+                    max = value;
+            }
+        }
+
+        public int min()
+        {
+            return isSet ? min : defaultMin;
+        }
+
+        public int max()
+        {
+            return isSet ? max : defaultMax;
+        }
     }
 }

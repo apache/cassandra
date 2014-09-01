@@ -22,7 +22,7 @@ import java.nio.ByteBuffer;
 import org.apache.cassandra.cql3.ColumnSpecification;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.statements.Bound;
-import org.apache.cassandra.db.composites.CompositesBuilder;
+import org.apache.cassandra.db.MultiCBuilder;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkBindValueSet;
@@ -77,7 +77,7 @@ abstract class AbstractRestriction  implements Restriction
     }
 
     @Override
-    public CompositesBuilder appendBoundTo(CompositesBuilder builder, Bound bound, QueryOptions options)
+    public MultiCBuilder appendBoundTo(MultiCBuilder builder, Bound bound, QueryOptions options)
     {
         return appendTo(builder, options);
     }
@@ -86,15 +86,5 @@ abstract class AbstractRestriction  implements Restriction
     public boolean isInclusive(Bound b)
     {
         return true;
-    }
-
-    protected static ByteBuffer validateIndexedValue(ColumnSpecification columnSpec,
-                                                     ByteBuffer value)
-                                                     throws InvalidRequestException
-    {
-        checkNotNull(value, "Unsupported null value for indexed column %s", columnSpec.name);
-        checkBindValueSet(value, "Unsupported unset value for indexed column %s", columnSpec.name);
-        checkFalse(value.remaining() > 0xFFFF, "Index expression values may not be larger than 64K");
-        return value;
     }
 }

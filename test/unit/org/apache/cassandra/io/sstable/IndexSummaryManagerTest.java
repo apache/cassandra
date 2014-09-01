@@ -15,21 +15,29 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package org.apache.cassandra.io.sstable;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.*;
-import java.util.concurrent.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 import org.junit.runner.RunWith;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -39,14 +47,20 @@ import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.cache.CachingOptions;
 import org.apache.cassandra.config.KSMetaData;
-import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.db.RowUpdateBuilder;
+import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.compaction.OperationType;
-import org.apache.cassandra.db.filter.QueryFilter;
+import org.apache.cassandra.db.partitions.ArrayBackedPartition;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.locator.SimpleStrategy;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.metrics.RestorableMeter;
+import org.apache.cassandra.utils.ByteBufferUtil;
 
 import static com.google.common.collect.ImmutableMap.of;
 import static java.util.Arrays.asList;
@@ -58,6 +72,8 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.assertFalse;
+
 
 @RunWith(OrderedJUnit4ClassRunner.class)
 public class IndexSummaryManagerTest
@@ -88,7 +104,7 @@ public class IndexSummaryManagerTest
                                                 .minIndexInterval(8)
                                                 .maxIndexInterval(256)
                                                 .caching(CachingOptions.NONE)
-                                    );
+        );
     }
 
     @Before
@@ -138,17 +154,15 @@ public class IndexSummaryManagerTest
         return sstables;
     }
 
-    private void validateData(ColumnFamilyStore cfs, int numRows)
+    private void validateData(ColumnFamilyStore cfs, int numPartition)
     {
-        for (int i = 0; i < numRows; i++)
+        for (int i = 0; i < numPartition; i++)
         {
-            DecoratedKey key = Util.dk(String.format("%3d", i));
-            QueryFilter filter = QueryFilter.getIdentityFilter(key, cfs.getColumnFamilyName(), System.currentTimeMillis());
-            ColumnFamily row = cfs.getColumnFamily(filter);
-            assertNotNull(row);
-            Cell cell = row.getColumn(Util.cellname("column"));
+            Row row = Util.getOnlyRowUnfiltered(Util.cmd(cfs, String.format("%3d", i)).build());
+            Cell cell = row.getCell(cfs.metadata.getColumnDefinition(ByteBufferUtil.bytes("val")));
             assertNotNull(cell);
             assertEquals(100, cell.value().array().length);
+
         }
     }
 
@@ -160,7 +174,7 @@ public class IndexSummaryManagerTest
         }
     };
 
-    private void createSSTables(String ksname, String cfname, int numSSTables, int numRows)
+    private void createSSTables(String ksname, String cfname, int numSSTables, int numPartition)
     {
         Keyspace keyspace = Keyspace.open(ksname);
         ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(cfname);
@@ -171,12 +185,15 @@ public class IndexSummaryManagerTest
         ByteBuffer value = ByteBuffer.wrap(new byte[100]);
         for (int sstable = 0; sstable < numSSTables; sstable++)
         {
-            for (int row = 0; row < numRows; row++)
+            for (int p = 0; p < numPartition; p++)
             {
-                DecoratedKey key = Util.dk(String.format("%3d", row));
-                Mutation rm = new Mutation(ksname, key.getKey());
-                rm.add(cfname, Util.cellname("column"), value, 0);
-                rm.applyUnsafe();
+
+                String key = String.format("%3d", p);
+                new RowUpdateBuilder(cfs.metadata, 0, key)
+                    .clustering("column")
+                    .add("val", value)
+                    .build()
+                    .applyUnsafe();
             }
             futures.add(cfs.forceFlush());
         }
@@ -191,7 +208,7 @@ public class IndexSummaryManagerTest
             }
         }
         assertEquals(numSSTables, cfs.getSSTables().size());
-        validateData(cfs, numRows);
+        validateData(cfs, numPartition);
     }
 
     @Test
@@ -494,11 +511,14 @@ public class IndexSummaryManagerTest
         int numRows = 256;
         for (int row = 0; row < numRows; row++)
         {
-            DecoratedKey key = Util.dk(String.valueOf(row));
-            Mutation rm = new Mutation(ksname, key.getKey());
-            rm.add(cfname, Util.cellname("column"), value, 0);
-            rm.applyUnsafe();
+            String key = String.format("%3d", row);
+            new RowUpdateBuilder(cfs.metadata, 0, key)
+            .clustering("column")
+            .add("val", value)
+            .build()
+            .applyUnsafe();
         }
+
         cfs.forceBlockingFlush();
 
         List<SSTableReader> sstables = new ArrayList<>(cfs.getSSTables());
@@ -557,10 +577,12 @@ public class IndexSummaryManagerTest
         {
             for (int row = 0; row < numRows; row++)
             {
-                DecoratedKey key = Util.dk(String.valueOf(row));
-                Mutation rm = new Mutation(ksname, key.getKey());
-                rm.add(cfname, Util.cellname("column"), value, 0);
-                rm.applyUnsafe();
+                String key = String.format("%3d", row);
+                new RowUpdateBuilder(cfs.metadata, 0, key)
+                .clustering("column")
+                .add("val", value)
+                .build()
+                .applyUnsafe();
             }
             cfs.forceBlockingFlush();
         }

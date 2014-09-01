@@ -31,6 +31,9 @@ import org.apache.cassandra.serializers.BytesSerializer;
 import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
+/*
+ * This class is deprecated and only kept for backward compatibility.
+ */
 public class ColumnToCollectionType extends AbstractType<ByteBuffer>
 {
     // interning instances

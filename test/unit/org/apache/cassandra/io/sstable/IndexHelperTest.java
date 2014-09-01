@@ -19,33 +19,42 @@
 package org.apache.cassandra.io.sstable;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
-
-import static org.junit.Assert.*;
 
 import org.junit.Test;
 
 import org.apache.cassandra.Util;
-import org.apache.cassandra.db.composites.*;
+import org.apache.cassandra.db.ClusteringComparator;
+import org.apache.cassandra.db.ClusteringPrefix;
+import org.apache.cassandra.db.SimpleDeletionTime;
+import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.IntegerType;
+import org.apache.cassandra.db.marshal.LongType;
+import org.apache.cassandra.utils.FBUtilities;
+
 import static org.apache.cassandra.io.sstable.IndexHelper.IndexInfo;
+import static org.junit.Assert.assertEquals;
 
 public class IndexHelperTest
 {
-    private static CellName cn(long l)
+
+    private static ClusteringComparator comp = new ClusteringComparator(Collections.<AbstractType<?>>singletonList(LongType.instance));
+    private static ClusteringPrefix cn(long l)
     {
-        return Util.cellname(l);
+        return Util.clustering(comp, l);
     }
 
     @Test
     public void testIndexHelper()
     {
-        List<IndexInfo> indexes = new ArrayList<IndexInfo>();
-        indexes.add(new IndexInfo(cn(0L), cn(5L), 0, 0));
-        indexes.add(new IndexInfo(cn(10L), cn(15L), 0, 0));
-        indexes.add(new IndexInfo(cn(20L), cn(25L), 0, 0));
+        SimpleDeletionTime deletionInfo = new SimpleDeletionTime(FBUtilities.timestampMicros(), FBUtilities.nowInSeconds());
 
-        CellNameType comp = new SimpleDenseCellNameType(IntegerType.instance);
+        List<IndexInfo> indexes = new ArrayList<>();
+        indexes.add(new IndexInfo(cn(0L), cn(5L), 0, 0, deletionInfo));
+        indexes.add(new IndexInfo(cn(10L), cn(15L), 0, 0, deletionInfo));
+        indexes.add(new IndexInfo(cn(20L), cn(25L), 0, 0, deletionInfo));
+
 
         assertEquals(0, IndexHelper.indexFor(cn(-1L), indexes, comp, false, -1));
         assertEquals(0, IndexHelper.indexFor(cn(5L), indexes, comp, false, -1));
@@ -55,16 +64,17 @@ public class IndexHelperTest
         assertEquals(3, IndexHelper.indexFor(cn(100L), indexes, comp, false, 0));
         assertEquals(3, IndexHelper.indexFor(cn(100L), indexes, comp, false, 1));
         assertEquals(3, IndexHelper.indexFor(cn(100L), indexes, comp, false, 2));
-        assertEquals(-1, IndexHelper.indexFor(cn(100L), indexes, comp, false, 3));
+        assertEquals(3, IndexHelper.indexFor(cn(100L), indexes, comp, false, 3));
 
         assertEquals(-1, IndexHelper.indexFor(cn(-1L), indexes, comp, true, -1));
-        assertEquals(0, IndexHelper.indexFor(cn(5L), indexes, comp, true, -1));
-        assertEquals(1, IndexHelper.indexFor(cn(17L), indexes, comp, true, -1));
-        assertEquals(2, IndexHelper.indexFor(cn(100L), indexes, comp, true, -1));
-        assertEquals(0, IndexHelper.indexFor(cn(100L), indexes, comp, true, 0));
-        assertEquals(1, IndexHelper.indexFor(cn(12L), indexes, comp, true, -1));
+        assertEquals(0, IndexHelper.indexFor(cn(5L), indexes, comp, true, 3));
+        assertEquals(0, IndexHelper.indexFor(cn(5L), indexes, comp, true, 2));
+        assertEquals(1, IndexHelper.indexFor(cn(17L), indexes, comp, true, 3));
+        assertEquals(2, IndexHelper.indexFor(cn(100L), indexes, comp, true, 3));
+        assertEquals(2, IndexHelper.indexFor(cn(100L), indexes, comp, true, 4));
+        assertEquals(1, IndexHelper.indexFor(cn(12L), indexes, comp, true, 3));
+        assertEquals(1, IndexHelper.indexFor(cn(12L), indexes, comp, true, 2));
         assertEquals(1, IndexHelper.indexFor(cn(100L), indexes, comp, true, 1));
         assertEquals(2, IndexHelper.indexFor(cn(100L), indexes, comp, true, 2));
-        assertEquals(-1, IndexHelper.indexFor(cn(100L), indexes, comp, true, 4));
     }
 }

@@ -31,12 +31,14 @@ public class PagingState
     public final ByteBuffer partitionKey;
     public final ByteBuffer cellName;
     public final int remaining;
+    public final int remainingInPartition;
 
-    public PagingState(ByteBuffer partitionKey, ByteBuffer cellName, int remaining)
+    public PagingState(ByteBuffer partitionKey, ByteBuffer cellName, int remaining, int remainingInPartition)
     {
         this.partitionKey = partitionKey == null ? ByteBufferUtil.EMPTY_BYTE_BUFFER : partitionKey;
         this.cellName = cellName == null ? ByteBufferUtil.EMPTY_BYTE_BUFFER : cellName;
         this.remaining = remaining;
+        this.remainingInPartition = remainingInPartition;
     }
 
     public static PagingState deserialize(ByteBuffer bytes)
@@ -50,7 +52,12 @@ public class PagingState
             ByteBuffer pk = ByteBufferUtil.readWithShortLength(in);
             ByteBuffer cn = ByteBufferUtil.readWithShortLength(in);
             int remaining = in.readInt();
-            return new PagingState(pk, cn, remaining);
+            // Note that while 'in.available()' is theoretically an estimate of how many bytes are available
+            // without blocking, we know that since we're reading a ByteBuffer it will be exactly how many
+            // bytes remain to be read. And the reason we want to condition this is for backward compatility
+            // as we used to not set this.
+            int remainingInPartition = in.available() > 0 ? in.readInt() : Integer.MAX_VALUE;
+            return new PagingState(pk, cn, remaining, remainingInPartition);
         }
         catch (IOException e)
         {
@@ -65,6 +72,7 @@ public class PagingState
             ByteBufferUtil.writeWithShortLength(partitionKey, out);
             ByteBufferUtil.writeWithShortLength(cellName, out);
             out.writeInt(remaining);
+            out.writeInt(remainingInPartition);
             return out.buffer();
         }
         catch (IOException e)
@@ -77,12 +85,16 @@ public class PagingState
     {
         return 2 + partitionKey.remaining()
              + 2 + cellName.remaining()
-             + 4;
+             + 8; // remaining & remainingInPartition
     }
 
     @Override
     public String toString()
     {
-        return String.format("PagingState(key=%s, cellname=%s, remaining=%d", ByteBufferUtil.bytesToHex(partitionKey), ByteBufferUtil.bytesToHex(cellName), remaining);
+        return String.format("PagingState(key=%s, cellname=%s, remaining=%d, remainingInPartition=%d",
+                             ByteBufferUtil.bytesToHex(partitionKey),
+                             ByteBufferUtil.bytesToHex(cellName),
+                             remaining,
+                             remainingInPartition);
     }
 }

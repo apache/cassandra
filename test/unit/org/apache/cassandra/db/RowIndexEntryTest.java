@@ -17,63 +17,58 @@
  */
 package org.apache.cassandra.db;
 
-import java.io.IOException;
-import java.util.Collections;
+import java.io.File;
 
-import junit.framework.Assert;
-import org.apache.cassandra.SchemaLoader;
+import org.apache.cassandra.Util;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.config.KSMetaData;
-import org.apache.cassandra.config.Schema;
-import org.apache.cassandra.db.composites.CellNames;
-import org.apache.cassandra.db.composites.SimpleDenseCellNameType;
-import org.apache.cassandra.db.marshal.UTF8Type;
+import org.apache.cassandra.cql3.CQLTester;
+import org.apache.cassandra.db.rows.UnfilteredRowIterator;
+import org.apache.cassandra.db.rows.RowStats;
+import org.apache.cassandra.db.partitions.*;
 import org.apache.cassandra.io.sstable.IndexHelper;
+import org.apache.cassandra.io.sstable.format.big.BigFormat;
 import org.apache.cassandra.io.util.DataOutputBuffer;
-import org.apache.cassandra.locator.SimpleStrategy;
-import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.io.util.SequentialWriter;
 import org.junit.Test;
 
-public class RowIndexEntryTest extends SchemaLoader
+import static junit.framework.Assert.assertEquals;
+import static junit.framework.Assert.assertTrue;
+
+public class RowIndexEntryTest extends CQLTester
 {
     @Test
-    public void testSerializedSize() throws IOException
+    public void testSerializedSize() throws Throwable
     {
-        final RowIndexEntry<IndexHelper.IndexInfo> simple = new RowIndexEntry<>(123);
+        String tableName = createTable("CREATE TABLE %s (a int, b text, c int, PRIMARY KEY(a, b))");
+        ColumnFamilyStore cfs = Keyspace.open(KEYSPACE).getColumnFamilyStore(tableName);
+
+        final RowIndexEntry simple = new RowIndexEntry(123);
 
         DataOutputBuffer buffer = new DataOutputBuffer();
-        RowIndexEntry.Serializer serializer = new RowIndexEntry.Serializer(new IndexHelper.IndexInfo.Serializer(new SimpleDenseCellNameType(UTF8Type.instance)));
+        SerializationHeader header = new SerializationHeader(cfs.metadata, cfs.metadata.partitionColumns(), RowStats.NO_STATS);
+        RowIndexEntry.Serializer serializer = new RowIndexEntry.Serializer(cfs.metadata, BigFormat.latestVersion, header);
 
         serializer.serialize(simple, buffer);
 
-        Assert.assertEquals(buffer.getLength(), serializer.serializedSize(simple));
+        assertEquals(buffer.getLength(), serializer.serializedSize(simple));
+
+        // write enough rows to ensure we get a few column index entries
+        for (int i = 0; i <= DatabaseDescriptor.getColumnIndexSize() / 4; i++)
+            execute("INSERT INTO %s (a, b, c) VALUES (?, ?, ?)", 0, "" + i, i);
 
         buffer = new DataOutputBuffer();
-        Schema.instance.setKeyspaceDefinition(KSMetaData.newKeyspace("Keyspace1",
-                                                                     SimpleStrategy.class,
-                                                                     Collections.<String,String>emptyMap(),
-                                                                     false,
-                                                                     Collections.singleton(standardCFMD("Keyspace1", "Standard1"))));
-        ColumnFamily cf = ArrayBackedSortedColumns.factory.create("Keyspace1", "Standard1");
-        ColumnIndex columnIndex = new ColumnIndex.Builder(cf, ByteBufferUtil.bytes("a"), new DataOutputBuffer())
-        {{
-            int idx = 0, size = 0;
-            Cell column;
-            do
-            {
-                column = new BufferCell(CellNames.simpleDense(ByteBufferUtil.bytes("c" + idx++)), ByteBufferUtil.bytes("v"), FBUtilities.timestampMicros());
-                size += column.serializedSize(new SimpleDenseCellNameType(UTF8Type.instance), TypeSizes.NATIVE);
+        ArrayBackedPartition partition = Util.getOnlyPartitionUnfiltered(Util.cmd(cfs).build());
 
-                add(column);
-            }
-            while (size < DatabaseDescriptor.getColumnIndexSize() * 3);
-
-        }}.build();
-
+        File tempFile = File.createTempFile("row_index_entry_test", null);
+        tempFile.deleteOnExit();
+        SequentialWriter writer = SequentialWriter.open(tempFile);
+        ColumnIndex columnIndex = ColumnIndex.writeAndBuildIndex(partition.unfilteredIterator(), writer, header, BigFormat.latestVersion);
         RowIndexEntry<IndexHelper.IndexInfo> withIndex = RowIndexEntry.create(0xdeadbeef, DeletionTime.LIVE, columnIndex);
 
+        // sanity check
+        assertTrue(columnIndex.columnsIndex.size() >= 3);
+
         serializer.serialize(withIndex, buffer);
-        Assert.assertEquals(buffer.getLength(), serializer.serializedSize(withIndex));
+        assertEquals(buffer.getLength(), serializer.serializedSize(withIndex));
     }
 }

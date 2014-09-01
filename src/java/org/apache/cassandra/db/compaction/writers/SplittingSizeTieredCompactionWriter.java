@@ -26,7 +26,8 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.RowIndexEntry;
-import org.apache.cassandra.db.compaction.AbstractCompactedRow;
+import org.apache.cassandra.db.SerializationHeader;
+import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.io.sstable.Descriptor;
@@ -90,16 +91,17 @@ public class SplittingSizeTieredCompactionWriter extends CompactionAwareWriter
                                                                             minRepairedAt,
                                                                             cfs.metadata,
                                                                             cfs.partitioner,
-                                                                            new MetadataCollector(allSSTables, cfs.metadata.comparator, 0));
+                                                                            new MetadataCollector(allSSTables, cfs.metadata.comparator, 0),
+                                                                            SerializationHeader.make(cfs.metadata, nonExpiredSSTables));
 
         sstableWriter.switchWriter(writer);
         logger.debug("Ratios={}, expectedKeys = {}, totalSize = {}, currentPartitionsToWrite = {}, currentBytesToWrite = {}", ratios, estimatedTotalKeys, totalSize, currentPartitionsToWrite, currentBytesToWrite);
     }
 
     @Override
-    public boolean append(AbstractCompactedRow row)
+    public boolean append(UnfilteredRowIterator partition)
     {
-        RowIndexEntry rie = sstableWriter.append(row);
+        RowIndexEntry rie = sstableWriter.append(partition);
         if (sstableWriter.currentWriter().getOnDiskFilePointer() > currentBytesToWrite && currentRatioIndex < ratios.length - 1) // if we underestimate how many keys we have, the last sstable might get more than we expect
         {
             currentRatioIndex++;
@@ -112,7 +114,8 @@ public class SplittingSizeTieredCompactionWriter extends CompactionAwareWriter
                                                                                 minRepairedAt,
                                                                                 cfs.metadata,
                                                                                 cfs.partitioner,
-                                                                                new MetadataCollector(allSSTables, cfs.metadata.comparator, 0));
+                                                                                new MetadataCollector(allSSTables, cfs.metadata.comparator, 0),
+                                                                                SerializationHeader.make(cfs.metadata, nonExpiredSSTables));
             sstableWriter.switchWriter(writer);
             logger.debug("Switching writer, currentPartitionsToWrite = {}", currentPartitionsToWrite);
         }

@@ -339,11 +339,11 @@ public class CompactionStrategyManager implements INotificationConsumer
      * @param range
      * @return
      */
+    @SuppressWarnings("resource")
     public synchronized AbstractCompactionStrategy.ScannerList getScanners(Collection<SSTableReader> sstables, Range<Token> range)
     {
         List<SSTableReader> repairedSSTables = new ArrayList<>();
         List<SSTableReader> unrepairedSSTables = new ArrayList<>();
-
         for (SSTableReader sstable : sstables)
         {
             if (sstable.isRepaired())
@@ -352,24 +352,24 @@ public class CompactionStrategyManager implements INotificationConsumer
                 unrepairedSSTables.add(sstable);
         }
 
-        List<ISSTableScanner> scanners = new ArrayList<>();
 
-        if (!repairedSSTables.isEmpty())
-            scanners.addAll(repaired.getScanners(repairedSSTables, range).scanners);
-        if (!unrepairedSSTables.isEmpty())
-            scanners.addAll(unrepaired.getScanners(unrepairedSSTables, range).scanners);
+        AbstractCompactionStrategy.ScannerList repairedScanners = repaired.getScanners(repairedSSTables, range);
+        AbstractCompactionStrategy.ScannerList unrepairedScanners = unrepaired.getScanners(unrepairedSSTables, range);
 
+        List<ISSTableScanner> scanners = new ArrayList<>(repairedScanners.scanners.size() + unrepairedScanners.scanners.size());
+        scanners.addAll(repairedScanners.scanners);
+        scanners.addAll(unrepairedScanners.scanners);
         return new AbstractCompactionStrategy.ScannerList(scanners);
-    }
-
-    public Collection<Collection<SSTableReader>> groupSSTablesForAntiCompaction(Collection<SSTableReader> sstablesToGroup)
-    {
-        return unrepaired.groupSSTablesForAntiCompaction(sstablesToGroup);
     }
 
     public synchronized AbstractCompactionStrategy.ScannerList getScanners(Collection<SSTableReader> sstables)
     {
         return getScanners(sstables, null);
+    }
+
+    public Collection<Collection<SSTableReader>> groupSSTablesForAntiCompaction(Collection<SSTableReader> sstablesToGroup)
+    {
+        return unrepaired.groupSSTablesForAntiCompaction(sstablesToGroup);
     }
 
     public long getMaxSSTableBytes()

@@ -1,4 +1,4 @@
-/**
+/*
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -27,7 +27,6 @@ import java.util.Map;
 import java.util.Random;
 import java.util.UUID;
 
-import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -37,6 +36,7 @@ import org.junit.runner.RunWith;
 import org.apache.cassandra.OrderedJUnit4ClassRunner;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
+import org.apache.cassandra.UpdateBuilder;
 import org.apache.cassandra.config.KSMetaData;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
@@ -46,6 +46,7 @@ import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.sstable.ISSTableScanner;
+import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.locator.SimpleStrategy;
 import org.apache.cassandra.notifications.SSTableAddedNotification;
 import org.apache.cassandra.notifications.SSTableRepairStatusChanged;
@@ -114,13 +115,10 @@ public class LeveledCompactionStrategyTest
         // Adds enough data to trigger multiple sstable per level
         for (int r = 0; r < rows; r++)
         {
-            DecoratedKey key = Util.dk(String.valueOf(r));
-            Mutation rm = new Mutation(KEYSPACE1, key.getKey());
+            UpdateBuilder update = UpdateBuilder.create(cfs.metadata, String.valueOf(r));
             for (int c = 0; c < columns; c++)
-            {
-                rm.add(CF_STANDARDDLEVELED, Util.cellname("column" + c), value, 0);
-            }
-            rm.apply();
+                update.newRow("column" + c).add("val", value);
+            update.applyUnsafe();
             cfs.forceBlockingFlush();
         }
 
@@ -165,13 +163,10 @@ public class LeveledCompactionStrategyTest
         // Adds enough data to trigger multiple sstable per level
         for (int r = 0; r < rows; r++)
         {
-            DecoratedKey key = Util.dk(String.valueOf(r));
-            Mutation rm = new Mutation(KEYSPACE1, key.getKey());
+            UpdateBuilder update = UpdateBuilder.create(cfs.metadata, String.valueOf(r));
             for (int c = 0; c < columns; c++)
-            {
-                rm.add(CF_STANDARDDLEVELED, Util.cellname("column" + c), value, 0);
-            }
-            rm.applyUnsafe();
+                update.newRow("column" + c).add("val", value);
+            update.applyUnsafe();
             cfs.forceBlockingFlush();
         }
 
@@ -182,7 +177,7 @@ public class LeveledCompactionStrategyTest
         assertTrue(strategy.getSSTableCountPerLevel()[2] > 0);
 
         Range<Token> range = new Range<>(Util.token(""), Util.token(""));
-        int gcBefore = keyspace.getColumnFamilyStore(CF_STANDARDDLEVELED).gcBefore(System.currentTimeMillis());
+        int gcBefore = keyspace.getColumnFamilyStore(CF_STANDARDDLEVELED).gcBefore(FBUtilities.nowInSeconds());
         UUID parentRepSession = UUID.randomUUID();
         ActiveRepairService.instance.registerParentRepairSession(parentRepSession, Arrays.asList(cfs), Arrays.asList(range), false);
         RepairJobDesc desc = new RepairJobDesc(parentRepSession, UUID.randomUUID(), KEYSPACE1, CF_STANDARDDLEVELED, range);
@@ -212,13 +207,10 @@ public class LeveledCompactionStrategyTest
         int columns = 10;
         for (int r = 0; r < rows; r++)
         {
-            DecoratedKey key = Util.dk(String.valueOf(r));
-            Mutation rm = new Mutation(KEYSPACE1, key.getKey());
+            UpdateBuilder update = UpdateBuilder.create(cfs.metadata, String.valueOf(r));
             for (int c = 0; c < columns; c++)
-            {
-                rm.add(CF_STANDARDDLEVELED, Util.cellname("column" + c), value, 0);
-            }
-            rm.applyUnsafe();
+                update.newRow("column" + c).add("val", value);
+            update.applyUnsafe();
             cfs.forceBlockingFlush();
         }
 
@@ -251,13 +243,10 @@ public class LeveledCompactionStrategyTest
         // Adds enough data to trigger multiple sstable per level
         for (int r = 0; r < rows; r++)
         {
-            DecoratedKey key = Util.dk(String.valueOf(r));
-            Mutation rm = new Mutation(KEYSPACE1, key.getKey());
+            UpdateBuilder update = UpdateBuilder.create(cfs.metadata, String.valueOf(r));
             for (int c = 0; c < columns; c++)
-            {
-                rm.add(CF_STANDARDDLEVELED, Util.cellname("column" + c), value, 0);
-            }
-            rm.applyUnsafe();
+                update.newRow("column" + c).add("val", value);
+            update.applyUnsafe();
             cfs.forceBlockingFlush();
         }
         waitForLeveling(cfs);
@@ -299,13 +288,10 @@ public class LeveledCompactionStrategyTest
         // Adds enough data to trigger multiple sstable per level
         for (int r = 0; r < rows; r++)
         {
-            DecoratedKey key = Util.dk(String.valueOf(r));
-            Mutation rm = new Mutation(KEYSPACE1, key.getKey());
+            UpdateBuilder update = UpdateBuilder.create(cfs.metadata, String.valueOf(r));
             for (int c = 0; c < columns; c++)
-            {
-                rm.add(CF_STANDARDDLEVELED, Util.cellname("column" + c), value, 0);
-            }
-            rm.applyUnsafe();
+                update.newRow("column" + c).add("val", value);
+            update.applyUnsafe();
             cfs.forceBlockingFlush();
         }
         waitForLeveling(cfs);

@@ -17,42 +17,45 @@
  */
 package org.apache.cassandra.io.sstable;
 
-import java.io.Closeable;
 import java.io.File;
 import java.io.FilenameFilter;
 import java.io.IOException;
+import java.io.Closeable;
 import java.nio.ByteBuffer;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import com.google.common.base.Throwables;
+
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.*;
-import org.apache.cassandra.db.context.CounterContext;
+import org.apache.cassandra.db.rows.RowStats;
+import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.sstable.format.SSTableWriter;
 import org.apache.cassandra.service.ActiveRepairService;
-import org.apache.cassandra.utils.CounterId;
+import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
 
-public abstract class AbstractSSTableSimpleWriter implements Closeable
+/**
+ * Base class for the sstable writers used by CQLSSTableWriter.
+ */
+abstract class AbstractSSTableSimpleWriter implements Closeable
 {
     protected final File directory;
     protected final CFMetaData metadata;
-    protected DecoratedKey currentKey;
-    protected ColumnFamily columnFamily;
-    protected ByteBuffer currentSuperColumn;
-    protected final CounterId counterid = CounterId.generate();
-    private SSTableFormat.Type formatType = DatabaseDescriptor.getSSTableFormat();
+    protected final PartitionColumns columns;
+    protected SSTableFormat.Type formatType = DatabaseDescriptor.getSSTableFormat();
     protected static AtomicInteger generation = new AtomicInteger(0);
 
-
-    public AbstractSSTableSimpleWriter(File directory, CFMetaData metadata, IPartitioner partitioner)
+    protected AbstractSSTableSimpleWriter(File directory, CFMetaData metadata, IPartitioner partitioner, PartitionColumns columns)
     {
         this.metadata = metadata;
         this.directory = directory;
+        this.columns = columns;
         DatabaseDescriptor.setPartitioner(partitioner);
     }
 
@@ -61,12 +64,15 @@ public abstract class AbstractSSTableSimpleWriter implements Closeable
         this.formatType = type;
     }
 
-    protected SSTableWriter getWriter()
+    protected SSTableWriter createWriter()
     {
-        return SSTableWriter.create(createDescriptor(directory, metadata.ksName, metadata.cfName, formatType), 0, ActiveRepairService.UNREPAIRED_SSTABLE);
+        return SSTableWriter.create(createDescriptor(directory, metadata.ksName, metadata.cfName, formatType),
+                                    0,
+                                    ActiveRepairService.UNREPAIRED_SSTABLE,
+                                    new SerializationHeader(metadata, columns, RowStats.NO_STATS));
     }
 
-    protected static Descriptor createDescriptor(File directory, final String keyspace, final String columnFamily, final SSTableFormat.Type fmt)
+    private static Descriptor createDescriptor(File directory, final String keyspace, final String columnFamily, final SSTableFormat.Type fmt)
     {
         int maxGen = getNextGeneration(directory, columnFamily);
         return new Descriptor(directory, keyspace, columnFamily, maxGen + 1, Descriptor.Type.TEMP, fmt);
@@ -102,108 +108,11 @@ public abstract class AbstractSSTableSimpleWriter implements Closeable
     }
 
     /**
-     * Start a new row whose key is {@code key}.
-     * @param key the row key
+     * Returns a PartitionUpdate suitable to write on this writer for the provided key.
+     *
+     * @param key they partition key for which the returned update will be.
+     * @return an update on partition {@code key} that is tied to this writer.
      */
-    public void newRow(ByteBuffer key) throws IOException
-    {
-        if (currentKey != null && !columnFamily.isEmpty())
-            writeRow(currentKey, columnFamily);
-
-        currentKey = DatabaseDescriptor.getPartitioner().decorateKey(key);
-        columnFamily = getColumnFamily();
-    }
-
-    /**
-     * Start a new super column with name {@code name}.
-     * @param name the name for the super column
-     */
-    public void newSuperColumn(ByteBuffer name)
-    {
-        if (!columnFamily.metadata().isSuper())
-            throw new IllegalStateException("Cannot add a super column to a standard table");
-
-        currentSuperColumn = name;
-    }
-
-    protected void addColumn(Cell cell) throws IOException
-    {
-        if (columnFamily.metadata().isSuper())
-        {
-            if (currentSuperColumn == null)
-                throw new IllegalStateException("Trying to add a cell to a super column family, but no super cell has been started.");
-
-            cell = cell.withUpdatedName(columnFamily.getComparator().makeCellName(currentSuperColumn, cell.name().toByteBuffer()));
-        }
-        columnFamily.addColumn(cell);
-    }
-
-    /**
-     * Insert a new "regular" column to the current row (and super column if applicable).
-     * @param name the column name
-     * @param value the column value
-     * @param timestamp the column timestamp
-     */
-    public void addColumn(ByteBuffer name, ByteBuffer value, long timestamp) throws IOException
-    {
-        addColumn(new BufferCell(metadata.comparator.cellFromByteBuffer(name), value, timestamp));
-    }
-
-    /**
-     * Insert a new expiring column to the current row (and super column if applicable).
-     * @param name the column name
-     * @param value the column value
-     * @param timestamp the column timestamp
-     * @param ttl the column time to live in seconds
-     * @param expirationTimestampMS the local expiration timestamp in milliseconds. This is the server time timestamp used for actually
-     * expiring the column, and as a consequence should be synchronized with the cassandra servers time. If {@code timestamp} represents
-     * the insertion time in microseconds (which is not required), this should be {@code (timestamp / 1000) + (ttl * 1000)}.
-     */
-    public void addExpiringColumn(ByteBuffer name, ByteBuffer value, long timestamp, int ttl, long expirationTimestampMS) throws IOException
-    {
-        addColumn(new BufferExpiringCell(metadata.comparator.cellFromByteBuffer(name), value, timestamp, ttl, (int)(expirationTimestampMS / 1000)));
-    }
-
-    /**
-     * Insert a new counter column to the current row (and super column if applicable).
-     * @param name the column name
-     * @param value the value of the counter
-     */
-    public void addCounterColumn(ByteBuffer name, long value) throws IOException
-    {
-        addColumn(new BufferCounterCell(metadata.comparator.cellFromByteBuffer(name),
-                                        CounterContext.instance().createGlobal(counterid, 1L, value),
-                                        System.currentTimeMillis()));
-    }
-
-    /**
-     * Package protected for use by AbstractCQLSSTableWriter.
-     * Not meant to be exposed publicly.
-     */
-    ColumnFamily currentColumnFamily()
-    {
-        return columnFamily;
-    }
-
-    /**
-     * Package protected for use by AbstractCQLSSTableWriter.
-     * Not meant to be exposed publicly.
-     */
-    DecoratedKey currentKey()
-    {
-        return currentKey;
-    }
-
-    /**
-     * Package protected for use by AbstractCQLSSTableWriter.
-     * Not meant to be exposed publicly.
-     */
-    boolean shouldStartNewRow() throws IOException
-    {
-        return currentKey == null;
-    }
-
-    protected abstract void writeRow(DecoratedKey key, ColumnFamily columnFamily) throws IOException;
-
-    protected abstract ColumnFamily getColumnFamily() throws IOException;
+    abstract PartitionUpdate getUpdateFor(DecoratedKey key) throws IOException;
 }
+

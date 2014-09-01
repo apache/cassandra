@@ -119,12 +119,6 @@ public class DropTypeStatement extends SchemaAlteringStatement
                 if (isUsedBy(subtype))
                     return true;
         }
-        else if (toCheck instanceof ColumnToCollectionType)
-        {
-            for (CollectionType collection : ((ColumnToCollectionType)toCheck).defined.values())
-                if (isUsedBy(collection))
-                    return true;
-        }
         else if (toCheck instanceof CollectionType)
         {
             if (toCheck instanceof ListType)

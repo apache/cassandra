@@ -18,15 +18,13 @@
 package org.apache.cassandra.db.index.composites;
 
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
 import java.util.List;
 
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.db.*;
-import org.apache.cassandra.db.composites.*;
+import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.db.index.SecondaryIndex;
-import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.utils.concurrent.OpOrder;
 
 /**
@@ -48,67 +46,90 @@ import org.apache.cassandra.utils.concurrent.OpOrder;
  */
 public class CompositesIndexOnClusteringKey extends CompositesIndex
 {
-    public static CellNameType buildIndexComparator(CFMetaData baseMetadata, ColumnDefinition columnDef)
+    public static void addClusteringColumns(CFMetaData.Builder indexMetadata, CFMetaData baseMetadata, ColumnDefinition columnDef)
     {
-        // Index cell names are rk ck_0 ... ck_{i-1} ck_{i+1} ck_n, so n
-        // components total (where n is the number of clustering keys)
-        int ckCount = baseMetadata.clusteringColumns().size();
-        List<AbstractType<?>> types = new ArrayList<AbstractType<?>>(ckCount);
-        types.add(SecondaryIndex.keyComparator);
+        indexMetadata.addClusteringColumn("partition_key", SecondaryIndex.keyComparator);
+
+        List<ColumnDefinition> cks = baseMetadata.clusteringColumns();
         for (int i = 0; i < columnDef.position(); i++)
-            types.add(baseMetadata.clusteringColumns().get(i).type);
-        for (int i = columnDef.position() + 1; i < ckCount; i++)
-            types.add(baseMetadata.clusteringColumns().get(i).type);
-        return new CompoundDenseCellNameType(types);
+        {
+            ColumnDefinition def = cks.get(i);
+            indexMetadata.addClusteringColumn(def.name, def.type);
+        }
+        for (int i = columnDef.position() + 1; i < cks.size(); i++)
+        {
+            ColumnDefinition def = cks.get(i);
+            indexMetadata.addClusteringColumn(def.name, def.type);
+        }
     }
 
-    protected ByteBuffer getIndexedValue(ByteBuffer rowKey, Cell cell)
+    protected ByteBuffer getIndexedValue(ByteBuffer rowKey, Clustering clustering, ByteBuffer cellValue, CellPath path)
     {
-        return cell.name().get(columnDef.position());
+        return clustering.get(columnDef.position());
     }
 
-    protected Composite makeIndexColumnPrefix(ByteBuffer rowKey, Composite columnName)
+    protected CBuilder buildIndexClusteringPrefix(ByteBuffer rowKey, ClusteringPrefix prefix, CellPath path)
     {
-        int count = Math.min(baseCfs.metadata.clusteringColumns().size(), columnName.size());
-        CBuilder builder = getIndexComparator().prefixBuilder();
+        CBuilder builder = CBuilder.create(getIndexComparator());
         builder.add(rowKey);
-        for (int i = 0; i < Math.min(columnDef.position(), count); i++)
-            builder.add(columnName.get(i));
-        for (int i = columnDef.position() + 1; i < count; i++)
-            builder.add(columnName.get(i));
-        return builder.build();
+        for (int i = 0; i < Math.min(columnDef.position(), prefix.size()); i++)
+            builder.add(prefix.get(i));
+        for (int i = columnDef.position() + 1; i < prefix.size(); i++)
+            builder.add(prefix.get(i));
+        return builder;
     }
 
-    public IndexedEntry decodeEntry(DecoratedKey indexedValue, Cell indexEntry)
+    public IndexedEntry decodeEntry(DecoratedKey indexedValue, Row indexEntry)
     {
         int ckCount = baseCfs.metadata.clusteringColumns().size();
 
-        CBuilder builder = baseCfs.getComparator().builder();
+        Clustering clustering = indexEntry.clustering();
+        CBuilder builder = CBuilder.create(baseCfs.getComparator());
         for (int i = 0; i < columnDef.position(); i++)
-            builder.add(indexEntry.name().get(i + 1));
+            builder.add(clustering.get(i + 1));
 
         builder.add(indexedValue.getKey());
 
         for (int i = columnDef.position() + 1; i < ckCount; i++)
-            builder.add(indexEntry.name().get(i));
+            builder.add(clustering.get(i));
 
-        return new IndexedEntry(indexedValue, indexEntry.name(), indexEntry.timestamp(), indexEntry.name().get(0), builder.build());
+        return new IndexedEntry(indexedValue, clustering, indexEntry.primaryKeyLivenessInfo().timestamp(), clustering.get(0), builder.build());
     }
 
     @Override
-    public boolean indexes(CellName name)
+    protected boolean indexPrimaryKeyColumn()
     {
-        // For now, assume this is only used in CQL3 when we know name has enough component.
         return true;
     }
 
-    public boolean isStale(IndexedEntry entry, ColumnFamily data, long now)
+    @Override
+    public boolean indexes(ColumnDefinition c)
     {
-        return data.hasOnlyTombstones(now);
+        // Actual indexing for this index type is done through maybeIndex
+        return false;
+    }
+
+    public boolean isStale(Row data, ByteBuffer indexValue, int nowInSec)
+    {
+        return !data.hasLiveData(nowInSec);
     }
 
     @Override
-    public void delete(ByteBuffer rowKey, Cell cell, OpOrder.Group opGroup)
+    public void maybeIndex(ByteBuffer partitionKey, Clustering clustering, long timestamp, int ttl, OpOrder.Group opGroup, int nowInSec)
+    {
+        if (clustering != Clustering.STATIC_CLUSTERING && clustering.get(columnDef.position()) != null)
+            insert(partitionKey, clustering, null, SimpleLivenessInfo.forUpdate(timestamp, ttl, nowInSec, indexCfs.metadata), opGroup);
+    }
+
+    @Override
+    public void maybeDelete(ByteBuffer partitionKey, Clustering clustering, DeletionTime deletion, OpOrder.Group opGroup)
+    {
+        if (clustering.get(columnDef.position()) != null && !deletion.isLive())
+            delete(partitionKey, clustering, null, null, deletion, opGroup);
+    }
+
+    @Override
+    public void delete(ByteBuffer rowKey, Clustering clustering, Cell cell, OpOrder.Group opGroup, int nowInSec)
     {
         // We only know that one column of the CQL row has been updated/deleted, but we don't know if the
         // full row has been deleted so we should not do anything. If it ends up that the whole row has

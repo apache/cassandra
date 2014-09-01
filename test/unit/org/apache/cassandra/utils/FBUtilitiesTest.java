@@ -18,14 +18,15 @@
 
 package org.apache.cassandra.utils;
 
-import static org.junit.Assert.fail;
-
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.charset.CharacterCodingException;
 import java.nio.charset.StandardCharsets;
+
 import com.google.common.primitives.Ints;
 import org.junit.Test;
+
+import static org.junit.Assert.fail;
 
 public class FBUtilitiesTest
 {

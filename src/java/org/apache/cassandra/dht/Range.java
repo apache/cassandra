@@ -21,7 +21,8 @@ import java.io.Serializable;
 import java.util.*;
 
 import org.apache.commons.lang3.ObjectUtils;
-import org.apache.cassandra.db.RowPosition;
+
+import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.utils.Pair;
 
 /**
@@ -372,6 +373,16 @@ public class Range<T extends RingPosition<T>> extends AbstractBounds<T> implemen
         return "]";
     }
 
+    public boolean isStartInclusive()
+    {
+        return false;
+    }
+
+    public boolean isEndInclusive()
+    {
+        return true;
+    }
+
     public List<String> asList()
     {
         ArrayList<String> ret = new ArrayList<String>(2);
@@ -465,12 +476,12 @@ public class Range<T extends RingPosition<T>> extends AbstractBounds<T> implemen
     /**
      * Compute a range of keys corresponding to a given range of token.
      */
-    public static Range<RowPosition> makeRowRange(Token left, Token right)
+    public static Range<PartitionPosition> makeRowRange(Token left, Token right)
     {
-        return new Range<RowPosition>(left.maxKeyBound(), right.maxKeyBound());
+        return new Range<PartitionPosition>(left.maxKeyBound(), right.maxKeyBound());
     }
 
-    public static Range<RowPosition> makeRowRange(Range<Token> tokenBounds)
+    public static Range<PartitionPosition> makeRowRange(Range<Token> tokenBounds)
     {
         return makeRowRange(tokenBounds.left, tokenBounds.right);
     }

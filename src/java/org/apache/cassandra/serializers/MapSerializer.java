@@ -84,7 +84,7 @@ public class MapSerializer<K, V> extends CollectionSerializer<Map<K, V>>
         }
         catch (BufferUnderflowException e)
         {
-            throw new MarshalException("Not enough bytes to read a set");
+            throw new MarshalException("Not enough bytes to read a map");
         }
     }
 
@@ -150,19 +150,19 @@ public class MapSerializer<K, V> extends CollectionSerializer<Map<K, V>>
     public String toString(Map<K, V> value)
     {
         StringBuilder sb = new StringBuilder();
+        sb.append('{');
         boolean isFirst = true;
         for (Map.Entry<K, V> element : value.entrySet())
         {
             if (isFirst)
                 isFirst = false;
             else
-                sb.append("; ");
-            sb.append('(');
+                sb.append(", ");
             sb.append(keys.toString(element.getKey()));
-            sb.append(", ");
+            sb.append(": ");
             sb.append(values.toString(element.getValue()));
-            sb.append(')');
         }
+        sb.append('}');
         return sb.toString();
     }
 

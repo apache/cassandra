@@ -104,8 +104,7 @@ public class Path<V>
         // search
 
         Object[] node = path[depth];
-        int lb = indexes[depth];
-        assert lb == 0 || forwards;
+        int lb = forwards ? indexes[depth] : 0;
         pop();
 
         if (target instanceof BTree.Special)
@@ -217,6 +216,20 @@ public class Path<V>
             int ub = indexes[depth] + 1;
             Object[] node = path[depth];
             if (ub < getBranchKeyEnd(node))
+                return depth;
+            depth--;
+        }
+        return -1;
+    }
+
+    byte findPredecessorParentDepth()
+    {
+        byte depth = this.depth;
+        depth--;
+        while (depth >= 0)
+        {
+            int ub = indexes[depth] - 1;
+            if (ub >= 0)
                 return depth;
             depth--;
         }

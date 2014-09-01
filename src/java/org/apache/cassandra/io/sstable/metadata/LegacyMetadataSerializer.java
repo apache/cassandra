@@ -23,6 +23,7 @@ import java.util.*;
 
 import com.google.common.collect.Maps;
 
+import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.commitlog.ReplayPosition;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
@@ -64,12 +65,12 @@ public class LegacyMetadataSerializer extends MetadataSerializer
             out.writeInt(g);
         StreamingHistogram.serializer.serialize(stats.estimatedTombstoneDropTime, out);
         out.writeInt(stats.sstableLevel);
-        out.writeInt(stats.minColumnNames.size());
-        for (ByteBuffer columnName : stats.minColumnNames)
-            ByteBufferUtil.writeWithShortLength(columnName, out);
-        out.writeInt(stats.maxColumnNames.size());
-        for (ByteBuffer columnName : stats.maxColumnNames)
-            ByteBufferUtil.writeWithShortLength(columnName, out);
+        out.writeInt(stats.minClusteringValues.size());
+        for (ByteBuffer value : stats.minClusteringValues)
+            ByteBufferUtil.writeWithShortLength(value, out);
+        out.writeInt(stats.maxClusteringValues.size());
+        for (ByteBuffer value : stats.maxClusteringValues)
+            ByteBufferUtil.writeWithShortLength(value, out);
     }
 
     /**
@@ -127,14 +128,19 @@ public class LegacyMetadataSerializer extends MetadataSerializer
                                                      replayPosition,
                                                      minTimestamp,
                                                      maxTimestamp,
+                                                     Integer.MAX_VALUE,
                                                      maxLocalDeletionTime,
+                                                     0,
+                                                     Integer.MAX_VALUE,
                                                      compressionRatio,
                                                      tombstoneHistogram,
                                                      sstableLevel,
                                                      minColumnNames,
                                                      maxColumnNames,
                                                      true,
-                                                     ActiveRepairService.UNREPAIRED_SSTABLE));
+                                                     ActiveRepairService.UNREPAIRED_SSTABLE,
+                                                     -1,
+                                                     -1));
                 if (types.contains(MetadataType.COMPACTION))
                     components.put(MetadataType.COMPACTION,
                                    new CompactionMetadata(ancestors, null));

@@ -27,7 +27,7 @@ import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.lifecycle.SSTableIntervalTree;
 import org.apache.cassandra.db.lifecycle.Tracker;
 import org.apache.cassandra.db.DecoratedKey;
-import org.apache.cassandra.db.RowPosition;
+import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.utils.AlwaysPresentFilter;
 
 import org.apache.cassandra.utils.OverlapIterator;
@@ -44,7 +44,7 @@ public class CompactionController implements AutoCloseable
 
     public final ColumnFamilyStore cfs;
     private Refs<SSTableReader> overlappingSSTables;
-    private OverlapIterator<RowPosition, SSTableReader> overlapIterator;
+    private OverlapIterator<PartitionPosition, SSTableReader> overlapIterator;
     private final Iterable<SSTableReader> compacting;
 
     public final int gcBefore;
@@ -189,9 +189,9 @@ public class CompactionController implements AutoCloseable
         return min;
     }
 
-    public void invalidateCachedRow(DecoratedKey key)
+    public void invalidateCachedPartition(DecoratedKey key)
     {
-        cfs.invalidateCachedRow(key);
+        cfs.invalidateCachedPartition(key);
     }
 
     public void close()

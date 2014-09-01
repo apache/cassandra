@@ -631,11 +631,8 @@ public class FrozenCollectionsTest extends CQLTester
         assertInvalidMessage("Cannot restrict clustering columns by a CONTAINS relation without a secondary index",
                              "SELECT * FROM %s WHERE b CONTAINS ? ALLOW FILTERING", 1);
 
-        assertInvalidMessage("No secondary indexes on the restricted columns support the provided operator",
+        assertInvalidMessage("No supported secondary index found for the non primary key columns restrictions",
                              "SELECT * FROM %s WHERE d CONTAINS KEY ?", 1);
-
-        assertInvalidMessage("No secondary indexes on the restricted columns support the provided operator",
-                             "SELECT * FROM %s WHERE d CONTAINS KEY ? ALLOW FILTERING", 1);
 
         assertInvalidMessage("Cannot restrict clustering columns by a CONTAINS relation without a secondary index",
                              "SELECT * FROM %s WHERE b CONTAINS ? AND d CONTAINS KEY ? ALLOW FILTERING", 1, 1);
@@ -745,6 +742,11 @@ public class FrozenCollectionsTest extends CQLTester
 
         assertRows(execute("SELECT * FROM %s WHERE d=? AND b CONTAINS ? AND c CONTAINS ? ALLOW FILTERING", map(1, "a"), 2, 2),
             row(0, list(1, 2, 3), set(1, 2, 3), map(1, "a"))
+        );
+
+        assertRows(execute("SELECT * FROM %s WHERE d CONTAINS KEY ? ALLOW FILTERING", 1),
+            row(0, list(1, 2, 3), set(1, 2, 3), map(1, "a")),
+            row(0, list(4, 5, 6), set(1, 2, 3), map(1, "a"))
         );
 
         execute("DELETE d FROM %s WHERE a=? AND b=?", 0, list(1, 2, 3));

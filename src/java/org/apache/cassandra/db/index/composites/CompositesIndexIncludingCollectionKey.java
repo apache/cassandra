@@ -18,19 +18,9 @@
 package org.apache.cassandra.db.index.composites;
 
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
-import java.util.List;
 
-import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.db.*;
-import org.apache.cassandra.db.composites.CBuilder;
-import org.apache.cassandra.db.composites.CellName;
-import org.apache.cassandra.db.composites.CellNameType;
-import org.apache.cassandra.db.composites.Composite;
-import org.apache.cassandra.db.composites.CompoundDenseCellNameType;
-import org.apache.cassandra.db.index.SecondaryIndex;
-import org.apache.cassandra.db.marshal.*;
+import org.apache.cassandra.db.rows.*;
 
 /**
  * Common superclass for indexes that capture collection keys, including
@@ -49,41 +39,22 @@ import org.apache.cassandra.db.marshal.*;
  */
 public abstract class CompositesIndexIncludingCollectionKey extends CompositesIndex
 {
-    public static CellNameType buildIndexComparator(CFMetaData baseMetadata, ColumnDefinition columnDef)
+    protected CBuilder buildIndexClusteringPrefix(ByteBuffer rowKey, ClusteringPrefix prefix, CellPath path)
     {
-        int count = 1 + baseMetadata.clusteringColumns().size(); // row key + clustering prefix
-        List<AbstractType<?>> types = new ArrayList<AbstractType<?>>(count);
-        types.add(SecondaryIndex.keyComparator);
-        for (int i = 0; i < count - 1; i++)
-            types.add(baseMetadata.comparator.subtype(i));
-        return new CompoundDenseCellNameType(types);
-    }
-
-    protected Composite makeIndexColumnPrefix(ByteBuffer rowKey, Composite cellName)
-    {
-        int count = 1 + baseCfs.metadata.clusteringColumns().size();
-        CBuilder builder = getIndexComparator().builder();
+        CBuilder builder = CBuilder.create(getIndexComparator());
         builder.add(rowKey);
-        for (int i = 0; i < Math.min(cellName.size(), count - 1); i++)
-            builder.add(cellName.get(i));
-        return builder.build();
+        for (int i = 0; i < prefix.size(); i++)
+            builder.add(prefix.get(i));
+        return builder;
     }
 
-    public IndexedEntry decodeEntry(DecoratedKey indexedValue, Cell indexEntry)
+    public IndexedEntry decodeEntry(DecoratedKey indexedValue, Row indexEntry)
     {
         int count = 1 + baseCfs.metadata.clusteringColumns().size();
-        CBuilder builder = baseCfs.getComparator().builder();
+        Clustering clustering = indexEntry.clustering();
+        CBuilder builder = CBuilder.create(baseCfs.getComparator());
         for (int i = 0; i < count - 1; i++)
-            builder.add(indexEntry.name().get(i + 1));
-        return new IndexedEntry(indexedValue, indexEntry.name(), indexEntry.timestamp(), indexEntry.name().get(0), builder.build());
-    }
-
-    @Override
-    public boolean indexes(CellName name)
-    {
-        // We index if the CQL3 column name is the one of the collection we index
-        AbstractType<?> comp = baseCfs.metadata.getColumnDefinitionComparator(columnDef);
-        return name.size() > columnDef.position()
-            && comp.compare(name.get(columnDef.position()), columnDef.name.bytes) == 0;
+            builder.add(clustering.get(i + 1));
+        return new IndexedEntry(indexedValue, clustering, indexEntry.primaryKeyLivenessInfo().timestamp(), clustering.get(0), builder.build());
     }
 }

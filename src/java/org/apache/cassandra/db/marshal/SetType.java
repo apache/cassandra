@@ -23,12 +23,11 @@ import java.util.*;
 import org.apache.cassandra.cql3.Json;
 import org.apache.cassandra.cql3.Sets;
 import org.apache.cassandra.cql3.Term;
-import org.apache.cassandra.db.Cell;
+import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.SyntaxException;
 import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.serializers.SetSerializer;
-import org.apache.cassandra.transport.Server;
 
 public class SetType<T> extends CollectionType<Set<T>>
 {
@@ -144,11 +143,11 @@ public class SetType<T> extends CollectionType<Set<T>>
         return sb.toString();
     }
 
-    public List<ByteBuffer> serializedValues(List<Cell> cells)
+    public List<ByteBuffer> serializedValues(Iterator<Cell> cells)
     {
-        List<ByteBuffer> bbs = new ArrayList<ByteBuffer>(cells.size());
-        for (Cell c : cells)
-            bbs.add(c.name().collectionElement());
+        List<ByteBuffer> bbs = new ArrayList<ByteBuffer>();
+        while (cells.hasNext())
+            bbs.add(cells.next().path().get(0));
         return bbs;
     }
 

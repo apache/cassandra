@@ -23,7 +23,7 @@ import java.io.Serializable;
 import java.util.List;
 
 import org.apache.cassandra.db.DecoratedKey;
-import org.apache.cassandra.db.RowPosition;
+import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.io.util.DataOutputPlus;
@@ -34,8 +34,8 @@ public abstract class AbstractBounds<T extends RingPosition<T>> implements Seria
     private static final long serialVersionUID = 1L;
     public static final IPartitionerDependentSerializer<AbstractBounds<Token>> tokenSerializer =
             new AbstractBoundsSerializer<Token>(Token.serializer);
-    public static final IPartitionerDependentSerializer<AbstractBounds<RowPosition>> rowPositionSerializer =
-            new AbstractBoundsSerializer<RowPosition>(RowPosition.serializer);
+    public static final IPartitionerDependentSerializer<AbstractBounds<PartitionPosition>> rowPositionSerializer =
+            new AbstractBoundsSerializer<PartitionPosition>(PartitionPosition.serializer);
 
     private enum Type
     {
@@ -111,6 +111,9 @@ public abstract class AbstractBounds<T extends RingPosition<T>> implements Seria
 
     protected abstract String getOpeningString();
     protected abstract String getClosingString();
+
+    public abstract boolean isStartInclusive();
+    public abstract boolean isEndInclusive();
 
     public abstract AbstractBounds<T> withNewRight(T newRight);
 

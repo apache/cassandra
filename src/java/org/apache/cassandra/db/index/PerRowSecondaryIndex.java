@@ -20,11 +20,9 @@ package org.apache.cassandra.db.index;
 import java.nio.ByteBuffer;
 import java.nio.charset.CharacterCodingException;
 
-import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.db.rows.UnfilteredRowIterator;
+import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.utils.concurrent.OpOrder;
-import org.apache.cassandra.db.Cell;
-import org.apache.cassandra.db.ColumnFamily;
-import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 /**
@@ -33,19 +31,16 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 public abstract class PerRowSecondaryIndex extends SecondaryIndex
 {
     /**
-     * Index the given row.
-     *
-     * @param rowKey the row key
-     * @param cf the cf data to be indexed
+     * Index the given partition.
      */
-    public abstract void index(ByteBuffer rowKey, ColumnFamily cf);
+    public abstract void index(ByteBuffer key, UnfilteredRowIterator atoms);
 
     /**
      * cleans up deleted columns from cassandra cleanup compaction
      *
      * @param key
      */
-    public abstract void delete(DecoratedKey key, OpOrder.Group opGroup);
+    public abstract void delete(ByteBuffer key, OpOrder.Group opGroup);
 
     public String getNameForSystemKeyspace(ByteBuffer columnName)
     {
@@ -57,16 +52,5 @@ public abstract class PerRowSecondaryIndex extends SecondaryIndex
         {
             throw new RuntimeException(e);
         }
-    }
-
-
-    public boolean validate(ByteBuffer rowKey, Cell cell)
-    {
-        return validate(cell);
-    }
-
-    public boolean validate(Cell cell)
-    {
-        return true;
     }
 }

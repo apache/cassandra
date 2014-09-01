@@ -18,19 +18,18 @@
 package org.apache.cassandra.cql3.restrictions;
 
 import java.nio.ByteBuffer;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.List;
+import java.util.*;
 
+import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.functions.Function;
 import org.apache.cassandra.cql3.statements.Bound;
-import org.apache.cassandra.db.IndexExpression;
-import org.apache.cassandra.db.composites.*;
-import org.apache.cassandra.db.composites.Composite.EOC;
+import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.filter.RowFilter;
 import org.apache.cassandra.db.index.SecondaryIndexManager;
 import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.utils.FBUtilities;
 
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkFalse;
 import static org.apache.cassandra.cql3.statements.RequestValidations.invalidRequest;
@@ -65,18 +64,25 @@ final class PrimaryKeyRestrictionSet extends AbstractPrimaryKeyRestrictions
      */
     private boolean contains;
 
-    public PrimaryKeyRestrictionSet(CType ctype)
+    /**
+     * <code>true</code> if the restrictions corresponding to a partition key, <code>false</code> if it's clustering columns.
+     */
+    private boolean isPartitionKey;
+
+    public PrimaryKeyRestrictionSet(ClusteringComparator comparator, boolean isPartitionKey)
     {
-        super(ctype);
+        super(comparator);
         this.restrictions = new RestrictionSet();
         this.eq = true;
+        this.isPartitionKey = isPartitionKey;
     }
 
     private PrimaryKeyRestrictionSet(PrimaryKeyRestrictionSet primaryKeyRestrictions,
                                                Restriction restriction) throws InvalidRequestException
     {
-        super(primaryKeyRestrictions.ctype);
+        super(primaryKeyRestrictions.comparator);
         this.restrictions = primaryKeyRestrictions.restrictions.addRestriction(restriction);
+        this.isPartitionKey = primaryKeyRestrictions.isPartitionKey;
 
         if (!primaryKeyRestrictions.isEmpty())
         {
@@ -102,6 +108,15 @@ final class PrimaryKeyRestrictionSet extends AbstractPrimaryKeyRestrictions
             this.in = true;
         else
             this.eq = true;
+    }
+
+    private List<ByteBuffer> toByteBuffers(SortedSet<? extends ClusteringPrefix> clusterings)
+    {
+        // It's currently a tad hard to follow that this is only called for partition key so we should fix that
+        List<ByteBuffer> l = new ArrayList<>(clusterings.size());
+        for (ClusteringPrefix clustering : clusterings)
+            l.add(CFMetaData.serializePartitionKey(clustering));
+        return l;
     }
 
     @Override
@@ -161,13 +176,13 @@ final class PrimaryKeyRestrictionSet extends AbstractPrimaryKeyRestrictions
     }
 
     @Override
-    public List<Composite> valuesAsComposites(QueryOptions options) throws InvalidRequestException
+    public NavigableSet<Clustering> valuesAsClustering(QueryOptions options) throws InvalidRequestException
     {
-        return appendTo(new CompositesBuilder(ctype), options).build();
+        return appendTo(MultiCBuilder.create(comparator), options).build();
     }
 
     @Override
-    public CompositesBuilder appendTo(CompositesBuilder builder, QueryOptions options)
+    public MultiCBuilder appendTo(MultiCBuilder builder, QueryOptions options)
     {
         for (Restriction r : restrictions)
         {
@@ -179,27 +194,22 @@ final class PrimaryKeyRestrictionSet extends AbstractPrimaryKeyRestrictions
     }
 
     @Override
-    public CompositesBuilder appendBoundTo(CompositesBuilder builder, Bound bound, QueryOptions options)
+    public MultiCBuilder appendBoundTo(MultiCBuilder builder, Bound bound, QueryOptions options)
     {
         throw new UnsupportedOperationException();
     }
 
     @Override
-    public List<Composite> boundsAsComposites(Bound bound, QueryOptions options) throws InvalidRequestException
+    public SortedSet<Slice.Bound> boundsAsClustering(Bound bound, QueryOptions options) throws InvalidRequestException
     {
-        CompositesBuilder builder = new CompositesBuilder(ctype);
-        // The end-of-component of composite doesn't depend on whether the
-        // component type is reversed or not (i.e. the ReversedType is applied
-        // to the component comparator but not to the end-of-component itself),
-        // it only depends on whether the slice is reversed
+        MultiCBuilder builder = MultiCBuilder.create(comparator);
         int keyPosition = 0;
         for (Restriction r : restrictions)
         {
             ColumnDefinition def = r.getFirstColumn();
 
-            // In a restriction, we always have Bound.START < Bound.END for the "base" comparator.
-            // So if we're doing a reverse slice, we must inverse the bounds when giving them as start and end of the slice filter.
-            // But if the actual comparator itself is reversed, we must inversed the bounds too.
+            // The bound of this method is refering to the clustering order. So if said clustering order
+            // is reversed for this column, we should reverse the restriction we use.
             Bound b = !def.isReversedType() ? bound : bound.reverse();
             if (keyPosition != def.position() || r.isContains())
                 break;
@@ -211,49 +221,41 @@ final class PrimaryKeyRestrictionSet extends AbstractPrimaryKeyRestrictions
                     // There wasn't any non EQ relation on that key, we select all records having the preceding component as prefix.
                     // For composites, if there was preceding component and we're computing the end, we must change the last component
                     // End-Of-Component, otherwise we would be selecting only one record.
-                    return builder.buildWithEOC(bound.isEnd() ? EOC.END : EOC.START);
+                    return builder.buildBound(bound.isStart(), true);
                 }
 
                 r.appendBoundTo(builder, b, options);
-                Composite.EOC eoc = eocFor(r, bound, b);
-                return builder.buildWithEOC(eoc);
+                return builder.buildBound(bound.isStart(), r.isInclusive(b));
             }
 
             r.appendBoundTo(builder, b, options);
 
             if (builder.hasMissingElements())
-                return Collections.emptyList();
+                return FBUtilities.<Slice.Bound>emptySortedSet(comparator);
 
             keyPosition = r.getLastColumn().position() + 1;
         }
-        // Means no relation at all or everything was an equal
-        // Note: if the builder is "full", there is no need to use the end-of-component bit. For columns selection,
-        // it would be harmless to do it. However, we use this method got the partition key too. And when a query
-        // with 2ndary index is done, and with the the partition provided with an EQ, we'll end up here, and in that
-        // case using the eoc would be bad, since for the random partitioner we have no guarantee that
-        // prefix.end() will sort after prefix (see #5240).
-        EOC eoc = !builder.hasRemaining() ? EOC.NONE : (bound.isEnd() ? EOC.END : EOC.START);
-        return builder.buildWithEOC(eoc);
+
+        // Everything was an equal (or there was nothing)
+        return builder.buildBound(bound.isStart(), true);
     }
 
     @Override
     public List<ByteBuffer> values(QueryOptions options) throws InvalidRequestException
     {
-        return Composites.toByteBuffers(valuesAsComposites(options));
+        if (!isPartitionKey)
+            throw new UnsupportedOperationException();
+
+        return toByteBuffers(valuesAsClustering(options));
     }
 
     @Override
     public List<ByteBuffer> bounds(Bound b, QueryOptions options) throws InvalidRequestException
     {
-        return Composites.toByteBuffers(boundsAsComposites(b, options));
-    }
+        if (!isPartitionKey)
+            throw new UnsupportedOperationException();
 
-    private static Composite.EOC eocFor(Restriction r, Bound eocBound, Bound inclusiveBound)
-    {
-        if (eocBound.isStart())
-            return r.isInclusive(inclusiveBound) ? Composite.EOC.NONE : Composite.EOC.END;
-
-        return r.isInclusive(inclusiveBound) ? Composite.EOC.END : Composite.EOC.START;
+        return toByteBuffers(boundsAsClustering(b, options));
     }
 
     @Override
@@ -279,30 +281,24 @@ final class PrimaryKeyRestrictionSet extends AbstractPrimaryKeyRestrictions
     }
 
     @Override
-    public void addIndexExpressionTo(List<IndexExpression> expressions,
-                                     SecondaryIndexManager indexManager,
-                                     QueryOptions options) throws InvalidRequestException
+    public void addRowFilterTo(RowFilter filter,
+                               SecondaryIndexManager indexManager,
+                               QueryOptions options) throws InvalidRequestException
     {
-        Boolean clusteringColumns = null;
         int position = 0;
 
         for (Restriction restriction : restrictions)
         {
             ColumnDefinition columnDef = restriction.getFirstColumn();
 
-            // PrimaryKeyRestrictionSet contains only one kind of column, either partition key or clustering columns.
-            // Therefore we only need to check the column kind once. All the other columns will be of the same kind.
-            if (clusteringColumns == null)
-                clusteringColumns = columnDef.isClusteringColumn() ? Boolean.TRUE : Boolean.FALSE;
-
             // We ignore all the clustering columns that can be handled by slices.
-            if (clusteringColumns && !restriction.isContains()&& position == columnDef.position())
+            if (!isPartitionKey && !restriction.isContains()&& position == columnDef.position())
             {
                 position = restriction.getLastColumn().position() + 1;
                 if (!restriction.hasSupportingIndex(indexManager))
                     continue;
             }
-            restriction.addIndexExpressionTo(expressions, indexManager, options);
+            restriction.addRowFilterTo(filter, indexManager, options);
         }
     }
 

@@ -18,12 +18,7 @@
 */
 package org.apache.cassandra.utils;
 
-import java.io.ByteArrayInputStream;
-import java.io.DataInputStream;
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
-import java.io.IOException;
+import java.io.*;
 import java.nio.ByteBuffer;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -31,12 +26,13 @@ import java.util.Random;
 import java.util.Set;
 
 import org.junit.*;
+
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Murmur3Partitioner;
+import org.apache.cassandra.io.util.BufferedDataOutputStreamPlus;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.util.DataOutputStreamPlus;
 import org.apache.cassandra.io.util.FileUtils;
-import org.apache.cassandra.io.util.BufferedDataOutputStreamPlus;
 import org.apache.cassandra.utils.IFilter.FilterKey;
 import org.apache.cassandra.utils.KeyGenerator.RandomStringGenerator;
 
@@ -166,27 +162,28 @@ public class BloomFilterTest
     @Test
     public void compareCachedKey()
     {
-        BloomFilter bf1 = (BloomFilter) FilterFactory.getFilter(FilterTestHelper.ELEMENTS / 2, FilterTestHelper.MAX_FAILURE_RATE, false);
-        BloomFilter bf2 = (BloomFilter) FilterFactory.getFilter(FilterTestHelper.ELEMENTS / 2, FilterTestHelper.MAX_FAILURE_RATE, false);
-        BloomFilter bf3 = (BloomFilter) FilterFactory.getFilter(FilterTestHelper.ELEMENTS / 2, FilterTestHelper.MAX_FAILURE_RATE, false);
-
-        RandomStringGenerator gen1 = new KeyGenerator.RandomStringGenerator(new Random().nextInt(), FilterTestHelper.ELEMENTS);
-
-        // make sure all bitsets are empty.
-        BitSetTest.compare(bf1.bitset, bf2.bitset);
-        BitSetTest.compare(bf1.bitset, bf3.bitset);
-
-        while (gen1.hasNext())
+        try (BloomFilter bf1 = (BloomFilter) FilterFactory.getFilter(FilterTestHelper.ELEMENTS / 2, FilterTestHelper.MAX_FAILURE_RATE, false);
+             BloomFilter bf2 = (BloomFilter) FilterFactory.getFilter(FilterTestHelper.ELEMENTS / 2, FilterTestHelper.MAX_FAILURE_RATE, false);
+             BloomFilter bf3 = (BloomFilter) FilterFactory.getFilter(FilterTestHelper.ELEMENTS / 2, FilterTestHelper.MAX_FAILURE_RATE, false))
         {
-            ByteBuffer key = gen1.next();
-            FilterKey cached = FilterTestHelper.wrapCached(key);
-            bf1.add(FilterTestHelper.wrap(key));
-            bf2.add(cached);
-            bf3.add(cached);
-        }
+            RandomStringGenerator gen1 = new KeyGenerator.RandomStringGenerator(new Random().nextInt(), FilterTestHelper.ELEMENTS);
 
-        BitSetTest.compare(bf1.bitset, bf2.bitset);
-        BitSetTest.compare(bf1.bitset, bf3.bitset);
+            // make sure all bitsets are empty.
+            BitSetTest.compare(bf1.bitset, bf2.bitset);
+            BitSetTest.compare(bf1.bitset, bf3.bitset);
+
+            while (gen1.hasNext())
+            {
+                ByteBuffer key = gen1.next();
+                FilterKey cached = FilterTestHelper.wrapCached(key);
+                bf1.add(FilterTestHelper.wrap(key));
+                bf2.add(cached);
+                bf3.add(cached);
+            }
+
+            BitSetTest.compare(bf1.bitset, bf2.bitset);
+            BitSetTest.compare(bf1.bitset, bf3.bitset);
+        }
     }
 
     @Test
@@ -196,7 +193,7 @@ public class BloomFilterTest
         ByteBuffer test = ByteBuffer.wrap(new byte[] {0, 1});
 
         File file = FileUtils.createTempFile("bloomFilterTest-", ".dat");
-        BloomFilter filter = (BloomFilter) FilterFactory.getFilter(((long)Integer.MAX_VALUE / 8) + 1, 0.01d, true);
+        BloomFilter filter = (BloomFilter) FilterFactory.getFilter(((long) Integer.MAX_VALUE / 8) + 1, 0.01d, true);
         filter.add(FilterTestHelper.wrap(test));
         DataOutputStreamPlus out = new BufferedDataOutputStreamPlus(new FileOutputStream(file));
         FilterFactory.serialize(filter, out);
@@ -208,6 +205,7 @@ public class BloomFilterTest
         BloomFilter filter2 = (BloomFilter) FilterFactory.deserialize(in, true);
         Assert.assertTrue(filter2.isPresent(FilterTestHelper.wrap(test)));
         FileUtils.closeQuietly(in);
+        filter2.close();
     }
 
     @Test

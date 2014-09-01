@@ -24,8 +24,6 @@ import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import javax.annotation.Nullable;
-
 import com.google.common.base.Function;
 import com.google.common.collect.*;
 
@@ -37,7 +35,7 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
-import org.apache.cassandra.db.RowPosition;
+import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
@@ -316,7 +314,7 @@ public class StreamSession implements IEndpointStateChangeSubscriber
         {
             for (ColumnFamilyStore cfStore : stores)
             {
-                final List<AbstractBounds<RowPosition>> rowBoundsList = new ArrayList<>(ranges.size());
+                final List<AbstractBounds<PartitionPosition>> rowBoundsList = new ArrayList<>(ranges.size());
                 for (Range<Token> range : ranges)
                     rowBoundsList.add(Range.makeRowRange(range));
                 refs.addAll(cfStore.selectAndReference(new Function<View, List<SSTableReader>>()
@@ -327,7 +325,7 @@ public class StreamSession implements IEndpointStateChangeSubscriber
                         Set<SSTableReader> sstables = Sets.newHashSet();
                         if (filteredSSTables != null)
                         {
-                            for (AbstractBounds<RowPosition> rowBounds : rowBoundsList)
+                            for (AbstractBounds<PartitionPosition> rowBounds : rowBoundsList)
                             {
                                 // sstableInBounds may contain early opened sstables
                                 for (SSTableReader sstable : view.sstablesInBounds(rowBounds))

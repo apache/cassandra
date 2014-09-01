@@ -21,11 +21,13 @@ package org.apache.cassandra.utils;
  */
 
 
-import org.apache.cassandra.db.marshal.TimeUUIDType;
-import org.junit.Test;
-
 import java.nio.ByteBuffer;
 import java.util.UUID;
+
+import org.junit.Test;
+
+import org.apache.cassandra.db.marshal.TimeUUIDType;
+import org.apache.cassandra.utils.UUIDGen;
 
 
 public class UUIDTests

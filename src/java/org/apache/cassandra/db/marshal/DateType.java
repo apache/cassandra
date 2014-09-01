@@ -124,4 +124,10 @@ public class DateType extends AbstractType<Date>
     {
         return TimestampSerializer.instance;
     }
+
+    @Override
+    protected int valueLengthIfFixed()
+    {
+        return 8;
+    }
 }

@@ -22,10 +22,10 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 
-import org.apache.cassandra.db.composites.CType;
-import org.apache.cassandra.db.composites.Composite;
-import org.apache.cassandra.db.TypeSizes;
+import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.db.*;
 import org.apache.cassandra.io.ISerializer;
+import org.apache.cassandra.io.sstable.format.Version;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.io.util.FileDataInput;
 import org.apache.cassandra.io.util.FileUtils;
@@ -67,35 +67,23 @@ public class IndexHelper
     /**
      * The index of the IndexInfo in which a scan starting with @name should begin.
      *
-     * @param name
-     *         name of the index
-     *
-     * @param indexList
-     *          list of the indexInfo objects
-     *
-     * @param comparator
-     *          comparator type
-     *
-     * @param reversed
-     *          is name reversed
+     * @param name name to search for
+     * @param indexList list of the indexInfo objects
+     * @param comparator the comparator to use
+     * @param reversed whether or not the search is reversed, i.e. we scan forward or backward from name
+     * @param lastIndex where to start the search from in indexList
      *
      * @return int index
      */
-    public static int indexFor(Composite name, List<IndexInfo> indexList, CType comparator, boolean reversed, int lastIndex)
+    public static int indexFor(ClusteringPrefix name, List<IndexInfo> indexList, ClusteringComparator comparator, boolean reversed, int lastIndex)
     {
-        if (name.isEmpty())
-            return lastIndex >= 0 ? lastIndex : reversed ? indexList.size() - 1 : 0;
-
-        if (lastIndex >= indexList.size())
-            return -1;
-
-        IndexInfo target = new IndexInfo(name, name, 0, 0);
+        IndexInfo target = new IndexInfo(name, name, 0, 0, null);
         /*
         Take the example from the unit test, and say your index looks like this:
         [0..5][10..15][20..25]
         and you look for the slice [13..17].
 
-        When doing forward slice, we we doing a binary search comparing 13 (the start of the query)
+        When doing forward slice, we are doing a binary search comparing 13 (the start of the query)
         to the lastName part of the index slot. You'll end up with the "first" slot, going from left to right,
         that may contain the start.
 
@@ -105,81 +93,117 @@ public class IndexHelper
         */
         int startIdx = 0;
         List<IndexInfo> toSearch = indexList;
-        if (lastIndex >= 0)
+        if (reversed)
         {
-            if (reversed)
+            if (lastIndex < indexList.size() - 1)
             {
                 toSearch = indexList.subList(0, lastIndex + 1);
             }
-            else
+        }
+        else
+        {
+            if (lastIndex > 0)
             {
                 startIdx = lastIndex;
                 toSearch = indexList.subList(lastIndex, indexList.size());
             }
         }
-        int index = Collections.binarySearch(toSearch, target, getComparator(comparator, reversed));
+        int index = Collections.binarySearch(toSearch, target, comparator.indexComparator(reversed));
         return startIdx + (index < 0 ? -index - (reversed ? 2 : 1) : index);
-    }
-
-    public static Comparator<IndexInfo> getComparator(final CType nameComparator, boolean reversed)
-    {
-        return reversed ? nameComparator.indexReverseComparator() : nameComparator.indexComparator();
     }
 
     public static class IndexInfo
     {
-        private static final long EMPTY_SIZE = ObjectSizes.measure(new IndexInfo(null, null, 0, 0));
+        private static final long EMPTY_SIZE = ObjectSizes.measure(new IndexInfo(null, null, 0, 0, null));
 
         public final long width;
-        public final Composite lastName;
-        public final Composite firstName;
+        public final ClusteringPrefix lastName;
+        public final ClusteringPrefix firstName;
         public final long offset;
 
-        public IndexInfo(Composite firstName, Composite lastName, long offset, long width)
+        // If at the end of the index block there is an open range tombstone marker, this marker
+        // deletion infos. null otherwise.
+        public final DeletionTime endOpenMarker;
+
+        public IndexInfo(ClusteringPrefix firstName,
+                         ClusteringPrefix lastName,
+                         long offset,
+                         long width,
+                         DeletionTime endOpenMarker)
         {
             this.firstName = firstName;
             this.lastName = lastName;
             this.offset = offset;
             this.width = width;
+            this.endOpenMarker = endOpenMarker;
         }
 
-        public static class Serializer implements ISerializer<IndexInfo>
+        public static class Serializer
         {
-            private final CType type;
+            private final CFMetaData metadata;
+            private final Version version;
 
-            public Serializer(CType type)
+            public Serializer(CFMetaData metadata, Version version)
             {
-                this.type = type;
+                this.metadata = metadata;
+                this.version = version;
             }
 
-            public void serialize(IndexInfo info, DataOutputPlus out) throws IOException
+            public void serialize(IndexInfo info, DataOutputPlus out, SerializationHeader header) throws IOException
             {
-                type.serializer().serialize(info.firstName, out);
-                type.serializer().serialize(info.lastName, out);
+                ISerializer<ClusteringPrefix> clusteringSerializer = metadata.serializers().clusteringPrefixSerializer(version, header);
+                clusteringSerializer.serialize(info.firstName, out);
+                clusteringSerializer.serialize(info.lastName, out);
                 out.writeLong(info.offset);
                 out.writeLong(info.width);
+
+                if (version.storeRows())
+                {
+                    out.writeBoolean(info.endOpenMarker != null);
+                    if (info.endOpenMarker != null)
+                        DeletionTime.serializer.serialize(info.endOpenMarker, out);
+                }
             }
 
-            public IndexInfo deserialize(DataInput in) throws IOException
+            public IndexInfo deserialize(DataInput in, SerializationHeader header) throws IOException
             {
-                return new IndexInfo(type.serializer().deserialize(in),
-                                     type.serializer().deserialize(in),
-                                     in.readLong(),
-                                     in.readLong());
+                ISerializer<ClusteringPrefix> clusteringSerializer = metadata.serializers().clusteringPrefixSerializer(version, header);
+
+                ClusteringPrefix firstName = clusteringSerializer.deserialize(in);
+                ClusteringPrefix lastName = clusteringSerializer.deserialize(in);
+                long offset = in.readLong();
+                long width = in.readLong();
+                DeletionTime endOpenMarker = version.storeRows() && in.readBoolean()
+                                           ? DeletionTime.serializer.deserialize(in)
+                                           : null;
+
+                return new IndexInfo(firstName, lastName, offset, width, endOpenMarker);
             }
 
-            public long serializedSize(IndexInfo info, TypeSizes typeSizes)
+            public long serializedSize(IndexInfo info, SerializationHeader header, TypeSizes typeSizes)
             {
-                return type.serializer().serializedSize(info.firstName, typeSizes)
-                     + type.serializer().serializedSize(info.lastName, typeSizes)
-                     + typeSizes.sizeof(info.offset)
-                     + typeSizes.sizeof(info.width);
+                ISerializer<ClusteringPrefix> clusteringSerializer = metadata.serializers().clusteringPrefixSerializer(version, header);
+                long size = clusteringSerializer.serializedSize(info.firstName, typeSizes)
+                          + clusteringSerializer.serializedSize(info.lastName, typeSizes)
+                          + typeSizes.sizeof(info.offset)
+                          + typeSizes.sizeof(info.width);
+
+                if (version.storeRows())
+                {
+                    size += typeSizes.sizeof(info.endOpenMarker != null);
+                    if (info.endOpenMarker != null)
+                        size += DeletionTime.serializer.serializedSize(info.endOpenMarker, typeSizes);
+                }
+                return size;
             }
         }
 
         public long unsharedHeapSize()
         {
-            return EMPTY_SIZE + firstName.unsharedHeapSize() + lastName.unsharedHeapSize();
+            return EMPTY_SIZE
+                 + firstName.unsharedHeapSize()
+                 + lastName.unsharedHeapSize()
+                 + (endOpenMarker == null ? 0 : endOpenMarker.unsharedHeapSize());
         }
     }
 }

@@ -23,12 +23,9 @@ import java.util.concurrent.ThreadLocalRandom;
 import org.junit.Test;
 
 import org.apache.cassandra.utils.btree.BTree;
-import org.apache.cassandra.utils.btree.BTreeSet;
 import org.apache.cassandra.utils.btree.UpdateFunction;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertArrayEquals;
-import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.*;
 
 public class BTreeTest
 {
@@ -40,7 +37,7 @@ public class BTreeTest
             ints[i] = new Integer(i);
     }
 
-    static final UpdateFunction<Integer> updateF = new UpdateFunction<Integer>()
+    static final UpdateFunction<Integer, Integer> updateF = new UpdateFunction<Integer, Integer>()
     {
         public Integer apply(Integer replacing, Integer update)
         {
@@ -60,6 +57,28 @@ public class BTreeTest
         public Integer apply(Integer integer)
         {
             return ints[integer];
+        }
+    };
+
+    private static final UpdateFunction<Integer, Integer> noOp = new UpdateFunction<Integer, Integer>()
+    {
+        public Integer apply(Integer replacing, Integer update)
+        {
+            return update;
+        }
+
+        public boolean abortEarly()
+        {
+            return false;
+        }
+
+        public void allocated(long heapSize)
+        {
+        }
+
+        public Integer apply(Integer k)
+        {
+            return k;
         }
     };
 
@@ -97,20 +116,14 @@ public class BTreeTest
     public void testBuilding_UpdateFunctionReplacement()
     {
         for (int i = 0; i < 20 ; i++)
-        {
-            checkResult(i, BTree.build(seq(i), CMP, true, updateF));
-            checkResult(i, BTree.build(rand(i), CMP, false, updateF));
-        }
+            checkResult(i, BTree.build(seq(i), updateF));
     }
 
     @Test
     public void testUpdate_UpdateFunctionReplacement()
     {
         for (int i = 0; i < 20 ; i++)
-        {
-            checkResult(i, BTree.update(BTree.build(seq(i), CMP, true, UpdateFunction.NoOp.<Integer>instance()), CMP, seq(i), true, updateF));
-            checkResult(i, BTree.update(BTree.build(rand(i), CMP, false, UpdateFunction.NoOp.<Integer>instance()), CMP, rand(i), false, updateF));
-        }
+            checkResult(i, BTree.update(BTree.build(seq(i), noOp), CMP, seq(i), updateF));
     }
 
     /**
@@ -123,31 +136,31 @@ public class BTreeTest
         Object[] btree = new Object[0];
         CallsMonitor monitor = new CallsMonitor();
 
-        btree = BTree.update(btree, CMP, Arrays.asList(1), true, monitor);
+        btree = BTree.update(btree, CMP, Arrays.asList(1), monitor);
         assertArrayEquals(new Object[] {1, null}, btree);
         assertEquals(1, monitor.getNumberOfCalls(1));
 
         monitor.clear();
-        btree = BTree.update(btree, CMP, Arrays.asList(2), true, monitor);
+        btree = BTree.update(btree, CMP, Arrays.asList(2), monitor);
         assertArrayEquals(new Object[] {1, 2}, btree);
         assertEquals(1, monitor.getNumberOfCalls(2));
 
         // with existing value
         monitor.clear();
-        btree = BTree.update(btree, CMP, Arrays.asList(1), true, monitor);
+        btree = BTree.update(btree, CMP, Arrays.asList(1), monitor);
         assertArrayEquals(new Object[] {1, 2}, btree);
         assertEquals(1, monitor.getNumberOfCalls(1));
 
         // with two non-existing values
         monitor.clear();
-        btree = BTree.update(btree, CMP, Arrays.asList(3, 4), true, monitor);
+        btree = BTree.update(btree, CMP, Arrays.asList(3, 4), monitor);
         assertArrayEquals(new Object[] {1, 2, 3, 4}, btree);
         assertEquals(1, monitor.getNumberOfCalls(3));
         assertEquals(1, monitor.getNumberOfCalls(4));
 
-        // with one existing value and one non existing value in disorder
+        // with one existing value and one non existing value
         monitor.clear();
-        btree = BTree.update(btree, CMP, Arrays.asList(5, 2), false, monitor);
+        btree = BTree.update(btree, CMP, Arrays.asList(2, 5), monitor);
         assertArrayEquals(new Object[] {3, new Object[]{1, 2}, new Object[]{4, 5}}, btree);
         assertEquals(1, monitor.getNumberOfCalls(2));
         assertEquals(1, monitor.getNumberOfCalls(5));
@@ -160,18 +173,18 @@ public class BTreeTest
     public void testBuilding_UpdateFunctionCallBack()
     {
         CallsMonitor monitor = new CallsMonitor();
-        Object[] btree = BTree.build(Arrays.asList(1), CMP, true, monitor);
+        Object[] btree = BTree.build(Arrays.asList(1), monitor);
         assertArrayEquals(new Object[] {1, null}, btree);
         assertEquals(1, monitor.getNumberOfCalls(1));
 
         monitor.clear();
-        btree = BTree.build(Arrays.asList(1, 2), CMP, true, monitor);
+        btree = BTree.build(Arrays.asList(1, 2), monitor);
         assertArrayEquals(new Object[] {1, 2}, btree);
         assertEquals(1, monitor.getNumberOfCalls(1));
         assertEquals(1, monitor.getNumberOfCalls(2));
 
         monitor.clear();
-        btree = BTree.build(Arrays.asList(3, 1, 2), CMP, false, monitor);
+        btree = BTree.build(Arrays.asList(1, 2, 3), monitor);
         assertArrayEquals(new Object[] {1, 2, 3, null}, btree);
         assertEquals(1, monitor.getNumberOfCalls(1));
         assertEquals(1, monitor.getNumberOfCalls(2));
@@ -180,31 +193,27 @@ public class BTreeTest
 
     private static void checkResult(int count, Object[] btree)
     {
-        BTreeSet<Integer> vs = new BTreeSet<>(btree, CMP);
-        assert vs.size() == count;
+        Iterator<Integer> iter = BTree.slice(btree, true);
         int i = 0;
-        for (Integer j : vs)
-            assertEquals(j, ints[i++]);
+        while (iter.hasNext())
+            assertEquals(iter.next(), ints[i++]);
+        assertFalse(iter.hasNext());
     }
 
     @Test
     public void testClearOnAbort()
     {
-        final Comparator<String> cmp = new Comparator<String>()
-        {
-            public int compare(String o1, String o2)
-            {
-                return o1.compareTo(o2);
-            }
-        };
+        Object[] btree = BTree.build(seq(2), noOp);
+        Object[] copy = Arrays.copyOf(btree, btree.length);
+        BTree.update(btree, CMP, seq(94), new AbortAfterX(90));
 
-        Object[] btree = BTree.build(ranges(range(0, 8)), cmp, true, UpdateFunction.NoOp.<String>instance());
-        BTree.update(btree, cmp, ranges(range(0, 94)), false, new AbortAfterX(90));
-        btree = BTree.update(btree, cmp, ranges(range(0, 94)), false, UpdateFunction.NoOp.<String>instance());
-        assertTrue(BTree.isWellFormed(btree, cmp));
+        assertArrayEquals(copy, btree);
+
+        btree = BTree.update(btree, CMP, seq(94), noOp);
+        assertTrue(BTree.isWellFormed(btree, CMP));
     }
 
-    private static final class AbortAfterX implements UpdateFunction<String>
+    private static final class AbortAfterX implements UpdateFunction<Integer, Integer>
     {
         int counter;
         final int abortAfter;
@@ -212,7 +221,7 @@ public class BTreeTest
         {
             this.abortAfter = abortAfter;
         }
-        public String apply(String replacing, String update)
+        public Integer apply(Integer replacing, Integer update)
         {
             return update;
         }
@@ -223,33 +232,16 @@ public class BTreeTest
         public void allocated(long heapSize)
         {
         }
-        public String apply(String v)
+        public Integer apply(Integer v)
         {
             return v;
         }
     }
 
-    private static int[] range(int lb, int ub)
-    {
-        return new int[] { lb, ub };
-    }
-
-    private static List<String> ranges(int[] ... ranges)
-    {
-
-        List<String> r = new ArrayList<>();
-        for (int[] range : ranges)
-        {
-            for (int i = range[0] ; i < range[1] ; i+=1)
-                r.add(Integer.toString(i));
-        }
-        return r;
-    }
-
     /**
      * <code>UpdateFunction</code> that count the number of call made to apply for each value.
      */
-    public static final class CallsMonitor implements UpdateFunction<Integer>
+    public static final class CallsMonitor implements UpdateFunction<Integer, Integer>
     {
         private int[] numberOfCalls = new int[20];
 

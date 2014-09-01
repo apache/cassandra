@@ -31,8 +31,8 @@ import org.junit.After;
 import org.junit.Test;
 
 import junit.framework.Assert;
-import org.apache.cassandra.db.composites.CellNames;
-import org.apache.cassandra.db.composites.SimpleDenseCellNameType;
+import org.apache.cassandra.db.ClusteringComparator;
+import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
@@ -85,7 +85,8 @@ public class CompressedSequentialWriterTest extends SequentialWriterTest
 
         try
         {
-            MetadataCollector sstableMetadataCollector = new MetadataCollector(new SimpleDenseCellNameType(BytesType.instance)).replayPosition(null);
+            MetadataCollector sstableMetadataCollector = new MetadataCollector(new ClusteringComparator(Arrays.<AbstractType<?>>asList(BytesType.instance))).replayPosition(null);
+
             byte[] dataPre = new byte[bytesToTest];
             byte[] rawPost = new byte[bytesToTest];
             try (CompressedSequentialWriter writer = new CompressedSequentialWriter(f, filename + ".metadata", new CompressionParameters(compressor), sstableMetadataCollector);)
@@ -174,7 +175,10 @@ public class CompressedSequentialWriterTest extends SequentialWriterTest
 
         private TestableCSW(File file, File offsetsFile) throws IOException
         {
-            this(file, offsetsFile, new CompressedSequentialWriter(file, offsetsFile.getPath(), new CompressionParameters(LZ4Compressor.instance, BUFFER_SIZE, new HashMap<String, String>()), new MetadataCollector(CellNames.fromAbstractType(UTF8Type.instance, false))));
+            this(file, offsetsFile, new CompressedSequentialWriter(file,
+                                                                   offsetsFile.getPath(),
+                                                                   new CompressionParameters(LZ4Compressor.instance, BUFFER_SIZE, new HashMap<String, String>()),
+                                                                   new MetadataCollector(new ClusteringComparator(UTF8Type.instance))));
         }
 
         private TestableCSW(File file, File offsetsFile, CompressedSequentialWriter sw) throws IOException

@@ -23,49 +23,44 @@ import java.util.List;
 
 import org.junit.BeforeClass;
 import org.junit.Test;
-import static org.junit.Assert.assertEquals;
 
-import static org.apache.cassandra.Util.token;
-import static org.apache.cassandra.Util.rp;
-
-import org.apache.cassandra.db.RowPosition;
-import org.apache.cassandra.dht.AbstractBounds;
-import org.apache.cassandra.dht.Bounds;
-import org.apache.cassandra.dht.Range;
-import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.dht.ExcludingBounds;
-import org.apache.cassandra.dht.IncludingExcludingBounds;
+import org.apache.cassandra.db.PartitionPosition;
+import org.apache.cassandra.dht.*;
 import org.apache.cassandra.locator.TokenMetadata;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
+import static org.apache.cassandra.Util.rp;
+import static org.apache.cassandra.Util.token;
+import static org.junit.Assert.assertEquals;
+
 public class StorageProxyTest
 {
-    private static Range<RowPosition> range(RowPosition left, RowPosition right)
+    private static Range<PartitionPosition> range(PartitionPosition left, PartitionPosition right)
     {
-        return new Range<RowPosition>(left, right);
+        return new Range<PartitionPosition>(left, right);
     }
 
-    private static Bounds<RowPosition> bounds(RowPosition left, RowPosition right)
+    private static Bounds<PartitionPosition> bounds(PartitionPosition left, PartitionPosition right)
     {
-        return new Bounds<RowPosition>(left, right);
+        return new Bounds<PartitionPosition>(left, right);
     }
 
-    private static ExcludingBounds<RowPosition> exBounds(RowPosition left, RowPosition right)
+    private static ExcludingBounds<PartitionPosition> exBounds(PartitionPosition left, PartitionPosition right)
     {
-        return new ExcludingBounds<RowPosition>(left, right);
+        return new ExcludingBounds<PartitionPosition>(left, right);
     }
 
-    private static IncludingExcludingBounds<RowPosition> incExBounds(RowPosition left, RowPosition right)
+    private static IncludingExcludingBounds<PartitionPosition> incExBounds(PartitionPosition left, PartitionPosition right)
     {
-        return new IncludingExcludingBounds<RowPosition>(left, right);
+        return new IncludingExcludingBounds<PartitionPosition>(left, right);
     }
 
-    private static RowPosition startOf(String key)
+    private static PartitionPosition startOf(String key)
     {
         return StorageService.getPartitioner().getToken(ByteBufferUtil.bytes(key)).minKeyBound();
     }
 
-    private static RowPosition endOf(String key)
+    private static PartitionPosition endOf(String key)
     {
         return StorageService.getPartitioner().getToken(ByteBufferUtil.bytes(key)).maxKeyBound();
     }
@@ -99,10 +94,10 @@ public class StorageProxyTest
     }
 
     // test getRestrictedRanges for keys
-    private void testGRRKeys(AbstractBounds<RowPosition> queryRange, AbstractBounds<RowPosition>... expected)
+    private void testGRRKeys(AbstractBounds<PartitionPosition> queryRange, AbstractBounds<PartitionPosition>... expected)
     {
         // Testing for keys
-        List<AbstractBounds<RowPosition>> restrictedKeys = StorageProxy.getRestrictedRanges(queryRange);
+        List<AbstractBounds<PartitionPosition>> restrictedKeys = StorageProxy.getRestrictedRanges(queryRange);
         assertEquals(restrictedKeys.toString(), expected.length, restrictedKeys.size());
         for (int i = 0; i < expected.length; i++)
             assertEquals("Mismatch for index " + i + ": " + restrictedKeys, expected[i], restrictedKeys.get(i));

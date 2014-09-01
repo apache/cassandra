@@ -22,24 +22,27 @@ package org.apache.cassandra.cache;
 
 
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.UUID;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.*;
 
+import org.apache.cassandra.Util;
 import org.junit.BeforeClass;
 import org.junit.Test;
-
-import org.apache.cassandra.SchemaLoader;
-import org.apache.cassandra.config.KSMetaData;
-import org.apache.cassandra.db.ArrayBackedSortedColumns;
-import org.apache.cassandra.db.ColumnFamily;
-import org.apache.cassandra.exceptions.ConfigurationException;
-import org.apache.cassandra.locator.SimpleStrategy;
+import static org.junit.Assert.*;
 
 import com.googlecode.concurrentlinkedhashmap.Weighers;
 
-import static org.apache.cassandra.Util.column;
-import static org.junit.Assert.*;
+import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.config.KSMetaData;
+import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.rows.*;
+import org.apache.cassandra.db.marshal.AsciiType;
+import org.apache.cassandra.db.partitions.*;
+import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.locator.SimpleStrategy;
+import org.apache.cassandra.SchemaLoader;
+import org.apache.cassandra.utils.FBUtilities;
 
 public class CacheProviderTest
 {
@@ -52,59 +55,86 @@ public class CacheProviderTest
     private static final String KEYSPACE1 = "CacheProviderTest1";
     private static final String CF_STANDARD1 = "Standard1";
 
+    private static CFMetaData cfm;
+
     @BeforeClass
     public static void defineSchema() throws ConfigurationException
     {
         SchemaLoader.prepareServer();
+
+        cfm = CFMetaData.Builder.create(KEYSPACE1, CF_STANDARD1)
+                                        .addPartitionKey("pKey", AsciiType.instance)
+                                        .addRegularColumn("col1", AsciiType.instance)
+                                        .build();
         SchemaLoader.createKeyspace(KEYSPACE1,
                                     SimpleStrategy.class,
                                     KSMetaData.optsWithRF(1),
-                                    SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARD1));
+                                    cfm);
     }
 
-    private void simpleCase(ColumnFamily cf, ICache<MeasureableString, IRowCacheEntry> cache)
+    private ArrayBackedCachedPartition createPartition()
     {
-        cache.put(key1, cf);
+        PartitionUpdate update = new RowUpdateBuilder(cfm, System.currentTimeMillis(), "key1")
+                                 .add("col1", "val1")
+                                 .buildUpdate();
+
+        return ArrayBackedCachedPartition.create(update.unfilteredIterator(), FBUtilities.nowInSeconds());
+    }
+
+    private void simpleCase(ArrayBackedCachedPartition partition, ICache<MeasureableString, IRowCacheEntry> cache)
+    {
+        cache.put(key1, partition);
         assertNotNull(cache.get(key1));
 
-        assertDigests(cache.get(key1), cf);
-        cache.put(key2, cf);
-        cache.put(key3, cf);
-        cache.put(key4, cf);
-        cache.put(key5, cf);
+        assertDigests(cache.get(key1), partition);
+        cache.put(key2, partition);
+        cache.put(key3, partition);
+        cache.put(key4, partition);
+        cache.put(key5, partition);
 
         assertEquals(CAPACITY, cache.size());
     }
 
-    private void assertDigests(IRowCacheEntry one, ColumnFamily two)
+    private void assertDigests(IRowCacheEntry one, ArrayBackedCachedPartition two)
     {
-        // CF does not implement .equals
-        assertTrue(one instanceof ColumnFamily);
-        assertEquals(ColumnFamily.digest((ColumnFamily)one), ColumnFamily.digest(two));
+        assertTrue(one instanceof ArrayBackedCachedPartition);
+        try
+        {
+            MessageDigest d1 = MessageDigest.getInstance("MD5");
+            MessageDigest d2 = MessageDigest.getInstance("MD5");
+            UnfilteredRowIterators.digest(((ArrayBackedCachedPartition) one).unfilteredIterator(), d1);
+            UnfilteredRowIterators.digest(((ArrayBackedCachedPartition) two).unfilteredIterator(), d2);
+            assertTrue(MessageDigest.isEqual(d1.digest(), d2.digest()));
+        }
+        catch (NoSuchAlgorithmException e)
+        {
+            throw new RuntimeException(e);
+        }
     }
 
-    // TODO this isn't terribly useful
-    private void concurrentCase(final ColumnFamily cf, final ICache<MeasureableString, IRowCacheEntry> cache) throws InterruptedException
+    private void concurrentCase(final ArrayBackedCachedPartition partition, final ICache<MeasureableString, IRowCacheEntry> cache) throws InterruptedException
     {
-        Runnable runable = new Runnable()
+        final long startTime = System.currentTimeMillis() + 500;
+        Runnable runnable = new Runnable()
         {
             public void run()
             {
-                for (int j = 0; j < 10; j++)
+                while (System.currentTimeMillis() < startTime) {}
+                for (int j = 0; j < 1000; j++)
                 {
-                    cache.put(key1, cf);
-                    cache.put(key2, cf);
-                    cache.put(key3, cf);
-                    cache.put(key4, cf);
-                    cache.put(key5, cf);
+                    cache.put(key1, partition);
+                    cache.put(key2, partition);
+                    cache.put(key3, partition);
+                    cache.put(key4, partition);
+                    cache.put(key5, partition);
                 }
             }
         };
 
-        List<Thread> threads = new ArrayList<Thread>(100);
+        List<Thread> threads = new ArrayList<>(100);
         for (int i = 0; i < 100; i++)
         {
-            Thread thread = new Thread(runable);
+            Thread thread = new Thread(runnable);
             threads.add(thread);
             thread.start();
         }
@@ -112,27 +142,20 @@ public class CacheProviderTest
             thread.join();
     }
 
-    private ColumnFamily createCF()
-    {
-        ColumnFamily cf = ArrayBackedSortedColumns.factory.create(KEYSPACE1, CF_STANDARD1);
-        cf.addColumn(column("vijay", "great", 1));
-        cf.addColumn(column("awesome", "vijay", 1));
-        return cf;
-    }
-
     @Test
     public void testSerializingCache() throws InterruptedException
     {
         ICache<MeasureableString, IRowCacheEntry> cache = SerializingCache.create(CAPACITY, Weighers.<RefCountedMemory>singleton(), new SerializingCacheProvider.RowCacheSerializer());
-        ColumnFamily cf = createCF();
-        simpleCase(cf, cache);
-        concurrentCase(cf, cache);
+        ArrayBackedCachedPartition partition = createPartition();
+        simpleCase(partition, cache);
+        concurrentCase(partition, cache);
     }
-    
+
     @Test
     public void testKeys()
     {
         UUID cfId = UUID.randomUUID();
+
 
         byte[] b1 = {1, 2, 3, 4};
         RowCacheKey key1 = new RowCacheKey(cfId, ByteBuffer.wrap(b1));

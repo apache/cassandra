@@ -18,22 +18,29 @@
 */
 package org.apache.cassandra.db;
 
-import java.util.Arrays;
-import java.util.concurrent.TimeUnit;
+import java.io.IOException;
 
-import com.google.common.util.concurrent.Uninterruptibles;
+import com.google.common.collect.ImmutableList;
+import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
+import org.apache.cassandra.Util;
+import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.config.KSMetaData;
-import org.apache.cassandra.db.composites.CellNames;
+import org.apache.cassandra.cql3.ColumnIdentifier;
+import org.apache.cassandra.db.rows.*;
+import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.AsciiType;
+import org.apache.cassandra.db.marshal.BytesType;
+import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.locator.SimpleStrategy;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.FBUtilities;
 
-import static org.apache.cassandra.Util.column;
-import static org.apache.cassandra.Util.tombstone;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
@@ -43,88 +50,158 @@ public class RowTest
     private static final String KEYSPACE1 = "RowTest";
     private static final String CF_STANDARD1 = "Standard1";
 
+    private int nowInSeconds;
+    private DecoratedKey dk;
+    private ColumnFamilyStore cfs;
+    private CFMetaData cfm;
+
     @BeforeClass
     public static void defineSchema() throws ConfigurationException
     {
+        CFMetaData cfMetadata = CFMetaData.Builder.create(KEYSPACE1, CF_STANDARD1)
+                                                  .addPartitionKey("key", BytesType.instance)
+                                                  .addClusteringColumn("col1", AsciiType.instance)
+                                                  .addRegularColumn("a", AsciiType.instance)
+                                                  .addRegularColumn("b", AsciiType.instance)
+                                                  .build();
         SchemaLoader.prepareServer();
         SchemaLoader.createKeyspace(KEYSPACE1,
                                     SimpleStrategy.class,
                                     KSMetaData.optsWithRF(1),
-                                    SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARD1));
+                                    cfMetadata);
+    }
+
+    @Before
+    public void setup()
+    {
+        nowInSeconds = FBUtilities.nowInSeconds();
+        dk = Util.dk("key0");
+        cfs = Keyspace.open(KEYSPACE1).getColumnFamilyStore(CF_STANDARD1);
+        cfm = cfs.metadata;
     }
 
     @Test
-    public void testDiffColumnFamily()
+    public void testMergeRangeTombstones() throws InterruptedException
     {
-        ColumnFamily cf1 = ArrayBackedSortedColumns.factory.create(KEYSPACE1, "Standard1");
-        cf1.addColumn(column("one", "onev", 0));
+        PartitionUpdate update1 = new PartitionUpdate(cfm, dk, cfm.partitionColumns(), 1);
+        writeRangeTombstone(update1, "1", "11", 123, 123);
+        writeRangeTombstone(update1, "2", "22", 123, 123);
+        writeRangeTombstone(update1, "3", "31", 123, 123);
+        writeRangeTombstone(update1, "4", "41", 123, 123);
 
-        ColumnFamily cf2 = ArrayBackedSortedColumns.factory.create(KEYSPACE1, "Standard1");
-        DeletionInfo delInfo = new DeletionInfo(0, 0);
-        cf2.delete(delInfo);
+        PartitionUpdate update2 = new PartitionUpdate(cfm, dk, cfm.partitionColumns(), 1);
+        writeRangeTombstone(update2, "1", "11", 123, 123);
+        writeRangeTombstone(update2, "111", "112", 1230, 123);
+        writeRangeTombstone(update2, "2", "24", 123, 123);
+        writeRangeTombstone(update2, "3", "31", 1230, 123);
+        writeRangeTombstone(update2, "4", "41", 123, 1230);
+        writeRangeTombstone(update2, "5", "51", 123, 1230);
 
-        ColumnFamily cfDiff = cf1.diff(cf2);
-        assertFalse(cfDiff.hasColumns());
-        assertEquals(cfDiff.deletionInfo(), delInfo);
+        try (UnfilteredRowIterator merged = UnfilteredRowIterators.merge(ImmutableList.of(update1.unfilteredIterator(), update2.unfilteredIterator()), nowInSeconds))
+        {
+            Object[][] expected = new Object[][]{ { "1", "11", 123l, 123 },
+                                                  { "111", "112", 1230l, 123 },
+                                                  { "2", "24", 123l, 123 },
+                                                  { "3", "31", 1230l, 123 },
+                                                  { "4", "41", 123l, 1230 },
+                                                  { "5", "51", 123l, 1230 } };
+            int i = 0;
+            while (merged.hasNext())
+            {
+                RangeTombstoneBoundMarker openMarker = (RangeTombstoneBoundMarker)merged.next();
+                Slice.Bound openBound = openMarker.clustering();
+                DeletionTime openDeletion = new SimpleDeletionTime(openMarker.deletionTime().markedForDeleteAt(),
+                                                                   openMarker.deletionTime().localDeletionTime());
 
-        RangeTombstone tombstone1 = tombstone("1", "11", (long) 123, 123);
-        RangeTombstone tombstone1_2 = tombstone("111", "112", (long) 1230, 123);
-        RangeTombstone tombstone2_1 = tombstone("2", "22", (long) 123, 123);
-        RangeTombstone tombstone2_2 = tombstone("2", "24", (long) 123, 123);
-        RangeTombstone tombstone3_1 = tombstone("3", "31", (long) 123, 123);
-        RangeTombstone tombstone3_2 = tombstone("3", "31", (long) 1230, 123);
-        RangeTombstone tombstone4_1 = tombstone("4", "41", (long) 123, 123);
-        RangeTombstone tombstone4_2 = tombstone("4", "41", (long) 123, 1230);
-        RangeTombstone tombstone5_2 = tombstone("5", "51", (long) 123, 1230);
-        cf1.delete(tombstone1);
-        cf1.delete(tombstone2_1);
-        cf1.delete(tombstone3_1);
-        cf1.delete(tombstone4_1);
+                RangeTombstoneBoundMarker closeMarker = (RangeTombstoneBoundMarker)merged.next();
+                Slice.Bound closeBound = closeMarker.clustering();
+                DeletionTime closeDeletion = new SimpleDeletionTime(closeMarker.deletionTime().markedForDeleteAt(),
+                                                                    closeMarker.deletionTime().localDeletionTime());
 
-        cf2.delete(tombstone1);
-        cf2.delete(tombstone1_2);
-        cf2.delete(tombstone2_2);
-        cf2.delete(tombstone3_2);
-        cf2.delete(tombstone4_2);
-        cf2.delete(tombstone5_2);
-
-        cfDiff = cf1.diff(cf2);
-        assertEquals(0, cfDiff.getColumnCount());
-
-        // only tmbstones which differ in superset or have more recent timestamp to be in diff
-        delInfo.add(tombstone1_2, cf1.getComparator());
-        delInfo.add(tombstone2_2, cf1.getComparator());
-        delInfo.add(tombstone3_2, cf1.getComparator());
-        delInfo.add(tombstone5_2, cf1.getComparator());
-
-        assertEquals(delInfo, cfDiff.deletionInfo());
+                assertEquals(openDeletion, closeDeletion);
+                assertRangeTombstoneMarkers(openBound, closeBound, openDeletion, expected[i++]);
+            }
+        }
     }
 
     @Test
     public void testResolve()
     {
-        ColumnFamily cf1 = ArrayBackedSortedColumns.factory.create(KEYSPACE1, "Standard1");
-        cf1.addColumn(column("one", "A", 0));
+        ColumnDefinition defA = cfm.getColumnDefinition(new ColumnIdentifier("a", true));
+        ColumnDefinition defB = cfm.getColumnDefinition(new ColumnIdentifier("b", true));
 
-        ColumnFamily cf2 = ArrayBackedSortedColumns.factory.create(KEYSPACE1, "Standard1");
-        cf2.addColumn(column("one", "B", 1));
-        cf2.addColumn(column("two", "C", 1));
+        PartitionUpdate update = new PartitionUpdate(cfm, dk, cfm.partitionColumns(), 1);
+        Rows.writeClustering(update.metadata().comparator.make("c1"), update.writer());
+        writeSimpleCellValue(update.writer(), cfm, defA, "a1", 0, nowInSeconds);
+        writeSimpleCellValue(update.writer(), cfm, defA, "a2", 1, nowInSeconds);
+        writeSimpleCellValue(update.writer(), cfm, defB, "b1", 1, nowInSeconds);
+        update.writer().endOfRow();
 
-        cf1.addAll(cf2);
-        assert Arrays.equals(cf1.getColumn(CellNames.simpleDense(ByteBufferUtil.bytes("one"))).value().array(), "B".getBytes());
-        assert Arrays.equals(cf1.getColumn(CellNames.simpleDense(ByteBufferUtil.bytes("two"))).value().array(), "C".getBytes());
+        Unfiltered unfiltered = update.unfilteredIterator().next();
+        assertTrue(unfiltered.kind() == Unfiltered.Kind.ROW);
+        Row row = (Row) unfiltered;
+        assertEquals("a2", defA.cellValueType().getString(row.getCell(defA).value()));
+        assertEquals("b1", defB.cellValueType().getString(row.getCell(defB).value()));
+        assertEquals(2, row.columns().columnCount());
     }
 
     @Test
-    public void testExpiringColumnExpiration()
+    public void testExpiringColumnExpiration() throws IOException
     {
-        Cell c = new BufferExpiringCell(CellNames.simpleDense(ByteBufferUtil.bytes("one")), ByteBufferUtil.bytes("A"), 0, 1);
-        assertTrue(c.isLive());
+        int ttl = 1;
+        ColumnDefinition def = cfm.getColumnDefinition(new ColumnIdentifier("a", true));
+        PartitionUpdate update = new PartitionUpdate(cfm, dk, cfm.partitionColumns(), 1);
+        Rows.writeClustering(update.metadata().comparator.make("c1"), update.writer());
+        update.writer().writeCell(def, false, ((AbstractType) def.cellValueType()).decompose("a1"),
+                                  SimpleLivenessInfo.forUpdate(0, ttl, nowInSeconds, cfm),
+                                  null);
+        update.writer().endOfRow();
+        new Mutation(update).applyUnsafe();
 
-        // Because we keep the local deletion time with a precision of a
-        // second, we could have to wait 2 seconds in worst case scenario.
-        Uninterruptibles.sleepUninterruptibly(2, TimeUnit.SECONDS);
+        // when we read with a nowInSeconds before the cell has expired,
+        // the PartitionIterator includes the row we just wrote
+        Row row = Util.getOnlyRow(Util.cmd(cfs, dk).includeRow("c1").withNowInSeconds(nowInSeconds).build());
+        assertEquals("a1", ByteBufferUtil.string(row.getCell(def).value()));
 
-        assert !c.isLive() && c.timestamp() == 0;
+        // when we read with a nowInSeconds after the cell has expired, the row is filtered
+        // so the PartitionIterator is empty
+        Util.assertEmpty(Util.cmd(cfs, dk).includeRow("c1").withNowInSeconds(nowInSeconds + ttl + 1).build());
+    }
+
+    private void assertRangeTombstoneMarkers(Slice.Bound start, Slice.Bound end, DeletionTime deletionTime, Object[] expected)
+    {
+        AbstractType clusteringType = (AbstractType)cfm.comparator.subtype(0);
+
+        assertEquals(1, start.size());
+        assertEquals(start.kind(), Slice.Bound.Kind.INCL_START_BOUND);
+        assertEquals(expected[0], clusteringType.getString(start.get(0)));
+
+        assertEquals(1, end.size());
+        assertEquals(end.kind(), Slice.Bound.Kind.INCL_END_BOUND);
+        assertEquals(expected[1], clusteringType.getString(end.get(0)));
+
+        assertEquals(expected[2], deletionTime.markedForDeleteAt());
+        assertEquals(expected[3], deletionTime.localDeletionTime());
+    }
+
+    public void writeRangeTombstone(PartitionUpdate update, Object start, Object end, long markedForDeleteAt, int localDeletionTime)
+    {
+        ClusteringComparator comparator = cfs.getComparator();
+        update.addRangeTombstone(Slice.make(comparator.make(start), comparator.make(end)),
+                                 new SimpleDeletionTime(markedForDeleteAt, localDeletionTime));
+    }
+
+    private void writeSimpleCellValue(Row.Writer writer,
+                                      CFMetaData cfm,
+                                      ColumnDefinition columnDefinition,
+                                      String value,
+                                      long timestamp,
+                                      int nowInSeconds)
+    {
+        writer.writeCell(columnDefinition,
+                         false,
+                         ((AbstractType) columnDefinition.cellValueType()).decompose(value),
+                         SimpleLivenessInfo.forUpdate(timestamp, LivenessInfo.NO_TTL, nowInSeconds, cfm),
+                         null);
     }
 }

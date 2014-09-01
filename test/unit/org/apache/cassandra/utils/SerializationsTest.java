@@ -18,15 +18,16 @@
  */
 package org.apache.cassandra.utils;
 
+import java.io.DataInputStream;
+import java.io.IOException;
+
+import org.junit.Assert;
+import org.junit.Test;
+
 import org.apache.cassandra.AbstractSerializationsTester;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.io.util.DataOutputStreamPlus;
 import org.apache.cassandra.service.StorageService;
-import org.junit.Assert;
-import org.junit.Test;
-
-import java.io.DataInputStream;
-import java.io.IOException;
 
 public class SerializationsTest extends AbstractSerializationsTester
 {

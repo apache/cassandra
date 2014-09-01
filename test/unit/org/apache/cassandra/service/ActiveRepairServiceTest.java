@@ -58,10 +58,10 @@ public class ActiveRepairServiceTest
     {
         SchemaLoader.prepareServer();
         SchemaLoader.createKeyspace(KEYSPACE5,
-                                    SimpleStrategy.class,
-                                    KSMetaData.optsWithRF(2),
-                                    SchemaLoader.standardCFMD(KEYSPACE5, CF_COUNTER),
-                                    SchemaLoader.standardCFMD(KEYSPACE5, CF_STANDRAD1));
+                SimpleStrategy.class,
+                KSMetaData.optsWithRF(2),
+                SchemaLoader.standardCFMD(KEYSPACE5, CF_COUNTER),
+                SchemaLoader.standardCFMD(KEYSPACE5, CF_STANDRAD1));
     }
 
     @Before
@@ -190,8 +190,8 @@ public class ActiveRepairServiceTest
         Collection<String> hosts = Arrays.asList(FBUtilities.getBroadcastAddress().getCanonicalHostName(),expected.get(0).getCanonicalHostName());
 
        assertEquals(expected.get(0), ActiveRepairService.getNeighbors(KEYSPACE5,
-                                                                      StorageService.instance.getLocalRanges(KEYSPACE5).iterator().next(),
-                                                                      null, hosts).iterator().next());
+               StorageService.instance.getLocalRanges(KEYSPACE5).iterator().next(),
+               null, hosts).iterator().next());
     }
 
     @Test(expected = IllegalArgumentException.class)

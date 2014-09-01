@@ -45,8 +45,8 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.Schema;
-import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.Mutation;
+import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.utils.CLibrary;
@@ -398,12 +398,12 @@ public abstract class CommitLogSegment
 
     void markDirty(Mutation mutation, int allocatedPosition)
     {
-        for (ColumnFamily columnFamily : mutation.getColumnFamilies())
+        for (PartitionUpdate update : mutation.getPartitionUpdates())
         {
             // check for deleted CFS
-            CFMetaData cfm = columnFamily.metadata();
+            CFMetaData cfm = update.metadata();
             if (cfm.isPurged())
-                logger.error("Attempted to write commit log entry for unrecognized table: {}", columnFamily.id());
+                logger.error("Attempted to write commit log entry for unrecognized table: {}", cfm.cfId);
             else
                 ensureAtleast(cfDirty, cfm.cfId, allocatedPosition);
         }

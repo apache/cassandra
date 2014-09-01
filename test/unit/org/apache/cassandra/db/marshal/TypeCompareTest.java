@@ -93,48 +93,6 @@ public class TypeCompareTest
     }
 
     @Test
-    public void testByte()
-    {
-        Random rng = new Random();
-        ByteBuffer[] data = new ByteBuffer[Byte.MAX_VALUE];
-        for (int i = 0; i < data.length; i++)
-        {
-            data[i] = ByteBuffer.allocate(1);
-            rng.nextBytes(data[i].array());
-        }
-
-        Arrays.sort(data, ByteType.instance);
-
-        for (int i = 1; i < data.length; i++)
-        {
-            byte b0 = data[i - 1].get(data[i - 1].position());
-            byte b1 = data[i].get(data[i].position());
-            assert b0 <= b1;
-        }
-    }
-
-    @Test
-    public void testShort()
-    {
-        Random rng = new Random();
-        ByteBuffer[] data = new ByteBuffer[1000];
-        for (int i = 0; i < data.length; i++)
-        {
-            data[i] = ByteBuffer.allocate(2);
-            rng.nextBytes(data[i].array());
-        }
-
-        Arrays.sort(data, ShortType.instance);
-
-        for (int i = 1; i < data.length; i++)
-        {
-            short s0 = data[i - 1].getShort(data[i - 1].position());
-            short s1 = data[i].getShort(data[i].position());
-            assert s0 <= s1;
-        }
-    }
-
-    @Test
     public void testInt()
     {
         Random rng = new Random();

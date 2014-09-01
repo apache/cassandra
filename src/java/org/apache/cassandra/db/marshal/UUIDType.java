@@ -168,4 +168,10 @@ public class UUIDType extends AbstractType<UUID>
     {
         return (uuid.get(6) & 0xf0) >> 4;
     }
+
+    @Override
+    protected int valueLengthIfFixed()
+    {
+        return 16;
+    }
 }

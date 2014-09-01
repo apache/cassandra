@@ -141,6 +141,6 @@ public class QueryMessage extends Message.Request
     @Override
     public String toString()
     {
-        return "QUERY " + query;
+        return "QUERY " + query + "[pageSize = " + options.getPageSize() + "]";
     }
 }

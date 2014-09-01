@@ -21,13 +21,13 @@ import java.net.InetAddress;
 import java.util.*;
 
 import com.datastax.driver.core.*;
+
+import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.db.ColumnFamilyType;
+import org.apache.cassandra.cql3.ColumnIdentifier;
+import org.apache.cassandra.db.CompactTables;
 import org.apache.cassandra.db.SystemKeyspace;
-import org.apache.cassandra.db.composites.CellNameType;
-import org.apache.cassandra.db.composites.CellNames;
-import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.db.marshal.TypeParser;
+import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.dht.*;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.SSTableLoader;
@@ -100,27 +100,70 @@ public class NativeSSTableLoaderClient extends SSTableLoader.Client
     {
         Map<String, CFMetaData> tables = new HashMap<>();
 
-        String query = String.format("SELECT columnfamily_name, cf_id, type, comparator, subcomparator, is_dense FROM %s.%s WHERE keyspace_name = '%s'",
+        String query = String.format("SELECT columnfamily_name, cf_id, type, comparator, subcomparator, is_dense, default_validator FROM %s.%s WHERE keyspace_name = '%s'",
                                      SystemKeyspace.NAME,
                                      LegacySchemaTables.COLUMNFAMILIES,
                                      keyspace);
 
+
+        // The following is a slightly simplified but otherwise duplicated version of LegacySchemaTables.createTableFromTableRowAndColumnRows. It might
+        // be safer to have a simple wrapper of the driver ResultSet/Row implementing UntypedResultSet/UntypedResultSet.Row and reuse the original method.
         for (Row row : session.execute(query))
         {
             String name = row.getString("columnfamily_name");
             UUID id = row.getUUID("cf_id");
-            ColumnFamilyType type = ColumnFamilyType.valueOf(row.getString("type"));
+            boolean isSuper = row.getString("type").toLowerCase().equals("super");
             AbstractType rawComparator = TypeParser.parse(row.getString("comparator"));
             AbstractType subComparator = row.isNull("subcomparator")
                                        ? null
                                        : TypeParser.parse(row.getString("subcomparator"));
             boolean isDense = row.getBool("is_dense");
-            CellNameType comparator = CellNames.fromAbstractType(CFMetaData.makeRawAbstractType(rawComparator, subComparator),
-                                                                 isDense);
+            boolean isCompound = rawComparator instanceof CompositeType;
 
-            tables.put(name, new CFMetaData(keyspace, name, type, comparator, id));
+            AbstractType<?> defaultValidator = TypeParser.parse(row.getString("default_validator"));
+            boolean isCounter =  defaultValidator instanceof CounterColumnType;
+            boolean isCQLTable = !isSuper && !isDense && isCompound;
+
+            String columnsQuery = String.format("SELECT column_name, component_index, type, validator FROM %s.%s WHERE keyspace_name='%s' AND columnfamily_name='%s'",
+                                                SystemKeyspace.NAME,
+                                                LegacySchemaTables.COLUMNS,
+                                                keyspace,
+                                                name);
+
+            List<ColumnDefinition> defs = new ArrayList<>();
+            for (Row colRow : session.execute(columnsQuery))
+                defs.add(createDefinitionFromRow(colRow, keyspace, name, rawComparator, subComparator, isSuper, isCQLTable));
+
+            tables.put(name, CFMetaData.create(keyspace, name, id, isDense, isCompound, isSuper, isCounter, defs));
         }
 
         return tables;
+    }
+
+    // A slightly simplified version of LegacySchemaTables.
+    private static ColumnDefinition createDefinitionFromRow(Row row,
+                                                            String keyspace,
+                                                            String table,
+                                                            AbstractType<?> rawComparator,
+                                                            AbstractType<?> rawSubComparator,
+                                                            boolean isSuper,
+                                                            boolean isCQLTable)
+    {
+        ColumnDefinition.Kind kind = LegacySchemaTables.deserializeKind(row.getString("type"));
+
+        Integer componentIndex = null;
+        if (!row.isNull("component_index"))
+            componentIndex = row.getInt("component_index");
+
+        // Note: we save the column name as string, but we should not assume that it is an UTF8 name, we
+        // we need to use the comparator fromString method
+        AbstractType<?> comparator = isCQLTable
+                                   ? UTF8Type.instance
+                                   : CompactTables.columnDefinitionComparator(kind, isSuper, rawComparator, rawSubComparator);
+        ColumnIdentifier name = ColumnIdentifier.getInterned(comparator.fromString(row.getString("column_name")), comparator);
+
+        AbstractType<?> validator = TypeParser.parse(row.getString("validator"));
+
+        return new ColumnDefinition(keyspace, table, name, validator, null, null, null, componentIndex, kind);
     }
 }

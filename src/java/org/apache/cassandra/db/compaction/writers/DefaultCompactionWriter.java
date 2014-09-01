@@ -25,7 +25,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.db.compaction.AbstractCompactedRow;
+import org.apache.cassandra.db.SerializationHeader;
+import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.io.sstable.Descriptor;
@@ -54,14 +55,15 @@ public class DefaultCompactionWriter extends CompactionAwareWriter
                                                     minRepairedAt,
                                                     cfs.metadata,
                                                     cfs.partitioner,
-                                                    new MetadataCollector(txn.originals(), cfs.metadata.comparator, 0));
+                                                    new MetadataCollector(txn.originals(), cfs.metadata.comparator, 0),
+                                                    SerializationHeader.make(cfs.metadata, nonExpiredSSTables));
         sstableWriter.switchWriter(writer);
     }
 
     @Override
-    public boolean append(AbstractCompactedRow row)
+    public boolean append(UnfilteredRowIterator partition)
     {
-        return sstableWriter.append(row) != null;
+        return sstableWriter.append(partition) != null;
     }
 
     @Override

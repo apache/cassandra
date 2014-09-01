@@ -17,11 +17,13 @@
  */
 package org.apache.cassandra.service.pager;
 
-import java.util.List;
-
-import org.apache.cassandra.db.Row;
+import org.apache.cassandra.db.ConsistencyLevel;
+import org.apache.cassandra.db.ReadOrderGroup;
+import org.apache.cassandra.db.partitions.PartitionIterator;
+import org.apache.cassandra.db.partitions.PartitionIterators;
 import org.apache.cassandra.exceptions.RequestExecutionException;
 import org.apache.cassandra.exceptions.RequestValidationException;
+import org.apache.cassandra.service.ClientState;
 
 /**
  * Perform a query, paging it by page of a given size.
@@ -44,13 +46,69 @@ import org.apache.cassandra.exceptions.RequestValidationException;
  */
 public interface QueryPager
 {
+    public static final QueryPager EMPTY = new QueryPager()
+    {
+        public ReadOrderGroup startOrderGroup()
+        {
+            return ReadOrderGroup.emptyGroup();
+        }
+
+        public PartitionIterator fetchPage(int pageSize, ConsistencyLevel consistency, ClientState clientState) throws RequestValidationException, RequestExecutionException
+        {
+            return PartitionIterators.EMPTY;
+        }
+
+        public PartitionIterator fetchPageInternal(int pageSize, ReadOrderGroup orderGroup) throws RequestValidationException, RequestExecutionException
+        {
+            return PartitionIterators.EMPTY;
+        }
+
+        public boolean isExhausted()
+        {
+            return true;
+        }
+
+        public int maxRemaining()
+        {
+            return 0;
+        }
+
+        public PagingState state()
+        {
+            return null;
+        }
+    };
+
     /**
      * Fetches the next page.
      *
      * @param pageSize the maximum number of elements to return in the next page.
+     * @param consistency the consistency level to achieve for the query.
+     * @param clientState the {@code ClientState} for the query. In practice, this can be null unless
+     * {@code consistency} is a serial consistency.
      * @return the page of result.
      */
-    public List<Row> fetchPage(int pageSize) throws RequestValidationException, RequestExecutionException;
+    public PartitionIterator fetchPage(int pageSize, ConsistencyLevel consistency, ClientState clientState) throws RequestValidationException, RequestExecutionException;
+
+    /**
+     * Starts a new read operation.
+     * <p>
+     * This must be called before {@link fetchPageInternal} and passed to it to protect the read.
+     * The returned object <b>must</b> be closed on all path and it is thus strongly advised to
+     * use it in a try-with-ressource construction.
+     *
+     * @return a newly started order group for this {@code QueryPager}.
+     */
+    public ReadOrderGroup startOrderGroup();
+
+    /**
+     * Fetches the next page internally (in other, this does a local query).
+     *
+     * @param pageSize the maximum number of elements to return in the next page.
+     * @param orderGroup the {@code ReadOrderGroup} protecting the read.
+     * @return the page of result.
+     */
+    public PartitionIterator fetchPageInternal(int pageSize, ReadOrderGroup orderGroup) throws RequestValidationException, RequestExecutionException;
 
     /**
      * Whether or not this pager is exhausted, i.e. whether or not a call to

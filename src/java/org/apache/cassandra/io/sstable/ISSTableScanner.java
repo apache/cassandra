@@ -19,14 +19,13 @@
 
 package org.apache.cassandra.io.sstable;
 
-import org.apache.cassandra.db.columniterator.OnDiskAtomIterator;
-import org.apache.cassandra.utils.CloseableIterator;
+import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
 
 /**
  * An ISSTableScanner is an abstraction allowing multiple SSTableScanners to be
  * chained together under the hood.  See LeveledCompactionStrategy.getScanners.
  */
-public interface ISSTableScanner extends CloseableIterator<OnDiskAtomIterator>
+public interface ISSTableScanner extends UnfilteredPartitionIterator
 {
     public long getLengthInBytes();
     public long getCurrentPosition();

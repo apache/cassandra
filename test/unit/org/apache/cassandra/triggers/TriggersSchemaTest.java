@@ -31,9 +31,7 @@ import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.locator.SimpleStrategy;
 import org.apache.cassandra.service.MigrationManager;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.*;
 
 public class TriggersSchemaTest
 {
@@ -55,10 +53,10 @@ public class TriggersSchemaTest
         CFMetaData cfm1 = CFMetaData.compile(String.format("CREATE TABLE %s (k int PRIMARY KEY, v int)", cfName), ksName);
         cfm1.addTriggerDefinition(td);
         KSMetaData ksm = KSMetaData.newKeyspace(ksName,
-                                                SimpleStrategy.class,
-                                                Collections.singletonMap("replication_factor", "1"),
-                                                true,
-                                                Collections.singletonList(cfm1));
+                SimpleStrategy.class,
+                Collections.singletonMap("replication_factor", "1"),
+                true,
+                Collections.singletonList(cfm1));
         MigrationManager.announceNewKeyspace(ksm);
 
         CFMetaData cfm2 = Schema.instance.getCFMetaData(ksName, cfName);
@@ -71,10 +69,10 @@ public class TriggersSchemaTest
     public void addNewCfWithTriggerToKs() throws Exception
     {
         KSMetaData ksm = KSMetaData.newKeyspace(ksName,
-                                                SimpleStrategy.class,
-                                                Collections.singletonMap("replication_factor", "1"),
-                                                true,
-                                                Collections.EMPTY_LIST);
+                SimpleStrategy.class,
+                Collections.singletonMap("replication_factor", "1"),
+                true,
+                Collections.EMPTY_LIST);
         MigrationManager.announceNewKeyspace(ksm);
 
         CFMetaData cfm1 = CFMetaData.compile(String.format("CREATE TABLE %s (k int PRIMARY KEY, v int)", cfName), ksName);
@@ -94,10 +92,10 @@ public class TriggersSchemaTest
     {
         CFMetaData cfm1 = CFMetaData.compile(String.format("CREATE TABLE %s (k int PRIMARY KEY, v int)", cfName), ksName);
         KSMetaData ksm = KSMetaData.newKeyspace(ksName,
-                                                SimpleStrategy.class,
-                                                Collections.singletonMap("replication_factor", "1"),
-                                                true,
-                                                Collections.singletonList(cfm1));
+                SimpleStrategy.class,
+                Collections.singletonMap("replication_factor", "1"),
+                true,
+                Collections.singletonList(cfm1));
         MigrationManager.announceNewKeyspace(ksm);
 
         CFMetaData cfm2 = Schema.instance.getCFMetaData(ksName, cfName).copy();
@@ -118,10 +116,10 @@ public class TriggersSchemaTest
         CFMetaData cfm1 = CFMetaData.compile(String.format("CREATE TABLE %s (k int PRIMARY KEY, v int)", cfName), ksName);
         cfm1.addTriggerDefinition(td);
         KSMetaData ksm = KSMetaData.newKeyspace(ksName,
-                                                SimpleStrategy.class,
-                                                Collections.singletonMap("replication_factor", "1"),
-                                                true,
-                                                Collections.singletonList(cfm1));
+                SimpleStrategy.class,
+                Collections.singletonMap("replication_factor", "1"),
+                true,
+                Collections.singletonList(cfm1));
         MigrationManager.announceNewKeyspace(ksm);
 
         CFMetaData cfm2 = Schema.instance.getCFMetaData(ksName, cfName).copy();

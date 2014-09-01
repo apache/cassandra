@@ -43,17 +43,20 @@ import org.apache.cassandra.cache.AutoSavingCache.CacheSerializer;
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.concurrent.StageManager;
 import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.*;
-import org.apache.cassandra.db.composites.CellName;
+import org.apache.cassandra.db.rows.*;
+import org.apache.cassandra.db.filter.*;
+import org.apache.cassandra.db.partitions.ArrayBackedCachedPartition;
+import org.apache.cassandra.db.partitions.CachedPartition;
 import org.apache.cassandra.db.context.CounterContext;
-import org.apache.cassandra.db.filter.QueryFilter;
-import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
+import org.apache.cassandra.utils.concurrent.OpOrder;
 
 public class CacheService implements CacheServiceMBean
 {
@@ -362,24 +365,45 @@ public class CacheService implements CacheServiceMBean
         public Future<Pair<CounterCacheKey, ClockAndCount>> deserialize(DataInputStream in, final ColumnFamilyStore cfs) throws IOException
         {
             final ByteBuffer partitionKey = ByteBufferUtil.readWithLength(in);
-            final CellName cellName = cfs.metadata.comparator.cellFromByteBuffer(ByteBufferUtil.readWithLength(in));
+            final ByteBuffer cellName = ByteBufferUtil.readWithLength(in);
             return StageManager.getStage(Stage.READ).submit(new Callable<Pair<CounterCacheKey, ClockAndCount>>()
             {
                 public Pair<CounterCacheKey, ClockAndCount> call() throws Exception
                 {
                     DecoratedKey key = cfs.partitioner.decorateKey(partitionKey);
-                    QueryFilter filter = QueryFilter.getNamesFilter(key,
-                                                                    cfs.metadata.cfName,
-                                                                    FBUtilities.singleton(cellName, cfs.metadata.comparator),
-                                                                    Long.MIN_VALUE);
-                    ColumnFamily cf = cfs.getTopLevelColumns(filter, Integer.MIN_VALUE);
-                    if (cf == null)
-                        return null;
-                    Cell cell = cf.getColumn(cellName);
-                    if (cell == null || !cell.isLive(Long.MIN_VALUE))
-                        return null;
-                    ClockAndCount clockAndCount = CounterContext.instance().getLocalClockAndCount(cell.value());
-                    return Pair.create(CounterCacheKey.create(cfs.metadata.cfId, partitionKey, cellName), clockAndCount);
+                    LegacyLayout.LegacyCellName name = LegacyLayout.decodeCellName(cfs.metadata, cellName);
+                    ColumnDefinition column = name.column;
+                    CellPath path = name.collectionElement == null ? null : CellPath.create(name.collectionElement);
+
+                    int nowInSec = FBUtilities.nowInSeconds();
+                    ColumnFilter.Builder builder = ColumnFilter.selectionBuilder();
+                    if (path == null)
+                        builder.add(column);
+                    else
+                        builder.select(column, path);
+
+                    ClusteringIndexFilter filter = new ClusteringIndexNamesFilter(FBUtilities.<Clustering>singleton(name.clustering, cfs.metadata.comparator), false);
+                    SinglePartitionReadCommand cmd = SinglePartitionReadCommand.create(cfs.metadata, nowInSec, key, builder.build(), filter);
+                    try (OpOrder.Group op = cfs.readOrdering.start(); RowIterator iter = UnfilteredRowIterators.filter(cmd.queryMemtableAndDisk(cfs, op), nowInSec))
+                    {
+                        Cell cell;
+                        if (column.isStatic())
+                        {
+                            cell = iter.staticRow().getCell(column);
+                        }
+                        else
+                        {
+                            if (!iter.hasNext())
+                                return null;
+                            cell = iter.next().getCell(column);
+                        }
+
+                        if (cell == null)
+                            return null;
+
+                        ClockAndCount clockAndCount = CounterContext.instance().getLocalClockAndCount(cell.value());
+                        return Pair.create(CounterCacheKey.create(cfs.metadata.cfId, partitionKey, name.clustering, column, path), clockAndCount);
+                    }
                 }
             });
         }
@@ -395,14 +419,19 @@ public class CacheService implements CacheServiceMBean
         public Future<Pair<RowCacheKey, IRowCacheEntry>> deserialize(DataInputStream in, final ColumnFamilyStore cfs) throws IOException
         {
             final ByteBuffer buffer = ByteBufferUtil.readWithLength(in);
+            final int rowsToCache = cfs.metadata.getCaching().rowCache.rowsToCache;
+
             return StageManager.getStage(Stage.READ).submit(new Callable<Pair<RowCacheKey, IRowCacheEntry>>()
             {
                 public Pair<RowCacheKey, IRowCacheEntry> call() throws Exception
                 {
                     DecoratedKey key = cfs.partitioner.decorateKey(buffer);
-                    QueryFilter cacheFilter = new QueryFilter(key, cfs.getColumnFamilyName(), cfs.readFilterForCache(), Integer.MIN_VALUE);
-                    ColumnFamily data = cfs.getTopLevelColumns(cacheFilter, Integer.MIN_VALUE);
-                    return Pair.create(new RowCacheKey(cfs.metadata.cfId, key), (IRowCacheEntry) data);
+                    int nowInSec = FBUtilities.nowInSeconds();
+                    try (OpOrder.Group op = cfs.readOrdering.start(); UnfilteredRowIterator iter = SinglePartitionReadCommand.fullPartitionRead(cfs.metadata, nowInSec, key).queryMemtableAndDisk(cfs, op))
+                    {
+                        CachedPartition toCache = ArrayBackedCachedPartition.create(DataLimits.cqlLimits(rowsToCache).filter(iter, nowInSec), nowInSec);
+                        return Pair.create(new RowCacheKey(cfs.metadata.cfId, key), (IRowCacheEntry)toCache);
+                    }
                 }
             });
         }
@@ -423,7 +452,7 @@ public class CacheService implements CacheServiceMBean
             ByteBufferUtil.writeWithLength(key.key, out);
             out.writeInt(key.desc.generation);
             out.writeBoolean(true);
-            key.desc.getFormat().getIndexSerializer(cfm).serialize(entry, out);
+            key.desc.getFormat().getIndexSerializer(cfm, key.desc.version, SerializationHeader.forKeyCache(cfm)).serialize(entry, out);
         }
 
         public Future<Pair<KeyCacheKey, RowIndexEntry>> deserialize(DataInputStream input, ColumnFamilyStore cfs) throws IOException
@@ -443,7 +472,10 @@ public class CacheService implements CacheServiceMBean
                 RowIndexEntry.Serializer.skipPromotedIndex(input);
                 return null;
             }
-            RowIndexEntry entry = reader.descriptor.getFormat().getIndexSerializer(reader.metadata).deserialize(input, reader.descriptor.version);
+            RowIndexEntry.IndexSerializer<?> indexSerializer = reader.descriptor.getFormat().getIndexSerializer(reader.metadata,
+                                                                                                                reader.descriptor.version,
+                                                                                                                SerializationHeader.forKeyCache(cfs.metadata));
+            RowIndexEntry entry = indexSerializer.deserialize(input);
             return Futures.immediateFuture(Pair.create(new KeyCacheKey(cfs.metadata.cfId, reader.descriptor, key), entry));
         }
 

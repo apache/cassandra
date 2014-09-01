@@ -111,12 +111,14 @@ public class CreateIndexStatement extends SchemaAlteringStatement
 
         properties.validate();
 
-        // TODO: we could lift that limitation
-        if ((cfm.comparator.isDense() || !cfm.comparator.isCompound()) && cd.isPrimaryKeyColumn())
-            throw new InvalidRequestException("Secondary indexes are not supported on PRIMARY KEY columns in COMPACT STORAGE tables");
-
-        if (cd.kind == ColumnDefinition.Kind.COMPACT_VALUE)
-            throw new InvalidRequestException("Secondary indexes are not supported on COMPACT STORAGE tables that have clustering columns");
+        if (cfm.isCompactTable())
+        {
+            if (!cfm.isStaticCompactTable())
+                throw new InvalidRequestException("Secondary indexes are not supported on COMPACT STORAGE tables that have clustering columns");
+            else if (cd.isPrimaryKeyColumn())
+                // TODO: we could lift that limitation
+                throw new InvalidRequestException("Secondary indexes are not supported on PRIMARY KEY columns in COMPACT STORAGE tables");
+        }
 
         // It would be possible to support 2ndary index on static columns (but not without modifications of at least ExtendedFilter and
         // CompositesIndex) and maybe we should, but that means a query like:
@@ -124,7 +126,7 @@ public class CreateIndexStatement extends SchemaAlteringStatement
         // would pull the full partition every time the static column of partition is 'bar', which sounds like offering a
         // fair potential for foot-shooting, so I prefer leaving that to a follow up ticket once we have identified cases where
         // such indexing is actually useful.
-        if (cd.isStatic())
+        if (!cfm.isCompactTable() && cd.isStatic())
             throw new InvalidRequestException("Secondary indexes are not allowed on static columns");
 
         if (cd.kind == ColumnDefinition.Kind.PARTITION_KEY && cd.isOnAllComponents())
@@ -174,7 +176,7 @@ public class CreateIndexStatement extends SchemaAlteringStatement
         {
             cd.setIndexType(IndexType.CUSTOM, properties.getOptions());
         }
-        else if (cfm.comparator.isCompound())
+        else if (cfm.isCompound())
         {
             Map<String, String> options = Collections.emptyMap();
             // For now, we only allow indexing values for collections, but we could later allow

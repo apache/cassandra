@@ -31,7 +31,9 @@ import org.apache.cassandra.config.KSMetaData;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.Keyspace;
-import org.apache.cassandra.db.Row;
+import org.apache.cassandra.db.SimpleClustering;
+import org.apache.cassandra.db.partitions.*;
+import org.apache.cassandra.db.marshal.AsciiType;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.locator.SimpleStrategy;
@@ -70,15 +72,18 @@ public class SSTableLoaderTest
         File dataDir = new File(tempdir.getAbsolutePath() + File.separator + KEYSPACE1 + File.separator + CF_STANDARD);
         assert dataDir.mkdirs();
         CFMetaData cfmeta = Schema.instance.getCFMetaData(KEYSPACE1, CF_STANDARD);
-        DecoratedKey key = Util.dk("key1");
-        
-        try (SSTableSimpleUnsortedWriter writer = new SSTableSimpleUnsortedWriter(dataDir,
-                                                                             cfmeta,
-                                                                             StorageService.getPartitioner(),
-                                                                             1))
+
+        String schema = "CREATE TABLE %s.%s (key ascii, name ascii, val ascii, val1 ascii, PRIMARY KEY (key, name))";
+        String query = "INSERT INTO %s.%s (key, name, val) VALUES (?, ?, ?)";
+                                                           ;
+        try (CQLSSTableWriter writer = CQLSSTableWriter.builder()
+                                                       .inDirectory(dataDir)
+                                                       .withPartitioner(StorageService.getPartitioner())
+                                                       .forTable(String.format(schema, KEYSPACE1, CF_STANDARD))
+                                                       .using(String.format(query, KEYSPACE1, CF_STANDARD))
+                                                       .build())
         {
-            writer.newRow(key.getKey());
-            writer.addColumn(ByteBufferUtil.bytes("col1"), ByteBufferUtil.bytes(100), 1);
+            writer.addRow("key1", "col1", "100");
         }
 
         SSTableLoader loader = new SSTableLoader(dataDir, new SSTableLoader.Client()
@@ -101,9 +106,12 @@ public class SSTableLoaderTest
 
         loader.stream().get();
 
-        List<Row> rows = Util.getRangeSlice(Keyspace.open(KEYSPACE1).getColumnFamilyStore(CF_STANDARD));
-        assertEquals(1, rows.size());
-        assertEquals(key, rows.get(0).key);
-        assertEquals(ByteBufferUtil.bytes(100), rows.get(0).cf.getColumn(Util.cellname("col1")).value());
+        List<FilteredPartition> partitions = Util.getAll(Util.cmd(Keyspace.open(KEYSPACE1).getColumnFamilyStore(CF_STANDARD)).build());
+
+        assertEquals(1, partitions.size());
+        assertEquals("key1", AsciiType.instance.getString(partitions.get(0).partitionKey().getKey()));
+        assertEquals(ByteBufferUtil.bytes("100"), partitions.get(0).getRow(new SimpleClustering(ByteBufferUtil.bytes("col1")))
+                                                                   .getCell(cfmeta.getColumnDefinition(ByteBufferUtil.bytes("val")))
+                                                                   .value());
     }
 }

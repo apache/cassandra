@@ -15,14 +15,12 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package org.apache.cassandra.repair;
 
-import java.io.IOException;
 import java.net.InetAddress;
-import java.security.MessageDigest;
 import java.util.UUID;
 
-import org.apache.cassandra.io.util.SequentialWriter;
 import org.junit.After;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -31,27 +29,29 @@ import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.config.KSMetaData;
 import org.apache.cassandra.db.BufferDecoratedKey;
 import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.Keyspace;
-import org.apache.cassandra.db.RowIndexEntry;
-import org.apache.cassandra.db.compaction.AbstractCompactedRow;
+import org.apache.cassandra.db.rows.UnfilteredRowIterators;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.io.sstable.ColumnStats;
 import org.apache.cassandra.locator.SimpleStrategy;
+import org.apache.cassandra.net.IMessageSink;
 import org.apache.cassandra.net.MessageIn;
 import org.apache.cassandra.net.MessageOut;
 import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.net.IMessageSink;
 import org.apache.cassandra.repair.messages.RepairMessage;
 import org.apache.cassandra.repair.messages.ValidationComplete;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.MerkleTree;
 import org.apache.cassandra.utils.concurrent.SimpleCondition;
 
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
 
 public class ValidatorTest
 {
@@ -124,7 +124,7 @@ public class ValidatorTest
 
         // add a row
         Token mid = partitioner.midpoint(range.left, range.right);
-        validator.add(new CompactedRowStub(new BufferDecoratedKey(mid, ByteBufferUtil.bytes("inconceivable!"))));
+        validator.add(UnfilteredRowIterators.emptyIterator(cfs.metadata, new BufferDecoratedKey(mid, ByteBufferUtil.bytes("inconceivable!")), false));
         validator.complete();
 
         // confirm that the tree was validated
@@ -135,27 +135,6 @@ public class ValidatorTest
             lock.await();
     }
 
-    private static class CompactedRowStub extends AbstractCompactedRow
-    {
-        private CompactedRowStub(DecoratedKey key)
-        {
-            super(key);
-        }
-
-        public RowIndexEntry write(long currentPosition, SequentialWriter out) throws IOException
-        {
-            throw new UnsupportedOperationException();
-        }
-
-        public void update(MessageDigest digest) { }
-
-        public ColumnStats columnStats()
-        {
-            throw new UnsupportedOperationException();
-        }
-
-        public void close() throws IOException { }
-    }
 
     @Test
     public void testValidatorFailed() throws Throwable

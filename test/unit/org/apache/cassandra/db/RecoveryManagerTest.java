@@ -22,30 +22,39 @@ import java.io.IOException;
 import java.util.Date;
 import java.util.concurrent.TimeUnit;
 
+import com.google.common.collect.Iterators;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import org.apache.cassandra.OrderedJUnit4ClassRunner;
 import org.apache.cassandra.Util;
-import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.config.KSMetaData;
-import org.apache.cassandra.db.marshal.BytesType;
-import org.apache.cassandra.db.marshal.CounterColumnType;
+import org.apache.cassandra.db.rows.*;
+import org.apache.cassandra.db.context.CounterContext;
+import org.apache.cassandra.db.partitions.PartitionIterator;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.locator.SimpleStrategy;
+
 import org.junit.Assert;
+import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
+import static org.junit.Assert.assertEquals;
+
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.commitlog.CommitLogArchiver;
-
-import static org.apache.cassandra.Util.column;
-import static org.apache.cassandra.db.KeyspaceTest.assertColumns;
-import static org.apache.cassandra.Util.cellname;
+import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.FBUtilities;
 
 @RunWith(OrderedJUnit4ClassRunner.class)
 public class RecoveryManagerTest
 {
+    private static Logger logger = LoggerFactory.getLogger(RecoveryManagerTest.class);
+
     private static final String KEYSPACE1 = "RecoveryManagerTest1";
     private static final String CF_STANDARD1 = "Standard1";
     private static final String CF_COUNTER1 = "Counter1";
@@ -61,11 +70,19 @@ public class RecoveryManagerTest
                                     SimpleStrategy.class,
                                     KSMetaData.optsWithRF(1),
                                     SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARD1),
-                                    SchemaLoader.standardCFMD(KEYSPACE1, CF_COUNTER1).defaultValidator(CounterColumnType.instance));
+                                    SchemaLoader.counterCFMD(KEYSPACE1, CF_COUNTER1));
         SchemaLoader.createKeyspace(KEYSPACE2,
                                     SimpleStrategy.class,
                                     KSMetaData.optsWithRF(1),
                                     SchemaLoader.standardCFMD(KEYSPACE2, CF_STANDARD3));
+    }
+
+    @Before
+    public void clearData()
+    {
+        Keyspace.open(KEYSPACE1).getColumnFamilyStore(CF_STANDARD1).truncateBlocking();
+        Keyspace.open(KEYSPACE1).getColumnFamilyStore(CF_COUNTER1).truncateBlocking();
+        Keyspace.open(KEYSPACE2).getColumnFamilyStore(CF_STANDARD3).truncateBlocking();
     }
 
     @Test
@@ -81,27 +98,22 @@ public class RecoveryManagerTest
         Keyspace keyspace1 = Keyspace.open(KEYSPACE1);
         Keyspace keyspace2 = Keyspace.open(KEYSPACE2);
 
-        Mutation rm;
-        DecoratedKey dk = Util.dk("keymulti");
-        ColumnFamily cf;
+        UnfilteredRowIterator upd1 = Util.apply(new RowUpdateBuilder(keyspace1.getColumnFamilyStore(CF_STANDARD1).metadata, 1L, 0, "keymulti")
+            .clustering("col1").add("val", "1")
+            .build());
 
-        cf = ArrayBackedSortedColumns.factory.create(KEYSPACE1, "Standard1");
-        cf.addColumn(column("col1", "val1", 1L));
-        rm = new Mutation(KEYSPACE1, dk.getKey(), cf);
-        rm.apply();
-
-        cf = ArrayBackedSortedColumns.factory.create(KEYSPACE2, "Standard3");
-        cf.addColumn(column("col2", "val2", 1L));
-        rm = new Mutation(KEYSPACE2, dk.getKey(), cf);
-        rm.apply();
+        UnfilteredRowIterator upd2 = Util.apply(new RowUpdateBuilder(keyspace2.getColumnFamilyStore(CF_STANDARD3).metadata, 1L, 0, "keymulti")
+                                       .clustering("col2").add("val", "1")
+                                       .build());
 
         keyspace1.getColumnFamilyStore("Standard1").clearUnsafe();
         keyspace2.getColumnFamilyStore("Standard3").clearUnsafe();
 
-        CommitLog.instance.resetUnsafe(false); // disassociate segments from live CL
+        CommitLog.instance.resetUnsafe(false);
 
-        assertColumns(Util.getColumnFamily(keyspace1, dk, "Standard1"), "col1");
-        assertColumns(Util.getColumnFamily(keyspace2, dk, "Standard3"), "col2");
+        DecoratedKey dk = Util.dk("keymulti");
+        Assert.assertTrue(AbstractUnfilteredRowIterator.equal(upd1, Util.getOnlyPartitionUnfiltered(Util.cmd(keyspace1.getColumnFamilyStore(CF_STANDARD1), dk).build()).unfilteredIterator()));
+        Assert.assertTrue(AbstractUnfilteredRowIterator.equal(upd2, Util.getOnlyPartitionUnfiltered(Util.cmd(keyspace2.getColumnFamilyStore(CF_STANDARD3), dk).build()).unfilteredIterator()));
     }
 
     @Test
@@ -109,89 +121,84 @@ public class RecoveryManagerTest
     {
         CommitLog.instance.resetUnsafe(true);
         Keyspace keyspace1 = Keyspace.open(KEYSPACE1);
-
-        Mutation rm;
-        DecoratedKey dk = Util.dk("key");
-        ColumnFamily cf;
+        ColumnFamilyStore cfs = keyspace1.getColumnFamilyStore(CF_COUNTER1);
 
         for (int i = 0; i < 10; ++i)
         {
-            cf = ArrayBackedSortedColumns.factory.create(KEYSPACE1, "Counter1");
-            cf.addColumn(BufferCounterCell.createLocal(cellname("col"), 1L, 1L, Long.MIN_VALUE));
-            rm = new Mutation(KEYSPACE1, dk.getKey(), cf);
-            rm.apply();
+            new CounterMutation(new RowUpdateBuilder(cfs.metadata, 1L, 0, "key")
+                .clustering("cc").add("val", CounterContext.instance().createLocal(1L))
+                .build(), ConsistencyLevel.ALL).apply();
         }
 
         keyspace1.getColumnFamilyStore("Counter1").clearUnsafe();
 
-        CommitLog.instance.resetUnsafe(false); // disassociate segments from live CL
+        int replayed = CommitLog.instance.resetUnsafe(false);
 
-        cf = Util.getColumnFamily(keyspace1, dk, "Counter1");
-
-        assert cf.getColumnCount() == 1;
-        Cell c = cf.getColumn(cellname("col"));
-
-        assert c != null;
-        assert ((CounterCell)c).total() == 10L;
+        ColumnDefinition counterCol = cfs.metadata.getColumnDefinition(ByteBufferUtil.bytes("val"));
+        Row row = Util.getOnlyRow(Util.cmd(cfs).includeRow("cc").columns("val").build());
+        assertEquals(10L, CounterContext.instance().total(row.getCell(counterCol).value()));
     }
 
     @Test
     public void testRecoverPIT() throws Exception
     {
+        ColumnFamilyStore cfs = Keyspace.open(KEYSPACE1).getColumnFamilyStore(CF_STANDARD1);
         CommitLog.instance.resetUnsafe(true);
         Date date = CommitLogArchiver.format.parse("2112:12:12 12:12:12");
         long timeMS = date.getTime() - 5000;
 
         Keyspace keyspace1 = Keyspace.open(KEYSPACE1);
-        DecoratedKey dk = Util.dk("dkey");
         for (int i = 0; i < 10; ++i)
         {
             long ts = TimeUnit.MILLISECONDS.toMicros(timeMS + (i * 1000));
-            ColumnFamily cf = ArrayBackedSortedColumns.factory.create(KEYSPACE1, "Standard1");
-            cf.addColumn(column("name-" + i, "value", ts));
-            Mutation rm = new Mutation(KEYSPACE1, dk.getKey(), cf);
-            rm.apply();
+            new RowUpdateBuilder(cfs.metadata, ts, "name-" + i)
+                .clustering("cc")
+                .add("val", Integer.toString(i))
+                .build()
+                .apply();
         }
+
+        // Sanity check row count prior to clear and replay
+        assertEquals(10, Util.getAll(Util.cmd(cfs).build()).size());
+
         keyspace1.getColumnFamilyStore("Standard1").clearUnsafe();
-        CommitLog.instance.resetUnsafe(false); // disassociate segments from live CL
+        CommitLog.instance.resetUnsafe(false);
 
-        ColumnFamily cf = Util.getColumnFamily(keyspace1, dk, "Standard1");
-        Assert.assertEquals(6, cf.getColumnCount());
+        assertEquals(6, Util.getAll(Util.cmd(cfs).build()).size());
     }
-
 
     @Test
     public void testRecoverPITUnordered() throws Exception
     {
+        ColumnFamilyStore cfs = Keyspace.open(KEYSPACE1).getColumnFamilyStore(CF_STANDARD1);
         CommitLog.instance.resetUnsafe(true);
         Date date = CommitLogArchiver.format.parse("2112:12:12 12:12:12");
         long timeMS = date.getTime();
 
         Keyspace keyspace1 = Keyspace.open(KEYSPACE1);
-        DecoratedKey dk = Util.dk("dkey");
 
         // Col 0 and 9 are the only ones to be recovered
         for (int i = 0; i < 10; ++i)
         {
             long ts;
-            if(i==9)
+            if (i == 9)
                 ts = TimeUnit.MILLISECONDS.toMicros(timeMS - 1000);
             else
                 ts = TimeUnit.MILLISECONDS.toMicros(timeMS + (i * 1000));
 
-            ColumnFamily cf = ArrayBackedSortedColumns.factory.create(KEYSPACE1, "Standard1");
-            cf.addColumn(column("name-" + i, "value", ts));
-            Mutation rm = new Mutation(KEYSPACE1, dk.getKey(), cf);
-            rm.apply();
+            new RowUpdateBuilder(cfs.metadata, ts, "name-" + i)
+                .clustering("cc")
+                .add("val", Integer.toString(i))
+                .build()
+                .apply();
         }
 
-        ColumnFamily cf = Util.getColumnFamily(keyspace1, dk, "Standard1");
-        Assert.assertEquals(10, cf.getColumnCount());
+        // Sanity check row count prior to clear and replay
+        assertEquals(10, Util.getAll(Util.cmd(cfs).build()).size());
 
         keyspace1.getColumnFamilyStore("Standard1").clearUnsafe();
-        CommitLog.instance.resetUnsafe(false); // disassociate segments from live CL
+        CommitLog.instance.resetUnsafe(false);
 
-        cf = Util.getColumnFamily(keyspace1, dk, "Standard1");
-        Assert.assertEquals(2, cf.getColumnCount());
+        assertEquals(2, Util.getAll(Util.cmd(cfs).build()).size());
     }
 }

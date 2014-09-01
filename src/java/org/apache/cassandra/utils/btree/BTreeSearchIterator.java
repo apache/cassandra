@@ -25,43 +25,76 @@ import static org.apache.cassandra.utils.btree.BTree.getKeyEnd;
 
 public class BTreeSearchIterator<CK, K extends CK, V> extends Path implements SearchIterator<K, V>
 {
-
     final Comparator<CK> comparator;
-    public BTreeSearchIterator(Object[] btree, Comparator<CK> comparator)
+    final boolean forwards;
+
+    public BTreeSearchIterator(Object[] btree, Comparator<CK> comparator, boolean forwards)
     {
         init(btree);
+        if (!forwards)
+            this.indexes[0] = (byte)(getKeyEnd(path[0]) - 1);
         this.comparator = comparator;
+        this.forwards = forwards;
     }
 
     public V next(K target)
     {
-        while (depth > 0)
+        // We could probably avoid some of the repetition but leaving that for later.
+        if (forwards)
         {
-            byte successorParentDepth = findSuccessorParentDepth();
-            if (successorParentDepth < 0)
-                break; // we're in last section of tree, so can only search down
-            int successorParentIndex = indexes[successorParentDepth] + 1;
-            Object[] successParentNode = path[successorParentDepth];
-            Object successorParentKey = successParentNode[successorParentIndex];
-            int c = BTree.compare(comparator, target, successorParentKey);
-            if (c < 0)
-                break;
-            if (c == 0)
+            while (depth > 0)
             {
+                byte successorParentDepth = findSuccessorParentDepth();
+                if (successorParentDepth < 0)
+                    break; // we're in last section of tree, so can only search down
+                int successorParentIndex = indexes[successorParentDepth] + 1;
+                Object[] successParentNode = path[successorParentDepth];
+                Object successorParentKey = successParentNode[successorParentIndex];
+                int c = BTree.compare(comparator, target, successorParentKey);
+                if (c < 0)
+                    break;
+                if (c == 0)
+                {
+                    depth = successorParentDepth;
+                    indexes[successorParentDepth]++;
+                    return (V) successorParentKey;
+                }
                 depth = successorParentDepth;
                 indexes[successorParentDepth]++;
-                return (V) successorParentKey;
             }
-            depth = successorParentDepth;
-            indexes[successorParentDepth]++;
+            if (find(comparator, target, Op.CEIL, true))
+                return (V) currentKey();
         }
-        if (find(comparator, target, Op.CEIL, true))
-            return (V) currentKey();
+        else
+        {
+            while (depth > 0)
+            {
+                byte predecessorParentDepth = findPredecessorParentDepth();
+                if (predecessorParentDepth < 0)
+                    break; // we're in last section of tree, so can only search down
+                int predecessorParentIndex = indexes[predecessorParentDepth] - 1;
+                Object[] predecessParentNode = path[predecessorParentDepth];
+                Object predecessorParentKey = predecessParentNode[predecessorParentIndex];
+                int c = BTree.compare(comparator, target, predecessorParentKey);
+                if (c > 0)
+                    break;
+                if (c == 0)
+                {
+                    depth = predecessorParentDepth;
+                    indexes[predecessorParentDepth]--;
+                    return (V) predecessorParentKey;
+                }
+                depth = predecessorParentDepth;
+                indexes[predecessorParentDepth]--;
+            }
+            if (find(comparator, target, Op.FLOOR, false))
+                return (V) currentKey();
+        }
         return null;
     }
 
     public boolean hasNext()
     {
-        return depth != 0 || indexes[0] != getKeyEnd(path[0]);
+        return depth != 0 || indexes[0] != (forwards ? getKeyEnd(path[0]) : -1);
     }
 }

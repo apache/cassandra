@@ -6,16 +6,16 @@ import java.util.List;
 
 import com.google.common.collect.Iterables;
 
-import org.apache.cassandra.db.RowPosition;
+import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.utils.Interval;
 import org.apache.cassandra.utils.IntervalTree;
 
-public class SSTableIntervalTree extends IntervalTree<RowPosition, SSTableReader, Interval<RowPosition, SSTableReader>>
+public class SSTableIntervalTree extends IntervalTree<PartitionPosition, SSTableReader, Interval<PartitionPosition, SSTableReader>>
 {
     private static final SSTableIntervalTree EMPTY = new SSTableIntervalTree(null);
 
-    SSTableIntervalTree(Collection<Interval<RowPosition, SSTableReader>> intervals)
+    SSTableIntervalTree(Collection<Interval<PartitionPosition, SSTableReader>> intervals)
     {
         super(intervals);
     }
@@ -30,11 +30,11 @@ public class SSTableIntervalTree extends IntervalTree<RowPosition, SSTableReader
         return new SSTableIntervalTree(buildIntervals(sstables));
     }
 
-    public static List<Interval<RowPosition, SSTableReader>> buildIntervals(Iterable<SSTableReader> sstables)
+    public static List<Interval<PartitionPosition, SSTableReader>> buildIntervals(Iterable<SSTableReader> sstables)
     {
-        List<Interval<RowPosition, SSTableReader>> intervals = new ArrayList<>(Iterables.size(sstables));
+        List<Interval<PartitionPosition, SSTableReader>> intervals = new ArrayList<>(Iterables.size(sstables));
         for (SSTableReader sstable : sstables)
-            intervals.add(Interval.<RowPosition, SSTableReader>create(sstable.first, sstable.last, sstable));
+            intervals.add(Interval.<PartitionPosition, SSTableReader>create(sstable.first, sstable.last, sstable));
         return intervals;
     }
 }

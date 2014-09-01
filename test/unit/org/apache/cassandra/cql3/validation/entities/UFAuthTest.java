@@ -265,7 +265,7 @@ public class UFAuthTest extends CQLTester
     {
         setupTable("CREATE TABLE %s (k int, s int STATIC, v1 int, v2 int, PRIMARY KEY(k, v1))");
         String functionName = createSimpleFunction();
-        String cql = String.format("SELECT k FROM %s WHERE k = 0 AND s = %s",
+        String cql = String.format("SELECT k FROM %s WHERE k = 0 AND s = %s ALLOW FILTERING",
                                    KEYSPACE + "." + currentTable(),
                                    functionCall(functionName));
         assertPermissionsOnFunction(cql, functionName);

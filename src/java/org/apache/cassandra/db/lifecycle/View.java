@@ -25,7 +25,7 @@ import com.google.common.base.Predicate;
 import com.google.common.collect.*;
 
 import org.apache.cassandra.db.Memtable;
-import org.apache.cassandra.db.RowPosition;
+import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.utils.Interval;
@@ -126,12 +126,12 @@ public class View
         return String.format("View(pending_count=%d, sstables=%s, compacting=%s)", liveMemtables.size() + flushingMemtables.size() - 1, sstables, compacting);
     }
 
-    public List<SSTableReader> sstablesInBounds(AbstractBounds<RowPosition> rowBounds)
+    public List<SSTableReader> sstablesInBounds(AbstractBounds<PartitionPosition> rowBounds)
     {
         if (intervalTree.isEmpty())
             return Collections.emptyList();
-        RowPosition stopInTree = rowBounds.right.isMinimum() ? intervalTree.max() : rowBounds.right;
-        return intervalTree.search(Interval.<RowPosition, SSTableReader>create(rowBounds.left, stopInTree));
+        PartitionPosition stopInTree = rowBounds.right.isMinimum() ? intervalTree.max() : rowBounds.right;
+        return intervalTree.search(Interval.<PartitionPosition, SSTableReader>create(rowBounds.left, stopInTree));
     }
 
     // METHODS TO CONSTRUCT FUNCTIONS FOR MODIFYING A VIEW:

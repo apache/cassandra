@@ -18,7 +18,6 @@
 package org.apache.cassandra.utils;
 
 import java.io.Closeable;
-import java.io.IOException;
 import java.util.*;
 
 import com.google.common.collect.AbstractIterator;
@@ -35,9 +34,9 @@ public abstract class MergeIterator<In,Out> extends AbstractIterator<Out> implem
         this.reducer = reducer;
     }
 
-    public static <In, Out> IMergeIterator<In, Out> get(List<? extends Iterator<In>> sources,
-                                                        Comparator<In> comparator,
-                                                        Reducer<In, Out> reducer)
+    public static <In, Out> MergeIterator<In, Out> get(List<? extends Iterator<In>> sources,
+                                                       Comparator<? super In> comparator,
+                                                       Reducer<In, Out> reducer)
     {
         if (sources.size() == 1)
         {
@@ -59,9 +58,10 @@ public abstract class MergeIterator<In,Out> extends AbstractIterator<Out> implem
         {
             try
             {
-                ((Closeable)iterator).close();
+                if (iterator instanceof AutoCloseable)
+                    ((AutoCloseable)iterator).close();
             }
-            catch (IOException e)
+            catch (Exception e)
             {
                 throw new RuntimeException(e);
             }
@@ -79,13 +79,13 @@ public abstract class MergeIterator<In,Out> extends AbstractIterator<Out> implem
         // TODO: if we had our own PriorityQueue implementation we could stash items
         // at the end of its array, so we wouldn't need this storage
         protected final ArrayDeque<Candidate<In>> candidates;
-        public ManyToOne(List<? extends Iterator<In>> iters, Comparator<In> comp, Reducer<In, Out> reducer)
+        public ManyToOne(List<? extends Iterator<In>> iters, Comparator<? super In> comp, Reducer<In, Out> reducer)
         {
             super(iters, reducer);
             this.queue = new PriorityQueue<>(Math.max(1, iters.size()));
-            for (Iterator<In> iter : iters)
+            for (int i = 0; i < iters.size(); i++)
             {
-                Candidate<In> candidate = new Candidate<>(iter, comp);
+                Candidate<In> candidate = new Candidate<>(i, iters.get(i), comp);
                 if (!candidate.advance())
                     // was empty
                     continue;
@@ -111,7 +111,7 @@ public abstract class MergeIterator<In,Out> extends AbstractIterator<Out> implem
             {
                 candidate = queue.poll();
                 candidates.push(candidate);
-                reducer.reduce(candidate.item);
+                reducer.reduce(candidate.idx, candidate.item);
             }
             while (queue.peek() != null && queue.peek().compareTo(candidate) == 0);
             return reducer.getReduced();
@@ -130,14 +130,16 @@ public abstract class MergeIterator<In,Out> extends AbstractIterator<Out> implem
     // Holds and is comparable by the head item of an iterator it owns
     protected static final class Candidate<In> implements Comparable<Candidate<In>>
     {
-        private final Iterator<In> iter;
-        private final Comparator<In> comp;
+        private final Iterator<? extends In> iter;
+        private final Comparator<? super In> comp;
+        private final int idx;
         private In item;
 
-        public Candidate(Iterator<In> iter, Comparator<In> comp)
+        public Candidate(int idx, Iterator<? extends In> iter, Comparator<? super In> comp)
         {
             this.iter = iter;
             this.comp = comp;
+            this.idx = idx;
         }
 
         /** @return True if our iterator had an item, and it is now available */
@@ -170,7 +172,7 @@ public abstract class MergeIterator<In,Out> extends AbstractIterator<Out> implem
          * combine this object with the previous ones.
          * intermediate state is up to your implementation.
          */
-        public abstract void reduce(In current);
+        public abstract void reduce(int idx, In current);
 
         /** @return The last object computed by reduce */
         protected abstract Out getReduced();
@@ -202,7 +204,7 @@ public abstract class MergeIterator<In,Out> extends AbstractIterator<Out> implem
             if (!source.hasNext())
                 return endOfData();
             reducer.onKeyChange();
-            reducer.reduce(source.next());
+            reducer.reduce(0, source.next());
             return reducer.getReduced();
         }
     }

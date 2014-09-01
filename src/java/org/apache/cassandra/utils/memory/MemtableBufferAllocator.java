@@ -20,12 +20,9 @@ package org.apache.cassandra.utils.memory;
 import java.nio.ByteBuffer;
 
 import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.db.BufferDecoratedKey;
-import org.apache.cassandra.db.Cell;
-import org.apache.cassandra.db.CounterCell;
-import org.apache.cassandra.db.DecoratedKey;
-import org.apache.cassandra.db.DeletedCell;
-import org.apache.cassandra.db.ExpiringCell;
+import org.apache.cassandra.config.ColumnDefinition;
+import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.utils.concurrent.OpOrder;
 
 public abstract class MemtableBufferAllocator extends MemtableAllocator
@@ -36,24 +33,14 @@ public abstract class MemtableBufferAllocator extends MemtableAllocator
         super(onHeap, offHeap);
     }
 
-    public Cell clone(Cell cell, CFMetaData cfm, OpOrder.Group writeOp)
+    public MemtableRowData.ReusableRow newReusableRow()
     {
-        return cell.localCopy(cfm, allocator(writeOp));
+        return MemtableRowData.BufferRowData.createReusableRow();
     }
 
-    public CounterCell clone(CounterCell cell, CFMetaData cfm, OpOrder.Group writeOp)
+    public RowAllocator newRowAllocator(CFMetaData cfm, OpOrder.Group writeOp)
     {
-        return cell.localCopy(cfm, allocator(writeOp));
-    }
-
-    public DeletedCell clone(DeletedCell cell, CFMetaData cfm, OpOrder.Group writeOp)
-    {
-        return cell.localCopy(cfm, allocator(writeOp));
-    }
-
-    public ExpiringCell clone(ExpiringCell cell, CFMetaData cfm, OpOrder.Group writeOp)
-    {
-        return cell.localCopy(cfm, allocator(writeOp));
+        return new RowBufferAllocator(allocator(writeOp), cfm.isCounter());
     }
 
     public DecoratedKey clone(DecoratedKey key, OpOrder.Group writeOp)
@@ -66,5 +53,72 @@ public abstract class MemtableBufferAllocator extends MemtableAllocator
     protected AbstractAllocator allocator(OpOrder.Group writeOp)
     {
         return new ContextAllocator(writeOp, this);
+    }
+
+    private static class RowBufferAllocator extends RowDataBlock.Writer implements RowAllocator
+    {
+        private final AbstractAllocator allocator;
+        private final boolean isCounter;
+
+        private MemtableRowData.BufferClustering clustering;
+        private int clusteringIdx;
+        private LivenessInfo info;
+        private DeletionTime deletion;
+        private RowDataBlock data;
+
+        private RowBufferAllocator(AbstractAllocator allocator, boolean isCounter)
+        {
+            super(true);
+            this.allocator = allocator;
+            this.isCounter = isCounter;
+        }
+
+        public void allocateNewRow(int clusteringSize, Columns columns, boolean isStatic)
+        {
+            data = new RowDataBlock(columns, 1, false, isCounter);
+            clustering = isStatic ? null : new MemtableRowData.BufferClustering(clusteringSize);
+            clusteringIdx = 0;
+            updateWriter(data);
+        }
+
+        public MemtableRowData allocatedRowData()
+        {
+            MemtableRowData row = new MemtableRowData.BufferRowData(clustering == null ? Clustering.STATIC_CLUSTERING : clustering,
+                                                                    info,
+                                                                    deletion,
+                                                                    data);
+
+            clustering = null;
+            info = LivenessInfo.NONE;
+            deletion = DeletionTime.LIVE;
+            data = null;
+
+            return row;
+        }
+
+        public void writeClusteringValue(ByteBuffer value)
+        {
+            clustering.setClusteringValue(clusteringIdx++, value == null ? null : allocator.clone(value));
+        }
+
+        public void writePartitionKeyLivenessInfo(LivenessInfo info)
+        {
+            this.info = info;
+        }
+
+        public void writeRowDeletion(DeletionTime deletion)
+        {
+            this.deletion = deletion;
+        }
+
+        @Override
+        public void writeCell(ColumnDefinition column, boolean isCounter, ByteBuffer value, LivenessInfo info, CellPath path)
+        {
+            ByteBuffer v = allocator.clone(value);
+            if (column.isComplex())
+                complexWriter.addCell(column, v, info, MemtableRowData.BufferCellPath.clone(path, allocator));
+            else
+                simpleWriter.addCell(column, v, info);
+        }
     }
 }

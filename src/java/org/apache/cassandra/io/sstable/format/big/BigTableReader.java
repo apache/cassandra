@@ -20,13 +20,11 @@ package org.apache.cassandra.io.sstable.format.big;
 import com.google.common.util.concurrent.RateLimiter;
 import org.apache.cassandra.cache.KeyCacheKey;
 import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.db.DataRange;
-import org.apache.cassandra.db.DecoratedKey;
-import org.apache.cassandra.db.RowIndexEntry;
-import org.apache.cassandra.db.RowPosition;
-import org.apache.cassandra.db.columniterator.OnDiskAtomIterator;
-import org.apache.cassandra.db.composites.CellName;
-import org.apache.cassandra.db.filter.ColumnSlice;
+import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.rows.SliceableUnfilteredRowIterator;
+import org.apache.cassandra.db.filter.ColumnFilter;
+import org.apache.cassandra.db.columniterator.SSTableIterator;
+import org.apache.cassandra.db.columniterator.SSTableReversedIterator;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
@@ -37,7 +35,6 @@ import org.apache.cassandra.io.sstable.ISSTableScanner;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.metadata.StatsMetadata;
 import org.apache.cassandra.io.util.FileDataInput;
-import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.slf4j.Logger;
@@ -55,40 +52,44 @@ public class BigTableReader extends SSTableReader
 {
     private static final Logger logger = LoggerFactory.getLogger(BigTableReader.class);
 
-    BigTableReader(Descriptor desc, Set<Component> components, CFMetaData metadata, IPartitioner partitioner, Long maxDataAge, StatsMetadata sstableMetadata, OpenReason openReason)
+    BigTableReader(Descriptor desc, Set<Component> components, CFMetaData metadata, IPartitioner partitioner, Long maxDataAge, StatsMetadata sstableMetadata, OpenReason openReason, SerializationHeader header)
     {
-        super(desc, components, metadata, partitioner, maxDataAge, sstableMetadata, openReason);
+        super(desc, components, metadata, partitioner, maxDataAge, sstableMetadata, openReason, header);
     }
 
-    public OnDiskAtomIterator iterator(DecoratedKey key, SortedSet<CellName> columns)
+    public SliceableUnfilteredRowIterator iterator(DecoratedKey key, ColumnFilter selectedColumns, boolean reversed, boolean isForThrift)
     {
-        return new SSTableNamesIterator(this, key, columns);
+        return reversed
+             ? new SSTableReversedIterator(this, key, selectedColumns, isForThrift)
+             : new SSTableIterator(this, key, selectedColumns, isForThrift);
     }
 
-    public OnDiskAtomIterator iterator(FileDataInput input, DecoratedKey key, SortedSet<CellName> columns, RowIndexEntry indexEntry )
+    public SliceableUnfilteredRowIterator iterator(FileDataInput file, DecoratedKey key, RowIndexEntry indexEntry, ColumnFilter selectedColumns, boolean reversed, boolean isForThrift)
     {
-        return new SSTableNamesIterator(this, input, key, columns, indexEntry);
+        return reversed
+             ? new SSTableReversedIterator(this, file, key, indexEntry, selectedColumns, isForThrift)
+             : new SSTableIterator(this, file, key, indexEntry, selectedColumns, isForThrift);
     }
 
-    public OnDiskAtomIterator iterator(DecoratedKey key, ColumnSlice[] slices, boolean reverse)
-    {
-        return new SSTableSliceIterator(this, key, slices, reverse);
-    }
-
-    public OnDiskAtomIterator iterator(FileDataInput input, DecoratedKey key, ColumnSlice[] slices, boolean reverse, RowIndexEntry indexEntry)
-    {
-        return new SSTableSliceIterator(this, input, key, slices, reverse, indexEntry);
-    }
     /**
-     *
+     * @param columns the columns to return.
      * @param dataRange filter to use when reading the columns
      * @return A Scanner for seeking over the rows of the SSTable.
      */
-    public ISSTableScanner getScanner(DataRange dataRange, RateLimiter limiter)
+    public ISSTableScanner getScanner(ColumnFilter columns, DataRange dataRange, RateLimiter limiter, boolean isForThrift)
     {
-        return BigTableScanner.getScanner(this, dataRange, limiter);
+        return BigTableScanner.getScanner(this, columns, dataRange, limiter, isForThrift);
     }
 
+    /**
+     * Direct I/O SSTableScanner over the full sstable.
+     *
+     * @return A Scanner for reading the full SSTable.
+     */
+    public ISSTableScanner getScanner(RateLimiter limiter)
+    {
+        return BigTableScanner.getScanner(this, limiter);
+    }
 
     /**
      * Direct I/O SSTableScanner over a defined collection of ranges of tokens.
@@ -109,7 +110,7 @@ public class BigTableReader extends SSTableReader
      * @param updateCacheAndStats true if updating stats and cache
      * @return The index entry corresponding to the key, or null if the key is not present
      */
-    protected RowIndexEntry getPosition(RowPosition key, Operator op, boolean updateCacheAndStats, boolean permitMatchPastLast)
+    protected RowIndexEntry getPosition(PartitionPosition key, Operator op, boolean updateCacheAndStats, boolean permitMatchPastLast)
     {
         if (op == Operator.EQ)
         {
@@ -212,7 +213,7 @@ public class BigTableReader extends SSTableReader
                     if (opSatisfied)
                     {
                         // read data position from index entry
-                        RowIndexEntry indexEntry = rowIndexEntrySerializer.deserialize(in, descriptor.version);
+                        RowIndexEntry indexEntry = rowIndexEntrySerializer.deserialize(in);
                         if (exactMatch && updateCacheAndStats)
                         {
                             assert key instanceof DecoratedKey; // key can be == to the index key only if it's a true row key

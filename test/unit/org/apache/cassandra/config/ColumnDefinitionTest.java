@@ -23,7 +23,6 @@ package org.apache.cassandra.config;
 import org.junit.Assert;
 import org.junit.Test;
 
-import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.thrift.ThriftConversion;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -33,12 +32,16 @@ public class ColumnDefinitionTest
     @Test
     public void testSerializeDeserialize() throws Exception
     {
-        CFMetaData cfm = CFMetaData.denseCFMetaData("ks", "cf", UTF8Type.instance);
+        CFMetaData cfm = CFMetaData.Builder.create("ks", "cf", true, false, false)
+                         .addPartitionKey("pkey", AsciiType.instance)
+                         .addClusteringColumn("name", AsciiType.instance)
+                         .addRegularColumn("val", AsciiType.instance)
+                         .build();
 
-        ColumnDefinition cd0 = ColumnDefinition.regularDef(cfm, ByteBufferUtil.bytes("TestColumnDefinitionName0"), BytesType.instance, null)
+        ColumnDefinition cd0 = ColumnDefinition.staticDef(cfm, ByteBufferUtil.bytes("TestColumnDefinitionName0"), BytesType.instance, null)
                                                .setIndex("random index name 0", IndexType.KEYS, null);
 
-        ColumnDefinition cd1 = ColumnDefinition.regularDef(cfm, ByteBufferUtil.bytes("TestColumnDefinition1"), LongType.instance, null);
+        ColumnDefinition cd1 = ColumnDefinition.staticDef(cfm, ByteBufferUtil.bytes("TestColumnDefinition1"), LongType.instance, null);
 
         testSerializeDeserialize(cfm, cd0);
         testSerializeDeserialize(cfm, cd1);
@@ -46,7 +49,7 @@ public class ColumnDefinitionTest
 
     protected void testSerializeDeserialize(CFMetaData cfm, ColumnDefinition cd) throws Exception
     {
-        ColumnDefinition newCd = ThriftConversion.fromThrift(cfm.ksName, cfm.cfName, cfm.comparator.asAbstractType(), null, ThriftConversion.toThrift(cd));
+        ColumnDefinition newCd = ThriftConversion.fromThrift(cfm.ksName, cfm.cfName, cfm.comparator.subtype(0), null, ThriftConversion.toThrift(cd));
         Assert.assertNotSame(cd, newCd);
         Assert.assertEquals(cd.hashCode(), newCd.hashCode());
         Assert.assertEquals(cd, newCd);

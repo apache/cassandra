@@ -27,6 +27,7 @@ import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
+import org.apache.cassandra.UpdateBuilder;
 import org.apache.cassandra.config.KSMetaData;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.exceptions.ConfigurationException;
@@ -75,11 +76,11 @@ public class LongLeveledCompactionStrategyTest
         for (int r = 0; r < rows; r++)
         {
             DecoratedKey key = Util.dk(String.valueOf(r));
-            Mutation rm = new Mutation(ksname, key.getKey());
+            UpdateBuilder builder = UpdateBuilder.create(store.metadata, key);
             for (int c = 0; c < columns; c++)
-            {
-                rm.add(cfname, Util.cellname("column" + c), value, 0);
-            }
+                builder.newRow("column" + c).add("val", value);
+
+            Mutation rm = new Mutation(builder.build());
             rm.apply();
             store.forceBlockingFlush();
         }

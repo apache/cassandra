@@ -54,14 +54,14 @@ final class Builder
      * we assume @param source has been sorted, e.g. by BTree.update, so the update of each key resumes where
      * the previous left off.
      */
-    public <V> Object[] update(Object[] btree, Comparator<V> comparator, Iterable<V> source, UpdateFunction<V> updateF)
+    public <C, K extends C, V extends C> Object[] update(Object[] btree, Comparator<C> comparator, Iterable<K> source, UpdateFunction<K, V> updateF)
     {
         assert updateF != null;
 
         NodeBuilder current = rootBuilder;
         current.reset(btree, POSITIVE_INFINITY, updateF, comparator);
 
-        for (V key : source)
+        for (K key : source)
         {
             while (true)
             {
@@ -96,7 +96,7 @@ final class Builder
         return r;
     }
 
-    public <V> Object[] build(Iterable<V> source, UpdateFunction<V> updateF, int size)
+    public <C, K extends C, V extends C> Object[] build(Iterable<K> source, UpdateFunction<K, V> updateF, int size)
     {
         assert updateF != null;
 
@@ -107,7 +107,7 @@ final class Builder
             current = current.ensureChild();
 
         current.reset(EMPTY_LEAF, POSITIVE_INFINITY, updateF, null);
-        for (V key : source)
+        for (K key : source)
             current.addNewKey(updateF.apply(key));
 
         current = current.ascendToRoot();

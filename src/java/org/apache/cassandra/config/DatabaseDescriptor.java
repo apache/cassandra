@@ -1341,8 +1341,14 @@ public class DatabaseDescriptor
     }
 
     @VisibleForTesting
-    public static void setAutoSnapshot(boolean autoSnapshot) {
+    public static void setAutoSnapshot(boolean autoSnapshot)
+    {
         conf.auto_snapshot = autoSnapshot;
+    }
+    @VisibleForTesting
+    public static boolean getAutoSnapshot()
+    {
+        return conf.auto_snapshot;
     }
 
     public static boolean isAutoBootstrap()

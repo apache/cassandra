@@ -30,8 +30,8 @@ import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.config.TriggerDefinition;
 import org.apache.cassandra.cql3.CQLTester;
-import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.Mutation;
+import org.apache.cassandra.db.partitions.Partition;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.SyntaxException;
 import org.apache.cassandra.triggers.ITrigger;
@@ -466,10 +466,10 @@ public class CreateTest extends CQLTester
     {
         createTable("CREATE TABLE %s (a int, b int , c int, PRIMARY KEY (a, b)) WITH COMPACT STORAGE;");
 
-        assertInvalidMessage("Secondary indexes are not supported on PRIMARY KEY columns in COMPACT STORAGE tables",
+        assertInvalidMessage("Secondary indexes are not supported on COMPACT STORAGE tables that have clustering columns",
                              "CREATE INDEX ON %s (a);");
 
-        assertInvalidMessage("Secondary indexes are not supported on PRIMARY KEY columns in COMPACT STORAGE tables",
+        assertInvalidMessage("Secondary indexes are not supported on COMPACT STORAGE tables that have clustering columns",
                              "CREATE INDEX ON %s (b);");
 
         assertInvalidMessage("Secondary indexes are not supported on COMPACT STORAGE tables that have clustering columns",
@@ -522,7 +522,7 @@ public class CreateTest extends CQLTester
     public static class TestTrigger implements ITrigger
     {
         public TestTrigger() { }
-        public Collection<Mutation> augment(ByteBuffer key, ColumnFamily update)
+        public Collection<Mutation> augment(Partition update)
         {
             return Collections.emptyList();
         }

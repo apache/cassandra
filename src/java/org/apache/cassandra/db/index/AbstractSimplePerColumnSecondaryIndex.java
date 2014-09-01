@@ -23,11 +23,11 @@ import java.util.concurrent.Future;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.db.*;
-import org.apache.cassandra.db.composites.CellName;
-import org.apache.cassandra.db.composites.CellNameType;
+import org.apache.cassandra.db.rows.*;
+import org.apache.cassandra.db.partitions.*;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.dht.LocalPartitioner;
-import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.concurrent.OpOrder;
 
@@ -51,8 +51,7 @@ public abstract class AbstractSimplePerColumnSecondaryIndex extends PerColumnSec
 
         columnDef = columnDefs.iterator().next();
 
-        CellNameType indexComparator = SecondaryIndex.getIndexComparator(baseCfs.metadata, columnDef);
-        CFMetaData indexedCfMetadata = CFMetaData.newIndexMetadata(baseCfs.metadata, columnDef, indexComparator);
+        CFMetaData indexedCfMetadata = SecondaryIndex.newIndexMetadata(baseCfs.metadata, columnDef);
         indexCfs = ColumnFamilyStore.createColumnFamilyStore(baseCfs.keyspace,
                                                              indexedCfMetadata.cfName,
                                                              new LocalPartitioner(getIndexKeyComparator()),
@@ -65,73 +64,98 @@ public abstract class AbstractSimplePerColumnSecondaryIndex extends PerColumnSec
         return columnDef.type;
     }
 
+    public ColumnDefinition indexedColumn()
+    {
+        return columnDef;
+    }
+
     @Override
     String indexTypeForGrouping()
     {
         return "_internal_";
     }
 
-    protected abstract CellName makeIndexColumnName(ByteBuffer rowKey, Cell cell);
-
-    protected abstract ByteBuffer getIndexedValue(ByteBuffer rowKey, Cell cell);
-
-    protected abstract AbstractType getExpressionComparator();
-
-    public String expressionString(IndexExpression expr)
+    protected Clustering makeIndexClustering(ByteBuffer rowKey, Clustering clustering, Cell cell)
     {
-        return String.format("'%s.%s %s %s'",
-                             baseCfs.name,
-                             getExpressionComparator().getString(expr.column),
-                             expr.operator,
-                             baseCfs.metadata.getColumnDefinition(expr.column).type.getString(expr.value));
+        return makeIndexClustering(rowKey, clustering, cell == null ? null : cell.path());
     }
 
-    public void delete(ByteBuffer rowKey, Cell cell, OpOrder.Group opGroup)
+    protected Clustering makeIndexClustering(ByteBuffer rowKey, Clustering clustering, CellPath path)
     {
-        deleteForCleanup(rowKey, cell, opGroup);
+        return buildIndexClusteringPrefix(rowKey, clustering, path).build();
     }
 
-    public void deleteForCleanup(ByteBuffer rowKey, Cell cell, OpOrder.Group opGroup)
+    protected Slice.Bound makeIndexBound(ByteBuffer rowKey, Slice.Bound bound)
     {
-        if (!cell.isLive())
-            return;
+        return buildIndexClusteringPrefix(rowKey, bound, null).buildBound(bound.isStart(), bound.isInclusive());
+    }
 
-        DecoratedKey valueKey = getIndexKeyFor(getIndexedValue(rowKey, cell));
-        int localDeletionTime = (int) (System.currentTimeMillis() / 1000);
-        ColumnFamily cfi = ArrayBackedSortedColumns.factory.create(indexCfs.metadata, false, 1);
-        cfi.addTombstone(makeIndexColumnName(rowKey, cell), localDeletionTime, cell.timestamp());
-        indexCfs.apply(valueKey, cfi, SecondaryIndexManager.nullUpdater, opGroup, null);
+    protected abstract CBuilder buildIndexClusteringPrefix(ByteBuffer rowKey, ClusteringPrefix prefix, CellPath path);
+
+    protected ByteBuffer getIndexedValue(ByteBuffer rowKey, Clustering clustering, Cell cell)
+    {
+        return cell == null
+             ? getIndexedValue(rowKey, clustering, null, null)
+             : getIndexedValue(rowKey, clustering, cell.value(), cell.path());
+    }
+
+    protected abstract ByteBuffer getIndexedValue(ByteBuffer rowKey, Clustering clustering, ByteBuffer cellValue, CellPath cellPath);
+
+    public void delete(ByteBuffer rowKey, Clustering clustering, Cell cell, OpOrder.Group opGroup, int nowInSec)
+    {
+        deleteForCleanup(rowKey, clustering, cell, opGroup, nowInSec);
+    }
+
+    public void deleteForCleanup(ByteBuffer rowKey, Clustering clustering, Cell cell, OpOrder.Group opGroup, int nowInSec)
+    {
+        delete(rowKey, clustering, cell.value(), cell.path(), new SimpleDeletionTime(cell.livenessInfo().timestamp(), nowInSec), opGroup);
+    }
+
+    public void delete(ByteBuffer rowKey, Clustering clustering, ByteBuffer cellValue, CellPath path, DeletionTime deletion, OpOrder.Group opGroup)
+    {
+        DecoratedKey valueKey = getIndexKeyFor(getIndexedValue(rowKey, clustering, cellValue, path));
+        PartitionUpdate upd = new PartitionUpdate(indexCfs.metadata, valueKey, PartitionColumns.NONE, 1);
+        Row.Writer writer = upd.writer();
+        Rows.writeClustering(makeIndexClustering(rowKey, clustering, path), writer);
+        writer.writeRowDeletion(deletion);
+        writer.endOfRow();
+        indexCfs.apply(upd, SecondaryIndexManager.nullUpdater, opGroup, null);
         if (logger.isDebugEnabled())
-            logger.debug("removed index entry for cleaned-up value {}:{}", valueKey, cfi);
+            logger.debug("removed index entry for cleaned-up value {}:{}", valueKey, upd);
     }
 
-    public void insert(ByteBuffer rowKey, Cell cell, OpOrder.Group opGroup)
+    public void insert(ByteBuffer rowKey, Clustering clustering, Cell cell, OpOrder.Group opGroup)
     {
-        DecoratedKey valueKey = getIndexKeyFor(getIndexedValue(rowKey, cell));
-        ColumnFamily cfi = ArrayBackedSortedColumns.factory.create(indexCfs.metadata, false, 1);
-        CellName name = makeIndexColumnName(rowKey, cell);
-        if (cell instanceof ExpiringCell)
-        {
-            ExpiringCell ec = (ExpiringCell) cell;
-            cfi.addColumn(new BufferExpiringCell(name, ByteBufferUtil.EMPTY_BYTE_BUFFER, ec.timestamp(), ec.getTimeToLive(), ec.getLocalDeletionTime()));
-        }
-        else
-        {
-            cfi.addColumn(new BufferCell(name, ByteBufferUtil.EMPTY_BYTE_BUFFER, cell.timestamp()));
-        }
-        if (logger.isDebugEnabled())
-            logger.debug("applying index row {} in {}", indexCfs.metadata.getKeyValidator().getString(valueKey.getKey()), cfi);
-
-        indexCfs.apply(valueKey, cfi, SecondaryIndexManager.nullUpdater, opGroup, null);
+        insert(rowKey, clustering, cell, cell.livenessInfo(), opGroup);
     }
 
-    public void update(ByteBuffer rowKey, Cell oldCol, Cell col, OpOrder.Group opGroup)
+    public void insert(ByteBuffer rowKey, Clustering clustering, Cell cell, LivenessInfo info, OpOrder.Group opGroup)
+    {
+        DecoratedKey valueKey = getIndexKeyFor(getIndexedValue(rowKey, clustering, cell));
+
+        PartitionUpdate upd = new PartitionUpdate(indexCfs.metadata, valueKey, PartitionColumns.NONE, 1);
+        Row.Writer writer = upd.writer();
+        Rows.writeClustering(makeIndexClustering(rowKey, clustering, cell), writer);
+        writer.writePartitionKeyLivenessInfo(info);
+        writer.endOfRow();
+        if (logger.isDebugEnabled())
+            logger.debug("applying index row {} in {}", indexCfs.metadata.getKeyValidator().getString(valueKey.getKey()), upd);
+
+        indexCfs.apply(upd, SecondaryIndexManager.nullUpdater, opGroup, null);
+    }
+
+    public void update(ByteBuffer rowKey, Clustering clustering, Cell oldCell, Cell cell, OpOrder.Group opGroup, int nowInSec)
     {
         // insert the new value before removing the old one, so we never have a period
-        // where the row is invisible to both queries (the opposite seems preferable); see CASSANDRA-5540                    
-        insert(rowKey, col, opGroup);
-        if (SecondaryIndexManager.shouldCleanupOldValue(oldCol, col))
-            delete(rowKey, oldCol, opGroup);
+        // where the row is invisible to both queries (the opposite seems preferable); see CASSANDRA-5540
+        insert(rowKey, clustering, cell, opGroup);
+        if (SecondaryIndexManager.shouldCleanupOldValue(oldCell, cell))
+            delete(rowKey, clustering, oldCell, opGroup, nowInSec);
+    }
+
+    public boolean indexes(ColumnDefinition column)
+    {
+        return column.name.equals(columnDef.name);
     }
 
     public void removeIndex(ByteBuffer columnName)
@@ -165,6 +189,12 @@ public abstract class AbstractSimplePerColumnSecondaryIndex extends PerColumnSec
        return indexCfs;
     }
 
+    protected ClusteringComparator getIndexComparator()
+    {
+        assert indexCfs != null;
+        return indexCfs.metadata.comparator;
+    }
+
     public String getIndexName()
     {
         return indexCfs.name;
@@ -172,18 +202,43 @@ public abstract class AbstractSimplePerColumnSecondaryIndex extends PerColumnSec
 
     public void reload()
     {
-        indexCfs.metadata.reloadSecondaryIndexMetadata(baseCfs.metadata);
+        indexCfs.metadata.reloadIndexMetadataProperties(baseCfs.metadata);
         indexCfs.reload();
     }
-    
+
     public long estimateResultRows()
     {
         return getIndexCfs().getMeanColumns();
     }
 
-    public boolean validate(ByteBuffer rowKey, Cell cell)
+    public void validate(DecoratedKey partitionKey) throws InvalidRequestException
     {
-        return getIndexedValue(rowKey, cell).remaining() < FBUtilities.MAX_UNSIGNED_SHORT
-            && makeIndexColumnName(rowKey, cell).toByteBuffer().remaining() < FBUtilities.MAX_UNSIGNED_SHORT;
+        if (columnDef.kind == ColumnDefinition.Kind.PARTITION_KEY)
+            validateIndexedValue(getIndexedValue(partitionKey.getKey(), null, null, null));
+    }
+
+    public void validate(Clustering clustering) throws InvalidRequestException
+    {
+        if (columnDef.kind == ColumnDefinition.Kind.CLUSTERING_COLUMN)
+            validateIndexedValue(getIndexedValue(null, clustering, null, null));
+    }
+
+    public void validate(ByteBuffer cellValue, CellPath path) throws InvalidRequestException
+    {
+        if (!columnDef.isPrimaryKeyColumn())
+            validateIndexedValue(getIndexedValue(null, null, cellValue, path));
+    }
+
+    private void validateIndexedValue(ByteBuffer value)
+    {
+        if (value != null && value.remaining() >= FBUtilities.MAX_UNSIGNED_SHORT)
+            throw new InvalidRequestException(String.format("Cannot index value of size %d for index %s on %s.%s(%s) (maximum allowed size=%d)",
+                                                            value.remaining(), getIndexName(), baseKeyspace(), baseTable(), columnDef.name, FBUtilities.MAX_UNSIGNED_SHORT));
+    }
+
+    @Override
+    public String toString()
+    {
+        return String.format("%s(%s)", baseTable(), columnDef.name);
     }
 }

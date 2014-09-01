@@ -20,16 +20,16 @@ package org.apache.cassandra.service;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.Collection;
-import org.junit.Test;
-import org.junit.matchers.JUnitMatchers;
 
 import com.google.common.collect.ImmutableMultimap;
 import com.google.common.collect.Multimap;
+import org.junit.Test;
+import org.junit.matchers.JUnitMatchers;
 
 import org.apache.cassandra.db.BatchlogManager;
 
-import static org.junit.Assert.assertThat;
 import static org.hamcrest.CoreMatchers.is;
+import static org.junit.Assert.assertThat;
 
 public class BatchlogEndpointFilterTest
 {

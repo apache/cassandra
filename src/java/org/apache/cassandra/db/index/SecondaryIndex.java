@@ -32,15 +32,11 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
+import org.apache.cassandra.config.IndexType;
 import org.apache.cassandra.cql3.Operator;
-import org.apache.cassandra.db.Cell;
-import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.db.DecoratedKey;
-import org.apache.cassandra.db.SystemKeyspace;
+import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.db.compaction.CompactionManager;
-import org.apache.cassandra.db.composites.CellName;
-import org.apache.cassandra.db.composites.CellNameType;
-import org.apache.cassandra.db.composites.SimpleDenseCellNameType;
 import org.apache.cassandra.db.index.composites.CompositesIndex;
 import org.apache.cassandra.db.index.keys.KeysIndex;
 import org.apache.cassandra.db.marshal.AbstractType;
@@ -48,6 +44,7 @@ import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.db.marshal.LocalByPartionerType;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.io.sstable.ReducingKeyIterator;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
@@ -168,7 +165,7 @@ public abstract class SecondaryIndex
      * @param columns the list of columns which belong to this index type
      * @return the secondary index search impl
      */
-    protected abstract SecondaryIndexSearcher createSecondaryIndexSearcher(Set<ByteBuffer> columns);
+    protected abstract SecondaryIndexSearcher createSecondaryIndexSearcher(Set<ColumnDefinition> columns);
 
     /**
      * Forces this indexes' in memory data to disk
@@ -308,22 +305,12 @@ public abstract class SecondaryIndex
     }
 
     /**
-     * Returns true if the provided cell name is indexed by this secondary index.
+     * Returns true if the provided column is indexed by this secondary index.
      *
      * The default implementation checks whether the name is one the columnDef name,
      * but this should be overriden but subclass if needed.
      */
-    public abstract boolean indexes(CellName name);
-
-    /**
-     * Returns true if the provided column definition is indexed by this secondary index.
-     *
-     * The default implementation checks whether it is contained in this index column definitions set.
-     */
-    public boolean indexes(ColumnDefinition cdef)
-    {
-        return columnDefs.contains(cdef);
-    }
+    public abstract boolean indexes(ColumnDefinition column);
 
     /**
      * This is the primary way to create a secondary index instance for a CF column.
@@ -371,28 +358,45 @@ public abstract class SecondaryIndex
         return index;
     }
 
-    public abstract boolean validate(ByteBuffer rowKey, Cell cell);
+    public abstract void validate(DecoratedKey partitionKey) throws InvalidRequestException;
+    public abstract void validate(Clustering clustering) throws InvalidRequestException;
+    public abstract void validate(ByteBuffer cellValue, CellPath path) throws InvalidRequestException;
 
     public abstract long estimateResultRows();
 
-    /**
-     * Returns the index comparator for index backed by CFS, or null.
-     *
-     * Note: it would be cleaner to have this be a member method. However we need this when opening indexes
-     * sstables, but by then the CFS won't be fully initiated, so the SecondaryIndex object won't be accessible.
-     */
-    public static CellNameType getIndexComparator(CFMetaData baseMetadata, ColumnDefinition cdef)
+    protected String baseKeyspace()
     {
-        switch (cdef.getIndexType())
+        return baseCfs.metadata.ksName;
+    }
+
+    protected String baseTable()
+    {
+        return baseCfs.metadata.cfName;
+    }
+
+    /**
+     * Create the index metadata for the index on a given column of a given table.
+     */
+    public static CFMetaData newIndexMetadata(CFMetaData baseMetadata, ColumnDefinition def)
+    {
+        if (def.getIndexType() == IndexType.CUSTOM)
+            return null;
+
+        CFMetaData.Builder builder = CFMetaData.Builder.create(baseMetadata.ksName, baseMetadata.indexColumnFamilyName(def))
+                                                       .withId(baseMetadata.cfId)
+                                                       .addPartitionKey(def.name, def.type);
+
+        if (def.getIndexType() == IndexType.COMPOSITES)
         {
-            case KEYS:
-                return new SimpleDenseCellNameType(keyComparator);
-            case COMPOSITES:
-                return CompositesIndex.getIndexComparator(baseMetadata, cdef);
-            case CUSTOM:
-                return null;
+            CompositesIndex.addIndexClusteringColumns(builder, baseMetadata, def);
         }
-        throw new AssertionError();
+        else
+        {
+            assert def.getIndexType() == IndexType.KEYS;
+            KeysIndex.addIndexClusteringColumns(builder, baseMetadata, def);
+        }
+
+        return builder.build().reloadIndexMetadataProperties(baseMetadata);
     }
 
     @Override

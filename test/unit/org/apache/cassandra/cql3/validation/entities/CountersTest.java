@@ -59,8 +59,8 @@ public class CountersTest extends CQLTester
     @Test
     public void testRegularCounters() throws Throwable
     {
-        assertInvalidThrowMessage("Cannot add a non counter column",
-                                  ConfigurationException.class,
+        assertInvalidThrowMessage("Cannot mix counter and non counter columns in the same table",
+                                  InvalidRequestException.class,
                                   String.format("CREATE TABLE %s.%s (id bigint PRIMARY KEY, count counter, things set<text>)", KEYSPACE, createTableName()));
     }
 

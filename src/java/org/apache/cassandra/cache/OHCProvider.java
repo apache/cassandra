@@ -28,8 +28,8 @@ import java.util.UUID;
 import com.google.common.base.Function;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.TypeSizes;
+import org.apache.cassandra.db.partitions.CachedPartition;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.io.util.Memory;
 import org.apache.cassandra.net.MessagingService;
@@ -159,7 +159,7 @@ public class OHCProvider implements CacheProvider<RowCacheKey, IRowCacheEntry>
             if (isSentinel)
                 out.writeLong(((RowCacheSentinel) entry).sentinelId);
             else
-                ColumnFamily.serializer.serialize((ColumnFamily) entry, new DataOutputPlusAdapter(out), MessagingService.current_version);
+                CachedPartition.cacheSerializer.serialize((CachedPartition)entry, new DataOutputPlusAdapter(out));
         }
 
         public IRowCacheEntry deserialize(DataInput in) throws IOException
@@ -167,7 +167,7 @@ public class OHCProvider implements CacheProvider<RowCacheKey, IRowCacheEntry>
             boolean isSentinel = in.readBoolean();
             if (isSentinel)
                 return new RowCacheSentinel(in.readLong());
-            return ColumnFamily.serializer.deserialize(in, MessagingService.current_version);
+            return CachedPartition.cacheSerializer.deserialize(in);
         }
 
         public int serializedSize(IRowCacheEntry entry)
@@ -177,7 +177,7 @@ public class OHCProvider implements CacheProvider<RowCacheKey, IRowCacheEntry>
             if (entry instanceof RowCacheSentinel)
                 size += typeSizes.sizeof(((RowCacheSentinel) entry).sentinelId);
             else
-                size += ColumnFamily.serializer.serializedSize((ColumnFamily) entry, typeSizes, MessagingService.current_version);
+                size += CachedPartition.cacheSerializer.serializedSize((CachedPartition) entry, typeSizes);
             return size;
         }
     }

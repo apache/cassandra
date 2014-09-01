@@ -25,6 +25,7 @@ import java.util.Collections;
 import java.util.UUID;
 
 import org.junit.Test;
+
 import org.apache.cassandra.AbstractSerializationsTester;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.RandomPartitioner;

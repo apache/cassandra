@@ -111,7 +111,12 @@ public class CounterContext
 
     /**
      * Creates a counter context with a single local shard.
-     * For use by tests of compatibility with pre-2.1 counters only.
+     * This is only used in a PartitionUpdate until the update has gone through
+     * CounterMutation.apply(), at which point all the local shard are replaced by
+     * global ones. In other words, local shards should never hit the disk or
+     * memtables. And we use this so that if an update statement has multiple increment
+     * of the same counter we properly add them rather than keeping only one of them.
+     * (this is also used for tests of compatibility with pre-2.1 counters)
      */
     public ByteBuffer createLocal(long count)
     {

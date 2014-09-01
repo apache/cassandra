@@ -26,7 +26,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.RowIndexEntry;
-import org.apache.cassandra.db.compaction.AbstractCompactedRow;
+import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.SSTableWriter;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
@@ -108,42 +108,36 @@ public class SSTableRewriter extends Transactional.AbstractTransactional impleme
         return writer;
     }
 
-    public RowIndexEntry append(AbstractCompactedRow row)
+    public RowIndexEntry append(UnfilteredRowIterator partition)
     {
         // we do this before appending to ensure we can resetAndTruncate() safely if the append fails
-        maybeReopenEarly(row.key);
-        RowIndexEntry index = writer.append(row);
-        if (!isOffline)
+        DecoratedKey key = partition.partitionKey();
+        maybeReopenEarly(key);
+        RowIndexEntry index = writer.append(partition);
+        if (!isOffline && index != null)
         {
-            if (index == null)
+            boolean save = false;
+            for (SSTableReader reader : transaction.originals())
             {
-                cfs.invalidateCachedRow(row.key);
-            }
-            else
-            {
-                boolean save = false;
-                for (SSTableReader reader : transaction.originals())
+                if (reader.getCachedPosition(key, false) != null)
                 {
-                    if (reader.getCachedPosition(row.key, false) != null)
-                    {
-                        save = true;
-                        break;
-                    }
+                    save = true;
+                    break;
                 }
-                if (save)
-                    cachedKeys.put(row.key, index);
             }
+            if (save)
+                cachedKeys.put(key, index);
         }
         return index;
     }
 
     // attempts to append the row, if fails resets the writer position
-    public RowIndexEntry tryAppend(AbstractCompactedRow row)
+    public RowIndexEntry tryAppend(UnfilteredRowIterator partition)
     {
         writer.mark();
         try
         {
-            return append(row);
+            return append(partition);
         }
         catch (Throwable t)
         {

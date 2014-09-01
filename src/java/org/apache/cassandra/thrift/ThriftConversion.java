@@ -23,31 +23,35 @@ import java.util.*;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Strings;
 import com.google.common.collect.Maps;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.cache.CachingOptions;
 import org.apache.cassandra.config.*;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.Operator;
 import org.apache.cassandra.cql3.UntypedResultSet;
-import org.apache.cassandra.db.ColumnFamilyType;
-import org.apache.cassandra.schema.LegacySchemaTables;
-import org.apache.cassandra.db.WriteType;
-import org.apache.cassandra.db.composites.CellNameType;
-import org.apache.cassandra.db.composites.CellNames;
+import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.filter.RowFilter;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.exceptions.*;
 import org.apache.cassandra.io.compress.CompressionParameters;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.locator.LocalStrategy;
 import org.apache.cassandra.serializers.MarshalException;
+import org.apache.cassandra.schema.LegacySchemaTables;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.UUIDGen;
 
 /**
  * Static utility methods to convert internal structure to and from thrift ones.
+ *
+ * 
  */
 public class ThriftConversion
 {
+    private static final Logger logger = LoggerFactory.getLogger(ThriftConversion.class);
+
     public static org.apache.cassandra.db.ConsistencyLevel fromThrift(ConsistencyLevel cl)
     {
         switch (cl)
@@ -136,21 +140,14 @@ public class ThriftConversion
         return new TimedOutException();
     }
 
-    public static List<org.apache.cassandra.db.IndexExpression> indexExpressionsFromThrift(List<IndexExpression> exprs)
+    public static RowFilter rowFilterFromThrift(CFMetaData metadata, List<IndexExpression> exprs)
     {
-        if (exprs == null)
-            return null;
+        if (exprs == null || exprs.isEmpty())
+            return RowFilter.NONE;
 
-        if (exprs.isEmpty())
-            return Collections.emptyList();
-
-        List<org.apache.cassandra.db.IndexExpression> converted = new ArrayList<>(exprs.size());
+        RowFilter converted = RowFilter.forThrift(exprs.size());
         for (IndexExpression expr : exprs)
-        {
-            converted.add(new org.apache.cassandra.db.IndexExpression(expr.column_name,
-                                                                      Operator.valueOf(expr.op.name()),
-                                                                      expr.value));
-        }
+            converted.addThriftExpression(metadata, expr.column_name, Operator.valueOf(expr.op.name()), expr.value);
         return converted;
     }
 
@@ -184,50 +181,75 @@ public class ThriftConversion
     public static CFMetaData fromThrift(CfDef cf_def)
     throws org.apache.cassandra.exceptions.InvalidRequestException, ConfigurationException
     {
-        return internalFromThrift(cf_def, Collections.<ColumnDefinition>emptyList());
+        // This is a creation: the table is dense if it doesn't define any column_metadata
+        boolean isDense = cf_def.column_metadata == null || cf_def.column_metadata.isEmpty();
+        return internalFromThrift(cf_def, true, Collections.<ColumnDefinition>emptyList(), isDense);
     }
 
     public static CFMetaData fromThriftForUpdate(CfDef cf_def, CFMetaData toUpdate)
     throws org.apache.cassandra.exceptions.InvalidRequestException, ConfigurationException
     {
-        return internalFromThrift(cf_def, toUpdate.allColumns());
+        return internalFromThrift(cf_def, false, toUpdate.allColumns(), toUpdate.isDense());
     }
 
-    // Convert a thrift CfDef, given a list of ColumnDefinitions to copy over to the created CFMetadata before the CQL metadata are rebuild
-    private static CFMetaData internalFromThrift(CfDef cf_def, Collection<ColumnDefinition> previousCQLMetadata)
+    private static boolean isSuper(String thriftColumnType)
+    throws org.apache.cassandra.exceptions.InvalidRequestException
+    {
+        switch (thriftColumnType.toLowerCase())
+        {
+            case "standard": return false;
+            case "super": return true;
+            default: throw new org.apache.cassandra.exceptions.InvalidRequestException("Invalid column type " + thriftColumnType);
+        }
+    }
+
+    /**
+     * Convert a thrift CfDef.
+     * <p>,
+     * This is used both for creation and update of CF.
+     *
+     * @param cf_def the thrift CfDef to convert.
+     * @param isCreation whether that is a new table creation or not.
+     * @param previousCQLMetadata if it is not a table creation, the previous
+     * definitions of the tables (which we use to preserve the CQL metadata).
+     * If it is a table creation, this will be empty.
+     * @param isDense whether the table is dense or not.
+     *
+     * @return the converted table definition.
+     */
+    private static CFMetaData internalFromThrift(CfDef cf_def,
+                                                 boolean isCreation,
+                                                 Collection<ColumnDefinition> previousCQLMetadata,
+                                                 boolean isDense)
     throws org.apache.cassandra.exceptions.InvalidRequestException, ConfigurationException
     {
-        ColumnFamilyType cfType = ColumnFamilyType.create(cf_def.column_type);
-        if (cfType == null)
-            throw new org.apache.cassandra.exceptions.InvalidRequestException("Invalid column type " + cf_def.column_type);
-
         applyImplicitDefaults(cf_def);
 
         try
         {
+            boolean isSuper = isSuper(cf_def.column_type);
             AbstractType<?> rawComparator = TypeParser.parse(cf_def.comparator_type);
-            AbstractType<?> subComparator = cfType == ColumnFamilyType.Standard
-                    ? null
-                    : cf_def.subcomparator_type == null ? BytesType.instance : TypeParser.parse(cf_def.subcomparator_type);
+            AbstractType<?> subComparator = isSuper
+                                          ? cf_def.subcomparator_type == null ? BytesType.instance : TypeParser.parse(cf_def.subcomparator_type)
+                                          : null;
 
-            AbstractType<?> fullRawComparator = CFMetaData.makeRawAbstractType(rawComparator, subComparator);
+            AbstractType<?> keyValidator = cf_def.isSetKey_validation_class() ? TypeParser.parse(cf_def.key_validation_class) : BytesType.instance;
+            AbstractType<?> defaultValidator = TypeParser.parse(cf_def.default_validation_class);
 
-            AbstractType<?> keyValidator = cf_def.isSetKey_validation_class() ? TypeParser.parse(cf_def.key_validation_class) : null;
-
-            // Convert the REGULAR definitions from the input CfDef
+            // Convert the definitions from the input CfDef
             List<ColumnDefinition> defs = fromThrift(cf_def.keyspace, cf_def.name, rawComparator, subComparator, cf_def.column_metadata);
 
-            // Add the keyAlias if there is one, since that's on CQL metadata that thrift can actually change (for
+            // Add the keyAlias if there is one, since that's a CQL metadata that thrift can actually change (for
             // historical reasons)
             boolean hasKeyAlias = cf_def.isSetKey_alias() && keyValidator != null && !(keyValidator instanceof CompositeType);
             if (hasKeyAlias)
-                defs.add(ColumnDefinition.partitionKeyDef(cf_def.keyspace, cf_def.name, cf_def.key_alias, keyValidator, null));
+                defs.add(ColumnDefinition.partitionKeyDef(cf_def.keyspace, cf_def.name, UTF8Type.instance.getString(cf_def.key_alias), keyValidator, null));
 
             // Now add any CQL metadata that we want to copy, skipping the keyAlias if there was one
             for (ColumnDefinition def : previousCQLMetadata)
             {
                 // isPartOfCellName basically means 'is not just a CQL metadata'
-                if (def.isPartOfCellName())
+                if (def.isPartOfCellName(false, isSuper))
                     continue;
 
                 if (def.kind == ColumnDefinition.Kind.PARTITION_KEY && hasKeyAlias)
@@ -236,18 +258,25 @@ public class ThriftConversion
                 defs.add(def);
             }
 
-            CellNameType comparator = CellNames.fromAbstractType(fullRawComparator, CFMetaData.calculateIsDense(fullRawComparator, defs));
-
             UUID cfId = Schema.instance.getId(cf_def.keyspace, cf_def.name);
             if (cfId == null)
                 cfId = UUIDGen.getTimeUUID();
 
-            CFMetaData newCFMD = new CFMetaData(cf_def.keyspace, cf_def.name, cfType, comparator, cfId);
+            boolean isCompound = isSuper ? false : (rawComparator instanceof CompositeType);
+            boolean isCounter = defaultValidator instanceof CounterColumnType;
 
-            newCFMD.addAllColumnDefinitions(defs);
+            // If it's a thrift table creation, adds the default CQL metadata for the new table
+            if (isCreation)
+                addDefaultCQLMetadata(defs,
+                                      cf_def.keyspace,
+                                      cf_def.name,
+                                      hasKeyAlias ? null : keyValidator,
+                                      rawComparator,
+                                      subComparator,
+                                      defaultValidator);
 
-            if (keyValidator != null)
-                newCFMD.keyValidator(keyValidator);
+            CFMetaData newCFMD = CFMetaData.create(cf_def.keyspace, cf_def.name, cfId, isDense, isCompound, isSuper, isCounter, defs);
+
             if (cf_def.isSetGc_grace_seconds())
                 newCFMD.gcGraceSeconds(cf_def.gc_grace_seconds);
             if (cf_def.isSetMin_compaction_threshold())
@@ -280,13 +309,53 @@ public class ThriftConversion
                 newCFMD.triggers(triggerDefinitionsFromThrift(cf_def.triggers));
 
             return newCFMD.comment(cf_def.comment)
-                          .defaultValidator(TypeParser.parse(cf_def.default_validation_class))
-                          .compressionParameters(CompressionParameters.create(cf_def.compression_options))
-                          .rebuild();
+                          .compressionParameters(CompressionParameters.create(cf_def.compression_options));
         }
         catch (SyntaxException | MarshalException e)
         {
             throw new ConfigurationException(e.getMessage());
+        }
+    }
+
+    private static void addDefaultCQLMetadata(Collection<ColumnDefinition> defs,
+                                              String ks,
+                                              String cf,
+                                              AbstractType<?> keyValidator,
+                                              AbstractType<?> comparator,
+                                              AbstractType<?> subComparator,
+                                              AbstractType<?> defaultValidator)
+    {
+        CompactTables.DefaultNames names = CompactTables.defaultNameGenerator(defs);
+        if (keyValidator != null)
+        {
+            if (keyValidator instanceof CompositeType)
+            {
+                List<AbstractType<?>> subTypes = ((CompositeType)keyValidator).types;
+                for (int i = 0; i < subTypes.size(); i++)
+                    defs.add(ColumnDefinition.partitionKeyDef(ks, cf, names.defaultPartitionKeyName(), subTypes.get(i), i));
+            }
+            else
+            {
+                defs.add(ColumnDefinition.partitionKeyDef(ks, cf, names.defaultPartitionKeyName(), keyValidator, null));
+            }
+        }
+
+        if (subComparator != null)
+        {
+            // SuperColumn tables: we use a special map to hold dynamic values within a given super column
+            defs.add(ColumnDefinition.clusteringKeyDef(ks, cf, names.defaultClusteringName(), comparator, 0));
+            defs.add(ColumnDefinition.regularDef(ks, cf, CompactTables.SUPER_COLUMN_MAP_COLUMN_STR, MapType.getInstance(subComparator, defaultValidator, true), null));
+        }
+        else
+        {
+            List<AbstractType<?>> subTypes = comparator instanceof CompositeType
+                                           ? ((CompositeType)comparator).types
+                                           : Collections.<AbstractType<?>>singletonList(comparator);
+
+            for (int i = 0; i < subTypes.size(); i++)
+                defs.add(ColumnDefinition.clusteringKeyDef(ks, cf, names.defaultClusteringName(), subTypes.get(i), i));
+
+            defs.add(ColumnDefinition.regularDef(ks, cf, names.defaultCompactValueName(), defaultValidator, null));
         }
     }
 
@@ -355,30 +424,30 @@ public class ThriftConversion
     public static CfDef toThrift(CFMetaData cfm)
     {
         CfDef def = new CfDef(cfm.ksName, cfm.cfName);
-        def.setColumn_type(cfm.cfType.name());
+        def.setColumn_type(cfm.isSuper() ? "Super" : "Standard");
 
         if (cfm.isSuper())
         {
             def.setComparator_type(cfm.comparator.subtype(0).toString());
-            def.setSubcomparator_type(cfm.comparator.subtype(1).toString());
+            def.setSubcomparator_type(cfm.thriftColumnNameType().toString());
         }
         else
         {
-            def.setComparator_type(cfm.comparator.toString());
+            def.setComparator_type(LegacyLayout.makeLegacyComparator(cfm).toString());
         }
 
         def.setComment(Strings.nullToEmpty(cfm.getComment()));
         def.setRead_repair_chance(cfm.getReadRepairChance());
         def.setDclocal_read_repair_chance(cfm.getDcLocalReadRepairChance());
         def.setGc_grace_seconds(cfm.getGcGraceSeconds());
-        def.setDefault_validation_class(cfm.getDefaultValidator().toString());
+        def.setDefault_validation_class(cfm.makeLegacyDefaultValidator().toString());
         def.setKey_validation_class(cfm.getKeyValidator().toString());
         def.setMin_compaction_threshold(cfm.getMinCompactionThreshold());
         def.setMax_compaction_threshold(cfm.getMaxCompactionThreshold());
         // We only return the alias if only one is set since thrift don't know about multiple key aliases
         if (cfm.partitionKeyColumns().size() == 1)
             def.setKey_alias(cfm.partitionKeyColumns().get(0).name.bytes);
-        def.setColumn_metadata(columnDefinitionsToThrift(cfm.allColumns()));
+        def.setColumn_metadata(columnDefinitionsToThrift(cfm, cfm.allColumns()));
         def.setCompaction_strategy(cfm.compactionStrategyClass.getName());
         def.setCompaction_strategy_options(new HashMap<>(cfm.compactionStrategyOptions));
         def.setCompression_options(cfm.compressionParameters.asThriftOptions());
@@ -402,8 +471,9 @@ public class ThriftConversion
                                               ColumnDef thriftColumnDef)
     throws SyntaxException, ConfigurationException
     {
+        boolean isSuper = thriftSubcomparator != null;
         // For super columns, the componentIndex is 1 because the ColumnDefinition applies to the column component.
-        Integer componentIndex = thriftSubcomparator != null ? 1 : null;
+        Integer componentIndex = isSuper ? 1 : null;
         AbstractType<?> comparator = thriftSubcomparator == null ? thriftComparator : thriftSubcomparator;
         try
         {
@@ -414,15 +484,18 @@ public class ThriftConversion
             throw new ConfigurationException(String.format("Column name %s is not valid for comparator %s", ByteBufferUtil.bytesToHex(thriftColumnDef.name), comparator));
         }
 
+        // In our generic layout, we store thrift defined columns as static, but this doesn't work for super columns so we
+        // use a regular definition (and "dynamic" columns are handled in a map).
+        ColumnDefinition.Kind kind = isSuper ? ColumnDefinition.Kind.REGULAR : ColumnDefinition.Kind.STATIC;
         return new ColumnDefinition(ksName,
                                     cfName,
-                                    new ColumnIdentifier(ByteBufferUtil.clone(thriftColumnDef.name), comparator),
+                                    ColumnIdentifier.getInterned(ByteBufferUtil.clone(thriftColumnDef.name), comparator),
                                     TypeParser.parse(thriftColumnDef.validation_class),
                                     thriftColumnDef.index_type == null ? null : org.apache.cassandra.config.IndexType.valueOf(thriftColumnDef.index_type.name()),
                                     thriftColumnDef.index_options,
                                     thriftColumnDef.index_name,
                                     componentIndex,
-                                    ColumnDefinition.Kind.REGULAR);
+                                    kind);
     }
 
     private static List<ColumnDefinition> fromThrift(String ksName,
@@ -456,11 +529,11 @@ public class ThriftConversion
         return cd;
     }
 
-    private static List<ColumnDef> columnDefinitionsToThrift(Collection<ColumnDefinition> columns)
+    private static List<ColumnDef> columnDefinitionsToThrift(CFMetaData metadata, Collection<ColumnDefinition> columns)
     {
         List<ColumnDef> thriftDefs = new ArrayList<>(columns.size());
         for (ColumnDefinition def : columns)
-            if (def.kind == ColumnDefinition.Kind.REGULAR)
+            if (def.isPartOfCellName(metadata.isCQLTable(), metadata.isSuper()))
                 thriftDefs.add(ThriftConversion.toThrift(def));
         return thriftDefs;
     }

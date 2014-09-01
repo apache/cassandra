@@ -26,6 +26,8 @@ import com.google.common.base.Throwables;
 
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
+import org.apache.cassandra.db.rows.*;
+import org.apache.cassandra.db.partitions.*;
 import org.apache.cassandra.io.sstable.*;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.SSTableWriter;
@@ -33,6 +35,7 @@ import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.io.util.RandomAccessReader;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.OutputHandler;
 import org.apache.cassandra.utils.UUIDGen;
@@ -45,7 +48,6 @@ public class Scrubber implements Closeable
     private final File destination;
     private final boolean skipCorrupted;
 
-    private final CompactionController controller;
     private final boolean isCommutative;
     private final boolean isIndex;
     private final boolean checkData;
@@ -72,14 +74,14 @@ public class Scrubber implements Closeable
 
     private final OutputHandler outputHandler;
 
-    private static final Comparator<Row> rowComparator = new Comparator<Row>()
+    private static final Comparator<Partition> partitionComparator = new Comparator<Partition>()
     {
-         public int compare(Row r1, Row r2)
+         public int compare(Partition r1, Partition r2)
          {
-             return r1.key.compareTo(r2.key);
+             return r1.partitionKey().compareTo(r2.partitionKey());
          }
     };
-    private final SortedSet<Row> outOfOrderRows = new TreeSet<>(rowComparator);
+    private final SortedSet<Partition> outOfOrder = new TreeSet<>(partitionComparator);
 
     public Scrubber(ColumnFamilyStore cfs, LifecycleTransaction transaction, boolean skipCorrupted, boolean isOffline, boolean checkData) throws IOException
     {
@@ -95,7 +97,9 @@ public class Scrubber implements Closeable
         this.outputHandler = outputHandler;
         this.skipCorrupted = skipCorrupted;
         this.isOffline = isOffline;
-        this.rowIndexEntrySerializer = sstable.descriptor.version.getSSTableFormat().getIndexSerializer(sstable.metadata);
+        this.rowIndexEntrySerializer = sstable.descriptor.version.getSSTableFormat().getIndexSerializer(sstable.metadata,
+                                                                                                        sstable.descriptor.version,
+                                                                                                        sstable.header);
 
         List<SSTableReader> toScrub = Collections.singletonList(sstable);
 
@@ -104,10 +108,6 @@ public class Scrubber implements Closeable
         if (destination == null)
             throw new IOException("disk full");
 
-        // If we run scrub offline, we should never purge tombstone, as we cannot know if other sstable have data that the tombstone deletes.
-        this.controller = isOffline
-                        ? new ScrubController(cfs)
-                        : new CompactionController(cfs, Collections.singleton(sstable), CompactionManager.getDefaultGcBefore(cfs));
         this.isCommutative = cfs.metadata.isCounter();
         this.isIndex = cfs.isIndex();
         this.checkData = checkData && !this.isIndex; //LocalByPartitionerType does not support validation
@@ -127,15 +127,21 @@ public class Scrubber implements Closeable
         this.nextRowPositionFromIndex = 0;
     }
 
+    private UnfilteredRowIterator withValidation(UnfilteredRowIterator iter, String filename)
+    {
+        return checkData ? UnfilteredRowIterators.withValidation(iter, filename) : iter;
+    }
+
     public void scrub()
     {
         outputHandler.output(String.format("Scrubbing %s (%s bytes)", sstable, dataFile.length()));
+        int nowInSec = FBUtilities.nowInSeconds();
         try (SSTableRewriter writer = new SSTableRewriter(cfs, transaction, sstable.maxDataAge, isOffline);)
         {
             nextIndexKey = ByteBufferUtil.readWithShortLength(indexFile);
             {
                 // throw away variable so we don't have a side effect in the assert
-                long firstRowPositionFromIndex = rowIndexEntrySerializer.deserialize(indexFile, sstable.descriptor.version).position;
+                long firstRowPositionFromIndex = rowIndexEntrySerializer.deserialize(indexFile).position;
                 assert firstRowPositionFromIndex == 0 : firstRowPositionFromIndex;
             }
 
@@ -188,7 +194,8 @@ public class Scrubber implements Closeable
                     if (currentIndexKey != null && !key.getKey().equals(currentIndexKey))
                     {
                         throw new IOError(new IOException(String.format("Key from data file (%s) does not match key from index file (%s)",
-                                ByteBufferUtil.bytesToHex(key.getKey()), ByteBufferUtil.bytesToHex(currentIndexKey))));
+                                //ByteBufferUtil.bytesToHex(key.getKey()), ByteBufferUtil.bytesToHex(currentIndexKey))));
+                                "_too big_", ByteBufferUtil.bytesToHex(currentIndexKey))));
                     }
 
                     if (dataSizeFromIndex > dataFile.length())
@@ -197,20 +204,19 @@ public class Scrubber implements Closeable
                     if (dataStart != dataStartFromIndex)
                         outputHandler.warn(String.format("Data file row position %d differs from index file row position %d", dataStart, dataStartFromIndex));
 
-                    SSTableIdentityIterator atoms = new SSTableIdentityIterator(sstable, dataFile, key, checkData);
-
-                    if (prevKey != null && prevKey.compareTo(key) > 0)
+                    try (UnfilteredRowIterator iterator = withValidation(new SSTableIdentityIterator(sstable, dataFile, key), dataFile.getPath()))
                     {
-                        saveOutOfOrderRow(prevKey, key, atoms);
-                        continue;
-                    }
+                        if (prevKey != null && prevKey.compareTo(key) > 0)
+                        {
+                            saveOutOfOrderRow(prevKey, key, iterator);
+                            continue;
+                        }
 
-                    @SuppressWarnings("resource")
-                    AbstractCompactedRow compactedRow = new LazilyCompactedRow(controller, Collections.singletonList(atoms));
-                    if (writer.tryAppend(compactedRow) == null)
-                        emptyRows++;
-                    else
-                        goodRows++;
+                        if (writer.tryAppend(iterator) == null)
+                            emptyRows++;
+                        else
+                            goodRows++;
+                    }
 
                     prevKey = key;
                 }
@@ -229,19 +235,19 @@ public class Scrubber implements Closeable
                         {
                             dataFile.seek(dataStartFromIndex);
 
-                            SSTableIdentityIterator atoms = new SSTableIdentityIterator(sstable, dataFile, key, checkData);
-                            if (prevKey != null && prevKey.compareTo(key) > 0)
+                            try (UnfilteredRowIterator iterator = withValidation(new SSTableIdentityIterator(sstable, dataFile, key), dataFile.getPath()))
                             {
-                                saveOutOfOrderRow(prevKey, key, atoms);
-                                continue;
-                            }
+                                if (prevKey != null && prevKey.compareTo(key) > 0)
+                                {
+                                    saveOutOfOrderRow(prevKey, key, iterator);
+                                    continue;
+                                }
 
-                            @SuppressWarnings("resource")
-                            AbstractCompactedRow compactedRow = new LazilyCompactedRow(controller, Collections.singletonList(atoms));
-                            if (writer.tryAppend(compactedRow) == null)
-                                emptyRows++;
-                            else
-                                goodRows++;
+                                if (writer.tryAppend(iterator) == null)
+                                    emptyRows++;
+                                else
+                                    goodRows++;
+                            }
 
                             prevKey = key;
                         }
@@ -267,18 +273,18 @@ public class Scrubber implements Closeable
                 }
             }
 
-            if (!outOfOrderRows.isEmpty())
+            if (!outOfOrder.isEmpty())
             {
                 // out of order rows, but no bad rows found - we can keep our repairedAt time
                 long repairedAt = badRows > 0 ? ActiveRepairService.UNREPAIRED_SSTABLE : sstable.getSSTableMetadata().repairedAt;
                 try (SSTableWriter inOrderWriter = CompactionManager.createWriter(cfs, destination, expectedBloomFilterSize, repairedAt, sstable);)
                 {
-                    for (Row row : outOfOrderRows)
-                        inOrderWriter.append(row.key, row.cf);
+                    for (Partition partition : outOfOrder)
+                        inOrderWriter.append(partition.unfilteredIterator());
                     newInOrderSstable = inOrderWriter.finish(-1, sstable.maxDataAge, true);
                 }
                 transaction.update(newInOrderSstable, false);
-                outputHandler.warn(String.format("%d out of order rows found while scrubbing %s; Those have been written (in order) to a new sstable (%s)", outOfOrderRows.size(), sstable, newInOrderSstable));
+                outputHandler.warn(String.format("%d out of order rows found while scrubbing %s; Those have been written (in order) to a new sstable (%s)", outOfOrder.size(), sstable, newInOrderSstable));
             }
 
             // finish obsoletes the old sstable
@@ -289,10 +295,6 @@ public class Scrubber implements Closeable
         catch (IOException e)
         {
             throw Throwables.propagate(e);
-        }
-        finally
-        {
-            controller.close();
         }
 
         if (newSstable == null)
@@ -318,8 +320,8 @@ public class Scrubber implements Closeable
         {
             nextIndexKey = indexFile.isEOF() ? null : ByteBufferUtil.readWithShortLength(indexFile);
             nextRowPositionFromIndex = indexFile.isEOF()
-                    ? dataFile.length()
-                    : rowIndexEntrySerializer.deserialize(indexFile, sstable.descriptor.version).position;
+                                     ? dataFile.length()
+                                     : rowIndexEntrySerializer.deserialize(indexFile).position;
         }
         catch (Throwable th)
         {
@@ -350,19 +352,11 @@ public class Scrubber implements Closeable
         }
     }
 
-    private void saveOutOfOrderRow(DecoratedKey prevKey, DecoratedKey key, SSTableIdentityIterator atoms)
+    private void saveOutOfOrderRow(DecoratedKey prevKey, DecoratedKey key, UnfilteredRowIterator iterator)
     {
         // TODO bitch if the row is too large?  if it is there's not much we can do ...
         outputHandler.warn(String.format("Out of order row detected (%s found after %s)", key, prevKey));
-        // adding atoms in sorted order is worst-case for TMBSC, but we shouldn't need to do this very often
-        // and there's no sense in failing on mis-sorted cells when a TreeMap could safe us
-        ColumnFamily cf = atoms.getColumnFamily().cloneMeShallow(ArrayBackedSortedColumns.factory, false);
-        while (atoms.hasNext())
-        {
-            OnDiskAtom atom = atoms.next();
-            cf.addAtom(atom);
-        }
-        outOfOrderRows.add(new Row(key, cf));
+        outOfOrder.add(ArrayBackedPartition.create(iterator));
     }
 
     public SSTableReader getNewSSTable()
@@ -439,20 +433,6 @@ public class Scrubber implements Closeable
             {
                 throw new RuntimeException();
             }
-        }
-    }
-
-    private static class ScrubController extends CompactionController
-    {
-        public ScrubController(ColumnFamilyStore cfs)
-        {
-            super(cfs, Integer.MAX_VALUE);
-        }
-
-        @Override
-        public long maxPurgeableTimestamp(DecoratedKey key)
-        {
-            return Long.MIN_VALUE;
         }
     }
 

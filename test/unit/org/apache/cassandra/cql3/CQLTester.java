@@ -18,6 +18,7 @@
 package org.apache.cassandra.cql3;
 
 import java.io.File;
+import java.io.IOException;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.net.InetAddress;
@@ -29,20 +30,14 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import com.datastax.driver.core.*;
+import com.datastax.driver.core.ResultSet;
 import com.google.common.base.Objects;
 import com.google.common.collect.ImmutableSet;
 import org.junit.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import static junit.framework.Assert.assertNotNull;
-import com.datastax.driver.core.Cluster;
-import com.datastax.driver.core.ColumnDefinitions;
-import com.datastax.driver.core.DataType;
-import com.datastax.driver.core.ProtocolVersion;
-import com.datastax.driver.core.ResultSet;
-import com.datastax.driver.core.Row;
-import com.datastax.driver.core.Session;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.config.CFMetaData;
@@ -50,15 +45,13 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.cql3.functions.FunctionName;
 import org.apache.cassandra.cql3.statements.ParsedStatement;
-import org.apache.cassandra.db.Directories;
-import org.apache.cassandra.db.Keyspace;
-import org.apache.cassandra.db.SystemKeyspace;
+import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.db.marshal.TupleType;
-import org.apache.cassandra.exceptions.CassandraException;
-import org.apache.cassandra.exceptions.ConfigurationException;
-import org.apache.cassandra.exceptions.SyntaxException;
 import org.apache.cassandra.dht.Murmur3Partitioner;
+import org.apache.cassandra.exceptions.*;
+import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.serializers.TypeSerializer;
 import org.apache.cassandra.service.ClientState;
@@ -68,6 +61,8 @@ import org.apache.cassandra.transport.Event;
 import org.apache.cassandra.transport.Server;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.utils.ByteBufferUtil;
+
+import static junit.framework.Assert.assertNotNull;
 
 /**
  * Base class for CQL tests.
@@ -88,8 +83,11 @@ public abstract class CQLTester
     private static final Cluster[] cluster;
     private static final Session[] session;
 
+    private static boolean isServerPrepared = false;
+
     public static int maxProtocolVersion;
-    static {
+    static
+    {
         int version;
         for (version = 1; version <= Server.CURRENT_VERSION; )
         {
@@ -108,7 +106,7 @@ public abstract class CQLTester
         session = new Session[maxProtocolVersion];
 
         // Once per-JVM is enough
-        SchemaLoader.prepareServer();
+        prepareServer(true);
 
         nativeAddr = InetAddress.getLoopbackAddress();
 
@@ -137,13 +135,90 @@ public abstract class CQLTester
     // is not expected to be the same without preparation)
     private boolean usePrepared = USE_PREPARED_VALUES;
 
+    public static void prepareServer(boolean checkInit)
+    {
+        if (checkInit && isServerPrepared)
+            return;
+
+        // Cleanup first
+        try
+        {
+            cleanupAndLeaveDirs();
+        }
+        catch (IOException e)
+        {
+            logger.error("Failed to cleanup and recreate directories.");
+            throw new RuntimeException(e);
+        }
+
+        Thread.setDefaultUncaughtExceptionHandler(new Thread.UncaughtExceptionHandler()
+        {
+            public void uncaughtException(Thread t, Throwable e)
+            {
+                logger.error("Fatal exception in thread " + t, e);
+            }
+        });
+
+        Keyspace.setInitialized();
+        isServerPrepared = true;
+    }
+
+    public static void cleanupAndLeaveDirs() throws IOException
+    {
+        // We need to stop and unmap all CLS instances prior to cleanup() or we'll get failures on Windows.
+        CommitLog.instance.stopUnsafe(true);
+        mkdirs();
+        cleanup();
+        mkdirs();
+        CommitLog.instance.startUnsafe();
+    }
+
+    public static void cleanup()
+    {
+        // clean up commitlog
+        String[] directoryNames = { DatabaseDescriptor.getCommitLogLocation(), };
+        for (String dirName : directoryNames)
+        {
+            File dir = new File(dirName);
+            if (!dir.exists())
+                throw new RuntimeException("No such directory: " + dir.getAbsolutePath());
+            FileUtils.deleteRecursive(dir);
+        }
+
+        cleanupSavedCaches();
+
+        // clean up data directory which are stored as data directory/keyspace/data files
+        for (String dirName : DatabaseDescriptor.getAllDataFileLocations())
+        {
+            File dir = new File(dirName);
+            if (!dir.exists())
+                throw new RuntimeException("No such directory: " + dir.getAbsolutePath());
+            FileUtils.deleteRecursive(dir);
+        }
+    }
+
+    public static void mkdirs()
+    {
+        DatabaseDescriptor.createAllDirectories();
+    }
+
+    public static void cleanupSavedCaches()
+    {
+        File cachesDir = new File(DatabaseDescriptor.getSavedCachesLocation());
+
+        if (!cachesDir.exists() || !cachesDir.isDirectory())
+            return;
+
+        FileUtils.delete(cachesDir.listFiles());
+    }
+
     @BeforeClass
     public static void setUpClass()
     {
         if (ROW_CACHE_SIZE_IN_MB > 0)
             DatabaseDescriptor.setRowCacheSizeInMB(ROW_CACHE_SIZE_IN_MB);
 
-        DatabaseDescriptor.setPartitioner(Murmur3Partitioner.instance);
+        StorageService.instance.setPartitionerUnsafe(Murmur3Partitioner.instance);
     }
 
     @AfterClass
@@ -271,13 +346,21 @@ public abstract class CQLTester
         return list.isEmpty() ? Collections.<String>emptyList() : new ArrayList<>(list);
     }
 
+    public ColumnFamilyStore getCurrentColumnFamilyStore()
+    {
+        String currentTable = currentTable();
+        return currentTable == null
+             ? null
+             : Keyspace.open(KEYSPACE).getColumnFamilyStore(currentTable);
+    }
+
     public void flush()
     {
         try
         {
-            String currentTable = currentTable();
-            if (currentTable != null)
-                Keyspace.open(KEYSPACE).getColumnFamilyStore(currentTable).forceFlush().get();
+            ColumnFamilyStore store = getCurrentColumnFamilyStore();
+            if (store != null)
+                store.forceFlush().get();
         }
         catch (InterruptedException | ExecutionException e)
         {
@@ -570,17 +653,22 @@ public abstract class CQLTester
         UntypedResultSet rs;
         if (usePrepared)
         {
-            logger.info("Executing: {} with values {}", query, formatAllValues(values));
+            if (logger.isDebugEnabled())
+                logger.debug("Executing: {} with values {}", query, formatAllValues(values));
             rs = QueryProcessor.executeOnceInternal(query, transformValues(values));
         }
         else
         {
             query = replaceValues(query, values);
-            logger.info("Executing: {}", query);
+            if (logger.isDebugEnabled())
+                logger.debug("Executing: {}", query);
             rs = QueryProcessor.executeOnceInternal(query);
         }
         if (rs != null)
-            logger.info("Got {} rows", rs.size());
+        {
+            if (logger.isDebugEnabled())
+                logger.debug("Got {} rows", rs.size());
+        }
         return rs;
     }
 
@@ -642,7 +730,7 @@ public abstract class CQLTester
                                         rows.length>i ? "less" : "more", rows.length, i, protocolVersion), i == rows.length);
     }
 
-    protected void assertRows(UntypedResultSet result, Object[]... rows)
+    public static void assertRows(UntypedResultSet result, Object[]... rows)
     {
         if (result == null)
         {
@@ -690,7 +778,7 @@ public abstract class CQLTester
                 iter.next();
                 i++;
             }
-            Assert.fail(String.format("Got less rows than expected. Expected %d but got %d.", rows.length, i));
+            Assert.fail(String.format("Got more rows than expected. Expected %d but got %d.", rows.length, i));
         }
 
         Assert.assertTrue(String.format("Got %s rows than expected. Expected %d but got %d", rows.length>i ? "less" : "more", rows.length, i), i == rows.length);
@@ -778,7 +866,7 @@ public abstract class CQLTester
         assertRows(execute("SELECT * FROM %s"), rows);
     }
 
-    protected Object[] row(Object... expected)
+    public static Object[] row(Object... expected)
     {
         return expected;
     }

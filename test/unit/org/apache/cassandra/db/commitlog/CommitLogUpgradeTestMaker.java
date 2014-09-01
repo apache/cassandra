@@ -36,6 +36,7 @@ import com.google.common.util.concurrent.RateLimiter;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
+import org.apache.cassandra.UpdateBuilder;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.Mutation;
@@ -231,18 +232,20 @@ public class CommitLogUpgradeTestMaker
                     rl.acquire();
                 String ks = KEYSPACE;
                 ByteBuffer key = randomBytes(16, tlr);
-                Mutation mutation = new Mutation(ks, key);
+
+                UpdateBuilder builder = UpdateBuilder.create(Schema.instance.getCFMetaData(KEYSPACE, TABLE), Util.dk(key));
 
                 for (int ii = 0; ii < numCells; ii++)
                 {
                     int sz = randomSize ? tlr.nextInt(cellSize) : cellSize;
                     ByteBuffer bytes = randomBytes(sz, tlr);
-                    mutation.add(TABLE, Util.cellname(CELLNAME + ii), bytes, System.currentTimeMillis());
+                    builder.newRow("name" + ii).add("val", bytes);
                     hash = hash(hash, bytes);
                     ++cells;
                     dataSize += sz;
                 }
-                rp = commitLog.add(mutation);
+
+                rp = commitLog.add((Mutation)builder.makeMutation());
                 counter.incrementAndGet();
             }
         }

@@ -47,19 +47,14 @@ import org.apache.cassandra.cache.*;
 import org.apache.cassandra.concurrent.*;
 import org.apache.cassandra.config.*;
 import org.apache.cassandra.config.CFMetaData.SpeculativeRetry;
+import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.commitlog.ReplayPosition;
 import org.apache.cassandra.db.compaction.*;
-import org.apache.cassandra.db.composites.CellName;
-import org.apache.cassandra.db.composites.CellNameType;
-import org.apache.cassandra.db.composites.Composite;
-import org.apache.cassandra.db.filter.ColumnSlice;
-import org.apache.cassandra.db.filter.ExtendedFilter;
-import org.apache.cassandra.db.filter.IDiskAtomFilter;
-import org.apache.cassandra.db.filter.QueryFilter;
-import org.apache.cassandra.db.filter.SliceQueryFilter;
+import org.apache.cassandra.db.filter.*;
 import org.apache.cassandra.db.index.SecondaryIndex;
 import org.apache.cassandra.db.index.SecondaryIndexManager;
+import org.apache.cassandra.db.partitions.*;
 import org.apache.cassandra.dht.*;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.exceptions.ConfigurationException;
@@ -76,7 +71,6 @@ import org.apache.cassandra.metrics.ColumnFamilyMetrics.Sampler;
 import org.apache.cassandra.service.CacheService;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.streaming.StreamLockfile;
-import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.*;
 import org.apache.cassandra.utils.concurrent.*;
 import org.apache.cassandra.utils.TopKSampler.SamplerResult;
@@ -592,12 +586,9 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         {
             if (def.isIndexed())
             {
-                CellNameType indexComparator = SecondaryIndex.getIndexComparator(metadata, def);
-                if (indexComparator != null)
-                {
-                    CFMetaData indexMetadata = CFMetaData.newIndexMetadata(metadata, def, indexComparator);
+                CFMetaData indexMetadata = SecondaryIndex.newIndexMetadata(metadata, def);
+                if (indexMetadata != null)
                     scrubDataDirectories(indexMetadata);
-                }
             }
         }
     }
@@ -1220,7 +1211,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             return;
 
         RowCacheKey cacheKey = new RowCacheKey(metadata.cfId, key);
-        invalidateCachedRow(cacheKey);
+        invalidateCachedPartition(cacheKey);
     }
 
     /**
@@ -1230,103 +1221,17 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
      * param @ key - key for update/insert
      * param @ columnFamily - columnFamily changes
      */
-    public void apply(DecoratedKey key, ColumnFamily columnFamily, SecondaryIndexManager.Updater indexer, OpOrder.Group opGroup, ReplayPosition replayPosition)
+    public void apply(PartitionUpdate update, SecondaryIndexManager.Updater indexer, OpOrder.Group opGroup, ReplayPosition replayPosition)
     {
         long start = System.nanoTime();
         Memtable mt = data.getMemtableFor(opGroup, replayPosition);
-        final long timeDelta = mt.put(key, columnFamily, indexer, opGroup);
+        long timeDelta = mt.put(update, indexer, opGroup);
+        DecoratedKey key = update.partitionKey();
         maybeUpdateRowCache(key);
         metric.samplers.get(Sampler.WRITES).addSample(key.getKey(), key.hashCode(), 1);
         metric.writeLatency.addNano(System.nanoTime() - start);
         if(timeDelta < Long.MAX_VALUE)
             metric.colUpdateTimeDeltaHistogram.update(timeDelta);
-    }
-
-    /**
-     * Purges gc-able top-level and range tombstones, returning `cf` if there are any columns or tombstones left,
-     * null otherwise.
-     * @param gcBefore a timestamp (in seconds); tombstones with a localDeletionTime before this will be purged
-     */
-    public static ColumnFamily removeDeletedCF(ColumnFamily cf, int gcBefore)
-    {
-        // purge old top-level and range tombstones
-        cf.purgeTombstones(gcBefore);
-
-        // if there are no columns or tombstones left, return null
-        return !cf.hasColumns() && !cf.isMarkedForDelete() ? null : cf;
-    }
-
-    /**
-     * Removes deleted columns and purges gc-able tombstones.
-     * @return an updated `cf` if any columns or tombstones remain, null otherwise
-     */
-    public static ColumnFamily removeDeleted(ColumnFamily cf, int gcBefore)
-    {
-        return removeDeleted(cf, gcBefore, SecondaryIndexManager.nullUpdater);
-    }
-
-    /*
-     This is complicated because we need to preserve deleted columns and columnfamilies
-     until they have been deleted for at least GC_GRACE_IN_SECONDS.  But, we do not need to preserve
-     their contents; just the object itself as a "tombstone" that can be used to repair other
-     replicas that do not know about the deletion.
-     */
-    public static ColumnFamily removeDeleted(ColumnFamily cf, int gcBefore, SecondaryIndexManager.Updater indexer)
-    {
-        if (cf == null)
-        {
-            return null;
-        }
-
-        return removeDeletedCF(removeDeletedColumnsOnly(cf, gcBefore, indexer), gcBefore);
-    }
-
-    /**
-     * Removes only per-cell tombstones, cells that are shadowed by a row-level or range tombstone, or
-     * columns that have been dropped from the schema (for CQL3 tables only).
-     * @return the updated ColumnFamily
-     */
-    public static ColumnFamily removeDeletedColumnsOnly(ColumnFamily cf, int gcBefore, SecondaryIndexManager.Updater indexer)
-    {
-        BatchRemoveIterator<Cell> iter = cf.batchRemoveIterator();
-        DeletionInfo.InOrderTester tester = cf.inOrderDeletionTester();
-        boolean hasDroppedColumns = !cf.metadata.getDroppedColumns().isEmpty();
-        while (iter.hasNext())
-        {
-            Cell c = iter.next();
-            // remove columns if
-            // (a) the column itself is gcable or
-            // (b) the column is shadowed by a CF tombstone
-            // (c) the column has been dropped from the CF schema (CQL3 tables only)
-            if (c.getLocalDeletionTime() < gcBefore || tester.isDeleted(c) || (hasDroppedColumns && isDroppedColumn(c, cf.metadata())))
-            {
-                iter.remove();
-                indexer.remove(c);
-            }
-        }
-        iter.commit();
-        return cf;
-    }
-
-    // returns true if
-    // 1. this column has been dropped from schema and
-    // 2. if it has been re-added since then, this particular column was inserted before the last drop
-    private static boolean isDroppedColumn(Cell c, CFMetaData meta)
-    {
-        Long droppedAt = meta.getDroppedColumns().get(c.name().cql3ColumnName(meta));
-        return droppedAt != null && c.timestamp() <= droppedAt;
-    }
-
-    private void removeDroppedColumns(ColumnFamily cf)
-    {
-        if (cf == null || cf.metadata.getDroppedColumns().isEmpty())
-            return;
-
-        BatchRemoveIterator<Cell> iter = cf.batchRemoveIterator();
-        while (iter.hasNext())
-            if (isDroppedColumn(iter.next(), metadata))
-                iter.remove();
-        iter.commit();
     }
 
     /**
@@ -1348,7 +1253,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         Set<SSTableReader> results = null;
         for (SSTableReader sstable : sstables)
         {
-            Set<SSTableReader> overlaps = ImmutableSet.copyOf(tree.search(Interval.<RowPosition, SSTableReader>create(sstable.first, sstable.last)));
+            Set<SSTableReader> overlaps = ImmutableSet.copyOf(tree.search(Interval.<PartitionPosition, SSTableReader>create(sstable.first, sstable.last)));
             results = results == null ? overlaps : Sets.union(results, overlaps).immutableCopy();
         }
         results = Sets.difference(results, ImmutableSet.copyOf(sstables));
@@ -1532,9 +1437,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return valid;
     }
 
-
-
-
     /**
      * Package protected for access from the CompactionManager.
      */
@@ -1553,249 +1455,30 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return data.getUncompacting();
     }
 
-    public ColumnFamily getColumnFamily(DecoratedKey key,
-                                        Composite start,
-                                        Composite finish,
-                                        boolean reversed,
-                                        int limit,
-                                        long timestamp)
-    {
-        return getColumnFamily(QueryFilter.getSliceFilter(key, name, start, finish, reversed, limit, timestamp));
-    }
-
-    /**
-     * Fetch the row and columns given by filter.key if it is in the cache; if not, read it from disk and cache it
-     *
-     * If row is cached, and the filter given is within its bounds, we return from cache, otherwise from disk
-     *
-     * If row is not cached, we figure out what filter is "biggest", read that from disk, then
-     * filter the result and either cache that or return it.
-     *
-     * @param cfId the column family to read the row from
-     * @param filter the columns being queried.
-     * @return the requested data for the filter provided
-     */
-    private ColumnFamily getThroughCache(UUID cfId, QueryFilter filter)
-    {
-        assert isRowCacheEnabled()
-               : String.format("Row cache is not enabled on table [" + name + "]");
-
-        RowCacheKey key = new RowCacheKey(cfId, filter.key);
-
-        // attempt a sentinel-read-cache sequence.  if a write invalidates our sentinel, we'll return our
-        // (now potentially obsolete) data, but won't cache it. see CASSANDRA-3862
-        // TODO: don't evict entire rows on writes (#2864)
-        IRowCacheEntry cached = CacheService.instance.rowCache.get(key);
-        if (cached != null)
-        {
-            if (cached instanceof RowCacheSentinel)
-            {
-                // Some other read is trying to cache the value, just do a normal non-caching read
-                Tracing.trace("Row cache miss (race)");
-                metric.rowCacheMiss.inc();
-                return getTopLevelColumns(filter, Integer.MIN_VALUE);
-            }
-
-            ColumnFamily cachedCf = (ColumnFamily)cached;
-            if (isFilterFullyCoveredBy(filter.filter, cachedCf, filter.timestamp))
-            {
-                metric.rowCacheHit.inc();
-                Tracing.trace("Row cache hit");
-                return filterColumnFamily(cachedCf, filter);
-            }
-
-            metric.rowCacheHitOutOfRange.inc();
-            Tracing.trace("Ignoring row cache as cached value could not satisfy query");
-            return getTopLevelColumns(filter, Integer.MIN_VALUE);
-        }
-
-        metric.rowCacheMiss.inc();
-        Tracing.trace("Row cache miss");
-        RowCacheSentinel sentinel = new RowCacheSentinel();
-        boolean sentinelSuccess = CacheService.instance.rowCache.putIfAbsent(key, sentinel);
-        ColumnFamily data = null;
-        ColumnFamily toCache = null;
-        try
-        {
-            // If we are explicitely asked to fill the cache with full partitions, we go ahead and query the whole thing
-            if (metadata.getCaching().rowCache.cacheFullPartitions())
-            {
-                data = getTopLevelColumns(QueryFilter.getIdentityFilter(filter.key, name, filter.timestamp), Integer.MIN_VALUE);
-                toCache = data;
-                Tracing.trace("Populating row cache with the whole partition");
-                if (sentinelSuccess && toCache != null)
-                    CacheService.instance.rowCache.replace(key, sentinel, toCache);
-                return filterColumnFamily(data, filter);
-            }
-
-            // Otherwise, if we want to cache the result of the query we're about to do, we must make sure this query
-            // covers what needs to be cached. And if the user filter does not satisfy that, we sometimes extend said
-            // filter so we can populate the cache but only if:
-            //   1) we can guarantee it is a strict extension, i.e. that we will still fetch the data asked by the user.
-            //   2) the extension does not make us query more than getRowsPerPartitionToCache() (as a mean to limit the
-            //      amount of extra work we'll do on a user query for the purpose of populating the cache).
-            //
-            // In practice, we can only guarantee those 2 points if the filter is one that queries the head of the
-            // partition (and if that filter actually counts CQL3 rows since that's what we cache and it would be
-            // bogus to compare the filter count to the 'rows to cache' otherwise).
-            if (filter.filter.isHeadFilter() && filter.filter.countCQL3Rows(metadata.comparator))
-            {
-                SliceQueryFilter sliceFilter = (SliceQueryFilter)filter.filter;
-                int rowsToCache = metadata.getCaching().rowCache.rowsToCache;
-
-                SliceQueryFilter cacheSlice = readFilterForCache();
-                QueryFilter cacheFilter = new QueryFilter(filter.key, name, cacheSlice, filter.timestamp);
-
-                // If the filter count is less than the number of rows cached, we simply extend it to make sure we do cover the
-                // number of rows to cache, and if that count is greater than the number of rows to cache, we simply filter what
-                // needs to be cached afterwards.
-                if (sliceFilter.count < rowsToCache)
-                {
-                    toCache = getTopLevelColumns(cacheFilter, Integer.MIN_VALUE);
-                    if (toCache != null)
-                    {
-                        Tracing.trace("Populating row cache ({} rows cached)", cacheSlice.lastCounted());
-                        data = filterColumnFamily(toCache, filter);
-                    }
-                }
-                else
-                {
-                    data = getTopLevelColumns(filter, Integer.MIN_VALUE);
-                    if (data != null)
-                    {
-                        // The filter limit was greater than the number of rows to cache. But, if the filter had a non-empty
-                        // finish bound, we may have gotten less than what needs to be cached, in which case we shouldn't cache it
-                        // (otherwise a cache hit would assume the whole partition is cached which is not the case).
-                        if (sliceFilter.finish().isEmpty() || sliceFilter.lastCounted() >= rowsToCache)
-                        {
-                            toCache = filterColumnFamily(data, cacheFilter);
-                            Tracing.trace("Caching {} rows (out of {} requested)", cacheSlice.lastCounted(), sliceFilter.count);
-                        }
-                        else
-                        {
-                            Tracing.trace("Not populating row cache, not enough rows fetched ({} fetched but {} required for the cache)", sliceFilter.lastCounted(), rowsToCache);
-                        }
-                    }
-                }
-
-                if (sentinelSuccess && toCache != null)
-                    CacheService.instance.rowCache.replace(key, sentinel, toCache);
-                return data;
-            }
-            else
-            {
-                Tracing.trace("Fetching data but not populating cache as query does not query from the start of the partition");
-                return getTopLevelColumns(filter, Integer.MIN_VALUE);
-            }
-        }
-        finally
-        {
-            if (sentinelSuccess && toCache == null)
-                invalidateCachedRow(key);
-        }
-    }
-
-    public SliceQueryFilter readFilterForCache()
-    {
-        // We create a new filter everytime before for now SliceQueryFilter is unfortunatly mutable.
-        return new SliceQueryFilter(ColumnSlice.ALL_COLUMNS_ARRAY, false, metadata.getCaching().rowCache.rowsToCache, metadata.clusteringColumns().size());
-    }
-
-    public boolean isFilterFullyCoveredBy(IDiskAtomFilter filter, ColumnFamily cachedCf, long now)
+    public boolean isFilterFullyCoveredBy(ClusteringIndexFilter filter, DataLimits limits, CachedPartition cached, int nowInSec)
     {
         // We can use the cached value only if we know that no data it doesn't contain could be covered
         // by the query filter, that is if:
         //   1) either the whole partition is cached
-        //   2) or we can ensure than any data the filter selects are in the cached partition
+        //   2) or we can ensure than any data the filter selects is in the cached partition
 
-        // When counting rows to decide if the whole row is cached, we should be careful with expiring
-        // columns: if we use a timestamp newer than the one that was used when populating the cache, we might
-        // end up deciding the whole partition is cached when it's really not (just some rows expired since the
-        // cf was cached). This is the reason for Integer.MIN_VALUE below.
-        boolean wholePartitionCached = cachedCf.liveCQL3RowCount(Integer.MIN_VALUE) < metadata.getCaching().rowCache.rowsToCache;
+        // We can guarantee that a partition is fully cached if the number of rows it contains is less than
+        // what we're caching. Wen doing that, we should be careful about expiring cells: we should count
+        // something expired that wasn't when the partition was cached, or we could decide that the whole
+        // partition is cached when it's not. This is why we use CachedPartition#cachedLiveRows.
+        if (cached.cachedLiveRows() < metadata.getCaching().rowCache.rowsToCache)
+            return true;
 
-        // Contrarily to the "wholePartitionCached" check above, we do want isFullyCoveredBy to take the
-        // timestamp of the query into account when dealing with expired columns. Otherwise, we could think
-        // the cached partition has enough live rows to satisfy the filter when it doesn't because some
-        // are now expired.
-        return wholePartitionCached || filter.isFullyCoveredBy(cachedCf, now);
+        // If the whole partition isn't cached, then we must guarantee that the filter cannot select data that
+        // is not in the cache. We can guarantee that if either the filter is a "head filter" and the cached
+        // partition has more live rows that queried (where live rows refers to the rows that are live now),
+        // or if we can prove that everything the filter selects is in the cached partition based on its content.
+        return (filter.isHeadFilter() && limits.hasEnoughLiveData(cached, nowInSec)) || filter.isFullyCoveredBy(cached);
     }
 
-    public int gcBefore(long now)
+    public int gcBefore(int nowInSec)
     {
-        return (int) (now / 1000) - metadata.getGcGraceSeconds();
-    }
-
-    /**
-     * get a list of columns starting from a given column, in a specified order.
-     * only the latest version of a column is returned.
-     * @return null if there is no data and no tombstones; otherwise a ColumnFamily
-     */
-    public ColumnFamily getColumnFamily(QueryFilter filter)
-    {
-        assert name.equals(filter.getColumnFamilyName()) : filter.getColumnFamilyName();
-
-        ColumnFamily result = null;
-
-        long start = System.nanoTime();
-        try
-        {
-            int gcBefore = gcBefore(filter.timestamp);
-            if (isRowCacheEnabled())
-            {
-                assert !isIndex(); // CASSANDRA-5732
-                UUID cfId = metadata.cfId;
-
-                ColumnFamily cached = getThroughCache(cfId, filter);
-                if (cached == null)
-                {
-                    logger.trace("cached row is empty");
-                    return null;
-                }
-
-                result = cached;
-            }
-            else
-            {
-                ColumnFamily cf = getTopLevelColumns(filter, gcBefore);
-
-                if (cf == null)
-                    return null;
-
-                result = removeDeletedCF(cf, gcBefore);
-            }
-
-            removeDroppedColumns(result);
-
-            if (filter.filter instanceof SliceQueryFilter)
-            {
-                // Log the number of tombstones scanned on single key queries
-                metric.tombstoneScannedHistogram.update(((SliceQueryFilter) filter.filter).lastTombstones());
-                metric.liveScannedHistogram.update(((SliceQueryFilter) filter.filter).lastLive());
-            }
-        }
-        finally
-        {
-            metric.readLatency.addNano(System.nanoTime() - start);
-        }
-
-        return result;
-    }
-
-    /**
-     *  Filter a cached row, which will not be modified by the filter, but may be modified by throwing out
-     *  tombstones that are no longer relevant.
-     *  The returned column family won't be thread safe.
-     */
-    ColumnFamily filterColumnFamily(ColumnFamily cached, QueryFilter filter)
-    {
-        if (cached == null)
-            return null;
-
-        ColumnFamily cf = cached.cloneMeShallow(ArrayBackedSortedColumns.factory, filter.filter.isReversed());
-        int gcBefore = gcBefore(filter.timestamp);
-        filter.collateOnDiskAtom(cf, filter.getIterator(cached), gcBefore);
-        return removeDeletedCF(cf, gcBefore);
+        return nowInSec - metadata.getGcGraceSeconds();
     }
 
     public Set<SSTableReader> getUnrepairedSSTables()
@@ -1881,7 +1564,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
      * @return a ViewFragment containing the sstables and memtables that may need to be merged
      * for rows within @param rowBounds, inclusive, according to the interval tree.
      */
-    public Function<View, List<SSTableReader>> viewFilter(final AbstractBounds<RowPosition> rowBounds)
+    public Function<View, List<SSTableReader>> viewFilter(final AbstractBounds<PartitionPosition> rowBounds)
     {
         return new Function<View, List<SSTableReader>>()
         {
@@ -1896,14 +1579,14 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
      * @return a ViewFragment containing the sstables and memtables that may need to be merged
      * for rows for all of @param rowBoundsCollection, inclusive, according to the interval tree.
      */
-    public Function<View, List<SSTableReader>> viewFilter(final Collection<AbstractBounds<RowPosition>> rowBoundsCollection, final boolean includeRepaired)
+    public Function<View, List<SSTableReader>> viewFilter(final Collection<AbstractBounds<PartitionPosition>> rowBoundsCollection, final boolean includeRepaired)
     {
         return new Function<View, List<SSTableReader>>()
         {
             public List<SSTableReader> apply(View view)
             {
                 Set<SSTableReader> sstables = Sets.newHashSet();
-                for (AbstractBounds<RowPosition> rowBounds : rowBoundsCollection)
+                for (AbstractBounds<PartitionPosition> rowBounds : rowBoundsCollection)
                 {
                     for (SSTableReader sstable : view.sstablesInBounds(rowBounds))
                     {
@@ -1934,20 +1617,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         }
     }
 
-    public ColumnFamily getTopLevelColumns(QueryFilter filter, int gcBefore)
-    {
-        Tracing.trace("Executing single-partition query on {}", name);
-        CollationController controller = new CollationController(this, filter, gcBefore);
-        ColumnFamily columns;
-        try (OpOrder.Group op = readOrdering.start())
-        {
-            columns = controller.getTopLevelColumns(Memtable.MEMORY_POOL.needToCopyOnHeap());
-        }
-        if (columns != null)
-            metric.samplers.get(Sampler.READS).addSample(filter.key.getKey(), filter.key.hashCode(), 1);
-        metric.updateSSTableIterated(controller.getSstablesIterated());
-        return columns;
-    }
 
     public void beginLocalSampling(String sampler, int capacity)
     {
@@ -1982,7 +1651,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             RowCacheKey key = keyIter.next();
             DecoratedKey dk = partitioner.decorateKey(ByteBuffer.wrap(key.key));
             if (key.cfId.equals(metadata.cfId) && !Range.isInRanges(dk.getToken(), ranges))
-                invalidateCachedRow(dk);
+                invalidateCachedPartition(dk);
         }
 
         if (metadata.isCounter())
@@ -1998,247 +1667,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         }
     }
 
-    public static abstract class AbstractScanIterator extends AbstractIterator<Row> implements CloseableIterator<Row>
-    {
-        public boolean needsFiltering()
-        {
-            return true;
-        }
-    }
-
-    /**
-      * Iterate over a range of rows and columns from memtables/sstables.
-      *
-      * @param range The range of keys and columns within those keys to fetch
-     */
-    @SuppressWarnings("resource")
-    private AbstractScanIterator getSequentialIterator(final DataRange range, long now)
-    {
-        assert !(range.keyRange() instanceof Range) || !((Range<?>)range.keyRange()).isWrapAround() || range.keyRange().right.isMinimum() : range.keyRange();
-
-        final ViewFragment view = select(viewFilter(range.keyRange()));
-        Tracing.trace("Executing seq scan across {} sstables for {}", view.sstables.size(), range.keyRange().getString(metadata.getKeyValidator()));
-
-        final CloseableIterator<Row> iterator = RowIteratorFactory.getIterator(view.memtables, view.sstables, range, this, now);
-
-        // todo this could be pushed into SSTableScanner
-        return new AbstractScanIterator()
-        {
-            protected Row computeNext()
-            {
-                while (true)
-                {
-                    // pull a row out of the iterator
-                    if (!iterator.hasNext())
-                        return endOfData();
-
-                    Row current = iterator.next();
-                    DecoratedKey key = current.key;
-
-                    if (!range.stopKey().isMinimum() && range.stopKey().compareTo(key) < 0)
-                        return endOfData();
-
-                    // skipping outside of assigned range
-                    if (!range.contains(key))
-                        continue;
-
-                    if (logger.isTraceEnabled())
-                        logger.trace("scanned {}", metadata.getKeyValidator().getString(key.getKey()));
-
-                    return current;
-                }
-            }
-
-            public void close() throws IOException
-            {
-                iterator.close();
-            }
-        };
-    }
-
-    @VisibleForTesting
-    public List<Row> getRangeSlice(final AbstractBounds<RowPosition> range,
-                                   List<IndexExpression> rowFilter,
-                                   IDiskAtomFilter columnFilter,
-                                   int maxResults)
-    {
-        return getRangeSlice(range, rowFilter, columnFilter, maxResults, System.currentTimeMillis());
-    }
-
-    public List<Row> getRangeSlice(final AbstractBounds<RowPosition> range,
-                                   List<IndexExpression> rowFilter,
-                                   IDiskAtomFilter columnFilter,
-                                   int maxResults,
-                                   long now)
-    {
-        return getRangeSlice(makeExtendedFilter(range, columnFilter, rowFilter, maxResults, false, false, now));
-    }
-
-    /**
-     * Allows generic range paging with the slice column filter.
-     * Typically, suppose we have rows A, B, C ... Z having each some columns in [1, 100].
-     * And suppose we want to page through the query that for all rows returns the columns
-     * within [25, 75]. For that, we need to be able to do a range slice starting at (row r, column c)
-     * and ending at (row Z, column 75), *but* that only return columns in [25, 75].
-     * That is what this method allows. The columnRange is the "window" of  columns we are interested
-     * in each row, and columnStart (resp. columnEnd) is the start (resp. end) for the first
-     * (resp. last) requested row.
-     */
-    public ExtendedFilter makeExtendedFilter(AbstractBounds<RowPosition> keyRange,
-                                             SliceQueryFilter columnRange,
-                                             Composite columnStart,
-                                             Composite columnStop,
-                                             List<IndexExpression> rowFilter,
-                                             int maxResults,
-                                             boolean countCQL3Rows,
-                                             long now)
-    {
-        DataRange dataRange = new DataRange.Paging(keyRange, columnRange, columnStart, columnStop, metadata);
-        return ExtendedFilter.create(this, dataRange, rowFilter, maxResults, countCQL3Rows, now);
-    }
-
-    public List<Row> getRangeSlice(AbstractBounds<RowPosition> range,
-                                   List<IndexExpression> rowFilter,
-                                   IDiskAtomFilter columnFilter,
-                                   int maxResults,
-                                   long now,
-                                   boolean countCQL3Rows,
-                                   boolean isPaging)
-    {
-        return getRangeSlice(makeExtendedFilter(range, columnFilter, rowFilter, maxResults, countCQL3Rows, isPaging, now));
-    }
-
-    public ExtendedFilter makeExtendedFilter(AbstractBounds<RowPosition> range,
-                                             IDiskAtomFilter columnFilter,
-                                             List<IndexExpression> rowFilter,
-                                             int maxResults,
-                                             boolean countCQL3Rows,
-                                             boolean isPaging,
-                                             long timestamp)
-    {
-        DataRange dataRange;
-        if (isPaging)
-        {
-            assert columnFilter instanceof SliceQueryFilter;
-            SliceQueryFilter sfilter = (SliceQueryFilter)columnFilter;
-            assert sfilter.slices.length == 1;
-            // create a new SliceQueryFilter that selects all cells, but pass the original slice start and finish
-            // through to DataRange.Paging to be used on the first and last partitions
-            SliceQueryFilter newFilter = new SliceQueryFilter(ColumnSlice.ALL_COLUMNS_ARRAY, sfilter.isReversed(), sfilter.count);
-            dataRange = new DataRange.Paging(range, newFilter, sfilter.start(), sfilter.finish(), metadata);
-        }
-        else
-        {
-            dataRange = new DataRange(range, columnFilter);
-        }
-        return ExtendedFilter.create(this, dataRange, rowFilter, maxResults, countCQL3Rows, timestamp);
-    }
-
-    public List<Row> getRangeSlice(ExtendedFilter filter)
-    {
-        long start = System.nanoTime();
-        try (OpOrder.Group op = readOrdering.start())
-        {
-            return filter(getSequentialIterator(filter.dataRange, filter.timestamp), filter);
-        }
-        finally
-        {
-            metric.rangeLatency.addNano(System.nanoTime() - start);
-        }
-    }
-
-    @VisibleForTesting
-    public List<Row> search(AbstractBounds<RowPosition> range,
-                            List<IndexExpression> clause,
-                            IDiskAtomFilter dataFilter,
-                            int maxResults)
-    {
-        return search(range, clause, dataFilter, maxResults, System.currentTimeMillis());
-    }
-
-    public List<Row> search(AbstractBounds<RowPosition> range,
-                            List<IndexExpression> clause,
-                            IDiskAtomFilter dataFilter,
-                            int maxResults,
-                            long now)
-    {
-        return search(makeExtendedFilter(range, dataFilter, clause, maxResults, false, false, now));
-    }
-
-    public List<Row> search(ExtendedFilter filter)
-    {
-        Tracing.trace("Executing indexed scan for {}", filter.dataRange.keyRange().getString(metadata.getKeyValidator()));
-        return indexManager.search(filter);
-    }
-
-    public List<Row> filter(AbstractScanIterator rowIterator, ExtendedFilter filter)
-    {
-        logger.trace("Filtering {} for rows matching {}", rowIterator, filter);
-        List<Row> rows = new ArrayList<Row>();
-        int columnsCount = 0;
-        int total = 0, matched = 0;
-        boolean ignoreTombstonedPartitions = filter.ignoreTombstonedPartitions();
-
-        try
-        {
-            while (rowIterator.hasNext() && matched < filter.maxRows() && columnsCount < filter.maxColumns())
-            {
-                // get the raw columns requested, and additional columns for the expressions if necessary
-                Row rawRow = rowIterator.next();
-                total++;
-                ColumnFamily data = rawRow.cf;
-
-                if (rowIterator.needsFiltering())
-                {
-                    IDiskAtomFilter extraFilter = filter.getExtraFilter(rawRow.key, data);
-                    if (extraFilter != null)
-                    {
-                        ColumnFamily cf = filter.cfs.getColumnFamily(new QueryFilter(rawRow.key, name, extraFilter, filter.timestamp));
-                        if (cf != null)
-                            data.addAll(cf);
-                    }
-
-                    removeDroppedColumns(data);
-
-                    if (!filter.isSatisfiedBy(rawRow.key, data, null, null))
-                        continue;
-
-                    logger.trace("{} satisfies all filter expressions", data);
-                    // cut the resultset back to what was requested, if necessary
-                    data = filter.prune(rawRow.key, data);
-                }
-                else
-                {
-                    removeDroppedColumns(data);
-                }
-
-                rows.add(new Row(rawRow.key, data));
-                if (!ignoreTombstonedPartitions || !data.hasOnlyTombstones(filter.timestamp))
-                    matched++;
-
-                if (data != null)
-                    columnsCount += filter.lastCounted(data);
-                // Update the underlying filter to avoid querying more columns per slice than necessary and to handle paging
-                filter.updateFilter(columnsCount);
-            }
-
-            return rows;
-        }
-        finally
-        {
-            try
-            {
-                rowIterator.close();
-                Tracing.trace("Scanned {} rows and matched {}", total, matched);
-            }
-            catch (IOException e)
-            {
-                throw new RuntimeException(e);
-            }
-        }
-    }
-
-    public CellNameType getComparator()
+    public ClusteringComparator getComparator()
     {
         return metadata.comparator;
     }
@@ -2388,20 +1817,20 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     }
 
     /**
-     * @return the cached row for @param key if it is already present in the cache.
-     * That is, unlike getThroughCache, it will not readAndCache the row if it is not present, nor
+     * @return the cached partition for @param key if it is already present in the cache.
+     * Not that this will not readAndCache the parition if it is not present, nor
      * are these calls counted in cache statistics.
      *
-     * Note that this WILL cause deserialization of a SerializingCache row, so if all you
-     * need to know is whether a row is present or not, use containsCachedRow instead.
+     * Note that this WILL cause deserialization of a SerializingCache partition, so if all you
+     * need to know is whether a partition is present or not, use containsCachedParition instead.
      */
-    public ColumnFamily getRawCachedRow(DecoratedKey key)
+    public CachedPartition getRawCachedPartition(DecoratedKey key)
     {
         if (!isRowCacheEnabled())
             return null;
 
         IRowCacheEntry cached = CacheService.instance.rowCache.getInternal(new RowCacheKey(metadata.cfId, key));
-        return cached == null || cached instanceof RowCacheSentinel ? null : (ColumnFamily)cached;
+        return cached == null || cached instanceof RowCacheSentinel ? null : (CachedPartition)cached;
     }
 
     private void invalidateCaches()
@@ -2415,37 +1844,37 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     /**
      * @return true if @param key is contained in the row cache
      */
-    public boolean containsCachedRow(DecoratedKey key)
+    public boolean containsCachedParition(DecoratedKey key)
     {
         return CacheService.instance.rowCache.getCapacity() != 0 && CacheService.instance.rowCache.containsKey(new RowCacheKey(metadata.cfId, key));
     }
 
-    public void invalidateCachedRow(RowCacheKey key)
+    public void invalidateCachedPartition(RowCacheKey key)
     {
         CacheService.instance.rowCache.remove(key);
     }
 
-    public void invalidateCachedRow(DecoratedKey key)
+    public void invalidateCachedPartition(DecoratedKey key)
     {
         UUID cfId = Schema.instance.getId(keyspace.getName(), this.name);
         if (cfId == null)
             return; // secondary index
 
-        invalidateCachedRow(new RowCacheKey(cfId, key));
+        invalidateCachedPartition(new RowCacheKey(cfId, key));
     }
 
-    public ClockAndCount getCachedCounter(ByteBuffer partitionKey, CellName cellName)
+    public ClockAndCount getCachedCounter(ByteBuffer partitionKey, Clustering clustering, ColumnDefinition column, CellPath path)
     {
         if (CacheService.instance.counterCache.getCapacity() == 0L) // counter cache disabled.
             return null;
-        return CacheService.instance.counterCache.get(CounterCacheKey.create(metadata.cfId, partitionKey, cellName));
+        return CacheService.instance.counterCache.get(CounterCacheKey.create(metadata.cfId, partitionKey, clustering, column, path));
     }
 
-    public void putCachedCounter(ByteBuffer partitionKey, CellName cellName, ClockAndCount clockAndCount)
+    public void putCachedCounter(ByteBuffer partitionKey, Clustering clustering, ColumnDefinition column, CellPath path, ClockAndCount clockAndCount)
     {
         if (CacheService.instance.counterCache.getCapacity() == 0L) // counter cache disabled.
             return;
-        CacheService.instance.counterCache.put(CounterCacheKey.create(metadata.cfId, partitionKey, cellName), clockAndCount);
+        CacheService.instance.counterCache.put(CounterCacheKey.create(metadata.cfId, partitionKey, clustering, column, path), clockAndCount);
     }
 
     public void forceMajorCompaction() throws InterruptedException, ExecutionException
@@ -2830,7 +2259,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return view.sstables.isEmpty() && view.getCurrentMemtable().getOperations() == 0 && view.liveMemtables.size() <= 1 && view.flushingMemtables.size() == 0;
     }
 
-    private boolean isRowCacheEnabled()
+    public boolean isRowCacheEnabled()
     {
         return metadata.getCaching().rowCache.isEnabled() && CacheService.instance.rowCache.getCapacity() > 0;
     }

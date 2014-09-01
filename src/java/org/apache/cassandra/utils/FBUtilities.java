@@ -372,6 +372,11 @@ public class FBUtilities
         return System.currentTimeMillis() * 1000;
     }
 
+    public static int nowInSeconds()
+    {
+        return (int)(System.currentTimeMillis() / 1000);
+    }
+
     public static void waitOnFutures(Iterable<Future<?>> futures)
     {
         for (Future f : futures)
@@ -502,11 +507,16 @@ public class FBUtilities
         }
     }
 
-    public static <T> SortedSet<T> singleton(T column, Comparator<? super T> comparator)
+    public static <T> NavigableSet<T> singleton(T column, Comparator<? super T> comparator)
     {
-        SortedSet<T> s = new TreeSet<T>(comparator);
+        NavigableSet<T> s = new TreeSet<T>(comparator);
         s.add(column);
         return s;
+    }
+
+    public static <T> NavigableSet<T> emptySortedSet(Comparator<? super T> comparator)
+    {
+        return new TreeSet<T>(comparator);
     }
 
     public static String toString(Map<?,?> map)
@@ -795,5 +805,31 @@ public class FBUtilities
         digest.update((byte) ((val >>> 16) & 0xFF));
         digest.update((byte) ((val >>>  8) & 0xFF));
         digest.update((byte)  ((val >>> 0) & 0xFF));
+    }
+
+    public static void updateWithBoolean(MessageDigest digest, boolean val)
+    {
+        updateWithByte(digest, val ? 0 : 1);
+    }
+
+    public static void closeAll(List<? extends AutoCloseable> l) throws Exception
+    {
+        Exception toThrow = null;
+        for (AutoCloseable c : l)
+        {
+            try
+            {
+                c.close();
+            }
+            catch (Exception e)
+            {
+                if (toThrow == null)
+                    toThrow = e;
+                else
+                    toThrow.addSuppressed(e);
+            }
+        }
+        if (toThrow != null)
+            throw toThrow;
     }
 }

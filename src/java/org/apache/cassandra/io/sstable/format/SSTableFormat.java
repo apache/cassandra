@@ -20,11 +20,9 @@ package org.apache.cassandra.io.sstable.format;
 import com.google.common.base.CharMatcher;
 import com.google.common.collect.ImmutableList;
 import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.db.ColumnSerializer;
-import org.apache.cassandra.db.OnDiskAtom;
+import org.apache.cassandra.db.LegacyLayout;
 import org.apache.cassandra.db.RowIndexEntry;
-import org.apache.cassandra.db.columniterator.OnDiskAtomIterator;
-import org.apache.cassandra.db.compaction.AbstractCompactedRow;
+import org.apache.cassandra.db.SerializationHeader;
 import org.apache.cassandra.db.compaction.CompactionController;
 import org.apache.cassandra.io.sstable.format.big.BigFormat;
 import org.apache.cassandra.io.util.FileDataInput;
@@ -45,11 +43,7 @@ public interface SSTableFormat
     SSTableWriter.Factory getWriterFactory();
     SSTableReader.Factory getReaderFactory();
 
-    Iterator<OnDiskAtom> getOnDiskIterator(FileDataInput in, ColumnSerializer.Flag flag, int expireBefore, CFMetaData cfm, Version version);
-
-    AbstractCompactedRow getCompactedRowWriter(CompactionController controller, ImmutableList<OnDiskAtomIterator> onDiskAtomIterators);
-
-    RowIndexEntry.IndexSerializer<?> getIndexSerializer(CFMetaData cfm);
+    RowIndexEntry.IndexSerializer<?> getIndexSerializer(CFMetaData cfm, Version version, SerializationHeader header);
 
     public static enum Type
     {
@@ -62,6 +56,7 @@ public interface SSTableFormat
 
         public final SSTableFormat info;
         public final String name;
+
         private Type(String name, SSTableFormat info)
         {
             //Since format comes right after generation

@@ -17,31 +17,26 @@
  */
 package org.apache.cassandra.utils;
 
-import static org.apache.cassandra.Util.*;
+import java.io.*;
 
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
-import java.io.DataInputStream;
-import java.io.DataOutputStream;
-import java.io.IOException;
+import com.google.common.collect.Iterators;
+import org.junit.Assert;
+import org.junit.BeforeClass;
+import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.KSMetaData;
-import org.apache.cassandra.db.ArrayBackedSortedColumns;
-import org.apache.cassandra.db.ColumnFamily;
+import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.db.RowUpdateBuilder;
 import org.apache.cassandra.db.TypeSizes;
-import org.apache.cassandra.db.marshal.BytesType;
-import org.apache.cassandra.db.marshal.CounterColumnType;
+import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.locator.SimpleStrategy;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.utils.vint.EncodedDataInputStream;
 import org.apache.cassandra.utils.vint.EncodedDataOutputStream;
 
-import org.junit.Assert;
-import org.junit.BeforeClass;
-import org.junit.Test;
 
 public class EncodedStreamsTest
 {
@@ -55,11 +50,10 @@ public class EncodedStreamsTest
     {
     SchemaLoader.prepareServer();
     SchemaLoader.createKeyspace(KEYSPACE1,
-                                SimpleStrategy.class,
-                                KSMetaData.optsWithRF(1),
-                                SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARD),
-                                SchemaLoader.standardCFMD(KEYSPACE1, CF_COUNTER)
-                                            .defaultValidator(CounterColumnType.instance));
+            SimpleStrategy.class,
+            KSMetaData.optsWithRF(1),
+            SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARD),
+            SchemaLoader.counterCFMD(KEYSPACE1, CF_COUNTER));
     }
 
     @Test
@@ -112,20 +106,27 @@ public class EncodedStreamsTest
             Assert.assertEquals(i, idis.readLong());
     }
 
-    private ColumnFamily createCF()
+    private UnfilteredRowIterator createTable()
     {
-        ColumnFamily cf = ArrayBackedSortedColumns.factory.create(KEYSPACE1, CF_STANDARD);
-        cf.addColumn(column("vijay", "try", 1));
-        cf.addColumn(column("to", "be_nice", 1));
-        return cf;
+        CFMetaData cfm = Keyspace.open(KEYSPACE1).getColumnFamilyStore(CF_STANDARD).metadata;
+
+        RowUpdateBuilder builder = new RowUpdateBuilder(cfm, 0, "key");
+
+        builder.clustering("vijay").add(cfm.partitionColumns().iterator().next(), "try").build();
+        builder.clustering("to").add(cfm.partitionColumns().iterator().next(), "be_nice").build();
+
+        return builder.unfilteredIterator();
     }
 
-    private ColumnFamily createCounterCF()
+    private UnfilteredRowIterator createCounterTable()
     {
-        ColumnFamily cf = ArrayBackedSortedColumns.factory.create(KEYSPACE1, CF_COUNTER);
-        cf.addCounter(cellname("vijay"), 1);
-        cf.addCounter(cellname("wants"), 1000000);
-        return cf;
+        CFMetaData cfm = Keyspace.open(KEYSPACE1).getColumnFamilyStore(CF_COUNTER).metadata;
+        RowUpdateBuilder builder = new RowUpdateBuilder(cfm, 0, "key");
+
+        builder.clustering("vijay").add(cfm.partitionColumns().iterator().next(), 1L).build();
+        builder.clustering("wants").add(cfm.partitionColumns().iterator().next(), 1000000L).build();
+
+        return builder.unfilteredIterator();
     }
 
     @Test
@@ -133,29 +134,27 @@ public class EncodedStreamsTest
     {
         ByteArrayOutputStream byteArrayOStream1 = new ByteArrayOutputStream();
         EncodedDataOutputStream odos = new EncodedDataOutputStream(byteArrayOStream1);
-        ColumnFamily.serializer.serialize(createCF(), odos, version);
+        UnfilteredRowIteratorSerializer.serializer.serialize(createTable(), odos, version, 1);
 
         ByteArrayInputStream byteArrayIStream1 = new ByteArrayInputStream(byteArrayOStream1.toByteArray());
         EncodedDataInputStream odis = new EncodedDataInputStream(new DataInputStream(byteArrayIStream1));
-        ColumnFamily cf = ColumnFamily.serializer.deserialize(odis, version);
-        Assert.assertEquals(cf, createCF());
-        Assert.assertEquals(byteArrayOStream1.size(), (int) ColumnFamily.serializer.serializedSize(cf, TypeSizes.VINT, version));
+        UnfilteredRowIterator partition = UnfilteredRowIteratorSerializer.serializer.deserialize(odis, version, SerializationHelper.Flag.LOCAL);
+        Assert.assertTrue(Iterators.elementsEqual(partition, createTable()));
+        Assert.assertEquals(byteArrayOStream1.size(), (int) UnfilteredRowIteratorSerializer.serializer.serializedSize(createTable(), version, 1, TypeSizes.VINT));
     }
 
     @Test
     public void testCounterCFSerialization() throws IOException
     {
-        ColumnFamily counterCF = createCounterCF();
-
         ByteArrayOutputStream byteArrayOStream1 = new ByteArrayOutputStream();
         EncodedDataOutputStream odos = new EncodedDataOutputStream(byteArrayOStream1);
-        ColumnFamily.serializer.serialize(counterCF, odos, version);
+        UnfilteredRowIteratorSerializer.serializer.serialize(createCounterTable(), odos, version, 1);
 
         ByteArrayInputStream byteArrayIStream1 = new ByteArrayInputStream(byteArrayOStream1.toByteArray());
         EncodedDataInputStream odis = new EncodedDataInputStream(new DataInputStream(byteArrayIStream1));
-        ColumnFamily cf = ColumnFamily.serializer.deserialize(odis, version);
-        Assert.assertEquals(cf, counterCF);
-        Assert.assertEquals(byteArrayOStream1.size(), (int) ColumnFamily.serializer.serializedSize(cf, TypeSizes.VINT, version));
+        UnfilteredRowIterator partition = UnfilteredRowIteratorSerializer.serializer.deserialize(odis, version, SerializationHelper.Flag.LOCAL);
+        Assert.assertTrue(Iterators.elementsEqual(partition, createCounterTable()));
+        Assert.assertEquals(byteArrayOStream1.size(), (int) UnfilteredRowIteratorSerializer.serializer.serializedSize(createCounterTable(), version, 1, TypeSizes.VINT));
     }
 }
 

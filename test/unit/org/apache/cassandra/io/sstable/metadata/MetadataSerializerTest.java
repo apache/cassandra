@@ -15,26 +15,29 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package org.apache.cassandra.io.sstable.metadata;
 
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.util.Collections;
 import java.util.EnumSet;
 import java.util.Map;
 import java.util.Set;
 
 import com.google.common.collect.Sets;
-
 import org.junit.Test;
+
+import org.apache.cassandra.SchemaLoader;
+import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.db.SerializationHeader;
 import org.apache.cassandra.db.commitlog.ReplayPosition;
-import org.apache.cassandra.db.composites.SimpleDenseCellNameType;
-import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.dht.RandomPartitioner;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
-import org.apache.cassandra.io.util.DataOutputStreamPlus;
 import org.apache.cassandra.io.util.BufferedDataOutputStreamPlus;
+import org.apache.cassandra.io.util.DataOutputStreamPlus;
 import org.apache.cassandra.io.util.RandomAccessReader;
 import org.apache.cassandra.utils.EstimatedHistogram;
 
@@ -45,20 +48,15 @@ public class MetadataSerializerTest
     @Test
     public void testSerialization() throws IOException
     {
-        EstimatedHistogram rowSizes = new EstimatedHistogram(new long[] { 1L, 2L },
-                                                             new long[] { 3L, 4L, 5L });
-        EstimatedHistogram columnCounts = new EstimatedHistogram(new long[] { 6L, 7L },
-                                                                 new long[] { 8L, 9L, 10L });
-        ReplayPosition rp = new ReplayPosition(11L, 12);
-        long minTimestamp = 2162517136L;
-        long maxTimestamp = 4162517136L;
 
-        MetadataCollector collector = new MetadataCollector(new SimpleDenseCellNameType(BytesType.instance))
-                                                      .estimatedRowSize(rowSizes)
-                                                      .estimatedColumnCount(columnCounts)
-                                                      .replayPosition(rp);
-        collector.updateMinTimestamp(minTimestamp);
-        collector.updateMaxTimestamp(maxTimestamp);
+        CFMetaData cfm = SchemaLoader.standardCFMD("ks1", "cf1");
+
+
+        ReplayPosition rp = new ReplayPosition(11L, 12);
+
+
+        MetadataCollector collector = new MetadataCollector(cfm.comparator).replayPosition(rp);
+
 
         Set<Integer> ancestors = Sets.newHashSet(1, 2, 3, 4);
         for (int i : ancestors)
@@ -66,7 +64,7 @@ public class MetadataSerializerTest
 
         String partitioner = RandomPartitioner.class.getCanonicalName();
         double bfFpChance = 0.1;
-        Map<MetadataType, MetadataComponent> originalMetadata = collector.finalizeMetadata(partitioner, bfFpChance, 0);
+        Map<MetadataType, MetadataComponent> originalMetadata = collector.finalizeMetadata(partitioner, bfFpChance, 0, SerializationHeader.make(cfm, Collections.EMPTY_LIST));
 
         MetadataSerializer serializer = new MetadataSerializer();
         // Serialize to tmp file

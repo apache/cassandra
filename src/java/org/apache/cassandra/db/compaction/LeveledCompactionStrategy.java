@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.db.compaction;
 
-import java.io.IOException;
 import java.util.*;
 
 
@@ -26,17 +25,18 @@ import com.google.common.base.Joiner;
 import com.google.common.collect.*;
 import com.google.common.primitives.Doubles;
 
-import org.apache.cassandra.io.sstable.ISSTableScanner;
-import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.db.columniterator.OnDiskAtomIterator;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
+import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.io.sstable.ISSTableScanner;
+import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.utils.FBUtilities;
 
 public class LeveledCompactionStrategy extends AbstractCompactionStrategy
 {
@@ -244,7 +244,11 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy
                     // Create a LeveledScanner that only opens one sstable at a time, in sorted order
                     List<SSTableReader> intersecting = LeveledScanner.intersecting(byLevel.get(level), range);
                     if (!intersecting.isEmpty())
-                        scanners.add(new LeveledScanner(intersecting, range));
+                    {
+                        @SuppressWarnings("resource") // The ScannerList will be in charge of closing (and we close properly on errors)
+                        ISSTableScanner scanner = new LeveledScanner(intersecting, range);
+                        scanners.add(scanner);
+                    }
                 }
             }
         }
@@ -284,7 +288,7 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy
 
     // Lazily creates SSTableBoundedScanner for sstable that are assumed to be from the
     // same level (e.g. non overlapping) - see #4142
-    private static class LeveledScanner extends AbstractIterator<OnDiskAtomIterator> implements ISSTableScanner
+    private static class LeveledScanner extends AbstractIterator<UnfilteredRowIterator> implements ISSTableScanner
     {
         private final Range<Token> range;
         private final List<SSTableReader> sstables;
@@ -332,36 +336,34 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy
             return filtered;
         }
 
-        protected OnDiskAtomIterator computeNext()
+        public boolean isForThrift()
+        {
+            return false;
+        }
+
+        protected UnfilteredRowIterator computeNext()
         {
             if (currentScanner == null)
                 return endOfData();
 
-            try
+            while (true)
             {
-                while (true)
-                {
-                    if (currentScanner.hasNext())
-                        return currentScanner.next();
+                if (currentScanner.hasNext())
+                    return currentScanner.next();
 
-                    positionOffset += currentScanner.getLengthInBytes();
-                    currentScanner.close();
-                    if (!sstableIterator.hasNext())
-                    {
-                        // reset to null so getCurrentPosition does not return wrong value
-                        currentScanner = null;
-                        return endOfData();
-                    }
-                    currentScanner = sstableIterator.next().getScanner(range, CompactionManager.instance.getRateLimiter());
+                positionOffset += currentScanner.getLengthInBytes();
+                currentScanner.close();
+                if (!sstableIterator.hasNext())
+                {
+                    // reset to null so getCurrentPosition does not return wrong value
+                    currentScanner = null;
+                    return endOfData();
                 }
-            }
-            catch (IOException e)
-            {
-                throw new RuntimeException(e);
+                currentScanner = sstableIterator.next().getScanner(range, CompactionManager.instance.getRateLimiter());
             }
         }
 
-        public void close() throws IOException
+        public void close()
         {
             if (currentScanner != null)
                 currentScanner.close();

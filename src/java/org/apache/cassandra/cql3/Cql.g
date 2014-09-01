@@ -318,7 +318,7 @@ selectClause returns [List<RawSelector> expr]
 
 selector returns [RawSelector s]
     @init{ ColumnIdentifier alias = null; }
-    : us=unaliasedSelector (K_AS c=ident { alias = c; })? { $s = new RawSelector(us, alias); }
+    : us=unaliasedSelector (K_AS c=noncol_ident { alias = c; })? { $s = new RawSelector(us, alias); }
     ;
 
 unaliasedSelector returns [Selectable.Raw s]
@@ -339,7 +339,7 @@ selectionFunctionArgs returns [List<Selectable.Raw> a]
 
 selectCountClause returns [List<RawSelector> expr]
     @init{ ColumnIdentifier alias = new ColumnIdentifier("count", false); }
-    : K_COUNT '(' countArgument ')' (K_AS c=ident { alias = c; })? { $expr = new ArrayList<RawSelector>(); $expr.add( new RawSelector(new Selectable.WithFunction.Raw(FunctionName.nativeFunction("countRows"), Collections.<Selectable.Raw>emptyList()), alias));}
+    : K_COUNT '(' countArgument ')' (K_AS c=noncol_ident { alias = c; })? { $expr = new ArrayList<RawSelector>(); $expr.add( new RawSelector(new Selectable.WithFunction.Raw(FunctionName.nativeFunction("countRows"), Collections.<Selectable.Raw>emptyList()), alias));}
     ;
 
 countArgument
@@ -404,7 +404,7 @@ jsonInsertStatement [CFName cf] returns [UpdateStatement.ParsedInsertJson expr]
 jsonValue returns [Json.Raw value]
     :
     | s=STRING_LITERAL { $value = new Json.Literal($s.text); }
-    | ':' id=ident     { $value = newJsonBindVariables(id); }
+    | ':' id=noncol_ident     { $value = newJsonBindVariables(id); }
     | QMARK            { $value = newJsonBindVariables(null); }
     ;
 
@@ -604,8 +604,8 @@ createFunctionStatement returns [CreateFunctionStatement expr]
       fn=functionName
       '('
         (
-          k=ident v=comparatorType { argsNames.add(k); argsTypes.add(v); }
-          ( ',' k=ident v=comparatorType { argsNames.add(k); argsTypes.add(v); } )*
+          k=noncol_ident v=comparatorType { argsNames.add(k); argsTypes.add(v); }
+          ( ',' k=noncol_ident v=comparatorType { argsNames.add(k); argsTypes.add(v); } )*
         )?
       ')'
       ( (K_RETURNS K_NULL) | (K_CALLED { calledOnNullInput=true; })) K_ON K_NULL K_INPUT
@@ -706,7 +706,7 @@ createTypeStatement returns [CreateTypeStatement expr]
     ;
 
 typeColumns[CreateTypeStatement expr]
-    : k=ident v=comparatorType { $expr.addDefinition(k, v); }
+    : k=noncol_ident v=comparatorType { $expr.addDefinition(k, v); }
     ;
 
 
@@ -801,12 +801,12 @@ alterTableStatement returns [AlterTableStatement expr]
  */
 alterTypeStatement returns [AlterTypeStatement expr]
     : K_ALTER K_TYPE name=userTypeName
-          ( K_ALTER f=ident K_TYPE v=comparatorType { $expr = AlterTypeStatement.alter(name, f, v); }
-          | K_ADD   f=ident v=comparatorType        { $expr = AlterTypeStatement.addition(name, f, v); }
+          ( K_ALTER f=noncol_ident K_TYPE v=comparatorType { $expr = AlterTypeStatement.alter(name, f, v); }
+          | K_ADD   f=noncol_ident v=comparatorType        { $expr = AlterTypeStatement.addition(name, f, v); }
           | K_RENAME
                { Map<ColumnIdentifier, ColumnIdentifier> renames = new HashMap<ColumnIdentifier, ColumnIdentifier>(); }
-                 id1=ident K_TO toId1=ident { renames.put(id1, toId1); }
-                 ( K_AND idn=ident K_TO toIdn=ident { renames.put(idn, toIdn); } )*
+                 id1=noncol_ident K_TO toId1=noncol_ident { renames.put(id1, toId1); }
+                 ( K_AND idn=noncol_ident K_TO toIdn=noncol_ident { renames.put(idn, toIdn); } )*
                { $expr = AlterTypeStatement.renames(name, renames); }
           )
     ;
@@ -1112,8 +1112,15 @@ cident returns [ColumnIdentifier.Raw id]
     | k=unreserved_keyword { $id = new ColumnIdentifier.Raw(k, false); }
     ;
 
-// Identifiers that do not refer to columns or where the comparator is known to be text
+// Column identifiers where the comparator is known to be text
 ident returns [ColumnIdentifier id]
+    : t=IDENT              { $id = ColumnIdentifier.getInterned($t.text, false); }
+    | t=QUOTED_NAME        { $id = ColumnIdentifier.getInterned($t.text, true); }
+    | k=unreserved_keyword { $id = ColumnIdentifier.getInterned(k, false); }
+    ;
+
+// Identifiers that do not refer to columns
+noncol_ident returns [ColumnIdentifier id]
     : t=IDENT              { $id = new ColumnIdentifier($t.text, false); }
     | t=QUOTED_NAME        { $id = new ColumnIdentifier($t.text, true); }
     | k=unreserved_keyword { $id = new ColumnIdentifier(k, false); }
@@ -1136,7 +1143,7 @@ columnFamilyName returns [CFName name]
     ;
 
 userTypeName returns [UTName name]
-    : (ks=ident '.')? ut=non_type_ident { return new UTName(ks, ut); }
+    : (ks=noncol_ident '.')? ut=non_type_ident { return new UTName(ks, ut); }
     ;
 
 userOrRoleName returns [RoleName name]
@@ -1211,7 +1218,7 @@ usertypeLiteral returns [UserTypes.Literal ut]
     @init{ Map<ColumnIdentifier, Term.Raw> m = new HashMap<ColumnIdentifier, Term.Raw>(); }
     @after{ $ut = new UserTypes.Literal(m); }
     // We don't allow empty literals because that conflicts with sets/maps and is currently useless since we don't allow empty user types
-    : '{' k1=ident ':' v1=term { m.put(k1, v1); } ( ',' kn=ident ':' vn=term { m.put(kn, vn); } )* '}'
+    : '{' k1=noncol_ident ':' v1=term { m.put(k1, v1); } ( ',' kn=noncol_ident ':' vn=term { m.put(kn, vn); } )* '}'
     ;
 
 tupleLiteral returns [Tuples.Literal tt]
@@ -1226,14 +1233,14 @@ value returns [Term.Raw value]
     | u=usertypeLiteral    { $value = u; }
     | t=tupleLiteral       { $value = t; }
     | K_NULL               { $value = Constants.NULL_LITERAL; }
-    | ':' id=ident         { $value = newBindVariables(id); }
+    | ':' id=noncol_ident  { $value = newBindVariables(id); }
     | QMARK                { $value = newBindVariables(null); }
     ;
 
 intValue returns [Term.Raw value]
     :
     | t=INTEGER     { $value = Constants.Literal.integer($t.text); }
-    | ':' id=ident  { $value = newBindVariables(id); }
+    | ':' id=noncol_ident  { $value = newBindVariables(id); }
     | QMARK         { $value = newBindVariables(null); }
     ;
 
@@ -1334,8 +1341,8 @@ properties[PropertyDefinitions props]
     ;
 
 property[PropertyDefinitions props]
-    : k=ident '=' simple=propertyValue { try { $props.addProperty(k.toString(), simple); } catch (SyntaxException e) { addRecognitionError(e.getMessage()); } }
-    | k=ident '=' map=mapLiteral { try { $props.addProperty(k.toString(), convertPropertyMap(map)); } catch (SyntaxException e) { addRecognitionError(e.getMessage()); } }
+    : k=noncol_ident '=' simple=propertyValue { try { $props.addProperty(k.toString(), simple); } catch (SyntaxException e) { addRecognitionError(e.getMessage()); } }
+    | k=noncol_ident '=' map=mapLiteral { try { $props.addProperty(k.toString(), convertPropertyMap(map)); } catch (SyntaxException e) { addRecognitionError(e.getMessage()); } }
     ;
 
 propertyValue returns [String str]
@@ -1388,7 +1395,7 @@ relation[List<Relation> clauses]
 
 inMarker returns [AbstractMarker.INRaw marker]
     : QMARK { $marker = newINBindVariables(null); }
-    | ':' name=ident { $marker = newINBindVariables(name); }
+    | ':' name=noncol_ident { $marker = newINBindVariables(name); }
     ;
 
 tupleOfIdentifiers returns [List<ColumnIdentifier.Raw> ids]
@@ -1408,7 +1415,7 @@ tupleOfTupleLiterals returns [List<Tuples.Literal> literals]
 
 markerForTuple returns [Tuples.Raw marker]
     : QMARK { $marker = newTupleBindVariables(null); }
-    | ':' name=ident { $marker = newTupleBindVariables(name); }
+    | ':' name=noncol_ident { $marker = newTupleBindVariables(name); }
     ;
 
 tupleOfMarkersForTuples returns [List<Tuples.Raw> markers]
@@ -1418,7 +1425,7 @@ tupleOfMarkersForTuples returns [List<Tuples.Raw> markers]
 
 inMarkerForTuple returns [Tuples.INRaw marker]
     : QMARK { $marker = newTupleINBindVariables(null); }
-    | ':' name=ident { $marker = newTupleINBindVariables(name); }
+    | ':' name=noncol_ident { $marker = newTupleINBindVariables(name); }
     ;
 
 comparatorType returns [CQL3Type.Raw t]

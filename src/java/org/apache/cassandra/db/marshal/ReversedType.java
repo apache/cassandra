@@ -80,6 +80,12 @@ public class ReversedType<T> extends AbstractType<T>
         return baseType.compare(o2, o1);
     }
 
+    @Override
+    public int compareForCQL(ByteBuffer v1, ByteBuffer v2)
+    {
+        return baseType.compare(v1, v2);
+    }
+
     public String getString(ByteBuffer bytes)
     {
         return baseType.getString(bytes);
@@ -126,6 +132,12 @@ public class ReversedType<T> extends AbstractType<T>
     public TypeSerializer<T> getSerializer()
     {
         return baseType.getSerializer();
+    }
+
+    @Override
+    protected int valueLengthIfFixed()
+    {
+        return baseType.valueLengthIfFixed();
     }
 
     @Override

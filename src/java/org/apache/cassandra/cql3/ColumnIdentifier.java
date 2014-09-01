@@ -20,6 +20,10 @@ package org.apache.cassandra.cql3;
 import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.Locale;
+import java.nio.ByteBuffer;
+import java.util.concurrent.ConcurrentMap;
+
+import com.google.common.collect.MapMaker;
 
 import org.apache.cassandra.cache.IMeasurableMemory;
 import org.apache.cassandra.config.CFMetaData;
@@ -28,7 +32,7 @@ import org.apache.cassandra.cql3.selection.Selectable;
 import org.apache.cassandra.cql3.selection.Selector;
 import org.apache.cassandra.cql3.selection.SimpleSelector;
 import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.db.marshal.CompositeType;
+import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -43,25 +47,57 @@ public class ColumnIdentifier extends org.apache.cassandra.cql3.selection.Select
 {
     public final ByteBuffer bytes;
     private final String text;
+    private final boolean interned;
 
-    private static final long EMPTY_SIZE = ObjectSizes.measure(new ColumnIdentifier("", true));
+    private static final long EMPTY_SIZE = ObjectSizes.measure(new ColumnIdentifier(ByteBufferUtil.EMPTY_BYTE_BUFFER, "", false));
+
+    private static final ConcurrentMap<ByteBuffer, ColumnIdentifier> internedInstances = new MapMaker().weakValues().makeMap();
 
     public ColumnIdentifier(String rawText, boolean keepCase)
     {
         this.text = keepCase ? rawText : rawText.toLowerCase(Locale.US);
         this.bytes = ByteBufferUtil.bytes(this.text);
+        this.interned = false;
     }
 
     public ColumnIdentifier(ByteBuffer bytes, AbstractType<?> type)
     {
-        this.bytes = bytes;
-        this.text = type.getString(bytes);
+        this(bytes, type.getString(bytes), false);
     }
 
-    public ColumnIdentifier(ByteBuffer bytes, String text)
+    private ColumnIdentifier(ByteBuffer bytes, String text, boolean interned)
     {
         this.bytes = bytes;
         this.text = text;
+        this.interned = interned;
+    }
+
+    public static ColumnIdentifier getInterned(ByteBuffer bytes, AbstractType<?> type)
+    {
+        return getInterned(bytes, type.getString(bytes));
+    }
+
+    public static ColumnIdentifier getInterned(String rawText, boolean keepCase)
+    {
+        String text = keepCase ? rawText : rawText.toLowerCase(Locale.US);
+        ByteBuffer bytes = ByteBufferUtil.bytes(text);
+        return getInterned(bytes, text);
+    }
+
+    public static ColumnIdentifier getInterned(ByteBuffer bytes, String text)
+    {
+        ColumnIdentifier id = internedInstances.get(bytes);
+        if (id != null)
+            return id;
+
+        ColumnIdentifier created = new ColumnIdentifier(bytes, text, true);
+        ColumnIdentifier previous = internedInstances.putIfAbsent(bytes, created);
+        return previous == null ? created : previous;
+    }
+
+    public boolean isInterned()
+    {
+        return interned;
     }
 
     @Override
@@ -73,8 +109,6 @@ public class ColumnIdentifier extends org.apache.cassandra.cql3.selection.Select
     @Override
     public final boolean equals(Object o)
     {
-        // Note: it's worth checking for reference equality since we intern those
-        // in SparseCellNameType
         if (this == o)
             return true;
 
@@ -106,7 +140,7 @@ public class ColumnIdentifier extends org.apache.cassandra.cql3.selection.Select
 
     public ColumnIdentifier clone(AbstractAllocator allocator)
     {
-        return new ColumnIdentifier(allocator.clone(bytes), text);
+        return interned ? this : new ColumnIdentifier(allocator.clone(bytes), text, false);
     }
 
     public Selector.Factory newSelectorFactory(CFMetaData cfm, List<ColumnDefinition> defs) throws InvalidRequestException
@@ -137,20 +171,22 @@ public class ColumnIdentifier extends org.apache.cassandra.cql3.selection.Select
 
         public ColumnIdentifier prepare(CFMetaData cfm)
         {
-            AbstractType<?> comparator = cfm.comparator.asAbstractType();
-            if (cfm.getIsDense() || comparator instanceof CompositeType || comparator instanceof UTF8Type)
-                return new ColumnIdentifier(text, true);
+            if (!cfm.isStaticCompactTable())
+                return getInterned(text, true);
 
-            // We have a Thrift-created table with a non-text comparator.  We need to parse column names with the comparator
-            // to get the correct ByteBuffer representation.  However, this doesn't apply to key aliases, so we need to
-            // make a special check for those and treat them normally.  See CASSANDRA-8178.
+            AbstractType<?> thriftColumnNameType = cfm.thriftColumnNameType();
+            if (thriftColumnNameType instanceof UTF8Type)
+                return getInterned(text, true);
+
+            // We have a Thrift-created table with a non-text comparator. Check if we have a match column, otherwise assume we should use
+            // thriftColumnNameType
             ByteBuffer bufferName = ByteBufferUtil.bytes(text);
-            for (ColumnDefinition def : cfm.partitionKeyColumns())
+            for (ColumnDefinition def : cfm.allColumns())
             {
                 if (def.name.bytes.equals(bufferName))
-                    return new ColumnIdentifier(text, true);
+                    return def.name;
             }
-            return new ColumnIdentifier(comparator.fromString(rawText), text);
+            return getInterned(thriftColumnNameType.fromString(rawText), text);
         }
 
         public boolean processesSelection()

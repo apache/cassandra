@@ -67,21 +67,7 @@ import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.concurrent.StageManager;
 import org.apache.cassandra.config.*;
-import org.apache.cassandra.db.BatchlogManager;
-import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.db.CounterMutationVerbHandler;
-import org.apache.cassandra.db.DecoratedKey;
-import org.apache.cassandra.db.DefinitionsUpdateVerbHandler;
-import org.apache.cassandra.db.HintedHandOffManager;
-import org.apache.cassandra.db.Keyspace;
-import org.apache.cassandra.db.MigrationRequestVerbHandler;
-import org.apache.cassandra.db.MutationVerbHandler;
-import org.apache.cassandra.db.ReadRepairVerbHandler;
-import org.apache.cassandra.db.ReadVerbHandler;
-import org.apache.cassandra.db.SchemaCheckVerbHandler;
-import org.apache.cassandra.db.SnapshotDetailsTabularData;
-import org.apache.cassandra.db.SystemKeyspace;
-import org.apache.cassandra.db.TruncateVerbHandler;
+import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.dht.BootStrapper;
@@ -311,9 +297,9 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         /* register the verb handlers */
         MessagingService.instance().registerVerbHandlers(MessagingService.Verb.MUTATION, new MutationVerbHandler());
         MessagingService.instance().registerVerbHandlers(MessagingService.Verb.READ_REPAIR, new ReadRepairVerbHandler());
-        MessagingService.instance().registerVerbHandlers(MessagingService.Verb.READ, new ReadVerbHandler());
-        MessagingService.instance().registerVerbHandlers(MessagingService.Verb.RANGE_SLICE, new RangeSliceVerbHandler());
-        MessagingService.instance().registerVerbHandlers(MessagingService.Verb.PAGED_RANGE, new RangeSliceVerbHandler());
+        MessagingService.instance().registerVerbHandlers(MessagingService.Verb.READ, new ReadCommandVerbHandler());
+        MessagingService.instance().registerVerbHandlers(MessagingService.Verb.RANGE_SLICE, new ReadCommandVerbHandler());
+        MessagingService.instance().registerVerbHandlers(MessagingService.Verb.PAGED_RANGE, new ReadCommandVerbHandler());
         MessagingService.instance().registerVerbHandlers(MessagingService.Verb.COUNTER_MUTATION, new CounterMutationVerbHandler());
         MessagingService.instance().registerVerbHandlers(MessagingService.Verb.TRUNCATE, new TruncateVerbHandler());
         MessagingService.instance().registerVerbHandlers(MessagingService.Verb.PAXOS_PREPARE, new PrepareVerbHandler());
@@ -3901,7 +3887,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     }
 
     // Never ever do this at home. Used by tests.
-    IPartitioner setPartitionerUnsafe(IPartitioner newPartitioner)
+    @VisibleForTesting
+    public IPartitioner setPartitionerUnsafe(IPartitioner newPartitioner)
     {
         IPartitioner oldPartitioner = DatabaseDescriptor.getPartitioner();
         DatabaseDescriptor.setPartitioner(newPartitioner);

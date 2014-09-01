@@ -23,26 +23,29 @@ import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.*;
 
-import org.junit.Test;
-
-import static org.junit.Assert.*;
-import org.junit.AfterClass;
-import org.junit.BeforeClass;
 import com.google.common.collect.HashMultimap;
 import com.google.common.collect.Multimap;
+import org.junit.AfterClass;
+import org.junit.BeforeClass;
+import org.junit.Test;
+
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.config.KSMetaData;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.SystemKeyspace;
-import org.apache.cassandra.dht.*;
+import org.apache.cassandra.dht.IPartitioner;
+import org.apache.cassandra.dht.RandomPartitioner;
 import org.apache.cassandra.dht.RandomPartitioner.BigIntegerToken;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.gms.ApplicationState;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.gms.VersionedValue;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.locator.SimpleSnitch;
 import org.apache.cassandra.locator.TokenMetadata;
+
+import static org.junit.Assert.*;
 
 public class LeaveAndBootstrapTest
 {
@@ -691,7 +694,7 @@ public class LeaveAndBootstrapTest
         // create a ring of 1 node
         StorageService ss = StorageService.instance;
         VersionedValue.VersionedValueFactory valueFactory = new VersionedValue.VersionedValueFactory(partitioner);
-        Util.createInitialRing(ss, partitioner, new ArrayList<Token>(), new ArrayList<Token>(),  new ArrayList<InetAddress>(), new ArrayList<UUID>(), 1);
+        Util.createInitialRing(ss, partitioner, new ArrayList<Token>(), new ArrayList<Token>(), new ArrayList<InetAddress>(), new ArrayList<UUID>(), 1);
 
         // make a REMOVING state change on a non-member endpoint; without the CASSANDRA-6564 fix, this
         // would result in an ArrayIndexOutOfBoundsException

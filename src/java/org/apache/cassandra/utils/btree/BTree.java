@@ -26,8 +26,6 @@ import java.util.Queue;
 
 import org.apache.cassandra.utils.ObjectSizes;
 
-import static org.apache.cassandra.utils.btree.UpdateFunction.NoOp;
-
 public class BTree
 {
     /**
@@ -79,21 +77,18 @@ public class BTree
         return EMPTY_LEAF;
     }
 
-    public static <V> Object[] build(Collection<V> source, Comparator<V> comparator, boolean sorted, UpdateFunction<V> updateF)
+    public static <C, K extends C, V extends C> Object[] build(Collection<K> source, UpdateFunction<K, V> updateF)
     {
-        return build(source, source.size(), comparator, sorted, updateF);
+        return build(source, source.size(), updateF);
     }
 
     /**
      * Creates a BTree containing all of the objects in the provided collection
      *
      * @param source     the items to build the tree with
-     * @param comparator the comparator that defines the ordering over the items in the tree
-     * @param sorted     if false, the collection will be copied and sorted to facilitate construction
-     * @param <V>
      * @return
      */
-    public static <V> Object[] build(Iterable<V> source, int size, Comparator<V> comparator, boolean sorted, UpdateFunction<V> updateF)
+    public static <C, K extends C, V extends C> Object[] build(Iterable<K> source, int size, UpdateFunction<K, V> updateF)
     {
         if (size < FAN_FACTOR)
         {
@@ -101,26 +96,12 @@ public class BTree
             V[] values = (V[]) new Object[size + (size & 1)];
             {
                 int i = 0;
-                for (V v : source)
-                    values[i++] = v;
+                for (K k : source)
+                    values[i++] = updateF.apply(k);
             }
-
-            // inline sorting since we're already calling toArray
-            if (!sorted)
-                Arrays.sort(values, 0, size, comparator);
-
-            // if updateF is specified
-            if (updateF != null)
-            {
-                for (int i = 0 ; i < size ; i++)
-                    values[i] = updateF.apply(values[i]);
-                updateF.allocated(ObjectSizes.sizeOfArray(values));
-            }
+            updateF.allocated(ObjectSizes.sizeOfArray(values));
             return values;
         }
-
-        if (!sorted)
-            source = sorted(source, comparator, size);
 
         Queue<Builder> queue = modifier.get();
         Builder builder = queue.poll();
@@ -131,28 +112,12 @@ public class BTree
         return btree;
     }
 
-    /**
-     * Returns a new BTree with the provided set inserting/replacing as necessary any equal items
-     *
-     * @param btree              the tree to update
-     * @param comparator         the comparator that defines the ordering over the items in the tree
-     * @param updateWith         the items to either insert / update
-     * @param updateWithIsSorted if false, updateWith will be copied and sorted to facilitate construction
-     * @param <V>
-     * @return
-     */
-    public static <V> Object[] update(Object[] btree, Comparator<V> comparator, Collection<V> updateWith, boolean updateWithIsSorted)
+    public static <C, K extends C, V extends C> Object[] update(Object[] btree,
+                                                                Comparator<C> comparator,
+                                                                Collection<K> updateWith,
+                                                                UpdateFunction<K, V> updateF)
     {
-        return update(btree, comparator, updateWith, updateWithIsSorted, NoOp.<V>instance());
-    }
-
-    public static <V> Object[] update(Object[] btree,
-                                      Comparator<V> comparator,
-                                      Collection<V> updateWith,
-                                      boolean updateWithIsSorted,
-                                      UpdateFunction<V> updateF)
-    {
-        return update(btree, comparator, updateWith, updateWith.size(), updateWithIsSorted, updateF);
+        return update(btree, comparator, updateWith, updateWith.size(), updateF);
     }
 
     /**
@@ -161,23 +126,19 @@ public class BTree
      * @param btree              the tree to update
      * @param comparator         the comparator that defines the ordering over the items in the tree
      * @param updateWith         the items to either insert / update
-     * @param updateWithIsSorted if false, updateWith will be copied and sorted to facilitate construction
+     * @param updateWithLength   then number of elements in updateWith
      * @param updateF            the update function to apply to any pairs we are swapping, and maybe abort early
      * @param <V>
      * @return
      */
-    public static <V> Object[] update(Object[] btree,
-                                      Comparator<V> comparator,
-                                      Iterable<V> updateWith,
-                                      int updateWithLength,
-                                      boolean updateWithIsSorted,
-                                      UpdateFunction<V> updateF)
+    public static <C, K extends C, V extends C> Object[] update(Object[] btree,
+                                                                Comparator<C> comparator,
+                                                                Iterable<K> updateWith,
+                                                                int updateWithLength,
+                                                                UpdateFunction<K, V> updateF)
     {
         if (btree.length == 0)
-            return build(updateWith, updateWithLength, comparator, updateWithIsSorted, updateF);
-
-        if (!updateWithIsSorted)
-            updateWith = sorted(updateWith, comparator, updateWithLength);
+            return build(updateWith, updateWithLength, updateF);
 
         Queue<Builder> queue = modifier.get();
         Builder builder = queue.poll();
@@ -360,17 +321,6 @@ public class BTree
             return new ArrayDeque<>();
         }
     };
-
-    // return a sorted collection
-    private static <V> Collection<V> sorted(Iterable<V> source, Comparator<V> comparator, int size)
-    {
-        V[] vs = (V[]) new Object[size];
-        int i = 0;
-        for (V v : source)
-            vs[i++] = v;
-        Arrays.sort(vs, comparator);
-        return Arrays.asList(vs);
-    }
 
     /** simple static wrapper to calls to cmp.compare() which checks if either a or b are Special (i.e. represent an infinity) */
     // TODO : cheaper to check for POSITIVE/NEGATIVE infinity in callers, rather than here

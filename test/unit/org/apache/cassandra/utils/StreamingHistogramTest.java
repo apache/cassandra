@@ -17,11 +17,13 @@
  */
 package org.apache.cassandra.utils;
 
-import org.junit.Test;
-
 import java.io.ByteArrayInputStream;
 import java.io.DataInputStream;
-import java.util.*;
+import java.util.Iterator;
+import java.util.LinkedHashMap;
+import java.util.Map;
+
+import org.junit.Test;
 
 import org.apache.cassandra.io.util.DataOutputBuffer;
 

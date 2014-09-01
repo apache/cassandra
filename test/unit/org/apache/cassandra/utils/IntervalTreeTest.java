@@ -21,21 +21,24 @@ package org.apache.cassandra.utils;
  */
 
 
-import org.junit.Test;
-
+import java.io.ByteArrayInputStream;
+import java.io.DataInput;
+import java.io.DataInputStream;
+import java.io.IOException;
 import java.lang.reflect.Constructor;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.io.*;
 
-import static org.junit.Assert.*;
+import org.junit.Test;
 
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.ISerializer;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.util.DataOutputPlus;
+
+import static org.junit.Assert.assertEquals;
 
 public class IntervalTreeTest
 {
@@ -46,27 +49,27 @@ public class IntervalTreeTest
 
         intervals.add(Interval.<Integer, Void>create(-300, -200));
         intervals.add(Interval.<Integer, Void>create(-3, -2));
-        intervals.add(Interval.<Integer, Void>create(1,2));
-        intervals.add(Interval.<Integer, Void>create(3,6));
-        intervals.add(Interval.<Integer, Void>create(2,4));
-        intervals.add(Interval.<Integer, Void>create(5,7));
-        intervals.add(Interval.<Integer, Void>create(1,3));
-        intervals.add(Interval.<Integer, Void>create(4,6));
-        intervals.add(Interval.<Integer, Void>create(8,9));
-        intervals.add(Interval.<Integer, Void>create(15,20));
-        intervals.add(Interval.<Integer, Void>create(40,50));
-        intervals.add(Interval.<Integer, Void>create(49,60));
+        intervals.add(Interval.<Integer, Void>create(1, 2));
+        intervals.add(Interval.<Integer, Void>create(3, 6));
+        intervals.add(Interval.<Integer, Void>create(2, 4));
+        intervals.add(Interval.<Integer, Void>create(5, 7));
+        intervals.add(Interval.<Integer, Void>create(1, 3));
+        intervals.add(Interval.<Integer, Void>create(4, 6));
+        intervals.add(Interval.<Integer, Void>create(8, 9));
+        intervals.add(Interval.<Integer, Void>create(15, 20));
+        intervals.add(Interval.<Integer, Void>create(40, 50));
+        intervals.add(Interval.<Integer, Void>create(49, 60));
 
 
         IntervalTree<Integer, Void, Interval<Integer, Void>> it = IntervalTree.build(intervals);
 
-        assertEquals(3, it.search(Interval.<Integer, Void>create(4,4)).size());
+        assertEquals(3, it.search(Interval.<Integer, Void>create(4, 4)).size());
         assertEquals(4, it.search(Interval.<Integer, Void>create(4, 5)).size());
-        assertEquals(7, it.search(Interval.<Integer, Void>create(-1,10)).size());
-        assertEquals(0, it.search(Interval.<Integer, Void>create(-1,-1)).size());
-        assertEquals(5, it.search(Interval.<Integer, Void>create(1,4)).size());
-        assertEquals(2, it.search(Interval.<Integer, Void>create(0,1)).size());
-        assertEquals(0, it.search(Interval.<Integer, Void>create(10,12)).size());
+        assertEquals(7, it.search(Interval.<Integer, Void>create(-1, 10)).size());
+        assertEquals(0, it.search(Interval.<Integer, Void>create(-1, -1)).size());
+        assertEquals(5, it.search(Interval.<Integer, Void>create(1, 4)).size());
+        assertEquals(2, it.search(Interval.<Integer, Void>create(0, 1)).size());
+        assertEquals(0, it.search(Interval.<Integer, Void>create(10, 12)).size());
 
         List<Interval<Integer, Void>> intervals2 = new ArrayList<Interval<Integer, Void>>();
 
@@ -102,16 +105,16 @@ public class IntervalTreeTest
 
         intervals.add(Interval.<Integer, Void>create(-300, -200));
         intervals.add(Interval.<Integer, Void>create(-3, -2));
-        intervals.add(Interval.<Integer, Void>create(1,2));
-        intervals.add(Interval.<Integer, Void>create(3,6));
-        intervals.add(Interval.<Integer, Void>create(2,4));
-        intervals.add(Interval.<Integer, Void>create(5,7));
-        intervals.add(Interval.<Integer, Void>create(1,3));
-        intervals.add(Interval.<Integer, Void>create(4,6));
-        intervals.add(Interval.<Integer, Void>create(8,9));
-        intervals.add(Interval.<Integer, Void>create(15,20));
-        intervals.add(Interval.<Integer, Void>create(40,50));
-        intervals.add(Interval.<Integer, Void>create(49,60));
+        intervals.add(Interval.<Integer, Void>create(1, 2));
+        intervals.add(Interval.<Integer, Void>create(3, 6));
+        intervals.add(Interval.<Integer, Void>create(2, 4));
+        intervals.add(Interval.<Integer, Void>create(5, 7));
+        intervals.add(Interval.<Integer, Void>create(1, 3));
+        intervals.add(Interval.<Integer, Void>create(4, 6));
+        intervals.add(Interval.<Integer, Void>create(8, 9));
+        intervals.add(Interval.<Integer, Void>create(15, 20));
+        intervals.add(Interval.<Integer, Void>create(40, 50));
+        intervals.add(Interval.<Integer, Void>create(49, 60));
 
         IntervalTree<Integer, Void, Interval<Integer, Void>> it = IntervalTree.build(intervals);
 
@@ -131,33 +134,55 @@ public class IntervalTreeTest
 
         intervals.add(Interval.<Integer, String>create(-300, -200, "a"));
         intervals.add(Interval.<Integer, String>create(-3, -2, "b"));
-        intervals.add(Interval.<Integer, String>create(1,2, "c"));
-        intervals.add(Interval.<Integer, String>create(1,3, "d"));
-        intervals.add(Interval.<Integer, String>create(2,4, "e"));
-        intervals.add(Interval.<Integer, String>create(3,6, "f"));
-        intervals.add(Interval.<Integer, String>create(4,6, "g"));
-        intervals.add(Interval.<Integer, String>create(5,7, "h"));
-        intervals.add(Interval.<Integer, String>create(8,9, "i"));
-        intervals.add(Interval.<Integer, String>create(15,20, "j"));
-        intervals.add(Interval.<Integer, String>create(40,50, "k"));
-        intervals.add(Interval.<Integer, String>create(49,60, "l"));
+        intervals.add(Interval.<Integer, String>create(1, 2, "c"));
+        intervals.add(Interval.<Integer, String>create(1, 3, "d"));
+        intervals.add(Interval.<Integer, String>create(2, 4, "e"));
+        intervals.add(Interval.<Integer, String>create(3, 6, "f"));
+        intervals.add(Interval.<Integer, String>create(4, 6, "g"));
+        intervals.add(Interval.<Integer, String>create(5, 7, "h"));
+        intervals.add(Interval.<Integer, String>create(8, 9, "i"));
+        intervals.add(Interval.<Integer, String>create(15, 20, "j"));
+        intervals.add(Interval.<Integer, String>create(40, 50, "k"));
+        intervals.add(Interval.<Integer, String>create(49, 60, "l"));
 
         IntervalTree<Integer, String, Interval<Integer, String>> it = IntervalTree.build(intervals);
 
         IVersionedSerializer<IntervalTree<Integer, String, Interval<Integer, String>>> serializer = IntervalTree.serializer(
-            new ISerializer<Integer>()
-            {
-                public void serialize(Integer i, DataOutputPlus out) throws IOException { out.writeInt(i); }
-                public Integer deserialize(DataInput in) throws IOException { return in.readInt(); }
-                public long serializedSize(Integer i, TypeSizes s) { return 4; }
-            },
-            new ISerializer<String>()
-            {
-                public void serialize(String v, DataOutputPlus out) throws IOException { out.writeUTF(v); }
-                public String deserialize(DataInput in) throws IOException { return in.readUTF(); }
-                public long serializedSize(String v, TypeSizes s) { return v.length(); }
-            },
-            (Constructor<Interval<Integer, String>>) (Object) Interval.class.getConstructor(Object.class, Object.class, Object.class)
+                new ISerializer<Integer>()
+                {
+                    public void serialize(Integer i, DataOutputPlus out) throws IOException
+                    {
+                        out.writeInt(i);
+                    }
+
+                    public Integer deserialize(DataInput in) throws IOException
+                    {
+                        return in.readInt();
+                    }
+
+                    public long serializedSize(Integer i, TypeSizes s)
+                    {
+                        return 4;
+                    }
+                },
+                new ISerializer<String>()
+                {
+                    public void serialize(String v, DataOutputPlus out) throws IOException
+                    {
+                        out.writeUTF(v);
+                    }
+
+                    public String deserialize(DataInput in) throws IOException
+                    {
+                        return in.readUTF();
+                    }
+
+                    public long serializedSize(String v, TypeSizes s)
+                    {
+                        return v.length();
+                    }
+                },
+                (Constructor<Interval<Integer, String>>) (Object) Interval.class.getConstructor(Object.class, Object.class, Object.class)
         );
 
         DataOutputBuffer out = new DataOutputBuffer();

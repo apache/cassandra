@@ -18,16 +18,15 @@
 package org.apache.cassandra.cql3.restrictions;
 
 import java.nio.ByteBuffer;
-import java.util.Collection;
-import java.util.List;
+import java.util.*;
 
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.functions.Function;
 import org.apache.cassandra.cql3.statements.Bound;
-import org.apache.cassandra.db.IndexExpression;
-import org.apache.cassandra.db.composites.Composite;
-import org.apache.cassandra.db.composites.CompositesBuilder;
+import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.Slice;
+import org.apache.cassandra.db.filter.RowFilter;
 import org.apache.cassandra.db.index.SecondaryIndexManager;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 
@@ -87,15 +86,15 @@ abstract class ForwardingPrimaryKeyRestrictions implements PrimaryKeyRestriction
     }
 
     @Override
-    public CompositesBuilder appendTo(CompositesBuilder builder, QueryOptions options)
+    public MultiCBuilder appendTo(MultiCBuilder builder, QueryOptions options)
     {
         return getDelegate().appendTo(builder, options);
     }
 
     @Override
-    public List<Composite> valuesAsComposites(QueryOptions options) throws InvalidRequestException
+    public NavigableSet<Clustering> valuesAsClustering(QueryOptions options) throws InvalidRequestException
     {
-        return getDelegate().valuesAsComposites(options);
+        return getDelegate().valuesAsClustering(options);
     }
 
     @Override
@@ -105,13 +104,13 @@ abstract class ForwardingPrimaryKeyRestrictions implements PrimaryKeyRestriction
     }
 
     @Override
-    public List<Composite> boundsAsComposites(Bound bound, QueryOptions options) throws InvalidRequestException
+    public SortedSet<Slice.Bound> boundsAsClustering(Bound bound, QueryOptions options) throws InvalidRequestException
     {
-        return getDelegate().boundsAsComposites(bound, options);
+        return getDelegate().boundsAsClustering(bound, options);
     }
 
     @Override
-    public CompositesBuilder appendBoundTo(CompositesBuilder builder, Bound bound, QueryOptions options)
+    public MultiCBuilder appendBoundTo(MultiCBuilder builder, Bound bound, QueryOptions options)
     {
         return getDelegate().appendBoundTo(builder, bound, options);
     }
@@ -177,10 +176,8 @@ abstract class ForwardingPrimaryKeyRestrictions implements PrimaryKeyRestriction
     }
 
     @Override
-    public void addIndexExpressionTo(List<IndexExpression> expressions,
-                                     SecondaryIndexManager indexManager,
-                                     QueryOptions options) throws InvalidRequestException
+    public void addRowFilterTo(RowFilter filter, SecondaryIndexManager indexManager, QueryOptions options) throws InvalidRequestException
     {
-        getDelegate().addIndexExpressionTo(expressions, indexManager, options);
+        getDelegate().addRowFilterTo(filter, indexManager, options);
     }
 }

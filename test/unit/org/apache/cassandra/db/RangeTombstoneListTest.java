@@ -18,190 +18,20 @@
 */
 package org.apache.cassandra.db;
 
+import java.nio.ByteBuffer;
 import java.util.*;
 
 import org.junit.Test;
 import static org.junit.Assert.*;
 
 import org.apache.cassandra.Util;
-import org.apache.cassandra.db.composites.*;
+import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.marshal.IntegerType;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 public class RangeTombstoneListTest
 {
-    private static final Comparator<Composite> cmp = new SimpleDenseCellNameType(IntegerType.instance);
-
-    @Test
-    public void testDiff()
-    {
-        RangeTombstoneList superset;
-        RangeTombstoneList subset;
-        RangeTombstoneList diff;
-        Iterator<RangeTombstone> iter;
-
-        // no difference
-        superset = new RangeTombstoneList(cmp, 10);
-        subset = new RangeTombstoneList(cmp, 10);
-        superset.add(rt(1, 10, 10));
-        superset.add(rt(20, 30, 10));
-        superset.add(rt(40, 50, 10));
-        subset.add(rt(1, 10, 10));
-        subset.add(rt(20, 30, 10));
-        subset.add(rt(40, 50, 10));
-        assertNull( subset.diff(superset));
-
-        // all items in subset are contained by the first range in the superset
-        superset = new RangeTombstoneList(cmp, 10);
-        subset = new RangeTombstoneList(cmp, 10);
-        subset.add(rt(1, 2, 3));
-        subset.add(rt(3, 4, 4));
-        subset.add(rt(5, 6, 5));
-        superset.add(rt(1, 10, 10));
-        superset.add(rt(20, 30, 10));
-        superset.add(rt(40, 50, 10));
-        diff = subset.diff(superset);
-        iter = diff.iterator();
-        assertRT(rt(1, 10, 10), iter.next());
-        assertRT(rt(20, 30, 10), iter.next());
-        assertRT(rt(40, 50, 10), iter.next());
-        assertFalse(iter.hasNext());
-
-        // multiple subset RTs are contained by superset RTs
-        superset = new RangeTombstoneList(cmp, 10);
-        subset = new RangeTombstoneList(cmp, 10);
-        subset.add(rt(1, 2, 1));
-        subset.add(rt(3, 4, 2));
-        subset.add(rt(5, 6, 3));
-        superset.add(rt(1, 5, 2));
-        superset.add(rt(5, 6, 3));
-        superset.add(rt(6, 10, 2));
-        diff = subset.diff(superset);
-        iter = diff.iterator();
-        assertRT(rt(1, 5, 2), iter.next());
-        assertRT(rt(6, 10, 2), iter.next());
-        assertFalse(iter.hasNext());
-
-        // the superset has one RT that covers the entire subset
-        superset = new RangeTombstoneList(cmp, 10);
-        subset = new RangeTombstoneList(cmp, 10);
-        superset.add(rt(1, 50, 10));
-        subset.add(rt(1, 10, 10));
-        subset.add(rt(20, 30, 10));
-        subset.add(rt(40, 50, 10));
-        diff = subset.diff(superset);
-        iter = diff.iterator();
-        assertRT(rt(1, 50, 10), iter.next());
-        assertFalse(iter.hasNext());
-
-        // the superset has one RT that covers the remainder of the subset
-        superset = new RangeTombstoneList(cmp, 10);
-        subset = new RangeTombstoneList(cmp, 10);
-        superset.add(rt(1, 10, 10));
-        superset.add(rt(20, 50, 10));
-        subset.add(rt(1, 10, 10));
-        subset.add(rt(20, 30, 10));
-        subset.add(rt(40, 50, 10));
-        diff = subset.diff(superset);
-        iter = diff.iterator();
-        assertRT(rt(20, 50, 10), iter.next());
-        assertFalse(iter.hasNext());
-
-        // only the timestamp differs on one RT
-        superset = new RangeTombstoneList(cmp, 10);
-        subset = new RangeTombstoneList(cmp, 10);
-        superset.add(rt(1, 10, 10));
-        superset.add(rt(20, 30, 20));
-        superset.add(rt(40, 50, 10));
-        subset.add(rt(1, 10, 10));
-        subset.add(rt(20, 30, 10));
-        subset.add(rt(40, 50, 10));
-        diff = subset.diff(superset);
-        iter = diff.iterator();
-        assertRT(rt(20, 30, 20), iter.next());
-        assertFalse(iter.hasNext());
-
-        // superset has a large range on an RT at the start
-        superset = new RangeTombstoneList(cmp, 10);
-        subset = new RangeTombstoneList(cmp, 10);
-        superset.add(rt(1, 10, 10));
-        superset.add(rt(20, 30, 10));
-        superset.add(rt(40, 50, 10));
-        subset.add(rt(1, 2, 3));
-        subset.add(rt(20, 30, 10));
-        subset.add(rt(40, 50, 10));
-        diff = subset.diff(superset);
-        iter = diff.iterator();
-        assertRT(rt(1, 10, 10), iter.next());
-        assertFalse(iter.hasNext());
-
-        // superset has a larger range on an RT in the middle
-        superset = new RangeTombstoneList(cmp, 10);
-        subset = new RangeTombstoneList(cmp, 10);
-        superset.add(rt(1, 10, 10));
-        superset.add(rt(20, 30, 10));
-        superset.add(rt(40, 50, 10));
-        subset.add(rt(1, 10, 10));
-        subset.add(rt(20, 25, 10));
-        subset.add(rt(40, 50, 10));
-        diff = subset.diff(superset);
-        iter = diff.iterator();
-        assertRT(rt(20, 30, 10), iter.next());
-        assertFalse(iter.hasNext());
-
-        // superset has a larger range on an RT at the end
-        superset = new RangeTombstoneList(cmp, 10);
-        subset = new RangeTombstoneList(cmp, 10);
-        superset.add(rt(1, 10, 10));
-        superset.add(rt(20, 30, 10));
-        superset.add(rt(40, 55, 10));
-        subset.add(rt(1, 10, 10));
-        subset.add(rt(20, 30, 10));
-        subset.add(rt(40, 50, 10));
-        diff = subset.diff(superset);
-        iter = diff.iterator();
-        assertRT(rt(40, 55, 10), iter.next());
-        assertFalse(iter.hasNext());
-
-         // superset has one additional RT in the middle
-        superset = new RangeTombstoneList(cmp, 10);
-        subset = new RangeTombstoneList(cmp, 10);
-        superset.add(rt(1, 10, 10));
-        superset.add(rt(20, 30, 10));
-        superset.add(rt(40, 50, 10));
-        subset.add(rt(1, 10, 10));
-        subset.add(rt(40, 50, 10));
-        diff = subset.diff(superset);
-        iter = diff.iterator();
-        assertRT(rt(20, 30, 10), iter.next());
-        assertFalse(iter.hasNext());
-
-        // superset has one additional RT at the start
-        superset = new RangeTombstoneList(cmp, 10);
-        subset = new RangeTombstoneList(cmp, 10);
-        superset.add(rt(1, 10, 10));
-        superset.add(rt(20, 30, 10));
-        superset.add(rt(40, 50, 10));
-        subset.add(rt(20, 30, 10));
-        subset.add(rt(40, 50, 10));
-        diff = subset.diff(superset);
-        iter = diff.iterator();
-        assertRT(rt(1, 10, 10), iter.next());
-        assertFalse(iter.hasNext());
-
-        // superset has one additional RT at the end
-        superset = new RangeTombstoneList(cmp, 10);
-        subset = new RangeTombstoneList(cmp, 10);
-        superset.add(rt(1, 10, 10));
-        superset.add(rt(20, 30, 10));
-        superset.add(rt(40, 50, 10));
-        subset.add(rt(1, 10, 10));
-        subset.add(rt(20, 30, 10));
-        diff = subset.diff(superset);
-        iter = diff.iterator();
-        assertRT(rt(40, 50, 10), iter.next());
-        assertFalse(iter.hasNext());
-    }
+    private static final ClusteringComparator cmp = new ClusteringComparator(IntegerType.instance);
 
     @Test
     public void sortedAdditionTest()
@@ -224,7 +54,7 @@ public class RangeTombstoneListTest
         Iterator<RangeTombstone> iter = l.iterator();
         assertRT(rt1, iter.next());
         assertRT(rt2, iter.next());
-        assertRT(rt3, iter.next());
+        assertRT(rtei(10, 13, 1), iter.next());
 
         assert !iter.hasNext();
     }
@@ -250,7 +80,7 @@ public class RangeTombstoneListTest
         Iterator<RangeTombstone> iter = l.iterator();
         assertRT(rt1, iter.next());
         assertRT(rt2, iter.next());
-        assertRT(rt3, iter.next());
+        assertRT(rtei(10, 13, 1), iter.next());
 
         assert !iter.hasNext();
     }
@@ -272,18 +102,18 @@ public class RangeTombstoneListTest
         l.add(rt(0, 15, 1));
 
         Iterator<RangeTombstone> iter = l.iterator();
-        assertRT(rt(0, 1, 1), iter.next());
-        assertRT(rt(1, 4, 2), iter.next());
-        assertRT(rt(4, 8, 3), iter.next());
+        assertRT(rtie(0, 1, 1), iter.next());
+        assertRT(rtie(1, 4, 2), iter.next());
+        assertRT(rtie(4, 8, 3), iter.next());
         assertRT(rt(8, 13, 4), iter.next());
-        assertRT(rt(13, 15, 1), iter.next());
+        assertRT(rtei(13, 15, 1), iter.next());
         assert !iter.hasNext();
 
         RangeTombstoneList l2 = new RangeTombstoneList(cmp, initialCapacity);
         l2.add(rt(4, 10, 12L));
         l2.add(rt(0, 8, 25L));
 
-        assertEquals(25L, l2.searchDeletionTime(b(8)).markedForDeleteAt);
+        assertEquals(25L, l2.searchDeletionTime(clustering(8)).markedForDeleteAt());
     }
 
     @Test
@@ -307,9 +137,9 @@ public class RangeTombstoneListTest
         l1.add(rt(3, 7, 5));
 
         Iterator<RangeTombstone> iter1 = l1.iterator();
-        assertRT(rt(0, 3, 3), iter1.next());
+        assertRT(rtie(0, 3, 3), iter1.next());
         assertRT(rt(3, 7, 5), iter1.next());
-        assertRT(rt(7, 10, 3), iter1.next());
+        assertRT(rtei(7, 10, 3), iter1.next());
         assert !iter1.hasNext();
 
         RangeTombstoneList l2 = new RangeTombstoneList(cmp, 0);
@@ -330,9 +160,9 @@ public class RangeTombstoneListTest
         l.add(rt(1, 4, 2));
         l.add(rt(4, 10, 5));
 
-        assertEquals(2, l.searchDeletionTime(b(3)).markedForDeleteAt);
-        assertEquals(5, l.searchDeletionTime(b(4)).markedForDeleteAt);
-        assertEquals(5, l.searchDeletionTime(b(8)).markedForDeleteAt);
+        assertEquals(2, l.searchDeletionTime(clustering(3)).markedForDeleteAt());
+        assertEquals(5, l.searchDeletionTime(clustering(4)).markedForDeleteAt());
+        assertEquals(5, l.searchDeletionTime(clustering(8)).markedForDeleteAt());
         assertEquals(3, l.size());
     }
 
@@ -346,20 +176,20 @@ public class RangeTombstoneListTest
         l.add(rt(14, 15, 3));
         l.add(rt(15, 17, 6));
 
-        assertEquals(null, l.searchDeletionTime(b(-1)));
+        assertEquals(null, l.searchDeletionTime(clustering(-1)));
 
-        assertEquals(5, l.searchDeletionTime(b(0)).markedForDeleteAt);
-        assertEquals(5, l.searchDeletionTime(b(3)).markedForDeleteAt);
-        assertEquals(5, l.searchDeletionTime(b(4)).markedForDeleteAt);
+        assertEquals(5, l.searchDeletionTime(clustering(0)).markedForDeleteAt());
+        assertEquals(5, l.searchDeletionTime(clustering(3)).markedForDeleteAt());
+        assertEquals(5, l.searchDeletionTime(clustering(4)).markedForDeleteAt());
 
-        assertEquals(2, l.searchDeletionTime(b(5)).markedForDeleteAt);
+        assertEquals(2, l.searchDeletionTime(clustering(5)).markedForDeleteAt());
 
-        assertEquals(null, l.searchDeletionTime(b(7)));
+        assertEquals(null, l.searchDeletionTime(clustering(7)));
 
-        assertEquals(3, l.searchDeletionTime(b(14)).markedForDeleteAt);
+        assertEquals(3, l.searchDeletionTime(clustering(14)).markedForDeleteAt());
 
-        assertEquals(6, l.searchDeletionTime(b(15)).markedForDeleteAt);
-        assertEquals(null, l.searchDeletionTime(b(18)));
+        assertEquals(6, l.searchDeletionTime(clustering(15)).markedForDeleteAt());
+        assertEquals(null, l.searchDeletionTime(clustering(18)));
     }
 
     @Test
@@ -379,13 +209,12 @@ public class RangeTombstoneListTest
         l1.addAll(l2);
 
         Iterator<RangeTombstone> iter = l1.iterator();
-        assertRT(rt(0, 3, 5), iter.next());
-        assertRT(rt(3, 4, 7), iter.next());
-        assertRT(rt(4, 5, 7), iter.next());
-        assertRT(rt(6, 7, 2), iter.next());
+        assertRT(rtie(0, 3, 5), iter.next());
+        assertRT(rt(3, 5, 7), iter.next());
+        assertRT(rtie(6, 7, 2), iter.next());
         assertRT(rt(7, 8, 3), iter.next());
-        assertRT(rt(8, 10, 2), iter.next());
-        assertRT(rt(10, 12, 1), iter.next());
+        assertRT(rtei(8, 10, 2), iter.next());
+        assertRT(rtei(10, 12, 1), iter.next());
         assertRT(rt(14, 17, 4), iter.next());
 
         assert !iter.hasNext();
@@ -403,7 +232,7 @@ public class RangeTombstoneListTest
         l1.addAll(l2);
 
         Iterator<RangeTombstone> iter = l1.iterator();
-        assertRT(rt(3, 5, 2), iter.next());
+        assertRT(rtie(3, 5, 2), iter.next());
         assertRT(rt(5, 7, 7), iter.next());
 
         assert !iter.hasNext();
@@ -425,55 +254,6 @@ public class RangeTombstoneListTest
         Iterator<RangeTombstone> iter = l1.iterator();
         assertRT(rt(3, 10, 5), iter.next());
 
-        assert !iter.hasNext();
-    }
-
-    @Test
-    public void purgetTest()
-    {
-        RangeTombstoneList l = new RangeTombstoneList(cmp, 0);
-        l.add(rt(0, 4, 5, 110));
-        l.add(rt(4, 6, 2, 98));
-        l.add(rt(9, 12, 1, 200));
-        l.add(rt(14, 15, 3, 3));
-        l.add(rt(15, 17, 6, 45));
-
-        l.purge(100);
-
-        Iterator<RangeTombstone> iter = l.iterator();
-        assertRT(rt(0, 4, 5, 110), iter.next());
-        assertRT(rt(9, 12, 1, 200), iter.next());
-
-        assert !iter.hasNext();
-    }
-
-    @Test
-    public void minMaxTest()
-    {
-        RangeTombstoneList l = new RangeTombstoneList(cmp, 0);
-        l.add(rt(0, 4, 5, 110));
-        l.add(rt(4, 6, 2, 98));
-        l.add(rt(9, 12, 1, 200));
-        l.add(rt(14, 15, 3, 3));
-        l.add(rt(15, 17, 6, 45));
-
-        assertEquals(1, l.minMarkedAt());
-        assertEquals(6, l.maxMarkedAt());
-    }
-
-    @Test
-    public void insertSameTest()
-    {
-        // Simple test that adding the same element multiple time ends up
-        // with that element only a single time (CASSANDRA-9485)
-
-        RangeTombstoneList l = new RangeTombstoneList(cmp, 0);
-        l.add(rt(4, 4, 5, 100));
-        l.add(rt(4, 4, 6, 110));
-        l.add(rt(4, 4, 4, 90));
-
-        Iterator<RangeTombstone> iter = l.iterator();
-        assertRT(rt(4, 4, 6, 110), iter.next());
         assert !iter.hasNext();
     }
 
@@ -539,34 +319,33 @@ public class RangeTombstoneListTest
 
     private static void assertRT(RangeTombstone expected, RangeTombstone actual)
     {
-        assertEquals(String.format("Expected %s but got %s", toString(expected), toString(actual)), expected, actual);
+        assertTrue(String.format("%s != %s", toString(expected), toString(actual)), cmp.compare(expected.deletedSlice().start(), actual.deletedSlice().start()) == 0);
+        assertTrue(String.format("%s != %s", toString(expected), toString(actual)), cmp.compare(expected.deletedSlice().end(), actual.deletedSlice().end()) == 0);
+        assertEquals(String.format("%s != %s", toString(expected), toString(actual)), expected.deletionTime(), actual.deletionTime());
     }
 
     private static void assertValid(RangeTombstoneList l)
     {
-        // We check that ranges are in the right order and that we never have something
-        // like ...[x, x][x, x] ...
-        int prevStart = -2;
-        int prevEnd = -1;
-        for (RangeTombstone rt : l)
+        if (l.isEmpty())
+            return;
+
+        // We check that ranges are in the right order and non overlapping
+        Iterator<RangeTombstone> iter = l.iterator();
+        Slice prev = iter.next().deletedSlice();
+        assertFalse("Invalid empty slice " + prev.toString(cmp), prev.isEmpty(cmp));
+
+        while (iter.hasNext())
         {
-            int curStart = i(rt.min);
-            int curEnd = i(rt.max);
+            Slice curr = iter.next().deletedSlice();
 
-            assertTrue("Invalid " + toString(l), prevEnd <= curStart);
-            assertTrue("Invalid " + toString(l), curStart <= curEnd);
-
-            if (curStart == curEnd && prevEnd == curStart)
-                assertTrue("Invalid " + toString(l), prevStart != prevEnd);
-
-            prevStart = curStart;
-            prevEnd = curEnd;
+            assertFalse("Invalid empty slice " + curr.toString(cmp), curr.isEmpty(cmp));
+            assertTrue("Slice not in order or overlapping : " + prev.toString(cmp) + curr.toString(cmp), cmp.compare(prev.end(), curr.start()) < 0);
         }
     }
 
     private static String toString(RangeTombstone rt)
     {
-        return String.format("[%d, %d]@%d", i(rt.min), i(rt.max), rt.data.markedForDeleteAt);
+        return String.format("%s@%d", rt.deletedSlice().toString(cmp), rt.deletionTime().markedForDeleteAt());
     }
 
     private static String toString(RangeTombstoneList l)
@@ -578,14 +357,19 @@ public class RangeTombstoneListTest
         return sb.append(" }").toString();
     }
 
-    private static Composite b(int i)
+    private static Clustering clustering(int i)
     {
-        return Util.cellname(i);
+        return new SimpleClustering(bb(i));
     }
 
-    private static int i(Composite c)
+    private static ByteBuffer bb(int i)
     {
-        return ByteBufferUtil.toInt(c.toByteBuffer());
+        return ByteBufferUtil.bytes(i);
+    }
+
+    private static int i(Slice.Bound bound)
+    {
+        return ByteBufferUtil.toInt(bound.get(0));
     }
 
     private static RangeTombstone rt(int start, int end, long tstamp)
@@ -595,6 +379,26 @@ public class RangeTombstoneListTest
 
     private static RangeTombstone rt(int start, int end, long tstamp, int delTime)
     {
-        return new RangeTombstone(b(start), b(end), tstamp, delTime);
+        return new RangeTombstone(Slice.make(Slice.Bound.inclusiveStartOf(bb(start)), Slice.Bound.inclusiveEndOf(bb(end))), new SimpleDeletionTime(tstamp, delTime));
+    }
+
+    private static RangeTombstone rtei(int start, int end, long tstamp)
+    {
+        return rtei(start, end, tstamp, 0);
+    }
+
+    private static RangeTombstone rtei(int start, int end, long tstamp, int delTime)
+    {
+        return new RangeTombstone(Slice.make(Slice.Bound.exclusiveStartOf(bb(start)), Slice.Bound.inclusiveEndOf(bb(end))), new SimpleDeletionTime(tstamp, delTime));
+    }
+
+    private static RangeTombstone rtie(int start, int end, long tstamp)
+    {
+        return rtie(start, end, tstamp, 0);
+    }
+
+    private static RangeTombstone rtie(int start, int end, long tstamp, int delTime)
+    {
+        return new RangeTombstone(Slice.make(Slice.Bound.inclusiveStartOf(bb(start)), Slice.Bound.exclusiveEndOf(bb(end))), new SimpleDeletionTime(tstamp, delTime));
     }
 }

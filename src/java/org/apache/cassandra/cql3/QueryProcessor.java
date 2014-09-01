@@ -41,13 +41,14 @@ import org.apache.cassandra.cql3.functions.FunctionName;
 import org.apache.cassandra.cql3.functions.Functions;
 import org.apache.cassandra.cql3.statements.*;
 import org.apache.cassandra.db.*;
-import org.apache.cassandra.db.composites.*;
+import org.apache.cassandra.db.rows.RowIterator;
+import org.apache.cassandra.db.partitions.PartitionIterator;
+import org.apache.cassandra.db.partitions.PartitionIterators;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.exceptions.*;
 import org.apache.cassandra.metrics.CQLMetrics;
 import org.apache.cassandra.service.*;
 import org.apache.cassandra.service.pager.QueryPager;
-import org.apache.cassandra.service.pager.QueryPagers;
 import org.apache.cassandra.thrift.ThriftClientState;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.transport.messages.ResultMessage;
@@ -192,28 +193,6 @@ public class QueryProcessor implements QueryHandler
         }
     }
 
-    public static void validateCellNames(Iterable<CellName> cellNames, CellNameType type) throws InvalidRequestException
-    {
-        for (CellName name : cellNames)
-            validateCellName(name, type);
-    }
-
-    public static void validateCellName(CellName name, CellNameType type) throws InvalidRequestException
-    {
-        validateComposite(name, type);
-        if (name.isEmpty())
-            throw new InvalidRequestException("Invalid empty value for clustering column of COMPACT TABLE");
-    }
-
-    public static void validateComposite(Composite name, CType type) throws InvalidRequestException
-    {
-        long serializedSize = type.serializer().serializedSize(name, TypeSizes.NATIVE);
-        if (serializedSize > Cell.MAX_NAME_LENGTH)
-            throw new InvalidRequestException(String.format("The sum of all clustering columns is too long (%s > %s)",
-                                                            serializedSize,
-                                                            Cell.MAX_NAME_LENGTH));
-    }
-
     public ResultMessage processStatement(CQLStatement statement, QueryState queryState, QueryOptions options)
     throws RequestExecutionException, RequestValidationException
     {
@@ -277,6 +256,11 @@ public class QueryProcessor implements QueryHandler
 
     private static QueryOptions makeInternalOptions(ParsedStatement.Prepared prepared, Object[] values)
     {
+        return makeInternalOptions(prepared, values, ConsistencyLevel.ONE);
+    }
+
+    private static QueryOptions makeInternalOptions(ParsedStatement.Prepared prepared, Object[] values, ConsistencyLevel cl)
+    {
         if (prepared.boundNames.size() != values.length)
             throw new IllegalArgumentException(String.format("Invalid number of values. Expecting %d but got %d", prepared.boundNames.size(), values.length));
 
@@ -287,7 +271,7 @@ public class QueryProcessor implements QueryHandler
             AbstractType type = prepared.boundNames.get(i).type;
             boundValues.add(value instanceof ByteBuffer || value == null ? (ByteBuffer)value : type.decompose(value));
         }
-        return QueryOptions.forInternalCalls(boundValues);
+        return QueryOptions.forInternalCalls(cl, boundValues);
     }
 
     private static ParsedStatement.Prepared prepareInternal(String query) throws RequestValidationException
@@ -313,6 +297,24 @@ public class QueryProcessor implements QueryHandler
             return null;
     }
 
+    public static UntypedResultSet execute(String query, ConsistencyLevel cl, QueryState state, Object... values)
+    throws RequestExecutionException
+    {
+        try
+        {
+            ParsedStatement.Prepared prepared = prepareInternal(query);
+            ResultMessage result = prepared.statement.execute(state, makeInternalOptions(prepared, values));
+            if (result instanceof ResultMessage.Rows)
+                return UntypedResultSet.create(((ResultMessage.Rows)result).result);
+            else
+                return null;
+        }
+        catch (RequestValidationException e)
+        {
+            throw new RuntimeException("Error validating " + query, e);
+        }
+    }
+
     public static UntypedResultSet executeInternalWithPaging(String query, int pageSize, Object... values)
     {
         ParsedStatement.Prepared prepared = prepareInternal(query);
@@ -320,7 +322,7 @@ public class QueryProcessor implements QueryHandler
             throw new IllegalArgumentException("Only SELECTs can be paged");
 
         SelectStatement select = (SelectStatement)prepared.statement;
-        QueryPager pager = QueryPagers.localPager(select.getPageableCommand(makeInternalOptions(prepared, values)));
+        QueryPager pager = select.getQuery(makeInternalOptions(prepared, values), FBUtilities.nowInSeconds()).getPager(null);
         return UntypedResultSet.create(select, pager, pageSize);
     }
 
@@ -339,16 +341,19 @@ public class QueryProcessor implements QueryHandler
             return null;
     }
 
-    public static UntypedResultSet resultify(String query, Row row)
+    public static UntypedResultSet resultify(String query, RowIterator partition)
     {
-        return resultify(query, Collections.singletonList(row));
+        return resultify(query, PartitionIterators.singletonIterator(partition));
     }
 
-    public static UntypedResultSet resultify(String query, List<Row> rows)
+    public static UntypedResultSet resultify(String query, PartitionIterator partitions)
     {
-        SelectStatement ss = (SelectStatement) getStatement(query, null).statement;
-        ResultSet cqlRows = ss.process(rows);
-        return UntypedResultSet.create(cqlRows);
+        try (PartitionIterator iter = partitions)
+        {
+            SelectStatement ss = (SelectStatement) getStatement(query, null).statement;
+            ResultSet cqlRows = ss.process(iter, FBUtilities.nowInSeconds());
+            return UntypedResultSet.create(cqlRows);
+        }
     }
 
     public ResultMessage.Prepared prepare(String query,
