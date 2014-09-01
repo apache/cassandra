@@ -47,6 +47,9 @@ New features
      longer a responsible for that range of keys.  
      If you want the old behavior (due to a lost node perhaps)
      you can set the following property (-Dcassandra.consistent.rangemovement=false)
+   - It is now possible to use quoted identifiers in triggers' names. 
+     WARNING: if you previously used triggers with capital letters in their 
+     names, then you must quote them from now on.
 
 Upgrading
 ---------
