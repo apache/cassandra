@@ -1618,6 +1618,11 @@ public class SSTableReader extends SSTable
         return !isCompacted.getAndSet(true);
     }
 
+    public boolean isMarkedCompacted()
+    {
+        return isCompacted.get();
+    }
+
     public void markSuspect()
     {
         if (logger.isDebugEnabled())
