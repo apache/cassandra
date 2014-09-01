@@ -323,10 +323,9 @@ whereClause returns [List<Relation> clause]
 
 orderByClause[Map<ColumnIdentifier, Boolean> orderings]
     @init{
-        ColumnIdentifier orderBy = null;
         boolean reversed = false;
     }
-    : c=cident { orderBy = c; } (K_ASC | K_DESC { reversed = true; })? { orderings.put(c, reversed); }
+    : c=cident (K_ASC | K_DESC { reversed = true; })? { orderings.put(c, reversed); }
     ;
 
 /**
