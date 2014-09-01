@@ -534,7 +534,10 @@ public class LeveledManifest
                 // add sstables from L1 that overlap candidates
                 // if the overlapping ones are already busy in a compaction, leave it out.
                 // TODO try to find a set of L0 sstables that only overlaps with non-busy L1 sstables
-                candidates = Sets.union(candidates, overlapping(candidates, generations[1]));
+                Set<SSTableReader> l1overlapping = overlapping(candidates, generations[1]);
+                if (Sets.intersection(l1overlapping, compacting).size() > 0)
+                    return Collections.emptyList();
+                candidates = Sets.union(candidates, l1overlapping);
             }
             if (candidates.size() < 2)
                 return Collections.emptyList();
