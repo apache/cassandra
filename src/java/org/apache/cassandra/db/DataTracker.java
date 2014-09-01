@@ -22,6 +22,7 @@ import java.util.*;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicReference;
 
+import com.google.common.base.Predicate;
 import com.google.common.collect.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -182,6 +183,18 @@ public class DataTracker
         Set<SSTableReader> inactive = Sets.difference(ImmutableSet.copyOf(sstables), currentView.compacting);
         if (inactive.size() < sstables.size())
             return false;
+
+        if (Iterables.any(sstables, new Predicate<SSTableReader>()
+        {
+            @Override
+            public boolean apply(SSTableReader sstable)
+            {
+                return sstable.isMarkedCompacted();
+            }
+        }))
+        {
+            return false;
+        }
 
         View newView = currentView.markCompacting(inactive);
         return view.compareAndSet(currentView, newView);
