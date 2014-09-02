@@ -24,7 +24,7 @@ public class TupleTypeTest extends CQLTester
     @Test
     public void testTuplePutAndGet() throws Throwable
     {
-        createTable("CREATE TABLE %s (k int PRIMARY KEY, t tuple<int, text, double>)");
+        createTable("CREATE TABLE %s (k int PRIMARY KEY, t frozen<tuple<int, text, double>>)");
 
         execute("INSERT INTO %s (k, t) VALUES (?, ?)", 0, tuple(3, "foo", 3.4));
         execute("INSERT INTO %s (k, t) VALUES (?, ?)", 1, tuple(8, "bar", 0.2));
@@ -49,7 +49,7 @@ public class TupleTypeTest extends CQLTester
     @Test
     public void testNestedTuple() throws Throwable
     {
-        createTable("CREATE TABLE %s (k int PRIMARY KEY, t tuple<int, tuple<text, double>>)");
+        createTable("CREATE TABLE %s (k int PRIMARY KEY, t frozen<tuple<int, tuple<text, double>>>)");
 
         execute("INSERT INTO %s (k, t) VALUES (?, ?)", 0, tuple(3, tuple("foo", 3.4)));
         execute("INSERT INTO %s (k, t) VALUES (?, ?)", 1, tuple(8, tuple("bar", 0.2)));
@@ -62,7 +62,7 @@ public class TupleTypeTest extends CQLTester
     @Test
     public void testTupleInPartitionKey() throws Throwable
     {
-        createTable("CREATE TABLE %s (t tuple<int, text> PRIMARY KEY)");
+        createTable("CREATE TABLE %s (t frozen<tuple<int, text>> PRIMARY KEY)");
 
         execute("INSERT INTO %s (t) VALUES (?)", tuple(3, "foo"));
         assertAllRows(row(tuple(3, "foo")));
@@ -71,7 +71,7 @@ public class TupleTypeTest extends CQLTester
     @Test
     public void testTupleInClusteringKey() throws Throwable
     {
-        createTable("CREATE TABLE %s (k int, t tuple<int, text>, PRIMARY KEY (k, t))");
+        createTable("CREATE TABLE %s (k int, t frozen<tuple<int, text>>, PRIMARY KEY (k, t))");
 
         execute("INSERT INTO %s (k, t) VALUES (?, ?)", 0, tuple(5, "bar"));
         execute("INSERT INTO %s (k, t) VALUES (?, ?)", 0, tuple(3, "foo"));
@@ -89,9 +89,15 @@ public class TupleTypeTest extends CQLTester
     @Test
     public void testInvalidQueries() throws Throwable
     {
-        createTable("CREATE TABLE %s (k int PRIMARY KEY, t tuple<int, text, double>)");
+        createTable("CREATE TABLE %s (k int PRIMARY KEY, t frozen<tuple<int, text, double>>)");
 
         assertInvalidSyntax("INSERT INTO %s (k, t) VALUES (0, ())");
         assertInvalid("INSERT INTO %s (k, t) VALUES (0, (2, 'foo', 3.1, 'bar'))");
+    }
+
+    @Test
+    public void testNonFrozenTuple() throws Throwable
+    {
+        assertInvalid("CREATE TABLE wrong (k int PRIMARY KEY, v tuple<int, text>)");
     }
 }
