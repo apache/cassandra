@@ -237,12 +237,9 @@ public abstract class CQLTester
 
     protected UntypedResultSet execute(String query, Object... values) throws Throwable
     {
-        if (currentTable == null)
-            throw new RuntimeException("You must create a table first with createTable");
-
         try
         {
-            query = String.format(query, KEYSPACE + "." + currentTable);
+            query = currentTable == null ? query : String.format(query, KEYSPACE + "." + currentTable);
 
             UntypedResultSet rs;
             if (usePrepared)

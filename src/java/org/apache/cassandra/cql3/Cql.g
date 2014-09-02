@@ -1152,6 +1152,14 @@ comparatorType returns [CQL3Type.Raw t]
     | c=collection_type { $t = c; }
     | tt=tuple_type     { $t = tt; }
     | id=userTypeName   { $t = CQL3Type.Raw.userType(id); }
+    | K_FROZEN '<' f=comparatorType '>'
+      {
+        try {
+            $t = CQL3Type.Raw.frozen(f);
+        } catch (InvalidRequestException e) {
+            addRecognitionError(e.getMessage());
+        }
+      }
     | s=STRING_LITERAL
       {
         try {
@@ -1362,6 +1370,7 @@ K_TUPLE:       T U P L E;
 
 K_TRIGGER:     T R I G G E R;
 K_STATIC:      S T A T I C;
+K_FROZEN:      F R O Z E N;
 
 K_FUNCTION:    F U N C T I O N;
 K_RETURNS:     R E T U R N S;

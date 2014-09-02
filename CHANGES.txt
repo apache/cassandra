@@ -69,6 +69,7 @@ Merged from 1.2:
 
 
 2.1.0
+ * Add frozen keyword and require UDT to be frozen (CASSANDRA-7857)
  * Track added sstable size correctly (CASSANDRA-7239)
  * (cqlsh) Fix case insensitivity (CASSANDRA-7834)
  * Fix failure to stream ranges when moving (CASSANDRA-7836)
