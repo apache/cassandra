@@ -41,17 +41,17 @@ public class MemoryInputStream extends AbstractDataInput implements DataInput
         position += count;
     }
 
-    protected void seek(long pos)
+    public void seek(long pos)
     {
         position = (int) pos;
     }
 
-    protected long getPosition()
+    public long getPosition()
     {
         return position;
     }
 
-    protected long getPositionLimit()
+    public long getPositionLimit()
     {
         return mem.size();
     }

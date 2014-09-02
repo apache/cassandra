@@ -15,7 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.io.sstable;
+package org.apache.cassandra.io.sstable.format.big;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -38,11 +38,14 @@ import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Bounds;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.io.sstable.CorruptSSTableException;
+import org.apache.cassandra.io.sstable.SSTableIdentityIterator;
+import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.io.util.RandomAccessReader;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
-public class SSTableScanner implements ICompactionScanner
+public class BigTableScanner implements ICompactionScanner
 {
     protected final RandomAccessReader dfile;
     protected final RandomAccessReader ifile;
@@ -52,6 +55,7 @@ public class SSTableScanner implements ICompactionScanner
     private AbstractBounds<RowPosition> currentRange;
 
     private final DataRange dataRange;
+    private final RowIndexEntry.IndexSerializer rowIndexEntrySerializer;
 
     protected Iterator<OnDiskAtomIterator> iterator;
 
@@ -60,7 +64,7 @@ public class SSTableScanner implements ICompactionScanner
      * @param dataRange a single range to scan; must not be null
      * @param limiter background i/o RateLimiter; may be null
      */
-    SSTableScanner(SSTableReader sstable, DataRange dataRange, RateLimiter limiter)
+    public BigTableScanner(SSTableReader sstable, DataRange dataRange, RateLimiter limiter)
     {
         assert sstable != null;
 
@@ -68,6 +72,7 @@ public class SSTableScanner implements ICompactionScanner
         this.ifile = sstable.openIndexReader();
         this.sstable = sstable;
         this.dataRange = dataRange;
+        this.rowIndexEntrySerializer = sstable.descriptor.version.getSSTableFormat().getIndexSerializer(sstable.metadata);
 
         List<AbstractBounds<RowPosition>> boundsList = new ArrayList<>(2);
         if (dataRange.isWrapAround() && !dataRange.stopKey().isMinimum(sstable.partitioner))
@@ -89,7 +94,7 @@ public class SSTableScanner implements ICompactionScanner
      * @param tokenRanges A set of token ranges to scan
      * @param limiter background i/o RateLimiter; may be null
      */
-    SSTableScanner(SSTableReader sstable, Collection<Range<Token>> tokenRanges, RateLimiter limiter)
+    public BigTableScanner(SSTableReader sstable, Collection<Range<Token>> tokenRanges, RateLimiter limiter)
     {
         assert sstable != null;
 
@@ -97,6 +102,7 @@ public class SSTableScanner implements ICompactionScanner
         this.ifile = sstable.openIndexReader();
         this.sstable = sstable;
         this.dataRange = null;
+        this.rowIndexEntrySerializer = sstable.descriptor.version.getSSTableFormat().getIndexSerializer(sstable.metadata);
 
         List<Range<Token>> normalized = Range.normalize(tokenRanges);
         List<AbstractBounds<RowPosition>> boundsList = new ArrayList<>(normalized.size());
@@ -226,7 +232,7 @@ public class SSTableScanner implements ICompactionScanner
                             return endOfData();
 
                         currentKey = sstable.partitioner.decorateKey(ByteBufferUtil.readWithShortLength(ifile));
-                        currentEntry = sstable.metadata.comparator.rowIndexEntrySerializer().deserialize(ifile, sstable.descriptor.version);
+                        currentEntry = rowIndexEntrySerializer.deserialize(ifile, sstable.descriptor.version);
                     } while (!currentRange.contains(currentKey));
                 }
                 else
@@ -247,7 +253,7 @@ public class SSTableScanner implements ICompactionScanner
                 {
                     // we need the position of the start of the next key, regardless of whether it falls in the current range
                     nextKey = sstable.partitioner.decorateKey(ByteBufferUtil.readWithShortLength(ifile));
-                    nextEntry = sstable.metadata.comparator.rowIndexEntrySerializer().deserialize(ifile, sstable.descriptor.version);
+                    nextEntry = rowIndexEntrySerializer.deserialize(ifile, sstable.descriptor.version);
                     readEnd = nextEntry.position;
 
                     if (!currentRange.contains(nextKey))
@@ -259,10 +265,9 @@ public class SSTableScanner implements ICompactionScanner
 
                 if (dataRange == null || dataRange.selectsFullRowFor(currentKey.getKey()))
                 {
-                    dfile.seek(currentEntry.position);
+                    dfile.seek(currentEntry.position + currentEntry.headerOffset());
                     ByteBufferUtil.readWithShortLength(dfile); // key
-                    long dataSize = readEnd - dfile.getFilePointer();
-                    return new SSTableIdentityIterator(sstable, dfile, currentKey, dataSize);
+                    return new SSTableIdentityIterator(sstable, dfile, currentKey);
                 }
 
                 return new LazyColumnIterator(currentKey, new IColumnIteratorFactory()

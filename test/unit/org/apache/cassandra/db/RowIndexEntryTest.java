@@ -28,6 +28,7 @@ import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.composites.CellNames;
 import org.apache.cassandra.db.composites.SimpleDenseCellNameType;
 import org.apache.cassandra.db.marshal.UTF8Type;
+import org.apache.cassandra.io.sstable.IndexHelper;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.locator.SimpleStrategy;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -39,10 +40,10 @@ public class RowIndexEntryTest extends SchemaLoader
     @Test
     public void testSerializedSize() throws IOException
     {
-        final RowIndexEntry simple = new RowIndexEntry(123);
+        final RowIndexEntry<IndexHelper.IndexInfo> simple = new RowIndexEntry<>(123);
 
         DataOutputBuffer buffer = new DataOutputBuffer();
-        RowIndexEntry.Serializer serializer = new RowIndexEntry.Serializer(new SimpleDenseCellNameType(UTF8Type.instance));
+        RowIndexEntry.Serializer serializer = new RowIndexEntry.Serializer(new IndexHelper.IndexInfo.Serializer(new SimpleDenseCellNameType(UTF8Type.instance)));
 
         serializer.serialize(simple, buffer);
 
@@ -70,7 +71,7 @@ public class RowIndexEntryTest extends SchemaLoader
 
         }}.build();
 
-        RowIndexEntry withIndex = RowIndexEntry.create(0xdeadbeef, DeletionTime.LIVE, columnIndex);
+        RowIndexEntry<IndexHelper.IndexInfo> withIndex = RowIndexEntry.create(0xdeadbeef, DeletionTime.LIVE, columnIndex);
 
         serializer.serialize(withIndex, buffer);
         Assert.assertEquals(buffer.getLength(), serializer.serializedSize(withIndex));

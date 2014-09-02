@@ -147,7 +147,7 @@ public class DeletionInfo implements IMeasurableMemory
     /**
      * Returns a new {@link InOrderTester} in forward order.
      */
-    InOrderTester inOrderTester()
+    public InOrderTester inOrderTester()
     {
         return inOrderTester(false);
     }

@@ -51,7 +51,7 @@ public class DataIntegrityMetadata
         public ChecksumValidator(Descriptor descriptor) throws IOException
         {
             this.descriptor = descriptor;
-            checksum = descriptor.version.hasAllAdlerChecksums ? new Adler32() : new PureJavaCrc32();
+            checksum = descriptor.version.hasAllAdlerChecksums() ? new Adler32() : new PureJavaCrc32();
             reader = RandomAccessReader.open(new File(descriptor.filenameFor(Component.CRC)));
             chunkSize = reader.readInt();
         }

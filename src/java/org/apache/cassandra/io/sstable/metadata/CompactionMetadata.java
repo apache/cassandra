@@ -27,6 +27,7 @@ import com.clearspring.analytics.stream.cardinality.ICardinality;
 
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.sstable.Descriptor;
+import org.apache.cassandra.io.sstable.format.Version;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
@@ -91,7 +92,7 @@ public class CompactionMetadata extends MetadataComponent
             ByteBufferUtil.writeWithLength(component.cardinalityEstimator.getBytes(), out);
         }
 
-        public CompactionMetadata deserialize(Descriptor.Version version, DataInput in) throws IOException
+        public CompactionMetadata deserialize(Version version, DataInput in) throws IOException
         {
             int nbAncestors = in.readInt();
             Set<Integer> ancestors = new HashSet<>(nbAncestors);

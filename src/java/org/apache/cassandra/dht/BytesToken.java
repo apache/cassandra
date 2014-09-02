@@ -49,7 +49,6 @@ public class BytesToken extends Token<byte[]>
         return FBUtilities.compareUnsigned(token, o.token, 0, 0, token.length, o.token.length);
     }
 
-
     @Override
     public int hashCode()
     {

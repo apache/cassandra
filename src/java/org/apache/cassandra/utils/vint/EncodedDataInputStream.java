@@ -47,17 +47,17 @@ public class EncodedDataInputStream extends AbstractDataInput implements DataInp
         return input.readByte() & 0xFF;
     }
 
-    protected void seek(long position)
+    public void seek(long position)
     {
         throw new UnsupportedOperationException();
     }
 
-    protected long getPosition()
+    public long getPosition()
     {
         throw new UnsupportedOperationException();
     }
 
-    protected long getPositionLimit()
+    public long getPositionLimit()
     {
         throw new UnsupportedOperationException();
     }

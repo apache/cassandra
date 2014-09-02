@@ -24,11 +24,14 @@ import java.util.List;
 import com.google.common.collect.ImmutableList;
 
 import org.apache.cassandra.db.columniterator.OnDiskAtomIterator;
+import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.utils.CloseableIterator;
 import org.apache.cassandra.utils.MergeIterator;
 
 public class CompactionIterable extends AbstractCompactionIterable
 {
+    final SSTableFormat format;
+
     private static final Comparator<OnDiskAtomIterator> comparator = new Comparator<OnDiskAtomIterator>()
     {
         public int compare(OnDiskAtomIterator i1, OnDiskAtomIterator i2)
@@ -37,9 +40,10 @@ public class CompactionIterable extends AbstractCompactionIterable
         }
     };
 
-    public CompactionIterable(OperationType type, List<ICompactionScanner> scanners, CompactionController controller)
+    public CompactionIterable(OperationType type, List<ICompactionScanner> scanners, CompactionController controller, SSTableFormat.Type formatType)
     {
         super(controller, type, scanners);
+        this.format = formatType.info;
     }
 
     public CloseableIterator<AbstractCompactedRow> iterator()
@@ -71,7 +75,7 @@ public class CompactionIterable extends AbstractCompactionIterable
                 // create a new container for rows, since we're going to clear ours for the next one,
                 // and the AbstractCompactionRow code should be able to assume that the collection it receives
                 // won't be pulled out from under it.
-                return new LazilyCompactedRow(controller, ImmutableList.copyOf(rows));
+                return format.getCompactedRowWriter(controller, ImmutableList.copyOf(rows));
             }
             finally
             {

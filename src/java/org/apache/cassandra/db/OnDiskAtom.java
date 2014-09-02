@@ -26,6 +26,7 @@ import org.apache.cassandra.db.composites.CellNameType;
 import org.apache.cassandra.db.composites.Composite;
 import org.apache.cassandra.io.ISSTableSerializer;
 import org.apache.cassandra.io.sstable.Descriptor;
+import org.apache.cassandra.io.sstable.format.Version;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.serializers.MarshalException;
 
@@ -65,12 +66,12 @@ public interface OnDiskAtom
             }
         }
 
-        public OnDiskAtom deserializeFromSSTable(DataInput in, Descriptor.Version version) throws IOException
+        public OnDiskAtom deserializeFromSSTable(DataInput in, Version version) throws IOException
         {
             return deserializeFromSSTable(in, ColumnSerializer.Flag.LOCAL, Integer.MIN_VALUE, version);
         }
 
-        public OnDiskAtom deserializeFromSSTable(DataInput in, ColumnSerializer.Flag flag, int expireBefore, Descriptor.Version version) throws IOException
+        public OnDiskAtom deserializeFromSSTable(DataInput in, ColumnSerializer.Flag flag, int expireBefore, Version version) throws IOException
         {
             Composite name = type.serializer().deserialize(in);
             if (name.isEmpty())

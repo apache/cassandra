@@ -67,32 +67,6 @@ public class IndexHelper
     }
 
     /**
-     * Deserialize the index into a structure and return it
-     *
-     * @param in input source
-     * @param type the comparator type for the column family
-     *
-     * @return ArrayList<IndexInfo> - list of de-serialized indexes
-     * @throws IOException if an I/O error occurs.
-     */
-    public static List<IndexInfo> deserializeIndex(FileDataInput in, CType type) throws IOException
-    {
-        int columnIndexSize = in.readInt();
-        if (columnIndexSize == 0)
-            return Collections.<IndexInfo>emptyList();
-        ArrayList<IndexInfo> indexList = new ArrayList<IndexInfo>();
-        FileMark mark = in.mark();
-        ISerializer<IndexInfo> serializer = type.indexSerializer();
-        while (in.bytesPastMark(mark) < columnIndexSize)
-        {
-            indexList.add(serializer.deserialize(in));
-        }
-        assert in.bytesPastMark(mark) == columnIndexSize;
-
-        return indexList;
-    }
-
-    /**
      * The index of the IndexInfo in which a scan starting with @name should begin.
      *
      * @param name

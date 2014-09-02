@@ -65,12 +65,12 @@ public class MappedFileDataInput extends AbstractDataInput implements FileDataIn
         return segmentOffset + position;
     }
 
-    protected long getPosition()
+    public long getPosition()
     {
         return segmentOffset + position;
     }
 
-    protected long getPositionLimit()
+    public long getPositionLimit()
     {
         return segmentOffset + buffer.capacity();
     }

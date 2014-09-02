@@ -27,15 +27,14 @@ import java.util.List;
 import com.google.common.primitives.Ints;
 
 import org.apache.cassandra.cache.IMeasurableMemory;
-import org.apache.cassandra.db.composites.CType;
 import org.apache.cassandra.io.ISerializer;
-import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.IndexHelper;
+import org.apache.cassandra.io.sstable.format.Version;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.utils.ObjectSizes;
 
-public class RowIndexEntry implements IMeasurableMemory
+public class RowIndexEntry<T> implements IMeasurableMemory
 {
     private static final long EMPTY_SIZE = ObjectSizes.measure(new RowIndexEntry(0));
 
@@ -46,12 +45,12 @@ public class RowIndexEntry implements IMeasurableMemory
         this.position = position;
     }
 
-    protected int promotedSize(CType type)
+    public int promotedSize(ISerializer<T> idxSerializer)
     {
         return 0;
     }
 
-    public static RowIndexEntry create(long position, DeletionTime deletionTime, ColumnIndex index)
+    public static RowIndexEntry<IndexHelper.IndexInfo> create(long position, DeletionTime deletionTime, ColumnIndex index)
     {
         assert index != null;
         assert deletionTime != null;
@@ -62,7 +61,7 @@ public class RowIndexEntry implements IMeasurableMemory
         if (index.columnsIndex.size() > 1)
             return new IndexedEntry(position, deletionTime, index.columnsIndex);
         else
-            return new RowIndexEntry(position);
+            return new RowIndexEntry<>(position);
     }
 
     /**
@@ -79,7 +78,16 @@ public class RowIndexEntry implements IMeasurableMemory
         throw new UnsupportedOperationException();
     }
 
-    public List<IndexHelper.IndexInfo> columnsIndex()
+    /**
+     * @return the offset to the start of the header information for this row.
+     * For some formats this may not be the start of the row.
+     */
+    public long headerOffset()
+    {
+        return 0;
+    }
+
+    public List<T> columnsIndex()
     {
         return Collections.emptyList();
     }
@@ -89,31 +97,37 @@ public class RowIndexEntry implements IMeasurableMemory
         return EMPTY_SIZE;
     }
 
-    public static class Serializer
+    public static interface IndexSerializer<T>
     {
-        private final CType type;
+        void serialize(RowIndexEntry<T> rie, DataOutputPlus out) throws IOException;
+        RowIndexEntry<T> deserialize(DataInput in, Version version) throws IOException;
+        public int serializedSize(RowIndexEntry<T> rie);
+    }
 
-        public Serializer(CType type)
+    public static class Serializer implements IndexSerializer<IndexHelper.IndexInfo>
+    {
+        private final ISerializer<IndexHelper.IndexInfo> idxSerializer;
+
+        public Serializer(ISerializer<IndexHelper.IndexInfo> idxSerializer)
         {
-            this.type = type;
+            this.idxSerializer = idxSerializer;
         }
 
-        public void serialize(RowIndexEntry rie, DataOutputPlus out) throws IOException
+        public void serialize(RowIndexEntry<IndexHelper.IndexInfo> rie, DataOutputPlus out) throws IOException
         {
             out.writeLong(rie.position);
-            out.writeInt(rie.promotedSize(type));
+            out.writeInt(rie.promotedSize(idxSerializer));
 
             if (rie.isIndexed())
             {
                 DeletionTime.serializer.serialize(rie.deletionTime(), out);
                 out.writeInt(rie.columnsIndex().size());
-                ISerializer<IndexHelper.IndexInfo> idxSerializer = type.indexSerializer();
                 for (IndexHelper.IndexInfo info : rie.columnsIndex())
                     idxSerializer.serialize(info, out);
             }
         }
 
-        public RowIndexEntry deserialize(DataInput in, Descriptor.Version version) throws IOException
+        public RowIndexEntry<IndexHelper.IndexInfo> deserialize(DataInput in, Version version) throws IOException
         {
             long position = in.readLong();
 
@@ -123,8 +137,7 @@ public class RowIndexEntry implements IMeasurableMemory
                 DeletionTime deletionTime = DeletionTime.serializer.deserialize(in);
 
                 int entries = in.readInt();
-                ISerializer<IndexHelper.IndexInfo> idxSerializer = type.indexSerializer();
-                List<IndexHelper.IndexInfo> columnsIndex = new ArrayList<IndexHelper.IndexInfo>(entries);
+                List<IndexHelper.IndexInfo> columnsIndex = new ArrayList<>(entries);
                 for (int i = 0; i < entries; i++)
                     columnsIndex.add(idxSerializer.deserialize(in));
 
@@ -132,7 +145,7 @@ public class RowIndexEntry implements IMeasurableMemory
             }
             else
             {
-                return new RowIndexEntry(position);
+                return new RowIndexEntry<>(position);
             }
         }
 
@@ -151,9 +164,9 @@ public class RowIndexEntry implements IMeasurableMemory
             FileUtils.skipBytesFully(in, size);
         }
 
-        public int serializedSize(RowIndexEntry rie)
+        public int serializedSize(RowIndexEntry<IndexHelper.IndexInfo> rie)
         {
-            int size = TypeSizes.NATIVE.sizeof(rie.position) + TypeSizes.NATIVE.sizeof(rie.promotedSize(type));
+            int size = TypeSizes.NATIVE.sizeof(rie.position) + TypeSizes.NATIVE.sizeof(rie.promotedSize(idxSerializer));
 
             if (rie.isIndexed())
             {
@@ -162,10 +175,10 @@ public class RowIndexEntry implements IMeasurableMemory
                 size += DeletionTime.serializer.serializedSize(rie.deletionTime(), TypeSizes.NATIVE);
                 size += TypeSizes.NATIVE.sizeof(index.size());
 
-                ISerializer<IndexHelper.IndexInfo> idxSerializer = type.indexSerializer();
                 for (IndexHelper.IndexInfo info : index)
                     size += idxSerializer.serializedSize(info, TypeSizes.NATIVE);
             }
+
 
             return size;
         }
@@ -174,7 +187,7 @@ public class RowIndexEntry implements IMeasurableMemory
     /**
      * An entry in the row index for a row whose columns are indexed.
      */
-    private static class IndexedEntry extends RowIndexEntry
+    private static class IndexedEntry extends RowIndexEntry<IndexHelper.IndexInfo>
     {
         private final DeletionTime deletionTime;
         private final List<IndexHelper.IndexInfo> columnsIndex;
@@ -204,12 +217,11 @@ public class RowIndexEntry implements IMeasurableMemory
         }
 
         @Override
-        public int promotedSize(CType type)
+        public int promotedSize(ISerializer<IndexHelper.IndexInfo> idxSerializer)
         {
             TypeSizes typeSizes = TypeSizes.NATIVE;
             long size = DeletionTime.serializer.serializedSize(deletionTime, typeSizes);
             size += typeSizes.sizeof(columnsIndex.size()); // number of entries
-            ISerializer<IndexHelper.IndexInfo> idxSerializer = type.indexSerializer();
             for (IndexHelper.IndexInfo info : columnsIndex)
                 size += idxSerializer.serializedSize(info, typeSizes);
 

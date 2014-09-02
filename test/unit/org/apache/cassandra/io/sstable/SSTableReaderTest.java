@@ -36,6 +36,7 @@ import java.util.concurrent.ThreadPoolExecutor;
 import com.google.common.collect.Sets;
 import org.apache.cassandra.cache.CachingOptions;
 import org.apache.cassandra.config.KSMetaData;
+import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.locator.SimpleStrategy;
 import org.junit.Assert;
 import org.junit.BeforeClass;

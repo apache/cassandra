@@ -20,6 +20,7 @@ package org.apache.cassandra.io.util;
 import java.io.Closeable;
 import java.io.DataInput;
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.ByteBuffer;
 
 public interface FileDataInput extends DataInput, Closeable

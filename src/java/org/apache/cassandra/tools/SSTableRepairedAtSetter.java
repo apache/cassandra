@@ -77,7 +77,7 @@ public class SSTableRepairedAtSetter
         for (String fname: fileNames)
         {
             Descriptor descriptor = Descriptor.fromFilename(fname);
-            if (descriptor.version.hasRepairedAt)
+            if (descriptor.version.hasRepairedAt())
             {
                 if (setIsRepaired)
                 {

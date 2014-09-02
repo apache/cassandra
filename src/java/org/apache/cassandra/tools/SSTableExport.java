@@ -22,6 +22,8 @@ import java.io.IOException;
 import java.io.PrintStream;
 import java.util.*;
 
+import org.apache.cassandra.db.compaction.ICompactionScanner;
+import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.commons.cli.*;
 
 import org.apache.cassandra.config.CFMetaData;
@@ -115,7 +117,7 @@ public class SSTableExport
     }
 
     /**
-     * Serialize a given cell to a List of Objects that jsonMapper knows how to turn into strings.  Format is
+     * Serialize a given cell to a List of Objects that jsonMapper knows how to turn into strings.  Type is
      *
      * human_readable_name, value, timestamp, [flag, [options]]
      *
@@ -318,10 +320,10 @@ public class SSTableExport
         Set<String> excludeSet = new HashSet<String>();
 
         if (excludes != null)
-            excludeSet = new HashSet<String>(Arrays.asList(excludes));
+            excludeSet = new HashSet<>(Arrays.asList(excludes));
 
         SSTableIdentityIterator row;
-        SSTableScanner scanner = reader.getScanner();
+        ICompactionScanner scanner = reader.getScanner();
         try
         {
             outs.println("[");

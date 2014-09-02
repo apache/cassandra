@@ -41,8 +41,6 @@ table_definition: |
         fval float,
         ival int,
         uid timeuuid,
-        dates list<timestamp>,
-        inets set<inet>,
         value blob,
         PRIMARY KEY((name, choice), date)
   ) WITH compaction = { 'class':'LeveledCompactionStrategy' }

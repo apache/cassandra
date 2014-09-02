@@ -44,6 +44,8 @@ import com.google.common.collect.AbstractIterator;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.MapDifference;
 import com.google.common.collect.Maps;
+import org.apache.cassandra.io.sstable.format.Version;
+import org.apache.cassandra.io.util.FileDataInput;
 import org.apache.commons.lang3.ArrayUtils;
 import org.apache.commons.lang3.builder.HashCodeBuilder;
 import org.apache.commons.lang3.builder.ToStringBuilder;
@@ -1460,17 +1462,17 @@ public final class CFMetaData
         return (cfName + "_" + columnName + "_idx").replaceAll("\\W", "");
     }
 
-    public Iterator<OnDiskAtom> getOnDiskIterator(DataInput in, Descriptor.Version version)
+    public Iterator<OnDiskAtom> getOnDiskIterator(FileDataInput in, Version version)
     {
         return getOnDiskIterator(in, ColumnSerializer.Flag.LOCAL, Integer.MIN_VALUE, version);
     }
 
-    public Iterator<OnDiskAtom> getOnDiskIterator(DataInput in, ColumnSerializer.Flag flag, int expireBefore, Descriptor.Version version)
+    public Iterator<OnDiskAtom> getOnDiskIterator(FileDataInput in, ColumnSerializer.Flag flag, int expireBefore, Version version)
     {
-        return AbstractCell.onDiskIterator(in, flag, expireBefore, version, comparator);
+        return version.getSSTableFormat().getOnDiskIterator(in, flag, expireBefore, this, version);
     }
 
-    public AtomDeserializer getOnDiskDeserializer(DataInput in, Descriptor.Version version)
+    public AtomDeserializer getOnDiskDeserializer(DataInput in, Version version)
     {
         return new AtomDeserializer(comparator, in, ColumnSerializer.Flag.LOCAL, Integer.MIN_VALUE, version);
     }

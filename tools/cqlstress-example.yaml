@@ -42,9 +42,10 @@ table_definition: |
         uid timeuuid,
         value blob,
         PRIMARY KEY((name,choice), date, address, dbl, lval, ival, uid)
-  ) WITH COMPACT STORAGE 
-    AND compaction = { 'class':'LeveledCompactionStrategy' }
-    AND comment='A table of many types to test wide rows'
+  ) 
+    WITH compaction = { 'class':'LeveledCompactionStrategy' }
+#    AND compression = { 'sstable_compression' : '' }
+#    AND comment='A table of many types to test wide rows'
 
 #
 # Optional meta information on the generated columns in the above table
@@ -67,7 +68,7 @@ table_definition: |
 columnspec:
   - name: name
     size: uniform(1..10)
-    population: uniform(1..1M)     # the range of unique values to select for the field (default is 100Billion)
+    population: uniform(1..10)     # the range of unique values to select for the field (default is 100Billion)
   - name: date
     cluster: uniform(20..40)
   - name: lval

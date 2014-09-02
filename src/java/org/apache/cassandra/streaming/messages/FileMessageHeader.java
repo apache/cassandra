@@ -26,6 +26,7 @@ import java.util.UUID;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.compress.CompressionMetadata;
+import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.streaming.compress.CompressionInfo;
@@ -43,6 +44,9 @@ public class FileMessageHeader
     public final int sequenceNumber;
     /** SSTable version */
     public final String version;
+
+    /** SSTable format **/
+    public final SSTableFormat.Type format;
     public final long estimatedKeys;
     public final List<Pair<Long, Long>> sections;
     public final CompressionInfo compressionInfo;
@@ -52,6 +56,7 @@ public class FileMessageHeader
     public FileMessageHeader(UUID cfId,
                              int sequenceNumber,
                              String version,
+                             SSTableFormat.Type format,
                              long estimatedKeys,
                              List<Pair<Long, Long>> sections,
                              CompressionInfo compressionInfo,
@@ -61,6 +66,7 @@ public class FileMessageHeader
         this.cfId = cfId;
         this.sequenceNumber = sequenceNumber;
         this.version = version;
+        this.format = format;
         this.estimatedKeys = estimatedKeys;
         this.sections = sections;
         this.compressionInfo = compressionInfo;
@@ -95,6 +101,7 @@ public class FileMessageHeader
         sb.append("cfId: ").append(cfId);
         sb.append(", #").append(sequenceNumber);
         sb.append(", version: ").append(version);
+        sb.append(", format: ").append(format);
         sb.append(", estimated keys: ").append(estimatedKeys);
         sb.append(", transfer size: ").append(size());
         sb.append(", compressed?: ").append(compressionInfo != null);
@@ -128,8 +135,15 @@ public class FileMessageHeader
             UUIDSerializer.serializer.serialize(header.cfId, out, version);
             out.writeInt(header.sequenceNumber);
             out.writeUTF(header.version);
-            out.writeLong(header.estimatedKeys);
 
+            //We can't stream to a node that doesn't understand a new sstable format
+            if (version < StreamMessage.VERSION_30 && header.format != SSTableFormat.Type.LEGACY && header.format != SSTableFormat.Type.BIG)
+                throw new UnsupportedOperationException("Can't stream non-legacy sstables to nodes < 3.0");
+
+            if (version >= StreamMessage.VERSION_30)
+                out.writeUTF(header.format.name);
+
+            out.writeLong(header.estimatedKeys);
             out.writeInt(header.sections.size());
             for (Pair<Long, Long> section : header.sections)
             {
@@ -146,6 +160,11 @@ public class FileMessageHeader
             UUID cfId = UUIDSerializer.serializer.deserialize(in, MessagingService.current_version);
             int sequenceNumber = in.readInt();
             String sstableVersion = in.readUTF();
+
+            SSTableFormat.Type format = SSTableFormat.Type.LEGACY;
+            if (version >= StreamMessage.VERSION_30)
+                format = SSTableFormat.Type.validate(in.readUTF());
+
             long estimatedKeys = in.readLong();
             int count = in.readInt();
             List<Pair<Long, Long>> sections = new ArrayList<>(count);
@@ -154,7 +173,7 @@ public class FileMessageHeader
             CompressionInfo compressionInfo = CompressionInfo.serializer.deserialize(in, MessagingService.current_version);
             long repairedAt = in.readLong();
             int sstableLevel = in.readInt();
-            return new FileMessageHeader(cfId, sequenceNumber, sstableVersion, estimatedKeys, sections, compressionInfo, repairedAt, sstableLevel);
+            return new FileMessageHeader(cfId, sequenceNumber, sstableVersion, format, estimatedKeys, sections, compressionInfo, repairedAt, sstableLevel);
         }
 
         public long serializedSize(FileMessageHeader header, int version)
@@ -162,6 +181,10 @@ public class FileMessageHeader
             long size = UUIDSerializer.serializer.serializedSize(header.cfId, version);
             size += TypeSizes.NATIVE.sizeof(header.sequenceNumber);
             size += TypeSizes.NATIVE.sizeof(header.version);
+
+            if (version >= StreamMessage.VERSION_30)
+                size += TypeSizes.NATIVE.sizeof(header.format.name);
+
             size += TypeSizes.NATIVE.sizeof(header.estimatedKeys);
 
             size += TypeSizes.NATIVE.sizeof(header.sections.size());

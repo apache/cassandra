@@ -32,7 +32,9 @@ import org.apache.cassandra.streaming.StreamSession;
 public abstract class StreamMessage
 {
     /** Streaming protocol version */
-    public static final int CURRENT_VERSION = 3;
+    public static final int VERSION_20 = 2;
+    public static final int VERSION_30 = 3;
+    public static final int CURRENT_VERSION = VERSION_30;
 
     public static void serialize(StreamMessage message, DataOutputStreamAndChannel out, int version, StreamSession session) throws IOException
     {

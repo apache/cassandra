@@ -26,6 +26,10 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
+import org.apache.cassandra.db.columniterator.OnDiskAtomIterator;
+import org.apache.cassandra.io.sstable.format.SSTableFormat;
+import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.io.sstable.format.Version;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
@@ -37,7 +41,6 @@ import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.DeletionInfo;
 import org.apache.cassandra.db.Keyspace;
-import org.apache.cassandra.db.columniterator.SSTableNamesIterator;
 import org.apache.cassandra.db.composites.CellNameType;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Range;
@@ -92,7 +95,7 @@ public class LegacySSTableTest
     protected Descriptor getDescriptor(String ver)
     {
         File directory = new File(LEGACY_SSTABLE_ROOT + File.separator + ver + File.separator + KSNAME);
-        return new Descriptor(ver, directory, KSNAME, CFNAME, 0, Descriptor.Type.FINAL);
+        return new Descriptor(ver, directory, KSNAME, CFNAME, 0, Descriptor.Type.FINAL, SSTableFormat.Type.LEGACY);
     }
 
     /**
@@ -119,7 +122,7 @@ public class LegacySSTableTest
         StorageService.instance.initServer();
 
         for (File version : LEGACY_SSTABLE_ROOT.listFiles())
-            if (Descriptor.Version.validate(version.getName()) && new Descriptor.Version(version.getName()).isCompatible())
+            if (Version.validate(version.getName()) && SSTableFormat.Type.LEGACY.info.getVersion(version.getName()).isCompatible())
                 testStreaming(version.getName());
     }
 
@@ -144,7 +147,7 @@ public class LegacySSTableTest
         for (String keystring : TEST_DATA)
         {
             ByteBuffer key = ByteBufferUtil.bytes(keystring);
-            SSTableNamesIterator iter = new SSTableNamesIterator(sstable, Util.dk(key), FBUtilities.singleton(Util.cellname(key), type));
+            OnDiskAtomIterator iter = sstable.iterator(Util.dk(key), FBUtilities.singleton(Util.cellname(key), type));
             ColumnFamily cf = iter.getColumnFamily();
 
             // check not deleted (CASSANDRA-6527)
@@ -160,7 +163,7 @@ public class LegacySSTableTest
 
         for (File version : LEGACY_SSTABLE_ROOT.listFiles())
         {
-            if (Descriptor.Version.validate(version.getName()) && new Descriptor.Version(version.getName()).isCompatible())
+            if (Version.validate(version.getName()) && SSTableFormat.Type.LEGACY.info.getVersion(version.getName()).isCompatible())
             {
                 notSkipped = true;
                 testVersion(version.getName());
@@ -181,7 +184,7 @@ public class LegacySSTableTest
                 ByteBuffer key = ByteBufferUtil.bytes(keystring);
                 // confirm that the bloom filter does not reject any keys/names
                 DecoratedKey dk = reader.partitioner.decorateKey(key);
-                SSTableNamesIterator iter = new SSTableNamesIterator(reader, dk, FBUtilities.singleton(Util.cellname(key), type));
+                OnDiskAtomIterator iter = reader.iterator(dk, FBUtilities.singleton(Util.cellname(key), type));
                 assert iter.next().name().toByteBuffer().equals(key);
             }
 

@@ -21,6 +21,7 @@ import java.io.DataInput;
 import java.io.IOException;
 
 import org.apache.cassandra.io.sstable.Descriptor;
+import org.apache.cassandra.io.sstable.format.Version;
 import org.apache.cassandra.io.util.DataOutputPlus;
 
 public interface ISSTableSerializer<T>
@@ -43,5 +44,5 @@ public interface ISSTableSerializer<T>
      * @throws IOException
      * @return the type that was deserialized
      */
-    public T deserializeFromSSTable(DataInput in, Descriptor.Version version) throws IOException;
+    public T deserializeFromSSTable(DataInput in, Version version) throws IOException;
 }

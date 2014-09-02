@@ -130,12 +130,10 @@ public interface CType extends Comparator<Composite>
 
     public Serializer serializer();
 
-    public ISerializer<IndexInfo> indexSerializer();
     public IVersionedSerializer<ColumnSlice> sliceSerializer();
     public IVersionedSerializer<SliceQueryFilter> sliceQueryFilterSerializer();
     public DeletionInfo.Serializer deletionInfoSerializer();
     public RangeTombstone.Serializer rangeTombstoneSerializer();
-    public RowIndexEntry.Serializer rowIndexEntrySerializer();
 
     public interface Serializer extends ISerializer<Composite>
     {

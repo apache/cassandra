@@ -43,6 +43,9 @@ import java.util.concurrent.TimeUnit;
 import com.google.common.base.Function;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Sets;
+import org.apache.cassandra.io.sstable.*;
+import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.io.sstable.format.SSTableWriter;
 import org.apache.commons.lang3.ArrayUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.junit.BeforeClass;
@@ -74,12 +77,6 @@ import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.IncludingExcludingBounds;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.exceptions.ConfigurationException;
-import org.apache.cassandra.io.sstable.Component;
-import org.apache.cassandra.io.sstable.Descriptor;
-import org.apache.cassandra.io.sstable.SSTableDeletingTask;
-import org.apache.cassandra.io.sstable.SSTableReader;
-import org.apache.cassandra.io.sstable.SSTableSimpleWriter;
-import org.apache.cassandra.io.sstable.SSTableWriter;
 import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.locator.SimpleStrategy;
@@ -1780,12 +1777,12 @@ public class ColumnFamilyStoreTest
             {
                 MetadataCollector collector = new MetadataCollector(cfmeta.comparator);
                 collector.addAncestor(sstable1.descriptor.generation); // add ancestor from previously written sstable
-                return new SSTableWriter(makeFilename(directory, metadata.ksName, metadata.cfName),
-                                         0,
-                                         ActiveRepairService.UNREPAIRED_SSTABLE,
-                                         metadata,
-                                         StorageService.getPartitioner(),
-                                         collector);
+                return SSTableWriter.create(Descriptor.fromFilename(makeFilename(directory, metadata.ksName, metadata.cfName, DatabaseDescriptor.getSSTableFormat())),
+                        0L,
+                        ActiveRepairService.UNREPAIRED_SSTABLE,
+                        metadata,
+                        DatabaseDescriptor.getPartitioner(),
+                        collector);
             }
         };
         writer.newRow(key);
@@ -1837,12 +1834,12 @@ public class ColumnFamilyStoreTest
                 for (int ancestor : ancestors)
                     collector.addAncestor(ancestor);
                 String file = new Descriptor(directory, ks, cf, 3, Descriptor.Type.TEMP).filenameFor(Component.DATA);
-                return new SSTableWriter(file,
-                                         0,
-                                         ActiveRepairService.UNREPAIRED_SSTABLE,
-                                         metadata,
-                                         StorageService.getPartitioner(),
-                                         collector);
+                return SSTableWriter.create(Descriptor.fromFilename(file),
+                        0L,
+                        ActiveRepairService.UNREPAIRED_SSTABLE,
+                        metadata,
+                        StorageService.getPartitioner(),
+                        collector);
             }
         };
         writer.newRow(key);

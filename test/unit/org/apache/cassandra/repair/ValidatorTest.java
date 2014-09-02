@@ -22,6 +22,7 @@ import java.net.InetAddress;
 import java.security.MessageDigest;
 import java.util.UUID;
 
+import org.apache.cassandra.io.util.SequentialWriter;
 import org.junit.After;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -143,7 +144,7 @@ public class ValidatorTest
             super(key);
         }
 
-        public RowIndexEntry write(long currentPosition, DataOutputPlus out) throws IOException
+        public RowIndexEntry write(long currentPosition, SequentialWriter out) throws IOException
         {
             throw new UnsupportedOperationException();
         }

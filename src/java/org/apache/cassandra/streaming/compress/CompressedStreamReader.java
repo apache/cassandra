@@ -18,11 +18,14 @@
 package org.apache.cassandra.streaming.compress;
 
 import java.io.DataInputStream;
+
 import java.io.IOException;
 import java.nio.channels.Channels;
 import java.nio.channels.ReadableByteChannel;
 
 import com.google.common.base.Throwables;
+
+import org.apache.cassandra.io.sstable.format.SSTableWriter;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -31,7 +34,6 @@ import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.io.compress.CompressionMetadata;
-import org.apache.cassandra.io.sstable.SSTableWriter;
 import org.apache.cassandra.streaming.ProgressInfo;
 import org.apache.cassandra.streaming.StreamReader;
 import org.apache.cassandra.streaming.StreamSession;
@@ -72,21 +74,25 @@ public class CompressedStreamReader extends StreamReader
         }
         ColumnFamilyStore cfs = Keyspace.open(kscf.left).getColumnFamilyStore(kscf.right);
 
-        SSTableWriter writer = createWriter(cfs, totalSize, repairedAt);
+        SSTableWriter writer = createWriter(cfs, totalSize, repairedAt, format);
 
-        CompressedInputStream cis = new CompressedInputStream(Channels.newInputStream(channel), compressionInfo, inputVersion.hasPostCompressionAdlerChecksums);
+        CompressedInputStream cis = new CompressedInputStream(Channels.newInputStream(channel), compressionInfo, inputVersion.hasPostCompressionAdlerChecksums());
         BytesReadTracker in = new BytesReadTracker(new DataInputStream(cis));
         try
         {
             for (Pair<Long, Long> section : sections)
             {
-                long length = section.right - section.left;
+                assert in.getBytesRead() < totalSize;
+                int sectionLength = (int) (section.right - section.left);
+
                 // skip to beginning of section inside chunk
                 cis.position(section.left);
                 in.reset(0);
-                while (in.getBytesRead() < length)
+
+                while (in.getBytesRead() < sectionLength)
                 {
                     writeRow(writer, in, cfs);
+
                     // when compressed, report total bytes of compressed chunks read since remoteFile.size is the sum of chunks transferred
                     session.progress(desc, ProgressInfo.Direction.IN, cis.getTotalCompressedBytesRead(), totalSize);
                 }

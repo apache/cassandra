@@ -23,6 +23,7 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
 
+import org.apache.cassandra.io.sstable.format.Version;
 import org.apache.commons.lang3.builder.EqualsBuilder;
 import org.apache.commons.lang3.builder.HashCodeBuilder;
 
@@ -235,7 +236,7 @@ public class StatsMetadata extends MetadataComponent
             out.writeBoolean(component.hasLegacyCounterShards);
         }
 
-        public StatsMetadata deserialize(Descriptor.Version version, DataInput in) throws IOException
+        public StatsMetadata deserialize(Version version, DataInput in) throws IOException
         {
             EstimatedHistogram rowSizes = EstimatedHistogram.serializer.deserialize(in);
             EstimatedHistogram columnCounts = EstimatedHistogram.serializer.deserialize(in);
@@ -247,7 +248,7 @@ public class StatsMetadata extends MetadataComponent
             StreamingHistogram tombstoneHistogram = StreamingHistogram.serializer.deserialize(in);
             int sstableLevel = in.readInt();
             long repairedAt = 0;
-            if (version.hasRepairedAt)
+            if (version.hasRepairedAt())
                 repairedAt = in.readLong();
 
             int colCount = in.readInt();
@@ -261,7 +262,7 @@ public class StatsMetadata extends MetadataComponent
                 maxColumnNames.add(ByteBufferUtil.readWithShortLength(in));
 
             boolean hasLegacyCounterShards = true;
-            if (version.tracksLegacyCounterShards)
+            if (version.tracksLegacyCounterShards())
                 hasLegacyCounterShards = in.readBoolean();
 
             return new StatsMetadata(rowSizes,

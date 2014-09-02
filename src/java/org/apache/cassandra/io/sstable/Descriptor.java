@@ -22,13 +22,18 @@ import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.StringTokenizer;
 
+import com.google.common.base.CharMatcher;
 import com.google.common.base.Objects;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.Directories;
+import org.apache.cassandra.io.sstable.format.SSTableFormat;
+import org.apache.cassandra.io.sstable.format.Version;
 import org.apache.cassandra.io.sstable.metadata.IMetadataSerializer;
 import org.apache.cassandra.io.sstable.metadata.LegacyMetadataSerializer;
 import org.apache.cassandra.io.sstable.metadata.MetadataSerializer;
 import org.apache.cassandra.utils.Pair;
+import org.apache.commons.lang.StringUtils;
 
 import static org.apache.cassandra.io.sstable.Component.separator;
 
@@ -41,92 +46,6 @@ import static org.apache.cassandra.io.sstable.Component.separator;
  */
 public class Descriptor
 {
-    // versions are denoted as [major][minor].  Minor versions must be forward-compatible:
-    // new fields are allowed in e.g. the metadata component, but fields can't be removed
-    // or have their size changed.
-    //
-    // Minor versions were introduced with version "hb" for Cassandra 1.0.3; prior to that,
-    // we always incremented the major version.
-    public static class Version
-    {
-        // This needs to be at the begining for initialization sake
-        public static final String current_version = "la";
-
-        // ja (2.0.0): super columns are serialized as composites (note that there is no real format change,
-        //               this is mostly a marker to know if we should expect super columns or not. We do need
-        //               a major version bump however, because we should not allow streaming of super columns
-        //               into this new format)
-        //             tracks max local deletiontime in sstable metadata
-        //             records bloom_filter_fp_chance in metadata component
-        //             remove data size and column count from data file (CASSANDRA-4180)
-        //             tracks max/min column values (according to comparator)
-        // jb (2.0.1): switch from crc32 to adler32 for compression checksums
-        //             checksum the compressed data
-        // ka (2.1.0): new Statistics.db file format
-        //             index summaries can be downsampled and the sampling level is persisted
-        //             switch uncompressed checksums to adler32
-        //             tracks presense of legacy (local and remote) counter shards
-        // la (3.0.0): new file name format
-
-        public static final Version CURRENT = new Version(current_version);
-
-        private final String version;
-
-        public final boolean isLatestVersion;
-        public final boolean hasPostCompressionAdlerChecksums;
-        public final boolean hasSamplingLevel;
-        public final boolean newStatsFile;
-        public final boolean hasAllAdlerChecksums;
-        public final boolean hasRepairedAt;
-        public final boolean tracksLegacyCounterShards;
-        public final boolean newFileName;
-
-        public Version(String version)
-        {
-            this.version = version;
-            isLatestVersion = version.compareTo(current_version) == 0;
-            hasPostCompressionAdlerChecksums = version.compareTo("jb") >= 0;
-            hasSamplingLevel = version.compareTo("ka") >= 0;
-            newStatsFile = version.compareTo("ka") >= 0;
-            hasAllAdlerChecksums = version.compareTo("ka") >= 0;
-            hasRepairedAt = version.compareTo("ka") >= 0;
-            tracksLegacyCounterShards = version.compareTo("ka") >= 0;
-            newFileName = version.compareTo("la") >= 0;
-        }
-
-        /**
-         * @param ver SSTable version
-         * @return True if the given version string matches the format.
-         * @see #version
-         */
-        static boolean validate(String ver)
-        {
-            return ver != null && ver.matches("[a-z]+");
-        }
-
-        public boolean isCompatible()
-        {
-            return version.compareTo("ja") >= 0 && version.charAt(0) <= CURRENT.version.charAt(0);
-        }
-
-        @Override
-        public String toString()
-        {
-            return version;
-        }
-
-        @Override
-        public boolean equals(Object o)
-        {
-            return o == this || o instanceof Version && version.equals(((Version) o).version);
-        }
-
-        @Override
-        public int hashCode()
-        {
-            return version.hashCode();
-        }
-    }
 
     public static enum Type
     {
@@ -140,6 +59,7 @@ public class Descriptor
         }
     }
 
+
     public final File directory;
     /** version has the following format: <code>[a-z]+</code> */
     public final Version version;
@@ -147,6 +67,7 @@ public class Descriptor
     public final String cfname;
     public final int generation;
     public final Type type;
+    public final SSTableFormat.Type formatType;
     private final int hashCode;
 
     /**
@@ -154,29 +75,41 @@ public class Descriptor
      */
     public Descriptor(File directory, String ksname, String cfname, int generation, Type temp)
     {
-        this(Version.CURRENT, directory, ksname, cfname, generation, temp);
+        this(DatabaseDescriptor.getSSTableFormat().info.getLatestVersion(), directory, ksname, cfname, generation, temp, DatabaseDescriptor.getSSTableFormat());
     }
 
-    public Descriptor(String version, File directory, String ksname, String cfname, int generation, Type temp)
+    public Descriptor(File directory, String ksname, String cfname, int generation, Type temp, SSTableFormat.Type formatType)
     {
-        this(new Version(version), directory, ksname, cfname, generation, temp);
+        this(formatType.info.getLatestVersion(), directory, ksname, cfname, generation, temp, formatType);
     }
 
-    public Descriptor(Version version, File directory, String ksname, String cfname, int generation, Type temp)
+    public Descriptor(String version, File directory, String ksname, String cfname, int generation, Type temp, SSTableFormat.Type formatType)
     {
-        assert version != null && directory != null && ksname != null && cfname != null;
+        this(formatType.info.getVersion(version), directory, ksname, cfname, generation, temp, formatType);
+    }
+
+    public Descriptor(Version version, File directory, String ksname, String cfname, int generation, Type temp, SSTableFormat.Type formatType)
+    {
+        assert version != null && directory != null && ksname != null && cfname != null && formatType.info.getLatestVersion().getClass().equals(version.getClass());
         this.version = version;
         this.directory = directory;
         this.ksname = ksname;
         this.cfname = cfname;
         this.generation = generation;
-        type = temp;
-        hashCode = Objects.hashCode(directory, generation, ksname, cfname, temp);
+        this.type = temp;
+        this.formatType = formatType;
+
+        hashCode = Objects.hashCode(version, directory, generation, ksname, cfname, temp, formatType);
     }
 
     public Descriptor withGeneration(int newGeneration)
     {
-        return new Descriptor(version, directory, ksname, cfname, newGeneration, type);
+        return new Descriptor(version, directory, ksname, cfname, newGeneration, type, formatType);
+    }
+
+    public Descriptor withFormatType(SSTableFormat.Type newType)
+    {
+        return new Descriptor(newType.info.getLatestVersion(), directory, ksname, cfname, generation, type, newType);
     }
 
     public String filenameFor(Component component)
@@ -194,7 +127,7 @@ public class Descriptor
 
     private void appendFileName(StringBuilder buff)
     {
-        if (!version.newFileName)
+        if (!version.hasNewFileName())
         {
             buff.append(ksname).append(separator);
             buff.append(cfname).append(separator);
@@ -203,6 +136,8 @@ public class Descriptor
             buff.append(type.marker).append(separator);
         buff.append(version).append(separator);
         buff.append(generation);
+        if (formatType != SSTableFormat.Type.LEGACY)
+            buff.append(separator).append(formatType.name);
     }
 
     public String relativeFilenameFor(Component component)
@@ -211,6 +146,11 @@ public class Descriptor
         appendFileName(buff);
         buff.append(separator).append(component.name());
         return buff.toString();
+    }
+
+    public SSTableFormat getFormat()
+    {
+        return formatType.info;
     }
 
     /**
@@ -233,6 +173,11 @@ public class Descriptor
         return fromFilename(file.getParentFile(), file.getName(), false).left;
     }
 
+    public static Descriptor fromFilename(String filename, SSTableFormat.Type formatType)
+    {
+        return fromFilename(filename).withFormatType(formatType);
+    }
+
     public static Descriptor fromFilename(String filename, boolean skipComponent)
     {
         File file = new File(filename);
@@ -249,7 +194,7 @@ public class Descriptor
      *
      * <ul>
      *     <li>&lt;ksname&gt;-&lt;cfname&gt;-(tmp-)?&lt;version&gt;-&lt;gen&gt;-&lt;component&gt; for cassandra 2.0 and before</li>
-     *     <li>(&lt;tmp marker&gt;-)?&lt;version&gt;-&lt;gen&gt;-&lt;component&gt; for cassandra 2.1 and later</li>
+     *     <li>(&lt;tmp marker&gt;-)?&lt;version&gt;-&lt;gen&gt;-&lt;component&gt; for cassandra 3.0 and later</li>
      * </ul>
      *
      * If this is for SSTable of secondary index, directory should ends with index name for 2.1+.
@@ -278,32 +223,42 @@ public class Descriptor
         // component suffix
         String component = skipComponent ? null : tokenStack.pop();
 
+        nexttok = tokenStack.pop();
+        // generation OR Type
+        SSTableFormat.Type fmt = SSTableFormat.Type.LEGACY;
+        if (!CharMatcher.DIGIT.matchesAllOf(nexttok))
+        {
+            fmt = SSTableFormat.Type.validate(nexttok);
+            nexttok = tokenStack.pop();
+        }
+
         // generation
-        int generation = Integer.parseInt(tokenStack.pop());
+        int generation = Integer.parseInt(nexttok);
 
         // version
         nexttok = tokenStack.pop();
-        if (!Version.validate(nexttok))
+        Version version = fmt.info.getVersion(nexttok);
+
+        if (!version.validate(nexttok))
             throw new UnsupportedOperationException("SSTable " + name + " is too old to open.  Upgrade to 2.0 first, and run upgradesstables");
-        Version version = new Version(nexttok);
 
         // optional temporary marker
-        Type type = Type.FINAL;
+        Type type = Descriptor.Type.FINAL;
         nexttok = tokenStack.peek();
-        if (Type.TEMP.marker.equals(nexttok))
+        if (Descriptor.Type.TEMP.marker.equals(nexttok))
         {
-            type = Type.TEMP;
+            type = Descriptor.Type.TEMP;
             tokenStack.pop();
         }
-        else if (Type.TEMPLINK.marker.equals(nexttok))
+        else if (Descriptor.Type.TEMPLINK.marker.equals(nexttok))
         {
-            type = Type.TEMPLINK;
+            type = Descriptor.Type.TEMPLINK;
             tokenStack.pop();
         }
 
         // ks/cf names
         String ksname, cfname;
-        if (version.newFileName)
+        if (version.hasNewFileName())
         {
             // for 2.1+ read ks and cf names from directory
             File cfDirectory = parentDirectory;
@@ -332,7 +287,7 @@ public class Descriptor
         }
         assert tokenStack.isEmpty() : "Invalid file name " + name + " in " + directory;
 
-        return Pair.create(new Descriptor(version, parentDirectory, ksname, cfname, generation, type), component);
+        return Pair.create(new Descriptor(version, parentDirectory, ksname, cfname, generation, type, fmt), component);
     }
 
     /**
@@ -341,12 +296,12 @@ public class Descriptor
      */
     public Descriptor asType(Type type)
     {
-        return new Descriptor(version, directory, ksname, cfname, generation, type);
+        return new Descriptor(version, directory, ksname, cfname, generation, type, formatType);
     }
 
     public IMetadataSerializer getMetadataSerializer()
     {
-        if (version.newStatsFile)
+        if (version.hasNewStatsFile())
             return new MetadataSerializer();
         else
             return new LegacyMetadataSerializer();
@@ -378,6 +333,7 @@ public class Descriptor
                        && that.generation == this.generation
                        && that.ksname.equals(this.ksname)
                        && that.cfname.equals(this.cfname)
+                       && that.formatType == this.formatType
                        && that.type == this.type;
     }
 

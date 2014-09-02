@@ -80,12 +80,10 @@ public abstract class AbstractCType implements CType
 
     private final Serializer serializer;
 
-    private final ISerializer<IndexInfo> indexSerializer;
     private final IVersionedSerializer<ColumnSlice> sliceSerializer;
     private final IVersionedSerializer<SliceQueryFilter> sliceQueryFilterSerializer;
     private final DeletionInfo.Serializer deletionInfoSerializer;
     private final RangeTombstone.Serializer rangeTombstoneSerializer;
-    private final RowIndexEntry.Serializer rowIndexEntrySerializer;
 
     protected final boolean isByteOrderComparable;
 
@@ -115,12 +113,10 @@ public abstract class AbstractCType implements CType
 
         serializer = new Serializer(this);
 
-        indexSerializer = new IndexInfo.Serializer(this);
         sliceSerializer = new ColumnSlice.Serializer(this);
         sliceQueryFilterSerializer = new SliceQueryFilter.Serializer(this);
         deletionInfoSerializer = new DeletionInfo.Serializer(this);
         rangeTombstoneSerializer = new RangeTombstone.Serializer(this);
-        rowIndexEntrySerializer = new RowIndexEntry.Serializer(this);
         this.isByteOrderComparable = isByteOrderComparable;
     }
 
@@ -295,11 +291,6 @@ public abstract class AbstractCType implements CType
         return indexReverseComparator;
     }
 
-    public ISerializer<IndexInfo> indexSerializer()
-    {
-        return indexSerializer;
-    }
-
     public IVersionedSerializer<ColumnSlice> sliceSerializer()
     {
         return sliceSerializer;
@@ -318,11 +309,6 @@ public abstract class AbstractCType implements CType
     public RangeTombstone.Serializer rangeTombstoneSerializer()
     {
         return rangeTombstoneSerializer;
-    }
-
-    public RowIndexEntry.Serializer rowIndexEntrySerializer()
-    {
-        return rowIndexEntrySerializer;
     }
 
     @Override

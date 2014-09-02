@@ -17,16 +17,18 @@
  */
 package org.apache.cassandra.streaming;
 
-import java.io.DataInput;
-import java.io.DataInputStream;
-import java.io.IOException;
-import java.io.InputStream;
+import java.io.*;
 import java.nio.channels.Channels;
 import java.nio.channels.ReadableByteChannel;
 import java.util.Collection;
 import java.util.UUID;
 
 import com.google.common.base.Throwables;
+import org.apache.cassandra.io.sstable.format.SSTableFormat;
+import org.apache.cassandra.io.sstable.format.SSTableWriter;
+import org.apache.cassandra.io.sstable.format.Version;
+import org.apache.cassandra.io.util.FileUtils;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -37,14 +39,13 @@ import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.db.Keyspace;
-import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
-import org.apache.cassandra.io.sstable.SSTableWriter;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.streaming.messages.FileMessageHeader;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.BytesReadTracker;
 import org.apache.cassandra.utils.Pair;
+
 
 /**
  * StreamReader reads from stream and writes to SSTable.
@@ -56,8 +57,9 @@ public class StreamReader
     protected final long estimatedKeys;
     protected final Collection<Pair<Long, Long>> sections;
     protected final StreamSession session;
-    protected final Descriptor.Version inputVersion;
+    protected final Version inputVersion;
     protected final long repairedAt;
+    protected final SSTableFormat.Type format;
     protected final int sstableLevel;
 
     protected Descriptor desc;
@@ -68,8 +70,9 @@ public class StreamReader
         this.cfId = header.cfId;
         this.estimatedKeys = header.estimatedKeys;
         this.sections = header.sections;
-        this.inputVersion = new Descriptor.Version(header.version);
+        this.inputVersion = header.format.info.getVersion(header.version);
         this.repairedAt = header.repairedAt;
+        this.format = header.format;
         this.sstableLevel = header.sstableLevel;
     }
 
@@ -91,7 +94,8 @@ public class StreamReader
         }
         ColumnFamilyStore cfs = Keyspace.open(kscf.left).getColumnFamilyStore(kscf.right);
 
-        SSTableWriter writer = createWriter(cfs, totalSize, repairedAt);
+        SSTableWriter writer = createWriter(cfs, totalSize, repairedAt, format);
+
         DataInputStream dis = new DataInputStream(new LZFInputStream(Channels.newInputStream(channel)));
         BytesReadTracker in = new BytesReadTracker(dis);
         try
@@ -99,12 +103,12 @@ public class StreamReader
             while (in.getBytesRead() < totalSize)
             {
                 writeRow(writer, in, cfs);
+
                 // TODO move this to BytesReadTracker
                 session.progress(desc, ProgressInfo.Direction.IN, in.getBytesRead(), totalSize);
             }
             return writer;
-        }
-        catch (Throwable e)
+        } catch (Throwable e)
         {
             writer.abort();
             drain(dis, in.getBytesRead());
@@ -115,13 +119,14 @@ public class StreamReader
         }
     }
 
-    protected SSTableWriter createWriter(ColumnFamilyStore cfs, long totalSize, long repairedAt) throws IOException
+    protected SSTableWriter createWriter(ColumnFamilyStore cfs, long totalSize, long repairedAt, SSTableFormat.Type format) throws IOException
     {
         Directories.DataDirectory localDir = cfs.directories.getWriteableLocation();
         if (localDir == null)
             throw new IOException("Insufficient disk space to store " + totalSize + " bytes");
-        desc = Descriptor.fromFilename(cfs.getTempSSTablePath(cfs.directories.getLocationForDisk(localDir)));
-        return new SSTableWriter(desc.filenameFor(Component.DATA), estimatedKeys, repairedAt, sstableLevel);
+        desc = Descriptor.fromFilename(cfs.getTempSSTablePath(cfs.directories.getLocationForDisk(localDir), format));
+
+        return SSTableWriter.create(desc, estimatedKeys, repairedAt, sstableLevel);
     }
 
     protected void drain(InputStream dis, long bytesRead) throws IOException

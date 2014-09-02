@@ -22,6 +22,7 @@ import java.io.IOException;
 
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.sstable.Descriptor;
+import org.apache.cassandra.io.sstable.format.Version;
 import org.apache.cassandra.io.util.DataOutputPlus;
 
 /**
@@ -82,7 +83,7 @@ public class ValidationMetadata extends MetadataComponent
             out.writeDouble(component.bloomFilterFPChance);
         }
 
-        public ValidationMetadata deserialize(Descriptor.Version version, DataInput in) throws IOException
+        public ValidationMetadata deserialize(Version version, DataInput in) throws IOException
         {
 
             return new ValidationMetadata(in.readUTF(), in.readDouble());

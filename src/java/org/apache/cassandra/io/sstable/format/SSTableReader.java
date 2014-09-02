@@ -1,3 +1,5 @@
+package org.apache.cassandra.io.sstable.format;
+
 /*
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
@@ -15,111 +17,60 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.io.sstable;
 
-import java.io.BufferedInputStream;
-import java.io.DataInputStream;
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileNotFoundException;
-import java.io.FileOutputStream;
-import java.io.IOException;
-import java.io.RandomAccessFile;
-import java.nio.ByteBuffer;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.EnumSet;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.ScheduledFuture;
-import java.util.concurrent.ScheduledThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicLong;
-
+import com.clearspring.analytics.stream.cardinality.CardinalityMergeException;
+import com.clearspring.analytics.stream.cardinality.ICardinality;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Predicate;
 import com.google.common.collect.Iterators;
 import com.google.common.collect.Ordering;
 import com.google.common.primitives.Longs;
 import com.google.common.util.concurrent.RateLimiter;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import com.clearspring.analytics.stream.cardinality.CardinalityMergeException;
-import com.clearspring.analytics.stream.cardinality.ICardinality;
 import org.apache.cassandra.cache.CachingOptions;
 import org.apache.cassandra.cache.InstrumentingCache;
 import org.apache.cassandra.cache.KeyCacheKey;
 import org.apache.cassandra.concurrent.DebuggableThreadPoolExecutor;
-import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.config.ColumnDefinition;
-import org.apache.cassandra.config.Config;
-import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.config.Schema;
-import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.db.DataRange;
-import org.apache.cassandra.db.DataTracker;
-import org.apache.cassandra.db.DecoratedKey;
-import org.apache.cassandra.db.Keyspace;
-import org.apache.cassandra.db.RowIndexEntry;
-import org.apache.cassandra.db.RowPosition;
-import org.apache.cassandra.db.SystemKeyspace;
+import org.apache.cassandra.config.*;
+import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.columniterator.OnDiskAtomIterator;
 import org.apache.cassandra.db.commitlog.ReplayPosition;
 import org.apache.cassandra.db.compaction.ICompactionScanner;
+import org.apache.cassandra.db.composites.CellName;
+import org.apache.cassandra.db.filter.ColumnSlice;
 import org.apache.cassandra.db.index.SecondaryIndex;
-import org.apache.cassandra.dht.AbstractBounds;
-import org.apache.cassandra.dht.IPartitioner;
-import org.apache.cassandra.dht.LocalPartitioner;
-import org.apache.cassandra.dht.Range;
-import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.dht.*;
 import org.apache.cassandra.io.compress.CompressedRandomAccessReader;
 import org.apache.cassandra.io.compress.CompressedThrottledReader;
 import org.apache.cassandra.io.compress.CompressionMetadata;
-import org.apache.cassandra.io.sstable.metadata.CompactionMetadata;
-import org.apache.cassandra.io.sstable.metadata.MetadataComponent;
-import org.apache.cassandra.io.sstable.metadata.MetadataType;
-import org.apache.cassandra.io.sstable.metadata.StatsMetadata;
-import org.apache.cassandra.io.sstable.metadata.ValidationMetadata;
-import org.apache.cassandra.io.util.BufferedSegmentedFile;
-import org.apache.cassandra.io.util.CompressedSegmentedFile;
-import org.apache.cassandra.io.util.DataOutputStreamAndChannel;
-import org.apache.cassandra.io.util.FileDataInput;
-import org.apache.cassandra.io.util.FileUtils;
-import org.apache.cassandra.io.util.ICompressedFile;
-import org.apache.cassandra.io.util.RandomAccessReader;
-import org.apache.cassandra.io.util.SegmentedFile;
-import org.apache.cassandra.io.util.ThrottledReader;
+import org.apache.cassandra.io.sstable.*;
+import org.apache.cassandra.io.sstable.metadata.*;
+import org.apache.cassandra.io.util.*;
 import org.apache.cassandra.metrics.RestorableMeter;
 import org.apache.cassandra.metrics.StorageMetrics;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.service.CacheService;
 import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.tracing.Tracing;
-import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.utils.CLibrary;
-import org.apache.cassandra.utils.EstimatedHistogram;
-import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.utils.FilterFactory;
-import org.apache.cassandra.utils.IFilter;
-import org.apache.cassandra.utils.Pair;
+import org.apache.cassandra.utils.*;
 import org.apache.cassandra.utils.concurrent.OpOrder;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.io.*;
+import java.nio.ByteBuffer;
+import java.util.*;
+import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 
 import static org.apache.cassandra.db.Directories.SECONDARY_INDEX_NAME_SEPARATOR;
+
 
 /**
  * SSTableReaders are open()ed by Keyspace.onStart; after that they are created by SSTableWriter.renameAndOpen.
  * Do not re-call open() on existing SSTable files; use the references kept by ColumnFamilyStore post-start instead.
  */
-public class SSTableReader extends SSTable
+public abstract class SSTableReader extends SSTable
 {
     private static final Logger logger = LoggerFactory.getLogger(SSTableReader.class);
 
@@ -170,27 +121,29 @@ public class SSTableReader extends SSTable
     public final OpenReason openReason;
 
     // indexfile and datafile: might be null before a call to load()
-    private SegmentedFile ifile;
-    private SegmentedFile dfile;
+    protected SegmentedFile ifile;
+    protected SegmentedFile dfile;
 
-    private IndexSummary indexSummary;
-    private IFilter bf;
+    protected IndexSummary indexSummary;
+    protected IFilter bf;
 
-    private InstrumentingCache<KeyCacheKey, RowIndexEntry> keyCache;
+    protected final RowIndexEntry.IndexSerializer rowIndexEntrySerializer;
 
-    private final BloomFilterTracker bloomFilterTracker = new BloomFilterTracker();
+    protected InstrumentingCache<KeyCacheKey, RowIndexEntry> keyCache;
 
-    private final AtomicInteger references = new AtomicInteger(1);
+    protected final BloomFilterTracker bloomFilterTracker = new BloomFilterTracker();
+
+    protected final AtomicInteger references = new AtomicInteger(1);
     // technically isCompacted is not necessary since it should never be unreferenced unless it is also compacted,
     // but it seems like a good extra layer of protection against reference counting bugs to not delete data based on that alone
-    private final AtomicBoolean isCompacted = new AtomicBoolean(false);
-    private final AtomicBoolean isSuspect = new AtomicBoolean(false);
+    protected final AtomicBoolean isCompacted = new AtomicBoolean(false);
+    protected final AtomicBoolean isSuspect = new AtomicBoolean(false);
 
     // not final since we need to be able to change level on a file.
-    private volatile StatsMetadata sstableMetadata;
+    protected volatile StatsMetadata sstableMetadata;
 
-    private final AtomicLong keyCacheHit = new AtomicLong(0);
-    private final AtomicLong keyCacheRequest = new AtomicLong(0);
+    protected final AtomicLong keyCacheHit = new AtomicLong(0);
+    protected final AtomicLong keyCacheRequest = new AtomicLong(0);
 
     /**
      * To support replacing this sstablereader with another object that represents that same underlying sstable, but with different associated resources,
@@ -198,15 +151,15 @@ public class SSTableReader extends SSTable
      * On close we check if any of the closeable resources differ between any chains either side of us; any that are in neither of the adjacent links (if any) are closed.
      * Once we've made this decision we remove ourselves from the linked list, so that anybody behind/ahead will compare against only other still opened resources.
      */
-    private Object replaceLock = new Object();
-    private SSTableReader replacedBy;
+    protected Object replaceLock = new Object();
+    protected SSTableReader replacedBy;
     private SSTableReader replaces;
     private SSTableDeletingTask deletingTask;
     private Runnable runOnClose;
 
     @VisibleForTesting
     public RestorableMeter readMeter;
-    private ScheduledFuture readMeterSyncFuture;
+    protected ScheduledFuture readMeterSyncFuture;
 
     /**
      * Calculate approximate key count.
@@ -226,7 +179,7 @@ public class SSTableReader extends SSTable
         {
             public boolean apply(SSTableReader sstable)
             {
-                return sstable.descriptor.version.newStatsFile;
+                return sstable.descriptor.version.hasNewStatsFile();
             }
         });
 
@@ -292,8 +245,8 @@ public class SSTableReader extends SSTable
     public static SSTableReader open(Descriptor desc, CFMetaData metadata) throws IOException
     {
         IPartitioner p = desc.cfname.contains(SECONDARY_INDEX_NAME_SEPARATOR)
-                       ? new LocalPartitioner(metadata.getKeyValidator())
-                       : StorageService.getPartitioner();
+                ? new LocalPartitioner(metadata.getKeyValidator())
+                : StorageService.getPartitioner();
         return open(desc, componentsFor(desc), metadata, p);
     }
 
@@ -324,7 +277,7 @@ public class SSTableReader extends SSTable
         assert components.contains(Component.PRIMARY_INDEX) : "Primary index component is missing for sstable " + descriptor;
 
         Map<MetadataType, MetadataComponent> sstableMetadata = descriptor.getMetadataSerializer().deserialize(descriptor,
-                                                                                                               EnumSet.of(MetadataType.VALIDATION, MetadataType.STATS));
+                EnumSet.of(MetadataType.VALIDATION, MetadataType.STATS));
         ValidationMetadata validationMetadata = (ValidationMetadata) sstableMetadata.get(MetadataType.VALIDATION);
         StatsMetadata statsMetadata = (StatsMetadata) sstableMetadata.get(MetadataType.STATS);
 
@@ -335,24 +288,19 @@ public class SSTableReader extends SSTable
         if (validationMetadata != null && !partitionerName.equals(validationMetadata.partitioner))
         {
             logger.error(String.format("Cannot open %s; partitioner %s does not match system partitioner %s.  Note that the default partitioner starting with Cassandra 1.2 is Murmur3Partitioner, so you will need to edit that to match your old partitioner if upgrading.",
-                                              descriptor, validationMetadata.partitioner, partitionerName));
+                    descriptor, validationMetadata.partitioner, partitionerName));
             System.exit(1);
         }
 
         logger.info("Opening {} ({} bytes)", descriptor, new File(descriptor.filenameFor(Component.DATA)).length());
-        SSTableReader sstable = new SSTableReader(descriptor,
-                                                  components,
-                                                  metadata,
-                                                  partitioner,
-                                                  System.currentTimeMillis(),
-                                                  statsMetadata,
-                                                  OpenReason.NORMAL);
+        SSTableReader sstable = internalOpen(descriptor, components, metadata, partitioner, System.currentTimeMillis(),
+                statsMetadata, OpenReason.NORMAL);
 
         // special implementation of load to use non-pooled SegmentedFile builders
         SegmentedFile.Builder ibuilder = new BufferedSegmentedFile.Builder();
         SegmentedFile.Builder dbuilder = sstable.compression
-                                       ? new CompressedSegmentedFile.Builder(null)
-                                       : new BufferedSegmentedFile.Builder();
+                ? new CompressedSegmentedFile.Builder(null)
+                : new BufferedSegmentedFile.Builder();
         if (!sstable.loadSummary(ibuilder, dbuilder))
             sstable.buildSummary(false, ibuilder, dbuilder, false, Downsampling.BASE_SAMPLING_LEVEL);
         sstable.ifile = ibuilder.complete(sstable.descriptor.filenameFor(Component.PRIMARY_INDEX));
@@ -373,7 +321,7 @@ public class SSTableReader extends SSTable
         assert components.contains(Component.PRIMARY_INDEX) : "Primary index component is missing for sstable " + descriptor;
 
         Map<MetadataType, MetadataComponent> sstableMetadata = descriptor.getMetadataSerializer().deserialize(descriptor,
-                                                                                                               EnumSet.of(MetadataType.VALIDATION, MetadataType.STATS));
+                EnumSet.of(MetadataType.VALIDATION, MetadataType.STATS));
         ValidationMetadata validationMetadata = (ValidationMetadata) sstableMetadata.get(MetadataType.VALIDATION);
         StatsMetadata statsMetadata = (StatsMetadata) sstableMetadata.get(MetadataType.STATS);
 
@@ -384,18 +332,13 @@ public class SSTableReader extends SSTable
         if (validationMetadata != null && !partitionerName.equals(validationMetadata.partitioner))
         {
             logger.error(String.format("Cannot open %s; partitioner %s does not match system partitioner %s.  Note that the default partitioner starting with Cassandra 1.2 is Murmur3Partitioner, so you will need to edit that to match your old partitioner if upgrading.",
-                                              descriptor, validationMetadata.partitioner, partitionerName));
+                    descriptor, validationMetadata.partitioner, partitionerName));
             System.exit(1);
         }
 
         logger.info("Opening {} ({} bytes)", descriptor, new File(descriptor.filenameFor(Component.DATA)).length());
-        SSTableReader sstable = new SSTableReader(descriptor,
-                                                  components,
-                                                  metadata,
-                                                  partitioner,
-                                                  System.currentTimeMillis(),
-                                                  statsMetadata,
-                                                  OpenReason.NORMAL);
+        SSTableReader sstable = internalOpen(descriptor, components, metadata, partitioner, System.currentTimeMillis(),
+                statsMetadata, OpenReason.NORMAL);
 
         // load index and filter
         long start = System.nanoTime();
@@ -420,8 +363,8 @@ public class SSTableReader extends SSTable
     }
 
     public static Collection<SSTableReader> openAll(Set<Map.Entry<Descriptor, Set<Component>>> entries,
-                                                      final CFMetaData metadata,
-                                                      final IPartitioner partitioner)
+                                                    final CFMetaData metadata,
+                                                    final IPartitioner partitioner)
     {
         final Collection<SSTableReader> sstables = new LinkedBlockingQueue<>();
 
@@ -465,7 +408,7 @@ public class SSTableReader extends SSTable
     /**
      * Open a RowIndexedReader which already has its state initialized (by SSTableWriter).
      */
-    static SSTableReader internalOpen(Descriptor desc,
+    public static SSTableReader internalOpen(Descriptor desc,
                                       Set<Component> components,
                                       CFMetaData metadata,
                                       IPartitioner partitioner,
@@ -478,31 +421,45 @@ public class SSTableReader extends SSTable
                                       OpenReason openReason)
     {
         assert desc != null && partitioner != null && ifile != null && dfile != null && isummary != null && bf != null && sstableMetadata != null;
-        return new SSTableReader(desc,
-                                 components,
-                                 metadata,
-                                 partitioner,
-                                 ifile, dfile,
-                                 isummary,
-                                 bf,
-                                 maxDataAge,
-                                 sstableMetadata,
-                                 openReason);
+
+        SSTableReader reader = internalOpen(desc, components, metadata, partitioner, maxDataAge, sstableMetadata, openReason);
+
+        reader.bf = bf;
+        reader.ifile = ifile;
+        reader.dfile = dfile;
+        reader.indexSummary = isummary;
+
+        return reader;
     }
 
 
-    private SSTableReader(final Descriptor desc,
-                          Set<Component> components,
-                          CFMetaData metadata,
-                          IPartitioner partitioner,
-                          long maxDataAge,
-                          StatsMetadata sstableMetadata,
-                          OpenReason openReason)
+    private static SSTableReader internalOpen(final Descriptor descriptor,
+                                            Set<Component> components,
+                                            CFMetaData metadata,
+                                            IPartitioner partitioner,
+                                            Long maxDataAge,
+                                            StatsMetadata sstableMetadata,
+                                            OpenReason openReason)
+    {
+        Factory readerFactory = descriptor.getFormat().getReaderFactory();
+
+        return readerFactory.open(descriptor, components, metadata, partitioner, maxDataAge, sstableMetadata, openReason);
+    }
+
+    protected SSTableReader(final Descriptor desc,
+                            Set<Component> components,
+                            CFMetaData metadata,
+                            IPartitioner partitioner,
+                            long maxDataAge,
+                            StatsMetadata sstableMetadata,
+                            OpenReason openReason)
     {
         super(desc, components, metadata, partitioner);
         this.sstableMetadata = sstableMetadata;
         this.maxDataAge = maxDataAge;
         this.openReason = openReason;
+
+        this.rowIndexEntrySerializer = descriptor.version.getSSTableFormat().getIndexSerializer(metadata);
 
         deletingTask = new SSTableDeletingTask(this);
 
@@ -528,26 +485,6 @@ public class SSTableReader extends SSTable
                 }
             }
         }, 1, 5, TimeUnit.MINUTES);
-    }
-
-    private SSTableReader(Descriptor desc,
-                          Set<Component> components,
-                          CFMetaData metadata,
-                          IPartitioner partitioner,
-                          SegmentedFile ifile,
-                          SegmentedFile dfile,
-                          IndexSummary indexSummary,
-                          IFilter bloomFilter,
-                          long maxDataAge,
-                          StatsMetadata sstableMetadata,
-                          OpenReason openReason)
-    {
-        this(desc, components, metadata, partitioner, maxDataAge, sstableMetadata, openReason);
-
-        this.ifile = ifile;
-        this.dfile = dfile;
-        this.indexSummary = indexSummary;
-        this.bf = bloomFilter;
     }
 
     public static long getTotalBytes(Iterable<SSTableReader> sstables)
@@ -754,8 +691,8 @@ public class SSTableReader extends SSTable
     {
         SegmentedFile.Builder ibuilder = SegmentedFile.getBuilder(DatabaseDescriptor.getIndexAccessMode());
         SegmentedFile.Builder dbuilder = compression
-                                         ? SegmentedFile.getCompressedBuilder()
-                                         : SegmentedFile.getBuilder(DatabaseDescriptor.getDiskAccessMode());
+                ? SegmentedFile.getCompressedBuilder()
+                : SegmentedFile.getBuilder(DatabaseDescriptor.getDiskAccessMode());
 
         boolean summaryLoaded = loadSummary(ibuilder, dbuilder);
         if (recreateBloomFilter || !summaryLoaded)
@@ -786,8 +723,8 @@ public class SSTableReader extends SSTable
             long indexSize = primaryIndex.length();
             long histogramCount = sstableMetadata.estimatedRowSize.count();
             long estimatedKeys = histogramCount > 0 && !sstableMetadata.estimatedRowSize.isOverflowed()
-                               ? histogramCount
-                               : estimateRowsFromIndex(primaryIndex); // statistics is supposed to be optional
+                    ? histogramCount
+                    : estimateRowsFromIndex(primaryIndex); // statistics is supposed to be optional
 
             if (recreateBloomFilter)
                 bf = FilterFactory.getFilter(estimatedKeys, metadata.getBloomFilterFpChance(), true);
@@ -797,10 +734,12 @@ public class SSTableReader extends SSTable
                 summaryBuilder = new IndexSummaryBuilder(estimatedKeys, metadata.getMinIndexInterval(), samplingLevel);
 
             long indexPosition;
+            RowIndexEntry.IndexSerializer rowIndexSerializer = descriptor.getFormat().getIndexSerializer(metadata);
+
             while ((indexPosition = primaryIndex.getFilePointer()) != indexSize)
             {
                 ByteBuffer key = ByteBufferUtil.readWithShortLength(primaryIndex);
-                RowIndexEntry indexEntry = metadata.comparator.rowIndexEntrySerializer().deserialize(primaryIndex, descriptor.version);
+                RowIndexEntry indexEntry = rowIndexSerializer.deserialize(primaryIndex, descriptor.version);
                 DecoratedKey decoratedKey = partitioner.decorateKey(key);
                 if (first == null)
                     first = decoratedKey;
@@ -850,7 +789,7 @@ public class SSTableReader extends SSTable
         try
         {
             iStream = new DataInputStream(new FileInputStream(summariesFile));
-            indexSummary = IndexSummary.serializer.deserialize(iStream, partitioner, descriptor.version.hasSamplingLevel, metadata.getMinIndexInterval(), metadata.getMaxIndexInterval());
+            indexSummary = IndexSummary.serializer.deserialize(iStream, partitioner, descriptor.version.hasSamplingLevel(), metadata.getMinIndexInterval(), metadata.getMaxIndexInterval());
             first = partitioner.decorateKey(ByteBufferUtil.readWithLength(iStream));
             last = partitioner.decorateKey(ByteBufferUtil.readWithLength(iStream));
             ibuilder.deserializeBounds(iStream);
@@ -894,7 +833,7 @@ public class SSTableReader extends SSTable
         try
         {
             oStream = new DataOutputStreamAndChannel(new FileOutputStream(summariesFile));
-            IndexSummary.serializer.serialize(summary, oStream, descriptor.version.hasSamplingLevel);
+            IndexSummary.serializer.serialize(summary, oStream, descriptor.version.hasSamplingLevel());
             ByteBufferUtil.writeWithLength(first.getKey(), oStream);
             ByteBufferUtil.writeWithLength(last.getKey(), oStream);
             ibuilder.serializeBounds(oStream);
@@ -961,7 +900,7 @@ public class SSTableReader extends SSTable
                 }
             }
 
-            SSTableReader replacement = new SSTableReader(descriptor, components, metadata, partitioner, ifile, dfile, indexSummary.readOnlyClone(), bf, maxDataAge, sstableMetadata,
+            SSTableReader replacement = internalOpen(descriptor, components, metadata, partitioner, ifile, dfile, indexSummary.readOnlyClone(), bf, maxDataAge, sstableMetadata,
                     openReason == OpenReason.EARLY ? openReason : OpenReason.METADATA_CHANGE);
             replacement.readMeterSyncFuture = this.readMeterSyncFuture;
             replacement.readMeter = this.readMeter;
@@ -1009,21 +948,21 @@ public class SSTableReader extends SSTable
 
                 SegmentedFile.Builder ibuilder = SegmentedFile.getBuilder(DatabaseDescriptor.getIndexAccessMode());
                 SegmentedFile.Builder dbuilder = compression
-                                                 ? SegmentedFile.getCompressedBuilder()
-                                                 : SegmentedFile.getBuilder(DatabaseDescriptor.getDiskAccessMode());
+                        ? SegmentedFile.getCompressedBuilder()
+                        : SegmentedFile.getBuilder(DatabaseDescriptor.getDiskAccessMode());
                 saveSummary(ibuilder, dbuilder, newSummary);
             }
             else
             {
                 throw new AssertionError("Attempted to clone SSTableReader with the same index summary sampling level and " +
-                                         "no adjustments to min/max_index_interval");
+                        "no adjustments to min/max_index_interval");
             }
 
             long newSize = bytesOnDisk();
             StorageMetrics.load.inc(newSize - oldSize);
             parent.metric.liveDiskSpaceUsed.inc(newSize - oldSize);
 
-            SSTableReader replacement = new SSTableReader(descriptor, components, metadata, partitioner, ifile, dfile, newSummary, bf, maxDataAge, sstableMetadata,
+            SSTableReader replacement = internalOpen(descriptor, components, metadata, partitioner, ifile, dfile, newSummary, bf, maxDataAge, sstableMetadata,
                     openReason == OpenReason.EARLY ? openReason : OpenReason.METADATA_CHANGE);
             replacement.readMeterSyncFuture = this.readMeterSyncFuture;
             replacement.readMeter = this.readMeter;
@@ -1078,7 +1017,7 @@ public class SSTableReader extends SSTable
         return indexSummary.getEffectiveIndexInterval();
     }
 
-    public void releaseSummary()
+    public void releaseSummary() throws IOException
     {
         indexSummary.close();
         indexSummary = null;
@@ -1099,7 +1038,7 @@ public class SSTableReader extends SSTable
         return getIndexScanPositionFromBinarySearchResult(indexSummary.binarySearch(key), indexSummary);
     }
 
-    private static long getIndexScanPositionFromBinarySearchResult(int binarySearchResult, IndexSummary referencedIndexSummary)
+    protected static long getIndexScanPositionFromBinarySearchResult(int binarySearchResult, IndexSummary referencedIndexSummary)
     {
         if (binarySearchResult == -1)
             return -1;
@@ -1107,7 +1046,7 @@ public class SSTableReader extends SSTable
             return referencedIndexSummary.getPosition(getIndexSummaryIndexFromBinarySearchResult(binarySearchResult));
     }
 
-    private static int getIndexSummaryIndexFromBinarySearchResult(int binarySearchResult)
+    protected static int getIndexSummaryIndexFromBinarySearchResult(int binarySearchResult)
     {
         if (binarySearchResult < 0)
         {
@@ -1230,8 +1169,8 @@ public class SSTableReader extends SSTable
                 continue;
 
             int right = Range.isWrapAround(range.left, range.right)
-                      ? summary.size() - 1
-                      : summary.binarySearch(rightPosition);
+                    ? summary.size() - 1
+                    : summary.binarySearch(rightPosition);
             if (right < 0)
             {
                 // range are end inclusive so we use the previous index from what binarySearch give us
@@ -1339,8 +1278,8 @@ public class SSTableReader extends SSTable
         CachingOptions caching = metadata.getCaching();
 
         if (!caching.keyCache.isEnabled()
-            || keyCache == null
-            || keyCache.getCapacity() == 0)
+                || keyCache == null
+                || keyCache.getCapacity() == 0)
         {
             return;
         }
@@ -1355,7 +1294,7 @@ public class SSTableReader extends SSTable
         return getCachedPosition(new KeyCacheKey(metadata.cfId, descriptor, key.getKey()), updateStats);
     }
 
-    private RowIndexEntry getCachedPosition(KeyCacheKey unifiedKey, boolean updateStats)
+    protected RowIndexEntry getCachedPosition(KeyCacheKey unifiedKey, boolean updateStats)
     {
         if (keyCache != null && keyCache.getCapacity() > 0) {
             if (updateStats)
@@ -1376,7 +1315,7 @@ public class SSTableReader extends SSTable
 
     /**
      * Get position updating key cache and stats.
-     * @see #getPosition(org.apache.cassandra.db.RowPosition, org.apache.cassandra.io.sstable.SSTableReader.Operator, boolean)
+     * @see #getPosition(org.apache.cassandra.db.RowPosition, SSTableReader.Operator, boolean)
      */
     public RowIndexEntry getPosition(RowPosition key, Operator op)
     {
@@ -1390,142 +1329,15 @@ public class SSTableReader extends SSTable
      * @param updateCacheAndStats true if updating stats and cache
      * @return The index entry corresponding to the key, or null if the key is not present
      */
-    public RowIndexEntry getPosition(RowPosition key, Operator op, boolean updateCacheAndStats)
-    {
-        // first, check bloom filter
-        if (op == Operator.EQ)
-        {
-            assert key instanceof DecoratedKey; // EQ only make sense if the key is a valid row key
-            if (!bf.isPresent(((DecoratedKey)key).getKey()))
-            {
-                Tracing.trace("Bloom filter allows skipping sstable {}", descriptor.generation);
-                return null;
-            }
-        }
+    public abstract RowIndexEntry getPosition(RowPosition key, Operator op, boolean updateCacheAndStats);
 
-        // next, the key cache (only make sense for valid row key)
-        if ((op == Operator.EQ || op == Operator.GE) && (key instanceof DecoratedKey))
-        {
-            DecoratedKey decoratedKey = (DecoratedKey)key;
-            KeyCacheKey cacheKey = new KeyCacheKey(metadata.cfId, descriptor, decoratedKey.getKey());
-            RowIndexEntry cachedPosition = getCachedPosition(cacheKey, updateCacheAndStats);
-            if (cachedPosition != null)
-            {
-                Tracing.trace("Key cache hit for sstable {}", descriptor.generation);
-                return cachedPosition;
-            }
-        }
+    //Corresponds to a name column
+    public abstract OnDiskAtomIterator iterator(DecoratedKey key, SortedSet<CellName> columns);
+    public abstract OnDiskAtomIterator iterator(FileDataInput file, DecoratedKey key, SortedSet<CellName> columns, RowIndexEntry indexEntry);
 
-        // check the smallest and greatest keys in the sstable to see if it can't be present
-        if (first.compareTo(key) > 0 || last.compareTo(key) < 0)
-        {
-            if (op == Operator.EQ && updateCacheAndStats)
-                bloomFilterTracker.addFalsePositive();
-
-            if (op.apply(1) < 0)
-            {
-                Tracing.trace("Check against min and max keys allows skipping sstable {}", descriptor.generation);
-                return null;
-            }
-        }
-
-        int binarySearchResult = indexSummary.binarySearch(key);
-        long sampledPosition = getIndexScanPositionFromBinarySearchResult(binarySearchResult, indexSummary);
-        int sampledIndex = getIndexSummaryIndexFromBinarySearchResult(binarySearchResult);
-
-        // if we matched the -1th position, we'll start at the first position
-        sampledPosition = sampledPosition == -1 ? 0 : sampledPosition;
-
-        int effectiveInterval = indexSummary.getEffectiveIndexIntervalAfterIndex(sampledIndex);
-
-        // scan the on-disk index, starting at the nearest sampled position.
-        // The check against IndexInterval is to be exit the loop in the EQ case when the key looked for is not present
-        // (bloom filter false positive). But note that for non-EQ cases, we might need to check the first key of the
-        // next index position because the searched key can be greater the last key of the index interval checked if it
-        // is lesser than the first key of next interval (and in that case we must return the position of the first key
-        // of the next interval).
-        int i = 0;
-        Iterator<FileDataInput> segments = ifile.iterator(sampledPosition);
-        while (segments.hasNext() && i <= effectiveInterval)
-        {
-            FileDataInput in = segments.next();
-            try
-            {
-                while (!in.isEOF() && i <= effectiveInterval)
-                {
-                    i++;
-
-                    ByteBuffer indexKey = ByteBufferUtil.readWithShortLength(in);
-
-                    boolean opSatisfied; // did we find an appropriate position for the op requested
-                    boolean exactMatch; // is the current position an exact match for the key, suitable for caching
-
-                    // Compare raw keys if possible for performance, otherwise compare decorated keys.
-                    if (op == Operator.EQ)
-                    {
-                        opSatisfied = exactMatch = indexKey.equals(((DecoratedKey) key).getKey());
-                    }
-                    else
-                    {
-                        DecoratedKey indexDecoratedKey = partitioner.decorateKey(indexKey);
-                        int comparison = indexDecoratedKey.compareTo(key);
-                        int v = op.apply(comparison);
-                        opSatisfied = (v == 0);
-                        exactMatch = (comparison == 0);
-                        if (v < 0)
-                        {
-                            Tracing.trace("Partition index lookup allows skipping sstable {}", descriptor.generation);
-                            return null;
-                        }
-                    }
-
-                    if (opSatisfied)
-                    {
-                        // read data position from index entry
-                        RowIndexEntry indexEntry = metadata.comparator.rowIndexEntrySerializer().deserialize(in, descriptor.version);
-                        if (exactMatch && updateCacheAndStats)
-                        {
-                            assert key instanceof DecoratedKey; // key can be == to the index key only if it's a true row key
-                            DecoratedKey decoratedKey = (DecoratedKey)key;
-
-                            if (logger.isTraceEnabled())
-                            {
-                                // expensive sanity check!  see CASSANDRA-4687
-                                FileDataInput fdi = dfile.getSegment(indexEntry.position);
-                                DecoratedKey keyInDisk = partitioner.decorateKey(ByteBufferUtil.readWithShortLength(fdi));
-                                if (!keyInDisk.equals(key))
-                                    throw new AssertionError(String.format("%s != %s in %s", keyInDisk, key, fdi.getPath()));
-                                fdi.close();
-                            }
-
-                            // store exact match for the key
-                            cacheKey(decoratedKey, indexEntry);
-                        }
-                        if (op == Operator.EQ && updateCacheAndStats)
-                            bloomFilterTracker.addTruePositive();
-                        Tracing.trace("Partition index with {} entries found for sstable {}", indexEntry.columnsIndex().size(), descriptor.generation);
-                        return indexEntry;
-                    }
-
-                    RowIndexEntry.Serializer.skip(in);
-                }
-            }
-            catch (IOException e)
-            {
-                markSuspect();
-                throw new CorruptSSTableException(e, in.getPath());
-            }
-            finally
-            {
-                FileUtils.closeQuietly(in);
-            }
-        }
-
-        if (op == Operator.EQ && updateCacheAndStats)
-            bloomFilterTracker.addFalsePositive();
-        Tracing.trace("Partition index lookup complete (bloom filter false positive) for sstable {}", descriptor.generation);
-        return null;
-    }
+    //Corresponds to a slice query
+    public abstract OnDiskAtomIterator iterator(DecoratedKey key, ColumnSlice[] slices, boolean reverse);
+    public abstract OnDiskAtomIterator iterator(FileDataInput file, DecoratedKey key, ColumnSlice[] slices, boolean reversed, RowIndexEntry indexEntry);
 
     /**
      * Finds and returns the first key beyond a given token in this SSTable or null if no such key exists.
@@ -1649,28 +1461,29 @@ public class SSTableReader extends SSTable
         return isSuspect.get();
     }
 
-    /**
-     *
-     * @param dataRange filter to use when reading the columns
-     * @return A Scanner for seeking over the rows of the SSTable.
-     */
-    public SSTableScanner getScanner(DataRange dataRange)
-    {
-        return new SSTableScanner(this, dataRange, null);
-    }
 
     /**
      * I/O SSTableScanner
      * @return A Scanner for seeking over the rows of the SSTable.
      */
-    public SSTableScanner getScanner()
+    public ICompactionScanner getScanner()
     {
         return getScanner((RateLimiter) null);
     }
 
-    public SSTableScanner getScanner(RateLimiter limiter)
+    public ICompactionScanner getScanner(RateLimiter limiter)
     {
-        return new SSTableScanner(this, DataRange.allData(partitioner), limiter);
+        return getScanner(DataRange.allData(partitioner), limiter);
+    }
+
+    /**
+     *
+     * @param dataRange filter to use when reading the columns
+     * @return A Scanner for seeking over the rows of the SSTable.
+     */
+    public ICompactionScanner getScanner(DataRange dataRange)
+    {
+        return getScanner(dataRange, null);
     }
 
     /**
@@ -1686,21 +1499,22 @@ public class SSTableReader extends SSTable
         return getScanner(Collections.singletonList(range), limiter);
     }
 
-   /**
-    * Direct I/O SSTableScanner over a defined collection of ranges of tokens.
-    *
-    * @param ranges the range of keys to cover
-    * @return A Scanner for seeking over the rows of the SSTable.
-    */
-    public ICompactionScanner getScanner(Collection<Range<Token>> ranges, RateLimiter limiter)
-    {
-        // We want to avoid allocating a SSTableScanner if the range don't overlap the sstable (#5249)
-        List<Pair<Long, Long>> positions = getPositionsForRanges(Range.normalize(ranges));
-        if (positions.isEmpty())
-            return new EmptyCompactionScanner(getFilename());
-        else
-            return new SSTableScanner(this, ranges, limiter);
-    }
+    /**
+     * Direct I/O SSTableScanner over a defined collection of ranges of tokens.
+     *
+     * @param ranges the range of keys to cover
+     * @return A Scanner for seeking over the rows of the SSTable.
+     */
+    public abstract ICompactionScanner getScanner(Collection<Range<Token>> ranges, RateLimiter limiter);
+
+    /**
+     *
+     * @param dataRange filter to use when reading the columns
+     * @return A Scanner for seeking over the rows of the SSTable.
+     */
+    public abstract ICompactionScanner getScanner(DataRange dataRange, RateLimiter limiter);
+
+
 
     public FileDataInput getFileDataInput(long position)
     {
@@ -1885,15 +1699,15 @@ public class SSTableReader extends SSTable
     {
         assert limiter != null;
         return compression
-               ? CompressedThrottledReader.open(getFilename(), getCompressionMetadata(), limiter)
-               : ThrottledReader.open(new File(getFilename()), limiter);
+                ? CompressedThrottledReader.open(getFilename(), getCompressionMetadata(), limiter)
+                : ThrottledReader.open(new File(getFilename()), limiter);
     }
 
     public RandomAccessReader openDataReader()
     {
         return compression
-               ? CompressedRandomAccessReader.open(getFilename(), getCompressionMetadata())
-               : RandomAccessReader.open(new File(getFilename()));
+                ? CompressedRandomAccessReader.open(getFilename(), getCompressionMetadata())
+                : RandomAccessReader.open(new File(getFilename()));
     }
 
     public RandomAccessReader openIndexReader()
@@ -2051,5 +1865,17 @@ public class SSTableReader extends SSTable
         {
             return Longs.compare(o1.onDiskLength(), o2.onDiskLength());
         }
+    }
+
+    public static abstract class Factory
+    {
+        public abstract SSTableReader open(final Descriptor descriptor,
+                                           Set<Component> components,
+                                           CFMetaData metadata,
+                                           IPartitioner partitioner,
+                                           Long maxDataAge,
+                                           StatsMetadata sstableMetadata,
+                                           OpenReason openReason);
+
     }
 }
