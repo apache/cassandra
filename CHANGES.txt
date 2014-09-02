@@ -5,6 +5,7 @@
  * Always reject inequality on the partition key without token()
    (CASSANDRA-7722)
  * Always send Paxos commit to all replicas (CASSANDRA-7479)
+ * Make disruptor_thrift_server invocation pool configurable (CASSANDRA-7594)
 
 
 2.0.10

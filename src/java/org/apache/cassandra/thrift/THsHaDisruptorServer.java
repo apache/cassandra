@@ -19,9 +19,14 @@
 package org.apache.cassandra.thrift;
 
 import java.net.InetSocketAddress;
+import java.util.concurrent.SynchronousQueue;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 
 import com.thinkaurelius.thrift.Message;
 import com.thinkaurelius.thrift.TDisruptorServer;
+import org.apache.cassandra.concurrent.JMXEnabledThreadPoolExecutor;
+import org.apache.cassandra.concurrent.NamedThreadFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -78,6 +83,13 @@ public class THsHaDisruptorServer extends TDisruptorServer
                 throw new RuntimeException(String.format("Unable to create thrift socket to %s:%s", addr.getAddress(), addr.getPort()), e);
             }
 
+            ThreadPoolExecutor invoker = new JMXEnabledThreadPoolExecutor(DatabaseDescriptor.getRpcMinThreads(),
+                                                                          DatabaseDescriptor.getRpcMaxThreads(),
+                                                                          60L,
+                                                                          TimeUnit.SECONDS,
+                                                                          new SynchronousQueue<Runnable>(),
+                                                                          new NamedThreadFactory("RPC-Thread"), "RPC-THREAD-POOL");
+
             com.thinkaurelius.thrift.util.TBinaryProtocol.Factory protocolFactory = new com.thinkaurelius.thrift.util.TBinaryProtocol.Factory(true, true);
 
             TDisruptorServer.Args serverArgs = new TDisruptorServer.Args(serverTransport).useHeapBasedAllocation(true)
@@ -87,6 +99,7 @@ public class THsHaDisruptorServer extends TDisruptorServer
                                                                                          .outputProtocolFactory(protocolFactory)
                                                                                          .processor(args.processor)
                                                                                          .maxFrameSizeInBytes(DatabaseDescriptor.getThriftFramedTransportSize())
+                                                                                         .invocationExecutor(invoker)
                                                                                          .alwaysReallocateBuffers(true);
 
             return new THsHaDisruptorServer(serverArgs);
