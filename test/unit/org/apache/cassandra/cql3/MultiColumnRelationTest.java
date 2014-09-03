@@ -69,6 +69,9 @@ public class MultiColumnRelationTest extends CQLTester
 
         assertInvalid("SELECT * FROM %s WHERE (a, b, c, d) IN ((?, ?, ?, ?))", 0, 1, 2, 3);
         assertInvalid("SELECT * FROM %s WHERE (c, d) IN ((?, ?))", 0, 1);
+
+        assertInvalid("SELECT * FROM %s WHERE a = ? AND (b, c) in ((?, ?), (?, ?)) AND d > ?", 0, 0, 0, 0, 0, 0);
+
     }
 
     @Test

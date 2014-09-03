@@ -1386,6 +1386,8 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
              */
             boolean hasQueriableIndex = false;
             boolean hasQueriableClusteringColumnIndex = false;
+            boolean hasSingleColumnRelations = false;
+            boolean hasMultiColumnRelations = false;
             for (Relation relation : whereClause)
             {
                 if (relation.isMultiColumn())
@@ -1399,6 +1401,7 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
                         hasQueriableIndex |= queriable[0];
                         hasQueriableClusteringColumnIndex |= queriable[1];
                         names.add(def);
+                        hasMultiColumnRelations |= ColumnDefinition.Kind.CLUSTERING_COLUMN.equals(def.kind);
                     }
                     updateRestrictionsForRelation(stmt, names, rel, boundNames);
                 }
@@ -1410,9 +1413,12 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
                     boolean[] queriable = processRelationEntity(stmt, relation, entity, def);
                     hasQueriableIndex |= queriable[0];
                     hasQueriableClusteringColumnIndex |= queriable[1];
+                    hasSingleColumnRelations |= ColumnDefinition.Kind.CLUSTERING_COLUMN.equals(def.kind);
                     updateRestrictionsForRelation(stmt, def, rel, boundNames);
                 }
             }
+            if (hasSingleColumnRelations && hasMultiColumnRelations)
+                throw new InvalidRequestException("Mixing single column relations and multi column relations on clustering columns is not allowed");
 
              // At this point, the select statement if fully constructed, but we still have a few things to validate
             processPartitionKeyRestrictions(stmt, hasQueriableIndex, cfm);
