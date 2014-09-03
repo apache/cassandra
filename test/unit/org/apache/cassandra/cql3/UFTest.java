@@ -17,7 +17,10 @@
  */
 package org.apache.cassandra.cql3;
 
+import org.junit.Assert;
 import org.junit.Test;
+
+import org.apache.cassandra.exceptions.InvalidRequestException;
 
 public class UFTest extends CQLTester
 {
@@ -205,5 +208,206 @@ public class UFTest extends CQLTester
         assertRows(execute("SELECT v FROM %s WHERE k = overloaded((int)?)", 3), row(1));
         // overloaded has just one overload now - so the following DROP FUNCTION is not ambigious (CASSANDRA-7812)
         execute("DROP FUNCTION overloaded");
+    }
+
+    @Test
+    public void testCreateOrReplaceJavaFunction() throws Throwable
+    {
+        execute("create function foo::corjf ( input double ) returns double language java\n" +
+                "AS '\n" +
+                "  // parameter val is of type java.lang.Double\n" +
+                "  /* return type is of type java.lang.Double */\n" +
+                "  if (input == null) {\n" +
+                "    return null;\n" +
+                "  }\n" +
+                "  double v = Math.sin( input.doubleValue() );\n" +
+                "  return Double.valueOf(v);\n" +
+                "';");
+        execute("create or replace function foo::corjf ( input double ) returns double language java\n" +
+                "AS '\n" +
+                "  // parameter val is of type java.lang.Double\n" +
+                "  /* return type is of type java.lang.Double */\n" +
+                "  if (input == null) {\n" +
+                "    return null;\n" +
+                "  }\n" +
+                "  double v = Math.sin( input.doubleValue() );\n" +
+                "  return Double.valueOf(v);\n" +
+                "';");
+    }
+
+    @Test
+    public void testJavaFunctionNoParameters() throws Throwable
+    {
+        createTable("CREATE TABLE %s (key int primary key, val double)");
+
+        String functionBody = "\n  return Long.valueOf(1L);\n";
+
+        String cql = "CREATE OR REPLACE FUNCTION jfnpt() RETURNS bigint LANGUAGE JAVA\n" +
+                     "AS '" + functionBody + "';";
+
+        execute(cql);
+
+        assertRows(execute("SELECT language, body FROM system.schema_functions WHERE namespace='' AND name='jfnpt'"),
+                   row("java", functionBody));
+
+        execute("INSERT INTO %s (key, val) VALUES (?, ?)", 1, 1d);
+        execute("INSERT INTO %s (key, val) VALUES (?, ?)", 2, 2d);
+        execute("INSERT INTO %s (key, val) VALUES (?, ?)", 3, 3d);
+        assertRows(execute("SELECT key, val, jfnpt() FROM %s"),
+                   row(1, 1d, 1L),
+                   row(2, 2d, 1L),
+                   row(3, 3d, 1L)
+        );
+    }
+
+    @Test
+    public void testJavaFunctionInvalidBodies() throws Throwable
+    {
+        try
+        {
+            execute("CREATE OR REPLACE FUNCTION jfinv() RETURNS bigint LANGUAGE JAVA\n" +
+                    "AS '\n" +
+                    "foobarbaz" +
+                    "\n';");
+            Assert.fail();
+        }
+        catch (InvalidRequestException e)
+        {
+            Assert.assertTrue(e.getMessage(), e.getMessage().contains("[source error]"));
+            Assert.assertTrue(e.getMessage(), e.getMessage().contains("; is missing"));
+        }
+
+        try
+        {
+            execute("CREATE OR REPLACE FUNCTION jfinv() RETURNS bigint LANGUAGE JAVA\n" +
+                    "AS '\n" +
+                    "foobarbaz;" +
+                    "\n';");
+            Assert.fail();
+        }
+        catch (InvalidRequestException e)
+        {
+            Assert.assertTrue(e.getMessage(), e.getMessage().contains("[source error]"));
+            Assert.assertTrue(e.getMessage(), e.getMessage().contains("no such field: foobarbaz"));
+        }
+    }
+
+    @Test
+    public void testJavaFunctionInvalidReturn() throws Throwable
+    {
+        String functionBody = "\n" +
+                              "  return Long.valueOf(1L);\n";
+
+        String cql = "CREATE OR REPLACE FUNCTION jfir(val double) RETURNS double LANGUAGE JAVA\n" +
+                     "AS '" + functionBody + "';";
+
+        assertInvalid(cql);
+    }
+
+    @Test
+    public void testJavaFunctionArgumentTypeMismatch() throws Throwable
+    {
+        createTable("CREATE TABLE %s (key int primary key, val bigint)");
+
+        String functionBody = "\n" +
+                              "  return val;\n";
+
+        String cql = "CREATE OR REPLACE FUNCTION jft(val double) RETURNS double LANGUAGE JAVA\n" +
+                     "AS '" + functionBody + "';";
+
+        execute(cql);
+
+        execute("INSERT INTO %s (key, val) VALUES (?, ?)", 1, 1L);
+        execute("INSERT INTO %s (key, val) VALUES (?, ?)", 2, 2L);
+        execute("INSERT INTO %s (key, val) VALUES (?, ?)", 3, 3L);
+        assertInvalid("SELECT key, val, jft(val) FROM %s");
+    }
+
+    @Test
+    public void testJavaFunction() throws Throwable
+    {
+        createTable("CREATE TABLE %s (key int primary key, val double)");
+
+        String functionBody = "\n" +
+                              "  // parameter val is of type java.lang.Double\n" +
+                              "  /* return type is of type java.lang.Double */\n" +
+                              "  if (val == null) {\n" +
+                              "    return null;\n" +
+                              "  }\n" +
+                              "  double v = Math.sin( val.doubleValue() );\n" +
+                              "  return Double.valueOf(v);\n";
+
+        String cql = "CREATE OR REPLACE FUNCTION jft(val double) RETURNS double LANGUAGE JAVA\n" +
+                     "AS '" + functionBody + "';";
+
+        execute(cql);
+
+        assertRows(execute("SELECT language, body FROM system.schema_functions WHERE namespace='' AND name='jft'"),
+                   row("java", functionBody));
+
+        execute("INSERT INTO %s (key, val) VALUES (?, ?)", 1, 1d);
+        execute("INSERT INTO %s (key, val) VALUES (?, ?)", 2, 2d);
+        execute("INSERT INTO %s (key, val) VALUES (?, ?)", 3, 3d);
+        assertRows(execute("SELECT key, val, jft(val) FROM %s"),
+                   row(1, 1d, Math.sin(1d)),
+                   row(2, 2d, Math.sin(2d)),
+                   row(3, 3d, Math.sin(3d))
+        );
+    }
+
+    @Test
+    public void testJavaNamespaceFunction() throws Throwable
+    {
+        createTable("CREATE TABLE %s (key int primary key, val double)");
+
+        String functionBody = "\n" +
+                              "  // parameter val is of type java.lang.Double\n" +
+                              "  /* return type is of type java.lang.Double */\n" +
+                              "  if (val == null) {\n" +
+                              "    return null;\n" +
+                              "  }\n" +
+                              "  double v = Math.sin( val.doubleValue() );\n" +
+                              "  return Double.valueOf(v);\n";
+
+        String cql = "CREATE OR REPLACE FUNCTION foo::jnft(val double) RETURNS double LANGUAGE JAVA\n" +
+                     "AS '" + functionBody + "';";
+
+        execute(cql);
+
+        assertRows(execute("SELECT language, body FROM system.schema_functions WHERE namespace='foo' AND name='jnft'"),
+                   row("java", functionBody));
+
+        execute("INSERT INTO %s (key, val) VALUES (?, ?)", 1, 1d);
+        execute("INSERT INTO %s (key, val) VALUES (?, ?)", 2, 2d);
+        execute("INSERT INTO %s (key, val) VALUES (?, ?)", 3, 3d);
+        assertRows(execute("SELECT key, val, foo::jnft(val) FROM %s"),
+                   row(1, 1d, Math.sin(1d)),
+                   row(2, 2d, Math.sin(2d)),
+                   row(3, 3d, Math.sin(3d))
+        );
+    }
+
+    @Test
+    public void testJavaRuntimeException() throws Throwable
+    {
+        createTable("CREATE TABLE %s (key int primary key, val double)");
+
+        String functionBody = "\n" +
+                              "  throw new RuntimeException(\"oh no!\");\n";
+
+        String cql = "CREATE OR REPLACE FUNCTION foo::jrtef(val double) RETURNS double LANGUAGE JAVA\n" +
+                     "AS '" + functionBody + "';";
+
+        execute(cql);
+
+        assertRows(execute("SELECT language, body FROM system.schema_functions WHERE namespace='foo' AND name='jrtef'"),
+                   row("java", functionBody));
+
+        execute("INSERT INTO %s (key, val) VALUES (?, ?)", 1, 1d);
+        execute("INSERT INTO %s (key, val) VALUES (?, ?)", 2, 2d);
+        execute("INSERT INTO %s (key, val) VALUES (?, ?)", 3, 3d);
+
+        // function throws a RuntimeException which is wrapped by InvalidRequestException
+        assertInvalid("SELECT key, val, foo::jrtef(val) FROM %s");
     }
 }

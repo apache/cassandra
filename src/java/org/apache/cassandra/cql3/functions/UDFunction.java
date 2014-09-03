@@ -77,6 +77,7 @@ public abstract class UDFunction extends AbstractFunction
         switch (language)
         {
             case "class": return new ReflectionBasedUDF(name, argNames, argTypes, returnType, language, body, deterministic);
+            case "java": return new JavaSourceBasedUDF(name, argNames, argTypes, returnType, language, body, deterministic);
             default: throw new InvalidRequestException(String.format("Invalid language %s for '%s'", language, name));
         }
     }
@@ -183,13 +184,25 @@ public abstract class UDFunction extends AbstractFunction
         List<String> names = row.getList("argument_names", UTF8Type.instance);
         List<String> types = row.getList("argument_types", UTF8Type.instance);
 
-        List<ColumnIdentifier> argNames = new ArrayList<>(names.size());
-        for (String arg : names)
-            argNames.add(new ColumnIdentifier(arg, true));
+        List<ColumnIdentifier> argNames;
+        if (names == null)
+            argNames = Collections.emptyList();
+        else
+        {
+            argNames = new ArrayList<>(names.size());
+            for (String arg : names)
+                argNames.add(new ColumnIdentifier(arg, true));
+        }
 
-        List<AbstractType<?>> argTypes = new ArrayList<>(types.size());
-        for (String type : types)
-            argTypes.add(parseType(type));
+        List<AbstractType<?>> argTypes;
+        if (types == null)
+            argTypes = Collections.emptyList();
+        else
+        {
+            argTypes = new ArrayList<>(types.size());
+            for (String type : types)
+                argTypes.add(parseType(type));
+        }
 
         AbstractType<?> returnType = parseType(row.getString("return_type"));
 

@@ -17,10 +17,8 @@
  */
 package org.apache.cassandra.cql3.functions;
 
-import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
-import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.List;
 
@@ -34,10 +32,8 @@ import org.apache.cassandra.exceptions.InvalidRequestException;
  *
  * This is used when the LANGUAGE of the UDF definition is "class".
  */
-class ReflectionBasedUDF extends UDFunction
+final class ReflectionBasedUDF extends AbstractJavaUDF
 {
-    public final Method method;
-
     ReflectionBasedUDF(FunctionName name,
                        List<ColumnIdentifier> argNames,
                        List<AbstractType<?>> argTypes,
@@ -48,16 +44,17 @@ class ReflectionBasedUDF extends UDFunction
     throws InvalidRequestException
     {
         super(name, argNames, argTypes, returnType, language, body, deterministic);
-        assert language.equals("class");
-        this.method = resolveClassMethod();
     }
 
-    private Method resolveClassMethod() throws InvalidRequestException
+    String requiredLanguage()
     {
-        Class<?> jReturnType = returnType.getSerializer().getType();
-        Class<?> paramTypes[] = new Class[argTypes.size()];
-        for (int i = 0; i < paramTypes.length; i++)
-            paramTypes[i] = argTypes.get(i).getSerializer().getType();
+        return "class";
+    }
+
+    Method resolveMethod() throws InvalidRequestException
+    {
+        Class<?> jReturnType = javaReturnType();
+        Class<?>[] paramTypes = javaParamTypes();
 
         String className;
         String methodName;
@@ -96,31 +93,6 @@ class ReflectionBasedUDF extends UDFunction
         catch (NoSuchMethodException e)
         {
             throw new InvalidRequestException("Method " + className + '.' + methodName + '(' + Arrays.toString(paramTypes) + ") does not exist");
-        }
-    }
-
-    public ByteBuffer execute(List<ByteBuffer> parameters) throws InvalidRequestException
-    {
-        Object[] parms = new Object[argTypes.size()];
-        for (int i = 0; i < parms.length; i++)
-        {
-            ByteBuffer bb = parameters.get(i);
-            if (bb != null)
-                parms[i] = argTypes.get(i).compose(bb);
-        }
-
-        Object result;
-        try
-        {
-            result = method.invoke(null, parms);
-            @SuppressWarnings("unchecked") ByteBuffer r = result != null ? ((AbstractType) returnType).decompose(result) : null;
-            return r;
-        }
-        catch (InvocationTargetException | IllegalAccessException e)
-        {
-            Throwable c = e.getCause();
-            logger.error("Invocation of function {} failed", name, c);
-            throw new InvalidRequestException("Invocation of function " + name + " failed: " + c);
         }
     }
 }
