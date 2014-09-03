@@ -1,4 +1,5 @@
 3.0
+ * Require arg types to disambiguate UDF drops (CASSANDRA-7812)
  * Do anticompaction in groups (CASSANDRA-6851)
  * Verify that UDF class methods are static (CASSANDRA-7781)
  * Support pure user-defined functions (CASSANDRA-7395, 7740)

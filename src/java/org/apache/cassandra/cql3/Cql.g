@@ -527,11 +527,22 @@ createFunctionStatement returns [CreateFunctionStatement expr]
 dropFunctionStatement returns [DropFunctionStatement expr]
     @init {
         boolean ifExists = false;
+        List<CQL3Type.Raw> argsTypes = new ArrayList<>();
+        boolean argsPresent = false;
     }
     : K_DROP K_FUNCTION
       (K_IF K_EXISTS { ifExists = true; } )?
       fn=functionName
-      { $expr = new DropFunctionStatement(fn, ifExists); }
+      (
+        '('
+          (
+            v=comparatorType { argsTypes.add(v); }
+            ( ',' v=comparatorType { argsTypes.add(v); } )*
+          )?
+        ')'
+        { argsPresent = true; }
+      )?
+      { $expr = new DropFunctionStatement(fn, argsTypes, argsPresent, ifExists); }
     ;
 
 /**

@@ -38,14 +38,11 @@ import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.KSMetaData;
 import org.apache.cassandra.config.UTMetaData;
 import org.apache.cassandra.config.Schema;
-import org.apache.cassandra.cql3.functions.FunctionName;
 import org.apache.cassandra.cql3.functions.UDFunction;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.marshal.UserType;
 import org.apache.cassandra.exceptions.AlreadyExistsException;
 import org.apache.cassandra.exceptions.ConfigurationException;
-import org.apache.cassandra.exceptions.InvalidRequestException;
-import org.apache.cassandra.exceptions.SyntaxException;
 import org.apache.cassandra.gms.*;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataOutputPlus;
@@ -374,10 +371,11 @@ public class MigrationManager
         announce(addSerializedKeyspace(UTMetaData.dropFromSchema(droppedType, FBUtilities.timestampMicros()), droppedType.keyspace), announceLocally);
     }
 
-    public static void announceFunctionDrop(FunctionName fun, boolean announceLocally)
+    public static void announceFunctionDrop(UDFunction udf, boolean announceLocally)
     {
-        logger.info(String.format("Drop Function '%s'", fun));
-        announce(UDFunction.dropFromSchema(FBUtilities.timestampMicros(), fun), announceLocally);
+        Mutation mutation = udf.toSchemaDrop(FBUtilities.timestampMicros());
+        logger.info(String.format("Drop Function overload '%s' args '%s'", udf.name(), udf.argTypes()));
+        announce(mutation, announceLocally);
     }
 
     public static void announceNewFunction(UDFunction udf, boolean announceLocally)

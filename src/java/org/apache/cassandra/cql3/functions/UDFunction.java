@@ -138,11 +138,15 @@ public abstract class UDFunction extends AbstractFunction
         return new Mutation(Keyspace.SYSTEM_KS, kv.decompose(name.namespace, name.name));
     }
 
-    // TODO: we should allow removing just one function, not all functions having a given name
-    public static Mutation dropFromSchema(long timestamp, FunctionName fun)
+    public Mutation toSchemaDrop(long timestamp)
     {
-        Mutation mutation = makeSchemaMutation(fun);
-        mutation.delete(SystemKeyspace.SCHEMA_FUNCTIONS_CF, timestamp);
+        Mutation mutation = makeSchemaMutation(name);
+        ColumnFamily cf = mutation.addOrGet(SystemKeyspace.SCHEMA_FUNCTIONS_CF);
+
+        Composite prefix = CFMetaData.SchemaFunctionsCf.comparator.make(computeSignature(argTypes));
+        int ldt = (int) (System.currentTimeMillis() / 1000);
+        cf.addAtom(new RangeTombstone(prefix, prefix.end(), timestamp, ldt));
+
         return mutation;
     }
 

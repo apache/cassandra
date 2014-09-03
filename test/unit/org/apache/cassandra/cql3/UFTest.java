@@ -19,8 +19,6 @@ package org.apache.cassandra.cql3;
 
 import org.junit.Test;
 
-import org.apache.cassandra.exceptions.InvalidRequestException;
-
 public class UFTest extends CQLTester
 {
     public static Double sin(Double val)
@@ -141,6 +139,10 @@ public class UFTest extends CQLTester
         assertInvalid("DROP FUNCTION foo::sin");
         // but don't complain with "IF EXISTS"
         execute("DROP FUNCTION IF EXISTS foo::sin");
+
+        // can't drop native functions
+        assertInvalid("DROP FUNCTION dateof");
+        assertInvalid("DROP FUNCTION uuid");
     }
 
     @Test
@@ -186,5 +188,22 @@ public class UFTest extends CQLTester
         assertEmpty(execute("SELECT v FROM %s WHERE k = overloaded((ascii)?)", "foo"));
         // And since varchar == text, this should work too
         assertEmpty(execute("SELECT v FROM %s WHERE k = overloaded((varchar)?)", "foo"));
+
+        // no such functions exist...
+        assertInvalid("DROP FUNCTION overloaded(boolean)");
+        assertInvalid("DROP FUNCTION overloaded(bigint)");
+
+        // 'overloaded' has multiple overloads - so it has to fail (CASSANDRA-7812)
+        assertInvalid("DROP FUNCTION overloaded");
+        execute("DROP FUNCTION overloaded(varchar)");
+        assertInvalid("SELECT v FROM %s WHERE k = overloaded((text)?)", "foo");
+        execute("DROP FUNCTION overloaded(text, text)");
+        assertInvalid("SELECT v FROM %s WHERE k = overloaded((text)?,(text)?)", "foo", "bar");
+        execute("DROP FUNCTION overloaded(ascii)");
+        assertInvalid("SELECT v FROM %s WHERE k = overloaded((ascii)?)", "foo");
+        // single-int-overload must still work
+        assertRows(execute("SELECT v FROM %s WHERE k = overloaded((int)?)", 3), row(1));
+        // overloaded has just one overload now - so the following DROP FUNCTION is not ambigious (CASSANDRA-7812)
+        execute("DROP FUNCTION overloaded");
     }
 }
