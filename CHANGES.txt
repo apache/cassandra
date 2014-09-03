@@ -86,6 +86,15 @@ Merged from 2.0:
  * Always reject inequality on the partition key without token()
    (CASSANDRA-7722)
  * Always send Paxos commit to all replicas (CASSANDRA-7479)
+ * Make disruptor_thrift_server invocation pool configurable (CASSANDRA-7594)
+
+
+2.0.10
+>>>>>>> cassandra-2.0
+ * Don't send schema change responses and events for no-op DDL
+   statements (CASSANDRA-7600)
+ * (Hadoop) fix cluster initialisation for a split fetching (CASSANDRA-7774)
+>>>>>>> cassandra-2.1
  * Configure system.paxos with LeveledCompactionStrategy (CASSANDRA-7753)
  * Fix ALTER clustering column type from DateType to TimestampType when
    using DESC clustering order (CASSANRDA-7797)
