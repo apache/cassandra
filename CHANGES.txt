@@ -1,4 +1,6 @@
 2.0.11:
+ * Explicitly disallowing mixing multi-column and single-column
+   relations on clustering columns (CASSANDRA-7711)
  * Better error message when condition is set on PK column (CASSANDRA-7804)
  * Forbid re-adding dropped counter columns (CASSANDRA-7831)
  * Fix CFMetaData#isThriftCompatible() for PK-only tables (CASSANDRA-7832)

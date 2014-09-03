@@ -28,6 +28,8 @@ import org.github.jamm.MemoryMeter;
 
 import org.apache.cassandra.auth.Permission;
 import org.apache.cassandra.cql3.*;
+import org.apache.cassandra.cql3.CFDefinition.Name;
+import org.apache.cassandra.cql3.CFDefinition.Name.Kind;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.*;
@@ -1400,6 +1402,8 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
              */
             boolean hasQueriableIndex = false;
             boolean hasQueriableClusteringColumnIndex = false;
+            boolean hasSingleColumnRelations = false;
+            boolean hasMultiColumnRelations = false;
             for (Relation relation : whereClause)
             {
                 if (relation.isMultiColumn())
@@ -1411,7 +1415,9 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
                         boolean[] queriable = processRelationEntity(stmt, relation, entity, cfDef);
                         hasQueriableIndex |= queriable[0];
                         hasQueriableClusteringColumnIndex |= queriable[1];
-                        names.add(cfDef.get(entity));
+                        Name name = cfDef.get(entity);
+                        names.add(name);
+                        hasMultiColumnRelations |= Kind.COLUMN_ALIAS.equals(name.kind);
                     }
                     updateRestrictionsForRelation(stmt, names, rel, boundNames);
                 }
@@ -1421,9 +1427,13 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
                     boolean[] queriable = processRelationEntity(stmt, relation, rel.getEntity(), cfDef);
                     hasQueriableIndex |= queriable[0];
                     hasQueriableClusteringColumnIndex |= queriable[1];
-                    updateRestrictionsForRelation(stmt, cfDef.get(rel.getEntity()), rel, boundNames);
+                    Name name = cfDef.get(rel.getEntity());
+                    hasSingleColumnRelations |= Kind.COLUMN_ALIAS.equals(name.kind);
+                    updateRestrictionsForRelation(stmt, name, rel, boundNames);
                 }
             }
+            if (hasSingleColumnRelations && hasMultiColumnRelations)
+                throw new InvalidRequestException("Mixing single column relations and multi column relations on clustering columns is not allowed");
 
              // At this point, the select statement if fully constructed, but we still have a few things to validate
             processPartitionKeyRestrictions(stmt, cfDef, hasQueriableIndex);

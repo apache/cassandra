@@ -112,6 +112,12 @@ public class MultiColumnRelationTest
             return null;
     }
 
+    @Test(expected=InvalidRequestException.class)
+    public void testMixMultiColumnRelationsAndSingleColumn() throws Throwable
+    {
+        execute("SELECT * FROM %s.multiple_clustering WHERE a = 1 AND (b) in ((2),(3)) AND c > 4");
+    }
+
     @Test(expected=SyntaxException.class)
     public void testEmptyIdentifierTuple() throws Throwable
     {
