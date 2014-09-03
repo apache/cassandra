@@ -1,3 +1,7 @@
+2.1.0
+ * Add null check for keys when freezing collection (CASSANDRA-7869)
+
+
 2.1.0-rc7
  * Add frozen keyword and require UDT to be frozen (CASSANDRA-7857)
  * Track added sstable size correctly (CASSANDRA-7239)

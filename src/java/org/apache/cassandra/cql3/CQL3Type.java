@@ -404,7 +404,8 @@ public interface CQL3Type
 
             public Raw freeze()
             {
-                keys.freeze();
+                if (keys != null)
+                    keys.freeze();
                 values.freeze();
                 return super.freeze();
             }

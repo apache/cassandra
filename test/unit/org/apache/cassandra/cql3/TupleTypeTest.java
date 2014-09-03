@@ -100,4 +100,43 @@ public class TupleTypeTest extends CQLTester
     {
         assertInvalid("CREATE TABLE wrong (k int PRIMARY KEY, v tuple<int, text>)");
     }
+
+    @Test
+    public void testFrozenTupleWithList() throws Throwable
+    {
+        createTable("CREATE TABLE %s (k int PRIMARY KEY, t frozen<tuple<text, list<int>>>)");
+
+        execute("INSERT INTO %s (k, t) VALUES (?, ?)", 0, tuple("foo", list(2, 1)));
+        execute("INSERT INTO %s (k, t) VALUES (?, ?)", 1, tuple("bar", list(3, 4)));
+        assertAllRows(
+            row(0, tuple("foo", list(2, 1))),
+            row(1, tuple("bar", list(3, 4)))
+        );
+    }
+
+    @Test
+    public void testFrozenTupleWithSet() throws Throwable
+    {
+        createTable("CREATE TABLE %s (k int PRIMARY KEY, t frozen<tuple<text, set<int>>>)");
+
+        execute("INSERT INTO %s (k, t) VALUES (?, ?)", 0, tuple("foo", set(2, 1)));
+        execute("INSERT INTO %s (k, t) VALUES (?, ?)", 1, tuple("bar", set(3, 4)));
+        assertAllRows(
+            row(0, tuple("foo", set(2, 1))),
+            row(1, tuple("bar", set(3, 4)))
+        );
+    }
+
+    @Test
+    public void testFrozenTupleWithMap() throws Throwable
+    {
+        createTable("CREATE TABLE %s (k int PRIMARY KEY, t frozen<tuple<text, map<int, int>>>)");
+
+        execute("INSERT INTO %s (k, t) VALUES (?, ?)", 0, tuple("foo", map(2, 1)));
+        execute("INSERT INTO %s (k, t) VALUES (?, ?)", 1, tuple("bar", map(3, 4)));
+        assertAllRows(
+            row(0, tuple("foo", map(2, 1))),
+            row(1, tuple("bar", map(3, 4)))
+        );
+    }
 }
