@@ -158,7 +158,7 @@ public class CreateTableStatement extends SchemaAlteringStatement
         cfmd.defaultValidator(defaultValidator)
             .keyValidator(keyValidator)
             .columnMetadata(getColumns())
-            .setDense(isDense);
+            .isDense(isDense);
 
         cfmd.addColumnMetadataFromAliases(keyAliases, keyValidator, ColumnDefinition.Type.PARTITION_KEY);
         cfmd.addColumnMetadataFromAliases(columnAliases, comparator, ColumnDefinition.Type.CLUSTERING_KEY);

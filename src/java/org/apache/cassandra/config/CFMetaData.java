@@ -452,7 +452,7 @@ public final class CFMetaData
     public CFMetaData populateIoCacheOnFlush(boolean prop) {populateIoCacheOnFlush = prop; return this;}
     public CFMetaData droppedColumns(Map<ByteBuffer, Long> cols) {droppedColumns = cols; return this;}
     public CFMetaData triggers(Map<String, TriggerDefinition> prop) {triggers = prop; return this;}
-    public CFMetaData setDense(Boolean prop) {isDense = prop; return this;}
+    public CFMetaData isDense(Boolean prop) {isDense = prop; return this;}
 
     public CFMetaData(String keyspace, String name, ColumnFamilyType type, AbstractType<?> comp, AbstractType<?> subcc)
     {
@@ -605,7 +605,7 @@ public final class CFMetaData
                       .populateIoCacheOnFlush(oldCFMD.populateIoCacheOnFlush)
                       .droppedColumns(new HashMap<>(oldCFMD.droppedColumns))
                       .triggers(new HashMap<>(oldCFMD.triggers))
-                      .setDense(oldCFMD.isDense)
+                      .isDense(oldCFMD.isDense)
                       .rebuild();
     }
 
@@ -784,6 +784,11 @@ public final class CFMetaData
     public Map<ByteBuffer, Long> getDroppedColumns()
     {
         return droppedColumns;
+    }
+
+    public Boolean getIsDense()
+    {
+        return isDense;
     }
 
     public boolean equals(Object obj)
@@ -1117,7 +1122,7 @@ public final class CFMetaData
 
         triggers = cfm.triggers;
 
-        setDense(cfm.isDense);
+        isDense(cfm.isDense);
 
         rebuild();
         logger.debug("application result is {}", this);
@@ -1712,7 +1717,7 @@ public final class CFMetaData
                 cfm.populateIoCacheOnFlush(result.getBoolean("populate_io_cache_on_flush"));
 
             if (result.has("is_dense"))
-                cfm.setDense(result.getBoolean("is_dense"));
+                cfm.isDense(result.getBoolean("is_dense"));
 
             /*
              * The info previously hold by key_aliases, column_aliases and value_alias is now stored in column_metadata (because 1) this
@@ -1964,7 +1969,7 @@ public final class CFMetaData
     {
         List<ColumnDefinition> pkCols = nullInitializedList(keyValidator.componentsCount());
         if (isDense == null)
-            setDense(isDense(comparator, column_metadata.values()));
+            isDense(calculateIsDense(comparator, column_metadata.values()));
         int nbCkCols = isDense
                      ? comparator.componentsCount()
                      : comparator.componentsCount() - (hasCollection() ? 2 : 1);
@@ -2087,7 +2092,7 @@ public final class CFMetaData
      * information for table just created through thrift, nor for table prior to CASSANDRA-7744, so this
      * method does its best to infer whether the table is dense or not based on other elements.
      */
-    private static boolean isDense(AbstractType<?> comparator, Collection<ColumnDefinition> defs)
+    private static boolean calculateIsDense(AbstractType<?> comparator, Collection<ColumnDefinition> defs)
     {
         /*
          * As said above, this method is only here because we need to deal with thrift upgrades.
