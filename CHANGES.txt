@@ -96,7 +96,6 @@ Merged from 2.0:
  * Don't send schema change responses and events for no-op DDL
    statements (CASSANDRA-7600)
  * (Hadoop) fix cluster initialisation for a split fetching (CASSANDRA-7774)
->>>>>>> cassandra-2.1
  * Configure system.paxos with LeveledCompactionStrategy (CASSANDRA-7753)
  * Fix ALTER clustering column type from DateType to TimestampType when
    using DESC clustering order (CASSANRDA-7797)
@@ -200,7 +199,7 @@ Merged from 2.0:
  * Updated memtable_cleanup_threshold and memtable_flush_writers defaults 
    (CASSANDRA-7551)
  * (Windows) fix startup when WMI memory query fails (CASSANDRA-7505)
- * Anti-compaction proceeds if any part of the repair failed (CASANDRA-7521)
+ * Anti-compaction proceeds if any part of the repair failed (CASSANDRA-7521)
  * Add missing table name to DROP INDEX responses and notifications (CASSANDRA-7539)
  * Bump CQL version to 3.2.0 and update CQL documentation (CASSANDRA-7527)
  * Fix configuration error message when running nodetool ring (CASSANDRA-7508)
