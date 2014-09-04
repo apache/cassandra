@@ -196,8 +196,8 @@ CREATE TYPE phone_number (
 CREATE TABLE users (
     login text PRIMARY KEY,
     name text,
-    addresses set<address>,
-    phone_numbers set<phone_number>
+    addresses set<frozen<address>>,
+    phone_numbers set<frozen<phone_number>>
 );
 
 insert into users (login, name, addresses, phone_numbers)
@@ -229,8 +229,8 @@ CREATE TYPE tags (
 CREATE TABLE songs (
     title text PRIMARY KEY,
     band text,
-    info band_info_type,
-    tags tags
+    info frozen<band_info_type>,
+    tags frozen<tags>
 );
 
 insert into songs (title, band, info, tags)
