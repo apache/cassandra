@@ -101,25 +101,22 @@ class TestCqlshOutput(BaseTestCase):
                 self.assertNoHasColors(c.read_to_next_prompt())
 
     def test_no_prompt_or_colors_output(self):
-        # CQL queries and number of lines expected in output:
-        queries = (('select * from has_all_types limit 1;', 7),
-                   ('select * from has_value_encoding_errors limit 1;', 8))
         for termname in ('', 'dumb', 'vt100', 'xterm'):
             cqlshlog.debug('TERM=%r' % termname)
-            for cql, lines_expected in queries:
-                output, result = testcall_cqlsh(prompt=None, env={'TERM': termname},
-                                                tty=False, input=cql + '\n')
-                output = output.splitlines()
-                for line in output:
-                    self.assertNoHasColors(line)
-                    self.assertNotRegexpMatches(line, r'^cqlsh\S*>')
-                self.assertEqual(len(output), lines_expected,
-                                 msg='output: %r' % '\n'.join(output))
-                self.assertEqual(output[0], '')
-                self.assertNicelyFormattedTableHeader(output[1])
-                self.assertNicelyFormattedTableRule(output[2])
-                self.assertNicelyFormattedTableData(output[3])
-                self.assertEqual(output[4].strip(), '')
+            query = 'select * from has_all_types limit 1;'
+            output, result = testcall_cqlsh(prompt=None, env={'TERM': termname},
+                                            tty=False, input=query + '\n')
+            output = output.splitlines()
+            for line in output:
+                self.assertNoHasColors(line)
+                self.assertNotRegexpMatches(line, r'^cqlsh\S*>')
+            self.assertTrue(6 <= len(output) <= 8,
+                             msg='output: %r' % '\n'.join(output))
+            self.assertEqual(output[0], '')
+            self.assertNicelyFormattedTableHeader(output[1])
+            self.assertNicelyFormattedTableRule(output[2])
+            self.assertNicelyFormattedTableData(output[3])
+            self.assertEqual(output[4].strip(), '')
 
     def test_color_output(self):
         for termname in ('xterm', 'unknown-garbage'):
@@ -449,13 +446,11 @@ class TestCqlshOutput(BaseTestCase):
              G                           YYYYYYmmYYYYYYYYmmmmY
              2 | \x00\x01\x02\x03\x04\x05control chars\x06\x07
              G   mmmmmmmmmmmmmmmmmmmmmmmmYYYYYYYYYYYYYmmmmmmmm
-             3 |                       \xfe\xffbyte order mark 
-             G                         mmmmmmmmYYYYYYYYYYYYYYY
              4 |                      fake special chars\x00\n
              G                        YYYYYYYYYYYYYYYYYYYYYYYY
 
 
-            (5 rows)
+            (4 rows)
             nnnnnnnn
             """),
         ), cqlver=cqlsh.DEFAULT_CQLVER)
@@ -524,46 +519,6 @@ class TestCqlshOutput(BaseTestCase):
         # guess we could monkey-patch cqlsh or python-cql source to
         # explicitly generate an exception on the deserialization of type X..
         pass
-
-    def test_colval_decoding_errors(self):
-        self.assertCqlverQueriesGiveColoredOutput((
-            ("select * from has_value_encoding_errors;", r"""
-             pkey | utf8col
-             MMMM   MMMMMMM
-            ------+--------------------
-
-                A | '\x00\xff\x00\xff'
-                Y   RRRRRRRRRRRRRRRRRR
-
-
-            (1 rows)
-            nnnnnnnn
-
-
-            Failed to decode value '\x00\xff\x00\xff' (for column 'utf8col') as text: 'utf8' codec can't decode byte 0xff in position 1: invalid start byte
-            RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR
-            """),
-        ), cqlver=cqlsh.DEFAULT_CQLVER)
-
-    def test_key_decoding_errors(self):
-        self.assertCqlverQueriesGiveColoredOutput((
-            ("select * from has_key_encoding_errors;", r"""
-             pkey               | col
-             MMMM                 MMM
-            --------------------+----------
-
-             '\x00\xff\x02\x8f' | whatever
-             RRRRRRRRRRRRRRRRRR   YYYYYYYY
-
-
-            (1 rows)
-            nnnnnnnn
-
-
-            Failed to decode value '\x00\xff\x02\x8f' (for column 'pkey') as text: 'utf8' codec can't decode byte 0xff in position 1: invalid start byte
-            RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR
-            """),
-        ), cqlver=cqlsh.DEFAULT_CQLVER)
 
     def test_prompt(self):
         with testrun_cqlsh(tty=True, keyspace=None, cqlver=cqlsh.DEFAULT_CQLVER) as c:
@@ -656,6 +611,7 @@ class TestCqlshOutput(BaseTestCase):
                 AND comment = ''
                 AND compaction = {'min_threshold': '4', 'class': 'org.apache.cassandra.db.compaction.SizeTieredCompactionStrategy', 'max_threshold': '32'}
                 AND compression = {'sstable_compression': 'org.apache.cassandra.io.compress.LZ4Compressor'}
+                AND dclocal_read_repair_chance = 0.1
                 AND default_time_to_live = 0
                 AND gc_grace_seconds = 864000
                 AND max_index_interval = 2048
@@ -716,7 +672,6 @@ class TestCqlshOutput(BaseTestCase):
                     self.assertEqual(output[0], '\n')
                     self.assertEqual(output[-1], '\n')
                     self.assertNotIn('Keyspace %s' % quote_name(ks), output)
-                    self.assertIn('has_value_encoding_errors', output)
                     self.assertIn('undefined_values_table', output)
 
     def test_describe_cluster_output(self):
