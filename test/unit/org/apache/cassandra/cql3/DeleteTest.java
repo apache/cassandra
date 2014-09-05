@@ -28,6 +28,7 @@ import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.service.EmbeddedCassandraService;
 import org.junit.Assert;
+import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
@@ -48,13 +49,18 @@ public class DeleteTest extends SchemaLoader
     private static PreparedStatement pstmt4;
     private static PreparedStatement pstmt5;
 
-    @BeforeClass()
-    public static void setup() throws ConfigurationException, IOException
+    @BeforeClass
+    public static void setup() throws Exception
     {
         Schema.instance.clear();
 
         cassandra = new EmbeddedCassandraService();
         cassandra.start();
+
+        // Currently the native server start method return before the server is fully binded to the socket,
+        // so we need to wait slightly before trying to connect to it. We should fix this but in the meantime
+        // using a sleep.
+        Thread.sleep(500);
 
         cluster = Cluster.builder().addContactPoint("127.0.0.1").withPort(DatabaseDescriptor.getNativeTransportPort()).build();
         session = cluster.connect();
@@ -107,7 +113,12 @@ public class DeleteTest extends SchemaLoader
         pstmt5 = session.prepare("select id, cid, inh_c, val from junit.tpc_inherit_c where id=? and cid=?");
     }
 
-
+    @AfterClass
+    public static void tearDown() throws Exception
+    {
+        cluster.close();
+        cassandra.stop();
+    }
 
     @Test
     public void lostDeletesTest()
