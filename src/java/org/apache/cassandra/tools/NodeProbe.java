@@ -186,51 +186,45 @@ public class NodeProbe implements AutoCloseable
         jmxc.close();
     }
 
-    public CompactionManager.AllSSTableOpStatus forceKeyspaceCleanup(String keyspaceName, String... columnFamilies) throws IOException, ExecutionException, InterruptedException
+    public int forceKeyspaceCleanup(String keyspaceName, String... columnFamilies) throws IOException, ExecutionException, InterruptedException
     {
         return ssProxy.forceKeyspaceCleanup(keyspaceName, columnFamilies);
     }
 
-    public CompactionManager.AllSSTableOpStatus scrub(boolean disableSnapshot, boolean skipCorrupted, String keyspaceName, String... columnFamilies) throws IOException, ExecutionException, InterruptedException
+    public int scrub(boolean disableSnapshot, boolean skipCorrupted, String keyspaceName, String... columnFamilies) throws IOException, ExecutionException, InterruptedException
     {
         return ssProxy.scrub(disableSnapshot, skipCorrupted, keyspaceName, columnFamilies);
     }
 
-    public CompactionManager.AllSSTableOpStatus upgradeSSTables(String keyspaceName, boolean excludeCurrentVersion, String... columnFamilies) throws IOException, ExecutionException, InterruptedException
+    public int upgradeSSTables(String keyspaceName, boolean excludeCurrentVersion, String... columnFamilies) throws IOException, ExecutionException, InterruptedException
     {
         return ssProxy.upgradeSSTables(keyspaceName, excludeCurrentVersion, columnFamilies);
     }
 
     public void forceKeyspaceCleanup(PrintStream out, String keyspaceName, String... columnFamilies) throws IOException, ExecutionException, InterruptedException
     {
-        switch (forceKeyspaceCleanup(keyspaceName, columnFamilies))
+        if (forceKeyspaceCleanup(keyspaceName, columnFamilies) != 0)
         {
-            case ABORTED:
-                failed = true;
-                out.println("Aborted cleaning up atleast one table in keyspace "+keyspaceName+", check server logs for more information.");
-                break;
+            failed = true;
+            out.println("Aborted cleaning up atleast one table in keyspace "+keyspaceName+", check server logs for more information.");
         }
     }
 
     public void scrub(PrintStream out, boolean disableSnapshot, boolean skipCorrupted, String keyspaceName, String... columnFamilies) throws IOException, ExecutionException, InterruptedException
     {
-        switch (scrub(disableSnapshot, skipCorrupted, keyspaceName, columnFamilies))
+        if (scrub(disableSnapshot, skipCorrupted, keyspaceName, columnFamilies) != 0)
         {
-            case ABORTED:
-                failed = true;
-                out.println("Aborted scrubbing atleast one table in keyspace "+keyspaceName+", check server logs for more information.");
-                break;
+            failed = true;
+            out.println("Aborted scrubbing atleast one table in keyspace "+keyspaceName+", check server logs for more information.");
         }
     }
 
     public void upgradeSSTables(PrintStream out, String keyspaceName, boolean excludeCurrentVersion, String... columnFamilies) throws IOException, ExecutionException, InterruptedException
     {
-        switch (upgradeSSTables(keyspaceName, excludeCurrentVersion, columnFamilies))
+        if (upgradeSSTables(keyspaceName, excludeCurrentVersion, columnFamilies) != 0)
         {
-            case ABORTED:
-                failed = true;
-                out.println("Aborted upgrading sstables for atleast one table in keyspace "+keyspaceName+", check server logs for more information.");
-                break;
+            failed = true;
+            out.println("Aborted upgrading sstables for atleast one table in keyspace "+keyspaceName+", check server logs for more information.");
         }
     }
 
