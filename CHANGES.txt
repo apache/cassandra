@@ -1,4 +1,5 @@
 2.1.0
+ * cqlsh: DESCRIBE support for frozen UDTs, tuples (CASSANDRA-7863)
  * Avoid exposing internal classes over JMX (CASSANDRA-7879)
  * Add null check for keys when freezing collection (CASSANDRA-7869)
 
