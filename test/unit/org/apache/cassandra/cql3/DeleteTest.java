@@ -117,7 +117,6 @@ public class DeleteTest extends SchemaLoader
     public static void tearDown() throws Exception
     {
         cluster.close();
-        cassandra.stop();
     }
 
     @Test
