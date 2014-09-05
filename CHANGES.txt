@@ -92,6 +92,7 @@ Merged from 2.0:
    (CASSANDRA-7722)
  * Always send Paxos commit to all replicas (CASSANDRA-7479)
  * Make disruptor_thrift_server invocation pool configurable (CASSANDRA-7594)
+ * Make repair no-op when RF=1 (CASSANDRA-7864)
 
 
 2.0.10

@@ -2469,7 +2469,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public int forceRepairAsync(String keyspace, boolean isSequential, Collection<String> dataCenters, Collection<String> hosts, Collection<Range<Token>> ranges, boolean fullRepair, String... columnFamilies)
     {
-        if (Keyspace.SYSTEM_KS.equals(keyspace) || ranges.isEmpty())
+        if (ranges.isEmpty() || Keyspace.open(keyspace).getReplicationStrategy().getReplicationFactor() < 2)
             return 0;
 
         int cmd = nextRepairCommand.incrementAndGet();
@@ -2498,7 +2498,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public int forceRepairAsync(final String keyspace, final boolean isSequential, final boolean isLocal, final Collection<Range<Token>> ranges, final boolean fullRepair, final String... columnFamilies)
     {
-        if (Keyspace.SYSTEM_KS.equals(keyspace) || ranges.isEmpty())
+        if (ranges.isEmpty() || Keyspace.open(keyspace).getReplicationStrategy().getReplicationFactor() < 2)
             return 0;
 
         int cmd = nextRepairCommand.incrementAndGet();
