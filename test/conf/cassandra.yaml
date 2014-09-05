@@ -36,5 +36,3 @@ server_encryption_options:
 incremental_backups: true
 concurrent_compactors: 4
 compaction_throughput_mb_per_sec: 0
-start_native_transport: true
-native_transport_port: 9052
