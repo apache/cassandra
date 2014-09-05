@@ -86,7 +86,6 @@ public abstract class AbstractSimpleCellNameType extends AbstractCellNameType
     {
         ByteBuffer b1 = c1.toByteBuffer();
         ByteBuffer b2 = c2.toByteBuffer();
-        assert b1.hasRemaining() & b2.hasRemaining();
         return ByteBufferUtil.compareUnsigned(b1, b2);
     }
 
