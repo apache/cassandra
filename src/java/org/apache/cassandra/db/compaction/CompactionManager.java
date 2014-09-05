@@ -290,7 +290,14 @@ public class CompactionManager implements CompactionManagerMBean
         void execute(SSTableReader input) throws IOException;
     }
 
-    public enum AllSSTableOpStatus { ABORTED, SUCCESSFUL }
+    public enum AllSSTableOpStatus { ABORTED(1), SUCCESSFUL(0);
+        public final int statusCode;
+
+        AllSSTableOpStatus(int statusCode)
+        {
+            this.statusCode = statusCode;
+        }
+    }
 
     public AllSSTableOpStatus performScrub(final ColumnFamilyStore cfs, final boolean skipCorrupted) throws InterruptedException, ExecutionException
     {
