@@ -201,7 +201,7 @@ public class StandaloneSplitter
                 opts.sizeInMB = DEFAULT_SSTABLE_SIZE;
 
                 if (cmd.hasOption(SIZE_OPTION))
-                    opts.sizeInMB = Integer.valueOf(cmd.getOptionValue(SIZE_OPTION));
+                    opts.sizeInMB = Integer.parseInt(cmd.getOptionValue(SIZE_OPTION));
 
                 return opts;
             }
