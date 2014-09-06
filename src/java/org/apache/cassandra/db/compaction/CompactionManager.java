@@ -430,6 +430,7 @@ public class CompactionManager implements CompactionManagerMBean
                     logger.info("SSTable {} ({}) does not intersect repaired range {}, not touching repairedAt.", sstable, sstableRange, r);
                     nonAnticompacting.add(sstable);
                     sstableIterator.remove();
+                    break;
                 }
                 else
                 {
