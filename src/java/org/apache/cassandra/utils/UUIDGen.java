@@ -243,12 +243,6 @@ public class UUIDGen
         return createTime(nanosSince);
     }
 
-    /** @param when time in milliseconds */
-    private long createTimeUnsafe(long when)
-    {
-        return createTimeUnsafe(when, 0);
-    }
-
     private long createTimeUnsafe(long when, int nanos)
     {
         long nanosSince = ((when - START_EPOCH) * 10000) + nanos;
