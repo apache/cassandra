@@ -57,7 +57,7 @@ public class StreamLockfile
 
     public StreamLockfile(File directory, UUID uuid)
     {
-        lockfile = new File(directory, uuid.toString() + FILE_EXT);
+        lockfile = new File(directory, uuid + FILE_EXT);
     }
 
     public StreamLockfile(File lockfile)

@@ -186,7 +186,7 @@ public abstract class AbstractColumnFamilyRecordWriter<K, Y> extends RecordWrite
         @Override
         public String toString()
         {
-            return "#<Client for " + endpoints.toString() + ">";
+            return "#<Client for " + endpoints + ">";
         }
     }
 }

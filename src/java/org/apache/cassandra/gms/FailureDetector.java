@@ -277,7 +277,7 @@ public class FailureDetector implements IFailureDetector, FailureDetectorMBean
         {
             ArrivalWindow hWnd = arrivalSamples.get(ep);
             sb.append(ep + " : ");
-            sb.append(hWnd.toString());
+            sb.append(hWnd);
             sb.append(System.getProperty("line.separator"));
         }
         sb.append("-----------------------------------------------------------------------");

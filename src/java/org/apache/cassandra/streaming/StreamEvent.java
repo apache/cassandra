@@ -66,7 +66,7 @@ public abstract class StreamEvent
         @Override
         public String toString()
         {
-            return "<ProgressEvent " + progress.toString() + ">";
+            return "<ProgressEvent " + progress + ">";
         }
     }
 

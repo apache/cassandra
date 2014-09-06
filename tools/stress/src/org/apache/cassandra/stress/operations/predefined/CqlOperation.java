@@ -638,7 +638,7 @@ public abstract class CqlOperation<V> extends PredefinedOperation
             if (parm instanceof ByteBuffer)
                 result.append(getUnQuotedCqlBlob((ByteBuffer) parm));
             else if (parm instanceof Long)
-                result.append(parm.toString());
+                result.append(parm);
             else throw new AssertionError();
 
             position = marker + 1;

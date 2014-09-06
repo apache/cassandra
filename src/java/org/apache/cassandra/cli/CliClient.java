@@ -2102,7 +2102,7 @@ public class CliClient
 
         UUID sessionId = TimeUUIDType.instance.compose(thriftClient.trace_next_query());
 
-        sessionState.out.println("Will trace next query. Session ID: " + sessionId.toString());
+        sessionState.out.println("Will trace next query. Session ID: " + sessionId);
     }
 
     private void describeKeySpace(String keySpaceName, KsDef metadata) throws TException

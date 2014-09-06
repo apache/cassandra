@@ -828,7 +828,7 @@ public class NodeTool
             {
                 for (String ks : filter.keySet())
                     if (verifier.get(ks).size() > 0)
-                        throw new IllegalArgumentException("Unknown tables: " + verifier.get(ks).toString() + " in keyspace: " + ks);
+                        throw new IllegalArgumentException("Unknown tables: " + verifier.get(ks) + " in keyspace: " + ks);
             }
         }
     }

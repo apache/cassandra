@@ -333,7 +333,7 @@ public class ResultSet
             {
                 for (ColumnSpecification name : names)
                 {
-                    sb.append("[").append(name.name.toString());
+                    sb.append("[").append(name.name);
                     sb.append("(").append(name.ksName).append(", ").append(name.cfName).append(")");
                     sb.append(", ").append(name.type).append("]");
                 }

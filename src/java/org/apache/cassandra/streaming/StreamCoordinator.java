@@ -175,7 +175,7 @@ public class StreamCoordinator
     {
         HostStreamingData data = peerSessions.get(peer);
         if (data == null)
-            throw new IllegalArgumentException("Unknown peer requested: " + peer.toString());
+            throw new IllegalArgumentException("Unknown peer requested: " + peer);
         return data;
     }
 

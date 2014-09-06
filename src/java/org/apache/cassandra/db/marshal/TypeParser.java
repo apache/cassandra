@@ -271,7 +271,7 @@ public class TypeParser
             {
                 AbstractType<?> type = parse();
                 if (!(type instanceof CollectionType))
-                    throw new SyntaxException(type.toString() + " is not a collection type");
+                    throw new SyntaxException(type + " is not a collection type");
                 map.put(bb, (CollectionType)type);
             }
             catch (SyntaxException e)
@@ -572,7 +572,7 @@ public class TypeParser
         {
             sb.append(',');
             sb.append(ByteBufferUtil.bytesToHex(columnNames.get(i))).append(":");
-            sb.append(columnTypes.get(i).toString());
+            sb.append(columnTypes.get(i));
         }
         sb.append(')');
         return sb.toString();

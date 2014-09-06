@@ -181,7 +181,7 @@ public class BulkLoader
                 // recalculate progress across all sessions in all hosts and display
                 for (InetAddress peer : sessionsByHost.keySet())
                 {
-                    sb.append("[").append(peer.toString()).append("]");
+                    sb.append("[").append(peer).append("]");
 
                     for (SessionInfo session : sessionsByHost.get(peer))
                     {

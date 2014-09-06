@@ -58,7 +58,7 @@ public final class Resources
             if (component instanceof byte[])
                 buff.append(Hex.bytesToHex((byte[])component));
             else
-                buff.append(component.toString());
+                buff.append(component);
         }
         return buff.toString();
     }

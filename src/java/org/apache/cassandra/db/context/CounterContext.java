@@ -509,7 +509,7 @@ public class CounterContext
             if (state.getElementIndex() > 0)
                 sb.append(",");
             sb.append("{");
-            sb.append(state.getCounterId().toString()).append(", ");
+            sb.append(state.getCounterId()).append(", ");
             sb.append(state.getClock()).append(", ");
             sb.append(state.getCount());
             sb.append("}");
