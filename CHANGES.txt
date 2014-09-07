@@ -51,6 +51,8 @@ Merged from 1.2:
 
 
 2.1.0
+ * (cqlsh) Removed "ALTER TYPE <name> RENAME TO <name>" from tab-completion
+   (CASSANDRA-7895)
  * Fixed IllegalStateException in anticompaction (CASSANDRA-7892)
  * cqlsh: DESCRIBE support for frozen UDTs, tuples (CASSANDRA-7863)
  * Avoid exposing internal classes over JMX (CASSANDRA-7879)
