@@ -26,10 +26,14 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
+import com.google.common.collect.ImmutableList;
+
+import com.datastax.driver.core.BatchStatement;
 import org.apache.cassandra.stress.Operation;
 import org.apache.cassandra.stress.StressProfile;
 import org.apache.cassandra.stress.generate.DistributionFactory;
 import org.apache.cassandra.stress.generate.PartitionGenerator;
+import org.apache.cassandra.stress.generate.SeedManager;
 import org.apache.cassandra.stress.operations.OpDistributionFactory;
 import org.apache.cassandra.stress.operations.SampledOpDistributionFactory;
 import org.apache.cassandra.stress.util.Timer;
@@ -59,11 +63,8 @@ public class SettingsCommandUser extends SettingsCommand
 
     public OpDistributionFactory getFactory(final StressSettings settings)
     {
-        final List<Pair<String,Double>> mathPairs = new ArrayList<>();
-        for (Map.Entry entry: ratios.entrySet())
-            mathPairs.add(new Pair(entry.getKey(), entry.getValue()));
-
-        return new SampledOpDistributionFactory<String>(mathPairs, clustering)
+        final SeedManager seeds = new SeedManager(settings);
+        return new SampledOpDistributionFactory<String>(ratios, clustering)
         {
             protected Operation get(Timer timer, PartitionGenerator generator, String key)
             {
@@ -74,7 +75,7 @@ public class SettingsCommandUser extends SettingsCommand
 
             protected PartitionGenerator newGenerator()
             {
-                return profile.newGenerator(settings);
+                return profile.newGenerator(settings, seeds);
             }
         };
     }
@@ -86,19 +87,14 @@ public class SettingsCommandUser extends SettingsCommand
         {
             this.parent = parent;
         }
-        final OptionDistribution clustering = new OptionDistribution("clustering=", "GAUSSIAN(1..10)", "Distribution clustering runs of operations of the same kind");
+        final OptionDistribution clustering = new OptionDistribution("clustering=", "gaussian(1..10)", "Distribution clustering runs of operations of the same kind");
         final OptionSimple profile = new OptionSimple("profile=", ".*", null, "Specify the path to a yaml cql3 profile", false);
         final OptionAnyProbabilities ops = new OptionAnyProbabilities("ops", "Specify the ratios for inserts/queries to perform; e.g. ops(insert=2,<query1>=1) will perform 2 inserts for each query1");
 
         @Override
         public List<? extends Option> options()
         {
-            final List<Option> options = new ArrayList<>();
-            options.add(clustering);
-            options.add(ops);
-            options.add(profile);
-            options.addAll(parent.options());
-            return options;
+            return ImmutableList.<Option>builder().add(ops, clustering, profile).addAll(parent.options()).build();
         }
 
     }

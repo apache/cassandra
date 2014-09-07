@@ -33,7 +33,7 @@ public class TimeUUIDs extends Generator<UUID>
 
     public TimeUUIDs(String name, GeneratorConfig config)
     {
-        super(TimeUUIDType.instance, config, name);
+        super(TimeUUIDType.instance, config, name, UUID.class);
         dateGen = new Dates(name, config);
         clockSeqAndNode = config.salt;
     }

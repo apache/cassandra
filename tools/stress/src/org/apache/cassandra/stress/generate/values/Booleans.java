@@ -26,7 +26,7 @@ public class Booleans extends Generator<Boolean>
 {
     public Booleans(String name, GeneratorConfig config)
     {
-        super(BooleanType.instance, config, name);
+        super(BooleanType.instance, config, name, Boolean.class);
     }
 
     @Override

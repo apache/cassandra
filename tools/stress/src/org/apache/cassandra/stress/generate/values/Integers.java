@@ -27,7 +27,7 @@ public class Integers extends Generator<Integer>
 
     public Integers(String name, GeneratorConfig config)
     {
-        super(Int32Type.instance, config, name);
+        super(Int32Type.instance, config, name, Integer.class);
     }
 
     @Override

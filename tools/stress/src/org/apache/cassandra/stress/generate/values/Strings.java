@@ -23,15 +23,16 @@ package org.apache.cassandra.stress.generate.values;
 import java.util.Random;
 
 import org.apache.cassandra.db.marshal.UTF8Type;
+import org.apache.cassandra.stress.generate.FasterRandom;
 
 public class Strings extends Generator<String>
 {
     private final char[] chars;
-    private final Random rnd = new Random();
+    private final FasterRandom rnd = new FasterRandom();
 
     public Strings(String name, GeneratorConfig config)
     {
-        super(UTF8Type.instance, config, name);
+        super(UTF8Type.instance, config, name, String.class);
         chars = new char[(int) sizeDistribution.maxValue()];
     }
 
@@ -42,8 +43,11 @@ public class Strings extends Generator<String>
         sizeDistribution.setSeed(seed);
         rnd.setSeed(~seed);
         int size = (int) sizeDistribution.next();
-        for (int i = 0 ; i < size ; i++)
-            chars[i] = (char) (32 +rnd.nextInt(128-32));
+        for (int i = 0; i < size; )
+            for (long v = rnd.nextLong(),
+                 n = Math.min(size - i, Long.SIZE/Byte.SIZE);
+                 n-- > 0; v >>= Byte.SIZE)
+                chars[i++] = (char) (((v & 127) + 32) & 127);
         return new String(chars, 0, size);
     }
 }

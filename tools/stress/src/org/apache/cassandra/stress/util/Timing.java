@@ -40,6 +40,7 @@ public class Timing
     private final CopyOnWriteArrayList<Timer> timers = new CopyOnWriteArrayList<>();
     private volatile TimingInterval history;
     private final Random rnd = new Random();
+    private boolean done;
 
     // TIMING
 
@@ -57,11 +58,16 @@ public class Timing
         if (!ready.await(2L, TimeUnit.MINUTES))
             throw new RuntimeException("Timed out waiting for a timer thread - seems one got stuck");
 
+        boolean done = true;
         // reports have been filled in by timer threadCount, so merge
         List<TimingInterval> intervals = new ArrayList<>();
         for (Timer timer : timers)
+        {
             intervals.add(timer.report);
+            done &= !timer.running();
+        }
 
+        this.done = done;
         return TimingInterval.merge(rnd, intervals, Integer.MAX_VALUE, history.endNanos());
     }
 
@@ -78,10 +84,15 @@ public class Timing
         history = new TimingInterval(System.nanoTime());
     }
 
+    public boolean done()
+    {
+        return done;
+    }
+
     public TimingInterval snapInterval() throws InterruptedException
     {
         final TimingInterval interval = snapInterval(rnd);
-        history = TimingInterval.merge(rnd, Arrays.asList(interval, history), 50000, history.startNanos());
+        history = TimingInterval.merge(rnd, Arrays.asList(interval, history), 200000, history.startNanos());
         return interval;
     }
 

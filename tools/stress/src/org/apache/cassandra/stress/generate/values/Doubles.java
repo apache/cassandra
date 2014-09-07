@@ -26,7 +26,7 @@ public class Doubles extends Generator<Double>
 {
     public Doubles(String name, GeneratorConfig config)
     {
-        super(DoubleType.instance, config, name);
+        super(DoubleType.instance, config, name, Double.class);
     }
 
     @Override

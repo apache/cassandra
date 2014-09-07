@@ -26,6 +26,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
+import org.apache.cassandra.stress.generate.SeedManager;
 import org.apache.cassandra.stress.operations.OpDistributionFactory;
 import org.apache.cassandra.thrift.ConsistencyLevel;
 
@@ -35,8 +36,6 @@ public abstract class SettingsCommand implements Serializable
 
     public final Command type;
     public final long count;
-    public final int tries;
-    public final boolean ignoreErrors;
     public final boolean noWarmup;
     public final ConsistencyLevel consistencyLevel;
     public final double targetUncertainty;
@@ -56,8 +55,6 @@ public abstract class SettingsCommand implements Serializable
     public SettingsCommand(Command type, Options options, Count count, Uncertainty uncertainty)
     {
         this.type = type;
-        this.tries = Math.max(1, Integer.parseInt(options.retries.value()) + 1);
-        this.ignoreErrors = options.ignoreErrors.setByUser();
         this.consistencyLevel = ConsistencyLevel.valueOf(options.consistencyLevel.value().toUpperCase());
         this.noWarmup = options.noWarmup.setByUser();
         if (count != null)
@@ -80,11 +77,8 @@ public abstract class SettingsCommand implements Serializable
 
     static abstract class Options extends GroupedOptions
     {
-        final OptionSimple retries = new OptionSimple("tries=", "[0-9]+", "9", "Number of tries to perform for each operation before failing", false);
-        final OptionSimple ignoreErrors = new OptionSimple("ignore_errors", "", null, "Do not print/log errors", false);
-        final OptionSimple noWarmup = new OptionSimple("no_warmup", "", null, "Do not warmup the process", false);
+        final OptionSimple noWarmup = new OptionSimple("no-warmup", "", null, "Do not warmup the process", false);
         final OptionSimple consistencyLevel = new OptionSimple("cl=", "ONE|QUORUM|LOCAL_QUORUM|EACH_QUORUM|ALL|ANY", "ONE", "Consistency level to use", false);
-        final OptionSimple atOnce = new OptionSimple("at-once=", "[0-9]+", "1000", "Number of keys per operation for multiget", false);
     }
 
     static class Count extends Options
@@ -93,7 +87,7 @@ public abstract class SettingsCommand implements Serializable
         @Override
         public List<? extends Option> options()
         {
-            return Arrays.asList(count, retries, noWarmup, ignoreErrors, consistencyLevel, atOnce);
+            return Arrays.asList(count, noWarmup, consistencyLevel);
         }
     }
 
@@ -105,7 +99,7 @@ public abstract class SettingsCommand implements Serializable
         @Override
         public List<? extends Option> options()
         {
-            return Arrays.asList(uncertainty, minMeasurements, maxMeasurements, retries, noWarmup, ignoreErrors, consistencyLevel, atOnce);
+            return Arrays.asList(uncertainty, minMeasurements, maxMeasurements, noWarmup, consistencyLevel);
         }
     }
 

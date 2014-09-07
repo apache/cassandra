@@ -61,6 +61,11 @@ public abstract class Operation
         this.partitions = partitions;
     }
 
+    public boolean isWrite()
+    {
+        return false;
+    }
+
     /**
      * Run operation
      * @param client Cassandra Thrift client connection
@@ -84,7 +89,7 @@ public abstract class Operation
         String exceptionMessage = null;
 
         int tries = 0;
-        for (; tries < settings.command.tries; tries++)
+        for (; tries < settings.errors.tries; tries++)
         {
             try
             {
@@ -144,7 +149,7 @@ public abstract class Operation
 
     protected void error(String message) throws IOException
     {
-        if (!settings.command.ignoreErrors)
+        if (!settings.errors.ignore)
             throw new IOException(message);
         else if (settings.log.level.compareTo(SettingsLog.Level.MINIMAL) > 0)
             System.err.println(message);

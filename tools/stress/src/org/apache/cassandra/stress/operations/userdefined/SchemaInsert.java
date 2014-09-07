@@ -45,15 +45,13 @@ public class SchemaInsert extends SchemaStatement
 {
 
     private final BatchStatement.Type batchType;
-    private final RatioDistribution perVisit;
-    private final RatioDistribution perBatch;
+    private final RatioDistribution selectChance;
 
-    public SchemaInsert(Timer timer, PartitionGenerator generator, StressSettings settings, Distribution partitionCount, RatioDistribution perVisit, RatioDistribution perBatch, Integer thriftId, PreparedStatement statement, ConsistencyLevel cl, BatchStatement.Type batchType)
+    public SchemaInsert(Timer timer, PartitionGenerator generator, StressSettings settings, Distribution batchSize, RatioDistribution selectChance, Integer thriftId, PreparedStatement statement, ConsistencyLevel cl, BatchStatement.Type batchType)
     {
-        super(timer, generator, settings, partitionCount, statement, thriftId, cl, ValidationType.NOT_FAIL);
+        super(timer, generator, settings, batchSize, statement, thriftId, cl, ValidationType.NOT_FAIL);
         this.batchType = batchType;
-        this.perVisit = perVisit;
-        this.perBatch = perBatch;
+        this.selectChance = selectChance;
     }
 
     private class JavaDriverRun extends Runner
@@ -69,43 +67,42 @@ public class SchemaInsert extends SchemaStatement
         {
             Partition.RowIterator[] iterators = new Partition.RowIterator[partitions.size()];
             for (int i = 0 ; i < iterators.length ; i++)
-                iterators[i] = partitions.get(i).iterator(perVisit.next());
+                iterators[i] = partitions.get(i).iterator(selectChance.next(), true);
             List<BoundStatement> stmts = new ArrayList<>();
             partitionCount = partitions.size();
 
-            boolean done;
-            do
+            for (Partition.RowIterator iterator : iterators)
             {
-                done = true;
-                stmts.clear();
-                for (Partition.RowIterator iterator : iterators)
-                {
-                    if (iterator.done())
-                        continue;
+                if (iterator.done())
+                    continue;
 
-                    for (Row row : iterator.batch(perBatch.next()))
-                        stmts.add(bindRow(row));
+                for (Row row : iterator.next())
+                    stmts.add(bindRow(row));
+            }
+            rowCount += stmts.size();
 
-                    done &= iterator.done();
-                }
-
-                rowCount += stmts.size();
-
+            // 65535 is max number of stmts per batch, so if we have more, we need to manually batch them
+            for (int j = 0 ; j < stmts.size() ; j += 65535)
+            {
+                List<BoundStatement> substmts = stmts.subList(j, Math.min(stmts.size(), j + 65535));
                 Statement stmt;
                 if (stmts.size() == 1)
                 {
-                    stmt = stmts.get(0);
+                    stmt = substmts.get(0);
                 }
                 else
                 {
                     BatchStatement batch = new BatchStatement(batchType);
                     batch.setConsistencyLevel(JavaDriverClient.from(cl));
-                    batch.addAll(stmts);
+                    batch.addAll(substmts);
                     stmt = batch;
                 }
-                validate(client.getSession().execute(stmt));
 
-            } while (!done);
+                validate(client.getSession().execute(stmt));
+            }
+
+            for (Partition.RowIterator iterator : iterators)
+                iterator.markWriteFinished();
 
             return true;
         }
@@ -124,27 +121,23 @@ public class SchemaInsert extends SchemaStatement
         {
             Partition.RowIterator[] iterators = new Partition.RowIterator[partitions.size()];
             for (int i = 0 ; i < iterators.length ; i++)
-                iterators[i] = partitions.get(i).iterator(perVisit.next());
+                iterators[i] = partitions.get(i).iterator(selectChance.next(), true);
             partitionCount = partitions.size();
 
-            boolean done;
-            do
+            for (Partition.RowIterator iterator : iterators)
             {
-                done = true;
-                for (Partition.RowIterator iterator : iterators)
+                if (iterator.done())
+                    continue;
+
+                for (Row row : iterator.next())
                 {
-                    if (iterator.done())
-                        continue;
-
-                    for (Row row : iterator.batch(perBatch.next()))
-                    {
-                        validate(client.execute_prepared_cql3_query(thriftId, iterator.partition().getToken(), thriftRowArgs(row), settings.command.consistencyLevel));
-                        rowCount += 1;
-                    }
-
-                    done &= iterator.done();
+                    validate(client.execute_prepared_cql3_query(thriftId, iterator.partition().getToken(), thriftRowArgs(row), settings.command.consistencyLevel));
+                    rowCount += 1;
                 }
-            } while (!done);
+            }
+
+            for (Partition.RowIterator iterator : iterators)
+                iterator.markWriteFinished();
 
             return true;
         }
@@ -154,6 +147,11 @@ public class SchemaInsert extends SchemaStatement
     public void run(JavaDriverClient client) throws IOException
     {
         timeWithRetry(new JavaDriverRun(client));
+    }
+
+    public boolean isWrite()
+    {
+        return true;
     }
 
     @Override

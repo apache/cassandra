@@ -40,8 +40,10 @@ public class StressSettings implements Serializable
 {
     public final SettingsCommand command;
     public final SettingsRate rate;
-    public final SettingsKey keys;
+    public final SettingsPopulation generate;
+    public final SettingsInsert insert;
     public final SettingsColumn columns;
+    public final SettingsErrors errors;
     public final SettingsLog log;
     public final SettingsMode mode;
     public final SettingsNode node;
@@ -50,12 +52,14 @@ public class StressSettings implements Serializable
     public final SettingsPort port;
     public final String sendToDaemon;
 
-    public StressSettings(SettingsCommand command, SettingsRate rate, SettingsKey keys, SettingsColumn columns, SettingsLog log, SettingsMode mode, SettingsNode node, SettingsSchema schema, SettingsTransport transport, SettingsPort port, String sendToDaemon)
+    public StressSettings(SettingsCommand command, SettingsRate rate, SettingsPopulation generate, SettingsInsert insert, SettingsColumn columns, SettingsErrors errors, SettingsLog log, SettingsMode mode, SettingsNode node, SettingsSchema schema, SettingsTransport transport, SettingsPort port, String sendToDaemon)
     {
         this.command = command;
         this.rate = rate;
-        this.keys = keys;
+        this.insert = insert;
+        this.generate = generate;
         this.columns = columns;
+        this.errors = errors;
         this.log = log;
         this.mode = mode;
         this.node = node;
@@ -129,7 +133,7 @@ public class StressSettings implements Serializable
         }
         catch (Exception e)
         {
-            throw new RuntimeException(e.getMessage());
+            throw new RuntimeException(e);
         }
 
         return client;
@@ -189,9 +193,10 @@ public class StressSettings implements Serializable
 
     public void maybeCreateKeyspaces()
     {
-        if (command.type == Command.WRITE || command.type == Command.COUNTER_WRITE || command.type == Command.USER)
+        if (command.type == Command.WRITE || command.type == Command.COUNTER_WRITE)
             schema.createKeySpaces(this);
-
+        else if (command.type == Command.USER)
+            ((SettingsCommandUser) command).profile.maybeCreateSchema(this);
     }
 
     public static StressSettings parse(String[] args)
@@ -221,8 +226,10 @@ public class StressSettings implements Serializable
         String sendToDaemon = SettingsMisc.getSendToDaemon(clArgs);
         SettingsPort port = SettingsPort.get(clArgs);
         SettingsRate rate = SettingsRate.get(clArgs, command);
-        SettingsKey keys = SettingsKey.get(clArgs, command);
+        SettingsPopulation generate = SettingsPopulation.get(clArgs, command);
+        SettingsInsert insert = SettingsInsert.get(clArgs);
         SettingsColumn columns = SettingsColumn.get(clArgs);
+        SettingsErrors errors = SettingsErrors.get(clArgs);
         SettingsLog log = SettingsLog.get(clArgs);
         SettingsMode mode = SettingsMode.get(clArgs);
         SettingsNode node = SettingsNode.get(clArgs);
@@ -244,7 +251,7 @@ public class StressSettings implements Serializable
             }
             System.exit(1);
         }
-        return new StressSettings(command, rate, keys, columns, log, mode, node, schema, transport, port, sendToDaemon);
+        return new StressSettings(command, rate, generate, insert, columns, errors, log, mode, node, schema, transport, port, sendToDaemon);
     }
 
     private static Map<String, String[]> parseMap(String[] args)

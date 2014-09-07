@@ -28,7 +28,7 @@ public class UUIDs extends Generator<UUID>
 {
     public UUIDs(String name, GeneratorConfig config)
     {
-        super(UUIDType.instance, config, name);
+        super(UUIDType.instance, config, name, UUID.class);
     }
 
     @Override
