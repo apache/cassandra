@@ -26,7 +26,7 @@ public class Longs extends Generator<Long>
 {
     public Longs(String name, GeneratorConfig config)
     {
-        super(LongType.instance, config, name);
+        super(LongType.instance, config, name, Long.class);
     }
 
     @Override

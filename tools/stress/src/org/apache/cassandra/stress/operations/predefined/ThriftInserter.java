@@ -42,6 +42,11 @@ public final class ThriftInserter extends PredefinedOperation
         super(Command.WRITE, timer, generator, settings);
     }
 
+    public boolean isWrite()
+    {
+        return true;
+    }
+
     public void run(final ThriftClient client) throws IOException
     {
         final ByteBuffer key = getKey();

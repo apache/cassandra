@@ -31,15 +31,17 @@ public abstract class Generator<T>
 
     public final String name;
     public final AbstractType<T> type;
+    public final Class<T> clazz;
     final long salt;
     final Distribution identityDistribution;
     final Distribution sizeDistribution;
     public final Distribution clusteringDistribution;
 
-    public Generator(AbstractType<T> type, GeneratorConfig config, String name)
+    public Generator(AbstractType<T> type, GeneratorConfig config, String name, Class<T> clazz)
     {
         this.type = type;
         this.name = name;
+        this.clazz = clazz;
         this.salt = config.salt;
         this.identityDistribution = config.getIdentityDistribution(defaultIdentityDistribution());
         this.sizeDistribution = config.getSizeDistribution(defaultSizeDistribution());

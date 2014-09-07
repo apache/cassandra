@@ -30,8 +30,14 @@ public class StressYaml
     public String table;
     public String table_definition;
 
-    public List<Map<String,Object>> columnspec;
-    public Map<String,String> queries;
-    public Map<String,String> insert;
+    public List<Map<String, Object>> columnspec;
+    public Map<String, QueryDef> queries;
+    public Map<String, String> insert;
+
+    public static class QueryDef
+    {
+        public String cql;
+        public String fields;
+    }
 
 }

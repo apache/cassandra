@@ -30,7 +30,7 @@ import java.util.concurrent.CountDownLatch;
 public final class Timer
 {
 
-    private static final int SAMPLE_SIZE_SHIFT = 10;
+    private static final int SAMPLE_SIZE_SHIFT = 14;
     private static final int SAMPLE_SIZE_MASK = (1 << SAMPLE_SIZE_SHIFT) - 1;
 
     private final Random rnd = new Random();
@@ -64,6 +64,11 @@ public final class Timer
     private static int p(int index)
     {
         return 1 + (index >>> SAMPLE_SIZE_SHIFT);
+    }
+
+    public boolean running()
+    {
+        return finalReport == null;
     }
 
     public void stop(long partitionCount, long rowCount)

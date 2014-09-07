@@ -44,12 +44,7 @@ public class SettingsSchema implements Serializable
     public SettingsSchema(Options options, SettingsCommand command)
     {
         if (command instanceof SettingsCommandUser)
-        {
-            if (options.compaction.setByUser() || options.keyspace.setByUser() || options.compression.setByUser() || options.replication.setByUser())
-                throw new IllegalArgumentException("Cannot provide command line schema settings if a user profile is provided");
-
             keyspace = ((SettingsCommandUser) command).profile.keyspaceName;
-        }
         else
             keyspace = options.keyspace.value();
 
@@ -62,14 +57,7 @@ public class SettingsSchema implements Serializable
 
     public void createKeySpaces(StressSettings settings)
     {
-        if (!(settings.command instanceof SettingsCommandUser))
-        {
-            createKeySpacesThrift(settings);
-        }
-        else
-        {
-            ((SettingsCommandUser) settings.command).profile.maybeCreateSchema(settings);
-        }
+        createKeySpacesThrift(settings);
     }
 
 
@@ -188,6 +176,9 @@ public class SettingsSchema implements Serializable
         String[] params = clArgs.remove("-schema");
         if (params == null)
             return new SettingsSchema(new Options(), command);
+
+        if (command instanceof SettingsCommandUser)
+            throw new IllegalArgumentException("-schema can only be provided with predefined operations insert, read, etc.; the 'user' command requires a schema yaml instead");
 
         GroupedOptions options = GroupedOptions.select(params, new Options());
         if (options == null)

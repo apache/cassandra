@@ -31,7 +31,7 @@ public class Inets extends Generator<InetAddress>
     final byte[] buf;
     public Inets(String name, GeneratorConfig config)
     {
-        super(InetAddressType.instance, config, name);
+        super(InetAddressType.instance, config, name, InetAddress.class);
         buf = new byte[4];
     }
 

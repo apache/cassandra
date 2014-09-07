@@ -60,12 +60,19 @@ New features
      will be put back in L0.
    - Bootstrapping now ensures that range movements are consistent,
      meaning the data for the new node is taken from the node that is no 
-     longer a responsible for that range of keys.  
+     longer a responsible for that range of keys.
      If you want the old behavior (due to a lost node perhaps)
      you can set the following property (-Dcassandra.consistent.rangemovement=false)
    - It is now possible to use quoted identifiers in triggers' names. 
      WARNING: if you previously used triggers with capital letters in their 
      names, then you must quote them from now on.
+   - Improved stress tool (http://goo.gl/OTNqiQ)
+   - New incremental repair option (http://goo.gl/MjohJp, http://goo.gl/f8jSme)
+   - Incremental replacement of compacted SSTables (http://goo.gl/JfDBGW)
+   - The row cache can now cache only the head of partitions (http://goo.gl/6TJPH6)
+   - Off-heap memtables (http://goo.gl/YT7znJ)
+   - CQL improvements and additions: User-defined types, tuple types, 2ndary
+     indexing of collections, ... (http://goo.gl/kQl7GW)
 
 Upgrading
 ---------
@@ -82,8 +89,8 @@ Upgrading
    - Counters implementation has been changed, replaced by a safer one with
      less caveats, but different performance characteristics. You might have
      to change your data model to accomodate the new implementation.
-     (See https://issues.apache.org/jira/browse/CASSANDRA-6504 and the dev
-     blog post at http://www.datastax.com/dev/blog/<PLACEHOLDER> for details).
+     (See https://issues.apache.org/jira/browse/CASSANDRA-6504 and the
+     blog post at http://goo.gl/qj8iQl for details).
    - (per-table) index_interval parameter has been replaced with
      min_index_interval and max_index_interval paratemeters. index_interval
      has been deprecated.

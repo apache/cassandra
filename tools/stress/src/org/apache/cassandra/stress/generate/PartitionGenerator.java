@@ -30,18 +30,27 @@ import java.util.NoSuchElementException;
 
 import com.google.common.collect.Iterables;
 
+import org.apache.cassandra.stress.Operation;
 import org.apache.cassandra.stress.generate.values.Generator;
 
 public class PartitionGenerator
 {
 
+    public static enum Order
+    {
+        ARBITRARY, SHUFFLED, SORTED
+    }
+
     public final double maxRowCount;
+    public final double minRowCount;
     final List<Generator> partitionKey;
     final List<Generator> clusteringComponents;
     final List<Generator> valueComponents;
     final int[] clusteringChildAverages;
 
     private final Map<String, Integer> indexMap;
+    final Order order;
+    final SeedManager seeds;
 
     final List<Partition> recyclable = new ArrayList<>();
     int partitionsInUse = 0;
@@ -51,18 +60,25 @@ public class PartitionGenerator
         partitionsInUse = 0;
     }
 
-    public PartitionGenerator(List<Generator> partitionKey, List<Generator> clusteringComponents, List<Generator> valueComponents)
+    public PartitionGenerator(List<Generator> partitionKey, List<Generator> clusteringComponents, List<Generator> valueComponents, Order order, SeedManager seeds)
     {
         this.partitionKey = partitionKey;
         this.clusteringComponents = clusteringComponents;
         this.valueComponents = valueComponents;
+        this.order = order;
+        this.seeds = seeds;
         this.clusteringChildAverages = new int[clusteringComponents.size()];
         for (int i = clusteringChildAverages.length - 1 ; i >= 0 ; i--)
             clusteringChildAverages[i] = (int) (i < (clusteringChildAverages.length - 1) ? clusteringComponents.get(i + 1).clusteringDistribution.average() * clusteringChildAverages[i + 1] : 1);
         double maxRowCount = 1d;
+        double minRowCount = 1d;
         for (Generator component : clusteringComponents)
+        {
             maxRowCount *= component.clusteringDistribution.maxValue();
+            minRowCount *= component.clusteringDistribution.minValue();
+        }
         this.maxRowCount = maxRowCount;
+        this.minRowCount = minRowCount;
         this.indexMap = new HashMap<>();
         int i = 0;
         for (Generator generator : partitionKey)
@@ -70,6 +86,11 @@ public class PartitionGenerator
         i = 0;
         for (Generator generator : Iterables.concat(clusteringComponents, valueComponents))
             indexMap.put(generator.name, i++);
+    }
+
+    public boolean permitNulls(int index)
+    {
+        return !(index < 0 || index < clusteringComponents.size());
     }
 
     public int indexOf(String name)
@@ -80,11 +101,14 @@ public class PartitionGenerator
         return i;
     }
 
-    public Partition generate(long seed)
+    public Partition generate(Operation op)
     {
         if (recyclable.size() <= partitionsInUse || recyclable.get(partitionsInUse) == null)
             recyclable.add(new Partition(this));
 
+        Seed seed = seeds.next(op);
+        if (seed == null)
+            return null;
         Partition partition = recyclable.get(partitionsInUse++);
         partition.setSeed(seed);
         return partition;

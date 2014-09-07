@@ -55,4 +55,11 @@ public class DistributionInverted extends Distribution
         wrapped.setSeed(seed);
     }
 
+    public static Distribution invert(Distribution distribution)
+    {
+        if (distribution instanceof DistributionInverted)
+            return ((DistributionInverted) distribution).wrapped;
+        return new DistributionInverted(distribution);
+    }
+
 }

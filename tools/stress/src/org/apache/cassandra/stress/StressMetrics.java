@@ -43,7 +43,7 @@ public class StressMetrics
     private final Thread thread;
     private volatile boolean stop = false;
     private volatile boolean cancelled = false;
-    private final Uncertainty opRateUncertainty = new Uncertainty();
+    private final Uncertainty rowRateUncertainty = new Uncertainty();
     private final CountDownLatch stopped = new CountDownLatch(1);
     private final Timing timing = new Timing();
 
@@ -69,6 +69,7 @@ public class StressMetrics
                                 Thread.sleep(logIntervalMillis);
                             else
                                 Thread.sleep(sleep);
+
                             update();
                         } catch (InterruptedException e)
                         {
@@ -87,6 +88,7 @@ public class StressMetrics
                 }
                 finally
                 {
+                    rowRateUncertainty.wakeAll();
                     stopped.countDown();
                 }
             }
@@ -100,7 +102,7 @@ public class StressMetrics
 
     public void waitUntilConverges(double targetUncertainty, int minMeasurements, int maxMeasurements) throws InterruptedException
     {
-        opRateUncertainty.await(targetUncertainty, minMeasurements, maxMeasurements);
+        rowRateUncertainty.await(targetUncertainty, minMeasurements, maxMeasurements);
     }
 
     public void cancel()
@@ -108,7 +110,7 @@ public class StressMetrics
         cancelled = true;
         stop = true;
         thread.interrupt();
-        opRateUncertainty.wakeAll();
+        rowRateUncertainty.wakeAll();
     }
 
     public void stop() throws InterruptedException
@@ -121,8 +123,11 @@ public class StressMetrics
     private void update() throws InterruptedException
     {
         TimingInterval interval = timing.snapInterval();
-        printRow("", interval, timing.getHistory(), opRateUncertainty, output);
-        opRateUncertainty.update(interval.adjustedOpRate());
+        if (interval.partitionCount != 0)
+            printRow("", interval, timing.getHistory(), rowRateUncertainty, output);
+        rowRateUncertainty.update(interval.adjustedRowRate());
+        if (timing.done())
+            stop = true;
     }
 
 
@@ -133,14 +138,15 @@ public class StressMetrics
 
     private static void printHeader(String prefix, PrintStream output)
     {
-        output.println(prefix + String.format(HEADFORMAT, "partitions","op/s", "pk/s", "row/s","mean","med",".95",".99",".999","max","time","stderr"));
+        output.println(prefix + String.format(HEADFORMAT, "total ops","adj row/s","op/s","pk/s","row/s","mean","med",".95",".99",".999","max","time","stderr"));
     }
 
     private static void printRow(String prefix, TimingInterval interval, TimingInterval total, Uncertainty opRateUncertainty, PrintStream output)
     {
         output.println(prefix + String.format(ROWFORMAT,
-                total.partitionCount,
-                interval.realOpRate(),
+                total.operationCount,
+                interval.adjustedRowRate(),
+                interval.opRate(),
                 interval.partitionRate(),
                 interval.rowRate(),
                 interval.meanLatency(),
@@ -158,7 +164,7 @@ public class StressMetrics
         output.println("\n");
         output.println("Results:");
         TimingInterval history = timing.getHistory();
-        output.println(String.format("op rate                   : %.0f", history.realOpRate()));
+        output.println(String.format("op rate                   : %.0f", history.opRate()));
         output.println(String.format("partition rate            : %.0f", history.partitionRate()));
         output.println(String.format("row rate                  : %.0f", history.rowRate()));
         output.println(String.format("latency mean              : %.1f", history.meanLatency()));
@@ -182,7 +188,7 @@ public class StressMetrics
             printRow(String.format(formatstr, ids.get(i)),
                     summarise.get(i).timing.getHistory(),
                     summarise.get(i).timing.getHistory(),
-                    summarise.get(i).opRateUncertainty,
+                    summarise.get(i).rowRateUncertainty,
                     out
             );
     }

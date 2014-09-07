@@ -75,4 +75,9 @@ public class CqlCounterAdder extends CqlOperation<Integer>
     {
         return new CqlRunOpAlwaysSucceed(client, query, queryId, params, key, 1);
     }
+
+    public boolean isWrite()
+    {
+        return true;
+    }
 }

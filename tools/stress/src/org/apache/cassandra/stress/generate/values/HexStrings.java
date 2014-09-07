@@ -20,8 +20,6 @@
  */
 package org.apache.cassandra.stress.generate.values;
 
-import java.util.Random;
-
 import org.apache.cassandra.db.marshal.UTF8Type;
 
 public class HexStrings extends Generator<String>
@@ -30,7 +28,7 @@ public class HexStrings extends Generator<String>
 
     public HexStrings(String name, GeneratorConfig config)
     {
-        super(UTF8Type.instance, config, name);
+        super(UTF8Type.instance, config, name, String.class);
         chars = new char[(int) sizeDistribution.maxValue()];
     }
 
