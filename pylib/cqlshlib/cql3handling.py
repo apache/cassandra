@@ -1055,10 +1055,10 @@ syntax_rules += r'''
 <alterUserTypeStatement> ::= "ALTER" "TYPE" ut=<userTypeName>
                                <alterTypeInstructions>
                              ;
-<alterTypeInstructions> ::= "RENAME" "TO" typename=<cfOrKsName>
-                           | "ALTER" existcol=<cident> "TYPE" <storageType>
+<alterTypeInstructions> ::= "ALTER" existcol=<cident> "TYPE" <storageType>
                            | "ADD" newcol=<cident> <storageType>
                            | "RENAME" existcol=<cident> "TO" newcol=<cident>
+                              ( "AND" existcol=<cident> "TO" newcol=<cident> )*
                            ;
 '''
 
@@ -1075,7 +1075,6 @@ def alter_type_field_completer(ctxt, cass):
     return map(maybe_escape_name, fields)
 
 explain_completion('alterInstructions', 'newcol', '<new_column_name>')
-explain_completion('alterTypeInstructions', 'typename', '<new_type_name>')
 explain_completion('alterTypeInstructions', 'newcol', '<new_field_name>')
 
 
