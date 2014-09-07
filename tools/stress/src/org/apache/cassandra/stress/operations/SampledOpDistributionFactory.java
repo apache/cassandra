@@ -24,6 +24,7 @@ package org.apache.cassandra.stress.operations;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
 import org.apache.commons.math3.distribution.EnumeratedDistribution;
 import org.apache.commons.math3.util.Pair;
@@ -36,9 +37,9 @@ import org.apache.cassandra.stress.util.Timer;
 public abstract class SampledOpDistributionFactory<T> implements OpDistributionFactory
 {
 
-    final List<Pair<T, Double>> ratios;
+    final Map<T, Double> ratios;
     final DistributionFactory clustering;
-    protected SampledOpDistributionFactory(List<Pair<T, Double>> ratios, DistributionFactory clustering)
+    protected SampledOpDistributionFactory(Map<T, Double> ratios, DistributionFactory clustering)
     {
         this.ratios = ratios;
         this.clustering = clustering;
@@ -51,34 +52,34 @@ public abstract class SampledOpDistributionFactory<T> implements OpDistributionF
     {
         PartitionGenerator generator = newGenerator();
         List<Pair<Operation, Double>> operations = new ArrayList<>();
-        for (Pair<T, Double> ratio : ratios)
-            operations.add(new Pair<>(get(timer, generator, ratio.getFirst()), ratio.getSecond()));
+        for (Map.Entry<T, Double> ratio : ratios.entrySet())
+            operations.add(new Pair<>(get(timer, generator, ratio.getKey()), ratio.getValue()));
         return new SampledOpDistribution(new EnumeratedDistribution<>(operations), clustering.get());
     }
 
     public String desc()
     {
         List<T> keys = new ArrayList<>();
-        for (Pair<T, Double> p : ratios)
-            keys.add(p.getFirst());
+        for (Map.Entry<T, Double> ratio : ratios.entrySet())
+            keys.add(ratio.getKey());
         return keys.toString();
     }
 
     public Iterable<OpDistributionFactory> each()
     {
         List<OpDistributionFactory> out = new ArrayList<>();
-        for (final Pair<T, Double> ratio : ratios)
+        for (final Map.Entry<T, Double> ratio : ratios.entrySet())
         {
             out.add(new OpDistributionFactory()
             {
                 public OpDistribution get(Timer timer)
                 {
-                    return new FixedOpDistribution(SampledOpDistributionFactory.this.get(timer, newGenerator(), ratio.getFirst()));
+                    return new FixedOpDistribution(SampledOpDistributionFactory.this.get(timer, newGenerator(), ratio.getKey()));
                 }
 
                 public String desc()
                 {
-                    return ratio.getFirst().toString();
+                    return ratio.getKey().toString();
                 }
 
                 public Iterable<OpDistributionFactory> each()

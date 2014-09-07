@@ -127,7 +127,7 @@ public abstract class SettingsCommand implements Serializable
         @Override
         public List<? extends Option> options()
         {
-            return Arrays.asList(duration, retries, ignoreErrors, consistencyLevel, atOnce);
+            return Arrays.asList(duration, noWarmup, consistencyLevel);
         }
     }
 
