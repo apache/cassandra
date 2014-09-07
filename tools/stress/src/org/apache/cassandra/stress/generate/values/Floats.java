@@ -26,7 +26,7 @@ public class Floats extends Generator<Float>
 {
     public Floats(String name, GeneratorConfig config)
     {
-        super(FloatType.instance, config, name);
+        super(FloatType.instance, config, name, Float.class);
     }
 
     @Override

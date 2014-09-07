@@ -39,6 +39,11 @@ public class RatioDistribution
         return Math.max(0f, Math.min(1f, distribution.nextDouble() / divisor));
     }
 
+    public double min()
+    {
+        return Math.min(1d, distribution.minValue() / divisor);
+    }
+
     public double max()
     {
         return Math.min(1d, distribution.maxValue() / divisor);

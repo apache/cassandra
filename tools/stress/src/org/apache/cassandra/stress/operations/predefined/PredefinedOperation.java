@@ -174,7 +174,7 @@ public abstract class PredefinedOperation extends Operation
 
     protected List<ByteBuffer> getColumnValues(ColumnSelection columns)
     {
-        Row row = partitions.get(0).iterator(1).batch(1f).iterator().next();
+        Row row = partitions.get(0).iterator(1, false).next().iterator().next();
         ByteBuffer[] r = new ByteBuffer[columns.count()];
         int c = 0;
         if (columns.indices != null)

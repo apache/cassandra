@@ -43,6 +43,11 @@ public class ThriftCounterAdder extends PredefinedOperation
         this.counteradd = counteradd.get();
     }
 
+    public boolean isWrite()
+    {
+        return true;
+    }
+
     public void run(final ThriftClient client) throws IOException
     {
         List<CounterColumn> columns = new ArrayList<>();

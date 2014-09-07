@@ -69,25 +69,26 @@ columnspec:
     size: uniform(1..10)
     population: uniform(1..1M)     # the range of unique values to select for the field (default is 100Billion)
   - name: date
-    cluster: uniform(1..4)
+    cluster: uniform(20..40)
   - name: lval
     population: gaussian(1..1000)
     cluster: uniform(1..4)
 
 insert:
-  partitions: uniform(1..50)      # number of unique partitions to update in a single operation
-                                  # if perbatch < 1, multiple batches will be used but all partitions will
-                                  # occur in all batches (unless already finished); only the row counts will vary
-  pervisit: uniform(1..10)/10     # ratio of rows each partition should update in a single visit to the partition,
-                                  # as a proportion of the total possible for the partition
-  perbatch: ~exp(1..3)/4          # number of rows each partition should update in a single batch statement,
-                                  # as a proportion of the proportion we are inserting this visit
-                                  # (i.e. compounds with (and capped by) pervisit)
-  batchtype: UNLOGGED             # type of batch to use
+  partitions: uniform(1..50)       # number of unique partitions to update in a single operation
+                                  # if batchcount > 1, multiple batches will be used but all partitions will
+                                  # occur in all batches (unless they finish early); only the row counts will vary
+  batchtype: LOGGED               # type of batch to use
+  select: uniform(1..10)/10       # uniform chance any single generated CQL row will be visited in a partition;
+                                  # generated for each partition independently, each time we visit it
 
 #
 # A list of queries you wish to run against the schema
 #
 queries:
-   simple1: select * from typestest where name = ? and choice = ? LIMIT 100
-   range1: select * from typestest where name = ? and choice = ? and date >= ? LIMIT 100
+   simple1:
+      cql: select * from typestest where name = ? and choice = ? LIMIT 100
+      fields: samerow             # samerow or multirow (select arguments from the same row, or randomly from all rows in the partition)
+   range1:
+      cql: select * from typestest where name = ? and choice = ? and date >= ? LIMIT 100
+      fields: multirow            # samerow or multirow (select arguments from the same row, or randomly from all rows in the partition)

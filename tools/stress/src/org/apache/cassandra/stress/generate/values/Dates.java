@@ -30,9 +30,10 @@ public class Dates extends Generator<Date>
 {
     public Dates(String name, GeneratorConfig config)
     {
-        super(DateType.instance, config, name);
+        super(DateType.instance, config, name, Date.class);
     }
 
+    // TODO: let the range of values generated advance as stress test progresses
     @Override
     public Date generate()
     {

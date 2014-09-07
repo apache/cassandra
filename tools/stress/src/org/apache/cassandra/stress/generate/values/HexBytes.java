@@ -31,7 +31,7 @@ public class HexBytes extends Generator<ByteBuffer>
 
     public HexBytes(String name, GeneratorConfig config)
     {
-        super(BytesType.instance, config, name);
+        super(BytesType.instance, config, name, ByteBuffer.class);
         bytes = new byte[(int) sizeDistribution.maxValue()];
     }
 

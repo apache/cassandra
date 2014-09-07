@@ -97,14 +97,14 @@ public final class TimingInterval
 
     }
 
-    public double realOpRate()
+    public double opRate()
     {
         return operationCount / ((end - start) * 0.000000001d);
     }
 
-    public double adjustedOpRate()
+    public double adjustedRowRate()
     {
-        return operationCount / ((end - (start + pauseLength)) * 0.000000001d);
+        return rowCount / ((end - (start + pauseLength)) * 0.000000001d);
     }
 
     public double partitionRate()
