@@ -1,4 +1,5 @@
 1.2.19
+ * Don't index tombstones (CASSANDRA-7828)
  * Don't allow compacted sstables to be marked as compacting (CASSANDRA-7145)
  * Track expired tombstones (CASSANDRA-7810)
  * Validate empty cell names from counter updates (CASSANDRA-7798)

@@ -443,7 +443,7 @@ public class SecondaryIndexManager
             {
                 for (IColumn column : cf)
                 {
-                    if (index.indexes(column.name()))
+                    if (column.isLive() && index.indexes(column.name()))
                         ((PerColumnSecondaryIndex) index).insert(key, column);
                 }
             }
