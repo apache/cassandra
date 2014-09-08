@@ -456,7 +456,7 @@ public class SecondaryIndexManager
             else
             {
                 for (Cell cell : cf)
-                    if (index.indexes(cell.name()))
+                    if (cell.isLive() && index.indexes(cell.name()))
                         ((PerColumnSecondaryIndex) index).insert(key, cell, opGroup);
             }
         }

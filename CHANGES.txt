@@ -48,6 +48,7 @@ Merged from 2.0:
  * Catch errors when the JVM pulls the rug out from GCInspector (CASSANDRA-5345)
  * cqlsh fails when version number parts are not int (CASSANDRA-7524)
 Merged from 1.2:
+ * Don't index tombstones (CASSANDRA-7828)
  * Improve PasswordAuthenticator default super user setup (CASSANDRA-7788)
 
 
