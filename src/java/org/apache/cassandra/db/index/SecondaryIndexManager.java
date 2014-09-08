@@ -435,7 +435,7 @@ public class SecondaryIndexManager
             else
             {
                 for (Column column : cf)
-                    if (index.indexes(column.name()))
+                    if (column.isLive(System.currentTimeMillis()) && index.indexes(column.name()))
                         ((PerColumnSecondaryIndex) index).insert(key, column);
             }
         }
