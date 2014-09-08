@@ -161,7 +161,7 @@ Function KillProcess
     $env:TMP = $oldTmp
     $env:TEMP = $oldTemp
 
-    $a = Get-Content $p
+    $pidToKill = Get-Content $p
     # If run in cygwin, we don't get the TITLE / pid combo in stop-server.bat but also don't need
     # to worry about reattaching console output as it gets stderr/stdout even after the C#/C++
     # FreeConsole calls.
@@ -170,7 +170,14 @@ Function KillProcess
         $batchpid = -1
     }
 
-    [PowerStopper.Stopper]::StopProgram($a, $batchpid, $silent)
+    if ($f)
+    {
+        taskkill /f /pid $pidToKill
+    }
+    else
+    {
+        [PowerStopper.Stopper]::StopProgram($pidToKill, $batchpid, $silent)
+    }
 }
 
 #-----------------------------------------------------------------------------
