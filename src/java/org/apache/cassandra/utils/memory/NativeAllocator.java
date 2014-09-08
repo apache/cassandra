@@ -17,14 +17,13 @@
  */
 package org.apache.cassandra.utils.memory;
 
-import java.lang.reflect.Field;
-
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
 import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.Cell;
 import org.apache.cassandra.db.CounterCell;
 import org.apache.cassandra.db.DecoratedKey;
@@ -35,10 +34,10 @@ import org.apache.cassandra.db.NativeCounterCell;
 import org.apache.cassandra.db.NativeDecoratedKey;
 import org.apache.cassandra.db.NativeDeletedCell;
 import org.apache.cassandra.db.NativeExpiringCell;
+import org.apache.cassandra.io.util.IAllocator;
 import org.apache.cassandra.utils.concurrent.OpOrder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import sun.misc.Unsafe;
 
 public class NativeAllocator extends MemtableAllocator
 {
@@ -47,6 +46,8 @@ public class NativeAllocator extends MemtableAllocator
     private final static int REGION_SIZE = 1024 * 1024;
     private final static int MAX_CLONED_SIZE = 128 * 1024; // bigger than this don't go in the region
 
+    private static final IAllocator allocator = DatabaseDescriptor.getoffHeapMemoryAllocator();
+    
     // globally stash any Regions we allocate but are beaten to using, and use these up before allocating any more
     private static final ConcurrentLinkedQueue<Region> RACE_ALLOCATED = new ConcurrentLinkedQueue<>();
 
@@ -104,7 +105,7 @@ public class NativeAllocator extends MemtableAllocator
         if (size > MAX_CLONED_SIZE)
         {
             unslabbed.addAndGet(size);
-            Region region = new Region(unsafe.allocateMemory(size), size);
+            Region region = new Region(allocator.allocate(size), size);
             regions.add(region);
 
             long peer;
@@ -130,7 +131,7 @@ public class NativeAllocator extends MemtableAllocator
     public void setDiscarded()
     {
         for (Region region : regions)
-            unsafe.freeMemory(region.peer);
+            allocator.free(region.peer);
         super.setDiscarded();
     }
 
@@ -150,7 +151,7 @@ public class NativeAllocator extends MemtableAllocator
             // against other allocators to CAS in a Region, and if we fail we stash the region for re-use
             region = RACE_ALLOCATED.poll();
             if (region == null)
-                region = new Region(unsafe.allocateMemory(REGION_SIZE), REGION_SIZE);
+                region = new Region(allocator.allocate(REGION_SIZE), REGION_SIZE);
             if (currentRegion.compareAndSet(null, region))
             {
                 regions.add(region);
@@ -239,20 +240,4 @@ public class NativeAllocator extends MemtableAllocator
         }
     }
 
-
-    static final Unsafe unsafe;
-
-    static
-    {
-        try
-        {
-            Field field = sun.misc.Unsafe.class.getDeclaredField("theUnsafe");
-            field.setAccessible(true);
-            unsafe = (sun.misc.Unsafe) field.get(null);
-        }
-        catch (Exception e)
-        {
-            throw new AssertionError(e);
-        }
-    }
 }

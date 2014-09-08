@@ -18,7 +18,6 @@
  * Use unsafe mutations for most unit tests (CASSANDRA-6969)
  * Fix race condition during calculation of pending ranges (CASSANDRA-7390)
 
-
 2.1.1
  * (cqlsh): Support for query paging (CASSANDRA-7514)
  * (cqlsh): Show progress of COPY operations (CASSANDRA-7789)
