@@ -124,7 +124,6 @@ public class ArrayBackedSortedColumns extends ColumnFamily
     /**
      * synchronized so that concurrent (read-only) accessors don't mess the internal state.
      */
-    @Inline
     private synchronized void sortCells()
     {
         if (isSorted)

@@ -172,7 +172,6 @@ public class MurmurHash
         return k;
     }
 
-    @Inline
     public static void hash3_x64_128(ByteBuffer key, int offset, int length, long seed, long[] result)
     {
         final int nblocks = length >> 4; // Process as 128-bit blocks.

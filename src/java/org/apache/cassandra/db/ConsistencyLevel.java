@@ -245,7 +245,6 @@ public enum ConsistencyLevel
         }
     }
 
-    @Inline
     public void assureSufficientLiveNodes(Keyspace keyspace, Iterable<InetAddress> liveEndpoints) throws UnavailableException
     {
         int blockFor = blockFor(keyspace);
