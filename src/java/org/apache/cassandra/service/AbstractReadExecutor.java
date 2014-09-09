@@ -66,7 +66,7 @@ public abstract class AbstractReadExecutor
     {
         this.command = command;
         this.targetReplicas = targetReplicas;
-        resolver = new RowDigestResolver(command.ksName, command.key);
+        resolver = new RowDigestResolver(command.ksName, command.key, targetReplicas.size());
         handler = new ReadCallback<>(resolver, consistencyLevel, command, targetReplicas);
     }
 

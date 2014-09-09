@@ -41,9 +41,9 @@ public class RowDataResolver extends AbstractRowResolver
     private final IDiskAtomFilter filter;
     private final long timestamp;
 
-    public RowDataResolver(String keyspaceName, ByteBuffer key, IDiskAtomFilter qFilter, long timestamp)
+    public RowDataResolver(String keyspaceName, ByteBuffer key, IDiskAtomFilter qFilter, long timestamp, int maxResponseCount)
     {
-        super(key, keyspaceName);
+        super(key, keyspaceName, maxResponseCount);
         this.filter = qFilter;
         this.timestamp = timestamp;
     }

@@ -18,9 +18,6 @@
 package org.apache.cassandra.service;
 
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -29,20 +26,22 @@ import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.ReadResponse;
 import org.apache.cassandra.db.Row;
 import org.apache.cassandra.net.MessageIn;
+import org.apache.cassandra.utils.concurrent.Accumulator;
 
 public abstract class AbstractRowResolver implements IResponseResolver<ReadResponse, Row>
 {
     protected static final Logger logger = LoggerFactory.getLogger(AbstractRowResolver.class);
 
     protected final String keyspaceName;
-    // synchronizedList gives us thread-safety without the overhead of guaranteeing uniqueness like a Set would
-    protected final List<MessageIn<ReadResponse>> replies = Collections.synchronizedList(new ArrayList<MessageIn<ReadResponse>>());
+    // Accumulator gives us non-blocking thread-safety with optimal algorithmic constraints
+    protected final Accumulator<MessageIn<ReadResponse>> replies;
     protected final DecoratedKey key;
 
-    public AbstractRowResolver(ByteBuffer key, String keyspaceName)
+    public AbstractRowResolver(ByteBuffer key, String keyspaceName, int maxResponseCount)
     {
         this.key = StorageService.getPartitioner().decorateKey(key);
         this.keyspaceName = keyspaceName;
+        this.replies = new Accumulator<>(maxResponseCount);
     }
 
     public void preprocess(MessageIn<ReadResponse> message)

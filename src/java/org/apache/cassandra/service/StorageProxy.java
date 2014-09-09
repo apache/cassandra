@@ -1261,7 +1261,7 @@ public class StorageProxy implements StorageProxyMBean
                     ReadRepairMetrics.repairedBlocking.mark();
 
                     // Do a full data read to resolve the correct response (and repair node that need be)
-                    RowDataResolver resolver = new RowDataResolver(exec.command.ksName, exec.command.key, exec.command.filter(), exec.command.timestamp);
+                    RowDataResolver resolver = new RowDataResolver(exec.command.ksName, exec.command.key, exec.command.filter(), exec.command.timestamp, exec.handler.endpoints.size());
                     ReadCallback<ReadResponse, Row> repairHandler = new ReadCallback<>(resolver,
                                                                                        ConsistencyLevel.ALL,
                                                                                        exec.getContactedReplicas().size(),
