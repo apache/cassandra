@@ -28,6 +28,7 @@ import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.security.UnrecoverableKeyException;
 import java.security.cert.CertificateException;
+import java.util.Arrays;
 
 import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.SSLContext;
@@ -416,19 +417,17 @@ public class CqlConfigHelper
         
         PoolingOptions poolingOptions = new PoolingOptions();
 
-        if (coreConnections.isPresent())
-            poolingOptions.setCoreConnectionsPerHost(HostDistance.LOCAL, coreConnections.get());
-        if (maxConnections.isPresent())
-            poolingOptions.setMaxConnectionsPerHost(HostDistance.LOCAL, maxConnections.get());
-        if (minSimultaneousRequests.isPresent())
-            poolingOptions.setMinSimultaneousRequestsPerConnectionThreshold(HostDistance.LOCAL, minSimultaneousRequests.get());
-        if (maxSimultaneousRequests.isPresent())
-            poolingOptions.setMaxSimultaneousRequestsPerConnectionThreshold(HostDistance.LOCAL, maxSimultaneousRequests.get());
-
-        poolingOptions.setCoreConnectionsPerHost(HostDistance.REMOTE, 0)
-                      .setMaxConnectionsPerHost(HostDistance.REMOTE, 0)
-                      .setMinSimultaneousRequestsPerConnectionThreshold(HostDistance.REMOTE, 0)
-                      .setMaxSimultaneousRequestsPerConnectionThreshold(HostDistance.REMOTE, 0);
+        for (HostDistance hostDistance : Arrays.asList(HostDistance.LOCAL, HostDistance.REMOTE))
+        {
+            if (coreConnections.isPresent())
+                poolingOptions.setCoreConnectionsPerHost(hostDistance, coreConnections.get());
+            if (maxConnections.isPresent())
+                poolingOptions.setMaxConnectionsPerHost(hostDistance, maxConnections.get());
+            if (minSimultaneousRequests.isPresent())
+                poolingOptions.setMinSimultaneousRequestsPerConnectionThreshold(hostDistance, minSimultaneousRequests.get());
+            if (maxSimultaneousRequests.isPresent())
+                poolingOptions.setMaxSimultaneousRequestsPerConnectionThreshold(hostDistance, maxSimultaneousRequests.get());
+        }
 
         return poolingOptions;
     }  
