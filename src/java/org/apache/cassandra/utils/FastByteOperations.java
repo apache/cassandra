@@ -40,37 +40,31 @@ public class FastByteOperations
     /**
      * Lexicographically compare two byte arrays.
      */
-    @Inline
     public static int compareUnsigned(byte[] b1, int s1, int l1, byte[] b2, int s2, int l2)
     {
         return BestHolder.BEST.compare(b1, s1, l1, b2, s2, l2);
     }
 
-    @Inline
     public static int compareUnsigned(ByteBuffer b1, byte[] b2, int s2, int l2)
     {
         return BestHolder.BEST.compare(b1, b2, s2, l2);
     }
 
-    @Inline
     public static int compareUnsigned(byte[] b1, int s1, int l1, ByteBuffer b2)
     {
         return -BestHolder.BEST.compare(b2, b1, s1, l1);
     }
 
-    @Inline
     public static int compareUnsigned(ByteBuffer b1, ByteBuffer b2)
     {
         return BestHolder.BEST.compare(b1, b2);
     }
 
-    @Inline
     public static void copy(ByteBuffer src, int srcPosition, byte[] trg, int trgPosition, int length)
     {
         BestHolder.BEST.copy(src, srcPosition, trg, trgPosition, length);
     }
 
-    @Inline
     public static void copy(ByteBuffer src, int srcPosition, ByteBuffer trg, int trgPosition, int length)
     {
         BestHolder.BEST.copy(src, srcPosition, trg, trgPosition, length);
@@ -246,7 +240,6 @@ public class FastByteOperations
             copy(src, srcOffset + srcPosition, trgBuf, trgPosition, length);
         }
 
-        @Inline
         public static void copy(Object src, long srcOffset, ByteBuffer trgBuf, int trgPosition, int length)
         {
             if (trgBuf.hasArray())
@@ -255,7 +248,6 @@ public class FastByteOperations
                 copy(src, srcOffset, null, trgPosition + theUnsafe.getLong(trgBuf, DIRECT_BUFFER_ADDRESS_OFFSET), length);
         }
 
-        @Inline
         public static void copy(Object src, long srcOffset, byte[] trg, int trgPosition, int length)
         {
             if (length <= MIN_COPY_THRESHOLD)
@@ -273,7 +265,6 @@ public class FastByteOperations
         private static final long UNSAFE_COPY_THRESHOLD = 1 << 20;
         private static final long MIN_COPY_THRESHOLD = 6;
 
-        @Inline
         public static void copy(Object src, long srcOffset, Object dst, long dstOffset, long length)
         {
             while (length > 0) {

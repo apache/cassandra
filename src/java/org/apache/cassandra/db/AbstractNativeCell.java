@@ -291,7 +291,6 @@ public abstract class AbstractNativeCell extends AbstractCell implements CellNam
         return get(i, null);
     }
 
-    @Inline
     private ByteBuffer get(int i, AbstractAllocator copy)
     {
         // remember to take dense/sparse into account, and only return EOC when not dense
@@ -660,6 +659,7 @@ public abstract class AbstractNativeCell extends AbstractCell implements CellNam
     }
 
     // requires isByteOrderComparable to be true. Compares the name components only; ; may need to compare EOC etc still
+    @Inline
     public final int compareTo(final Composite that)
     {
         if (isStatic() != that.isStatic())

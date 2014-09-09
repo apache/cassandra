@@ -68,7 +68,6 @@ public class CollationController
      * Once we have data for all requests columns that is newer than the newest remaining maxtimestamp,
      * we stop.
      */
-    @Inline
     private ColumnFamily collectTimeOrderedData(boolean copyOnHeap)
     {
         final ColumnFamily container = ArrayBackedSortedColumns.factory.create(cfs.metadata, filter.filter.isReversed());

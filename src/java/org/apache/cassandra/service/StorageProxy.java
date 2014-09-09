@@ -1109,7 +1109,6 @@ public class StorageProxy implements StorageProxyMBean
      * Performs the actual reading of a row out of the StorageService, fetching
      * a specific set of column names from a given column family.
      */
-    @Inline
     public static List<Row> read(List<ReadCommand> commands, ConsistencyLevel consistency_level)
     throws UnavailableException, IsBootstrappingException, ReadTimeoutException, InvalidRequestException
     {
@@ -1188,7 +1187,6 @@ public class StorageProxy implements StorageProxyMBean
      * 4. If the digests (if any) match the data return the data
      * 5. else carry out read repair by getting data from all the nodes.
      */
-    @Inline
     private static List<Row> fetchRows(List<ReadCommand> initialCommands, ConsistencyLevel consistencyLevel)
     throws UnavailableException, ReadTimeoutException
     {
