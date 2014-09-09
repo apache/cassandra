@@ -1,4 +1,5 @@
 2.0.11:
+ * Potentially use non-local replicas in CqlConfigHelper (CASSANDRA-7906)
  * Explicitly disallowing mixing multi-column and single-column
    relations on clustering columns (CASSANDRA-7711)
  * Better error message when condition is set on PK column (CASSANDRA-7804)
