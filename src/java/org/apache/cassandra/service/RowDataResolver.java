@@ -57,15 +57,16 @@ public class RowDataResolver extends AbstractRowResolver
     */
     public Row resolve() throws DigestMismatchException
     {
+        int replyCount = replies.size();
         if (logger.isDebugEnabled())
-            logger.debug("resolving {} responses", replies.size());
+            logger.debug("resolving {} responses", replyCount);
         long start = System.nanoTime();
 
         ColumnFamily resolved;
-        if (replies.size() > 1)
+        if (replyCount > 1)
         {
-            List<ColumnFamily> versions = new ArrayList<ColumnFamily>(replies.size());
-            List<InetAddress> endpoints = new ArrayList<InetAddress>(replies.size());
+            List<ColumnFamily> versions = new ArrayList<>(replyCount);
+            List<InetAddress> endpoints = new ArrayList<>(replyCount);
 
             for (MessageIn<ReadResponse> message : replies)
             {
@@ -158,7 +159,7 @@ public class RowDataResolver extends AbstractRowResolver
 
     public Row getData()
     {
-        return replies.iterator().next().payload.row();
+        return replies.peek().payload.row();
     }
 
     public boolean isDataPresent()
