@@ -540,6 +540,39 @@ The @DROP TYPE@ statement results in the immediate, irreversible removal of a ty
 
 If the type does not exist, an error will be returned unless @IF EXISTS@ is used, in which case the operation is a no-op.
 
+h3(#createTriggerStmt). CREATE TRIGGER
+
+__Syntax:__
+
+bc(syntax).. 
+<create-trigger-stmt> ::= CREATE TRIGGER ( IF NOT EXISTS )? ( <triggername> )?
+                            ON <tablename> 
+                            USING <string>
+
+p. 
+__Sample:__
+
+bc(sample). 
+CREATE TRIGGER myTrigger ON myTable USING 'org.apache.cassandra.triggers.InvertedIndex';
+
+The actual logic that makes up the trigger can be written in any Java (JVM) language and exists outside the database. You place the trigger code in a @lib/triggers@ subdirectory of the Cassandra installation directory, it loads during cluster startup, and exists on every node that participates in a cluster. The trigger defined on a table fires before a requested DML statement occurs, which ensures the atomicity of the transaction.
+
+h3(#dropTriggerStmt). DROP TRIGGER
+
+__Syntax:__
+
+bc(syntax).. 
+<drop-trigger-stmt> ::= DROP TRIGGER ( IF EXISTS )? ( <triggername> )?
+                            ON <tablename>
+
+p. 
+__Sample:__
+
+bc(sample). 
+DROP TRIGGER myTrigger ON myTable;
+
+@DROP TRIGGER@ statement removes the registration of a trigger created using @CREATE TRIGGER@.
+
 h2(#dataManipulation). Data Manipulation
 
 h3(#insertStmt). INSERT

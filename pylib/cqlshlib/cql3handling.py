@@ -229,11 +229,13 @@ JUNK ::= /([ \t\r\f\v]+|(--|[/][/])[^\n\r]*([\n\r]|$)|[/][*].*?[*][/])/ ;
                           | <createIndexStatement>
                           | <createUserTypeStatement>
                           | <createFunctionStatement>
+                          | <createTriggerStatement>
                           | <dropKeyspaceStatement>
                           | <dropColumnFamilyStatement>
                           | <dropIndexStatement>
                           | <dropUserTypeStatement>
                           | <dropFunctionStatement>
+                          | <dropTriggerStatement>
                           | <alterTableStatement>
                           | <alterKeyspaceStatement>
                           | <alterUserTypeStatement>
@@ -1176,6 +1178,28 @@ def username_name_completer(ctxt, cass):
 
     session = cass.session
     return [maybe_quote(row.values()[0].replace("'", "''")) for row in session.execute("LIST USERS")]
+
+syntax_rules += r'''
+<createTriggerStatement> ::= "CREATE" "TRIGGER" ( "IF" "NOT" "EXISTS" )? <cident>
+                               "ON" cf=<columnFamilyName> "USING" class=<stringLiteral>
+                           ;
+
+<dropTriggerStatement> ::= "DROP" "TRIGGER" ( "IF" "EXISTS" )? triggername=<cident>
+                             "ON" cf=<columnFamilyName>
+                         ;
+'''
+explain_completion('createTriggerStatement', 'class', '\'fully qualified class name\'')
+
+def get_trigger_names(ctxt, cass):
+    ks = ctxt.get_binding('ksname', None)
+    if ks is not None:
+        ks = dequote_name(ks)
+    return cass.get_trigger_names(ks)
+
+@completer_for('dropTriggerStatement', 'triggername')
+def alter_type_field_completer(ctxt, cass):
+    names = get_trigger_names(ctxt, cass)
+    return map(maybe_escape_name, names)
 
 # END SYNTAX/COMPLETION RULE DEFINITIONS
 
