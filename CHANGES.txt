@@ -1,4 +1,5 @@
 2.0.11:
+ * Make CQLSSTableWriter sync within partitions (CASSANDRA-7360)
  * Potentially use non-local replicas in CqlConfigHelper (CASSANDRA-7906)
  * Explicitly disallowing mixing multi-column and single-column
    relations on clustering columns (CASSANDRA-7711)

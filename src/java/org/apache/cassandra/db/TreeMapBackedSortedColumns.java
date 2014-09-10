@@ -49,7 +49,7 @@ public class TreeMapBackedSortedColumns extends AbstractThreadUnsafeSortedColumn
         return (AbstractType<?>)map.comparator();
     }
 
-    private TreeMapBackedSortedColumns(CFMetaData metadata)
+    protected TreeMapBackedSortedColumns(CFMetaData metadata)
     {
         super(metadata);
         this.map = new TreeMap<ByteBuffer, Column>(metadata.comparator);

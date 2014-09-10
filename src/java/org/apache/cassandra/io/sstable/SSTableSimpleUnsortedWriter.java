@@ -27,10 +27,12 @@ import java.util.concurrent.SynchronousQueue;
 import com.google.common.base.Throwables;
 
 import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.db.Column;
 import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.ColumnFamilyType;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.TreeMapBackedSortedColumns;
+import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.io.compress.CompressionParameters;
@@ -100,28 +102,46 @@ public class SSTableSimpleUnsortedWriter extends AbstractSSTableSimpleWriter
 
     protected void writeRow(DecoratedKey key, ColumnFamily columnFamily) throws IOException
     {
-        currentSize += key.key.remaining() + ColumnFamily.serializer.serializedSize(columnFamily, MessagingService.current_version) * 1.2;
+        // Nothing to do since we'll sync if needed in addColumn.
+    }
 
+    @Override
+    protected void addColumn(Column column) throws IOException
+    {
+        super.addColumn(column);
+        countColumn(column);
+    }
+
+    protected void countColumn(Column column) throws IOException
+    {
+        currentSize += column.serializedSize(TypeSizes.NATIVE);
+
+        // We don't want to sync in writeRow() only as this might blow up the bufferSize for wide rows.
         if (currentSize > bufferSize)
             sync();
     }
 
-    protected ColumnFamily getColumnFamily()
+    protected ColumnFamily getColumnFamily() throws IOException
     {
         ColumnFamily previous = buffer.get(currentKey);
         // If the CF already exist in memory, we'll just continue adding to it
         if (previous == null)
         {
-            previous = TreeMapBackedSortedColumns.factory.create(metadata);
+            previous = createColumnFamily();
             buffer.put(currentKey, previous);
-        }
-        else
-        {
-            // We will reuse a CF that we have counted already. But because it will be easier to add the full size
-            // of the CF in the next writeRow call than to find out the delta, we just remove the size until that next call
-            currentSize -= currentKey.key.remaining() + ColumnFamily.serializer.serializedSize(previous, MessagingService.current_version) * 1.2;
+
+            // Since this new CF will be written by the next sync(), count its header. And a CF header
+            // on disk is:
+            //   - the row key: 2 bytes size + key size bytes
+            //   - the row level deletion infos: 4 + 8 bytes
+            currentSize += 14 + currentKey.key.remaining();
         }
         return previous;
+    }
+
+    protected ColumnFamily createColumnFamily() throws IOException
+    {
+        return TreeMapBackedSortedColumns.factory.create(metadata);
     }
 
     public void close() throws IOException
