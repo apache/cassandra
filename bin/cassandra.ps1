@@ -17,7 +17,8 @@ param (
     [switch]$install,
     [switch]$uninstall,
     [switch]$help,
-    [switch]$verbose,
+    [switch]$v,
+    [switch]$s,
     [switch]$f,
     [string]$p,
     [string]$H,
@@ -51,8 +52,9 @@ usage: cassandra.ps1 [-f] [-h] [-p pidfile] [-H dumpfile] [-D arg] [-E errorfile
     -H              change JVM HeapDumpPath
     -D              items to append to JVM_OPTS
     -E              change JVM ErrorFile
+    -v              Print cassandra version and exit
+    -s              Show detailed jvm environment information during launch
     -help           print this message
-    -verbose        Show detailed command-line parameters for cassandra run
 
     NOTE: installing cassandra as a service requires Commons Daemon Service Runner
         available at http://commons.apache.org/proper/commons-daemon/"
@@ -76,13 +78,18 @@ Function Main
     . "$env:CASSANDRA_HOME\bin\source-conf.ps1"
 
     $conf = Find-Conf
-    if ($verbose)
+    if ($s)
     {
         echo "Sourcing cassandra config file: $conf"
     }
     . $conf
 
     SetCassandraEnvironment
+    if ($v)
+    {
+        PrintVersion
+        exit
+    }
     $pidfile = "$env:CASSANDRA_HOME\$pidfile"
 
     $logdir = "$env:CASSANDRA_HOME/logs"
@@ -196,6 +203,20 @@ Function HandleInstallation
 }
 
 #-----------------------------------------------------------------------------
+Function PrintVersion()
+{
+    Write-Host "Cassandra Version: " -NoNewLine
+    $pinfo = New-Object System.Diagnostics.ProcessStartInfo
+    $pinfo.FileName = "$env:JAVA_BIN"
+    $pinfo.UseShellExecute = $false
+    $pinfo.Arguments = "-cp $env:CLASSPATH org.apache.cassandra.tools.GetVersion"
+    $p = New-Object System.Diagnostics.Process
+    $p.StartInfo = $pinfo
+    $p.Start() | Out-Null
+    $p.WaitForExit()
+}
+
+#-----------------------------------------------------------------------------
 Function RunCassandra([string]$foreground)
 {
     echo "Starting cassandra server"
@@ -211,7 +232,7 @@ $env:JAVA_BIN
 
     $proc = $null
 
-    if ($verbose)
+    if ($s)
     {
         echo "Running cassandra with: [$cmd $arg1 $arg2 $arg3 $arg4]"
     }
