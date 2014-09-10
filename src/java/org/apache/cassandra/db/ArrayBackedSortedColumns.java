@@ -74,6 +74,11 @@ public class ArrayBackedSortedColumns extends ColumnFamily
         this.isSorted = size == sortedSize;
     }
 
+    protected ArrayBackedSortedColumns(CFMetaData metadata, boolean reversed)
+    {
+        this(metadata, reversed, EMPTY_ARRAY, 0, 0);
+    }
+
     private ArrayBackedSortedColumns(ArrayBackedSortedColumns original)
     {
         super(original.metadata);

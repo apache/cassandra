@@ -112,7 +112,7 @@ public abstract class AbstractSSTableSimpleWriter implements Closeable
         currentSuperColumn = name;
     }
 
-    private void addColumn(Cell cell)
+    protected void addColumn(Cell cell) throws IOException
     {
         if (columnFamily.metadata().isSuper())
         {
@@ -130,7 +130,7 @@ public abstract class AbstractSSTableSimpleWriter implements Closeable
      * @param value the column value
      * @param timestamp the column timestamp
      */
-    public void addColumn(ByteBuffer name, ByteBuffer value, long timestamp)
+    public void addColumn(ByteBuffer name, ByteBuffer value, long timestamp) throws IOException
     {
         addColumn(new BufferCell(metadata.comparator.cellFromByteBuffer(name), value, timestamp));
     }
@@ -145,7 +145,7 @@ public abstract class AbstractSSTableSimpleWriter implements Closeable
      * expiring the column, and as a consequence should be synchronized with the cassandra servers time. If {@code timestamp} represents
      * the insertion time in microseconds (which is not required), this should be {@code (timestamp / 1000) + (ttl * 1000)}.
      */
-    public void addExpiringColumn(ByteBuffer name, ByteBuffer value, long timestamp, int ttl, long expirationTimestampMS)
+    public void addExpiringColumn(ByteBuffer name, ByteBuffer value, long timestamp, int ttl, long expirationTimestampMS) throws IOException
     {
         addColumn(new BufferExpiringCell(metadata.comparator.cellFromByteBuffer(name), value, timestamp, ttl, (int)(expirationTimestampMS / 1000)));
     }
@@ -155,7 +155,7 @@ public abstract class AbstractSSTableSimpleWriter implements Closeable
      * @param name the column name
      * @param value the value of the counter
      */
-    public void addCounterColumn(ByteBuffer name, long value)
+    public void addCounterColumn(ByteBuffer name, long value) throws IOException
     {
         addColumn(new BufferCounterCell(metadata.comparator.cellFromByteBuffer(name),
                                         CounterContext.instance().createGlobal(counterid, 1L, value),
@@ -180,8 +180,7 @@ public abstract class AbstractSSTableSimpleWriter implements Closeable
         return currentKey;
     }
 
-
     protected abstract void writeRow(DecoratedKey key, ColumnFamily columnFamily) throws IOException;
 
-    protected abstract ColumnFamily getColumnFamily();
+    protected abstract ColumnFamily getColumnFamily() throws IOException;
 }
