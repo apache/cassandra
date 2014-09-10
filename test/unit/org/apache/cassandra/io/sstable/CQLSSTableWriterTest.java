@@ -18,6 +18,9 @@
 package org.apache.cassandra.io.sstable;
 
 import java.io.File;
+import java.io.FilenameFilter;
+import java.nio.ByteBuffer;
+import java.util.Arrays;
 import java.util.Iterator;
 
 import com.google.common.collect.ImmutableMap;
@@ -118,5 +121,41 @@ public class CQLSSTableWriterTest
         assertEquals(3, row.getInt("k"));
         assertEquals(null, row.getBytes("v1")); // Using getBytes because we know it won't NPE
         assertEquals(12, row.getInt("v2"));
+    }
+
+    @Test
+    public void testSyncWithinPartition() throws Exception
+    {
+        // Check that the write respect the buffer size even if we only insert rows withing the same partition (#7360)
+        // To do that simply, we use a writer with a buffer of 1MB, and write 2 rows in the same partition with a value
+        // > 1MB and validate that this created more than 1 sstable.
+        File tempdir = Files.createTempDir();
+        String schema = "CREATE TABLE ks.test ("
+                      + "  k int PRIMARY KEY,"
+                      + "  v blob"
+                      + ")";
+        String insert = "INSERT INTO ks.test (k, v) VALUES (?, ?)";
+        CQLSSTableWriter writer = CQLSSTableWriter.builder()
+                                                  .inDirectory(tempdir)
+                                                  .forTable(schema)
+                                                  .withPartitioner(StorageService.instance.getPartitioner())
+                                                  .using(insert)
+                                                  .withBufferSizeInMB(1)
+                                                  .build();
+
+        ByteBuffer val = ByteBuffer.allocate(1024 * 1050);
+
+        writer.addRow(0, val);
+        writer.addRow(1, val);
+        writer.close();
+
+        FilenameFilter filterDataFiles = new FilenameFilter()
+        {
+            public boolean accept(File dir, String name)
+            {
+                return name.endsWith("-Data.db");
+            }
+        };
+        assert tempdir.list(filterDataFiles).length > 1 : Arrays.toString(tempdir.list(filterDataFiles));
     }
 }
