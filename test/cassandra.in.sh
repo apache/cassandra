@@ -39,7 +39,7 @@ JVM_OPTS=" \
         -Xrunjdwp:transport=dt_socket,server=y,address=8898,suspend=n \
         -Xms128M \
         -Xmx1G \
-        -Xss180k \
+        -Xss256k \
         -XX:SurvivorRatio=8 \
         -XX:TargetSurvivorRatio=90 \
         -XX:+AggressiveOpts \
