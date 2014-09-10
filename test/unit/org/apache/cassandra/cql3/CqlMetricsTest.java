@@ -21,7 +21,9 @@ import com.datastax.driver.core.Cluster;
 import com.datastax.driver.core.PreparedStatement;
 import com.datastax.driver.core.Session;
 import org.apache.cassandra.OrderedJUnit4ClassRunner;
+import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.service.EmbeddedCassandraService;
 import org.junit.BeforeClass;
@@ -32,7 +34,7 @@ import java.io.IOException;
 
 
 @RunWith(OrderedJUnit4ClassRunner.class)
-public class CqlMetricsTest
+public class CqlMetricsTest extends SchemaLoader
 {
 
     private static EmbeddedCassandraService cassandra;
@@ -44,6 +46,8 @@ public class CqlMetricsTest
     @BeforeClass()
     public static void setup() throws ConfigurationException, IOException
     {
+        Schema.instance.clear();
+
         cassandra = new EmbeddedCassandraService();
         cassandra.start();
 
