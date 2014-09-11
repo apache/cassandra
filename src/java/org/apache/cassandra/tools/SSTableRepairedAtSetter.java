@@ -78,14 +78,21 @@ public class SSTableRepairedAtSetter
 
         String fname = args[2];
         Descriptor descriptor = Descriptor.fromFilename(fname);
-        if (setIsRepaired)
+        if (descriptor.version.hasRepairedAt)
         {
-            FileTime f = Files.getLastModifiedTime(new File(descriptor.filenameFor(Component.DATA)).toPath());
-            descriptor.getMetadataSerializer().mutateRepairedAt(descriptor, f.toMillis());
+            if (setIsRepaired)
+            {
+                FileTime f = Files.getLastModifiedTime(new File(descriptor.filenameFor(Component.DATA)).toPath());
+                descriptor.getMetadataSerializer().mutateRepairedAt(descriptor, f.toMillis());
+            }
+            else
+            {
+                descriptor.getMetadataSerializer().mutateRepairedAt(descriptor, ActiveRepairService.UNREPAIRED_SSTABLE);
+            }
         }
         else
         {
-            descriptor.getMetadataSerializer().mutateRepairedAt(descriptor, ActiveRepairService.UNREPAIRED_SSTABLE);
+            out.println("SSTable "+fname+" does not have repaired property, run upgradesstables");
         }
 
     }
