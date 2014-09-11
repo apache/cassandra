@@ -88,6 +88,11 @@ class OptionSimple extends Option implements Serializable
         return value != null;
     }
 
+    public boolean isRequired()
+    {
+        return required;
+    }
+
     public boolean present()
     {
         return value != null || defaultValue != null;

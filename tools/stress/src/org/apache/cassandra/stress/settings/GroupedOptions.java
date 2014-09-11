@@ -26,6 +26,8 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
+import com.google.common.collect.ImmutableList;
+
 public abstract class GroupedOptions
 {
 
@@ -110,6 +112,20 @@ public abstract class GroupedOptions
                 }
             }
         }
+    }
+
+    public static List<? extends Option> merge(List<? extends Option> ... optionss)
+    {
+        ImmutableList.Builder<Option> builder = ImmutableList.builder();
+        for (List<? extends Option> options : optionss)
+            for (Option option : options)
+                if (option instanceof OptionSimple && ((OptionSimple) option).isRequired())
+                    builder.add(option);
+        for (List<? extends Option> options : optionss)
+            for (Option option : options)
+                if (!(option instanceof OptionSimple && ((OptionSimple) option).isRequired()))
+                    builder.add(option);
+        return builder.build();
     }
 
     public static String formatLong(String longDisplay, String description)
