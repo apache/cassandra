@@ -123,7 +123,8 @@ public class SettingsCommandPreDefinedMixed extends SettingsCommandPreDefined
     {
         GroupedOptions options = GroupedOptions.select(params,
                 new Options(new SettingsCommand.Uncertainty()),
-                new Options(new SettingsCommand.Count()));
+                new Options(new SettingsCommand.Count()),
+                new Options(new SettingsCommand.Duration()));
         if (options == null)
         {
             printHelp();
@@ -137,7 +138,8 @@ public class SettingsCommandPreDefinedMixed extends SettingsCommandPreDefined
     {
         GroupedOptions.printOptions(System.out, "mixed",
                                     new Options(new SettingsCommand.Uncertainty()),
-                                    new Options(new SettingsCommand.Count()));
+                                    new Options(new SettingsCommand.Count()),
+                                    new Options(new SettingsCommand.Duration()));
     }
 
     public static Runnable helpPrinter()

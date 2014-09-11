@@ -36,6 +36,7 @@ import org.apache.cassandra.stress.operations.FixedOpDistribution;
 import org.apache.cassandra.stress.operations.OpDistribution;
 import org.apache.cassandra.stress.operations.OpDistributionFactory;
 import org.apache.cassandra.stress.operations.predefined.PredefinedOperation;
+import org.apache.cassandra.stress.settings.SettingsCommandPreDefinedMixed.Options;
 import org.apache.cassandra.stress.util.Timer;
 
 // Settings unique to the mixed command type
@@ -116,7 +117,8 @@ public class SettingsCommandPreDefined extends SettingsCommand
     {
         GroupedOptions options = GroupedOptions.select(params,
                 new Options(new Uncertainty()),
-                new Options(new Count()));
+                new Options(new Count()),
+                new Options(new Duration()));
         if (options == null)
         {
             printHelp(type);
@@ -133,7 +135,7 @@ public class SettingsCommandPreDefined extends SettingsCommand
 
     static void printHelp(String type)
     {
-        GroupedOptions.printOptions(System.out, type.toLowerCase(), new Uncertainty(), new Count());
+        GroupedOptions.printOptions(System.out, type.toLowerCase(), new Uncertainty(), new Count(), new Duration());
     }
 
     static Runnable helpPrinter(final Command type)

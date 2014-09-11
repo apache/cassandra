@@ -96,7 +96,6 @@ public class SettingsCommandUser extends SettingsCommand
         {
             return ImmutableList.<Option>builder().add(ops, clustering, profile).addAll(parent.options()).build();
         }
-
     }
 
     // CLI utility methods
@@ -105,6 +104,7 @@ public class SettingsCommandUser extends SettingsCommand
     {
         GroupedOptions options = GroupedOptions.select(params,
                 new Options(new Uncertainty()),
+                new Options(new Duration()),
                 new Options(new Count()));
         if (options == null)
         {
@@ -119,7 +119,8 @@ public class SettingsCommandUser extends SettingsCommand
     {
         GroupedOptions.printOptions(System.out, "user",
                                     new Options(new Uncertainty()),
-                                    new Options(new Count()));
+                                    new Options(new Count()),
+                                    new Options(new Duration()));
     }
 
     public static Runnable helpPrinter()

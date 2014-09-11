@@ -25,6 +25,7 @@ import java.io.Serializable;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 import org.apache.cassandra.stress.generate.SeedManager;
 import org.apache.cassandra.stress.operations.OpDistributionFactory;
@@ -36,6 +37,8 @@ public abstract class SettingsCommand implements Serializable
 
     public final Command type;
     public final long count;
+    public final long duration;
+    public final TimeUnit durationUnits;
     public final boolean noWarmup;
     public final ConsistencyLevel consistencyLevel;
     public final double targetUncertainty;
@@ -48,11 +51,12 @@ public abstract class SettingsCommand implements Serializable
     {
         this(type, (Options) options,
                 options instanceof Count ? (Count) options : null,
+                options instanceof Duration ? (Duration) options : null,
                 options instanceof Uncertainty ? (Uncertainty) options : null
         );
     }
 
-    public SettingsCommand(Command type, Options options, Count count, Uncertainty uncertainty)
+    public SettingsCommand(Command type, Options options, Count count, Duration duration, Uncertainty uncertainty)
     {
         this.type = type;
         this.consistencyLevel = ConsistencyLevel.valueOf(options.consistencyLevel.value().toUpperCase());
@@ -60,6 +64,30 @@ public abstract class SettingsCommand implements Serializable
         if (count != null)
         {
             this.count = Long.parseLong(count.count.value());
+            this.duration = 0;
+            this.durationUnits = null;
+            this.targetUncertainty = -1;
+            this.minimumUncertaintyMeasurements = -1;
+            this.maximumUncertaintyMeasurements = -1;
+        }
+        else if (duration != null)
+        {
+            this.count = -1;
+            this.duration = Long.parseLong(duration.duration.value().substring(0, duration.duration.value().length() - 1));
+            switch (duration.duration.value().toLowerCase().charAt(duration.duration.value().length() - 1))
+            {
+                case 's':
+                    this.durationUnits = TimeUnit.SECONDS;
+                    break;
+                case 'm':
+                    this.durationUnits = TimeUnit.MINUTES;
+                    break;
+                case 'h':
+                    this.durationUnits = TimeUnit.HOURS;
+                    break;
+                default:
+                    throw new IllegalStateException();
+            }
             this.targetUncertainty = -1;
             this.minimumUncertaintyMeasurements = -1;
             this.maximumUncertaintyMeasurements = -1;
@@ -67,6 +95,8 @@ public abstract class SettingsCommand implements Serializable
         else
         {
             this.count = -1;
+            this.duration = 0;
+            this.durationUnits = null;
             this.targetUncertainty = Double.parseDouble(uncertainty.uncertainty.value());
             this.minimumUncertaintyMeasurements = Integer.parseInt(uncertainty.minMeasurements.value());
             this.maximumUncertaintyMeasurements = Integer.parseInt(uncertainty.maxMeasurements.value());
@@ -88,6 +118,16 @@ public abstract class SettingsCommand implements Serializable
         public List<? extends Option> options()
         {
             return Arrays.asList(count, noWarmup, consistencyLevel);
+        }
+    }
+
+    static class Duration extends Options
+    {
+        final OptionSimple duration = new OptionSimple("duration=", "[0-9]+[smh]", null, "Time to run in (in seconds, minutes or hours)", true);
+        @Override
+        public List<? extends Option> options()
+        {
+            return Arrays.asList(duration, noWarmup, consistencyLevel);
         }
     }
 
@@ -132,5 +172,37 @@ public abstract class SettingsCommand implements Serializable
         return null;
     }
 
-}
+/*    static SettingsCommand build(Command type, String[] params)
+    {
+        GroupedOptions options = GroupedOptions.select(params, new Count(), new Duration(), new Uncertainty());
+        if (options == null)
+        {
+            printHelp(type);
+            System.out.println("Invalid " + type + " options provided, see output for valid options");
+            System.exit(1);
+        }
+        return new SettingsCommand(type, options);
+    }*/
 
+    static void printHelp(Command type)
+    {
+        printHelp(type.toString().toLowerCase());
+    }
+
+    static void printHelp(String type)
+    {
+        GroupedOptions.printOptions(System.out, type.toLowerCase(), new Uncertainty(), new Count(), new Duration());
+    }
+
+    static Runnable helpPrinter(final Command type)
+    {
+        return new Runnable()
+        {
+            @Override
+            public void run()
+            {
+                printHelp(type);
+            }
+        };
+    }
+}
