@@ -284,7 +284,7 @@ public class OptionDistribution extends Option
                 // over entire range, but this results in overly skewed distribution, so take sqrt
                 final double scale = (max - min) / findBounds.inverseCumulativeProbability(1d - Math.sqrt(1d/(max-min)));
                 return new QuantizedExtremeFactory(min, max, shape, scale, quantas);
-            } catch (Exception _)
+            } catch (Exception e)
             {
                 throw new IllegalArgumentException("Invalid parameter list for quantized extreme (Weibull) distribution: " + params);
             }
