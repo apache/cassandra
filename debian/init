@@ -86,7 +86,7 @@ do_start()
     error_log_f="$cassandra_home/hs_err_`date +%s`.log"
 
     [ -e `dirname "$PIDFILE"` ] || \
-        install -d -ocassandra -gcassandra -m750 `dirname $PIDFILE`
+        install -d -ocassandra -gcassandra -m755 `dirname $PIDFILE`
 
 
 
