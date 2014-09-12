@@ -102,6 +102,7 @@ public class YamlFileNetworkTopologySnitch
     YamlFileNetworkTopologySnitch(final String topologyConfigFilename)
             throws ConfigurationException
     {
+        logger.warn("YamlFileNetworkTopologySnitch is deprecated; switch to GossipingPropertyFileSnitch instead");
         this.topologyConfigFilename = topologyConfigFilename;
         loadTopologyConfiguration();
 
