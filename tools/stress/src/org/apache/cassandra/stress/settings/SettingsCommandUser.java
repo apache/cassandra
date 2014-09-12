@@ -23,6 +23,9 @@ package org.apache.cassandra.stress.settings;
 
 import java.io.File;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 
@@ -88,15 +91,14 @@ public class SettingsCommandUser extends SettingsCommand
             this.parent = parent;
         }
         final OptionDistribution clustering = new OptionDistribution("clustering=", "gaussian(1..10)", "Distribution clustering runs of operations of the same kind");
-        final OptionSimple profile = new OptionSimple("profile=", ".*", null, "Specify the path to a yaml cql3 profile", false);
+        final OptionSimple profile = new OptionSimple("profile=", ".*", null, "Specify the path to a yaml cql3 profile", true);
         final OptionAnyProbabilities ops = new OptionAnyProbabilities("ops", "Specify the ratios for inserts/queries to perform; e.g. ops(insert=2,<query1>=1) will perform 2 inserts for each query1");
 
         @Override
         public List<? extends Option> options()
         {
-            return ImmutableList.<Option>builder().add(ops, clustering, profile).addAll(parent.options()).build();
+            return merge(Arrays.asList(ops, profile, clustering), parent.options());
         }
-
     }
 
     // CLI utility methods
@@ -105,6 +107,7 @@ public class SettingsCommandUser extends SettingsCommand
     {
         GroupedOptions options = GroupedOptions.select(params,
                 new Options(new Uncertainty()),
+                new Options(new Duration()),
                 new Options(new Count()));
         if (options == null)
         {
