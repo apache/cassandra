@@ -565,7 +565,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                 if (mutationStage.isShutdown())
                     return; // drained already
 
-                shutdownClientServers();
+                if (daemon != null)
+                	shutdownClientServers();
                 optionalTasks.shutdown();
                 Gossiper.instance.stop();
 
