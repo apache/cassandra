@@ -25,6 +25,8 @@ New features
 
 Upgrading
 ---------
+   - YamlFileNetworkTopologySnitch has been removed; switch to
+     GossipingPropertyFileSnitch instead.
    - CQL2 has been removed entirely in this release (previously deprecated
      in 2.0.0). Please switch to CQL3 if you haven't already done so.
 
