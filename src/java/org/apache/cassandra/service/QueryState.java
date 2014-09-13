@@ -67,8 +67,8 @@ public class QueryState
             return true;
         }
 
-        double tracingProbability = StorageService.instance.getTracingProbability();
-        return tracingProbability != 0 && FBUtilities.threadLocalRandom().nextDouble() < tracingProbability;
+        double traceProbability = StorageService.instance.getTraceProbability();
+        return traceProbability != 0 && FBUtilities.threadLocalRandom().nextDouble() < traceProbability;
     }
 
     public void prepareTracingSession(UUID sessionId)
