@@ -1,8 +1,8 @@
 2.1.1
  * Add metrics for tracking PreparedStatement use (CASSANDRA-7719)
  * (cqlsh) tab-completion for triggers (CASSANDRA-7824)
- * (cqlsh): Support for query paging (CASSANDRA-7514)
- * (cqlsh): Show progress of COPY operations (CASSANDRA-7789)
+ * (cqlsh) Support for query paging (CASSANDRA-7514)
+ * (cqlsh) Show progress of COPY operations (CASSANDRA-7789)
  * Add syntax to remove multiple elements from a map (CASSANDRA-6599)
  * Support non-equals conditions in lightweight transactions (CASSANDRA-6839)
  * Add IF [NOT] EXISTS to create/drop triggers (CASSANDRA-7606)
@@ -64,6 +64,7 @@ Merged from 1.2:
  * Avoid exposing internal classes over JMX (CASSANDRA-7879)
  * Add null check for keys when freezing collection (CASSANDRA-7869)
  * Improve stress workload realism (CASSANDRA-7519)
+
 
 2.1.0-rc7
  * Add frozen keyword and require UDT to be frozen (CASSANDRA-7857)
