@@ -375,33 +375,33 @@ public class NodeTool
             CacheServiceMBean cacheService = probe.getCacheServiceMBean();
 
             // Key Cache: Hits, Requests, RecentHitRate, SavePeriodInSeconds
-            System.out.printf("%-17s: entries %d, size %d (bytes), capacity %d (bytes), %d hits, %d requests, %.3f recent hit rate, %d save period in seconds%n",
+            System.out.printf("%-17s: entries %d, size %s, capacity %s, %d hits, %d requests, %.3f recent hit rate, %d save period in seconds%n",
                     "Key Cache",
                     probe.getCacheMetric("KeyCache", "Entries"),
-                    probe.getCacheMetric("KeyCache", "Size"),
-                    probe.getCacheMetric("KeyCache", "Capacity"),
+                    FileUtils.stringifyFileSize((long) probe.getCacheMetric("KeyCache", "Size")),
+                    FileUtils.stringifyFileSize((long) probe.getCacheMetric("KeyCache", "Capacity")),
                     probe.getCacheMetric("KeyCache", "Hits"),
                     probe.getCacheMetric("KeyCache", "Requests"),
                     probe.getCacheMetric("KeyCache", "HitRate"),
                     cacheService.getKeyCacheSavePeriodInSeconds());
 
             // Row Cache: Hits, Requests, RecentHitRate, SavePeriodInSeconds
-            System.out.printf("%-17s: entries %d, size %d (bytes), capacity %d (bytes), %d hits, %d requests, %.3f recent hit rate, %d save period in seconds%n",
+            System.out.printf("%-17s: entries %d, size %s, capacity %s, %d hits, %d requests, %.3f recent hit rate, %d save period in seconds%n",
                     "Row Cache",
                     probe.getCacheMetric("RowCache", "Entries"),
-                    probe.getCacheMetric("RowCache", "Size"),
-                    probe.getCacheMetric("RowCache", "Capacity"),
+                    FileUtils.stringifyFileSize((long) probe.getCacheMetric("RowCache", "Size")),
+                    FileUtils.stringifyFileSize((long) probe.getCacheMetric("RowCache", "Capacity")),
                     probe.getCacheMetric("RowCache", "Hits"),
                     probe.getCacheMetric("RowCache", "Requests"),
                     probe.getCacheMetric("RowCache", "HitRate"),
                     cacheService.getRowCacheSavePeriodInSeconds());
 
             // Counter Cache: Hits, Requests, RecentHitRate, SavePeriodInSeconds
-            System.out.printf("%-17s: entries %d, size %d (bytes), capacity %d (bytes), %d hits, %d requests, %.3f recent hit rate, %d save period in seconds%n",
+            System.out.printf("%-17s: entries %d, size %s, capacity %s, %d hits, %d requests, %.3f recent hit rate, %d save period in seconds%n",
                     "Counter Cache",
                     probe.getCacheMetric("CounterCache", "Entries"),
-                    probe.getCacheMetric("CounterCache", "Size"),
-                    probe.getCacheMetric("CounterCache", "Capacity"),
+                    FileUtils.stringifyFileSize((long) probe.getCacheMetric("CounterCache", "Size")),
+                    FileUtils.stringifyFileSize((long) probe.getCacheMetric("CounterCache", "Capacity")),
                     probe.getCacheMetric("CounterCache", "Hits"),
                     probe.getCacheMetric("CounterCache", "Requests"),
                     probe.getCacheMetric("CounterCache", "HitRate"),
@@ -544,6 +544,11 @@ public class NodeTool
     @Command(name = "netstats", description = "Print network information on provided host (connecting node by default)")
     public static class NetStats extends NodeToolCmd
     {
+        @Option(title = "human_readable",
+                name = {"-H", "--human-readable"},
+                description = "Display bytes in human readable form, i.e. KB, MB, GB, TB")
+        private boolean humanReadable = false;
+
         @Override
         public void execute(NodeProbe probe)
         {
@@ -559,7 +564,10 @@ public class NodeTool
                     System.out.printf("    %s%n", info.peer.toString());
                     if (!info.receivingSummaries.isEmpty())
                     {
-                        System.out.printf("        Receiving %d files, %d bytes total%n", info.getTotalFilesToReceive(), info.getTotalSizeToReceive());
+                        if (humanReadable)
+                            System.out.printf("        Receiving %d files, %s total%n", info.getTotalFilesToReceive(), FileUtils.stringifyFileSize(info.getTotalSizeToReceive()));
+                        else
+                            System.out.printf("        Receiving %d files, %d bytes total%n", info.getTotalFilesToReceive(), info.getTotalSizeToReceive());
                         for (ProgressInfo progress : info.getReceivingFiles())
                         {
                             System.out.printf("            %s%n", progress.toString());
@@ -567,7 +575,10 @@ public class NodeTool
                     }
                     if (!info.sendingSummaries.isEmpty())
                     {
-                        System.out.printf("        Sending %d files, %d bytes total%n", info.getTotalFilesToSend(), info.getTotalSizeToSend());
+                        if (humanReadable)
+                            System.out.printf("        Sending %d files, %s total%n", info.getTotalFilesToSend(), FileUtils.stringifyFileSize(info.getTotalSizeToSend()));
+                        else
+                            System.out.printf("        Sending %d files, %d bytes total%n", info.getTotalFilesToSend(), info.getTotalSizeToSend());
                         for (ProgressInfo progress : info.getSendingFiles())
                         {
                             System.out.printf("            %s%n", progress.toString());
@@ -613,6 +624,11 @@ public class NodeTool
 
         @Option(name = "-i", description = "Ignore the list of column families and display the remaining cfs")
         private boolean ignore = false;
+
+        @Option(title = "human_readable",
+                name = {"-H", "--human-readable"},
+                description = "Display bytes in human readable form, i.e. KB, MB, GB, TB")
+        private boolean humanReadable = false;
 
         @Override
         public void execute(NodeProbe probe)
@@ -683,9 +699,9 @@ public class NodeTool
                                               : Double.NaN;
 
                 System.out.println("\tRead Count: " + keyspaceReadCount);
-                System.out.println("\tRead Latency: " + format("%s", keyspaceReadLatency) + " ms.");
+                System.out.println("\tRead Latency: " + String.format("%s", keyspaceReadLatency) + " ms.");
                 System.out.println("\tWrite Count: " + keyspaceWriteCount);
-                System.out.println("\tWrite Latency: " + format("%s", keyspaceWriteLatency) + " ms.");
+                System.out.println("\tWrite Latency: " + String.format("%s", keyspaceWriteLatency) + " ms.");
                 System.out.println("\tPending Flushes: " + keyspacePendingFlushes);
 
                 // print out column family statistics for this keyspace
@@ -720,12 +736,12 @@ public class NodeTool
                                 System.out.println("]");
                         }
                     }
-                    System.out.println("\t\tSpace used (live), bytes: " + probe.getColumnFamilyMetric(keyspaceName, cfName, "LiveDiskSpaceUsed"));
-                    System.out.println("\t\tSpace used (total), bytes: " + probe.getColumnFamilyMetric(keyspaceName, cfName, "TotalDiskSpaceUsed"));
-                    System.out.println("\t\tSpace used by snapshots (total), bytes: " + probe.getColumnFamilyMetric(keyspaceName, cfName, "SnapshotsSize"));
+                    System.out.println("\t\tSpace used (live): " + format((Long) probe.getColumnFamilyMetric(keyspaceName, cfName, "LiveDiskSpaceUsed"), humanReadable));
+                    System.out.println("\t\tSpace used (total): " + format((Long) probe.getColumnFamilyMetric(keyspaceName, cfName, "TotalDiskSpaceUsed"), humanReadable));
+                    System.out.println("\t\tSpace used by snapshots (total): " + format((Long) probe.getColumnFamilyMetric(keyspaceName, cfName, "SnapshotsSize"), humanReadable));
                     System.out.println("\t\tSSTable Compression Ratio: " + probe.getColumnFamilyMetric(keyspaceName, cfName, "CompressionRatio"));
                     System.out.println("\t\tMemtable cell count: " + probe.getColumnFamilyMetric(keyspaceName, cfName, "MemtableColumnsCount"));
-                    System.out.println("\t\tMemtable data size, bytes: " + probe.getColumnFamilyMetric(keyspaceName, cfName, "MemtableLiveDataSize"));
+                    System.out.println("\t\tMemtable data size: " + format((Long) probe.getColumnFamilyMetric(keyspaceName, cfName, "MemtableLiveDataSize"), humanReadable));
                     System.out.println("\t\tMemtable switch count: " + probe.getColumnFamilyMetric(keyspaceName, cfName, "MemtableSwitchCount"));
                     System.out.println("\t\tLocal read count: " + ((JmxReporter.TimerMBean) probe.getColumnFamilyMetric(keyspaceName, cfName, "ReadLatency")).getCount());
                     double localReadLatency = ((JmxReporter.TimerMBean) probe.getColumnFamilyMetric(keyspaceName, cfName, "ReadLatency")).getMean() / 1000;
@@ -737,11 +753,11 @@ public class NodeTool
                     System.out.printf("\t\tLocal write latency: %01.3f ms%n", localWLatency);
                     System.out.println("\t\tPending flushes: " + probe.getColumnFamilyMetric(keyspaceName, cfName, "PendingFlushes"));
                     System.out.println("\t\tBloom filter false positives: " + probe.getColumnFamilyMetric(keyspaceName, cfName, "BloomFilterFalsePositives"));
-                    System.out.println("\t\tBloom filter false ratio: " + format("%01.5f", probe.getColumnFamilyMetric(keyspaceName, cfName, "RecentBloomFilterFalseRatio")));
-                    System.out.println("\t\tBloom filter space used, bytes: " + probe.getColumnFamilyMetric(keyspaceName, cfName, "BloomFilterDiskSpaceUsed"));
-                    System.out.println("\t\tCompacted partition minimum bytes: " + probe.getColumnFamilyMetric(keyspaceName, cfName, "MinRowSize"));
-                    System.out.println("\t\tCompacted partition maximum bytes: " + probe.getColumnFamilyMetric(keyspaceName, cfName, "MaxRowSize"));
-                    System.out.println("\t\tCompacted partition mean bytes: " + probe.getColumnFamilyMetric(keyspaceName, cfName, "MeanRowSize"));
+                    System.out.printf("\t\tBloom filter false ratio: %s%n", String.format("%01.5f", probe.getColumnFamilyMetric(keyspaceName, cfName, "RecentBloomFilterFalseRatio")));
+                    System.out.println("\t\tBloom filter space used: " + format((Long) probe.getColumnFamilyMetric(keyspaceName, cfName, "BloomFilterDiskSpaceUsed"), humanReadable));
+                    System.out.println("\t\tCompacted partition minimum bytes: " + format((Long) probe.getColumnFamilyMetric(keyspaceName, cfName, "MinRowSize"), humanReadable));
+                    System.out.println("\t\tCompacted partition maximum bytes: " + format((Long) probe.getColumnFamilyMetric(keyspaceName, cfName, "MaxRowSize"), humanReadable));
+                    System.out.println("\t\tCompacted partition mean bytes: " + format((Long) probe.getColumnFamilyMetric(keyspaceName, cfName, "MeanRowSize"), humanReadable));
                     JmxReporter.HistogramMBean histogram = (JmxReporter.HistogramMBean) probe.getColumnFamilyMetric(keyspaceName, cfName, "LiveScannedHistogram");
                     System.out.println("\t\tAverage live cells per slice (last five minutes): " + histogram.getMean());
                     System.out.println("\t\tMaximum live cells per slice (last five minutes): " + histogram.getMax());
@@ -753,6 +769,10 @@ public class NodeTool
                 }
                 System.out.println("----------------");
             }
+        }
+
+        private String format(long bytes, boolean humanReadable) {
+            return humanReadable ? FileUtils.stringifyFileSize(bytes) : Long.toString(bytes);
         }
 
         /**
@@ -1127,6 +1147,11 @@ public class NodeTool
     @Command(name = "compactionstats", description = "Print statistics on compactions")
     public static class CompactionStats extends NodeToolCmd
     {
+        @Option(title = "human_readable",
+                name = {"-H", "--human-readable"},
+                description = "Display bytes in human readable form, i.e. KB, MB, GB, TB")
+        private boolean humanReadable = false;
+
         @Override
         public void execute(NodeProbe probe)
         {
@@ -1147,9 +1172,11 @@ public class NodeTool
                     String taskType = c.get("taskType");
                     String keyspace = c.get("keyspace");
                     String columnFamily = c.get("columnfamily");
+                    String completedStr = humanReadable ? FileUtils.stringifyFileSize(completed) : Long.toString(completed);
+                    String totalStr = humanReadable ? FileUtils.stringifyFileSize(total) : Long.toString(total);
                     String unit = c.get("unit");
                     String percentComplete = total == 0 ? "n/a" : new DecimalFormat("0.00").format((double) completed / total * 100) + "%";
-                    addLine(lines, columnSizes, taskType, keyspace, columnFamily, Long.toString(completed), Long.toString(total), unit, percentComplete);
+                    addLine(lines, columnSizes, taskType, keyspace, columnFamily, completedStr, totalStr, unit, percentComplete);
                     if (taskType.equals(OperationType.COMPACTION.toString()))
                         remainingBytes += total - completed;
                 }
