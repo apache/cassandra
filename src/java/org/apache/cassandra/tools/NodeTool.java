@@ -39,12 +39,14 @@ import com.yammer.metrics.reporting.JmxReporter;
 import io.airlift.command.*;
 
 import org.apache.cassandra.concurrent.JMXEnabledThreadPoolExecutorMBean;
+import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.ColumnFamilyStoreMBean;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.compaction.CompactionManagerMBean;
 import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.locator.EndpointSnitchInfoMBean;
+import org.apache.cassandra.locator.LocalStrategy;
 import org.apache.cassandra.net.MessagingServiceMBean;
 import org.apache.cassandra.service.CacheServiceMBean;
 import org.apache.cassandra.streaming.ProgressInfo;
@@ -450,31 +452,44 @@ public class NodeTool
             String formatPlaceholder = "%%-%ds  %%-12s%%-7s%%-8s%%-16s%%-20s%%-44s%%n";
             String format = format(formatPlaceholder, maxAddressLength);
 
+            StringBuffer errors = new StringBuffer();
+            boolean showEffectiveOwnership = true;
             // Calculate per-token ownership of the ring
             Map<InetAddress, Float> ownerships;
             try
             {
                 ownerships = probe.effectiveOwnership(keyspace);
-            } catch (IllegalStateException ex)
+            } 
+            catch (IllegalStateException ex)
             {
                 ownerships = probe.getOwnership();
-                System.out.printf("Note: Ownership information does not include topology; for complete information, specify a keyspace%n");
+                errors.append("Note: " + ex.getMessage() + "%n");
+                showEffectiveOwnership = false;
+            } 
+            catch (IllegalArgumentException ex)
+            {
+                System.out.printf("%nError: " + ex.getMessage() + "%n");
+                return;
             }
+
+            
             System.out.println();
             for (Entry<String, SetHostStat> entry : getOwnershipByDc(probe, resolveIp, tokensToEndpoints, ownerships).entrySet())
-                printDc(probe, format, entry.getKey(), endpointsToTokens, entry.getValue());
+                printDc(probe, format, entry.getKey(), endpointsToTokens, entry.getValue(),showEffectiveOwnership);
 
             if (haveVnodes)
             {
                 System.out.println("  Warning: \"nodetool ring\" is used to output all the tokens of a node.");
                 System.out.println("  To view status related info of a node use \"nodetool status\" instead.\n");
             }
+
+            System.out.printf("%n  " + errors.toString());
         }
 
         private void printDc(NodeProbe probe, String format,
                              String dc,
                              LinkedHashMultimap<String, String> endpointsToTokens,
-                             SetHostStat hoststats)
+                             SetHostStat hoststats,boolean showEffectiveOwnership)
         {
             Collection<String> liveNodes = probe.getLiveNodes();
             Collection<String> deadNodes = probe.getUnreachableNodes();
@@ -534,7 +549,7 @@ public class NodeTool
                 String load = loadMap.containsKey(endpoint)
                         ? loadMap.get(endpoint)
                         : "?";
-                String owns = stat.owns != null ? new DecimalFormat("##0.00%").format(stat.owns) : "?";
+                String owns = stat.owns != null && showEffectiveOwnership? new DecimalFormat("##0.00%").format(stat.owns) : "?";
                 System.out.printf(format, stat.ipOrDns(), rack, status, state, load, owns, stat.token);
             }
             System.out.println();
@@ -1886,6 +1901,8 @@ public class NodeTool
             unreachableNodes = probe.getUnreachableNodes();
             hostIDMap = probe.getHostIdMap();
             epSnitchInfo = probe.getEndpointSnitchInfoProxy();
+            
+            StringBuffer errors = new StringBuffer();
 
             Map<InetAddress, Float> ownerships;
             try
@@ -1896,7 +1913,12 @@ public class NodeTool
             catch (IllegalStateException e)
             {
                 ownerships = probe.getOwnership();
-                System.out.printf("Note: Ownership information does not include topology; for complete information, specify a keyspace%n");
+                errors.append("Note: " + e.getMessage() + "%n");
+            }
+            catch (IllegalArgumentException ex)
+            {
+                System.out.printf("%nError: " + ex.getMessage() + "%n");
+                return;
             }
 
             Map<String, SetHostStat> dcs = getOwnershipByDc(probe, resolveIp, tokensToEndpoints, ownerships);
@@ -1932,7 +1954,9 @@ public class NodeTool
                     printNode(endpoint.getHostAddress(), owns, tokens, hasEffectiveOwns, isTokenPerNode);
                 }
             }
-
+            
+            System.out.printf("%n" + errors.toString());
+            
         }
 
         private void findMaxAddressLength(Map<String, SetHostStat> dcs)
@@ -1971,7 +1995,7 @@ public class NodeTool
             else state = "N";
 
             load = loadMap.containsKey(endpoint) ? loadMap.get(endpoint) : "?";
-            strOwns = owns != null ? new DecimalFormat("##0.0%").format(owns) : "?";
+            strOwns = owns != null && hasEffectiveOwns ? new DecimalFormat("##0.0%").format(owns) : "?";
             hostID = hostIDMap.get(endpoint);
 
             try

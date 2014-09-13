@@ -51,10 +51,8 @@ import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.Uninterruptibles;
 
 import org.apache.commons.lang3.StringUtils;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
 import org.apache.cassandra.auth.Auth;
 import org.apache.cassandra.concurrent.DebuggableScheduledThreadPoolExecutor;
 import org.apache.cassandra.concurrent.Stage;
@@ -3605,11 +3603,32 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
      */
     public LinkedHashMap<InetAddress, Float> effectiveOwnership(String keyspace) throws IllegalStateException
     {
-        if (Schema.instance.getNonSystemKeyspaces().size() <= 0)
-            throw new IllegalStateException("Couldn't find any Non System Keyspaces to infer replication topology");
-        if (keyspace == null && !hasSameReplication(Schema.instance.getNonSystemKeyspaces()))
-            throw new IllegalStateException("Non System keyspaces doesnt have the same topology");
-
+    	
+    	if (keyspace != null)
+    	{
+    		Keyspace keyspaceInstance = Schema.instance.getKeyspaceInstance(keyspace);
+			if(keyspaceInstance == null)
+				throw new IllegalArgumentException("The keyspace " + keyspace + ", does not exist");
+    		
+    		if(keyspaceInstance.getReplicationStrategy() instanceof LocalStrategy)
+				throw new IllegalStateException("Ownership values for keyspaces with LocalStrategy are meaningless");
+    	}
+    	else
+    	{
+        	List<String> nonSystemKeyspaces = Schema.instance.getNonSystemKeyspaces();
+        	
+        	//system_traces is a non-system keyspace however it needs to be counted as one for this process
+        	int specialTableCount = 0;
+        	if (nonSystemKeyspaces.contains("system_traces"))
+			{
+        		specialTableCount += 1;
+			}
+        	if (nonSystemKeyspaces.size() > specialTableCount) 	   		
+        		throw new IllegalStateException("Non-system keyspaces don't have the same replication settings, effective ownership information is meaningless");
+        	
+        	keyspace = "system_traces";
+    	}
+    	
         TokenMetadata metadata = tokenMetadata.cloneOnlyTokenMap();
 
         if (keyspace == null)
