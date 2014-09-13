@@ -21,6 +21,7 @@
 
 
 2.1.1
+ * Add human readable option to nodetool commands (CASSANDRA-5433)
  * Don't try to set repairedAt on old sstables (CASSANDRA-7913)
  * Add metrics for tracking PreparedStatement use (CASSANDRA-7719)
  * (cqlsh) tab-completion for triggers (CASSANDRA-7824)
