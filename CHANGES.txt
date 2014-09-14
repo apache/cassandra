@@ -1,4 +1,5 @@
 2.1.1
+ * cassandra-stress supports whitelist mode for node config
  * GCInspector more closely tracks GC; cassandra-stress and nodetool report it
  * nodetool won't output bogus ownership info without a keyspace (CASSANDRA-7173)
  * Add human readable option to nodetool commands (CASSANDRA-5433)
