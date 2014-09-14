@@ -73,6 +73,8 @@ public class Timing
         }
         catch (Exception e)
         {
+            if (e instanceof InterruptedException)
+                throw (InterruptedException) e;
             throw new RuntimeException(e);
         }
 
