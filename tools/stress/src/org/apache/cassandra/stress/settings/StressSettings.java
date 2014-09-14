@@ -25,6 +25,9 @@ import java.io.Serializable;
 import java.util.*;
 
 import com.datastax.driver.core.Metadata;
+import com.datastax.driver.core.policies.DCAwareRoundRobinPolicy;
+import com.datastax.driver.core.policies.RoundRobinPolicy;
+import com.datastax.driver.core.policies.WhiteListPolicy;
 import org.apache.cassandra.config.EncryptionOptions;
 import org.apache.cassandra.stress.util.JavaDriverClient;
 import org.apache.cassandra.stress.util.SimpleThriftClient;
@@ -177,7 +180,7 @@ public class StressSettings implements Serializable
                     return client;
 
                 EncryptionOptions.ClientEncryptionOptions encOptions = transport.getEncryptionOptions();
-                JavaDriverClient c = new JavaDriverClient(currentNode, port.nativePort, encOptions);
+                JavaDriverClient c = new JavaDriverClient(this, currentNode, port.nativePort, encOptions);
                 c.connect(mode.compression());
                 if (setKeyspace)
                     c.execute("USE \"" + schema.keyspace + "\";", org.apache.cassandra.db.ConsistencyLevel.ONE);

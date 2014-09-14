@@ -23,10 +23,13 @@ import java.util.concurrent.ConcurrentMap;
 import javax.net.ssl.SSLContext;
 
 import com.datastax.driver.core.*;
+import com.datastax.driver.core.policies.DCAwareRoundRobinPolicy;
+import com.datastax.driver.core.policies.WhiteListPolicy;
 import org.apache.cassandra.config.EncryptionOptions;
 import org.apache.cassandra.security.SSLFactory;
 import io.netty.util.internal.logging.InternalLoggerFactory;
 import io.netty.util.internal.logging.Slf4JLoggerFactory;
+import org.apache.cassandra.stress.settings.StressSettings;
 
 public class JavaDriverClient
 {
@@ -41,19 +44,24 @@ public class JavaDriverClient
     private final EncryptionOptions.ClientEncryptionOptions encryptionOptions;
     private Cluster cluster;
     private Session session;
+    private final WhiteListPolicy whitelist;
 
     private static final ConcurrentMap<String, PreparedStatement> stmts = new ConcurrentHashMap<>();
 
-    public JavaDriverClient(String host, int port)
+    public JavaDriverClient(StressSettings settings, String host, int port)
     {
-        this(host, port, new EncryptionOptions.ClientEncryptionOptions());
+        this(settings, host, port, new EncryptionOptions.ClientEncryptionOptions());
     }
 
-    public JavaDriverClient(String host, int port, EncryptionOptions.ClientEncryptionOptions encryptionOptions)
+    public JavaDriverClient(StressSettings settings, String host, int port, EncryptionOptions.ClientEncryptionOptions encryptionOptions)
     {
         this.host = host;
         this.port = port;
         this.encryptionOptions = encryptionOptions;
+        if (settings.node.isWhiteList)
+            whitelist = new WhiteListPolicy(new DCAwareRoundRobinPolicy(), settings.node.resolveAll(settings.port.nativePort));
+        else
+            whitelist = null;
     }
 
     public PreparedStatement prepare(String query)
@@ -78,6 +86,8 @@ public class JavaDriverClient
                                                 .addContactPoint(host)
                                                 .withPort(port)
                                                 .withoutMetrics(); // The driver uses metrics 3 with conflict with our version
+        if (whitelist != null)
+            clusterBuilder.withLoadBalancingPolicy(whitelist);
         clusterBuilder.withCompression(compression);
         if (encryptionOptions.enabled)
         {
