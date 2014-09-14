@@ -182,7 +182,7 @@ public class StressAction implements Runnable
         if (settings.rate.opRateTargetPerSecond > 0)
             rateLimiter = RateLimiter.create(settings.rate.opRateTargetPerSecond);
 
-        final StressMetrics metrics = new StressMetrics(output, settings.log.intervalMillis);
+        final StressMetrics metrics = new StressMetrics(output, settings.log.intervalMillis, settings);
 
         final CountDownLatch done = new CountDownLatch(threadCount);
         final Consumer[] consumers = new Consumer[threadCount];

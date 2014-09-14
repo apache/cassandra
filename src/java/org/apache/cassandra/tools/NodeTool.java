@@ -96,6 +96,7 @@ public class NodeTool
                 DisableGossip.class,
                 EnableHandoff.class,
                 EnableThrift.class,
+                GcStats.class,
                 GetCompactionThreshold.class,
                 GetCompactionThroughput.class,
                 GetStreamThroughput.class,
@@ -2359,6 +2360,20 @@ public class NodeTool
             System.out.printf("%n%-20s%10s%n", "Message type", "Dropped");
             for (Map.Entry<String, Integer> entry : probe.getDroppedMessages().entrySet())
                 System.out.printf("%-20s%10s%n", entry.getKey(), entry.getValue());
+        }
+    }
+
+    @Command(name = "gcstats", description = "Print GC Statistics")
+    public static class GcStats extends NodeTool.NodeToolCmd
+    {
+        @Override
+        public void execute(NodeProbe probe)
+        {
+            double[] stats = probe.getAndResetGCStats();
+            double mean = stats[2] / stats[5];
+            double stdev = Math.sqrt((stats[3] / stats[5]) - (mean * mean));
+            System.out.printf("%20s%20s%20s%20s%20s%n", "Interval (ms)", "Max GC Elapsed (ms)", "Total GC Elapsed (ms)", "Stdev GC Elapsed (ms)", "GC Reclaimed (MB)", "Collections");
+            System.out.printf("%20.0d%20.0d%20.0d%20.0d%20.0d%n", stats[0], stats[1], stats[2], stdev, stats[4], stats[5]);
         }
     }
 
