@@ -21,6 +21,7 @@
 
 
 2.1.1
+ * Prevent operator mistakes due to simultaneous bootstrap (CASSANDRA-7069)
  * cassandra-stress supports whitelist mode for node config
  * GCInspector more closely tracks GC; cassandra-stress and nodetool report it
  * nodetool won't output bogus ownership info without a keyspace (CASSANDRA-7173)
