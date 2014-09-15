@@ -19,6 +19,7 @@ package org.apache.cassandra.io.compress;
 
 import java.io.*;
 import java.nio.ByteBuffer;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.zip.Adler32;
 import java.util.zip.CRC32;
 import java.util.zip.Checksum;
@@ -122,7 +123,7 @@ public class CompressedRandomAccessReader extends RandomAccessReader
             throw new CorruptBlockException(getPath(), chunk, e);
         }
 
-        if (metadata.parameters.getCrcCheckChance() > FBUtilities.threadLocalRandom().nextDouble())
+        if (metadata.parameters.getCrcCheckChance() > ThreadLocalRandom.current().nextDouble())
         {
 
             if (metadata.hasPostCompressionAdlerChecksums)

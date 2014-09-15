@@ -23,6 +23,7 @@ import java.io.InputStream;
 import java.util.Iterator;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.zip.Adler32;
 import java.util.zip.CRC32;
 import java.util.zip.Checksum;
@@ -114,7 +115,7 @@ public class CompressedInputStream extends InputStream
         totalCompressedBytesRead += compressed.length;
 
         // validate crc randomly
-        if (info.parameters.getCrcCheckChance() > FBUtilities.threadLocalRandom().nextDouble())
+        if (info.parameters.getCrcCheckChance() > ThreadLocalRandom.current().nextDouble())
         {
             if (hasPostCompressionAdlerChecksums)
             {

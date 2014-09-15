@@ -1,4 +1,5 @@
 2.1.1
+ * Use ThreadLocalRandom and remove FBUtilities.threadLocalRandom (CASSANDRA-7934)
  * Prevent operator mistakes due to simultaneous bootstrap (CASSANDRA-7069)
  * cassandra-stress supports whitelist mode for node config
  * GCInspector more closely tracks GC; cassandra-stress and nodetool report it

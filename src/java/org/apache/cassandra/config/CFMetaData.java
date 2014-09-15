@@ -35,6 +35,7 @@ import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
 import java.util.UUID;
+import java.util.concurrent.ThreadLocalRandom;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Objects;
@@ -703,7 +704,7 @@ public final class CFMetaData
 
     public ReadRepairDecision newReadRepairDecision()
     {
-        double chance = FBUtilities.threadLocalRandom().nextDouble();
+        double chance = ThreadLocalRandom.current().nextDouble();
         if (getReadRepairChance() > chance)
             return ReadRepairDecision.GLOBAL;
 
