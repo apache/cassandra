@@ -1,0 +1,19 @@
+#! /bin/sh /usr/share/dpatch/dpatch-run
+## cassandra_logdir_fix.dpatch by Michael Shuler <michael@pbandjelly.org>
+##
+## All lines beginning with `## DP:' are a description of the patch.
+## DP: No description.
+
+@DPATCH@
+diff -urNad '--exclude=CVS' '--exclude=.svn' '--exclude=.git' '--exclude=.arch' '--exclude=.hg' '--exclude=_darcs' '--exclude=.bzr' cassandra~/bin/cassandra cassandra/bin/cassandra
+--- cassandra~/bin/cassandra	2014-09-15 19:42:28.000000000 -0500
++++ cassandra/bin/cassandra	2014-09-15 21:15:15.627505503 -0500
+@@ -134,7 +134,7 @@
+     props="$3"
+     class="$4"
+     cassandra_parms="-Dlogback.configurationFile=logback.xml"
+-    cassandra_parms="$cassandra_parms -Dcassandra.logdir=$CASSANDRA_HOME/logs"
++    cassandra_parms="$cassandra_parms -Dcassandra.logdir=/var/log/cassandra"
+     cassandra_parms="$cassandra_parms -Dcassandra.storagedir=$cassandra_storagedir"
+ 
+     if [ "x$pidpath" != "x" ]; then
