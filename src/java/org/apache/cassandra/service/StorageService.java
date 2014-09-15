@@ -3631,9 +3631,6 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     	
         TokenMetadata metadata = tokenMetadata.cloneOnlyTokenMap();
 
-        if (keyspace == null)
-            keyspace = Schema.instance.getNonSystemKeyspaces().get(0);
-
         Collection<Collection<InetAddress>> endpointsGroupedByDc = new ArrayList<>();
         // mapping of dc's to nodes, use sorted map so that we get dcs sorted
         SortedMap<String, Collection<InetAddress>> sortedDcsToEndpoints = new TreeMap<>();
