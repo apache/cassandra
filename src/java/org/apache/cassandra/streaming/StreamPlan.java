@@ -38,8 +38,6 @@ public class StreamPlan
     private final long repairedAt;
     private final StreamCoordinator coordinator;
 
-    private StreamConnectionFactory connectionFactory = new DefaultConnectionFactory();
-
     private boolean flushBeforeTransfer = true;
 
     /**
@@ -56,7 +54,7 @@ public class StreamPlan
     {
         this.description = description;
         this.repairedAt = repairedAt;
-        this.coordinator = new StreamCoordinator(connectionsPerHost, connectionFactory);
+        this.coordinator = new StreamCoordinator(connectionsPerHost, new DefaultConnectionFactory());
     }
 
     /**
