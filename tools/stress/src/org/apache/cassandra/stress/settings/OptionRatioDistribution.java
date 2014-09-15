@@ -90,7 +90,7 @@ public class OptionRatioDistribution extends Option
     {
         OptionRatioDistribution opt = new OptionRatioDistribution("", "", "", true);
         if (!opt.accept(spec))
-            throw new IllegalArgumentException();
+            throw new IllegalArgumentException("Invalid ratio definition: "+spec);
         return opt.get();
     }
 
