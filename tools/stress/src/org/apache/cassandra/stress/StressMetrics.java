@@ -22,6 +22,7 @@ package org.apache.cassandra.stress;
 
 
 import java.io.PrintStream;
+import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
@@ -56,16 +57,15 @@ public class StressMetrics
     {
         this.output = output;
         Callable<JmxCollector.GcStats> gcStatsCollector;
+        totalGcStats = new JmxCollector.GcStats(0);
         try
         {
             gcStatsCollector = new JmxCollector(settings.node.nodes, settings.port.jmxPort);
-            totalGcStats = new JmxCollector.GcStats(0);
         }
         catch (Throwable t)
         {
             t.printStackTrace();
             System.err.println("Failed to connect over JMX; not collecting these stats");
-            totalGcStats = new JmxCollector.GcStats(Double.POSITIVE_INFINITY);
             gcStatsCollector = new Callable<JmxCollector.GcStats>()
             {
                 public JmxCollector.GcStats call() throws Exception
@@ -149,6 +149,7 @@ public class StressMetrics
     private void update() throws InterruptedException
     {
         Timing.TimingResult<JmxCollector.GcStats> result = timing.snap(gcStatsCollector);
+        totalGcStats = JmxCollector.GcStats.aggregate(Arrays.asList(totalGcStats, result.extra));
         if (result.timing.partitionCount != 0)
             printRow("", result.timing, timing.getHistory(), result.extra, rowRateUncertainty, output);
         rowRateUncertainty.update(result.timing.adjustedRowRate());
