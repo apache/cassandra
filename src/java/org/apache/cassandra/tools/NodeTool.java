@@ -2372,7 +2372,7 @@ public class NodeTool
             double mean = stats[2] / stats[5];
             double stdev = Math.sqrt((stats[3] / stats[5]) - (mean * mean));
             System.out.printf("%20s%20s%20s%20s%20s%20s%n", "Interval (ms)", "Max GC Elapsed (ms)", "Total GC Elapsed (ms)", "Stdev GC Elapsed (ms)", "GC Reclaimed (MB)", "Collections");
-            System.out.printf("%20.0d%20.0d%20.0d%20.0d%20.0d%n", stats[0], stats[1], stats[2], stdev, stats[4], stats[5]);
+            System.out.printf("%20.0f%20.0f%20.0f%20.0f%20.0f%n", stats[0], stats[1], stats[2], stdev, stats[4], stats[5]);
         }
     }
 
