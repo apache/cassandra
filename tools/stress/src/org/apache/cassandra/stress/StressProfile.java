@@ -31,6 +31,7 @@ import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.statements.CreateKeyspaceStatement;
 import org.apache.cassandra.exceptions.RequestValidationException;
 
+import org.apache.cassandra.exceptions.SyntaxException;
 import org.apache.cassandra.stress.generate.Distribution;
 import org.apache.cassandra.stress.generate.DistributionFactory;
 import org.apache.cassandra.stress.generate.PartitionGenerator;
@@ -124,8 +125,15 @@ public class StressProfile implements Serializable
 
         if (keyspaceCql != null && keyspaceCql.length() > 0)
         {
-            String name = ((CreateKeyspaceStatement) QueryProcessor.parseStatement(keyspaceCql)).keyspace();
-            assert name.equalsIgnoreCase(keyspaceName) : "Name in keyspace_definition doesn't match keyspace property: '" + name + "' != '" + keyspaceName + "'";
+            try
+            {
+                String name = ((CreateKeyspaceStatement) QueryProcessor.parseStatement(keyspaceCql)).keyspace();
+                assert name.equalsIgnoreCase(keyspaceName) : "Name in keyspace_definition doesn't match keyspace property: '" + name + "' != '" + keyspaceName + "'";
+            }
+            catch (SyntaxException e)
+            {
+                throw new IllegalArgumentException("There was a problem parsing the keyspace cql: " + e.getMessage());
+            }
         }
         else
         {
@@ -134,8 +142,15 @@ public class StressProfile implements Serializable
 
         if (tableCql != null && tableCql.length() > 0)
         {
-            String name = CFMetaData.compile(tableCql, keyspaceName).cfName;
-            assert name.equalsIgnoreCase(tableName) : "Name in table_definition doesn't match table property: '" + name + "' != '" + tableName + "'";
+            try
+            {
+                String name = CFMetaData.compile(tableCql, keyspaceName).cfName;
+                assert name.equalsIgnoreCase(tableName) : "Name in table_definition doesn't match table property: '" + name + "' != '" + tableName + "'";
+            }
+            catch (RuntimeException e)
+            {
+                throw new IllegalArgumentException("There was a problem parsing the table cql: " + e.getCause().getMessage());
+            }
         }
         else
         {
@@ -216,6 +231,9 @@ public class StressProfile implements Serializable
                                                .getMetadata()
                                                .getKeyspace(keyspaceName)
                                                .getTable(tableName);
+
+                if (metadata == null)
+                    throw new RuntimeException("Unable to find table " + keyspaceName + "." + tableName);
 
                 //Fill in missing column configs
                 for (ColumnMetadata col : metadata.getColumns())
@@ -391,9 +409,10 @@ public class StressProfile implements Serializable
     private static <E> E select(E first, String key, String defValue, Map<String, String> map, Function<String, E> builder)
     {
         String val = map.remove(key);
+
         if (first != null)
             return first;
-        if (val != null)
+        if (val != null && val.trim().length() > 0)
             return builder.apply(val);
         return builder.apply(defValue);
     }
