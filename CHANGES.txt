@@ -1,8 +1,8 @@
 2.1.1
  * Use ThreadLocalRandom and remove FBUtilities.threadLocalRandom (CASSANDRA-7934)
  * Prevent operator mistakes due to simultaneous bootstrap (CASSANDRA-7069)
- * cassandra-stress supports whitelist mode for node config
- * GCInspector more closely tracks GC; cassandra-stress and nodetool report it
+ * cassandra-stress supports whitelist mode for node config (CASSANDRA-7658)
+ * GCInspector more closely tracks GC; cassandra-stress and nodetool report it (CASSANDRA-7916)
  * nodetool won't output bogus ownership info without a keyspace (CASSANDRA-7173)
  * Add human readable option to nodetool commands (CASSANDRA-5433)
  * Don't try to set repairedAt on old sstables (CASSANDRA-7913)
