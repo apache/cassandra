@@ -1175,13 +1175,14 @@ public class NodeTool
             CompactionManagerMBean cm = probe.getCompactionManagerProxy();
             System.out.println("pending tasks: " + probe.getCompactionMetric("PendingTasks"));
             long remainingBytes = 0;
-            if (cm.getCompactions().size() > 0)
+            List<Map<String, String>> compactions = cm.getCompactions();
+            if (!compactions.isEmpty())
             {
                 List<String[]> lines = new ArrayList<>();
                 int[] columnSizes = new int[] { 0, 0, 0, 0, 0, 0, 0 };
 
                 addLine(lines, columnSizes, "compaction type", "keyspace", "table", "completed", "total", "unit", "progress");
-                for (Map<String, String> c : cm.getCompactions())
+                for (Map<String, String> c : compactions)
                 {
                     long total = Long.parseLong(c.get("total"));
                     long completed = Long.parseLong(c.get("completed"));
