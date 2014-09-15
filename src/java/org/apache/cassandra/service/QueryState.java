@@ -18,6 +18,7 @@
 package org.apache.cassandra.service;
 
 import java.util.UUID;
+import java.util.concurrent.ThreadLocalRandom;
 
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.FBUtilities;
@@ -68,7 +69,7 @@ public class QueryState
         }
 
         double traceProbability = StorageService.instance.getTraceProbability();
-        return traceProbability != 0 && FBUtilities.threadLocalRandom().nextDouble() < traceProbability;
+        return traceProbability != 0 && ThreadLocalRandom.current().nextDouble() < traceProbability;
     }
 
     public void prepareTracingSession(UUID sessionId)

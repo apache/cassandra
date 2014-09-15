@@ -526,7 +526,7 @@ public class BatchlogManager implements BatchlogManagerMBean
         @VisibleForTesting
         protected int getRandomInt(int bound)
         {
-            return FBUtilities.threadLocalRandom().nextInt(bound);
+            return ThreadLocalRandom.current().nextInt(bound);
         }
     }
 }

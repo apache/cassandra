@@ -257,7 +257,7 @@ public class StorageProxy implements StorageProxyMBean
             }
 
             Tracing.trace("Paxos proposal not accepted (pre-empted by a higher ballot)");
-            Uninterruptibles.sleepUninterruptibly(FBUtilities.threadLocalRandom().nextInt(100), TimeUnit.MILLISECONDS);
+            Uninterruptibles.sleepUninterruptibly(ThreadLocalRandom.current().nextInt(100), TimeUnit.MILLISECONDS);
             // continue to retry
         }
 
@@ -323,7 +323,7 @@ public class StorageProxy implements StorageProxyMBean
             {
                 Tracing.trace("Some replicas have already promised a higher ballot than ours; aborting");
                 // sleep a random amount to give the other proposer a chance to finish
-                Uninterruptibles.sleepUninterruptibly(FBUtilities.threadLocalRandom().nextInt(100), TimeUnit.MILLISECONDS);
+                Uninterruptibles.sleepUninterruptibly(ThreadLocalRandom.current().nextInt(100), TimeUnit.MILLISECONDS);
                 continue;
             }
 
@@ -344,7 +344,7 @@ public class StorageProxy implements StorageProxyMBean
                 {
                     Tracing.trace("Some replicas have already promised a higher ballot than ours; aborting");
                     // sleep a random amount to give the other proposer a chance to finish
-                    Uninterruptibles.sleepUninterruptibly(FBUtilities.threadLocalRandom().nextInt(100), TimeUnit.MILLISECONDS);
+                    Uninterruptibles.sleepUninterruptibly(ThreadLocalRandom.current().nextInt(100), TimeUnit.MILLISECONDS);
                 }
                 continue;
             }
@@ -1049,7 +1049,7 @@ public class StorageProxy implements StorageProxyMBean
         }
         else
         {
-            return localEndpoints.get(FBUtilities.threadLocalRandom().nextInt(localEndpoints.size()));
+            return localEndpoints.get(ThreadLocalRandom.current().nextInt(localEndpoints.size()));
         }
     }
 

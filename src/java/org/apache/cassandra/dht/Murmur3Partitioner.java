@@ -24,6 +24,7 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ThreadLocalRandom;
 
 import org.apache.cassandra.db.BufferDecoratedKey;
 import org.apache.cassandra.db.DecoratedKey;
@@ -105,7 +106,7 @@ public class Murmur3Partitioner extends AbstractPartitioner<LongToken>
 
     public LongToken getRandomToken()
     {
-        return new LongToken(normalize(FBUtilities.threadLocalRandom().nextLong()));
+        return new LongToken(normalize(ThreadLocalRandom.current().nextLong()));
     }
 
     private long normalize(long v)
