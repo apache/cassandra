@@ -44,6 +44,7 @@ import org.apache.cassandra.io.sstable.SSTableWriter;
 import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.utils.CloseableIterator;
+import org.apache.cassandra.utils.UUIDGen;
 
 public class CompactionTask extends AbstractCompactionTask
 {
@@ -132,7 +133,14 @@ public class CompactionTask extends AbstractCompactionTask
         // new sstables from flush can be added during a compaction, but only the compaction can remove them,
         // so in our single-threaded compaction world this is a valid way of determining if we're compacting
         // all the sstables (that existed when we started)
-        logger.info("Compacting {}", sstables);
+        StringBuilder ssTableLoggerMsg = new StringBuilder("[");
+        for (SSTableReader sstr : sstables)
+        {
+            ssTableLoggerMsg.append(String.format("SSTableReader(path=%s, level=%d), ", sstr.getFilename(), sstr.getSSTableLevel()));
+        }
+        ssTableLoggerMsg.append("]");
+        String taskIdLoggerMsg = taskId == null ? UUIDGen.getTimeUUID().toString() : taskId.toString();
+        logger.info("Compacting ({}) {}", taskIdLoggerMsg, ssTableLoggerMsg);
 
         long start = System.nanoTime();
         long totalKeysWritten = 0;
@@ -246,8 +254,8 @@ public class CompactionTask extends AbstractCompactionTask
         }
 
         SystemKeyspace.updateCompactionHistory(cfs.keyspace.getName(), cfs.name, System.currentTimeMillis(), startsize, endsize, mergedRows);
-        logger.info(String.format("Compacted %d sstables to [%s].  %,d bytes to %,d (~%d%% of original) in %,dms = %fMB/s.  %,d total partitions merged to %,d.  Partition merge counts were {%s}",
-                                  oldSStables.size(), newSSTableNames.toString(), startsize, endsize, (int) (ratio * 100), dTime, mbps, totalSourceRows, totalKeysWritten, mergeSummary.toString()));
+        logger.info(String.format("Compacted (%s) %d sstables to [%s] to level=%d.  %,d bytes to %,d (~%d%% of original) in %,dms = %fMB/s.  %,d total partitions merged to %,d.  Partition merge counts were {%s}",
+                                  taskIdLoggerMsg, oldSStables.size(), newSSTableNames.toString(), getLevel(), startsize, endsize, (int) (ratio * 100), dTime, mbps, totalSourceRows, totalKeysWritten, mergeSummary.toString()));
         logger.debug(String.format("CF Total Bytes Compacted: %,d", CompactionTask.addToTotalBytesCompacted(endsize)));
         logger.debug("Actual #keys: {}, Estimated #keys:{}, Err%: {}", totalKeysWritten, estimatedTotalKeys, ((double)(totalKeysWritten - estimatedTotalKeys)/totalKeysWritten));
     }
