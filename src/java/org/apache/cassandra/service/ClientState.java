@@ -102,7 +102,7 @@ public class ClientState
 
     // isInternal is used to mark ClientState as used by some internal component
     // that should have an ability to modify system keyspace.
-    public final boolean isInternal;
+    private final boolean isInternal;
 
     // The remote address of the client - null for internal clients.
     private final SocketAddress remoteAddress;

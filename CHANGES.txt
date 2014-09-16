@@ -1,5 +1,4 @@
 2.0.11:
- * Add metrics for prepared statement usage and eviction (CASSANDRA-7930)
  * Make CQLSSTableWriter sync within partitions (CASSANDRA-7360)
  * Potentially use non-local replicas in CqlConfigHelper (CASSANDRA-7906)
  * Explicitly disallowing mixing multi-column and single-column
