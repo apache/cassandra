@@ -29,6 +29,7 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.compaction.CompactionInfo;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.compaction.OperationType;
@@ -64,9 +65,16 @@ public class AutoSavingCache<K extends CacheKey, V> extends InstrumentingCache<K
         this.cacheLoader = cacheloader;
     }
 
+    @Deprecated
     public File getCachePath(String ksName, String cfName, UUID cfId, String version)
     {
         return DatabaseDescriptor.getSerializedCachePath(ksName, cfName, cfId, cacheType, version);
+    }
+
+    public File getCachePath(UUID cfId, String version)
+    {
+        Pair<String, String> names = Schema.instance.getCF(cfId);
+        return DatabaseDescriptor.getSerializedCachePath(names.left, names.right, cfId, cacheType, version);
     }
 
     public Writer getWriter(int keysToSave)
@@ -103,7 +111,7 @@ public class AutoSavingCache<K extends CacheKey, V> extends InstrumentingCache<K
         long start = System.nanoTime();
 
         // modern format, allows both key and value (so key cache load can be purely sequential)
-        File path = getCachePath(cfs.keyspace.getName(), cfs.name, cfs.metadata.cfId, CURRENT_VERSION);
+        File path = getCachePath(cfs.metadata.cfId, CURRENT_VERSION);
         // if path does not exist, try without cfId (assuming saved cache is created with current CF)
         if (!path.exists())
             path = getCachePath(cfs.keyspace.getName(), cfs.name, null, CURRENT_VERSION);
@@ -206,18 +214,21 @@ public class AutoSavingCache<K extends CacheKey, V> extends InstrumentingCache<K
 
             long start = System.nanoTime();
 
-            HashMap<CacheKey.PathInfo, SequentialWriter> writers = new HashMap<>();
+            HashMap<UUID, SequentialWriter> writers = new HashMap<>();
 
             try
             {
                 for (K key : keys)
                 {
-                    CacheKey.PathInfo path = key.getPathInfo();
-                    SequentialWriter writer = writers.get(path);
+                    UUID cfId = key.getCFId();
+                    if (!Schema.instance.hasCF(key.getCFId()))
+                        continue; // the table has been dropped.
+
+                    SequentialWriter writer = writers.get(cfId);
                     if (writer == null)
                     {
-                        writer = tempCacheFile(path);
-                        writers.put(path, writer);
+                        writer = tempCacheFile(cfId);
+                        writers.put(cfId, writer);
                     }
 
                     try
@@ -238,13 +249,13 @@ public class AutoSavingCache<K extends CacheKey, V> extends InstrumentingCache<K
                     FileUtils.closeQuietly(writer);
             }
 
-            for (Map.Entry<CacheKey.PathInfo, SequentialWriter> info : writers.entrySet())
+            for (Map.Entry<UUID, SequentialWriter> entry : writers.entrySet())
             {
-                CacheKey.PathInfo path = info.getKey();
-                SequentialWriter writer = info.getValue();
+                UUID cfId = entry.getKey();
+                SequentialWriter writer = entry.getValue();
 
                 File tmpFile = new File(writer.getPath());
-                File cacheFile = getCachePath(path.keyspace, path.columnFamily, path.cfId, CURRENT_VERSION);
+                File cacheFile = getCachePath(cfId, CURRENT_VERSION);
 
                 cacheFile.delete(); // ignore error if it didn't exist
                 if (!tmpFile.renameTo(cacheFile))
@@ -254,9 +265,9 @@ public class AutoSavingCache<K extends CacheKey, V> extends InstrumentingCache<K
             logger.info("Saved {} ({} items) in {} ms", cacheType, keys.size(), TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start));
         }
 
-        private SequentialWriter tempCacheFile(CacheKey.PathInfo pathInfo)
+        private SequentialWriter tempCacheFile(UUID cfId)
         {
-            File path = getCachePath(pathInfo.keyspace, pathInfo.columnFamily, pathInfo.cfId, CURRENT_VERSION);
+            File path = getCachePath(cfId, CURRENT_VERSION);
             File tmpFile = FileUtils.createTempFile(path.getName(), null, path.getParentFile());
             return SequentialWriter.open(tmpFile);
         }
@@ -282,7 +293,9 @@ public class AutoSavingCache<K extends CacheKey, V> extends InstrumentingCache<K
                 }
             }
             else
+            {
                 logger.warn("Could not list files in {}", savedCachesDir);
+            }
         }
     }
 

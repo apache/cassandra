@@ -21,12 +21,10 @@ import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.UUID;
 
-import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.ObjectSizes;
-import org.apache.cassandra.utils.Pair;
 
 public class RowCacheKey implements CacheKey, Comparable<RowCacheKey>
 {
@@ -47,10 +45,9 @@ public class RowCacheKey implements CacheKey, Comparable<RowCacheKey>
         assert this.key != null;
     }
 
-    public PathInfo getPathInfo()
+    public UUID getCFId()
     {
-        Pair<String, String> cf = Schema.instance.getCF(cfId);
-        return new PathInfo(cf.left, cf.right, cfId);
+        return cfId;
     }
 
     public long unsharedHeapSize()
