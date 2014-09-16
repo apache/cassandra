@@ -11,6 +11,7 @@
  * Always send Paxos commit to all replicas (CASSANDRA-7479)
  * Make disruptor_thrift_server invocation pool configurable (CASSANDRA-7594)
  * Make repair no-op when RF=1 (CASSANDRA-7864)
+ * Fix RowIndexEntry to report correct serializedSize (CASSANDRA-7948)
 Merged from 1.2:
  * Don't index tombstones (CASSANDRA-7828)
 

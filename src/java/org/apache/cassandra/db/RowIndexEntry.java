@@ -45,7 +45,19 @@ public class RowIndexEntry implements IMeasurableMemory
 
     public int serializedSize()
     {
-        return TypeSizes.NATIVE.sizeof(position) + promotedSize();
+        int size = TypeSizes.NATIVE.sizeof(position) + TypeSizes.NATIVE.sizeof(promotedSize());
+
+        if (isIndexed())
+        {
+            List<IndexHelper.IndexInfo> index = columnsIndex();
+
+            size += DeletionTime.serializer.serializedSize(deletionTime(), TypeSizes.NATIVE);
+            size += TypeSizes.NATIVE.sizeof(index.size());
+            for (IndexHelper.IndexInfo info : index)
+                size += info.serializedSize(TypeSizes.NATIVE);
+        }
+
+        return size;
     }
 
     protected int promotedSize()
