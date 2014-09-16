@@ -32,6 +32,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import com.datastax.driver.core.Host;
+
 public class SettingsNode implements Serializable
 {
     public final List<String> nodes;
@@ -71,7 +73,28 @@ public class SettingsNode implements Serializable
         isWhiteList = options.whitelist.setByUser();
     }
 
-    public Set<InetAddress> resolveAll()
+    public Set<String> resolveAllPermitted(StressSettings settings)
+    {
+        Set<String> r = new HashSet<>();
+        switch (settings.mode.api)
+        {
+            case THRIFT_SMART:
+            case JAVA_DRIVER_NATIVE:
+                if (!isWhiteList)
+                {
+                    for (Host host : settings.getJavaDriverClient().getCluster().getMetadata().getAllHosts())
+                        r.add(host.getAddress().getHostName());
+                    break;
+                }
+            case THRIFT:
+            case SIMPLE_NATIVE:
+                for (InetAddress address : resolveAllSpecified())
+                    r.add(address.getHostName());
+        }
+        return r;
+    }
+
+    public Set<InetAddress> resolveAllSpecified()
     {
         Set<InetAddress> r = new HashSet<>();
         for (String node : nodes)
