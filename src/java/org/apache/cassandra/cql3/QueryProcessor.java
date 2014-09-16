@@ -19,11 +19,14 @@ package org.apache.cassandra.cql3;
 
 import java.nio.ByteBuffer;
 import java.util.*;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 
 import com.google.common.primitives.Ints;
 
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap;
 import com.googlecode.concurrentlinkedhashmap.EntryWeigher;
+import com.googlecode.concurrentlinkedhashmap.EvictionListener;
 import org.antlr.runtime.*;
 import org.github.jamm.MemoryMeter;
 import org.slf4j.Logger;
@@ -32,8 +35,10 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.cql3.statements.*;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.exceptions.*;
+import org.apache.cassandra.metrics.CqlStatementMetrics;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.QueryState;
+import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.thrift.ThriftClientState;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.transport.messages.ResultMessage;
@@ -73,6 +78,9 @@ public class QueryProcessor implements QueryHandler
     private static final ConcurrentLinkedHashMap<MD5Digest, CQLStatement> preparedStatements;
     private static final ConcurrentLinkedHashMap<Integer, CQLStatement> thriftPreparedStatements;
 
+    public static final CqlStatementMetrics metrics = new CqlStatementMetrics();
+    private static AtomicLong evictionCount = new AtomicLong(0);
+
     static
     {
         if (MemoryMeter.isInitialized())
@@ -80,11 +88,29 @@ public class QueryProcessor implements QueryHandler
             preparedStatements = new ConcurrentLinkedHashMap.Builder<MD5Digest, CQLStatement>()
                                  .maximumWeightedCapacity(MAX_CACHE_PREPARED_MEMORY)
                                  .weigher(cqlMemoryUsageWeigher)
-                                 .build();
+                                 .listener(new EvictionListener<MD5Digest, CQLStatement>()
+                                  {
+                                      @Override
+                                      public void onEviction(MD5Digest md5Digest, CQLStatement prepared)
+                                      {
+                                          metrics.activePreparedStatements.dec();
+                                          metrics.evictedPreparedStatements.inc();
+                                          evictionCount.incrementAndGet();
+                                      }
+                                  }).build();
             thriftPreparedStatements = new ConcurrentLinkedHashMap.Builder<Integer, CQLStatement>()
                                        .maximumWeightedCapacity(MAX_CACHE_PREPARED_MEMORY)
                                        .weigher(thriftMemoryUsageWeigher)
-                                       .build();
+                                       .listener(new EvictionListener<Integer, CQLStatement>()
+                                        {
+                                            @Override
+                                            public void onEviction(Integer i, CQLStatement prepared)
+                                            {
+                                                metrics.activePreparedStatements.dec();
+                                                metrics.evictedPreparedStatements.inc();
+                                                evictionCount.incrementAndGet();
+                                            }
+                                        }).build();
         }
         else
         {
@@ -97,6 +123,17 @@ public class QueryProcessor implements QueryHandler
                                        .maximumWeightedCapacity(MAX_CACHE_PREPARED_COUNT)
                                        .build();
         }
+
+        StorageService.scheduledTasks.scheduleAtFixedRate(new Runnable() {
+            @Override
+            public void run() {
+                long count = evictionCount.getAndSet(0);
+                if (count > 0)
+                {
+                    logger.info("{} prepared statements discarded in the last minute because cache limit reached (cache limit = {} bytes)", count, MAX_CACHE_PREPARED_MEMORY);
+                }
+            }
+        }, 1, 1, TimeUnit.MINUTES);
     }
 
     private QueryProcessor()
@@ -171,6 +208,9 @@ public class QueryProcessor implements QueryHandler
         CQLStatement prepared = getStatement(queryString, queryState.getClientState()).statement;
         if (prepared.getBoundTerms() != options.getValues().size())
             throw new InvalidRequestException("Invalid amount of bind variables");
+
+        if (!queryState.getClientState().isInternal)
+            metrics.executedUnprepared.inc();
 
         return processStatement(prepared, queryState, options);
     }
@@ -271,6 +311,7 @@ public class QueryProcessor implements QueryHandler
         {
             int statementId = toHash.hashCode();
             thriftPreparedStatements.put(statementId, prepared.statement);
+            metrics.activePreparedStatements.inc();
             logger.trace(String.format("Stored prepared statement #%d with %d bind markers",
                                        statementId,
                                        prepared.statement.getBoundTerms()));
@@ -280,6 +321,7 @@ public class QueryProcessor implements QueryHandler
         {
             MD5Digest statementId = MD5Digest.compute(toHash);
             preparedStatements.put(statementId, prepared.statement);
+            metrics.activePreparedStatements.inc();
             logger.trace(String.format("Stored prepared statement %s with %d bind markers",
                                        statementId,
                                        prepared.statement.getBoundTerms()));
@@ -306,6 +348,7 @@ public class QueryProcessor implements QueryHandler
                     logger.trace("[{}] '{}'", i+1, variables.get(i));
         }
 
+        metrics.executedPrepared.inc();
         return processStatement(statement, queryState, options);
     }
 
