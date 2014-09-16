@@ -20,6 +20,7 @@ package org.apache.cassandra.stress.util;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
@@ -75,11 +76,16 @@ public class JmxCollector implements Callable<JmxCollector.GcStats>
     final NodeProbe[] probes;
 
     // TODO: should expand to whole cluster
-    public JmxCollector(List<String> hosts, int port)
+    public JmxCollector(Collection<String> hosts, int port)
     {
         probes = new NodeProbe[hosts.size()];
-        for (int i = 0 ; i < hosts.size() ; i++)
-            probes[i] = connect(hosts.get(i), port);
+        int i = 0;
+        for (String host : hosts)
+        {
+            probes[i] = connect(host, port);
+            probes[i].getAndResetGCStats();
+            i++;
+        }
     }
 
     private static NodeProbe connect(String host, int port)

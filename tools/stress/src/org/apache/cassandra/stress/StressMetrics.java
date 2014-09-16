@@ -32,6 +32,7 @@ import java.util.concurrent.TimeUnit;
 import org.apache.commons.lang3.time.DurationFormatUtils;
 
 import org.apache.cassandra.concurrent.NamedThreadFactory;
+import org.apache.cassandra.stress.settings.SettingsLog;
 import org.apache.cassandra.stress.settings.StressSettings;
 import org.apache.cassandra.stress.util.JmxCollector;
 import org.apache.cassandra.stress.util.Timing;
@@ -60,11 +61,15 @@ public class StressMetrics
         totalGcStats = new JmxCollector.GcStats(0);
         try
         {
-            gcStatsCollector = new JmxCollector(settings.node.nodes, settings.port.jmxPort);
+            gcStatsCollector = new JmxCollector(settings.node.resolveAllPermitted(settings), settings.port.jmxPort);
         }
         catch (Throwable t)
         {
-            t.printStackTrace();
+            switch (settings.log.level)
+            {
+                case VERBOSE:
+                    t.printStackTrace();
+            }
             System.err.println("Failed to connect over JMX; not collecting these stats");
             gcStatsCollector = new Callable<JmxCollector.GcStats>()
             {

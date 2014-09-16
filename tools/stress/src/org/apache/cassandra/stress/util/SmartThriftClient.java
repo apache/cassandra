@@ -22,7 +22,6 @@ package org.apache.cassandra.stress.util;
 
 
 import java.net.InetAddress;
-import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -64,7 +63,7 @@ public class SmartThriftClient implements ThriftClient
         }
         else
         {
-            whiteset = settings.node.resolveAll();
+            whiteset = settings.node.resolveAllSpecified();
             whitelist = Arrays.asList(whiteset.toArray(new InetAddress[0]));
         }
     }
