@@ -21,8 +21,6 @@ import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicLong;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.primitives.Ints;
@@ -31,7 +29,6 @@ import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap;
 import com.googlecode.concurrentlinkedhashmap.EntryWeigher;
 import com.googlecode.concurrentlinkedhashmap.EvictionListener;
 import org.antlr.runtime.*;
-import org.apache.cassandra.metrics.CqlStatementMetrics;
 import org.github.jamm.MemoryMeter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -46,7 +43,6 @@ import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.service.pager.QueryPager;
 import org.apache.cassandra.service.pager.QueryPagers;
-import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.thrift.ThriftClientState;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.transport.messages.ResultMessage;
@@ -91,7 +87,6 @@ public class QueryProcessor implements QueryHandler
 
     @VisibleForTesting
     public static final CqlStatementMetrics metrics = new CqlStatementMetrics();
-    private static AtomicLong evictionCount = new AtomicLong(0);
 
     static
     {
@@ -104,8 +99,6 @@ public class QueryProcessor implements QueryHandler
                                  public void onEviction(MD5Digest md5Digest, ParsedStatement.Prepared prepared)
                                  {
                                      metrics.activePreparedStatements.dec();
-                                     metrics.evictedPreparedStatements.inc();
-                                     evictionCount.incrementAndGet();
                                  }
                              }).build();
 
@@ -118,22 +111,10 @@ public class QueryProcessor implements QueryHandler
                                        public void onEviction(Integer integer, CQLStatement cqlStatement)
                                        {
                                            metrics.activePreparedStatements.dec();
-                                           metrics.evictedPreparedStatements.inc();
-                                           evictionCount.incrementAndGet();
                                        }
                                    })
                                    .build();
 
-        StorageService.scheduledTasks.scheduleAtFixedRate(new Runnable() {
-            @Override
-            public void run() {
-                long count = evictionCount.getAndSet(0);
-                if (count > 0)
-                {
-                    logger.info("{} prepared statements discarded in the last minute because cache limit reached (cache limit = {} bytes)", count, MAX_CACHE_PREPARED_MEMORY);
-                }
-            }
-        }, 1, 1, TimeUnit.MINUTES);
     }
 
     // Work aound initialization dependency
@@ -413,24 +394,28 @@ public class QueryProcessor implements QueryHandler
             throw new InvalidRequestException(String.format("Prepared statement of size %d bytes is larger than allowed maximum of %d bytes.",
                                                             statementSize,
                                                             MAX_CACHE_PREPARED_MEMORY));
-        if (forThrift)
+        try
         {
-            int statementId = toHash.hashCode();
-            thriftPreparedStatements.put(statementId, prepared.statement);
-            metrics.activePreparedStatements.inc();
-            logger.trace("Stored prepared statement #{} with {} bind markers",
-                    statementId,
-                    prepared.statement.getBoundTerms());
-            return ResultMessage.Prepared.forThrift(statementId, prepared.boundNames);
-        } else
+            if (forThrift)
+            {
+                int statementId = toHash.hashCode();
+                thriftPreparedStatements.put(statementId, prepared.statement);
+                logger.trace("Stored prepared statement #{} with {} bind markers",
+                        statementId,
+                        prepared.statement.getBoundTerms());
+                return ResultMessage.Prepared.forThrift(statementId, prepared.boundNames);
+            } else
+            {
+                MD5Digest statementId = MD5Digest.compute(toHash);
+                preparedStatements.put(statementId, prepared);
+                logger.trace("Stored prepared statement #{} with {} bind markers",
+                        statementId,
+                        prepared.statement.getBoundTerms());
+                return new ResultMessage.Prepared(statementId, prepared);
+            }
+        } finally
         {
-            MD5Digest statementId = MD5Digest.compute(toHash);
-            preparedStatements.put(statementId, prepared);
             metrics.activePreparedStatements.inc();
-            logger.trace("Stored prepared statement #{} with {} bind markers",
-                    statementId,
-                    prepared.statement.getBoundTerms());
-            return new ResultMessage.Prepared(statementId, prepared);
         }
     }
 
