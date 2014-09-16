@@ -22,6 +22,8 @@
 
 
 2.1.1
+ * Invalidate prepared statements when their keyspace or table is
+   dropped (CASSANDRA-7566)
  * cassandra-stress: fix support for NetworkTopologyStrategy (CASSANDRA-7945)
  * Fix saving caches when a table is dropped (CASSANDRA-7784)
  * Add better error checking of new stress profile (CASSANDRA-7716)

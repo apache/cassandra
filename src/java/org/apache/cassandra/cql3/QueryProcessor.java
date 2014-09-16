@@ -29,6 +29,8 @@ import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap;
 import com.googlecode.concurrentlinkedhashmap.EntryWeigher;
 import com.googlecode.concurrentlinkedhashmap.EvictionListener;
 import org.antlr.runtime.*;
+import org.apache.cassandra.service.IMigrationListener;
+import org.apache.cassandra.service.MigrationManager;
 import org.github.jamm.MemoryMeter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -146,6 +148,7 @@ public class QueryProcessor implements QueryHandler
 
     private QueryProcessor()
     {
+        MigrationManager.instance.register(new MigrationSubscriber());
     }
 
     public ParsedStatement.Prepared getPrepared(MD5Digest id)
@@ -508,4 +511,68 @@ public class QueryProcessor implements QueryHandler
              ? ((MeasurableForPreparedCache)key).measureForPreparedCache(meter)
              : meter.measureDeep(key);
     }
+
+    private static class MigrationSubscriber implements IMigrationListener
+    {
+        private void removeInvalidPreparedStatements(String ksName, String cfName)
+        {
+            Iterator<ParsedStatement.Prepared> iterator = preparedStatements.values().iterator();
+            while (iterator.hasNext())
+            {
+                if (shouldInvalidate(ksName, cfName, iterator.next().statement))
+                    iterator.remove();
+            }
+
+            Iterator<CQLStatement> thriftIterator = thriftPreparedStatements.values().iterator();
+            while (thriftIterator.hasNext())
+            {
+                if (shouldInvalidate(ksName, cfName, thriftIterator.next()))
+                    thriftIterator.remove();
+            }
+        }
+
+        private boolean shouldInvalidate(String ksName, String cfName, CQLStatement statement)
+        {
+            String statementKsName;
+            String statementCfName;
+
+            if (statement instanceof ModificationStatement)
+            {
+                ModificationStatement modificationStatement = ((ModificationStatement) statement);
+                statementKsName = modificationStatement.keyspace();
+                statementCfName = modificationStatement.columnFamily();
+            }
+            else if (statement instanceof SelectStatement)
+            {
+                SelectStatement selectStatement = ((SelectStatement) statement);
+                statementKsName = selectStatement.keyspace();
+                statementCfName = selectStatement.columnFamily();
+            }
+            else
+            {
+                return false;
+            }
+
+            return ksName.equals(statementKsName) && (cfName == null || cfName.equals(statementCfName));
+        }
+
+        public void onCreateKeyspace(String ksName) { }
+        public void onCreateColumnFamily(String ksName, String cfName) { }
+        public void onCreateUserType(String ksName, String typeName) { }
+        public void onUpdateKeyspace(String ksName) { }
+        public void onUpdateColumnFamily(String ksName, String cfName) { }
+        public void onUpdateUserType(String ksName, String typeName) { }
+
+        public void onDropKeyspace(String ksName)
+        {
+            removeInvalidPreparedStatements(ksName, null);
+        }
+
+        public void onDropColumnFamily(String ksName, String cfName)
+        {
+            removeInvalidPreparedStatements(ksName, cfName);
+        }
+
+        public void onDropUserType(String ksName, String typeName) { }
+	}
 }
