@@ -302,6 +302,15 @@ public class Schema
     }
 
     /**
+     * @param cfId The identifier of the ColumnFamily to lookup
+     * @return true if the CF id is a known one, false otherwise.
+     */
+    public boolean hasCF(UUID cfId)
+    {
+        return cfIdMap.containsValue(cfId);
+    }
+
+    /**
      * Lookup keyspace/ColumnFamily identifier
      *
      * @param ksName The keyspace name

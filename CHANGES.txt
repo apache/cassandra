@@ -22,6 +22,7 @@
 
 
 2.1.1
+ * Fix saving caches when a table is dropped (CASSANDRA-7784)
  * Add better error checking of new stress profile (CASSANDRA-7716)
  * Use ThreadLocalRandom and remove FBUtilities.threadLocalRandom (CASSANDRA-7934)
  * Prevent operator mistakes due to simultaneous bootstrap (CASSANDRA-7069)

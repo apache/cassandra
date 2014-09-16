@@ -22,41 +22,7 @@ import java.util.UUID;
 public interface CacheKey extends IMeasurableMemory
 {
     /**
-     * @return The keyspace and ColumnFamily names to which this key belongs
+     * @return The cf id of the cache key.
      */
-    public PathInfo getPathInfo();
-
-    public static class PathInfo
-    {
-        public final String keyspace;
-        public final String columnFamily;
-        public final UUID cfId;
-
-        public PathInfo(String keyspace, String columnFamily, UUID cfId)
-        {
-            this.keyspace = keyspace;
-            this.columnFamily = columnFamily;
-            this.cfId = cfId;
-        }
-
-        @Override
-        public boolean equals(Object o)
-        {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-
-            PathInfo pathInfo = (PathInfo) o;
-
-            return (cfId != null ? cfId.equals(pathInfo.cfId) : pathInfo.cfId == null) && columnFamily.equals(pathInfo.columnFamily) && keyspace.equals(pathInfo.keyspace);
-        }
-
-        @Override
-        public int hashCode()
-        {
-            int result = keyspace.hashCode();
-            result = 31 * result + columnFamily.hashCode();
-            result = 31 * result + (cfId != null ? cfId.hashCode() : 0);
-            return result;
-        }
-    }
+    public UUID getCFId();
 }

@@ -44,9 +44,9 @@ public class KeyCacheKey implements CacheKey
         assert this.key != null;
     }
 
-    public PathInfo getPathInfo()
+    public UUID getCFId()
     {
-        return new PathInfo(desc.ksname, desc.cfname, cfId);
+        return cfId;
     }
 
     public String toString()

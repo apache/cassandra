@@ -21,7 +21,6 @@ import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.UUID;
 
-import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.composites.CellName;
 import org.apache.cassandra.db.composites.CellNames;
 import org.apache.cassandra.utils.*;
@@ -47,10 +46,9 @@ public class CounterCacheKey implements CacheKey
         return new CounterCacheKey(cfId, partitionKey, cellName);
     }
 
-    public PathInfo getPathInfo()
+    public UUID getCFId()
     {
-        Pair<String, String> cf = Schema.instance.getCF(cfId);
-        return new PathInfo(cf.left, cf.right, cfId);
+        return cfId;
     }
 
     public long unsharedHeapSize()
