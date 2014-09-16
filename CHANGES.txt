@@ -62,6 +62,7 @@
  * Configurable client timeout for cqlsh (CASSANDRA-7516)
  * Include snippet of CQL query near syntax error in messages (CASSANDRA-7111)
 Merged from 2.0:
+ * Add metrics for prepared statement usage and eviction (CASSANDRA-7930)
  * Make CQLSSTableWriter sync within partitions (CASSANDRA-7360)
  * Potentially use non-local replicas in CqlConfigHelper (CASSANDRA-7906)
  * Explicitly disallow mixing multi-column and single-column

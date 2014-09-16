@@ -27,6 +27,7 @@ public class CqlStatementMetrics
 {
     private final MetricNameFactory factory = new DefaultNameFactory("CqlStatement");
     public final Counter activePreparedStatements = Metrics.newCounter(factory.createMetricName("ActivePreparedStatements"));
+    public final Counter evictedPreparedStatements = Metrics.newCounter(factory.createMetricName("EvictedPreparedStatements"));
     public final Counter executedPrepared = Metrics.newCounter(factory.createMetricName("ExecutedPrepared"));
     public final Counter executedUnprepared = Metrics.newCounter(factory.createMetricName("ExecutedUnPrepared"));
 
