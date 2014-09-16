@@ -371,21 +371,21 @@ public class StressProfile implements Serializable
                     // guarantee the vast majority of actions occur in these bounds
                     double minBatchSize = selectchance.get().min() * partitions.get().minValue() * generator.minRowCount * (1d / visits.maxValue());
                     double maxBatchSize = selectchance.get().max() * partitions.get().maxValue() * generator.maxRowCount * (1d / visits.minValue());
-                    System.out.printf("Generating batches with [%d..%d] partitions and [%.0f..%.0f] rows (of [%.0f..%.0f] total rows in the partitions)\n",
+                    System.out.printf("Generating batches with [%d..%d] partitions and [%.0f..%.0f] rows (of [%.0f..%.0f] total rows in the partitions)%n",
                                       partitions.get().minValue(), partitions.get().maxValue(),
                                       minBatchSize, maxBatchSize,
                                       partitions.get().minValue() * generator.minRowCount,
                                       partitions.get().maxValue() * generator.maxRowCount);
                     if (generator.maxRowCount > 100 * 1000 * 1000)
-                        System.err.printf("WARNING: You have defined a schema that permits very large partitions (%.0f max rows (>100M))\n", generator.maxRowCount);
+                        System.err.printf("WARNING: You have defined a schema that permits very large partitions (%.0f max rows (>100M))%n", generator.maxRowCount);
                     if (batchType == BatchStatement.Type.LOGGED && maxBatchSize > 65535)
                     {
-                        System.err.printf("ERROR: You have defined a workload that generates batches with more than 65k rows (%.0f), but have required the use of LOGGED batches. There is a 65k row limit on a single batch.\n",
+                        System.err.printf("ERROR: You have defined a workload that generates batches with more than 65k rows (%.0f), but have required the use of LOGGED batches. There is a 65k row limit on a single batch.%n",
                                           selectchance.get().max() * partitions.get().maxValue() * generator.maxRowCount);
                         System.exit(1);
                     }
                     if (maxBatchSize > 100000)
-                        System.err.printf("WARNING: You have defined a schema that permits very large batches (%.0f max rows (>100K)). This may OOM this stress client, or the server.\n",
+                        System.err.printf("WARNING: You have defined a schema that permits very large batches (%.0f max rows (>100K)). This may OOM this stress client, or the server.%n",
                                           selectchance.get().max() * partitions.get().maxValue() * generator.maxRowCount);
 
                     JavaDriverClient client = settings.getJavaDriverClient();
