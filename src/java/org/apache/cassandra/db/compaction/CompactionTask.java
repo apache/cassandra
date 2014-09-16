@@ -136,7 +136,7 @@ public class CompactionTask extends AbstractCompactionTask
         StringBuilder ssTableLoggerMsg = new StringBuilder("[");
         for (SSTableReader sstr : sstables)
         {
-            ssTableLoggerMsg.append(String.format("SSTableReader(path=%s, level=%d), ", sstr.getFilename(), sstr.getSSTableLevel()));
+            ssTableLoggerMsg.append(String.format("%s:level=%d, ", sstr.getFilename(), sstr.getSSTableLevel()));
         }
         ssTableLoggerMsg.append("]");
         String taskIdLoggerMsg = taskId == null ? UUIDGen.getTimeUUID().toString() : taskId.toString();
