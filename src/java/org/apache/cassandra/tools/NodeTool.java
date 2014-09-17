@@ -113,7 +113,6 @@ public class NodeTool
                 ProxyHistograms.class,
                 Rebuild.class,
                 Refresh.class,
-                RemoveToken.class,
                 RemoveNode.class,
                 Repair.class,
                 SetCacheCapacity.class,
@@ -1599,17 +1598,6 @@ public class NodeTool
         {
             checkArgument(args.size() == 2, "refresh requires ks and cf args");
             probe.loadNewSSTables(args.get(0), args.get(1));
-        }
-    }
-
-    @Deprecated
-    @Command(name = "removetoken", description = "DEPRECATED (see removenode)", hidden = true)
-    public static class RemoveToken extends NodeToolCmd
-    {
-        @Override
-        public void execute(NodeProbe probe)
-        {
-            System.err.println("Warn: removetoken is deprecated, please use removenode instead");
         }
     }
 
