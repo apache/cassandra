@@ -63,7 +63,7 @@ import com.google.common.collect.ImmutableList;
 
 public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
 {
-    private static final String MBEAN_NAME = "org.apache.cassandra.net:type=Gossiper";
+    public static final String MBEAN_NAME = "org.apache.cassandra.net:type=Gossiper";
 
     private static final DebuggableScheduledThreadPoolExecutor executor = new DebuggableScheduledThreadPoolExecutor("GossipTasks");
 
@@ -474,16 +474,21 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         Uninterruptibles.sleepUninterruptibly(intervalInMillis * 2, TimeUnit.MILLISECONDS);
     }
 
+    public void unsafeAssassinateEndpoint(String address) throws UnknownHostException
+    {
+        logger.warn("Gossiper.unsafeAssassinateEndpoint is deprecated and will be removed in the next release; use assassinateEndpoint instead");
+        assassinateEndpoint(address);
+    }
+
     /**
      * Do not call this method unless you know what you are doing.
      * It will try extremely hard to obliterate any endpoint from the ring,
      * even if it does not know about it.
-     * This should only ever be called by human via JMX.
      *
      * @param address
      * @throws UnknownHostException
      */
-    public void unsafeAssassinateEndpoint(String address) throws UnknownHostException
+    public void assassinateEndpoint(String address) throws UnknownHostException
     {
         InetAddress endpoint = InetAddress.getByName(address);
         EndpointState epState = endpointStateMap.get(endpoint);
@@ -507,6 +512,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
                 tokens = Collections.singletonList(StorageService.getPartitioner().getRandomToken());
             }
             int generation = epState.getHeartBeatState().getGeneration();
+            int heartbeat = epState.getHeartBeatState().getHeartBeatVersion();
             logger.info("Sleeping for {}ms to ensure {} does not change", StorageService.RING_DELAY, endpoint);
             Uninterruptibles.sleepUninterruptibly(StorageService.RING_DELAY, TimeUnit.MILLISECONDS);
             // make sure it did not change
@@ -514,7 +520,9 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
             if (newState == null)
                 logger.warn("Endpoint {} disappeared while trying to assassinate, continuing anyway", endpoint);
             else if (newState.getHeartBeatState().getGeneration() != generation)
-                throw new RuntimeException("Endpoint " + endpoint + " generation changed while trying to remove it");
+                throw new RuntimeException("Endpoint still alive: " + endpoint + " generation changed while trying to assassinate it");
+            else if (newState.getHeartBeatState().getHeartBeatVersion() != heartbeat)
+                throw new RuntimeException("Endpoint still alive: " + endpoint + " heartbeat changed while trying to assassinate it");
             epState.updateTimestamp(); // make sure we don't evict it too soon
             epState.getHeartBeatState().forceNewerGenerationUnsafe();
         }

@@ -52,6 +52,8 @@ import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.compaction.CompactionManagerMBean;
 import org.apache.cassandra.gms.FailureDetector;
 import org.apache.cassandra.gms.FailureDetectorMBean;
+import org.apache.cassandra.gms.Gossiper;
+import org.apache.cassandra.gms.GossiperMBean;
 import org.apache.cassandra.locator.EndpointSnitchInfoMBean;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.MessagingServiceMBean;
@@ -78,6 +80,7 @@ public class NodeProbe implements AutoCloseable
     private MBeanServerConnection mbeanServerConn;
     private CompactionManagerMBean compactionProxy;
     private StorageServiceMBean ssProxy;
+    private GossiperMBean gossProxy;
     private MemoryMXBean memProxy;
     private GCInspectorMXBean gcProxy;
     private RuntimeMXBean runtimeProxy;
@@ -172,6 +175,8 @@ public class NodeProbe implements AutoCloseable
             hhProxy = JMX.newMBeanProxy(mbeanServerConn, name, HintedHandOffManagerMBean.class);
             name = new ObjectName(GCInspector.MBEAN_NAME);
             gcProxy = JMX.newMBeanProxy(mbeanServerConn, name, GCInspectorMXBean.class);
+            name = new ObjectName(Gossiper.MBEAN_NAME);
+            gossProxy = JMX.newMBeanProxy(mbeanServerConn, name, GossiperMBean.class);
         }
         catch (MalformedObjectNameException e)
         {
@@ -528,6 +533,11 @@ public class NodeProbe implements AutoCloseable
     public void forceRemoveCompletion()
     {
         ssProxy.forceRemoveCompletion();
+    }
+
+    public void assassinateEndpoint(String address) throws UnknownHostException
+    {
+        gossProxy.assassinateEndpoint(address);
     }
 
     public Iterator<Map.Entry<String, JMXEnabledThreadPoolExecutorMBean>> getThreadPoolMBeanProxies()
