@@ -43,7 +43,6 @@ import ch.qos.logback.classic.jmx.JMXConfiguratorMBean;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.Appender;
 
-import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Predicate;
 import com.google.common.collect.*;
 import com.google.common.util.concurrent.FutureCallback;
@@ -156,9 +155,14 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         return getRangesForEndpoint(keyspaceName, FBUtilities.getBroadcastAddress());
     }
 
-    public Collection<Range<Token>> getLocalPrimaryRanges(String keyspace)
+    public Collection<Range<Token>> getPrimaryRanges(String keyspace)
     {
         return getPrimaryRangesForEndpoint(keyspace, FBUtilities.getBroadcastAddress());
+    }
+
+    public Collection<Range<Token>> getPrimaryRangesWithinDC(String keyspace)
+    {
+        return getPrimaryRangeForEndpointWithinDC(keyspace, FBUtilities.getBroadcastAddress());
     }
 
     private final Set<InetAddress> replicatingNodes = Collections.synchronizedSet(new HashSet<InetAddress>());
@@ -332,7 +336,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         {
             throw new IllegalStateException("No configured daemon");
         }
-        
+
         try
         {
             daemon.nativeServer.start();
@@ -430,10 +434,10 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             if (Gossiper.instance.getEndpointStateForEndpoint(DatabaseDescriptor.getReplaceAddress()).getApplicationState(ApplicationState.TOKENS) == null)
                 throw new RuntimeException("Could not find tokens for " + DatabaseDescriptor.getReplaceAddress() + " to replace");
             Collection<Token> tokens = TokenSerializer.deserialize(getPartitioner(), new DataInputStream(new ByteArrayInputStream(getApplicationStateValue(DatabaseDescriptor.getReplaceAddress(), ApplicationState.TOKENS))));
-            
+
             SystemKeyspace.setLocalHostId(hostId); // use the replacee's host Id as our own so we receive hints, etc
             Gossiper.instance.resetEndpointStateMap(); // clean up since we have what we need
-            return tokens;        
+            return tokens;
         }
         catch (IOException e)
         {
@@ -2464,12 +2468,22 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public int forceRepairAsync(String keyspace, boolean isSequential, Collection<String> dataCenters, Collection<String> hosts, boolean primaryRange, boolean fullRepair, String... columnFamilies) throws IOException
     {
-        // when repairing only primary range, dataCenter nor hosts can be set
-        if (primaryRange && (dataCenters != null || hosts != null))
+        Collection<Range<Token>> ranges;
+        if (primaryRange)
         {
-            throw new IllegalArgumentException("You need to run primary range repair on all nodes in the cluster.");
+            // when repairing only primary range, neither dataCenters nor hosts can be set
+            if (dataCenters == null && hosts == null)
+                ranges = getPrimaryRanges(keyspace);
+            // except dataCenters only contain local DC (i.e. -local)
+            else if (dataCenters != null && dataCenters.size() == 1 && dataCenters.contains(DatabaseDescriptor.getLocalDataCenter()))
+                ranges = getPrimaryRangesWithinDC(keyspace);
+            else
+                throw new IllegalArgumentException("You need to run primary range repair on all nodes in the cluster.");
         }
-        Collection<Range<Token>> ranges = primaryRange ? getLocalPrimaryRanges(keyspace) : getLocalRanges(keyspace);
+        else
+        {
+             ranges = getLocalRanges(keyspace);
+        }
 
         return forceRepairAsync(keyspace, isSequential, dataCenters, hosts, ranges, fullRepair, columnFamilies);
     }
@@ -2494,12 +2508,16 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public int forceRepairAsync(String keyspace, boolean isSequential, boolean isLocal, boolean primaryRange, boolean fullRepair, String... columnFamilies)
     {
-        // when repairing only primary range, you cannot repair only on local DC
-        if (primaryRange && isLocal)
+        Collection<Range<Token>> ranges;
+        if (primaryRange)
         {
-            throw new IllegalArgumentException("You need to run primary range repair on all nodes in the cluster.");
+            ranges = isLocal ? getPrimaryRangesWithinDC(keyspace) : getPrimaryRanges(keyspace);
         }
-        Collection<Range<Token>> ranges = primaryRange ? getLocalPrimaryRanges(keyspace) : getLocalRanges(keyspace);
+        else
+        {
+            ranges = getLocalRanges(keyspace);
+        }
+
         return forceRepairAsync(keyspace, isSequential, isLocal, ranges, fullRepair, columnFamilies);
     }
 
@@ -2718,7 +2736,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
      * The node that stores replica primarily is defined as the first node returned
      * by {@link AbstractReplicationStrategy#calculateNaturalEndpoints}.
      *
-     * @param keyspace
+     * @param keyspace Keyspace name to check primary ranges
      * @param ep endpoint we are interested in.
      * @return primary ranges for the specified endpoint.
      */
@@ -2737,20 +2755,38 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     }
 
     /**
-     * Previously, primary range is the range that the node is responsible for and calculated
-     * only from the token assigned to the node.
-     * But this does not take replication strategy into account, and therefore returns insufficient
-     * range especially using NTS with replication only to certain DC(see CASSANDRA-5424).
+     * Get the "primary ranges" within local DC for the specified keyspace and endpoint.
      *
-     * @deprecated
-     * @param ep endpoint we are interested in.
-     * @return range for the specified endpoint.
+     * @see #getPrimaryRangesForEndpoint(String, java.net.InetAddress)
+     * @param keyspace Keyspace name to check primary ranges
+     * @param referenceEndpoint endpoint we are interested in.
+     * @return primary ranges within local DC for the specified endpoint.
      */
-    @Deprecated
-    @VisibleForTesting
-    public Range<Token> getPrimaryRangeForEndpoint(InetAddress ep)
+    public Collection<Range<Token>> getPrimaryRangeForEndpointWithinDC(String keyspace, InetAddress referenceEndpoint)
     {
-        return tokenMetadata.getPrimaryRangeFor(tokenMetadata.getToken(ep));
+        TokenMetadata metadata = tokenMetadata.cloneOnlyTokenMap();
+        String localDC = DatabaseDescriptor.getEndpointSnitch().getDatacenter(referenceEndpoint);
+        Collection<InetAddress> localDcNodes = metadata.getTopology().getDatacenterEndpoints().get(localDC);
+        AbstractReplicationStrategy strategy = Keyspace.open(keyspace).getReplicationStrategy();
+
+        Collection<Range<Token>> localDCPrimaryRanges = new HashSet<>();
+        for (Token token : metadata.sortedTokens())
+        {
+            List<InetAddress> endpoints = strategy.calculateNaturalEndpoints(token, metadata);
+            for (InetAddress endpoint : endpoints)
+            {
+                if (localDcNodes.contains(endpoint))
+                {
+                    if (endpoint.equals(referenceEndpoint))
+                    {
+                        localDCPrimaryRanges.add(new Range<>(metadata.getPredecessor(token), token));
+                    }
+                    break;
+                }
+            }
+        }
+
+        return localDCPrimaryRanges;
     }
 
     /**
@@ -2856,7 +2892,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         // if both classQualifer and rawLevel are empty, reload from configuration
         if (StringUtils.isBlank(classQualifier) && StringUtils.isBlank(rawLevel) )
         {
-            JMXConfiguratorMBean jmxConfiguratorMBean = JMX.newMBeanProxy(ManagementFactory.getPlatformMBeanServer(), 
+            JMXConfiguratorMBean jmxConfiguratorMBean = JMX.newMBeanProxy(ManagementFactory.getPlatformMBeanServer(),
                     new ObjectName("ch.qos.logback.classic:Name=default,Type=ch.qos.logback.classic.jmx.JMXConfigurator"),
                     JMXConfiguratorMBean.class);
             jmxConfiguratorMBean.reloadDefaultConfiguration();
@@ -2874,7 +2910,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         logBackLogger.setLevel(level);
         logger.info("set log level to {} for classes under '{}' (if the level doesn't look like '{}' then the logger couldn't parse '{}')", level, classQualifier, rawLevel, rawLevel);
     }
-    
+
     /**
      * @return the runtime logging levels for all the configured loggers
      */
@@ -3223,7 +3259,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                                     {
                                         oldEndpoints.removeAll(newEndpoints);
 
-                                        //No relocation required 
+                                        //No relocation required
                                         if (oldEndpoints.isEmpty())
                                             continue;
 
