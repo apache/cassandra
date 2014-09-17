@@ -298,6 +298,8 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
     public void convict(InetAddress endpoint, double phi)
     {
         EndpointState epState = endpointStateMap.get(endpoint);
+        if (epState == null)
+            return;
         if (epState.isAlive() && !isDeadState(epState))
         {
             markDead(endpoint, epState);
