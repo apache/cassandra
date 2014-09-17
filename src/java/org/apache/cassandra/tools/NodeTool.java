@@ -1636,7 +1636,8 @@ public class NodeTool
         @Override
         public void execute(NodeProbe probe)
         {
-            try {
+            try
+            {
                 probe.assassinateEndpoint(endpoint);
             }
             catch (UnknownHostException e)
