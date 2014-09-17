@@ -31,6 +31,7 @@ import org.github.jamm.MemoryMeter;
 import org.apache.cassandra.auth.Permission;
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.db.composites.*;
+import org.apache.cassandra.db.composites.Composite.EOC;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
@@ -694,7 +695,7 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
         // we always do a slice for CQL3 tables, so it's ok to ignore them here
         assert !isColumnRange();
 
-        CBuilder builder = cfm.comparator.prefixBuilder();
+        CompositesBuilder builder = new CompositesBuilder(cfm.comparator.prefixBuilder(), cfm.comparator);
         Iterator<ColumnDefinition> idIter = cfm.clusteringColumns().iterator();
         for (Restriction r : columnRestrictions)
         {
@@ -702,36 +703,20 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
             assert r != null && !r.isSlice();
 
             List<ByteBuffer> values = r.values(options);
-            if (values.size() == 1)
-            {
-                ByteBuffer val = values.get(0);
-                if (val == null)
-                    throw new InvalidRequestException(String.format("Invalid null value for clustering key part %s", def.name));
-                builder.add(val);
-            }
-            else
-            {
-                // We have a IN, which we only support for the last column.
-                // If compact, just add all values and we're done. Otherwise,
-                // for each value of the IN, creates all the columns corresponding to the selection.
-                if (values.isEmpty())
-                    return null;
-                SortedSet<CellName> columns = new TreeSet<CellName>(cfm.comparator);
-                Iterator<ByteBuffer> iter = values.iterator();
-                while (iter.hasNext())
-                {
-                    ByteBuffer val = iter.next();
-                    if (val == null)
-                        throw new InvalidRequestException(String.format("Invalid null value for clustering key part %s", def.name));
 
-                    Composite prefix = builder.buildWith(val);
-                    columns.addAll(addSelectedColumns(prefix));
-                }
-                return columns;
-            }
+            if (values.isEmpty())
+                return null;
+
+            builder.addEachElementToAll(values);
+            if (builder.containsNull())
+                throw new InvalidRequestException(String.format("Invalid null value for clustering key part %s",
+                                                                def.name));
         }
+        SortedSet<CellName> columns = new TreeSet<CellName>(cfm.comparator);
+        for (Composite composite : builder.build())
+            columns.addAll(addSelectedColumns(composite));
 
-        return addSelectedColumns(builder.build());
+        return columns;
     }
 
     private SortedSet<CellName> addSelectedColumns(Composite prefix)
@@ -810,6 +795,7 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
             }
         }
 
+        CompositesBuilder compositeBuilder = new CompositesBuilder(builder, isReversed ? type.reverseComparator() : type);
         // The end-of-component of composite doesn't depend on whether the
         // component type is reversed or not (i.e. the ReversedType is applied
         // to the component comparator but not to the end-of-component itself),
@@ -829,41 +815,21 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
                 // There wasn't any non EQ relation on that key, we select all records having the preceding component as prefix.
                 // For composites, if there was preceding component and we're computing the end, we must change the last component
                 // End-Of-Component, otherwise we would be selecting only one record.
-                Composite prefix = builder.build();
-                return Collections.singletonList(!prefix.isEmpty() && eocBound == Bound.END ? prefix.end() : prefix);
+                EOC eoc = !compositeBuilder.isEmpty() && eocBound == Bound.END ? EOC.END : EOC.NONE;
+                return compositeBuilder.buildWithEOC(eoc);
             }
             if (r.isSlice())
             {
-                builder.add(getSliceValue(r, b, options));
-                Relation.Type relType = ((Restriction.Slice)r).getRelation(eocBound, b);
-                return Collections.singletonList(builder.build().withEOC(eocForRelation(relType)));
+                compositeBuilder.addElementToAll(getSliceValue(r, b, options));
+                Relation.Type relType = ((Restriction.Slice) r).getRelation(eocBound, b);
+                return compositeBuilder.buildWithEOC(eocForRelation(relType));
             }
-            else
-            {
-                List<ByteBuffer> values = r.values(options);
-                if (values.size() != 1)
-                {
-                    // IN query, we only support it on the clustering columns
-                    assert def.position() == defs.size() - 1;
-                    // The IN query might not have listed the values in comparator order, so we need to re-sort
-                    // the bounds lists to make sure the slices works correctly (also, to avoid duplicates).
-                    TreeSet<Composite> s = new TreeSet<>(isReversed ? type.reverseComparator() : type);
-                    for (ByteBuffer val : values)
-                    {
-                        if (val == null)
-                            throw new InvalidRequestException(String.format("Invalid null clustering key part %s", def.name));
-                        Composite prefix = builder.buildWith(val);
-                        // See below for why this
-                        s.add((eocBound == Bound.END && builder.remainingCount() > 0) ? prefix.end() : prefix);
-                    }
-                    return new ArrayList<>(s);
-                }
 
-                ByteBuffer val = values.get(0);
-                if (val == null)
-                    throw new InvalidRequestException(String.format("Invalid null clustering key part %s", def.name));
-                builder.add(val);
-            }
+            compositeBuilder.addEachElementToAll(r.values(options));
+
+            if (compositeBuilder.containsNull())
+                throw new InvalidRequestException(
+                        String.format("Invalid null clustering key part %s", def.name));
         }
         // Means no relation at all or everything was an equal
         // Note: if the builder is "full", there is no need to use the end-of-component bit. For columns selection,
@@ -871,8 +837,8 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
         // with 2ndary index is done, and with the the partition provided with an EQ, we'll end up here, and in that
         // case using the eoc would be bad, since for the random partitioner we have no guarantee that
         // prefix.end() will sort after prefix (see #5240).
-        Composite prefix = builder.build();
-        return Collections.singletonList(eocBound == Bound.END && builder.remainingCount() > 0 ? prefix.end() : prefix);
+        EOC eoc = eocBound == Bound.END && compositeBuilder.hasRemaining() ? EOC.END : EOC.NONE;
+        return compositeBuilder.buildWithEOC(eoc);
     }
 
     private static Composite.EOC eocForRelation(Relation.Type op)
@@ -1873,9 +1839,7 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
                 }
                 else if (restriction.isIN())
                 {
-                    if (!restriction.isMultiColumn() && i != stmt.columnRestrictions.length - 1)
-                        throw new InvalidRequestException(String.format("Clustering column \"%s\" cannot be restricted by an IN relation", cdef.name));
-                    else if (stmt.selectACollection())
+                    if (stmt.selectACollection())
                         throw new InvalidRequestException(String.format("Cannot restrict column \"%s\" by IN relation as a collection is selected by the query", cdef.name));
                 }
 
