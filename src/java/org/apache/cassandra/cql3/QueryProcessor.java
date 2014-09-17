@@ -24,17 +24,16 @@ import java.util.concurrent.ConcurrentHashMap;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.primitives.Ints;
-
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap;
 import com.googlecode.concurrentlinkedhashmap.EntryWeigher;
 import com.googlecode.concurrentlinkedhashmap.EvictionListener;
+
 import org.antlr.runtime.*;
 import org.apache.cassandra.service.IMigrationListener;
 import org.apache.cassandra.service.MigrationManager;
 import org.github.jamm.MemoryMeter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
 import org.apache.cassandra.cql3.statements.*;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.composites.*;
@@ -559,9 +558,11 @@ public class QueryProcessor implements QueryHandler
         public void onCreateKeyspace(String ksName) { }
         public void onCreateColumnFamily(String ksName, String cfName) { }
         public void onCreateUserType(String ksName, String typeName) { }
+        public void onCreateFunction(String namespace, String functionName) { }
         public void onUpdateKeyspace(String ksName) { }
         public void onUpdateColumnFamily(String ksName, String cfName) { }
         public void onUpdateUserType(String ksName, String typeName) { }
+        public void onUpdateFunction(String namespace, String functionName) { }
 
         public void onDropKeyspace(String ksName)
         {
@@ -574,5 +575,6 @@ public class QueryProcessor implements QueryHandler
         }
 
         public void onDropUserType(String ksName, String typeName) { }
+        public void onDropFunction(String namespace, String functionName) { }
 	}
 }
