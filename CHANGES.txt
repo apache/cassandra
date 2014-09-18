@@ -1,4 +1,5 @@
 2.0.11:
+ * Allow permissions cache to be set via JMX (CASSANDRA-7698)
  * Include schema_triggers CF in readable system resources (CASSANDRA-7967)
  * Fix RowIndexEntry to report correct serializedSize (CASSANDRA-7948)
  * Make CQLSSTableWriter sync within partitions (CASSANDRA-7360)

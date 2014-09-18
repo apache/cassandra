@@ -571,6 +571,12 @@ public class DatabaseDescriptor
         return conf.permissions_validity_in_ms;
     }
 
+    public static void setPermissionsValidity(int timeout)
+    {
+        conf.permissions_validity_in_ms = timeout;
+    }
+
+
     public static int getThriftFramedTransportSize()
     {
         return conf.thrift_framed_transport_size_in_mb * 1024 * 1024;
