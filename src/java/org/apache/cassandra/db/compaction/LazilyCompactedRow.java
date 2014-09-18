@@ -111,9 +111,9 @@ public class LazilyCompactedRow extends AbstractCompactedRow implements Iterable
         // reach into the reducer (created during iteration) to get column count, size, max column timestamp
         // (however, if there are zero columns, iterator() will not be called by ColumnIndexer and reducer will be null)
         columnStats = new ColumnStats(reducer == null ? 0 : reducer.columns,
-                                      reducer == null ? Long.MAX_VALUE : reducer.minTimestampSeen,
-                                      reducer == null ? emptyColumnFamily.maxTimestamp() : Math.max(emptyColumnFamily.maxTimestamp(), reducer.maxTimestampSeen),
-                                      reducer == null ? Integer.MIN_VALUE : reducer.maxLocalDeletionTimeSeen,
+                                      reducer == null ? Long.MAX_VALUE : reducer.minTimestampTracker.get(),
+                                      reducer == null ? emptyColumnFamily.maxTimestamp() : Math.max(emptyColumnFamily.maxTimestamp(), reducer.maxTimestampTracker.get()),
+                                      reducer == null ? Integer.MIN_VALUE : reducer.maxDeletionTimeTracker.get(),
                                       reducer == null ? new StreamingHistogram(SSTable.TOMBSTONE_HISTOGRAM_BIN_SIZE) : reducer.tombstones,
                                       reducer == null ? Collections.<ByteBuffer>emptyList() : reducer.minColumnNameSeen,
                                       reducer == null ? Collections.<ByteBuffer>emptyList() : reducer.maxColumnNameSeen
@@ -201,12 +201,25 @@ public class LazilyCompactedRow extends AbstractCompactedRow implements Iterable
         RangeTombstone tombstone;
 
         int columns = 0;
-        long minTimestampSeen = Long.MAX_VALUE;
-        long maxTimestampSeen = Long.MIN_VALUE;
-        int maxLocalDeletionTimeSeen = Integer.MIN_VALUE;
+        // if the row tombstone is 'live' we need to set timestamp to MAX_VALUE to be able to overwrite it later
+        // markedForDeleteAt is MIN_VALUE for 'live' row tombstones (which we use to default maxTimestampSeen)
+
+        ColumnStats.MinTracker<Long> minTimestampTracker = new ColumnStats.MinTracker<>(Long.MIN_VALUE);
+        ColumnStats.MaxTracker<Long> maxTimestampTracker = new ColumnStats.MaxTracker<>(Long.MAX_VALUE);
+        // we need to set MIN_VALUE if we are 'live' since we want to overwrite it later
+        // we are bound to have either a RangeTombstone or standard cells will set this properly:
+        ColumnStats.MaxTracker<Integer> maxDeletionTimeTracker = new ColumnStats.MaxTracker<>(Integer.MAX_VALUE);
+
         StreamingHistogram tombstones = new StreamingHistogram(SSTable.TOMBSTONE_HISTOGRAM_BIN_SIZE);
         List<ByteBuffer> minColumnNameSeen = Collections.emptyList();
         List<ByteBuffer> maxColumnNameSeen = Collections.emptyList();
+
+        public Reducer()
+        {
+            minTimestampTracker.update(maxRowTombstone.isLive() ? Long.MAX_VALUE : maxRowTombstone.markedForDeleteAt);
+            maxTimestampTracker.update(maxRowTombstone.markedForDeleteAt);
+            maxDeletionTimeTracker.update(maxRowTombstone.isLive() ? Integer.MIN_VALUE : maxRowTombstone.localDeletionTime);
+        }
 
         /**
          * Called once per version of a cell that we need to merge, after which getReduced() is called.  In other words,
@@ -254,8 +267,9 @@ public class LazilyCompactedRow extends AbstractCompactedRow implements Iterable
                 else
                 {
                     tombstones.update(t.getLocalDeletionTime());
-                    minTimestampSeen = Math.min(minTimestampSeen, t.minTimestamp());
-                    maxTimestampSeen = Math.max(maxTimestampSeen, t.maxTimestamp());
+                    minTimestampTracker.update(t.minTimestamp());
+                    maxTimestampTracker.update(t.maxTimestamp());
+                    maxDeletionTimeTracker.update(t.getLocalDeletionTime());
                     minColumnNameSeen = ColumnNameHelper.minComponents(minColumnNameSeen, t.min, controller.cfs.metadata.comparator);
                     maxColumnNameSeen = ColumnNameHelper.maxComponents(maxColumnNameSeen, t.max, controller.cfs.metadata.comparator);
 
@@ -287,9 +301,9 @@ public class LazilyCompactedRow extends AbstractCompactedRow implements Iterable
                 if (localDeletionTime < Integer.MAX_VALUE)
                     tombstones.update(localDeletionTime);
                 columns++;
-                minTimestampSeen = Math.min(minTimestampSeen, reduced.minTimestamp());
-                maxTimestampSeen = Math.max(maxTimestampSeen, reduced.maxTimestamp());
-                maxLocalDeletionTimeSeen = Math.max(maxLocalDeletionTimeSeen, reduced.getLocalDeletionTime());
+                minTimestampTracker.update(reduced.minTimestamp());
+                maxTimestampTracker.update(reduced.maxTimestamp());
+                maxDeletionTimeTracker.update(reduced.getLocalDeletionTime());
                 minColumnNameSeen = ColumnNameHelper.minComponents(minColumnNameSeen, reduced.name(), controller.cfs.metadata.comparator);
                 maxColumnNameSeen = ColumnNameHelper.maxComponents(maxColumnNameSeen, reduced.name(), controller.cfs.metadata.comparator);
 

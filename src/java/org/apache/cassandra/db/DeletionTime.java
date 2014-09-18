@@ -26,6 +26,7 @@ import com.google.common.base.Objects;
 
 import org.apache.cassandra.io.ISerializer;
 import org.apache.cassandra.utils.ObjectSizes;
+import org.codehaus.jackson.annotate.JsonIgnore;
 
 /**
  * A top-level (row) tombstone.
@@ -57,6 +58,15 @@ public class DeletionTime implements Comparable<DeletionTime>
     {
         this.markedForDeleteAt = markedForDeleteAt;
         this.localDeletionTime = localDeletionTime;
+    }
+
+    /**
+     * Returns whether this DeletionTime is live, that is deletes no columns.
+     */
+    @JsonIgnore
+    public boolean isLive()
+    {
+        return markedForDeleteAt == Long.MIN_VALUE && localDeletionTime == Integer.MAX_VALUE;
     }
 
     @Override

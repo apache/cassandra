@@ -1,5 +1,6 @@
 2.0.11:
  * Better validation of collection values (CASSANDRA-7833)
+ * Track min/max timestamps correctly (CASSANDRA-7969)
  * Fix possible overflow while sorting CL segments for replay (CASSANDRA-7992)
  * Increase nodetool Xmx (CASSANDRA-7956)
  * Archive any commitlog segments present at startup (CASSANDRA-6904)

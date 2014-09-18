@@ -18,6 +18,7 @@
 package org.apache.cassandra.io.sstable;
 
 import java.nio.ByteBuffer;
+import java.util.Comparator;
 import java.util.List;
 
 import org.apache.cassandra.utils.StreamingHistogram;
@@ -50,5 +51,71 @@ public class ColumnStats
         this.tombstoneHistogram = tombstoneHistogram;
         this.minColumnNames = minColumnNames;
         this.maxColumnNames = maxColumnNames;
+    }
+
+    public static class MinTracker<T extends Comparable<T>>
+    {
+        private final T defaultValue;
+        private boolean isSet = false;
+        private T value;
+
+        public MinTracker(T defaultValue)
+        {
+            this.defaultValue = defaultValue;
+        }
+
+        public void update(T value)
+        {
+            if (!isSet)
+            {
+                this.value = value;
+                isSet = true;
+            }
+            else
+            {
+                if (value.compareTo(this.value) < 0)
+                    this.value = value;
+            }
+        }
+
+        public T get()
+        {
+            if (isSet)
+                return value;
+            return defaultValue;
+        }
+    }
+
+    public static class MaxTracker<T extends Comparable<T>>
+    {
+        private final T defaultValue;
+        private boolean isSet = false;
+        private T value;
+
+        public MaxTracker(T defaultValue)
+        {
+            this.defaultValue = defaultValue;
+        }
+
+        public void update(T value)
+        {
+            if (!isSet)
+            {
+                this.value = value;
+                isSet = true;
+            }
+            else
+            {
+                if (value.compareTo(this.value) > 0)
+                    this.value = value;
+            }
+        }
+
+        public T get()
+        {
+            if (isSet)
+                return value;
+            return defaultValue;
+        }
     }
 }
