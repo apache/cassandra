@@ -17,8 +17,12 @@
  */
 package org.apache.cassandra.auth;
 
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
+import com.google.common.cache.CacheBuilder;
+import com.google.common.cache.CacheLoader;
+import com.google.common.cache.LoadingCache;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 import org.apache.commons.lang3.StringUtils;
@@ -42,8 +46,9 @@ import org.apache.cassandra.locator.SimpleStrategy;
 import org.apache.cassandra.service.*;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.Pair;
 
-public class Auth
+public class Auth implements AuthMBean
 {
     private static final Logger logger = LoggerFactory.getLogger(Auth.class);
 
@@ -53,6 +58,10 @@ public class Auth
 
     public static final String AUTH_KS = "system_auth";
     public static final String USERS_CF = "users";
+
+    // User-level permissions cache.
+    public static volatile LoadingCache<Pair<AuthenticatedUser, IResource>, Set<Permission>> permissionsCache = initPermissionsCache(null);
+
 
     private static final String USERS_CF_SCHEMA = String.format("CREATE TABLE %s.%s ("
                                                                 + "name text,"
@@ -64,6 +73,41 @@ public class Auth
                                                                 90 * 24 * 60 * 60); // 3 months.
 
     private static SelectStatement selectUserStatement;
+
+    public int getPermissionsValidity()
+    {
+        return DatabaseDescriptor.getPermissionsValidity();
+    }
+
+    public void setPermissionsValidity(int timeoutInMs)
+    {
+        DatabaseDescriptor.setPermissionsValidity(timeoutInMs);
+        permissionsCache = initPermissionsCache(permissionsCache);
+    }
+
+    private static LoadingCache<Pair<AuthenticatedUser, IResource>, Set<Permission>> initPermissionsCache(LoadingCache<Pair<AuthenticatedUser, IResource>, Set<Permission>> oldCache)
+    {
+        if (DatabaseDescriptor.getAuthorizer() instanceof AllowAllAuthorizer)
+            return null;
+
+        int validityPeriod = DatabaseDescriptor.getPermissionsValidity();
+        if (validityPeriod <= 0)
+            return null;
+
+        LoadingCache<Pair<AuthenticatedUser, IResource>, Set<Permission>> newCache =
+            CacheBuilder.newBuilder().expireAfterWrite(validityPeriod, TimeUnit.MILLISECONDS)
+                    .build(new CacheLoader<Pair<AuthenticatedUser, IResource>, Set<Permission>>()
+                    {
+                        public Set<Permission> load(Pair<AuthenticatedUser, IResource> userResource)
+                        {
+                            return DatabaseDescriptor.getAuthorizer().authorize(userResource.left,
+                                    userResource.right);
+                        }
+                    });
+        if (oldCache != null)
+            newCache.putAll(oldCache.asMap());
+        return newCache;
+    }
 
     /**
      * Checks if the username is stored in AUTH_KS.USERS_CF.
