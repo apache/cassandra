@@ -1,4 +1,5 @@
 2.0.11:
+ * Allow propagating multiple gossip states atomically (CASSANDRA-6125)
  * Log exceptions related to unclean native protocol client disconnects
    at DEBUG or INFO (CASSANDRA-7849)
  * Allow permissions cache to be set via JMX (CASSANDRA-7698)
