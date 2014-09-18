@@ -17,9 +17,13 @@
  */
 package org.apache.cassandra.transport;
 
+import java.io.IOException;
 import java.util.EnumSet;
+import java.util.Set;
 import java.util.UUID;
 
+import com.google.common.base.Predicate;
+import com.google.common.collect.ImmutableSet;
 import org.jboss.netty.buffer.ChannelBuffer;
 import org.jboss.netty.buffer.ChannelBuffers;
 import org.jboss.netty.channel.*;
@@ -37,6 +41,17 @@ import org.apache.cassandra.service.QueryState;
 public abstract class Message
 {
     protected static final Logger logger = LoggerFactory.getLogger(Message.class);
+
+    /**
+     * When we encounter an unexpected IOException we look for these {@link Throwable#getMessage() messages}
+     * (because we have no better way to distinguish) and log them at DEBUG rather than INFO, since they
+     * are generally caused by unclean client disconnects rather than an actual problem.
+     */
+    private static final Set<String> ioExceptionsAtDebugLevel = ImmutableSet.<String>builder().
+            add("Connection reset by peer").
+            add("Broken pipe").
+            add("Connection timed out").
+            build();
 
     public interface Codec<M extends Message> extends CBCodec<M> {}
 
@@ -315,7 +330,7 @@ public abstract class Message
             catch (Throwable ex)
             {
                 // Don't let the exception propagate to exceptionCaught() if we can help it so that we can assign the right streamID.
-                ctx.getChannel().write(ErrorMessage.fromException(ex).setStreamId(request.getStreamId()));
+                ctx.getChannel().write(ErrorMessage.fromException(ex, new UnexpectedChannelExceptionHandler(ctx.getChannel(), true)).setStreamId(request.getStreamId()));
             }
         }
 
@@ -325,7 +340,7 @@ public abstract class Message
         {
             if (ctx.getChannel().isOpen())
             {
-                ChannelFuture future = ctx.getChannel().write(ErrorMessage.fromException(e.getCause()));
+                ChannelFuture future = ctx.getChannel().write(ErrorMessage.fromException(e.getCause(), new UnexpectedChannelExceptionHandler(ctx.getChannel(), false)));
                 // On protocol exception, close the channel as soon as the message have been sent
                 if (e.getCause() instanceof ProtocolException)
                 {
@@ -336,6 +351,60 @@ public abstract class Message
                     });
                 }
             }
+        }
+    }
+
+    /**
+     * Include the channel info in the logged information for unexpected errors, and (if {@link #alwaysLogAtError} is
+     * false then choose the log level based on the type of exception (some are clearly client issues and shouldn't be
+     * logged at server ERROR level)
+     */
+    static final class UnexpectedChannelExceptionHandler implements Predicate<Throwable>
+    {
+        private final Channel channel;
+        private final boolean alwaysLogAtError;
+
+        UnexpectedChannelExceptionHandler(Channel channel, boolean alwaysLogAtError)
+        {
+            this.channel = channel;
+            this.alwaysLogAtError = alwaysLogAtError;
+        }
+
+        @Override
+        public boolean apply(Throwable exception)
+        {
+            String message;
+            try
+            {
+                message = "Unexpected exception during request; channel = " + channel;
+            }
+            catch (Exception ignore)
+            {
+                // We don't want to make things worse if String.valueOf() throws an exception
+                message = "Unexpected exception during request; channel = <unprintable>";
+            }
+
+            if (!alwaysLogAtError && exception instanceof IOException)
+            {
+                if (ioExceptionsAtDebugLevel.contains(exception.getMessage()))
+                {
+                    // Likely unclean client disconnects
+                    logger.debug(message, exception);
+                }
+                else
+                {
+                    // Generally unhandled IO exceptions are network issues, not actual ERRORS
+                    logger.info(message, exception);
+                }
+            }
+            else
+            {
+                // Anything else is probably a bug in server of client binary protocol handling
+                logger.error(message, exception);
+            }
+
+            // We handled the exception.
+            return true;
         }
     }
 }
