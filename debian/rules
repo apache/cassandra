@@ -6,7 +6,7 @@
 include /usr/share/dpatch/dpatch.make
 
 ANT = /usr/bin/ant
-VERSION = $(shell dpkg-parsechangelog | sed -ne 's/^Version: \(.*\)/\1/p')
+VERSION = $(shell dpkg-parsechangelog | sed -ne 's/^Version: \([^-]*\).*/\1/p')
 
 test:
 	dh_testdir
