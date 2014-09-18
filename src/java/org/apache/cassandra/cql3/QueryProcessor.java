@@ -21,6 +21,8 @@ import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.primitives.Ints;
@@ -29,8 +31,6 @@ import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap;
 import com.googlecode.concurrentlinkedhashmap.EntryWeigher;
 import com.googlecode.concurrentlinkedhashmap.EvictionListener;
 import org.antlr.runtime.*;
-import org.apache.cassandra.service.IMigrationListener;
-import org.apache.cassandra.service.MigrationManager;
 import org.github.jamm.MemoryMeter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -41,8 +41,7 @@ import org.apache.cassandra.db.composites.*;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.exceptions.*;
 import org.apache.cassandra.metrics.CQLMetrics;
-import org.apache.cassandra.service.ClientState;
-import org.apache.cassandra.service.QueryState;
+import org.apache.cassandra.service.*;
 import org.apache.cassandra.service.pager.QueryPager;
 import org.apache.cassandra.service.pager.QueryPagers;
 import org.apache.cassandra.thrift.ThriftClientState;
@@ -90,6 +89,8 @@ public class QueryProcessor implements QueryHandler
     @VisibleForTesting
     public static final CQLMetrics metrics = new CQLMetrics();
 
+    private static AtomicInteger lastMinuteEvictionsCount = new AtomicInteger(0);
+
     static
     {
         preparedStatements = new ConcurrentLinkedHashMap.Builder<MD5Digest, ParsedStatement.Prepared>()
@@ -100,6 +101,7 @@ public class QueryProcessor implements QueryHandler
                                  public void onEviction(MD5Digest md5Digest, ParsedStatement.Prepared prepared)
                                  {
                                      metrics.preparedStatementsEvicted.inc();
+                                     lastMinuteEvictionsCount.incrementAndGet();
                                  }
                              }).build();
 
@@ -111,6 +113,7 @@ public class QueryProcessor implements QueryHandler
                                        public void onEviction(Integer integer, CQLStatement cqlStatement)
                                        {
                                            metrics.preparedStatementsEvicted.inc();
+                                           lastMinuteEvictionsCount.incrementAndGet();
                                        }
                                    })
                                    .build();
@@ -152,6 +155,18 @@ public class QueryProcessor implements QueryHandler
     private QueryProcessor()
     {
         MigrationManager.instance.register(new MigrationSubscriber());
+
+        StorageService.scheduledTasks.scheduleAtFixedRate(new Runnable()
+        {
+            public void run()
+            {
+                long count = lastMinuteEvictionsCount.getAndSet(0);
+                if (count > 0)
+                    logger.info("{} prepared statements discarded in the last minute because cache limit reached ({} bytes)",
+                                count,
+                                MAX_CACHE_PREPARED_MEMORY);
+            }
+        }, 1, 1, TimeUnit.MINUTES);
     }
 
     public ParsedStatement.Prepared getPrepared(MD5Digest id)
