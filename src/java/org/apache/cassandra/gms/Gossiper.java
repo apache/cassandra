@@ -23,6 +23,7 @@ import java.net.UnknownHostException;
 import java.util.*;
 import java.util.Map.Entry;
 import java.util.concurrent.*;
+import java.util.concurrent.locks.ReentrantLock;
 
 import javax.management.MBeanServer;
 import javax.management.ObjectName;
@@ -30,6 +31,7 @@ import javax.management.ObjectName;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.util.concurrent.Uninterruptibles;
 
+import org.apache.cassandra.utils.Pair;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -72,6 +74,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
                                                           VersionedValue.STATUS_LEFT, VersionedValue.HIBERNATE);
 
     private ScheduledFuture<?> scheduledGossipTask;
+    private static final ReentrantLock taskLock = new ReentrantLock();
     public final static int intervalInMillis = 1000;
     public final static int QUARANTINE_DELAY = StorageService.RING_DELAY * 2;
     private static final Logger logger = LoggerFactory.getLogger(Gossiper.class);
@@ -124,6 +127,8 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
                 //wait on messaging service to start listening
                 MessagingService.instance().waitUntilListening();
 
+                taskLock.lock();
+
                 /* Update the local heartbeat counter. */
                 endpointStateMap.get(FBUtilities.getBroadcastAddress()).getHeartBeatState().updateHeartBeat();
                 if (logger.isTraceEnabled())
@@ -170,6 +175,10 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
             catch (Exception e)
             {
                 logger.error("Gossip error", e);
+            }
+            finally
+            {
+                taskLock.unlock();
             }
         }
     }
@@ -1280,6 +1289,23 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         // Add to local application state and fire "on change" notifications:
         epState.addApplicationState(state, value);
         doOnChangeNotifications(epAddr, state, value);
+    }
+
+    public void addLocalApplicationStates(List<Pair<ApplicationState, VersionedValue>> states)
+    {
+        taskLock.lock();
+        try
+        {
+            for (Pair<ApplicationState, VersionedValue> pair : states)
+            {
+               addLocalApplicationState(pair.left, pair.right);
+            }
+        }
+        finally
+        {
+            taskLock.unlock();
+        }
+
     }
 
     public void stop()
