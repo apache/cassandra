@@ -1,4 +1,5 @@
 2.1.1
+ * Provide visibility into prepared statements churn (CASSANDRA-7921)
  * Invalidate prepared statements when their keyspace or table is
    dropped (CASSANDRA-7566)
  * cassandra-stress: fix support for NetworkTopologyStrategy (CASSANDRA-7945)
