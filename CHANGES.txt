@@ -24,6 +24,7 @@
 
 
 2.1.1
+ * (cqlsh) Add command line option for cqlshrc file path (CASSANDRA-7131)
  * Provide visibility into prepared statements churn (CASSANDRA-7921)
  * Invalidate prepared statements when their keyspace or table is
    dropped (CASSANDRA-7566)

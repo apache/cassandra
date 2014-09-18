@@ -124,22 +124,6 @@ from cqlshlib.formatting import format_by_type, formatter_for, format_value_utyp
 from cqlshlib.util import trim_if_present
 from cqlshlib.tracing import print_trace_session, print_trace
 
-HISTORY_DIR = os.path.expanduser(os.path.join('~', '.cassandra'))
-CONFIG_FILE = os.path.join(HISTORY_DIR, 'cqlshrc')
-HISTORY = os.path.join(HISTORY_DIR, 'cqlsh_history')
-if not os.path.exists(HISTORY_DIR):
-    try:
-        os.mkdir(HISTORY_DIR)
-    except OSError:
-        print '\nWarning: Cannot create directory at `%s`. Command history will not be saved.\n' % HISTORY_DIR
-
-OLD_CONFIG_FILE = os.path.expanduser(os.path.join('~', '.cqlshrc'))
-if os.path.exists(OLD_CONFIG_FILE):
-    os.rename(OLD_CONFIG_FILE, CONFIG_FILE)
-OLD_HISTORY = os.path.expanduser(os.path.join('~', '.cqlsh_history'))
-if os.path.exists(OLD_HISTORY):
-    os.rename(OLD_HISTORY, HISTORY)
-
 DEFAULT_HOST = '127.0.0.1'
 DEFAULT_PORT = 9042
 DEFAULT_CQLVER = '3.2.0'
@@ -173,10 +157,40 @@ parser.add_option('-k', '--keyspace', help='Authenticate to the given keyspace.'
 parser.add_option("-f", "--file", help="Execute commands from FILE, then exit")
 parser.add_option('--debug', action='store_true',
                   help='Show additional debugging information')
+parser.add_option("--cqlshrc", help="Specify an alternative cqlshrc file location.")
 parser.add_option('--cqlversion', default=DEFAULT_CQLVER,
                   help='Specify a particular CQL version (default: %default).'
                        ' Examples: "3.0.3", "3.1.0"')
 parser.add_option("-e", "--execute", help='Execute the statement and quit.')
+
+optvalues = optparse.Values()
+(options, arguments) = parser.parse_args(sys.argv[1:], values=optvalues)
+
+#BEGIN history/config definition
+HISTORY_DIR = os.path.expanduser(os.path.join('~', '.cassandra'))
+
+if hasattr(options, 'cqlshrc'):
+    CONFIG_FILE = options.cqlshrc
+    if not os.path.exists(CONFIG_FILE):
+        print '\nWarning: Specified cqlshrc location `%s` does not exist.  Using `%s` instead.\n' % (CONFIG_FILE, HISTORY_DIR)
+        CONFIG_FILE = os.path.join(HISTORY_DIR, 'cqlshrc')
+else:
+    CONFIG_FILE = os.path.join(HISTORY_DIR, 'cqlshrc')
+
+HISTORY = os.path.join(HISTORY_DIR, 'cqlsh_history')
+if not os.path.exists(HISTORY_DIR):
+    try:
+        os.mkdir(HISTORY_DIR)
+    except OSError:
+        print '\nWarning: Cannot create directory at `%s`. Command history will not be saved.\n' % HISTORY_DIR
+
+OLD_CONFIG_FILE = os.path.expanduser(os.path.join('~', '.cqlshrc'))
+if os.path.exists(OLD_CONFIG_FILE):
+    os.rename(OLD_CONFIG_FILE, CONFIG_FILE)
+OLD_HISTORY = os.path.expanduser(os.path.join('~', '.cqlsh_history'))
+if os.path.exists(OLD_HISTORY):
+    os.rename(OLD_HISTORY, HISTORY)
+#END history/config definition
 
 CQL_ERRORS = (
     cassandra.AlreadyExists, cassandra.AuthenticationFailed, cassandra.InvalidRequest,
