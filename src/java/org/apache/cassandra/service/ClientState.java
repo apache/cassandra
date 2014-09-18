@@ -25,6 +25,7 @@ import java.util.concurrent.TimeUnit;
 import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.CacheLoader;
 import com.google.common.cache.LoadingCache;
+import com.google.common.collect.Iterables;
 import com.google.common.collect.Sets;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
@@ -62,13 +63,9 @@ public class ClientState
 
     static
     {
-        // We want these system cfs to be always readable since many tools rely on them (nodetool, cqlsh, bulkloader, etc.)
-        String[] cfs =  new String[] { SystemKeyspace.LOCAL_CF,
-                                       SystemKeyspace.PEERS_CF,
-                                       SystemKeyspace.SCHEMA_KEYSPACES_CF,
-                                       SystemKeyspace.SCHEMA_COLUMNFAMILIES_CF,
-                                       SystemKeyspace.SCHEMA_COLUMNS_CF };
-        for (String cf : cfs)
+        // We want these system cfs to be always readable to authenticated users since many tools rely on them
+        // (nodetool, cqlsh, bulkloader, etc.)
+        for (String cf : Iterables.concat(Arrays.asList(SystemKeyspace.LOCAL_CF, SystemKeyspace.PEERS_CF), SystemKeyspace.allSchemaCfs))
             READABLE_SYSTEM_RESOURCES.add(DataResource.columnFamily(Keyspace.SYSTEM_KS, cf));
 
         PROTECTED_AUTH_RESOURCES.addAll(DatabaseDescriptor.getAuthenticator().protectedResources());

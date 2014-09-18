@@ -1,4 +1,6 @@
 2.0.11:
+ * Include schema_triggers CF in readable system resources (CASSANDRA-7967)
+ * Fix RowIndexEntry to report correct serializedSize (CASSANDRA-7948)
  * Make CQLSSTableWriter sync within partitions (CASSANDRA-7360)
  * Potentially use non-local replicas in CqlConfigHelper (CASSANDRA-7906)
  * Explicitly disallowing mixing multi-column and single-column
@@ -11,7 +13,6 @@
  * Always send Paxos commit to all replicas (CASSANDRA-7479)
  * Make disruptor_thrift_server invocation pool configurable (CASSANDRA-7594)
  * Make repair no-op when RF=1 (CASSANDRA-7864)
- * Fix RowIndexEntry to report correct serializedSize (CASSANDRA-7948)
 Merged from 1.2:
  * Don't index tombstones (CASSANDRA-7828)
 

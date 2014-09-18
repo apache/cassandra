@@ -86,6 +86,11 @@ public class SystemKeyspace
     private static final String LOCAL_KEY = "local";
     private static final ByteBuffer ALL_LOCAL_NODE_ID_KEY = ByteBufferUtil.bytes("Local");
 
+    public static final List<String> allSchemaCfs = Arrays.asList(SCHEMA_KEYSPACES_CF,
+                                                                  SCHEMA_COLUMNFAMILIES_CF,
+                                                                  SCHEMA_COLUMNS_CF,
+                                                                  SCHEMA_TRIGGERS_CF);
+
     private static volatile Map<UUID, Pair<ReplayPosition, Long>> truncationRecords;
 
     public enum BootstrapState
