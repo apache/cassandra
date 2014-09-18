@@ -39,7 +39,7 @@ import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.composites.*;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.exceptions.*;
-import org.apache.cassandra.metrics.CqlStatementMetrics;
+import org.apache.cassandra.metrics.CQLMetrics;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.service.pager.QueryPager;
@@ -87,7 +87,7 @@ public class QueryProcessor implements QueryHandler
     private static final ConcurrentMap<String, ParsedStatement.Prepared> internalStatements = new ConcurrentHashMap<>();
 
     @VisibleForTesting
-    public static final CqlStatementMetrics metrics = new CqlStatementMetrics();
+    public static final CQLMetrics metrics = new CQLMetrics();
 
     static
     {
@@ -96,10 +96,8 @@ public class QueryProcessor implements QueryHandler
                              .weigher(cqlMemoryUsageWeigher)
                              .listener(new EvictionListener<MD5Digest, ParsedStatement.Prepared>()
                              {
-                                 @Override
                                  public void onEviction(MD5Digest md5Digest, ParsedStatement.Prepared prepared)
                                  {
-                                     metrics.activePreparedStatements.dec();
                                  }
                              }).build();
 
@@ -108,17 +106,20 @@ public class QueryProcessor implements QueryHandler
                                    .weigher(thriftMemoryUsageWeigher)
                                    .listener(new EvictionListener<Integer, CQLStatement>()
                                    {
-                                       @Override
                                        public void onEviction(Integer integer, CQLStatement cqlStatement)
                                        {
-                                           metrics.activePreparedStatements.dec();
                                        }
                                    })
                                    .build();
 
     }
 
-    // Work aound initialization dependency
+    public static int preparedStatementsCount()
+    {
+        return preparedStatements.size() + thriftPreparedStatements.size();
+    }
+
+    // Work around initialization dependency
     private static enum InternalStateInstance
     {
         INSTANCE;
@@ -227,7 +228,7 @@ public class QueryProcessor implements QueryHandler
             throw new InvalidRequestException("Invalid amount of bind variables");
 
         if (!queryState.getClientState().isInternal)
-            metrics.executedUnprepared.inc();
+            metrics.regularStatementsExecuted.inc();
 
         return processStatement(prepared, queryState, options);
     }
@@ -396,28 +397,17 @@ public class QueryProcessor implements QueryHandler
             throw new InvalidRequestException(String.format("Prepared statement of size %d bytes is larger than allowed maximum of %d bytes.",
                                                             statementSize,
                                                             MAX_CACHE_PREPARED_MEMORY));
-        try
+        if (forThrift)
         {
-            if (forThrift)
-            {
-                int statementId = toHash.hashCode();
-                thriftPreparedStatements.put(statementId, prepared.statement);
-                logger.trace("Stored prepared statement #{} with {} bind markers",
-                        statementId,
-                        prepared.statement.getBoundTerms());
-                return ResultMessage.Prepared.forThrift(statementId, prepared.boundNames);
-            } else
-            {
-                MD5Digest statementId = MD5Digest.compute(toHash);
-                preparedStatements.put(statementId, prepared);
-                logger.trace("Stored prepared statement #{} with {} bind markers",
-                        statementId,
-                        prepared.statement.getBoundTerms());
-                return new ResultMessage.Prepared(statementId, prepared);
-            }
-        } finally
+            int statementId = toHash.hashCode();
+            thriftPreparedStatements.put(statementId, prepared.statement);
+            return ResultMessage.Prepared.forThrift(statementId, prepared.boundNames);
+        }
+        else
         {
-            metrics.activePreparedStatements.inc();
+            MD5Digest statementId = MD5Digest.compute(toHash);
+            preparedStatements.put(statementId, prepared);
+            return new ResultMessage.Prepared(statementId, prepared);
         }
     }
 
@@ -440,7 +430,7 @@ public class QueryProcessor implements QueryHandler
                     logger.trace("[{}] '{}'", i+1, variables.get(i));
         }
 
-        metrics.executedPrepared.inc();
+        metrics.preparedStatementsExecuted.inc();
         return processStatement(statement, queryState, options);
     }
 
