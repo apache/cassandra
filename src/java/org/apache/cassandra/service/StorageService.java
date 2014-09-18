@@ -212,10 +212,11 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             logger.debug("Setting tokens to {}", tokens);
         SystemKeyspace.updateTokens(tokens);
         tokenMetadata.updateNormalTokens(tokens, FBUtilities.getBroadcastAddress());
-        // order is important here, the gossiper can fire in between adding these two states.  It's ok to send TOKENS without STATUS, but *not* vice versa.
         Collection<Token> localTokens = getLocalTokens();
-        Gossiper.instance.addLocalApplicationState(ApplicationState.TOKENS, valueFactory.tokens(localTokens));
-        Gossiper.instance.addLocalApplicationState(ApplicationState.STATUS, valueFactory.normal(localTokens));
+        List<Pair<ApplicationState, VersionedValue>> states = new ArrayList<Pair<ApplicationState, VersionedValue>>();
+        states.add(Pair.create(ApplicationState.TOKENS, valueFactory.tokens(localTokens)));
+        states.add(Pair.create(ApplicationState.STATUS, valueFactory.normal(localTokens)));
+        Gossiper.instance.addLocalApplicationStates(states);
         setMode(Mode.NORMAL, false);
     }
 
@@ -633,8 +634,10 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             {
                 tokenMetadata.updateNormalTokens(tokens, FBUtilities.getBroadcastAddress());
                 // order is important here, the gossiper can fire in between adding these two states.  It's ok to send TOKENS without STATUS, but *not* vice versa.
-                Gossiper.instance.addLocalApplicationState(ApplicationState.TOKENS, valueFactory.tokens(tokens));
-                Gossiper.instance.addLocalApplicationState(ApplicationState.STATUS, valueFactory.hibernate(true));
+                List<Pair<ApplicationState, VersionedValue>> states = new ArrayList<Pair<ApplicationState, VersionedValue>>();
+                states.add(Pair.create(ApplicationState.TOKENS, valueFactory.tokens(tokens)));
+                states.add(Pair.create(ApplicationState.STATUS, valueFactory.hibernate(true)));
+                Gossiper.instance.addLocalApplicationStates(states);
             }
             logger.info("Not joining ring as requested. Use JMX (StorageService->joinRing()) to initiate ring joining");
         }
@@ -662,8 +665,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                 if (!DatabaseDescriptor.isAutoBootstrap())
                     throw new RuntimeException("Trying to replace_address with auto_bootstrap disabled will not work, check your configuration");
                 bootstrapTokens = prepareReplacementInfo();
-                appStates.put(ApplicationState.STATUS, valueFactory.hibernate(true));
                 appStates.put(ApplicationState.TOKENS, valueFactory.tokens(bootstrapTokens));
+                appStates.put(ApplicationState.STATUS, valueFactory.hibernate(true));
             }
             else if (shouldBootstrap())
             {
@@ -998,10 +1001,10 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         if (!DatabaseDescriptor.isReplacing())
         {
             // if not an existing token then bootstrap
-            // order is important here, the gossiper can fire in between adding these two states.  It's ok to send TOKENS without STATUS, but *not* vice versa.
-            Gossiper.instance.addLocalApplicationState(ApplicationState.TOKENS, valueFactory.tokens(tokens));
-            Gossiper.instance.addLocalApplicationState(ApplicationState.STATUS,
-                                                       valueFactory.bootstrapping(tokens));
+            List<Pair<ApplicationState, VersionedValue>> states = new ArrayList<Pair<ApplicationState, VersionedValue>>();
+            states.add(Pair.create(ApplicationState.TOKENS, valueFactory.tokens(tokens)));
+            states.add(Pair.create(ApplicationState.STATUS, valueFactory.bootstrapping(tokens)));
+            Gossiper.instance.addLocalApplicationStates(states);
             setMode(Mode.JOINING, "sleeping " + RING_DELAY + " ms for pending range setup", true);
             Uninterruptibles.sleepUninterruptibly(RING_DELAY, TimeUnit.MILLISECONDS);
         }
