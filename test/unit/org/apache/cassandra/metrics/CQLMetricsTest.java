@@ -119,6 +119,7 @@ public class CQLMetricsTest extends SchemaLoader
     {
         QueryProcessor.metrics.preparedStatementsExecuted.clear();
         QueryProcessor.metrics.regularStatementsExecuted.clear();
+        QueryProcessor.metrics.preparedStatementsEvicted.clear();
     }
 }
 

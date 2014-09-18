@@ -29,6 +29,7 @@ public class CQLMetrics
 
     public final Counter regularStatementsExecuted;
     public final Counter preparedStatementsExecuted;
+    public final Counter preparedStatementsEvicted;
 
     public final Gauge<Integer> preparedStatementsCount;
     public final Gauge<Double> preparedStatementsRatio;
@@ -37,6 +38,8 @@ public class CQLMetrics
     {
         regularStatementsExecuted = Metrics.newCounter(factory.createMetricName("RegularStatementsExecuted"));
         preparedStatementsExecuted = Metrics.newCounter(factory.createMetricName("PreparedStatementsExecuted"));
+        preparedStatementsEvicted = Metrics.newCounter(factory.createMetricName("PreparedStatementsEvicted"));
+
         preparedStatementsCount = Metrics.newGauge(factory.createMetricName("PreparedStatementsCount"), new Gauge<Integer>()
         {
             public Integer value()

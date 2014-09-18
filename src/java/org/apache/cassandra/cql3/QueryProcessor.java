@@ -98,6 +98,7 @@ public class QueryProcessor implements QueryHandler
                              {
                                  public void onEviction(MD5Digest md5Digest, ParsedStatement.Prepared prepared)
                                  {
+                                     metrics.preparedStatementsEvicted.inc();
                                  }
                              }).build();
 
@@ -108,6 +109,7 @@ public class QueryProcessor implements QueryHandler
                                    {
                                        public void onEviction(Integer integer, CQLStatement cqlStatement)
                                        {
+                                           metrics.preparedStatementsEvicted.inc();
                                        }
                                    })
                                    .build();
