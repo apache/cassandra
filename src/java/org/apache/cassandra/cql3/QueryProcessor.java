@@ -19,9 +19,7 @@ package org.apache.cassandra.cql3;
 
 import java.nio.ByteBuffer;
 import java.util.*;
-import java.util.concurrent.ConcurrentMap;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -89,7 +87,8 @@ public class QueryProcessor implements QueryHandler
     @VisibleForTesting
     public static final CQLMetrics metrics = new CQLMetrics();
 
-    private static AtomicInteger lastMinuteEvictionsCount = new AtomicInteger(0);
+    private static final AtomicInteger lastMinuteEvictionsCount = new AtomicInteger(0);
+    private static final ScheduledExecutorService evictionCheckTimer = Executors.newScheduledThreadPool(1);
 
     static
     {
@@ -118,6 +117,17 @@ public class QueryProcessor implements QueryHandler
                                    })
                                    .build();
 
+        evictionCheckTimer.scheduleAtFixedRate(new Runnable()
+        {
+            public void run()
+            {
+                long count = lastMinuteEvictionsCount.getAndSet(0);
+                if (count > 0)
+                    logger.info("{} prepared statements discarded in the last minute because cache limit reached ({} bytes)",
+                                count,
+                                MAX_CACHE_PREPARED_MEMORY);
+            }
+        }, 1, 1, TimeUnit.MINUTES);
     }
 
     public static int preparedStatementsCount()
@@ -155,18 +165,6 @@ public class QueryProcessor implements QueryHandler
     private QueryProcessor()
     {
         MigrationManager.instance.register(new MigrationSubscriber());
-
-        StorageService.scheduledTasks.scheduleAtFixedRate(new Runnable()
-        {
-            public void run()
-            {
-                long count = lastMinuteEvictionsCount.getAndSet(0);
-                if (count > 0)
-                    logger.info("{} prepared statements discarded in the last minute because cache limit reached ({} bytes)",
-                                count,
-                                MAX_CACHE_PREPARED_MEMORY);
-            }
-        }, 1, 1, TimeUnit.MINUTES);
     }
 
     public ParsedStatement.Prepared getPrepared(MD5Digest id)
