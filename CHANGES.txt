@@ -1,4 +1,6 @@
 2.0.11:
+ * token() should only accept columns in the partitioning
+   key order (CASSANDRA-6075)
  * Add method to invalidate permission cache via JMX (CASSANDRA-7977)
  * Allow propagating multiple gossip states atomically (CASSANDRA-6125)
  * Log exceptions related to unclean native protocol client disconnects
