@@ -70,7 +70,8 @@
  * Include snippet of CQL query near syntax error in messages (CASSANDRA-7111)
  * Make repair -pr work with -local (CASSANDRA-7450)
 Merged from 2.0:
-2.0.11:
+ * token() should only accept columns in the partitioning
+   key order (CASSANDRA-6075)
  * Add method to invalidate permission cache via JMX (CASSANDRA-7977)
  * Allow propagating multiple gossip states atomically (CASSANDRA-6125)
  * Log exceptions related to unclean native protocol client disconnects

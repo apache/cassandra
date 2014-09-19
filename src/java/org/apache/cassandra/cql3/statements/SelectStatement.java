@@ -20,6 +20,7 @@ package org.apache.cassandra.cql3.statements;
 import java.nio.ByteBuffer;
 import java.util.*;
 
+import com.google.common.base.Joiner;
 import com.google.common.base.Objects;
 import com.google.common.base.Predicate;
 import com.google.common.collect.AbstractIterator;
@@ -1787,6 +1788,27 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
                     throw new InvalidRequestException("Only EQ and IN relation are supported on the partition key (unless you use the token() function)");
                 }
                 previous = cdef;
+            }
+
+            if (stmt.onToken && cfm.partitionKeyColumns().size() > 0)
+                checkTokenFunctionArgumentsOrder(cfm);
+        }
+
+        /**
+         * Checks that the column identifiers used as argument for the token function have been specified in the
+         * partition key order.
+         * @param cfm the Column Family MetaData
+         * @throws InvalidRequestException if the arguments have not been provided in the proper order.
+         */
+        private void checkTokenFunctionArgumentsOrder(CFMetaData cfm) throws InvalidRequestException
+        {
+            Iterator<ColumnDefinition> iter = cfm.partitionKeyColumns().iterator();
+            for (Relation relation : whereClause)
+            {
+                SingleColumnRelation singleColumnRelation = (SingleColumnRelation) relation;
+                if (singleColumnRelation.onToken && !cfm.getColumnDefinition(singleColumnRelation.getEntity()).equals(iter.next()))
+                    throw new InvalidRequestException(String.format("The token function arguments must be in the partition key order: %s",
+                                                                    Joiner.on(',').join(cfm.partitionKeyColumns())));
             }
         }
 
