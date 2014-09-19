@@ -607,7 +607,10 @@ syntax_rules += r'''
                  | "*"
                  | "COUNT" "(" star=( "*" | "1" ) ")" ("AS" <cident>)?
                  ;
+<udtSubfieldSelection> ::= <identifier> "." <identifier>
+                         ;
 <selector> ::= [colname]=<cident>
+             | <udtSubfieldSelection>
              | "WRITETIME" "(" [colname]=<cident> ")"
              | "TTL" "(" [colname]=<cident> ")"
              | <functionName> <selectionFunctionArguments>
