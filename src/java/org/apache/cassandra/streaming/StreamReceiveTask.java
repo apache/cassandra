@@ -103,6 +103,14 @@ public class StreamReceiveTask extends StreamTask
         public void run()
         {
             Pair<String, String> kscf = Schema.instance.getCF(task.cfId);
+            if (kscf == null)
+            {
+                // schema was dropped during streaming
+                for (SSTableWriter writer : task.sstables)
+                    writer.abort();
+                task.sstables.clear();
+                return;
+            }
             ColumnFamilyStore cfs = Keyspace.open(kscf.left).getColumnFamilyStore(kscf.right);
 
             StreamLockfile lockfile = new StreamLockfile(cfs.directories.getWriteableLocationAsFile(), UUID.randomUUID());
