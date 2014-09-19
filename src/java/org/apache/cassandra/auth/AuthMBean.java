@@ -22,4 +22,6 @@ public interface AuthMBean
     public int getPermissionsValidity();
 
     public void setPermissionsValidity(int timeoutInMs);
+
+    public void invalidatePermissionsCache();
 }
