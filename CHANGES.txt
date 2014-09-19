@@ -1,4 +1,5 @@
 2.1.1
+ * Fix resource leak in event of corrupt sstable
  * (cqlsh) Add command line option for cqlshrc file path (CASSANDRA-7131)
  * Provide visibility into prepared statements churn (CASSANDRA-7921, CASSANDRA-7930)
  * Invalidate prepared statements when their keyspace or table is

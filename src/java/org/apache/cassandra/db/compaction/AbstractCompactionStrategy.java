@@ -19,6 +19,7 @@ package org.apache.cassandra.db.compaction;
 
 import java.util.*;
 
+import com.google.common.base.Throwables;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.base.Predicate;
 import com.google.common.collect.ImmutableMap;
@@ -264,16 +265,61 @@ public abstract class AbstractCompactionStrategy
      * allow for a more memory efficient solution if we know the sstable don't overlap (see
      * LeveledCompactionStrategy for instance).
      */
-    public List<ICompactionScanner> getScanners(Collection<SSTableReader> sstables, Range<Token> range)
+    public ScannerList getScanners(Collection<SSTableReader> sstables, Range<Token> range)
     {
         RateLimiter limiter = CompactionManager.instance.getRateLimiter();
         ArrayList<ICompactionScanner> scanners = new ArrayList<ICompactionScanner>();
-        for (SSTableReader sstable : sstables)
-            scanners.add(sstable.getScanner(range, limiter));
-        return scanners;
+        try
+        {
+            for (SSTableReader sstable : sstables)
+                scanners.add(sstable.getScanner(range, limiter));
+        }
+        catch (Throwable t)
+        {
+            try
+            {
+                new ScannerList(scanners).close();
+            }
+            catch (Throwable t2)
+            {
+                t.addSuppressed(t2);
+            }
+            throw t;
+        }
+        return new ScannerList(scanners);
     }
 
-    public List<ICompactionScanner> getScanners(Collection<SSTableReader> toCompact)
+    public static class ScannerList implements AutoCloseable
+    {
+        public final List<ICompactionScanner> scanners;
+        public ScannerList(List<ICompactionScanner> scanners)
+        {
+            this.scanners = scanners;
+        }
+
+        public void close()
+        {
+            Throwable t = null;
+            for (ICompactionScanner scanner : scanners)
+            {
+                try
+                {
+                    scanner.close();
+                }
+                catch (Throwable t2)
+                {
+                    if (t == null)
+                        t = t2;
+                    else
+                        t.addSuppressed(t2);
+                }
+            }
+            if (t != null)
+                throw Throwables.propagate(t);
+        }
+    }
+
+    public ScannerList getScanners(Collection<SSTableReader> toCompact)
     {
         return getScanners(toCompact, null);
     }
