@@ -86,7 +86,7 @@ public abstract class AbstractWriteResponseHandler implements IAsyncCallback
             int blockedFor = totalBlockFor();
             // It's pretty unlikely, but we can race between exiting await above and here, so
             // that we could now have enough acks. In that case, we "lie" on the acks count to
-            // avoid sending confusing info to the user (see CASSANDRA-).
+            // avoid sending confusing info to the user (see CASSANDRA-6491).
             if (acks >= blockedFor)
                 acks = blockedFor - 1;
             throw new WriteTimeoutException(writeType, consistencyLevel, acks, blockedFor);
