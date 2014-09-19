@@ -85,6 +85,11 @@ public class Auth implements AuthMBean
         permissionsCache = initPermissionsCache(permissionsCache);
     }
 
+    public void invalidatePermissionsCache()
+    {
+        permissionsCache = initPermissionsCache(null);
+    }
+
     private static LoadingCache<Pair<AuthenticatedUser, IResource>, Set<Permission>> initPermissionsCache(LoadingCache<Pair<AuthenticatedUser, IResource>, Set<Permission>> oldCache)
     {
         if (DatabaseDescriptor.getAuthorizer() instanceof AllowAllAuthorizer)
