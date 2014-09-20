@@ -1,4 +1,5 @@
 2.1.1
+ * (cqlsh) Tab completeion for indexes on map keys (CASSANDRA-7972)
  * (cqlsh) Fix UDT field selection in select clause (CASSANDRA-7891)
  * Fix resource leak in event of corrupt sstable
  * (cqlsh) Add command line option for cqlshrc file path (CASSANDRA-7131)
