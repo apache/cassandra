@@ -133,6 +133,10 @@ public class FunctionCall extends Term.NonTerminal
                                                                 fun.name(), fun.returnType().asCQL3Type(),
                                                                 receiver.name, receiver.type.asCQL3Type()));
 
+            if (fun.argTypes().size() != terms.size())
+                throw new InvalidRequestException(String.format("Incorrect number of arguments specified for function %s (expected %d, found %d)",
+                                                                fun.name(), fun.argTypes().size(), terms.size()));
+
             List<Term> parameters = new ArrayList<Term>(terms.size());
             boolean allTerminal = true;
             for (int i = 0; i < terms.size(); i++)
