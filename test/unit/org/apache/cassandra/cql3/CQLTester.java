@@ -54,7 +54,7 @@ public abstract class CQLTester
 {
     protected static final Logger logger = LoggerFactory.getLogger(CQLTester.class);
 
-    private static final String KEYSPACE = "cql_test_keyspace";
+    public static final String KEYSPACE = "cql_test_keyspace";
     private static final boolean USE_PREPARED_VALUES = Boolean.valueOf(System.getProperty("cassandra.test.use_prepared", "true"));
     private static final AtomicInteger seqNumber = new AtomicInteger();
 
