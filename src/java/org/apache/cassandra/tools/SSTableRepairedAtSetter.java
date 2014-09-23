@@ -17,25 +17,16 @@
  */
 package org.apache.cassandra.tools;
 
-import java.io.File;
-import java.io.IOException;
-import java.io.PrintStream;
+import java.io.*;
+import java.nio.charset.Charset;
 import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.nio.file.attribute.FileTime;
-import java.util.EnumSet;
-import java.util.Map;
-import java.util.Set;
+import java.util.Arrays;
+import java.util.List;
 
-import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
-import org.apache.cassandra.io.sstable.metadata.CompactionMetadata;
-import org.apache.cassandra.io.sstable.metadata.MetadataComponent;
-import org.apache.cassandra.io.sstable.metadata.MetadataType;
-import org.apache.cassandra.io.sstable.metadata.StatsMetadata;
-import org.apache.cassandra.io.sstable.metadata.ValidationMetadata;
 import org.apache.cassandra.service.ActiveRepairService;
 
 /**
@@ -45,7 +36,7 @@ import org.apache.cassandra.service.ActiveRepairService;
  *
  * If you know you ran repair 2 weeks ago, you can do something like
  *
- * for x in $(find /var/lib/cassandra/data/.../ -iname "*Data.db*" -mtime +14); do sstablerepairset --is-repaired $x; done
+ * sstablerepairset --is-repaired -f <(find /var/lib/cassandra/data/.../ -iname "*Data.db*" -mtime +14)
  *
  */
 public class SSTableRepairedAtSetter
@@ -53,47 +44,55 @@ public class SSTableRepairedAtSetter
     /**
      * @param args a list of sstables whose metadata we are changing
      */
-    public static void main(String[] args) throws IOException
+    public static void main(final String[] args) throws IOException
     {
         PrintStream out = System.out;
         if (args.length == 0)
         {
             out.println("This command should be run with Cassandra stopped!");
-            out.println("Usage: sstablerepairedset [--is-repaired | --is-unrepaired] <sstable>");
+            out.println("Usage: sstablerepairedset [--is-repaired | --is-unrepaired] [-f <sstable-list> | <sstables>]");
             System.exit(1);
         }
 
-        for (String s : args)
-            System.out.println(s);
-
-        if (args.length != 3 || !args[0].equals("--really-set") || (!args[1].equals("--is-repaired") && !args[1].equals("--is-unrepaired")))
+        if (args.length < 3 || !args[0].equals("--really-set") || (!args[1].equals("--is-repaired") && !args[1].equals("--is-unrepaired")))
         {
             out.println("This command should be run with Cassandra stopped, otherwise you will get very strange behavior");
             out.println("Verify that Cassandra is not running and then execute the command like this:");
-            out.println("Usage: sstablelevelreset --really-set [--is-repaired | --is-unrepaired] <sstable>");
+            out.println("Usage: sstablelevelreset --really-set [--is-repaired | --is-unrepaired] [-f <sstable-list> | <sstables>]");
             System.exit(1);
         }
 
         boolean setIsRepaired = args[1].equals("--is-repaired");
 
-        String fname = args[2];
-        Descriptor descriptor = Descriptor.fromFilename(fname);
-        if (descriptor.version.hasRepairedAt)
+        List<String> fileNames;
+        if (args[2].equals("-f"))
         {
-            if (setIsRepaired)
-            {
-                FileTime f = Files.getLastModifiedTime(new File(descriptor.filenameFor(Component.DATA)).toPath());
-                descriptor.getMetadataSerializer().mutateRepairedAt(descriptor, f.toMillis());
-            }
-            else
-            {
-                descriptor.getMetadataSerializer().mutateRepairedAt(descriptor, ActiveRepairService.UNREPAIRED_SSTABLE);
-            }
+            fileNames = Files.readAllLines(Paths.get(args[3]), Charset.defaultCharset());
         }
         else
         {
-            out.println("SSTable "+fname+" does not have repaired property, run upgradesstables");
+            fileNames = Arrays.asList(args).subList(2, args.length);
         }
 
+        for (String fname: fileNames)
+        {
+            Descriptor descriptor = Descriptor.fromFilename(fname);
+            if (descriptor.version.hasRepairedAt)
+            {
+                if (setIsRepaired)
+                {
+                    FileTime f = Files.getLastModifiedTime(new File(descriptor.filenameFor(Component.DATA)).toPath());
+                    descriptor.getMetadataSerializer().mutateRepairedAt(descriptor, f.toMillis());
+                }
+                else
+                {
+                    descriptor.getMetadataSerializer().mutateRepairedAt(descriptor, ActiveRepairService.UNREPAIRED_SSTABLE);
+                }
+            }
+            else
+            {
+                System.err.println("SSTable " + fname + " does not have repaired property, run upgradesstables");
+            }
+        }
     }
 }
