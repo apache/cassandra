@@ -624,7 +624,11 @@ public class SSTableReader extends SSTable implements Closeable
         if (!compression)
             throw new IllegalStateException(this + " is not compressed");
 
-        return ((ICompressedFile) dfile).getMetadata();
+        CompressionMetadata cmd = ((ICompressedFile) dfile).getMetadata();
+
+        cmd.parameters.setLiveMetadata(Schema.instance.getCFMetaData(descriptor));
+
+        return cmd;
     }
 
     /**
