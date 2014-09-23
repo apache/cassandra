@@ -1126,7 +1126,11 @@ public class SSTableReader extends SSTable
         if (!compression)
             throw new IllegalStateException(this + " is not compressed");
 
-        return ((ICompressedFile) dfile).getMetadata();
+        CompressionMetadata cmd = ((ICompressedFile) dfile).getMetadata();
+
+        cmd.parameters.setLiveMetadata(Schema.instance.getCFMetaData(descriptor));
+
+        return cmd;
     }
 
     /**
