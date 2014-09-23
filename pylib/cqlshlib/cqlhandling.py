@@ -302,7 +302,7 @@ class CqlParsingRuleSet(pylexotron.ParsingRuleSet):
         if tok[0] == 'unclosedName':
             # strip one quote
             return tok[1][1:].replace('""', '"')
-        if tok[0] == 'stringLiteral':
+        if tok[0] == 'quotedStringLiteral':
             # strip quotes
             return tok[1][1:-1].replace("''", "'")
         if tok[0] == 'unclosedString':

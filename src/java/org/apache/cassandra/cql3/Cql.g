@@ -517,7 +517,6 @@ createFunctionStatement returns [CreateFunctionStatement expr]
               ( body = STRING_LITERAL
                 { bodyOrClassName = $body.text; }
               )
-              /* TODO placeholder for pg-style function body */
             )
           )
       )
@@ -1420,9 +1419,26 @@ fragment Y: ('y'|'Y');
 fragment Z: ('z'|'Z');
 
 STRING_LITERAL
-    @init{ StringBuilder b = new StringBuilder(); }
-    @after{ setText(b.toString()); }
-    : '\'' (c=~('\'') { b.appendCodePoint(c);} | '\'' '\'' { b.appendCodePoint('\''); })* '\''
+    @init{
+        StringBuilder txt = new StringBuilder(); // temporary to build pg-style-string
+    }
+    @after{ setText(txt.toString()); }
+    :
+      /* pg-style string literal */
+      (
+        '\$' '\$'
+        ( /* collect all input until '$$' is reached again */
+          {  (input.size() - input.index() > 1)
+               && !"$$".equals(input.substring(input.index(), input.index() + 1)) }?
+             => c=. { txt.appendCodePoint(c); }
+        )*
+        '\$' '\$'
+      )
+      |
+      /* conventional quoted string literal */
+      (
+        '\'' (c=~('\'') { txt.appendCodePoint(c);} | '\'' '\'' { txt.appendCodePoint('\''); })* '\''
+      )
     ;
 
 QUOTED_NAME

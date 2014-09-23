@@ -410,4 +410,24 @@ public class UFTest extends CQLTester
         // function throws a RuntimeException which is wrapped by InvalidRequestException
         assertInvalid("SELECT key, val, foo::jrtef(val) FROM %s");
     }
+
+    @Test
+    public void testJavaDollarQuotedFunction() throws Throwable
+    {
+        String functionBody = "\n" +
+                              "  // parameter val is of type java.lang.Double\n" +
+                              "  /* return type is of type java.lang.Double */\n" +
+                              "  if (input == null) {\n" +
+                              "    return null;\n" +
+                              "  }\n" +
+                              "  double v = Math.sin( input.doubleValue() );\n" +
+                              "  return \"'\"+Double.valueOf(v)+'\\\'';\n";
+
+        execute("create function foo::pgfun1 ( input double ) returns text language java\n" +
+                "AS $$" + functionBody + "$$;");
+        execute("CREATE FUNCTION foo::pgsin ( input double ) RETURNS double USING $$org.apache.cassandra.cql3.UFTest#sin$$");
+
+        assertRows(execute("SELECT language, body FROM system.schema_functions WHERE namespace='foo' AND name='pgfun1'"),
+                   row("java", functionBody));
+    }
 }

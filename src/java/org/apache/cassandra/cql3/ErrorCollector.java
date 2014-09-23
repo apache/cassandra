@@ -146,7 +146,9 @@ public final class ErrorCollector implements ErrorListener
         if (!includeQueryStart)
             builder.append("...");
 
-        lines[lineIndex(to)] = lines[lineIndex(to)].substring(0, getLastCharPositionInLine(to));
+        String toLine = lines[lineIndex(to)];
+        int toEnd = getLastCharPositionInLine(to);
+        lines[lineIndex(to)] = toEnd >= toLine.length() ? toLine : toLine.substring(0, toEnd);
         lines[lineIndex(offending)] = highlightToken(lines[lineIndex(offending)], offending);
         lines[lineIndex(from)] = lines[lineIndex(from)].substring(from.getCharPositionInLine());
 
@@ -162,7 +164,7 @@ public final class ErrorCollector implements ErrorListener
     /**
      * Checks if the specified tokens are valid.
      *
-     * @param token the tokens to check
+     * @param tokens the tokens to check
      * @return <code>true</code> if all the specified tokens are valid ones,
      * <code>false</code> otherwise.
      */

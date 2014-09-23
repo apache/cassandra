@@ -149,7 +149,10 @@ syntax_rules = r'''
 
 JUNK ::= /([ \t\r\f\v]+|(--|[/][/])[^\n\r]*([\n\r]|$)|[/][*].*?[*][/])/ ;
 
-<stringLiteral> ::= /'([^']|'')*'/ ;
+<stringLiteral> ::= <quotedStringLiteral>
+                  | <pgStringLiteral> ;
+<quotedStringLiteral> ::= /'([^']|'')*'/ ;
+<pgStringLiteral> ::= /\$\$.*\$\$/;
 <quotedName> ::=    /"([^"]|"")*"/ ;
 <float> ::=         /-?[0-9]+\.[0-9]+/ ;
 <uuid> ::=          /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/ ;
