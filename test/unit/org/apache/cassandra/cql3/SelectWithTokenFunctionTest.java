@@ -28,8 +28,12 @@ public class SelectWithTokenFunctionTest extends CQLTester
         execute("INSERT INTO %s (a, b) VALUES (0, 'a')");
 
         assertRows(execute("SELECT * FROM %s WHERE token(a) >= token(?)", 0), row(0, "a"));
+        assertRows(execute("SELECT * FROM %s WHERE token(a) >= token(?) and token(a) < token(?)", 0, 1), row(0, "a"));
         assertInvalid("SELECT * FROM %s WHERE token(a) > token(?)", "a");
         assertInvalid("SELECT * FROM %s WHERE token(a, b) >= token(?, ?)", "b", 0);
+        assertInvalid("SELECT * FROM %s WHERE token(a) >= token(?) and token(a) >= token(?)", 0, 1);
+        assertInvalid("SELECT * FROM %s WHERE token(a) >= token(?) and token(a) = token(?)", 0, 1);
+        assertInvalidSyntax("SELECT * FROM %s WHERE token(a) = token(?) and token(a) IN (token(?))", 0, 1);
     }
 
     @Test
@@ -50,6 +54,13 @@ public class SelectWithTokenFunctionTest extends CQLTester
         assertRows(execute("SELECT * FROM %s WHERE token(a, b) > token(?, ?)", 0, "a"),
                    row(0, "b"),
                    row(0, "c"));
+        assertRows(execute("SELECT * FROM %s WHERE token(a, b) > token(?, ?) and token(a, b) < token(?, ?)",
+                           0, "a",
+                           0, "d"),
+                   row(0, "b"),
+                   row(0, "c"));
+        assertInvalid("SELECT * FROM %s WHERE token(a) > token(?) and token(b) > token(?)", 0, "a");
+        assertInvalid("SELECT * FROM %s WHERE token(a) > token(?, ?) and token(a) < token(?, ?) and token(b) > token(?, ?) ", 0, "a", 0, "d", 0, "a");
         assertInvalid("SELECT * FROM %s WHERE token(b, a) > token(0, 'c')");
     }
 }
