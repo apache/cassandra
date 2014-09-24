@@ -24,6 +24,7 @@ import com.google.common.base.Joiner;
 import com.google.common.base.Objects;
 import com.google.common.base.Predicate;
 import com.google.common.collect.Iterables;
+import com.google.common.collect.Iterators;
 
 import org.github.jamm.MemoryMeter;
 
@@ -1815,7 +1816,7 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
                 previous = cname;
             }
 
-            if (stmt.onToken && cfDef.partitionKeyCount() > 0)
+            if (stmt.onToken)
                 checkTokenFunctionArgumentsOrder(cfDef);
         }
 
@@ -1827,7 +1828,7 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
          */
         private void checkTokenFunctionArgumentsOrder(CFDefinition cfDef) throws InvalidRequestException
         {
-            Iterator<Name> iter = cfDef.partitionKeys().iterator();
+            Iterator<Name> iter = Iterators.cycle(cfDef.partitionKeys());
             for (Relation relation : whereClause)
             {
                 SingleColumnRelation singleColumnRelation = (SingleColumnRelation) relation;

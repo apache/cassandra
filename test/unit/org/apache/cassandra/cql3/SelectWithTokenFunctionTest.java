@@ -20,6 +20,7 @@ package org.apache.cassandra.cql3;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.exceptions.SyntaxException;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.service.ClientState;
 import org.junit.AfterClass;
@@ -90,6 +91,8 @@ public class SelectWithTokenFunctionTest
         {
             UntypedResultSet results = execute("SELECT * FROM %s.single_partition WHERE token(a) >= token(0)");
             assertEquals(1, results.size());
+            results = execute("SELECT * FROM %s.single_partition WHERE token(a) >= token(0) and token(a) < token(1)");
+            assertEquals(1, results.size());
         }
         finally
         {
@@ -101,6 +104,24 @@ public class SelectWithTokenFunctionTest
     public void testTokenFunctionWithWrongLiteralArgument() throws Throwable
     {
         execute("SELECT * FROM %s.single_partition WHERE token(a) > token('a')");
+    }
+
+    @Test(expected = InvalidRequestException.class)
+    public void testTokenFunctionWithTwoGreaterThan() throws Throwable
+    {
+        execute("SELECT * FROM %s.single_clustering WHERE token(a) >= token(0) and token(a) >= token(1)");
+    }
+
+    @Test(expected = InvalidRequestException.class)
+    public void testTokenFunctionWithGreaterThanAndEquals() throws Throwable
+    {
+        execute("SELECT * FROM %s.single_clustering WHERE token(a) >= token(0) and token(a) = token(1)");
+    }
+
+    @Test(expected = SyntaxException.class)
+    public void testTokenFunctionWithGreaterThanAndIn() throws Throwable
+    {
+        execute("SELECT * FROM %s.single_clustering WHERE token(a) >= token(0) and token(a) in (token(1))");
     }
 
     @Test(expected = InvalidRequestException.class)
@@ -126,6 +147,9 @@ public class SelectWithTokenFunctionTest
         {
             UntypedResultSet results = execute("SELECT * FROM %s.compound_partition WHERE token(a, b) > token(0, 'a')");
             assertEquals(2, results.size());
+            results = execute("SELECT * FROM %s.compound_partition WHERE token(a, b) > token(0, 'a') "
+                    + "and token(a, b) < token(0, 'd')");
+            assertEquals(2, results.size());
         }
         finally
         {
@@ -137,5 +161,11 @@ public class SelectWithTokenFunctionTest
     public void testTokenFunctionWithCompoundPartitionKeyAndColumnIdentifierInWrongOrder() throws Throwable
     {
         execute("SELECT * FROM %s.compound_partition WHERE token(b, a) > token(0, 'c')");
+    }
+
+    @Test(expected = InvalidRequestException.class)
+    public void testTokenFunctionOnEachPartitionKeyColumns() throws Throwable
+    {
+        execute("SELECT * FROM %s.compound_partition WHERE token(a) > token(0) and token(b) > token('c')");
     }
 }
