@@ -1824,7 +1824,7 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
                 previous = cdef;
             }
 
-            if (stmt.onToken && cfm.partitionKeyColumns().size() > 0)
+            if (stmt.onToken)
                 checkTokenFunctionArgumentsOrder(cfm);
         }
 
@@ -1836,7 +1836,7 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
          */
         private void checkTokenFunctionArgumentsOrder(CFMetaData cfm) throws InvalidRequestException
         {
-            Iterator<ColumnDefinition> iter = cfm.partitionKeyColumns().iterator();
+            Iterator<ColumnDefinition> iter = Iterators.cycle(cfm.partitionKeyColumns());
             for (Relation relation : whereClause)
             {
                 SingleColumnRelation singleColumnRelation = (SingleColumnRelation) relation;
