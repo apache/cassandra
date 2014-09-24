@@ -77,9 +77,22 @@ public abstract class UDFunction extends AbstractFunction
         switch (language)
         {
             case "class": return new ReflectionBasedUDF(name, argNames, argTypes, returnType, language, body, deterministic);
-            case "java": return new JavaSourceBasedUDF(name, argNames, argTypes, returnType, language, body, deterministic);
+            case "java": return JavaSourceUDFFactory.buildUDF(name, argNames, argTypes, returnType, body, deterministic);
             default: throw new InvalidRequestException(String.format("Invalid language %s for '%s'", language, name));
         }
+    }
+
+    static Class<?>[] javaParamTypes(List<AbstractType<?>> argTypes)
+    {
+        Class<?> paramTypes[] = new Class[argTypes.size()];
+        for (int i = 0; i < paramTypes.length; i++)
+            paramTypes[i] = javaType(argTypes.get(i));
+        return paramTypes;
+    }
+
+    static Class<?> javaType(AbstractType<?> type)
+    {
+        return type.getSerializer().getType();
     }
 
     /**

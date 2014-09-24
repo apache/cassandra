@@ -17,8 +17,10 @@
  */
 package org.apache.cassandra.cql3.functions;
 
-import java.lang.reflect.Method;
-import java.lang.reflect.Modifier;
+import java.lang.invoke.MethodHandle;
+import java.lang.invoke.MethodHandles;
+import java.lang.invoke.MethodType;
+import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.List;
 
@@ -32,8 +34,10 @@ import org.apache.cassandra.exceptions.InvalidRequestException;
  *
  * This is used when the LANGUAGE of the UDF definition is "class".
  */
-final class ReflectionBasedUDF extends AbstractJavaUDF
+final class ReflectionBasedUDF extends UDFunction
 {
+    private final MethodHandle method;
+
     ReflectionBasedUDF(FunctionName name,
                        List<ColumnIdentifier> argNames,
                        List<AbstractType<?>> argTypes,
@@ -44,17 +48,14 @@ final class ReflectionBasedUDF extends AbstractJavaUDF
     throws InvalidRequestException
     {
         super(name, argNames, argTypes, returnType, language, body, deterministic);
+        assert language.equals("class");
+        this.method = resolveMethod();
     }
 
-    String requiredLanguage()
+    private MethodHandle resolveMethod() throws InvalidRequestException
     {
-        return "class";
-    }
-
-    Method resolveMethod() throws InvalidRequestException
-    {
-        Class<?> jReturnType = javaReturnType();
-        Class<?>[] paramTypes = javaParamTypes();
+        Class<?> jReturnType = javaType(returnType);
+        Class<?>[] paramTypes = javaParamTypes(argTypes);
 
         String className;
         String methodName;
@@ -73,18 +74,11 @@ final class ReflectionBasedUDF extends AbstractJavaUDF
         {
             Class<?> cls = Class.forName(className, false, Thread.currentThread().getContextClassLoader());
 
-            Method method = cls.getMethod(methodName, paramTypes);
+            MethodHandles.Lookup handles = MethodHandles.lookup();
+            MethodType methodType = MethodType.methodType(jReturnType, paramTypes);
+            MethodHandle handle = handles.findStatic(cls, methodName, methodType);
 
-            if (!Modifier.isStatic(method.getModifiers()))
-                throw new InvalidRequestException("Method " + className + '.' + methodName + '(' + Arrays.toString(paramTypes) + ") is not static");
-
-            if (!jReturnType.isAssignableFrom(method.getReturnType()))
-            {
-                throw new InvalidRequestException("Method " + className + '.' + methodName + '(' + Arrays.toString(paramTypes) + ") " +
-                                                  "has incompatible return type " + method.getReturnType() + " (not assignable to " + jReturnType + ')');
-            }
-
-            return method;
+            return handle;
         }
         catch (ClassNotFoundException e)
         {
@@ -92,7 +86,42 @@ final class ReflectionBasedUDF extends AbstractJavaUDF
         }
         catch (NoSuchMethodException e)
         {
-            throw new InvalidRequestException("Method " + className + '.' + methodName + '(' + Arrays.toString(paramTypes) + ") does not exist");
+            throw new InvalidRequestException("Method 'public static " + jReturnType.getName() + ' ' +
+                                              className + '.' + methodName + '(' + Arrays.toString(paramTypes) +
+                                              ")' does not exist - check for static, argument types and return type");
+        }
+        catch (IllegalAccessException e)
+        {
+            throw new InvalidRequestException("Method " + className + '.' + methodName + '(' + Arrays.toString(paramTypes) + ") is not accessible");
+        }
+    }
+
+    public ByteBuffer execute(List<ByteBuffer> parameters) throws InvalidRequestException
+    {
+        Object[] parms = new Object[argTypes.size()];
+        for (int i = 0; i < parms.length; i++)
+        {
+            ByteBuffer bb = parameters.get(i);
+            if (bb != null)
+                parms[i] = argTypes.get(i).compose(bb);
+        }
+
+        Object result;
+        try
+        {
+            result = method.invokeWithArguments(parms);
+            @SuppressWarnings("unchecked") ByteBuffer r = result != null ? ((AbstractType) returnType).decompose(result) : null;
+            return r;
+        }
+        catch (VirtualMachineError e)
+        {
+            // handle OutOfMemoryError and other fatals not here!
+            throw e;
+        }
+        catch (Throwable e)
+        {
+            logger.error("Invocation of function '{}' failed", this, e);
+            throw new InvalidRequestException("Invocation of function '" + this + "' failed: " + e);
         }
     }
 }

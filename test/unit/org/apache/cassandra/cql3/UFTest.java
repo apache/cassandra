@@ -146,6 +146,9 @@ public class UFTest extends CQLTester
         // can't drop native functions
         assertInvalid("DROP FUNCTION dateof");
         assertInvalid("DROP FUNCTION uuid");
+
+        // sin() no longer exists
+        assertInvalid("SELECT key, sin(d) FROM %s");
     }
 
     @Test
@@ -213,6 +216,11 @@ public class UFTest extends CQLTester
     @Test
     public void testCreateOrReplaceJavaFunction() throws Throwable
     {
+        createTable("CREATE TABLE %s (key int primary key, val double)");
+        execute("INSERT INTO %s (key, val) VALUES (?, ?)", 1, 1d);
+        execute("INSERT INTO %s (key, val) VALUES (?, ?)", 2, 2d);
+        execute("INSERT INTO %s (key, val) VALUES (?, ?)", 3, 3d);
+
         execute("create function foo::corjf ( input double ) returns double language java\n" +
                 "AS '\n" +
                 "  // parameter val is of type java.lang.Double\n" +
@@ -223,16 +231,25 @@ public class UFTest extends CQLTester
                 "  double v = Math.sin( input.doubleValue() );\n" +
                 "  return Double.valueOf(v);\n" +
                 "';");
+
+        // just check created function
+        assertRows(execute("SELECT key, val, foo::corjf(val) FROM %s"),
+                   row(1, 1d, Math.sin(1d)),
+                   row(2, 2d, Math.sin(2d)),
+                   row(3, 3d, Math.sin(3d))
+        );
+
         execute("create or replace function foo::corjf ( input double ) returns double language java\n" +
                 "AS '\n" +
-                "  // parameter val is of type java.lang.Double\n" +
-                "  /* return type is of type java.lang.Double */\n" +
-                "  if (input == null) {\n" +
-                "    return null;\n" +
-                "  }\n" +
-                "  double v = Math.sin( input.doubleValue() );\n" +
-                "  return Double.valueOf(v);\n" +
+                "  return input;\n" +
                 "';");
+
+        // check if replaced function returns correct result
+        assertRows(execute("SELECT key, val, foo::corjf(val) FROM %s"),
+                   row(1, 1d, 1d),
+                   row(2, 2d, 2d),
+                   row(3, 3d, 3d)
+        );
     }
 
     @Test
