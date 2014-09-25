@@ -18,32 +18,20 @@
 package org.apache.cassandra.pig;
 
 import java.io.IOException;
-import java.nio.charset.CharacterCodingException;
 import java.util.Iterator;
 
 import org.junit.Assert;
 import org.junit.BeforeClass;
-import org.junit.Ignore;
 import org.junit.Test;
 
-import org.apache.cassandra.db.marshal.TimeUUIDType;
-import org.apache.cassandra.db.marshal.UUIDType;
 import org.apache.cassandra.exceptions.ConfigurationException;
-import org.apache.cassandra.thrift.AuthenticationException;
-import org.apache.cassandra.thrift.AuthorizationException;
-import org.apache.cassandra.thrift.InvalidRequestException;
-import org.apache.cassandra.thrift.NotFoundException;
-import org.apache.cassandra.thrift.TimedOutException;
-import org.apache.cassandra.thrift.UnavailableException;
-import org.apache.cassandra.utils.Hex;
-import org.apache.pig.data.DataByteArray;
 import org.apache.pig.data.Tuple;
 import org.apache.thrift.TException;
-import org.apache.thrift.transport.TTransportException;
 
 public class CqlRecordReaderTest extends PigTestBase
 {
     private static String[] statements = {
+        "DROP KEYSPACE IF EXISTS cql3ks",
         "CREATE KEYSPACE cql3ks WITH replication = {'class': 'SimpleStrategy', 'replication_factor' : 1};",
         "USE cql3ks;",
 
@@ -69,11 +57,11 @@ public class CqlRecordReaderTest extends PigTestBase
     };
 
     @BeforeClass
-    public static void setup() throws TTransportException, IOException, InterruptedException, ConfigurationException,
-    AuthenticationException, AuthorizationException, InvalidRequestException, UnavailableException, TimedOutException, TException, NotFoundException, CharacterCodingException, ClassNotFoundException, NoSuchFieldException, IllegalAccessException, InstantiationException
+    public static void setup() throws IOException, InterruptedException, ConfigurationException,
+        TException, ClassNotFoundException, NoSuchFieldException, IllegalAccessException, InstantiationException
     {
         startCassandra();
-        setupDataByCql(statements);
+        executeCQLStatements(statements);
         startHadoopCluster();
     }
 

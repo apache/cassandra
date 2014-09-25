@@ -48,68 +48,6 @@ import org.apache.cassandra.utils.ByteBufferUtil;
  * SCHEMA_{KEYSPACES, COLUMNFAMILIES, COLUMNS}_CF are used to store Keyspace/ColumnFamily attributes to make schema
  * load/distribution easy, it replaces old mechanism when local migrations where serialized, stored in system.Migrations
  * and used for schema distribution.
- *
- * SCHEMA_KEYSPACES_CF layout:
- *
- * <key (AsciiType)>
- *   ascii => json_serialized_value
- *   ...
- * </key>
- *
- * Where <key> is a name of keyspace e.g. "ks".
- *
- * SCHEMA_COLUMNFAMILIES_CF layout:
- *
- * <key (AsciiType)>
- *     composite(ascii, ascii) => json_serialized_value
- * </key>
- *
- * Where <key> is a name of keyspace e.g. "ks"., first component of the column name is name of the ColumnFamily, last
- * component is the name of the ColumnFamily attribute.
- *
- * SCHEMA_COLUMNS_CF layout:
- *
- * <key (AsciiType)>
- *     composite(ascii, ascii, ascii) => json_serialized value
- * </key>
- *
- * Where <key> is a name of keyspace e.g. "ks".
- *
- * Cell names where made composite to support 3-level nesting which represents following structure:
- * "ColumnFamily name":"column name":"column attribute" => "value"
- *
- * Example of schema (using CLI):
- *
- * schema_keyspaces
- * ----------------
- * RowKey: ks
- *  => (column=durable_writes, value=true, timestamp=1327061028312185000)
- *  => (column=name, value="ks", timestamp=1327061028312185000)
- *  => (column=replication_factor, value=0, timestamp=1327061028312185000)
- *  => (column=strategy_class, value="org.apache.cassandra.locator.NetworkTopologyStrategy", timestamp=1327061028312185000)
- *  => (column=strategy_options, value={"datacenter1":"1"}, timestamp=1327061028312185000)
- *
- * schema_columnfamilies
- * ---------------------
- * RowKey: ks
- *  => (column=cf:bloom_filter_fp_chance, value=0.0, timestamp=1327061105833119000)
- *  => (column=cf:caching, value="NONE", timestamp=1327061105833119000)
- *  => (column=cf:column_type, value="Standard", timestamp=1327061105833119000)
- *  => (column=cf:comment, value="ColumnFamily", timestamp=1327061105833119000)
- *  => (column=cf:default_validation_class, value="org.apache.cassandra.db.marshal.BytesType", timestamp=1327061105833119000)
- *  => (column=cf:gc_grace_seconds, value=864000, timestamp=1327061105833119000)
- *  => (column=cf:id, value=1000, timestamp=1327061105833119000)
- *  => (column=cf:key_alias, value="S0VZ", timestamp=1327061105833119000)
- *  ... part of the output omitted.
- *
- * schema_columns
- * --------------
- * RowKey: ks
- *  => (column=cf:c:index_name, value=null, timestamp=1327061105833119000)
- *  => (column=cf:c:index_options, value=null, timestamp=1327061105833119000)
- *  => (column=cf:c:index_type, value=null, timestamp=1327061105833119000)
- *  => (column=cf:c:name, value="aGVsbG8=", timestamp=1327061105833119000)
- *  => (column=cf:c:validation_class, value="org.apache.cassandra.db.marshal.AsciiType", timestamp=1327061105833119000)
  */
 public class DefsTables
 {

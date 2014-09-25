@@ -21,10 +21,11 @@ New features
    - SSTable file name is changed. Now you don't have Keyspace/CF name
      in file name. Also, secondary index has its own directory under parent's
      directory.
-     
+
 
 Upgrading
 ---------
+   - cassandra-cli has been removed. Please use cqlsh instead.
    - YamlFileNetworkTopologySnitch has been removed; switch to
      GossipingPropertyFileSnitch instead.
    - CQL2 has been removed entirely in this release (previously deprecated

@@ -19,7 +19,7 @@ contrib/word_count$ bin/word_count_setup
 contrib/word_count$ bin/word_count
 contrib/word_count$ bin/word_count_counters
 
-In order to view the results in Cassandra, one can use bin/cassandra-cli and
+In order to view the results in Cassandra, one can use bin/cqlsh and
 perform the following operations:
 $ bin/cqlsh localhost
 > use cql3_worldcount;

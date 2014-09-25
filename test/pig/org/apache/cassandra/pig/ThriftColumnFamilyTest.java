@@ -20,27 +20,20 @@ package org.apache.cassandra.pig;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.nio.charset.CharacterCodingException;
 import java.util.Iterator;
 
-import org.apache.cassandra.cli.CliMain;
 import org.apache.cassandra.exceptions.ConfigurationException;
-import org.apache.cassandra.thrift.AuthenticationException;
-import org.apache.cassandra.thrift.AuthorizationException;
 import org.apache.cassandra.thrift.Cassandra;
 import org.apache.cassandra.thrift.ColumnOrSuperColumn;
 import org.apache.cassandra.thrift.ColumnPath;
 import org.apache.cassandra.thrift.ConsistencyLevel;
-import org.apache.cassandra.thrift.InvalidRequestException;
 import org.apache.cassandra.thrift.NotFoundException;
-import org.apache.cassandra.thrift.TimedOutException;
-import org.apache.cassandra.thrift.UnavailableException;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.pig.data.DataBag;
 import org.apache.pig.data.DataByteArray;
 import org.apache.pig.data.Tuple;
 import org.apache.thrift.TException;
-import org.apache.thrift.transport.TTransportException;
+
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -48,171 +41,159 @@ import org.junit.Test;
 public class ThriftColumnFamilyTest extends PigTestBase
 {    
     private static String[] statements = {
-            "create keyspace thriftKs with placement_strategy = 'org.apache.cassandra.locator.SimpleStrategy' and" +
-            " strategy_options={replication_factor:1};",
-            "use thriftKs;",
+            "DROP KEYSPACE IF EXISTS thrift_ks",
+            "CREATE KEYSPACE thrift_ks WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 1};",
+            "USE thrift_ks;",
 
-            "create column family SomeApp " +
-                    " with comparator = UTF8Type " +
-                    " and default_validation_class = UTF8Type " +
-                    " and key_validation_class = UTF8Type " +
-                    " and column_metadata = [{column_name: name, validation_class: UTF8Type, index_type: KEYS}, " +
-                    "{column_name: vote_type, validation_class: UTF8Type}, " +
-                    "{column_name: rating, validation_class: Int32Type}, " +
-                    "{column_name: score, validation_class: LongType}, " +
-                    "{column_name: percent, validation_class: FloatType}, " +
-                    "{column_name: atomic_weight, validation_class: DoubleType}, " +
-                    "{column_name: created, validation_class: DateType},]; ",
+            "CREATE TABLE some_app (" +
+            "key text PRIMARY KEY," +
+            "name text," +
+            "vote_type text," +
+            "rating int," +
+            "score bigint," +
+            "percent float," +
+            "atomic_weight double," +
+            "created timestamp)" +
+            " WITH COMPACT STORAGE;",
 
-             "create column family CopyOfSomeApp " +
-                    "with key_validation_class = UTF8Type " +
-                    "and default_validation_class = UTF8Type " +
-                    "and comparator = UTF8Type " +
-                    "and column_metadata = " +
-                    "[ " +
-                        "{column_name: name, validation_class: UTF8Type, index_type: KEYS}, " +
-                        "{column_name: vote_type, validation_class: UTF8Type}, " +
-                        "{column_name: rating, validation_class: Int32Type}, " +
-                        "{column_name: score, validation_class: LongType}, " +
-                        "{column_name: percent, validation_class: FloatType}, " +
-                        "{column_name: atomic_weight, validation_class: DoubleType}, " +
-                        "{column_name: created, validation_class: DateType}, " +
-                    "];",
+            "CREATE INDEX ON some_app(name);",
 
-             "set SomeApp['foo']['name'] = 'User Foo';",
-             "set SomeApp['foo']['vote_type'] = 'like';",
-             "set SomeApp['foo']['rating'] = 8;",
-             "set SomeApp['foo']['score'] = 125000;",
-             "set SomeApp['foo']['percent'] = '85.0';",
-             "set SomeApp['foo']['atomic_weight'] = '2.7182818284590451';",
-             "set SomeApp['foo']['created'] = 1335890877;",
+            "INSERT INTO some_app (key, name, vote_type, rating, score, percent, atomic_weight, created) " +
+                    "VALUES ('foo', 'User Foo', 'like', 8, 125000, 85.0, 2.7182818284590451, 1335890877);",
 
-             "set SomeApp['bar']['name'] = 'User Bar';",
-             "set SomeApp['bar']['vote_type'] = 'like';",
-             "set SomeApp['bar']['rating'] = 9;",
-             "set SomeApp['bar']['score'] = 15000;",
-             "set SomeApp['bar']['percent'] = '35.0';",
-             "set SomeApp['bar']['atomic_weight'] = '3.1415926535897931';",
-             "set SomeApp['bar']['created'] = 1335890877;",
+            "INSERT INTO some_app (key, name, vote_type, rating, score, percent, atomic_weight, created) " +
+                    "VALUES ('bar', 'User Bar', 'like', 9, 15000, 35.0, 3.1415926535897931, 1335890877);",
 
-             "set SomeApp['baz']['name'] = 'User Baz';",
-             "set SomeApp['baz']['vote_type'] = 'dislike';",
-             "set SomeApp['baz']['rating'] = 3;",
-             "set SomeApp['baz']['score'] = 512000;",
-             "set SomeApp['baz']['percent'] = '95.3';",
-             "set SomeApp['baz']['atomic_weight'] = '1.61803399';",
-             "set SomeApp['baz']['created'] = 1335890877;",
-             "set SomeApp['baz']['extra1'] = 'extra1';",
-             "set SomeApp['baz']['extra2'] = 'extra2';",
-             "set SomeApp['baz']['extra3'] = 'extra3';",
+            "INSERT INTO some_app (key, name, vote_type, rating, score, percent, atomic_weight, created) " +
+                    "VALUES ('baz', 'User Baz', 'dislike', 3, 512000, 95.3, 1.61803399, 1335890877);",
 
-             "set SomeApp['qux']['name'] = 'User Qux';",
-             "set SomeApp['qux']['vote_type'] = 'dislike';",
-             "set SomeApp['qux']['rating'] = 2;",
-             "set SomeApp['qux']['score'] = 12000;",
-             "set SomeApp['qux']['percent'] = '64.7';",
-             "set SomeApp['qux']['atomic_weight'] = '0.660161815846869';",
-             "set SomeApp['qux']['created'] = 1335890877;",
-             "set SomeApp['qux']['extra1'] = 'extra1';",
-             "set SomeApp['qux']['extra2'] = 'extra2';",
-             "set SomeApp['qux']['extra3'] = 'extra3';",
-             "set SomeApp['qux']['extra4'] = 'extra4';",
-             "set SomeApp['qux']['extra5'] = 'extra5';",
-             "set SomeApp['qux']['extra6'] = 'extra6';",
-             "set SomeApp['qux']['extra7'] = 'extra7';",
+            "INSERT INTO some_app (key, name, vote_type, rating, score, percent, atomic_weight, created) " +
+                    "VALUES ('qux', 'User Qux', 'dislike', 2, 12000, 64.7, 0.660161815846869, 1335890877);",
 
-             "create column family U8 with " +
-                     "key_validation_class = UTF8Type and " +
-                     "comparator = UTF8Type;",
-                     
-             "create column family Bytes with " +
-                      "key_validation_class = BytesType and " +
-                      "comparator = UTF8Type;",
+            "CREATE TABLE copy_of_some_app (" +
+            "key text PRIMARY KEY," +
+            "name text," +
+            "vote_type text," +
+            "rating int," +
+            "score bigint," +
+            "percent float," +
+            "atomic_weight double," +
+            "created timestamp)" +
+            " WITH COMPACT STORAGE;",
 
-             "set U8['foo']['x'] = ascii('Z');",
-             "set Bytes[ascii('foo')]['x'] = ascii('Z');",
+            "CREATE INDEX ON copy_of_some_app(name);",
 
-             "create column family CC with " +
-                       "key_validation_class = UTF8Type and " +
-                       "default_validation_class=CounterColumnType " +
-                       "and comparator=UTF8Type;",
+            "CREATE TABLE u8 (" +
+            "key text," +
+            "column1 text," +
+            "value blob," +
+            "PRIMARY KEY (key, column1))" +
+            " WITH COMPACT STORAGE",
 
-             "incr CC['chuck']['kick'];",
-             "incr CC['chuck']['kick'];",
-             "incr CC['chuck']['kick'];",
-             "incr CC['chuck']['fist'];",
+            "INSERT INTO u8 (key, column1, value) VALUES ('foo', 'x', asciiAsBlob('Z'))",
 
-             "create column family Compo " +
-                       "with key_validation_class = UTF8Type " +
-                       "and default_validation_class = UTF8Type " +
-                       "and comparator = 'CompositeType(UTF8Type,UTF8Type)';",
+            "CREATE TABLE bytes (" +
+            "key blob," +
+            "column1 text," +
+            "value blob," +
+            "PRIMARY KEY (key, column1))" +
+            " WITH COMPACT STORAGE",
 
-             "set Compo['punch']['bruce:lee'] = 'ouch';",
-             "set Compo['punch']['bruce:bruce'] = 'hunh?';",
-             "set Compo['kick']['bruce:lee'] = 'oww';",
-             "set Compo['kick']['bruce:bruce'] = 'watch it, mate';",
+            "INSERT INTO bytes (key, column1, value) VALUES (asciiAsBlob('foo'), 'x', asciiAsBlob('Z'))",
 
-             "create column family CompoInt " +
-                       "with key_validation_class = UTF8Type " +
-                       "and default_validation_class = UTF8Type " +
-                       "and comparator = 'CompositeType(LongType,LongType)';",
+            "CREATE TABLE cc (key text, name text, value counter, PRIMARY KEY (key, name)) WITH COMPACT STORAGE",
 
-            "set CompoInt['clock']['1:0'] = 'z';",
-            "set CompoInt['clock']['1:30'] = 'zzzz';",
-            "set CompoInt['clock']['2:30'] = 'daddy?';",
-            "set CompoInt['clock']['6:30'] = 'coffee...';",
+            "UPDATE cc SET value = value + 3 WHERE key = 'chuck' AND name = 'kick'",
+            "UPDATE cc SET value = value + 1 WHERE key = 'chuck' AND name = 'fist'",
 
-            "create column family CompoIntCopy " +
-                        "with key_validation_class = UTF8Type " +
-                        "and default_validation_class = UTF8Type " +
-                        "and comparator = 'CompositeType(LongType,LongType)';",
+            "CREATE TABLE compo (" +
+            "key text," +
+            "column1 text," +
+            "column2 text," +
+            "value text," +
+            "PRIMARY KEY (key, column1, column2))" +
+            " WITH COMPACT STORAGE",
 
-            "create column family CompoKey " +
-                        "with key_validation_class = 'CompositeType(UTF8Type,LongType)' " +
-                        "and default_validation_class = UTF8Type " +
-                        "and comparator = LongType;",
+            "INSERT INTO compo (key, column1, column2, value) VALUES ('punch', 'bruce', 'lee', 'ouch');",
+            "INSERT INTO compo (key, column1, column2, value) VALUES ('punch', 'bruce', 'bruce', 'hunh?');",
+            "INSERT INTO compo (key, column1, column2, value) VALUES ('kick', 'bruce', 'lee', 'oww');",
+            "INSERT INTO compo (key, column1, column2, value) VALUES ('kick', 'bruce', 'bruce', 'watch it, mate');",
 
-            "set CompoKey['clock:10']['1'] = 'z';",
-            "set CompoKey['clock:20']['1'] = 'zzzz';",
-            "set CompoKey['clock:30']['2'] = 'daddy?';",
-            "set CompoKey['clock:40']['6'] = 'coffee...';",
+            "CREATE TABLE compo_int (" +
+            "key text," +
+            "column1 bigint," +
+            "column2 bigint," +
+            "value text," +
+            "PRIMARY KEY (key, column1, column2))" +
+            " WITH COMPACT STORAGE",
 
-            "create column family CompoKeyCopy " +
-                        "with key_validation_class = 'CompositeType(UTF8Type,LongType)' " +
-                        "and default_validation_class = UTF8Type " +
-                        "and comparator = LongType;"
+            "INSERT INTO compo_int (key, column1, column2, value) VALUES ('clock', 1, 0, 'z');",
+            "INSERT INTO compo_int (key, column1, column2, value) VALUES ('clock', 1, 30, 'zzzz');",
+            "INSERT INTO compo_int (key, column1, column2, value) VALUES ('clock', 2, 30, 'daddy?');",
+            "INSERT INTO compo_int (key, column1, column2, value) VALUES ('clock', 6, 30, 'coffee...');",
+
+            "CREATE TABLE compo_int_copy (" +
+            "key text," +
+            "column1 bigint," +
+            "column2 bigint," +
+            "value text," +
+            "PRIMARY KEY (key, column1, column2))" +
+            " WITH COMPACT STORAGE",
+
+            "CREATE TABLE compo_key (" +
+            "key text," +
+            "column1 bigint," +
+            "column2 bigint," +
+            "value text," +
+            "PRIMARY KEY ((key, column1), column2))" +
+            " WITH COMPACT STORAGE",
+
+            "INSERT INTO compo_key (key, column1, column2, value) VALUES ('clock', 10, 1, 'z');",
+            "INSERT INTO compo_key (key, column1, column2, value) VALUES ('clock', 20, 1, 'zzzz');",
+            "INSERT INTO compo_key (key, column1, column2, value) VALUES ('clock', 30, 2, 'daddy?');",
+            "INSERT INTO compo_key (key, column1, column2, value) VALUES ('clock', 40, 6, 'coffee...');",
+
+            "CREATE TABLE compo_key_copy (" +
+            "key text," +
+            "column1 bigint," +
+            "column2 bigint," +
+            "value text," +
+            "PRIMARY KEY ((key, column1), column2))" +
+            " WITH COMPACT STORAGE",
     };
 
-    private static String[] deleteCopyOfSomeAppTableData = { "use thriftKs;",
-            "DEL CopyOfSomeApp ['foo']",
-            "DEL CopyOfSomeApp ['bar']",
-            "DEL CopyOfSomeApp ['baz']",
-            "DEL CopyOfSomeApp ['qux']"
+    private static String[] deleteCopyOfSomeAppTableData = {
+            "use thrift_ks;",
+            "DELETE FROM copy_of_some_app WHERE key = 'foo';",
+            "DELETE FROM copy_of_some_app WHERE key = 'bar';",
+            "DELETE FROM copy_of_some_app WHERE key = 'baz';",
+            "DELETE FROM copy_of_some_app WHERE key = 'qux';",
     };
 
     @BeforeClass
-    public static void setup() throws TTransportException, IOException, InterruptedException, ConfigurationException,
-                                      AuthenticationException, AuthorizationException, InvalidRequestException, UnavailableException, TimedOutException, TException, NotFoundException, CharacterCodingException, ClassNotFoundException, NoSuchFieldException, IllegalAccessException, InstantiationException
+    public static void setup() throws IOException, InterruptedException, ConfigurationException, TException,
+        ClassNotFoundException, NoSuchFieldException, IllegalAccessException, InstantiationException
     {
         startCassandra();
-        setupDataByCli(statements);
+        executeCQLStatements(statements);
         startHadoopCluster();
     }
 
     @Test
-    public void testCqlNativeStorage() throws IOException, ClassNotFoundException, TException, TimedOutException, NotFoundException, InvalidRequestException, NoSuchFieldException, UnavailableException, IllegalAccessException, InstantiationException, AuthenticationException, AuthorizationException
+    public void testCqlNativeStorage() throws IOException, ClassNotFoundException, TException, NoSuchFieldException,
+        IllegalAccessException, InstantiationException
     {
         //regular thrift column families
-        //input_cql=select * from "SomeApp" where token(key) > ? and token(key) <= ?
-        cqlStorageTest("data = load 'cql://thriftKs/SomeApp?" + defaultParameters + nativeParameters + "&input_cql=select%20*%20from%20%22SomeApp%22%20where%20token(key)%20%3E%20%3F%20and%20token(key)%20%3C%3D%20%3F' using CqlNativeStorage();");
+        //input_cql=select * from "some_app" where token(key) > ? and token(key) <= ?
+        cqlStorageTest("data = load 'cql://thrift_ks/some_app?" + defaultParameters + nativeParameters + "&input_cql=select%20*%20from%20%22some_app%22%20where%20token(key)%20%3E%20%3F%20and%20token(key)%20%3C%3D%20%3F' using CqlNativeStorage();");
 
-        //Test counter colun family
-        //input_cql=select * from "CC" where token(key) > ? and token(key) <= ?
-        cqlStorageCounterTableTest("cc_data = load 'cql://thriftKs/CC?" + defaultParameters + nativeParameters + "&input_cql=select%20*%20from%20%22CC%22%20where%20token(key)%20%3E%20%3F%20and%20token(key)%20%3C%3D%20%3F' using CqlNativeStorage();");
+        //Test counter column family
+        //input_cql=select * from "cc" where token(key) > ? and token(key) <= ?
+        cqlStorageCounterTableTest("cc_data = load 'cql://thrift_ks/cc?" + defaultParameters + nativeParameters + "&input_cql=select%20*%20from%20%22cc%22%20where%20token(key)%20%3E%20%3F%20and%20token(key)%20%3C%3D%20%3F' using CqlNativeStorage();");
 
         //Test composite column family
-        //input_cql=select * from "Compo" where token(key) > ? and token(key) <= ?
-        cqlStorageCompositeTableTest("compo_data = load 'cql://thriftKs/Compo?" + defaultParameters + nativeParameters + "&input_cql=select%20*%20from%20%22Compo%22%20where%20token(key)%20%3E%20%3F%20and%20token(key)%20%3C%3D%20%3F' using CqlNativeStorage();");
+        //input_cql=select * from "compo" where token(key) > ? and token(key) <= ?
+        cqlStorageCompositeTableTest("compo_data = load 'cql://thrift_ks/compo?" + defaultParameters + nativeParameters + "&input_cql=select%20*%20from%20%22compo%22%20where%20token(key)%20%3E%20%3F%20and%20token(key)%20%3C%3D%20%3F' using CqlNativeStorage();");
     }
 
     private void cqlStorageTest(String initialQuery) throws IOException
@@ -321,14 +302,12 @@ public class ThriftColumnFamilyTest extends PigTestBase
     }
 
     @Test
-    public void testCassandraStorageSchema() throws IOException, ClassNotFoundException, TException, TimedOutException, NotFoundException, InvalidRequestException, NoSuchFieldException, UnavailableException, IllegalAccessException, InstantiationException
+    public void testCassandraStorageSchema() throws IOException, ClassNotFoundException, TException, NoSuchFieldException,
+        IllegalAccessException, InstantiationException
     {
         //results: (qux,(atomic_weight,0.660161815846869),(created,1335890877),(name,User Qux),(percent,64.7),
-        //(rating,2),(score,12000),(vote_type,dislike),{(extra1,extra1),
-        //(extra2,extra2),(extra3,extra3),
-        //(extra4,extra4),(extra5,extra5),
-        //(extra6,extra6),(extra7,extra7)})
-        pig.registerQuery("rows = LOAD 'cassandra://thriftKs/SomeApp?" + defaultParameters + "' USING CassandraStorage();");
+        //(rating,2),(score,12000),(vote_type,dislike))
+        pig.registerQuery("rows = LOAD 'cassandra://thrift_ks/some_app?" + defaultParameters + "' USING CassandraStorage();");
 
         //schema: {key: chararray,atomic_weight: (name: chararray,value: double),created: (name: chararray,value: long),
         //name: (name: chararray,value: chararray),percent: (name: chararray,value: float),
@@ -358,48 +337,39 @@ public class ThriftColumnFamilyTest extends PigTestBase
                 column = (Tuple) t.get(7);
                 Assert.assertEquals(column.get(0), "vote_type");
                 Assert.assertEquals(column.get(1), "dislike");
-                DataBag columns = (DataBag) t.get(8);
-                Iterator<Tuple> iter = columns.iterator();
-                int i = 0;
-                while(iter.hasNext())
-                {
-                    i++;
-                    column = iter.next();
-                    Assert.assertEquals(column.get(0), "extra"+i);
-                }
-                Assert.assertEquals(7, columns.size());
             }
-
         }
     }
 
     @Test
-    public void testCassandraStorageFullCopy() throws IOException, ClassNotFoundException, TException, TimedOutException, NotFoundException, InvalidRequestException, NoSuchFieldException, UnavailableException, IllegalAccessException, InstantiationException, AuthenticationException, AuthorizationException
+    public void testCassandraStorageFullCopy() throws IOException, ClassNotFoundException, TException, NoSuchFieldException,
+        IllegalAccessException, InstantiationException
     {
         pig.setBatchOn();
-        pig.registerQuery("rows = LOAD 'cassandra://thriftKs/SomeApp?" + defaultParameters + "' USING CassandraStorage();");
+        pig.registerQuery("rows = LOAD 'cassandra://thrift_ks/some_app?" + defaultParameters + "' USING CassandraStorage();");
         //full copy
-        pig.registerQuery("STORE rows INTO 'cassandra://thriftKs/CopyOfSomeApp?" + defaultParameters + "' USING CassandraStorage();");
+        pig.registerQuery("STORE rows INTO 'cassandra://thrift_ks/copy_of_some_app?" + defaultParameters + "' USING CassandraStorage();");
         pig.executeBatch();
-        Assert.assertEquals("User Qux", getColumnValue("thriftKs", "CopyOfSomeApp", "name", "qux", "UTF8Type"));
-        Assert.assertEquals("dislike", getColumnValue("thriftKs", "CopyOfSomeApp", "vote_type", "qux", "UTF8Type"));
-        Assert.assertEquals("64.7", getColumnValue("thriftKs", "CopyOfSomeApp", "percent", "qux", "FloatType"));
+        Assert.assertEquals("User Qux", getColumnValue("thrift_ks", "copy_of_some_app", "name", "qux", "UTF8Type"));
+        Assert.assertEquals("dislike", getColumnValue("thrift_ks", "copy_of_some_app", "vote_type", "qux", "UTF8Type"));
+        Assert.assertEquals("64.7", getColumnValue("thrift_ks", "copy_of_some_app", "percent", "qux", "FloatType"));
     }
 
     @Test
-    public void testCassandraStorageSigleTupleCopy() throws IOException, ClassNotFoundException, TException, TimedOutException, NotFoundException, InvalidRequestException, NoSuchFieldException, UnavailableException, IllegalAccessException, InstantiationException, AuthenticationException, AuthorizationException
+    public void testCassandraStorageSigleTupleCopy() throws IOException, ClassNotFoundException, TException,
+        NoSuchFieldException, IllegalAccessException, InstantiationException
     {
-        executeCliStatements(deleteCopyOfSomeAppTableData);
+        executeCQLStatements(deleteCopyOfSomeAppTableData);
         pig.setBatchOn();
-        pig.registerQuery("rows = LOAD 'cassandra://thriftKs/SomeApp?" + defaultParameters + "' USING CassandraStorage();");
+        pig.registerQuery("rows = LOAD 'cassandra://thrift_ks/some_app?" + defaultParameters + "' USING CassandraStorage();");
         //sigle tuple
         pig.registerQuery("onecol = FOREACH rows GENERATE key, percent;");
-        pig.registerQuery("STORE onecol INTO 'cassandra://thriftKs/CopyOfSomeApp?" + defaultParameters + "' USING CassandraStorage();");
+        pig.registerQuery("STORE onecol INTO 'cassandra://thrift_ks/copy_of_some_app?" + defaultParameters + "' USING CassandraStorage();");
         pig.executeBatch();
         String value = null;
         try
         {
-            value = getColumnValue("thriftKs", "CopyOfSomeApp", "name", "qux", "UTF8Type");
+            value = getColumnValue("thrift_ks", "copy_of_some_app", "name", "qux", "UTF8Type");
         }
         catch (NotFoundException e)
         {
@@ -409,7 +379,7 @@ public class ThriftColumnFamilyTest extends PigTestBase
             Assert.fail();
         try
         {
-            value = getColumnValue("thriftKs", "CopyOfSomeApp", "vote_type", "qux", "UTF8Type");
+            value = getColumnValue("thrift_ks", "copy_of_some_app", "vote_type", "qux", "UTF8Type");
         }
         catch (NotFoundException e)
         {
@@ -417,23 +387,24 @@ public class ThriftColumnFamilyTest extends PigTestBase
         }
         if (value != null)
             Assert.fail();
-        Assert.assertEquals("64.7", getColumnValue("thriftKs", "CopyOfSomeApp", "percent", "qux", "FloatType"));
+        Assert.assertEquals("64.7", getColumnValue("thrift_ks", "copy_of_some_app", "percent", "qux", "FloatType"));
     }
 
     @Test
-    public void testCassandraStorageBagOnlyCopy() throws IOException, ClassNotFoundException, TException, TimedOutException, NotFoundException, InvalidRequestException, NoSuchFieldException, UnavailableException, IllegalAccessException, InstantiationException, AuthenticationException, AuthorizationException
+    public void testCassandraStorageBagOnlyCopy() throws IOException, ClassNotFoundException, TException,
+        NoSuchFieldException, IllegalAccessException, InstantiationException
     {
-        executeCliStatements(deleteCopyOfSomeAppTableData);
+        executeCQLStatements(deleteCopyOfSomeAppTableData);
         pig.setBatchOn();
-        pig.registerQuery("rows = LOAD 'cassandra://thriftKs/SomeApp?" + defaultParameters + "' USING CassandraStorage();");
+        pig.registerQuery("rows = LOAD 'cassandra://thrift_ks/some_app?" + defaultParameters + "' USING CassandraStorage();");
         //bag only
         pig.registerQuery("other = FOREACH rows GENERATE key, columns;");
-        pig.registerQuery("STORE other INTO 'cassandra://thriftKs/CopyOfSomeApp?" + defaultParameters + "' USING CassandraStorage();");
+        pig.registerQuery("STORE other INTO 'cassandra://thrift_ks/copy_of_some_app?" + defaultParameters + "' USING CassandraStorage();");
         pig.executeBatch();
         String value = null;
         try
         {
-            value = getColumnValue("thriftKs", "CopyOfSomeApp", "name", "qux", "UTF8Type");
+            value = getColumnValue("thrift_ks", "copy_of_some_app", "name", "qux", "UTF8Type");
         }
         catch (NotFoundException e)
         {
@@ -443,7 +414,7 @@ public class ThriftColumnFamilyTest extends PigTestBase
             Assert.fail();
         try
         {
-            value = getColumnValue("thriftKs", "CopyOfSomeApp", "vote_type", "qux", "UTF8Type");
+            value = getColumnValue("thrift_ks", "copy_of_some_app", "vote_type", "qux", "UTF8Type");
         }
         catch (NotFoundException e)
         {
@@ -453,7 +424,7 @@ public class ThriftColumnFamilyTest extends PigTestBase
             Assert.fail();
         try
         {
-            value = getColumnValue("thriftKs", "CopyOfSomeApp", "percent", "qux", "FloatType");
+            value = getColumnValue("thrift_ks", "copy_of_some_app", "percent", "qux", "FloatType");
         }
         catch (NotFoundException e)
         {
@@ -461,27 +432,27 @@ public class ThriftColumnFamilyTest extends PigTestBase
         }
         if (value != null)
             Assert.fail();
-        Assert.assertEquals("extra1", getColumnValue("thriftKs", "CopyOfSomeApp", "extra1", "qux", "UTF8Type"));
     }
 
     @Test
-    public void testCassandraStorageFilter() throws IOException, ClassNotFoundException, TException, TimedOutException, NotFoundException, InvalidRequestException, NoSuchFieldException, UnavailableException, IllegalAccessException, InstantiationException, AuthenticationException, AuthorizationException
+    public void testCassandraStorageFilter() throws IOException, ClassNotFoundException, TException, NoSuchFieldException,
+        IllegalAccessException, InstantiationException
     {
-        executeCliStatements(deleteCopyOfSomeAppTableData);
+        executeCQLStatements(deleteCopyOfSomeAppTableData);
         pig.setBatchOn();
-        pig.registerQuery("rows = LOAD 'cassandra://thriftKs/SomeApp?" + defaultParameters + "' USING CassandraStorage();");
+        pig.registerQuery("rows = LOAD 'cassandra://thrift_ks/some_app?" + defaultParameters + "' USING CassandraStorage();");
 
         //filter
         pig.registerQuery("likes = FILTER rows by vote_type.value eq 'like' and rating.value > 5;");
-        pig.registerQuery("STORE likes INTO 'cassandra://thriftKs/CopyOfSomeApp?" + defaultParameters + "' USING CassandraStorage();");
+        pig.registerQuery("STORE likes INTO 'cassandra://thrift_ks/copy_of_some_app?" + defaultParameters + "' USING CassandraStorage();");
         pig.executeBatch();
 
-        Assert.assertEquals("like", getColumnValue("thriftKs", "CopyOfSomeApp", "vote_type", "bar", "UTF8Type"));
-        Assert.assertEquals("like", getColumnValue("thriftKs", "CopyOfSomeApp", "vote_type", "foo", "UTF8Type"));
+        Assert.assertEquals("like", getColumnValue("thrift_ks", "copy_of_some_app", "vote_type", "bar", "UTF8Type"));
+        Assert.assertEquals("like", getColumnValue("thrift_ks", "copy_of_some_app", "vote_type", "foo", "UTF8Type"));
         String value = null;
         try
         {
-            value = getColumnValue("thriftKs", "CopyOfSomeApp", "vote_type", "qux", "UTF8Type");
+            value = getColumnValue("thrift_ks", "copy_of_some_app", "vote_type", "qux", "UTF8Type");
         }
         catch (NotFoundException e)
         {
@@ -491,7 +462,7 @@ public class ThriftColumnFamilyTest extends PigTestBase
             Assert.fail();
         try
         {
-            value = getColumnValue("thriftKs", "CopyOfSomeApp", "vote_type", "baz", "UTF8Type");
+            value = getColumnValue("thrift_ks", "copy_of_some_app", "vote_type", "baz", "UTF8Type");
         }
         catch (NotFoundException e)
         {
@@ -500,19 +471,18 @@ public class ThriftColumnFamilyTest extends PigTestBase
         if (value != null)
             Assert.fail();
 
-        executeCliStatements(deleteCopyOfSomeAppTableData);
+        executeCQLStatements(deleteCopyOfSomeAppTableData);
         pig.setBatchOn();
-        pig.registerQuery("rows = LOAD 'cassandra://thriftKs/SomeApp?" + defaultParameters + "' USING CassandraStorage();");
-        pig.registerQuery("dislikes_extras = FILTER rows by vote_type.value eq 'dislike' AND COUNT(columns) > 0;");
-        pig.registerQuery("STORE dislikes_extras INTO 'cassandra://thriftKs/CopyOfSomeApp?" + defaultParameters + "' USING CassandraStorage();");
-        pig.registerQuery("visible = FILTER rows BY COUNT(columns) == 0;");
+        pig.registerQuery("rows = LOAD 'cassandra://thrift_ks/some_app?" + defaultParameters + "' USING CassandraStorage();");
+        pig.registerQuery("dislikes_extras = FILTER rows by vote_type.value eq 'dislike';");
+        pig.registerQuery("STORE dislikes_extras INTO 'cassandra://thrift_ks/copy_of_some_app?" + defaultParameters + "' USING CassandraStorage();");
         pig.executeBatch();
-        Assert.assertEquals("dislike", getColumnValue("thriftKs", "CopyOfSomeApp", "vote_type", "baz", "UTF8Type"));
-        Assert.assertEquals("dislike", getColumnValue("thriftKs", "CopyOfSomeApp", "vote_type", "qux", "UTF8Type"));
+        Assert.assertEquals("dislike", getColumnValue("thrift_ks", "copy_of_some_app", "vote_type", "baz", "UTF8Type"));
+        Assert.assertEquals("dislike", getColumnValue("thrift_ks", "copy_of_some_app", "vote_type", "qux", "UTF8Type"));
         value = null;
         try
         {
-            value = getColumnValue("thriftKs", "CopyOfSomeApp", "vote_type", "bar", "UTF8Type");
+            value = getColumnValue("thrift_ks", "copy_of_some_app", "vote_type", "bar", "UTF8Type");
         }
         catch (NotFoundException e)
         {
@@ -522,7 +492,7 @@ public class ThriftColumnFamilyTest extends PigTestBase
             Assert.fail();
         try
         {
-            value = getColumnValue("thriftKs", "CopyOfSomeApp", "vote_type", "foo", "UTF8Type");
+            value = getColumnValue("thrift_ks", "copy_of_some_app", "vote_type", "foo", "UTF8Type");
         }
         catch (NotFoundException e)
         {
@@ -533,11 +503,11 @@ public class ThriftColumnFamilyTest extends PigTestBase
     }
 
     @Test
-    public void testCassandraStorageJoin() throws IOException, ClassNotFoundException, TException, TimedOutException, NotFoundException, InvalidRequestException, NoSuchFieldException, UnavailableException, IllegalAccessException, InstantiationException, AuthenticationException, AuthorizationException
+    public void testCassandraStorageJoin() throws IOException, ClassNotFoundException, TException, IllegalAccessException, InstantiationException
     {
         //test key types with a join
-        pig.registerQuery("U8 = load 'cassandra://thriftKs/U8?" + defaultParameters + "' using CassandraStorage();");
-        pig.registerQuery("Bytes = load 'cassandra://thriftKs/Bytes?" + defaultParameters + "' using CassandraStorage();");
+        pig.registerQuery("U8 = load 'cassandra://thrift_ks/u8?" + defaultParameters + "' using CassandraStorage();");
+        pig.registerQuery("Bytes = load 'cassandra://thrift_ks/bytes?" + defaultParameters + "' using CassandraStorage();");
 
         //cast key to chararray
         pig.registerQuery("b = foreach Bytes generate (chararray)key, columns;");
@@ -585,28 +555,24 @@ public class ThriftColumnFamilyTest extends PigTestBase
     }
 
     @Test
-    public void testCassandraStorageCounterCF() throws IOException, ClassNotFoundException, TException, TimedOutException, NotFoundException, InvalidRequestException, NoSuchFieldException, UnavailableException, IllegalAccessException, InstantiationException, AuthenticationException, AuthorizationException
+    public void testCassandraStorageCounterCF() throws IOException, ClassNotFoundException, TException, NoSuchFieldException,
+        IllegalAccessException, InstantiationException
     {
-        pig.registerQuery("rows = LOAD 'cassandra://thriftKs/SomeApp?" + defaultParameters + "' USING CassandraStorage();");
-
         //Test counter column family support
-        pig.registerQuery("CC = load 'cassandra://thriftKs/CC?" + defaultParameters + "' using CassandraStorage();");
+        pig.registerQuery("CC = load 'cassandra://thrift_ks/cc?" + defaultParameters + "' using CassandraStorage();");
         pig.registerQuery("total_hits = foreach CC generate key, SUM(columns.value);");
         //(chuck,4)
-        Iterator<Tuple> it = pig.openIterator("total_hits");
-        if (it.hasNext()) {
-            Tuple t = it.next();
-            Assert.assertEquals(t.get(0), "chuck");
-            Assert.assertEquals(t.get(1), 4l);
-        }
+        Tuple t = pig.openIterator("total_hits").next();
+        Assert.assertEquals(t.get(0), "chuck");
+        Assert.assertEquals(t.get(1), 4l);
     }
 
-    /** This test case fails due to antlr lib conflicts, Cassandra2.1 uses 3.2, Hive1.2 uses 3.4 */
-    //@Test
-    public void testCassandraStorageCompositeColumnCF() throws IOException, ClassNotFoundException, TException, TimedOutException, NotFoundException, InvalidRequestException, NoSuchFieldException, UnavailableException, IllegalAccessException, InstantiationException, AuthenticationException, AuthorizationException
+    @Test
+    public void testCassandraStorageCompositeColumnCF() throws IOException, ClassNotFoundException, TException,
+        NoSuchFieldException, IllegalAccessException, InstantiationException
     {
         //Test CompositeType
-        pig.registerQuery("compo = load 'cassandra://thriftKs/Compo?" + defaultParameters + "' using CassandraStorage();");
+        pig.registerQuery("compo = load 'cassandra://thrift_ks/compo?" + defaultParameters + "' using CassandraStorage();");
         pig.registerQuery("compo = foreach compo generate key as method, flatten(columns);");
         pig.registerQuery("lee = filter compo by columns::name == ('bruce','lee');");
 
@@ -626,7 +592,7 @@ public class ThriftColumnFamilyTest extends PigTestBase
                 Assert.assertEquals(t.get(2), "ouch");
         }
         Assert.assertEquals(count, 2);
-        pig.registerQuery("night = load 'cassandra://thriftKs/CompoInt?" + defaultParameters + "' using CassandraStorage();");
+        pig.registerQuery("night = load 'cassandra://thrift_ks/compo_int?" + defaultParameters + "' using CassandraStorage();");
         pig.registerQuery("night = foreach night generate flatten(columns);");
         pig.registerQuery("night = foreach night generate (int)columns::name.$0+(double)columns::name.$1/60 as hour, columns::value as noise;");
 
@@ -641,10 +607,10 @@ public class ThriftColumnFamilyTest extends PigTestBase
             Assert.assertEquals(t.get(1), "daddy?");
         }
         pig.setBatchOn();
-        pig.registerQuery("compo_int_rows = LOAD 'cassandra://thriftKs/CompoInt?" + defaultParameters + "' using CassandraStorage();");
-        pig.registerQuery("STORE compo_int_rows INTO 'cassandra://thriftKs/CompoIntCopy?" + defaultParameters + "' using CassandraStorage();");
+        pig.registerQuery("compo_int_rows = LOAD 'cassandra://thrift_ks/compo_int?" + defaultParameters + "' using CassandraStorage();");
+        pig.registerQuery("STORE compo_int_rows INTO 'cassandra://thrift_ks/compo_int_copy?" + defaultParameters + "' using CassandraStorage();");
         pig.executeBatch();
-        pig.registerQuery("compocopy_int_rows = LOAD 'cassandra://thriftKs/CompoIntCopy?" + defaultParameters + "' using CassandraStorage();");
+        pig.registerQuery("compocopy_int_rows = LOAD 'cassandra://thrift_ks/compo_int_copy?" + defaultParameters + "' using CassandraStorage();");
         //(clock,{((1,0),z),((1,30),zzzz),((2,30),daddy?),((6,30),coffee...)})
         it = pig.openIterator("compocopy_int_rows");
         count = 0;
@@ -652,11 +618,9 @@ public class ThriftColumnFamilyTest extends PigTestBase
             Tuple t = it.next();
             Assert.assertEquals(t.get(0), "clock");
             DataBag columns = (DataBag) t.get(1);
-            Iterator<Tuple> iter = columns.iterator();
-            while (iter.hasNext())
+            for (Tuple t1 : columns)
             {
-                count ++;
-                Tuple t1 = iter.next();
+                count++;
                 Tuple inner = (Tuple) t1.get(0);
                 if ((Long) inner.get(0) == 1L && (Long) inner.get(1) == 0L)
                     Assert.assertEquals(t1.get(1), "z");
@@ -672,10 +636,11 @@ public class ThriftColumnFamilyTest extends PigTestBase
     }
 
     @Test
-    public void testCassandraStorageCompositeKeyCF() throws IOException, ClassNotFoundException, TException, TimedOutException, NotFoundException, InvalidRequestException, NoSuchFieldException, UnavailableException, IllegalAccessException, InstantiationException, AuthenticationException, AuthorizationException
+    public void testCassandraStorageCompositeKeyCF() throws IOException, ClassNotFoundException, TException,
+        NoSuchFieldException, IllegalAccessException, InstantiationException
     {
         //Test CompositeKey
-        pig.registerQuery("compokeys = load 'cassandra://thriftKs/CompoKey?" + defaultParameters + "' using CassandraStorage();");
+        pig.registerQuery("compokeys = load 'cassandra://thrift_ks/compo_key?" + defaultParameters + "' using CassandraStorage();");
         pig.registerQuery("compokeys = filter compokeys by key.$1 == 40;");
         //((clock,40),{(6,coffee...)})
         Iterator<Tuple> it = pig.openIterator("compokeys");
@@ -694,10 +659,10 @@ public class ThriftColumnFamilyTest extends PigTestBase
             }
         }
         pig.setBatchOn();
-        pig.registerQuery("compo_key_rows = LOAD 'cassandra://thriftKs/CompoKey?" + defaultParameters + "' using CassandraStorage();");
-        pig.registerQuery("STORE compo_key_rows INTO 'cassandra://thriftKs/CompoKeyCopy?" + defaultParameters + "' using CassandraStorage();");
+        pig.registerQuery("compo_key_rows = LOAD 'cassandra://thrift_ks/compo_key?" + defaultParameters + "' using CassandraStorage();");
+        pig.registerQuery("STORE compo_key_rows INTO 'cassandra://thrift_ks/compo_key_copy?" + defaultParameters + "' using CassandraStorage();");
         pig.executeBatch();
-        pig.registerQuery("compo_key_copy_rows = LOAD 'cassandra://thriftKs/CompoKeyCopy?" + defaultParameters + "' using CassandraStorage();");
+        pig.registerQuery("compo_key_copy_rows = LOAD 'cassandra://thrift_ks/compo_key_copy?" + defaultParameters + "' using CassandraStorage();");
         //((clock,10),{(1,z)})
         //((clock,20),{(1,zzzz)})
         //((clock,30),{(2,daddy?)})
@@ -753,11 +718,10 @@ public class ThriftColumnFamilyTest extends PigTestBase
                 }
             }
         }
-        Assert.assertEquals(count, 4);
+        Assert.assertEquals(4, count);
     }
 
-    private String getColumnValue(String ks, String cf, String colName, String key, String validator)
-    throws AuthenticationException, AuthorizationException, InvalidRequestException, UnavailableException, TimedOutException, TException, NotFoundException, IOException
+    private String getColumnValue(String ks, String cf, String colName, String key, String validator) throws TException, IOException
     {
         Cassandra.Client client = getClient();
         client.set_keyspace(ks);
@@ -769,18 +733,5 @@ public class ThriftColumnFamilyTest extends PigTestBase
         // read
         ColumnOrSuperColumn got = client.get(key_user_id, cp, ConsistencyLevel.ONE);
         return parseType(validator).getString(got.getColumn().value);
-    }
-
-    private void executeCliStatements(String[] statements) throws CharacterCodingException, ClassNotFoundException, TException, TimedOutException, NotFoundException, InvalidRequestException, NoSuchFieldException, UnavailableException, IllegalAccessException, InstantiationException
-    {
-        CliMain.connect("127.0.0.1", 9170);
-        try
-        {
-            for (String stmt : statements)
-                CliMain.processStatement(stmt);
-        }
-        catch (Exception e)
-        {
-        }
     }
 }

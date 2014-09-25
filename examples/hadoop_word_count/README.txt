@@ -19,12 +19,11 @@ contrib/word_count$ bin/word_count_setup
 contrib/word_count$ bin/word_count
 contrib/word_count$ bin/word_count_counters
 
-In order to view the results in Cassandra, one can use bin/cassandra-cli and
+In order to view the results in Cassandra, one can use bin/cqlsh and
 perform the following operations:
-$ bin/cassandra-cli
-> connect localhost/9160;
+$ bin/cqlsh localhost
 > use wordcount;
-> list output_words;
+> select * from output_words;
 
 The output of the word count can now be configured. In the bin/word_count
 file, you can specify the OUTPUT_REDUCER. The two options are 'filesystem'
