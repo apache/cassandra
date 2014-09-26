@@ -87,7 +87,7 @@ public class StreamWriter
             for (Pair<Long, Long> section : sections)
             {
                 long start = validator == null ? section.left : validator.chunkStart(section.left);
-                int skipBytes = (int) (section.left - start);
+                int readOffset = (int) (section.left - start);
                 // seek to the beginning of the section
                 file.seek(start);
                 if (validator != null)
@@ -96,14 +96,14 @@ public class StreamWriter
                 // length of the section to read
                 long length = section.right - start;
                 // tracks write progress
-                long bytesTransferred = 0;
-                while (bytesTransferred < length)
+                long bytesRead = 0;
+                while (bytesRead < length)
                 {
-                    long lastWrite = write(file, validator, skipBytes, length, bytesTransferred);
-                    bytesTransferred += lastWrite;
-                    progress += lastWrite;
+                    long lastBytesRead = write(file, validator, readOffset, length, bytesRead);
+                    bytesRead += lastBytesRead;
+                    progress += (lastBytesRead - readOffset);
                     session.progress(sstable.descriptor, ProgressInfo.Direction.OUT, progress, totalSize);
-                    skipBytes = 0;
+                    readOffset = 0;
                 }
 
                 // make sure that current section is send
@@ -132,10 +132,10 @@ public class StreamWriter
      * @param reader The file reader to read from
      * @param validator validator to verify data integrity
      * @param start number of bytes to skip transfer, but include for validation.
-     * @param length The full length that should be transferred
-     * @param bytesTransferred Number of bytes remaining to transfer
+     * @param length The full length that should be read from {@code reader}
+     * @param bytesTransferred Number of bytes already read out of {@code length}
      *
-     * @return Number of bytes transferred
+     * @return Number of bytes read
      *
      * @throws java.io.IOException on any I/O error
      */
@@ -148,7 +148,7 @@ public class StreamWriter
         if (validator != null)
             validator.validate(transferBuffer, 0, minReadable);
 
-        limiter.acquire(toTransfer);
+        limiter.acquire(toTransfer - start);
         compressedOutput.write(transferBuffer, start, (toTransfer - start));
 
         return toTransfer;
