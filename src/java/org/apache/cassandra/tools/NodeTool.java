@@ -1171,13 +1171,13 @@ public class NodeTool
         @Override
         public void execute(NodeProbe probe)
         {
-            int compactionThroughput = probe.getCompactionThroughput();
             CompactionManagerMBean cm = probe.getCompactionManagerProxy();
             System.out.println("pending tasks: " + probe.getCompactionMetric("PendingTasks"));
             long remainingBytes = 0;
             List<Map<String, String>> compactions = cm.getCompactions();
             if (!compactions.isEmpty())
             {
+                int compactionThroughput = probe.getCompactionThroughput();
                 List<String[]> lines = new ArrayList<>();
                 int[] columnSizes = new int[] { 0, 0, 0, 0, 0, 0, 0 };
 
