@@ -27,6 +27,7 @@
 
 
 2.1.1
+ * Ignore fat clients when checking for endpoint collision (CASSANDRA-7939)
  * Make sstablerepairedset take a list of files (CASSANDRA-7995)
  * (cqlsh) Tab completeion for indexes on map keys (CASSANDRA-7972)
  * (cqlsh) Fix UDT field selection in select clause (CASSANDRA-7891)
