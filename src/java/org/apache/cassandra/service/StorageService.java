@@ -444,7 +444,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             MessagingService.instance().listen(FBUtilities.getLocalAddress());
         Gossiper.instance.doShadowRound();
         EndpointState epState = Gossiper.instance.getEndpointStateForEndpoint(FBUtilities.getBroadcastAddress());
-        if (epState != null && !Gossiper.instance.isDeadState(epState))
+        if (epState != null && !Gossiper.instance.isDeadState(epState) && !Gossiper.instance.isFatClient(FBUtilities.getBroadcastAddress()))
         {
             throw new RuntimeException(String.format("A node with address %s already exists, cancelling join. " +
                                                      "Use cassandra.replace_address if you want to replace this node.",

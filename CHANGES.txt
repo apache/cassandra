@@ -1,4 +1,5 @@
 2.0.11:
+ * Ignore fat clients when checking for endpoint collision (CASSANDRA-7939)
  * CrcCheckChance should adjust based on live CFMetadata not 
    sstable metadata (CASSANDRA-7978)
  * token() should only accept columns in the partitioning
