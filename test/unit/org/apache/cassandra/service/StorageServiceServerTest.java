@@ -26,6 +26,10 @@ import java.util.*;
 
 import com.google.common.collect.HashMultimap;
 import com.google.common.collect.Multimap;
+
+import org.apache.cassandra.dht.BigIntegerToken;
+import org.apache.cassandra.dht.LongToken;
+import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.junit.BeforeClass;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -262,5 +266,56 @@ public class StorageServiceServerTest
         primaryRanges = StorageService.instance.getPrimaryRangesForEndpoint(meta.name, InetAddress.getByName("127.0.0.3"));
         assert primaryRanges.size() == 1;
         assert primaryRanges.contains(new Range<Token>(new StringToken("B"), new StringToken("C")));
+    }
+
+    @Test
+    public void testCreateRepairRangeFrom() throws Exception
+    {
+        StorageService.instance.setPartitionerUnsafe(new Murmur3Partitioner());
+
+        TokenMetadata metadata = StorageService.instance.getTokenMetadata();
+        metadata.clearUnsafe();
+
+        metadata.updateNormalToken(new LongToken(1000L), InetAddress.getByName("127.0.0.1"));
+        metadata.updateNormalToken(new LongToken(2000L), InetAddress.getByName("127.0.0.2"));
+        metadata.updateNormalToken(new LongToken(3000L), InetAddress.getByName("127.0.0.3"));
+        metadata.updateNormalToken(new LongToken(4000L), InetAddress.getByName("127.0.0.4"));
+
+        Map<String, String> configOptions = new HashMap<String, String>();
+        configOptions.put("replication_factor", "3");
+
+        Keyspace.clear("Keyspace1");
+        KSMetaData meta = KSMetaData.newKeyspace("Keyspace1", "SimpleStrategy", configOptions, false);
+        Schema.instance.setKeyspaceDefinition(meta);
+
+        Collection<Range<Token>> repairRangeFrom = StorageService.instance.createRepairRangeFrom("1500", "3700");
+        assert repairRangeFrom.size() == 3;
+        assert repairRangeFrom.contains(new Range<Token>(new LongToken(1500L), new LongToken(2000L)));
+        assert repairRangeFrom.contains(new Range<Token>(new LongToken(2000L), new LongToken(3000L)));
+        assert repairRangeFrom.contains(new Range<Token>(new LongToken(3000L), new LongToken(3700L)));
+
+        repairRangeFrom = StorageService.instance.createRepairRangeFrom("500", "700");
+        assert repairRangeFrom.size() == 1;
+        assert repairRangeFrom.contains(new Range<Token>(new LongToken(500L), new LongToken(700L)));
+
+        repairRangeFrom = StorageService.instance.createRepairRangeFrom("500", "1700");
+        assert repairRangeFrom.size() == 2;
+        assert repairRangeFrom.contains(new Range<Token>(new LongToken(500L), new LongToken(1000L)));
+        assert repairRangeFrom.contains(new Range<Token>(new LongToken(1000L), new LongToken(1700L)));
+
+        repairRangeFrom = StorageService.instance.createRepairRangeFrom("2500", "2300");
+        assert repairRangeFrom.size() == 5;
+        assert repairRangeFrom.contains(new Range<Token>(new LongToken(2500L), new LongToken(3000L)));
+        assert repairRangeFrom.contains(new Range<Token>(new LongToken(3000L), new LongToken(4000L)));
+        assert repairRangeFrom.contains(new Range<Token>(new LongToken(4000L), new LongToken(1000L)));
+        assert repairRangeFrom.contains(new Range<Token>(new LongToken(1000L), new LongToken(2000L)));
+        assert repairRangeFrom.contains(new Range<Token>(new LongToken(2000L), new LongToken(2300L)));
+
+        repairRangeFrom = StorageService.instance.createRepairRangeFrom("2000", "3000");
+        assert repairRangeFrom.size() == 1;
+        assert repairRangeFrom.contains(new Range<Token>(new LongToken(2000L), new LongToken(3000L)));
+
+        repairRangeFrom = StorageService.instance.createRepairRangeFrom("2000", "2000");
+        assert repairRangeFrom.size() == 0;
     }
 }
