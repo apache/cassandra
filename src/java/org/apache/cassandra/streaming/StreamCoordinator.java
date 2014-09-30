@@ -157,8 +157,11 @@ public class StreamCoordinator
 
         List<List<StreamSession.SSTableStreamingSections>> result = new ArrayList<>();
         List<StreamSession.SSTableStreamingSections> slice = null;
-        for (StreamSession.SSTableStreamingSections streamSession : sstableDetails)
+        Iterator<StreamSession.SSTableStreamingSections> iter = sstableDetails.iterator();
+        while (iter.hasNext())
         {
+            StreamSession.SSTableStreamingSections streamSession = iter.next();
+
             if (index % step == 0)
             {
                 slice = new ArrayList<>();
@@ -166,6 +169,7 @@ public class StreamCoordinator
             }
             slice.add(streamSession);
             ++index;
+            iter.remove();
         }
 
         return result;
