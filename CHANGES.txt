@@ -77,6 +77,7 @@
  * Configurable client timeout for cqlsh (CASSANDRA-7516)
  * Include snippet of CQL query near syntax error in messages (CASSANDRA-7111)
  * Make repair -pr work with -local (CASSANDRA-7450)
+ * Fix error in sstableloader with -cph > 1 (CASSANDRA-8007)
 Merged from 2.0:
  * CrcCheckChance should adjust based on live CFMetadata not 
    sstable metadata (CASSANDRA-7978)
