@@ -1,10 +1,7 @@
-2.0.12:
+2.0.11:
  * Fix possible overflow while sorting CL segments for replay (CASSANDRA-7992)
  * Increase nodetool Xmx (CASSANDRA-7956)
  * Archive any commitlog segments present at startup (CASSANDRA-6904)
-
-
-2.0.11:
  * Ignore fat clients when checking for endpoint collision (CASSANDRA-7939)
  * CrcCheckChance should adjust based on live CFMetadata not 
    sstable metadata (CASSANDRA-7978)
