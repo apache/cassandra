@@ -87,7 +87,7 @@ case "`uname`" in
 esac
 
 "$JAVA" $JAVA_AGENT -cp "$CLASSPATH" \
-      -Xmx32m \
+      -Xmx128m \
       -Dlog4j.configuration=log4j-tools.properties \
       -Dstorage-config="$CASSANDRA_CONF" \
       org.apache.cassandra.tools.NodeCmd -p $JMX_PORT $ARGS

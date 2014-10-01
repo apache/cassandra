@@ -1,4 +1,5 @@
 2.0.12:
+ * Increase nodetool Xmx (CASSANDRA-7956)
  * Archive any commitlog segments present at startup (CASSANDRA-6904)
 
 
