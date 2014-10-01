@@ -424,7 +424,7 @@ public class CommitLogSegment
         {
             CommitLogDescriptor desc = CommitLogDescriptor.fromFileName(f.getName());
             CommitLogDescriptor desc2 = CommitLogDescriptor.fromFileName(f2.getName());
-            return (int) (desc.id - desc2.id);
+            return Long.compare(desc.id, desc2.id);
         }
     }
 }
