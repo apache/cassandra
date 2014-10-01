@@ -28,6 +28,7 @@
 
 
 2.1.1
+ * (cqlsh) Fix IPv6 support (CASSANDRA-7988)
  * Ignore fat clients when checking for endpoint collision (CASSANDRA-7939)
  * Make sstablerepairedset take a list of files (CASSANDRA-7995)
  * (cqlsh) Tab completeion for indexes on map keys (CASSANDRA-7972)
