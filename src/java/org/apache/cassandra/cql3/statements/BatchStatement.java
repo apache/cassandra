@@ -23,6 +23,7 @@ import java.util.*;
 import com.google.common.base.Function;
 import com.google.common.collect.*;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.tracing.Tracing;
 import org.github.jamm.MemoryMeter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -237,10 +238,11 @@ public class BatchStatement implements CQLStatement, MeasurableForPreparedCache
      * Checks batch size to ensure threshold is met. If not, a warning is logged.
      * @param cfs ColumnFamilies that will store the batch's mutations.
      */
-    public static void verifyBatchSize(Iterable<ColumnFamily> cfs)
+    public static void verifyBatchSize(Iterable<ColumnFamily> cfs) throws InvalidRequestException
     {
         long size = 0;
         long warnThreshold = DatabaseDescriptor.getBatchSizeWarnThreshold();
+        long failThreshold = DatabaseDescriptor.getBatchSizeFailThreshold();
 
         for (ColumnFamily cf : cfs)
             size += cf.dataSize();
@@ -251,8 +253,17 @@ public class BatchStatement implements CQLStatement, MeasurableForPreparedCache
             for (ColumnFamily cf : cfs)
                 ksCfPairs.add(cf.metadata().ksName + "." + cf.metadata().cfName);
 
-            String format = "Batch of prepared statements for {} is of size {}, exceeding specified threshold of {} by {}.";
-            logger.warn(format, ksCfPairs, size, warnThreshold, size - warnThreshold);
+            String format = "Batch of prepared statements for {} is of size {}, exceeding specified threshold of {} by {}.{}";
+            if (size > failThreshold)
+            {
+                Tracing.trace(format, new Object[] {ksCfPairs, size, failThreshold, size - failThreshold, " (see batch_size_fail_threshold_in_kb)"});
+                logger.error(format, ksCfPairs, size, failThreshold, size - failThreshold, " (see batch_size_fail_threshold_in_kb)");
+                throw new InvalidRequestException(String.format("Batch too large"));
+            }
+            else if (logger.isWarnEnabled())
+            {
+                logger.warn(format, ksCfPairs, size, warnThreshold, size - warnThreshold, "");
+            }
         }
     }
 

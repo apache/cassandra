@@ -30,6 +30,8 @@ Upgrading
      GossipingPropertyFileSnitch instead.
    - CQL2 has been removed entirely in this release (previously deprecated
      in 2.0.0). Please switch to CQL3 if you haven't already done so.
+   - Very large batches will now be rejected (defaults to 50kb). This
+     can be customized by modifying batch_size_fail_threshold_in_kb.
 
 
 2.1

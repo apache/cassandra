@@ -512,6 +512,11 @@ public interface StorageServiceMBean extends NotificationEmitter
     /** Sets the threshold for abandoning queries with many tombstones */
     public void setTombstoneFailureThreshold(int tombstoneDebugThreshold);
 
+    /** Returns the threshold for rejecting queries due to a large batch size */
+    public int getBatchSizeFailureThreshold();
+    /** Sets the threshold for rejecting queries due to a large batch size */
+    public void setBatchSizeFailureThreshold(int batchSizeDebugThreshold);
+
     /** Sets the hinted handoff throttle in kb per second, per delivery thread. */
     public void setHintedHandoffThrottleInKB(int throttleInKB);
 }

@@ -24,6 +24,7 @@
  * Shorten SSTable path (CASSANDRA-6962)
  * Use unsafe mutations for most unit tests (CASSANDRA-6969)
  * Fix race condition during calculation of pending ranges (CASSANDRA-7390)
+ * Fail on very large batch sizes (CASSANDRA-8011)
 
 
 2.1.1

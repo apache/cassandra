@@ -619,6 +619,11 @@ public class DatabaseDescriptor
         }
         if (seedProvider.getSeeds().size() == 0)
             throw new ConfigurationException("The seed provider lists no seeds.");
+
+        if (conf.batch_size_fail_threshold_in_kb == null)
+        {
+            conf.batch_size_fail_threshold_in_kb = conf.batch_size_warn_threshold_in_kb * 10;
+        }
     }
 
     private static IEndpointSnitch createEndpointSnitch(String snitchClassName) throws ConfigurationException
@@ -789,6 +794,21 @@ public class DatabaseDescriptor
     public static int getBatchSizeWarnThreshold()
     {
         return conf.batch_size_warn_threshold_in_kb * 1024;
+    }
+
+    public static long getBatchSizeFailThreshold()
+    {
+        return conf.batch_size_fail_threshold_in_kb * 1024L;
+    }
+
+    public static int getBatchSizeFailThresholdInKB()
+    {
+        return conf.batch_size_fail_threshold_in_kb;
+    }
+
+    public static void setBatchSizeFailThresholdInKB(int threshold)
+    {
+        conf.batch_size_fail_threshold_in_kb = threshold;
     }
 
     public static Collection<String> getInitialTokens()

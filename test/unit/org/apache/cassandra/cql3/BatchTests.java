@@ -122,6 +122,18 @@ public class BatchTests
         sendBatch(BatchStatement.Type.LOGGED, true, false);
     }
 
+    @Test(expected = InvalidQueryException.class)
+    public void testOversizedBatch()
+    {
+        int SIZE_FOR_FAILURE = 2500;
+        BatchStatement b = new BatchStatement(BatchStatement.Type.UNLOGGED);
+        for (int i = 0; i < SIZE_FOR_FAILURE; i++)
+        {
+            b.add(noncounter.bind(i, "foobar"));
+        }
+        session.execute(b);
+    }
+
 
 
     public void sendBatch(BatchStatement.Type type, boolean addCounter, boolean addNonCounter)
