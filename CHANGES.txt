@@ -80,6 +80,7 @@
  * Make repair -pr work with -local (CASSANDRA-7450)
  * Fix error in sstableloader with -cph > 1 (CASSANDRA-8007)
 Merged from 2.0:
+ * Increase nodetool Xmx (CASSANDRA-7956)
  * Archive any commitlog segments present at startup (CASSANDRA-6904)
  * CrcCheckChance should adjust based on live CFMetadata not 
    sstable metadata (CASSANDRA-7978)
