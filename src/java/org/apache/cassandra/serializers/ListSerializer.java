@@ -67,6 +67,9 @@ public class ListSerializer<T> extends CollectionSerializer<List<T>>
             int n = readCollectionSize(input, version);
             for (int i = 0; i < n; i++)
                 elements.validate(readValue(input, version));
+
+            if (input.hasRemaining())
+                throw new MarshalException("Unexpected extraneous bytes after list value");
         }
         catch (BufferUnderflowException e)
         {
@@ -95,6 +98,10 @@ public class ListSerializer<T> extends CollectionSerializer<List<T>>
                     l.add(null);
                 }
             }
+
+            if (input.hasRemaining())
+                throw new MarshalException("Unexpected extraneous bytes after list value");
+
             return l;
         }
         catch (BufferUnderflowException e)

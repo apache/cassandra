@@ -66,6 +66,8 @@ public class SetSerializer<T> extends CollectionSerializer<Set<T>>
             int n = readCollectionSize(input, version);
             for (int i = 0; i < n; i++)
                 elements.validate(readValue(input, version));
+            if (input.hasRemaining())
+                throw new MarshalException("Unexpected extraneous bytes after set value");
         }
         catch (BufferUnderflowException e)
         {
@@ -86,6 +88,8 @@ public class SetSerializer<T> extends CollectionSerializer<Set<T>>
                 elements.validate(databb);
                 l.add(elements.deserialize(databb));
             }
+            if (input.hasRemaining())
+                throw new MarshalException("Unexpected extraneous bytes after set value");
             return l;
         }
         catch (BufferUnderflowException e)

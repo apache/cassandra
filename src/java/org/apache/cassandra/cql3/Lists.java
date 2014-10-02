@@ -423,10 +423,12 @@ public abstract class Lists
         public void execute(ByteBuffer rowKey, ColumnFamily cf, Composite prefix, UpdateParameters params) throws InvalidRequestException
         {
             List<Cell> existingList = params.getPrefetchedList(rowKey, column.name);
+            // We want to call bind before possibly returning to reject queries where the value provided is not a list.
+            Term.Terminal value = t.bind(params.options);
+
             if (existingList.isEmpty())
                 return;
 
-            Term.Terminal value = t.bind(params.options);
             if (value == null)
                 return;
 
