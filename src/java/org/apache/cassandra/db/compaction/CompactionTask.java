@@ -164,6 +164,7 @@ public class CompactionTask extends AbstractCompactionTask
                 long maxAge = getMaxDataAge(actuallyCompact);
                 if (collector != null)
                     collector.beginCompaction(ci);
+                long lastCheckObsoletion = start;
                 SSTableRewriter writer = new SSTableRewriter(cfs, sstables, maxAge, compactionType, offline);
                 try
                 {
@@ -190,6 +191,12 @@ public class CompactionTask extends AbstractCompactionTask
                             {
                                 writer.switchWriter(createCompactionWriter(sstableDirectory, keysPerSSTable, minRepairedAt));
                             }
+                        }
+
+                        if (System.nanoTime() - lastCheckObsoletion > TimeUnit.MINUTES.toNanos(1L))
+                        {
+                            controller.maybeRefreshOverlaps();
+                            lastCheckObsoletion = System.nanoTime();
                         }
                     }
 
