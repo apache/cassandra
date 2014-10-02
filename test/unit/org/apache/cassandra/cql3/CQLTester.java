@@ -387,7 +387,7 @@ public abstract class CQLTester
         // it would complain with ClassCastException if we pass say a string where an int is excepted (since
         // it bases conversion on what the value should be, not what it is). For testing, we sometimes
         // want to pass value of the wrong type and assert that this properly raise an InvalidRequestException
-        // and executeOnceInternal goes into way. So instead, we pre-convert everything to bytes here base
+        // and executeOnceInternal goes into way. So instead, we pre-convert everything to bytes here based
         // on the value.
         // Besides, we need to handle things like TupleValue that executeOnceInternal don't know about.
 
