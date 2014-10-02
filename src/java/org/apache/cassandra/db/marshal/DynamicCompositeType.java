@@ -119,6 +119,16 @@ public class DynamicCompositeType extends AbstractCompositeType
     {
         AbstractType<?> comp1 = getComparator(bb1);
         AbstractType<?> comp2 = getComparator(bb2);
+        AbstractType<?> rawComp = comp1;
+
+        /*
+         * If both types are ReversedType(Type), we need to compare on the wrapped type (which may differ between the two types) to avoid
+         * incompatible comparisons being made.
+         */
+        if ((comp1 instanceof ReversedType) && (comp2 instanceof ReversedType)) {
+            comp1 = ((ReversedType<?>) comp1).baseType;
+            comp2 = ((ReversedType<?>) comp2).baseType;
+        }
 
         // Fast test if the comparator uses singleton instances
         if (comp1 != comp2)
@@ -140,7 +150,8 @@ public class DynamicCompositeType extends AbstractCompositeType
             // if cmp == 0, we're actually having the same type, but one that
             // did not have a singleton instance. It's ok (though inefficient).
         }
-        return comp1;
+        // Use the raw comparator (prior to ReversedType unwrapping)
+        return rawComp;
     }
 
     protected AbstractType<?> getAndAppendComparator(int i, ByteBuffer bb, StringBuilder sb)
