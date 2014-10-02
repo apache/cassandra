@@ -53,6 +53,8 @@
  * Make repair -pr work with -local (CASSANDRA-7450)
  * Fix error in sstableloader with -cph > 1 (CASSANDRA-8007)
 Merged from 2.0:
+ * Fix potential exception when using ReversedType in DynamicCompositeType
+   (CASSANDRA-7898)
  * Better validation of collection values (CASSANDRA-7833)
  * Track min/max timestamps correctly (CASSANDRA-7969)
  * Fix possible overflow while sorting CL segments for replay (CASSANDRA-7992)
