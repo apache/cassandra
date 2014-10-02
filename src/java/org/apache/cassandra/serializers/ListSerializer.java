@@ -60,6 +60,8 @@ public class ListSerializer<T> extends CollectionSerializer<List<T>>
                 elements.validate(databb);
                 l.add(elements.deserialize(databb));
             }
+            if (input.hasRemaining())
+                throw new MarshalException("Unexpected extraneous bytes after list value");
             return l;
         }
         catch (BufferUnderflowException e)

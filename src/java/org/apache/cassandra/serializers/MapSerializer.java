@@ -68,6 +68,8 @@ public class MapSerializer<K, V> extends CollectionSerializer<Map<K, V>>
 
                 m.put(keys.deserialize(kbb), values.deserialize(vbb));
             }
+            if (input.hasRemaining())
+                throw new MarshalException("Unexpected extraneous bytes after map value");
             return m;
         }
         catch (BufferUnderflowException e)
