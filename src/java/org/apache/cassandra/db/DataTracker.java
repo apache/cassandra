@@ -368,6 +368,9 @@ public class DataTracker
         }
         while (!view.compareAndSet(currentView, newView));
 
+        if (!oldSSTables.isEmpty())
+            notifySSTablesChanged(oldSSTables, newSSTables, OperationType.COMPACTION);
+
         for (SSTableReader sstable : newSSTables)
             sstable.setTrackedBy(this);
 
