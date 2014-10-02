@@ -41,8 +41,8 @@ public class CompactionController implements AutoCloseable
     private static final Logger logger = LoggerFactory.getLogger(CompactionController.class);
 
     public final ColumnFamilyStore cfs;
-    private final DataTracker.SSTableIntervalTree overlappingTree;
-    private final Set<SSTableReader> overlappingSSTables;
+    private DataTracker.SSTableIntervalTree overlappingTree;
+    private Set<SSTableReader> overlappingSSTables;
     private final Set<SSTableReader> compacting;
 
     public final int gcBefore;
@@ -58,6 +58,26 @@ public class CompactionController implements AutoCloseable
         this.cfs = cfs;
         this.gcBefore = gcBefore;
         this.compacting = compacting;
+        refreshOverlaps();
+    }
+
+    void maybeRefreshOverlaps()
+    {
+        for (SSTableReader reader : overlappingSSTables)
+        {
+            if (reader.isMarkedCompacted())
+            {
+                refreshOverlaps();
+                return;
+            }
+        }
+    }
+
+    private void refreshOverlaps()
+    {
+        if (this.overlappingSSTables != null)
+            SSTableReader.releaseReferences(overlappingSSTables);
+
         Set<SSTableReader> overlapping = compacting == null ? null : cfs.getAndReferenceOverlappingSSTables(compacting);
         this.overlappingSSTables = overlapping == null ? Collections.<SSTableReader>emptySet() : overlapping;
         this.overlappingTree = overlapping == null ? null : DataTracker.buildIntervalTree(overlapping);
