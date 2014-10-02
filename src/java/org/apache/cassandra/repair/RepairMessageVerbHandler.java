@@ -32,6 +32,7 @@ import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.dht.Bounds;
+import org.apache.cassandra.dht.LocalPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.SSTableReader;
@@ -80,7 +81,9 @@ public class RepairMessageVerbHandler implements IVerbHandler<RepairMessage>
                 {
                     public boolean apply(SSTableReader sstable)
                     {
-                        return sstable != null && new Bounds<>(sstable.first.getToken(), sstable.last.getToken()).intersects(Collections.singleton(repairingRange));
+                        return sstable != null &&
+                               !(sstable.partitioner instanceof LocalPartitioner) && // exclude SSTables from 2i
+                               new Bounds<>(sstable.first.getToken(), sstable.last.getToken()).intersects(Collections.singleton(repairingRange));
                     }
                 });
 
