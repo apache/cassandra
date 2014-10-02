@@ -119,9 +119,9 @@ public class LazilyCompactedRow extends AbstractCompactedRow
         }
         // reach into the reducer (created during iteration) to get column count, size, max column timestamp
         columnStats = new ColumnStats(reducer.columns,
-                                      reducer.minTimestampSeen,
-                                      Math.max(emptyColumnFamily.deletionInfo().maxTimestamp(), reducer.maxTimestampSeen),
-                                      reducer.maxLocalDeletionTimeSeen,
+                                      reducer.minTimestampTracker.get(),
+                                      Math.max(emptyColumnFamily.deletionInfo().maxTimestamp(), reducer.maxTimestampTracker.get()),
+                                      reducer.maxDeletionTimeTracker.get(),
                                       reducer.tombstones,
                                       reducer.minColumnNameSeen,
                                       reducer.maxColumnNameSeen,
@@ -195,13 +195,26 @@ public class LazilyCompactedRow extends AbstractCompactedRow
         RangeTombstone tombstone;
 
         int columns = 0;
-        long minTimestampSeen = Long.MAX_VALUE;
-        long maxTimestampSeen = Long.MIN_VALUE;
-        int maxLocalDeletionTimeSeen = Integer.MIN_VALUE;
+        // if the row tombstone is 'live' we need to set timestamp to MAX_VALUE to be able to overwrite it later
+        // markedForDeleteAt is MIN_VALUE for 'live' row tombstones (which we use to default maxTimestampSeen)
+
+        ColumnStats.MinTracker<Long> minTimestampTracker = new ColumnStats.MinTracker<>(Long.MIN_VALUE);
+        ColumnStats.MaxTracker<Long> maxTimestampTracker = new ColumnStats.MaxTracker<>(Long.MAX_VALUE);
+        // we need to set MIN_VALUE if we are 'live' since we want to overwrite it later
+        // we are bound to have either a RangeTombstone or standard cells will set this properly:
+        ColumnStats.MaxTracker<Integer> maxDeletionTimeTracker = new ColumnStats.MaxTracker<>(Integer.MAX_VALUE);
+
         StreamingHistogram tombstones = new StreamingHistogram(SSTable.TOMBSTONE_HISTOGRAM_BIN_SIZE);
         List<ByteBuffer> minColumnNameSeen = Collections.emptyList();
         List<ByteBuffer> maxColumnNameSeen = Collections.emptyList();
         boolean hasLegacyCounterShards = false;
+
+        public Reducer()
+        {
+            minTimestampTracker.update(maxRowTombstone.isLive() ? Long.MAX_VALUE : maxRowTombstone.markedForDeleteAt);
+            maxTimestampTracker.update(maxRowTombstone.markedForDeleteAt);
+            maxDeletionTimeTracker.update(maxRowTombstone.isLive() ? Integer.MIN_VALUE : maxRowTombstone.localDeletionTime);
+        }
 
         /**
          * Called once per version of a cell that we need to merge, after which getReduced() is called.  In other words,
@@ -246,8 +259,9 @@ public class LazilyCompactedRow extends AbstractCompactedRow
                 else
                 {
                     tombstones.update(t.getLocalDeletionTime());
-                    minTimestampSeen = Math.min(minTimestampSeen, t.timestamp());
-                    maxTimestampSeen = Math.max(maxTimestampSeen, t.timestamp());
+                    minTimestampTracker.update(t.timestamp());
+                    maxTimestampTracker.update(t.timestamp());
+                    maxDeletionTimeTracker.update(t.getLocalDeletionTime());
                     minColumnNameSeen = ColumnNameHelper.minComponents(minColumnNameSeen, t.min, controller.cfs.metadata.comparator);
                     maxColumnNameSeen = ColumnNameHelper.maxComponents(maxColumnNameSeen, t.max, controller.cfs.metadata.comparator);
                     return t;
@@ -283,9 +297,9 @@ public class LazilyCompactedRow extends AbstractCompactedRow
                 }
 
                 columns++;
-                minTimestampSeen = Math.min(minTimestampSeen, reduced.timestamp());
-                maxTimestampSeen = Math.max(maxTimestampSeen, reduced.timestamp());
-                maxLocalDeletionTimeSeen = Math.max(maxLocalDeletionTimeSeen, reduced.getLocalDeletionTime());
+                minTimestampTracker.update(reduced.timestamp());
+                maxTimestampTracker.update(reduced.timestamp());
+                maxDeletionTimeTracker.update(reduced.getLocalDeletionTime());
                 minColumnNameSeen = ColumnNameHelper.minComponents(minColumnNameSeen, reduced.name(), controller.cfs.metadata.comparator);
                 maxColumnNameSeen = ColumnNameHelper.maxComponents(maxColumnNameSeen, reduced.name(), controller.cfs.metadata.comparator);
 
