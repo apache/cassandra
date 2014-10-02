@@ -243,7 +243,10 @@ $env:JAVA_BIN
         try
         {
             $uname = uname -o
-            $cygwin = $true
+            if ($uname.CompareTo("Cygwin") -eq 0)
+            {
+                $cygwin = $true
+            }
         }
         catch
         {
@@ -257,6 +260,7 @@ $env:JAVA_BIN
             # stop-server usage
             if (!$p)
             {
+                echo "Detected cygwin runtime environment.  Adding -Dcassandra-pidfile=$pidfile to JVM params as control+c trapping on mintty is inconsistent"
                 $arg2 = $arg2 + " -Dcassandra-pidfile=$pidfile"
             }
         }
