@@ -410,7 +410,7 @@ public class RangeTombstoneList implements Iterable<RangeTombstone>, IMeasurable
             }
         };
     }
-    
+
     /**
      * Evaluates a diff between superset (known to be all merged tombstones) and this list for read repair
      *
@@ -421,29 +421,37 @@ public class RangeTombstoneList implements Iterable<RangeTombstone>, IMeasurable
         if (isEmpty())
             return superset;
 
-        assert size <= superset.size;
-
         RangeTombstoneList diff = null;
 
         int j = 0; // index to iterate through our own list
         for (int i = 0; i < superset.size; i++)
         {
-            boolean sameStart = j < size && starts[j].equals(superset.starts[i]);
-            // don't care about local deletion time here. for RR it doesn't makes sense
-            if (!sameStart
+            // we can assume that this list is a subset of the superset list
+            while (j < size && comparator.compare(starts[j], superset.starts[i]) < 0)
+                j++;
+
+            if (j >= size)
+            {
+                // we're at the end of our own list, add the remainder of the superset to the diff
+                if (i < superset.size)
+                {
+                    if (diff == null)
+                        diff = new RangeTombstoneList(comparator, superset.size - i);
+
+                    for(int k = i; k < superset.size; k++)
+                        diff.add(superset.starts[k], superset.ends[k], superset.markedAts[k], superset.delTimes[k]);
+                }
+                return diff;
+            }
+
+            // we don't care about local deletion time here, because it doesn't matter for read repair
+            if (!starts[j].equals(superset.starts[i])
                 || !ends[j].equals(superset.ends[i])
                 || markedAts[j] != superset.markedAts[i])
             {
                 if (diff == null)
                     diff = new RangeTombstoneList(comparator, Math.min(8, superset.size - i));
                 diff.add(superset.starts[i], superset.ends[i], superset.markedAts[i], superset.delTimes[i]);
-
-                if (sameStart)
-                    j++;
-            }
-            else
-            {
-                j++;
             }
         }
 
