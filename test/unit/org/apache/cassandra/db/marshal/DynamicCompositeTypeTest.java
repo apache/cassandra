@@ -214,8 +214,8 @@ public class DynamicCompositeTypeTest
     @Test
     public void testFullRoundReversed() throws Exception
     {
-        Keyspace keyspace = Keyspace.open("Keyspace1");
-        ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(cfName);
+        Keyspace keyspace = Keyspace.open(KEYSPACE1);
+        ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(CF_STANDARDDYNCOMPOSITE);
 
         ByteBuffer cname1 = createDynamicCompositeKey("test1", null, -1, false, true);
         ByteBuffer cname2 = createDynamicCompositeKey("test1", uuids[0], 24, false, true);
@@ -224,7 +224,7 @@ public class DynamicCompositeTypeTest
         ByteBuffer cname5 = createDynamicCompositeKey("test2", uuids[1], 42, false, true);
 
         ByteBuffer key = ByteBufferUtil.bytes("kr");
-        RowMutation rm = new RowMutation("Keyspace1", key);
+        Mutation rm = new Mutation(KEYSPACE1, key);
         addColumn(rm, cname5);
         addColumn(rm, cname1);
         addColumn(rm, cname4);
@@ -232,9 +232,9 @@ public class DynamicCompositeTypeTest
         addColumn(rm, cname3);
         rm.apply();
 
-        ColumnFamily cf = cfs.getColumnFamily(QueryFilter.getIdentityFilter(Util.dk("kr"), cfName, System.currentTimeMillis()));
+        ColumnFamily cf = cfs.getColumnFamily(QueryFilter.getIdentityFilter(Util.dk("kr"), CF_STANDARDDYNCOMPOSITE, System.currentTimeMillis()));
 
-        Iterator<Column> iter = cf.getSortedColumns().iterator();
+        Iterator<Cell> iter = cf.getSortedColumns().iterator();
 
         assert iter.next().name().equals(cname5);
         assert iter.next().name().equals(cname4);
