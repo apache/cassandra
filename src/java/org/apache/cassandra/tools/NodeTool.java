@@ -1393,13 +1393,13 @@ public class NodeTool
         }
     }
 
-    @Command(name = "getstreamthroughput", description = "Print the MB/s throughput cap for streaming in the system")
+    @Command(name = "getstreamthroughput", description = "Print the Mb/s throughput cap for streaming in the system")
     public static class GetStreamThroughput extends NodeToolCmd
     {
         @Override
         public void execute(NodeProbe probe)
         {
-            System.out.println("Current stream throughput: " + probe.getStreamThroughput() + " MB/s");
+            System.out.println("Current stream throughput: " + probe.getStreamThroughput() + " Mb/s");
         }
     }
 
@@ -1765,10 +1765,10 @@ public class NodeTool
         }
     }
 
-    @Command(name = "setstreamthroughput", description = "Set the MB/s throughput cap for streaming in the system, or 0 to disable throttling")
+    @Command(name = "setstreamthroughput", description = "Set the Mb/s throughput cap for streaming in the system, or 0 to disable throttling")
     public static class SetStreamThroughput extends NodeToolCmd
     {
-        @Arguments(title = "stream_throughput", usage = "<value_in_mb>", description = "Value in MB, 0 to disable throttling", required = true)
+        @Arguments(title = "stream_throughput", usage = "<value_in_mb>", description = "Value in Mb, 0 to disable throttling", required = true)
         private Integer streamThroughput = null;
 
         @Override
