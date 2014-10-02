@@ -161,8 +161,12 @@ public class Server implements CassandraDaemon.Server
         // Bind and start to accept incoming connections.
         logger.info("Using Netty Version: {}", Version.identify().entrySet());
         logger.info("Starting listening for CQL clients on {}...", socket);
-        Channel channel = bootstrap.bind(socket).channel();
-        connectionTracker.allChannels.add(channel);
+
+        ChannelFuture bindFuture = bootstrap.bind(socket);
+        if (!bindFuture.awaitUninterruptibly().isSuccess())
+            throw new IllegalStateException(String.format("Failed to bind port %d on %s.", socket.getPort(), socket.getAddress().getHostAddress()));
+
+        connectionTracker.allChannels.add(bindFuture.channel());
         isRunning.set(true);
     }
 
