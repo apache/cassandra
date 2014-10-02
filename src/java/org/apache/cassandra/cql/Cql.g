@@ -86,7 +86,7 @@ options {
     public Token nextToken() {
         super.nextToken();
         if (tokens.size() == 0)
-            return Token.EOF_TOKEN;
+            return new CommonToken(Token.EOF);
         return tokens.remove(0);
     }
     

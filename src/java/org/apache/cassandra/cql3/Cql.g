@@ -184,7 +184,7 @@ options {
     {
         super.nextToken();
         if (tokens.size() == 0)
-            return Token.EOF_TOKEN;
+            return new CommonToken(Token.EOF);
         return tokens.remove(0);
     }
 
@@ -936,7 +936,16 @@ term returns [Term.Raw term]
     ;
 
 columnOperation[List<Pair<ColumnIdentifier, Operation.RawUpdate>> operations]
-    : key=cident '=' t=term ('+' c=cident )?
+    : key=cident columnOperationDifferentiator[operations, key]
+    ;
+    
+columnOperationDifferentiator[List<Pair<ColumnIdentifier, Operation.RawUpdate>> operations, ColumnIdentifier key]
+    : '=' normalColumnOperation[operations, key]
+    | '[' k=term ']' specializedColumnOperation[operations, key, k]
+    ;
+    
+normalColumnOperation[List<Pair<ColumnIdentifier, Operation.RawUpdate>> operations, ColumnIdentifier key]
+    : t=term ('+' c=cident )?
       {
           if (c == null)
           {
@@ -949,13 +958,13 @@ columnOperation[List<Pair<ColumnIdentifier, Operation.RawUpdate>> operations]
               addRawUpdate(operations, key, new Operation.Prepend(t));
           }
       }
-    | key=cident '=' c=cident sig=('+' | '-') t=term
+    | c=cident sig=('+' | '-') t=term
       {
           if (!key.equals(c))
               addRecognitionError("Only expressions of the form X = X " + $sig.text + "<value> are supported.");
           addRawUpdate(operations, key, $sig.text.equals("+") ? new Operation.Addition(t) : new Operation.Substraction(t));
       }
-    | key=cident '=' c=cident i=INTEGER
+    | c=cident i=INTEGER
       {
           // Note that this production *is* necessary because X = X - 3 will in fact be lexed as [ X, '=', X, INTEGER].
           if (!key.equals(c))
@@ -963,7 +972,10 @@ columnOperation[List<Pair<ColumnIdentifier, Operation.RawUpdate>> operations]
               addRecognitionError("Only expressions of the form X = X " + ($i.text.charAt(0) == '-' ? '-' : '+') + " <value> are supported.");
           addRawUpdate(operations, key, new Operation.Addition(Constants.Literal.integer($i.text)));
       }
-    | key=cident '[' k=term ']' '=' t=term
+    ;
+      
+specializedColumnOperation[List<Pair<ColumnIdentifier, Operation.RawUpdate>> operations, ColumnIdentifier key, Term.Raw k]
+    : '=' t=term
       {
           addRawUpdate(operations, key, new Operation.SetElement(k, t));
       }
