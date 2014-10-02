@@ -123,7 +123,7 @@ commands:
       Set the MB/s throughput cap for compaction in the system, or 0 to disable throttling.
   - name: setstreamthroughput  <value_in_mb>
     help: |
-      Set the MB/s throughput cap for streaming in the system, or 0 to disable throttling.
+      Set the Mb/s throughput cap for streaming in the system, or 0 to disable throttling.
   - name: describecluster
     help: |
       Print the name, snitch, partitioner and schema version of a cluster.
@@ -189,7 +189,7 @@ commands:
       Print the MB/s throughput cap for compaction in the system
   - name: getstreamthroughput
     help: |
-      Print the MB/s throughput cap for streaming in the system
+      Print the Mb/s throughput cap for streaming in the system
   - name: stop <compaction_type>
     help: |
       Supported types are COMPACTION, VALIDATION, CLEANUP, SCRUB, INDEX_BUILD

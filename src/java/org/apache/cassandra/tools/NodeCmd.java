@@ -811,7 +811,7 @@ public class NodeCmd
      */
     public void printStreamThroughput(PrintStream outs)
     {
-        outs.println("Current stream throughput: " + probe.getStreamThroughput() + " MB/s");
+        outs.println("Current stream throughput: " + probe.getStreamThroughput() + " Mb/s");
     }
 
     /**
