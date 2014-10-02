@@ -46,6 +46,7 @@ public class CqlParserTest
 
         parser.query();
 
+        // ANTLR 3.5 reports 2 errors in the sentence above (missing FROM and missing EOF).
         assertTrue(firstCounter.count > 0);
         assertTrue(secondCounter.count > 0);
     }
