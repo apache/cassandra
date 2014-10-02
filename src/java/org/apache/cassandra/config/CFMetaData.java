@@ -487,7 +487,6 @@ public final class CFMetaData
     public CFMetaData droppedColumns(Map<ColumnIdentifier, Long> cols) {droppedColumns = cols; return this;}
     public CFMetaData triggers(Map<String, TriggerDefinition> prop) {triggers = prop; return this;}
     public CFMetaData isDense(Boolean prop) {isDense = prop; return this;}
-
     /**
      * Create new ColumnFamily metadata with generated random ID.
      * When loading from existing schema, use CFMetaData
@@ -690,6 +689,23 @@ public final class CFMetaData
     public boolean isSuper()
     {
         return cfType == ColumnFamilyType.Super;
+    }
+
+    /**
+     * The '.' char is the only way to identify if the CFMetadata is for a secondary index
+     */
+    public boolean isSecondaryIndex()
+    {
+        return cfName.contains(".");
+    }
+
+    /**
+     *
+     * @return The name of the parent cf if this is a seconday index
+     */
+    public String getParentColumnFamilyName()
+    {
+        return isSecondaryIndex() ? cfName.substring(0, cfName.indexOf('.')) : null;
     }
 
     public double getReadRepairChance()

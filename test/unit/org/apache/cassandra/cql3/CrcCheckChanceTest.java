@@ -31,32 +31,72 @@ public class CrcCheckChanceTest extends CQLTester
         //Start with crc_check_chance of 99%
         createTable("CREATE TABLE %s (p text, c text, v text, s text static, PRIMARY KEY (p, c)) WITH compression = {'sstable_compression': 'LZ4Compressor', 'crc_check_chance' : 0.99}");
 
+        execute("CREATE INDEX foo ON %s(v)");
+
         execute("INSERT INTO %s(p, c, v, s) values (?, ?, ?, ?)", "p1", "k1", "v1", "sv1");
         execute("INSERT INTO %s(p, c, v) values (?, ?, ?)", "p1", "k2", "v2");
         execute("INSERT INTO %s(p, s) values (?, ?)", "p2", "sv2");
 
 
         ColumnFamilyStore cfs = Keyspace.open(CQLTester.KEYSPACE).getColumnFamilyStore(currentTable());
+        ColumnFamilyStore indexCfs = cfs.indexManager.getIndexesBackedByCfs().iterator().next();
         cfs.forceBlockingFlush();
 
         Assert.assertEquals(0.99, cfs.metadata.compressionParameters.getCrcCheckChance());
         Assert.assertEquals(0.99, cfs.getSSTables().iterator().next().getCompressionMetadata().parameters.getCrcCheckChance());
+        Assert.assertEquals(0.99, indexCfs.metadata.compressionParameters.getCrcCheckChance());
+        Assert.assertEquals(0.99, indexCfs.getSSTables().iterator().next().getCompressionMetadata().parameters.getCrcCheckChance());
+
 
         assertRows(execute("SELECT * FROM %s WHERE p=?", "p1"),
                 row("p1", "k1", "sv1", "v1"),
                 row("p1", "k2", "sv1", "v2")
         );
 
+        assertRows(execute("SELECT * FROM %s WHERE v=?", "v1"),
+                row("p1", "k1", "sv1", "v1")
+        );
+
+
+
+        //Write a few SSTables then Compact
+
+        execute("INSERT INTO %s(p, c, v, s) values (?, ?, ?, ?)", "p1", "k1", "v1", "sv1");
+        execute("INSERT INTO %s(p, c, v) values (?, ?, ?)", "p1", "k2", "v2");
+        execute("INSERT INTO %s(p, s) values (?, ?)", "p2", "sv2");
+
+        cfs.forceBlockingFlush();
+
+
+        execute("INSERT INTO %s(p, c, v, s) values (?, ?, ?, ?)", "p1", "k1", "v1", "sv1");
+        execute("INSERT INTO %s(p, c, v) values (?, ?, ?)", "p1", "k2", "v2");
+        execute("INSERT INTO %s(p, s) values (?, ?)", "p2", "sv2");
+
+        cfs.forceBlockingFlush();
+
+        execute("INSERT INTO %s(p, c, v, s) values (?, ?, ?, ?)", "p1", "k1", "v1", "sv1");
+        execute("INSERT INTO %s(p, c, v) values (?, ?, ?)", "p1", "k2", "v2");
+        execute("INSERT INTO %s(p, s) values (?, ?)", "p2", "sv2");
+
+        cfs.forceBlockingFlush();
+
+        cfs.forceMajorCompaction();
 
         //Verify when we alter the value the live sstable readers hold the new one
         alterTable("ALTER TABLE %s WITH compression = {'sstable_compression': 'LZ4Compressor', 'crc_check_chance': 0.01}");
 
         Assert.assertEquals( 0.01, cfs.metadata.compressionParameters.getCrcCheckChance());
         Assert.assertEquals( 0.01, cfs.getSSTables().iterator().next().getCompressionMetadata().parameters.getCrcCheckChance());
+        Assert.assertEquals( 0.01, indexCfs.metadata.compressionParameters.getCrcCheckChance());
+        Assert.assertEquals( 0.01, indexCfs.getSSTables().iterator().next().getCompressionMetadata().parameters.getCrcCheckChance());
 
         assertRows(execute("SELECT * FROM %s WHERE p=?", "p1"),
                 row("p1", "k1", "sv1", "v1"),
                 row("p1", "k2", "sv1", "v2")
+        );
+
+        assertRows(execute("SELECT * FROM %s WHERE v=?", "v1"),
+                row("p1", "k1", "sv1", "v1")
         );
 
 
@@ -64,6 +104,8 @@ public class CrcCheckChanceTest extends CQLTester
         cfs.setCrcCheckChance(0.03);
         Assert.assertEquals( 0.03, cfs.metadata.compressionParameters.getCrcCheckChance());
         Assert.assertEquals( 0.03, cfs.getSSTables().iterator().next().getCompressionMetadata().parameters.getCrcCheckChance());
+        Assert.assertEquals( 0.03, indexCfs.metadata.compressionParameters.getCrcCheckChance());
+        Assert.assertEquals( 0.03, indexCfs.getSSTables().iterator().next().getCompressionMetadata().parameters.getCrcCheckChance());
 
     }
 }
