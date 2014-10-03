@@ -87,8 +87,8 @@ public class PaxosState
         lock.lock();
         try
         {
-            PaxosState state = SystemKeyspace.loadPaxosState(proposal.key, proposal.update.metadata());
-            if (proposal.hasBallot(state.promised.ballot) || proposal.isAfter(state.promised))
+            Commit promised = SystemKeyspace.loadPaxosPromise(proposal.key, proposal.update.metadata());
+            if (proposal.hasBallot(promised.ballot) || proposal.isAfter(promised))
             {
                 Tracing.trace("Accepting proposal {}", proposal);
                 SystemKeyspace.savePaxosProposal(proposal);
@@ -96,7 +96,7 @@ public class PaxosState
             }
             else
             {
-                Tracing.trace("Rejecting proposal for {} because inProgress is now {}", proposal, state.promised);
+                Tracing.trace("Rejecting proposal for {} because inProgress is now {}", proposal, promised);
                 return false;
             }
         }

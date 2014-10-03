@@ -860,6 +860,19 @@ public class SystemKeyspace
         return new PaxosState(promised, accepted, mostRecent);
     }
 
+    public static Commit loadPaxosPromise(ByteBuffer key, CFMetaData metadata)
+    {
+        String req = "SELECT in_progress_ballot FROM system.%s WHERE row_key = ? AND cf_id = ?";
+        UntypedResultSet results = executeInternal(String.format(req, PAXOS_CF), key, metadata.cfId);
+        if (results.isEmpty())
+            return Commit.emptyCommit(key, metadata);
+        UntypedResultSet.Row row = results.one();
+        Commit promised = row.has("in_progress_ballot")
+                ? new Commit(key, row.getUUID("in_progress_ballot"), ArrayBackedSortedColumns.factory.create(metadata))
+                : Commit.emptyCommit(key, metadata);
+        return promised;
+    }
+
     public static void savePaxosPromise(Commit promise)
     {
         String req = "UPDATE system.%s USING TIMESTAMP ? AND TTL ? SET in_progress_ballot = ? WHERE row_key = ? AND cf_id = ?";
