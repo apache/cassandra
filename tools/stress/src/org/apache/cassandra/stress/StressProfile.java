@@ -68,11 +68,9 @@ import org.yaml.snakeyaml.Yaml;
 import org.yaml.snakeyaml.constructor.Constructor;
 import org.yaml.snakeyaml.error.YAMLException;
 
-import java.io.ByteArrayInputStream;
-import java.io.File;
-import java.io.IOError;
-import java.io.IOException;
-import java.io.Serializable;
+import java.io.*;
+import java.net.URI;
+import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.ArrayList;
@@ -524,17 +522,20 @@ public class StressProfile implements Serializable
         }
     }
 
-    public static StressProfile load(File file) throws IOError
+    public static StressProfile load(URI file) throws IOError
     {
         try
         {
-            byte[] profileBytes = Files.readAllBytes(Paths.get(file.toURI()));
-
             Constructor constructor = new Constructor(StressYaml.class);
 
             Yaml yaml = new Yaml(constructor);
 
-            StressYaml profileYaml = yaml.loadAs(new ByteArrayInputStream(profileBytes), StressYaml.class);
+            InputStream yamlStream = file.toURL().openStream();
+
+            if (yamlStream.available() == 0)
+                throw new IOException("Unable to load yaml file from: "+file);
+
+            StressYaml profileYaml = yaml.loadAs(yamlStream, StressYaml.class);
 
             StressProfile profile = new StressProfile();
             profile.init(profileYaml);

@@ -22,6 +22,7 @@ package org.apache.cassandra.stress.settings;
 
 
 import java.io.File;
+import java.net.URI;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -58,7 +59,15 @@ public class SettingsCommandUser extends SettingsCommand
 
         clustering = options.clustering.get();
         ratios = options.ops.ratios();
-        profile = StressProfile.load(new File(options.profile.value()));
+
+        String yamlPath = options.profile.value();
+        File yamlFile = new File(yamlPath);
+        if (yamlFile.exists())
+        {
+            yamlPath = "file:///" + yamlFile.getAbsolutePath();
+        }
+
+        profile = StressProfile.load(URI.create(yamlPath));
 
         if (ratios.size() == 0)
             throw new IllegalArgumentException("Must specify at least one command with a non-zero ratio");
