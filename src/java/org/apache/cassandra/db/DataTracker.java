@@ -264,7 +264,7 @@ public class DataTracker
     {
         replace(sstables, Collections.<SSTableReader>emptyList());
         notifySSTablesChanged(sstables, allReplacements, compactionType);
-        for (SSTableReader sstable : sstables)
+        for (SSTableReader sstable : allReplacements)
         {
             long bytesOnDisk = sstable.bytesOnDisk();
             cfstore.metric.totalDiskSpaceUsed.inc(bytesOnDisk);
