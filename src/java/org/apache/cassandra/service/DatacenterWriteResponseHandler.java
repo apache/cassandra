@@ -63,7 +63,7 @@ public class DatacenterWriteResponseHandler extends WriteResponseHandler
 		return consistencyLevel.blockFor(table) + countPendingEndPoints();
 	}
 
-	private int countPendingEndPoints() 
+	private int countPendingEndPoints()
 	{
 		int count = 0;
 
@@ -77,7 +77,7 @@ public class DatacenterWriteResponseHandler extends WriteResponseHandler
 		return count;
 	}
 
-	private boolean isLocal(InetAddress ad) 
+	private boolean isLocal(InetAddress ad)
 	{
 		return DatabaseDescriptor.getLocalDataCenter().equals(snitch.getDatacenter(ad));
 	}
