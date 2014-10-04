@@ -21,11 +21,11 @@ import java.net.InetAddress;
 import java.util.Collection;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.Table;
-import org.apache.cassandra.db.WriteType;
 import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.net.MessageIn;
+import org.apache.cassandra.db.ConsistencyLevel;
+import org.apache.cassandra.db.WriteType;
 
 /**
  * This class blocks for a quorum of responses _in the local datacenter only_ (CL.LOCAL_QUORUM and CL.LOCAL_ONE).
@@ -56,28 +56,28 @@ public class DatacenterWriteResponseHandler extends WriteResponseHandler
     }
     
 	@Override
-	protected int totalBlockFor() 
+	protected int totalBlockFor()
 	{
 		// during bootstrap, include pending endpoints (only local here) in the count
 		// or we may fail the consistency level guarantees (see #833)
 		return consistencyLevel.blockFor(table) + countPendingEndPoints();
 	}
 
-	private int countPendingEndPoints()
-    {
+	private int countPendingEndPoints() 
+	{
 		int count = 0;
-		
+
 		// filter only local pending endpoints
-        for ( InetAddress pending : this.pendingEndpoints )
-        {
-        	if ( isLocal(pending) ) 
-        		count++;
-        }
-        
-        return count;
+		for (InetAddress pending : this.pendingEndpoints) 
+		{
+			if (isLocal(pending))
+				count++;
+		}
+
+		return count;
 	}
-	
-	private boolean isLocal(InetAddress ad)
+
+	private boolean isLocal(InetAddress ad) 
 	{
 		return DatabaseDescriptor.getLocalDataCenter().equals(snitch.getDatacenter(ad));
 	}
