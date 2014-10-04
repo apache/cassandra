@@ -21,11 +21,11 @@ import java.net.InetAddress;
 import java.util.Collection;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.Table;
-import org.apache.cassandra.db.WriteType;
 import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.net.MessageIn;
+import org.apache.cassandra.db.ConsistencyLevel;
+import org.apache.cassandra.db.WriteType;
 
 /**
  * This class blocks for a quorum of responses _in the local datacenter only_ (CL.LOCAL_QUORUM and CL.LOCAL_ONE).
