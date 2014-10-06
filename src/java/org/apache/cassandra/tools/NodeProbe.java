@@ -1334,8 +1334,6 @@ class RepairRunner implements NotificationListener
                                            format.format(notification.getTimeStamp()),
                                            keyspace);
             out.println(message);
-            success = false;
-            condition.signalAll();
         }
         else if (JMXConnectionNotification.FAILED.equals(notification.getType())
                  || JMXConnectionNotification.CLOSED.equals(notification.getType()))
