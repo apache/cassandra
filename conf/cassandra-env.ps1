@@ -54,6 +54,79 @@ Function BuildClassPath
 #-----------------------------------------------------------------------------
 Function CalculateHeapSizes
 {
+    # Check if swapping is enabled on the host and warn if so - reference CASSANDRA-7316
+
+    $osInfo = Get-WmiObject -class "Win32_computersystem"
+    $autoPage = $osInfo.AutomaticManagedPageFile
+
+    if ($autoPage)
+    {
+        echo "*---------------------------------------------------------------------*"
+        echo "*---------------------------------------------------------------------*"
+        echo ""
+        echo "    WARNING!  Automatic page file configuration detected."
+        echo "    It is recommended that you disable swap when running Cassandra"
+        echo "    for performance and stability reasons."
+        echo ""
+        echo "*---------------------------------------------------------------------*"
+        echo "*---------------------------------------------------------------------*"
+    }
+    else
+    {
+        $pageFileInfo = Get-WmiObject -class "Win32_PageFileSetting" -EnableAllPrivileges
+        $pageFileCount = $PageFileInfo.Count
+        if ($pageFileInfo)
+        {
+            $files = @()
+            $sizes = @()
+            $hasSizes = $FALSE
+
+            # PageFileCount isn't populated and obj comes back as single if there's only 1
+            if ([string]::IsNullOrEmpty($PageFileCount))
+            {
+                $PageFileCount = 1
+                $files += $PageFileInfo.Name
+                if ($PageFileInfo.MaximumSize -ne 0)
+                {
+                    $hasSizes = $TRUE
+                    $sizes += $PageFileInfo.MaximumSize
+                }
+            }
+            else
+            {
+                for ($i = 0; $i -le $PageFileCount; $i++)
+                {
+                    $files += $PageFileInfo[$i].Name
+                    if ($PageFileInfo[$i].MaximumSize -ne 0)
+                    {
+                        $hasSizes = $TRUE
+                        $sizes += $PageFileInfo[$i].MaximumSize
+                    }
+                }
+            }
+
+            echo "*---------------------------------------------------------------------*"
+            echo "*---------------------------------------------------------------------*"
+            echo ""
+            echo "    WARNING!  $PageFileCount swap file(s) detected"
+            for ($i = 0; $i -lt $PageFileCount; $i++)
+            {
+                $toPrint = "        Name: " + $files[$i]
+                if ($hasSizes)
+                {
+                    $toPrint = $toPrint + " Size: " + $sizes[$i]
+                    $toPrint = $toPrint -replace [Environment]::NewLine, ""
+                }
+                echo $toPrint
+            }
+            echo "    It is recommended that you disable swap when running Cassandra"
+            echo "    for performance and stability reasons."
+            echo ""
+            echo "*---------------------------------------------------------------------*"
+            echo "*---------------------------------------------------------------------*"
+        }
+    }
+
     # Validate that we need to run this function and that our config is good
     if ($env:MAX_HEAP_SIZE -and $env:HEAP_NEWSIZE)
     {
