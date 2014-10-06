@@ -271,9 +271,12 @@ public class Partition
                             tosort.add((Comparable) generator.generate());
                         Collections.sort(tosort);
                         for (int i = 0 ; i < count ; i++)
-                            if (i == 0 || tosort.get(i - 1).compareTo(i) < 0)
-                                queue.add(tosort.get(i));
+                            queue.add(tosort.get(i));
                         break;
+                    }
+                    else
+                    {
+                        throw new RuntimeException("Generator class is not comparable: "+generator.clazz);
                     }
                 case ARBITRARY:
                     unique.clear();
