@@ -90,6 +90,7 @@
  * Fix snapshot repair error on indexed tables (CASSANDRA-8020)
  * Do not exit nodetool repair when receiving JMX NOTIF_LOST (CASSANDRA-7909)
 Merged from 2.0:
+ * SSL does not work in cassandra-cli (CASSANDRA-7899)
  * Fix potential exception when using ReversedType in DynamicCompositeType
    (CASSANDRA-7898)
  * Better validation of collection values (CASSANDRA-7833)
