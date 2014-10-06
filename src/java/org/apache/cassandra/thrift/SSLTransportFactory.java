@@ -18,7 +18,7 @@
 package org.apache.cassandra.thrift;
 
 import com.google.common.collect.Sets;
-import org.apache.cassandra.cli.transport.FramedTransportFactory;
+import org.apache.thrift.transport.TFramedTransport;
 import org.apache.thrift.transport.TSSLTransportFactory;
 import org.apache.thrift.transport.TTransport;
 
@@ -57,7 +57,8 @@ public class SSLTransportFactory implements ITransportFactory
         if (null != keystore)
             params.setKeyStore(keystore, keystorePassword);
         TTransport trans = TSSLTransportFactory.getClientSocket(host, port, SOCKET_TIMEOUT, params);
-        return new FramedTransportFactory().getTransport(trans);
+        int frameSize = 15 * 1024 * 1024; // 15 MiB
+        return new TFramedTransport(trans, frameSize);
     }
 
     @Override
