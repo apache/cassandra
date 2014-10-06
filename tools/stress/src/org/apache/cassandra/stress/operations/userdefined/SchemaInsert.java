@@ -84,7 +84,7 @@ public class SchemaInsert extends SchemaStatement
             // 65535 is max number of stmts per batch, so if we have more, we need to manually batch them
             for (int j = 0 ; j < stmts.size() ; j += 65535)
             {
-                List<BoundStatement> substmts = stmts.subList(j, Math.min(stmts.size(), j + 65535));
+                List<BoundStatement> substmts = stmts.subList(j, Math.min(j + stmts.size(), j + 65535));
                 Statement stmt;
                 if (stmts.size() == 1)
                 {
@@ -98,7 +98,14 @@ public class SchemaInsert extends SchemaStatement
                     stmt = batch;
                 }
 
-                validate(client.getSession().execute(stmt));
+                try
+                {
+                    validate(client.getSession().execute(stmt));
+                }
+                catch (ClassCastException e)
+                {
+                    e.printStackTrace();
+                }
             }
 
             for (Partition.RowIterator iterator : iterators)
