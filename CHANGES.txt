@@ -1,4 +1,6 @@
 2.1.1
+ * Fix some Thrift slice deletions and updates of COMPACT STORAGE
+   tables with some clustering columns omitted (CASSANDRA-7990)
  * Fix filtering for CONTAINS on sets (CASSANDRA-8033)
  * Properly track added size (CASSANDRA-7239)
  * Allow compilation in java 8 (CASSANDRA-7208)
