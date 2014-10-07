@@ -1,4 +1,5 @@
 2.1.1
+ * Avoid re-parsing already prepared statements (CASSANDRA-7923)
  * Fix some Thrift slice deletions and updates of COMPACT STORAGE
    tables with some clustering columns omitted (CASSANDRA-7990)
  * Fix filtering for CONTAINS on sets (CASSANDRA-8033)
