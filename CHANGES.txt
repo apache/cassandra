@@ -1,4 +1,6 @@
 2.0.11:
+ * Don't reset nodes' versions when closing IncomingTcpConnections
+   (CASSANDRA-7734)
  * Record the real messaging version in all cases in OutboundTcpConnection
    (CASSANDRA-8057)
  * SSL does not work in cassandra-cli (CASSANDRA-7899)

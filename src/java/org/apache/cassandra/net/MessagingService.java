@@ -791,7 +791,7 @@ public final class MessagingService implements MessagingServiceMBean
 
     public void resetVersion(InetAddress endpoint)
     {
-        logger.debug("Reseting version for {}", endpoint);
+        logger.debug("Resetting version for {}", endpoint);
         Integer removed = versions.remove(endpoint);
         if (removed != null && removed <= VERSION_20)
             refreshAllNodesAtLeast20();
