@@ -159,6 +159,7 @@ public class RowDataResolver extends AbstractRowResolver
 
     public Row getData()
     {
+        assert !replies.isEmpty();
         return replies.get(0).payload.row();
     }
 
