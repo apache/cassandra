@@ -1,4 +1,5 @@
 2.1.1
+ * Fix filtering for CONTAINS on sets (CASSANDRA-8033)
  * Properly track added size (CASSANDRA-7239)
  * Allow compilation in java 8 (CASSANDRA-7208)
  * Fix Assertion error on RangeTombstoneList diff (CASSANDRA-8013)
