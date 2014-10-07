@@ -19,8 +19,11 @@ package org.apache.cassandra.streaming.messages;
 
 import java.io.IOException;
 import java.nio.channels.ReadableByteChannel;
+import java.util.Collection;
 import java.util.List;
 
+import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.compress.CompressionMetadata;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.DataOutputStreamPlus;
@@ -50,15 +53,17 @@ public class OutgoingFileMessage extends StreamMessage
         }
     };
 
-    public final FileMessageHeader header;
+    public FileMessageHeader header;
     private final Ref<SSTableReader> ref;
+    public transient Collection<Range<Token>> ranges;
     private final String filename;
     private boolean completed = false;
 
-    public OutgoingFileMessage(Ref<SSTableReader> ref, int sequenceNumber, long estimatedKeys, List<Pair<Long, Long>> sections, long repairedAt, boolean keepSSTableLevel)
+    public OutgoingFileMessage(Ref<SSTableReader> ref, int sequenceNumber, long estimatedKeys, List<Pair<Long, Long>> sections, Collection<Range<Token>> ranges, long repairedAt, boolean keepSSTableLevel)
     {
         super(Type.FILE);
         this.ref = ref;
+        this.ranges = ranges;
 
         SSTableReader sstable = ref.get();
         filename = sstable.getFilename();

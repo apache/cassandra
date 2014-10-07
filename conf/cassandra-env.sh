@@ -307,3 +307,7 @@ JVM_OPTS="$JVM_OPTS -Djava.library.path=$CASSANDRA_HOME/lib/sigar-bin"
 JVM_OPTS="$JVM_OPTS $MX4J_ADDRESS"
 JVM_OPTS="$JVM_OPTS $MX4J_PORT"
 JVM_OPTS="$JVM_OPTS $JVM_EXTRA_OPTS"
+
+JVM_OPTS="$JVM_OPTS -Dcassandra.use_epaxos=true"
+JVM_OPTS="$JVM_OPTS -Dcassandra.epaxos.cache=true"
+#JVM_OPTS="$JVM_OPTS -Dcassandra.log.paxos_messages=true"

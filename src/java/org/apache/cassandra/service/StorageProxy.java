@@ -31,6 +31,8 @@ import com.google.common.base.Predicate;
 import com.google.common.cache.CacheLoader;
 import com.google.common.collect.*;
 import com.google.common.util.concurrent.Uninterruptibles;
+import org.apache.cassandra.service.epaxos.*;
+import org.apache.cassandra.service.paxos.PrepareCallback;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -154,6 +156,8 @@ public class StorageProxy implements StorageProxyMBean
         };
     }
 
+    private static final boolean USE_EPAXOS = Boolean.getBoolean("cassandra.use_epaxos");
+
     /**
      * Apply @param updates if and only if the current values in the row for @param key
      * match the provided @param conditions.  The algorithm is "raw" Paxos: that is, Paxos
@@ -204,15 +208,28 @@ public class StorageProxy implements StorageProxyMBean
                                    ClientState state)
     throws UnavailableException, IsBootstrappingException, RequestFailureException, RequestTimeoutException, InvalidRequestException
     {
+        consistencyForPaxos.validateForCas();
+        consistencyForCommit.validateForCasCommit(keyspaceName);
+
+        CFMetaData metadata = Schema.instance.getCFMetaData(keyspaceName, cfName);
+
+        if (USE_EPAXOS)
+        {
+            SerializedRequest.Builder builder = SerializedRequest.builder();
+            builder.keyspaceName(keyspaceName);
+            builder.cfName(cfName);
+            builder.key(key);
+            builder.casRequest(request);
+            builder.consistencyLevel(consistencyForPaxos);
+
+            SerializedRequest serializedRequest = builder.build();
+            return EpaxosService.getInstance().query(serializedRequest);
+        }
+
         final long start = System.nanoTime();
         int contentions = 0;
         try
         {
-            consistencyForPaxos.validateForCas();
-            consistencyForCommit.validateForCasCommit(keyspaceName);
-
-            CFMetaData metadata = Schema.instance.getCFMetaData(keyspaceName, cfName);
-
             long timeout = TimeUnit.MILLISECONDS.toNanos(DatabaseDescriptor.getCasContentionTimeout());
             while (System.nanoTime() - start < timeout)
             {
@@ -1236,36 +1253,58 @@ public class StorageProxy implements StorageProxyMBean
 
         try
         {
-            // make sure any in-progress paxos writes are done (i.e., committed to a majority of replicas), before performing a quorum read
             if (commands.size() > 1)
                 throw new InvalidRequestException("SERIAL/LOCAL_SERIAL consistency may only be requested for one row at a time");
             ReadCommand command = commands.get(0);
-
-            CFMetaData metadata = Schema.instance.getCFMetaData(command.ksName, command.cfName);
-            Pair<List<InetAddress>, Integer> p = getPaxosParticipants(command.ksName, command.key, consistencyLevel);
-            List<InetAddress> liveEndpoints = p.left;
-            int requiredParticipants = p.right;
-
-            // does the work of applying in-progress writes; throws UAE or timeout if it can't
-            final ConsistencyLevel consistencyForCommitOrFetch = consistencyLevel == ConsistencyLevel.LOCAL_SERIAL
-                                                                                   ? ConsistencyLevel.LOCAL_QUORUM
-                                                                                   : ConsistencyLevel.QUORUM;
-            try
+            if (USE_EPAXOS)
             {
-                final Pair<UUID, Integer> pair = beginAndRepairPaxos(start, command.key, metadata, liveEndpoints, requiredParticipants, consistencyLevel, consistencyForCommitOrFetch, false, state);
-                if (pair.right > 0)
-                    casReadMetrics.contention.update(pair.right);
-            }
-            catch (WriteTimeoutException e)
-            {
-                throw new ReadTimeoutException(consistencyLevel, 0, consistencyLevel.blockFor(Keyspace.open(command.ksName)), false);
-            }
-            catch (WriteFailureException e)
-            {
-                throw new ReadFailureException(consistencyLevel, e.received, e.failures, e.blockFor, false);
-            }
+                if (commands.size() != 1)
+                    throw new InvalidRequestException("SERIAL/LOCAL_SERIAL consistency may only be requested for one row at a time");
 
-            rows = fetchRows(commands, consistencyForCommitOrFetch);
+                SerializedRequest.Builder builder = SerializedRequest.builder();
+                builder.keyspaceName(command.ksName);
+                builder.cfName(command.cfName);
+                builder.key(command.key);
+                builder.consistencyLevel(consistencyLevel);
+                builder.readCommand(command);
+
+                SerializedRequest request = builder.build();
+                try
+                {
+                    rows = EpaxosService.getInstance().query(request);
+                }
+                catch (WriteTimeoutException e)
+                {
+                    throw new ReadTimeoutException(consistencyLevel, 0, consistencyLevel.blockFor(Keyspace.open(command.ksName)), false);
+                }
+            }
+            else
+            {
+                CFMetaData metadata = Schema.instance.getCFMetaData(command.ksName, command.cfName);
+                Pair<List<InetAddress>, Integer> p = getPaxosParticipants(command.ksName, command.key, consistencyLevel);
+                List<InetAddress> liveEndpoints = p.left;
+                int requiredParticipants = p.right;
+
+                // does the work of applying in-progress writes; throws UAE or timeout if it can't
+                final ConsistencyLevel consistencyForCommitOrFetch = consistencyLevel == ConsistencyLevel.LOCAL_SERIAL
+                                                                     ? ConsistencyLevel.LOCAL_QUORUM
+                                                                     : ConsistencyLevel.QUORUM;
+                try
+                {
+                    final Pair<UUID, Integer> pair = beginAndRepairPaxos(start, command.key, metadata, liveEndpoints, requiredParticipants, consistencyLevel, consistencyForCommitOrFetch, false, state);
+                    if (pair.right > 0)
+                        casReadMetrics.contention.update(pair.right);
+                }
+                catch (WriteTimeoutException e)
+                {
+                    throw new ReadTimeoutException(consistencyLevel, 0, consistencyLevel.blockFor(Keyspace.open(command.ksName)), false);
+                }
+                catch (WriteFailureException e)
+                {
+                    throw new ReadFailureException(consistencyLevel, e.received, e.failures, e.blockFor, false);
+                }
+                rows = fetchRows(commands, consistencyForCommitOrFetch);
+            }
         }
         catch (UnavailableException e)
         {

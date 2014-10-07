@@ -218,8 +218,15 @@ public class RepairOption
     private final Collection<String> dataCenters = new HashSet<>();
     private final Collection<String> hosts = new HashSet<>();
     private final Collection<Range<Token>> ranges = new HashSet<>();
+    private final Runnable onComplete;
 
     public RepairOption(RepairParallelism parallelism, boolean primaryRange, boolean incremental, boolean trace, int jobThreads, Collection<Range<Token>> ranges)
+    {
+        this(parallelism, primaryRange, incremental, trace, jobThreads, ranges, null);
+
+    }
+
+    public RepairOption(RepairParallelism parallelism, boolean primaryRange, boolean incremental, boolean trace, int jobThreads, Collection<Range<Token>> ranges, Runnable onComplete)
     {
         this.parallelism = parallelism;
         this.primaryRange = primaryRange;
@@ -227,6 +234,7 @@ public class RepairOption
         this.trace = trace;
         this.jobThreads = jobThreads;
         this.ranges.addAll(ranges);
+        this.onComplete = onComplete;
     }
 
     public RepairParallelism getParallelism()
@@ -272,6 +280,14 @@ public class RepairOption
     public Collection<String> getHosts()
     {
         return hosts;
+    }
+
+    public void complete()
+    {
+        if (onComplete != null)
+        {
+            onComplete.run();
+        }
     }
 
     @Override

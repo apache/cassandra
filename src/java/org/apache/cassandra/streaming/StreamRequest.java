@@ -30,6 +30,8 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.service.ActiveRepairService;
+import org.apache.cassandra.streaming.messages.StreamMessage;
 
 public class StreamRequest
 {
@@ -39,12 +41,29 @@ public class StreamRequest
     public final Collection<Range<Token>> ranges;
     public final Collection<String> columnFamilies = new HashSet<>();
     public final long repairedAt;
+    public final boolean epaxos;
+
     public StreamRequest(String keyspace, Collection<Range<Token>> ranges, Collection<String> columnFamilies, long repairedAt)
     {
         this.keyspace = keyspace;
         this.ranges = ranges;
         this.columnFamilies.addAll(columnFamilies);
         this.repairedAt = repairedAt;
+        this.epaxos = false;
+    }
+
+    public StreamRequest(String keyspace, Collection<Range<Token>> ranges, Collection<String> columnFamilies, long repairedAt, boolean epaxos)
+    {
+        this.keyspace = keyspace;
+        this.ranges = ranges;
+        this.columnFamilies.addAll(columnFamilies);
+        this.repairedAt = repairedAt;
+        this.epaxos = epaxos;
+    }
+
+    public StreamRequest(String keyspace, Collection<Range<Token>> ranges, Collection<String> columnFamilies, boolean epaxos)
+    {
+        this(keyspace, ranges, columnFamilies, ActiveRepairService.UNREPAIRED_SSTABLE, epaxos);
     }
 
     public static class StreamRequestSerializer implements IVersionedSerializer<StreamRequest>
@@ -63,6 +82,11 @@ public class StreamRequest
             out.writeInt(request.columnFamilies.size());
             for (String cf : request.columnFamilies)
                 out.writeUTF(cf);
+
+            if (version >= StreamMessage.VERSION_30)
+            {
+                out.writeBoolean(request.epaxos);
+            }
         }
 
         public StreamRequest deserialize(DataInput in, int version) throws IOException
@@ -81,7 +105,15 @@ public class StreamRequest
             List<String> columnFamilies = new ArrayList<>(cfCount);
             for (int i = 0; i < cfCount; i++)
                 columnFamilies.add(in.readUTF());
-            return new StreamRequest(keyspace, ranges, columnFamilies, repairedAt);
+
+            if (version >= StreamMessage.VERSION_30)
+            {
+                return new StreamRequest(keyspace, ranges, columnFamilies, repairedAt, in.readBoolean());
+            }
+            else
+            {
+                return new StreamRequest(keyspace, ranges, columnFamilies, repairedAt);
+            }
         }
 
         public long serializedSize(StreamRequest request, int version)
@@ -97,6 +129,9 @@ public class StreamRequest
             size += TypeSizes.NATIVE.sizeof(request.columnFamilies.size());
             for (String cf : request.columnFamilies)
                 size += TypeSizes.NATIVE.sizeof(cf);
+
+            if (version >= StreamMessage.VERSION_30)
+                size += 1;
             return size;
         }
     }

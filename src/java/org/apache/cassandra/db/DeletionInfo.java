@@ -364,6 +364,15 @@ public class DeletionInfo implements IMeasurableMemory
             ranges.updateAllTimestamp(timestamp);
     }
 
+    public void applyTimestampDelta(long delta)
+    {
+        if (topLevel.markedForDeleteAt != Long.MIN_VALUE)
+            topLevel = new DeletionTime(topLevel.markedForDeleteAt + delta, topLevel.localDeletionTime);
+
+        if (ranges != null)
+            ranges.applyTimestampDelta(delta);
+    }
+
     @Override
     public boolean equals(Object o)
     {

@@ -50,6 +50,11 @@ public abstract class BatchQueryOptions
 
     public abstract QueryOptions forStatement(int i);
 
+    public QueryOptions getWrapped()
+    {
+        return wrapped;
+    }
+
     public ConsistencyLevel getConsistency()
     {
         return wrapped.getConsistency();
@@ -98,6 +103,12 @@ public abstract class BatchQueryOptions
                     public List<ByteBuffer> getValues()
                     {
                         return vars;
+                    }
+
+                    @Override
+                    public Type getType()
+                    {
+                        return Type.OTHER;
                     }
                 });
             }

@@ -23,6 +23,7 @@ import java.util.*;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.service.ActiveRepairService;
+import org.apache.cassandra.service.epaxos.Scope;
 import org.apache.cassandra.utils.UUIDGen;
 
 /**
@@ -90,6 +91,26 @@ public class StreamPlan
     {
         StreamSession session = coordinator.getOrCreateNextSession(from, connecting);
         session.addStreamRequest(keyspace, ranges, Arrays.asList(columnFamilies), repairedAt);
+        return this;
+    }
+
+    public StreamPlan requestEpaxosRange(InetAddress from, InetAddress connecting, UUID cfId, Range<Token> range, Scope... scopes)
+    {
+        StreamSession session = coordinator.getOrCreateNextSession(from, connecting);
+        for (Scope scope: scopes)
+        {
+            session.addEpaxosRequest(cfId, range, scope);
+        }
+        return this;
+    }
+
+    public StreamPlan transferEpaxosRange(InetAddress to, InetAddress connecting, UUID cfId, Range<Token> range, Scope... scopes)
+    {
+        StreamSession session = coordinator.getOrCreateNextSession(to, connecting);
+        for (Scope scope: scopes)
+        {
+            session.addEpaxosTransfer(cfId, range, scope);
+        }
         return this;
     }
 

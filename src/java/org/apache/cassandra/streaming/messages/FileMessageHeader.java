@@ -19,9 +19,8 @@ package org.apache.cassandra.streaming.messages;
 
 import java.io.DataInput;
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.UUID;
+import java.nio.ByteBuffer;
+import java.util.*;
 
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.IVersionedSerializer;
@@ -29,7 +28,10 @@ import org.apache.cassandra.io.compress.CompressionMetadata;
 import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.service.epaxos.ExecutionInfo;
+import org.apache.cassandra.service.epaxos.Scope;
 import org.apache.cassandra.streaming.compress.CompressionInfo;
+import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.UUIDSerializer;
 
@@ -52,6 +54,7 @@ public class FileMessageHeader
     public final CompressionInfo compressionInfo;
     public final long repairedAt;
     public final int sstableLevel;
+    public final Map<ByteBuffer, Map<Scope, ExecutionInfo>> epaxos;
 
     public FileMessageHeader(UUID cfId,
                              int sequenceNumber,
@@ -63,6 +66,20 @@ public class FileMessageHeader
                              long repairedAt,
                              int sstableLevel)
     {
+        this(cfId, sequenceNumber, version, format, estimatedKeys, sections, compressionInfo, repairedAt, sstableLevel, new HashMap<ByteBuffer, Map<Scope, ExecutionInfo>>());
+    }
+
+    public FileMessageHeader(UUID cfId,
+                             int sequenceNumber,
+                             String version,
+                             SSTableFormat.Type format,
+                             long estimatedKeys,
+                             List<Pair<Long, Long>> sections,
+                             CompressionInfo compressionInfo,
+                             long repairedAt,
+                             int sstableLevel,
+                             Map<ByteBuffer, Map<Scope, ExecutionInfo>> epaxos)
+    {
         this.cfId = cfId;
         this.sequenceNumber = sequenceNumber;
         this.version = version;
@@ -72,6 +89,7 @@ public class FileMessageHeader
         this.compressionInfo = compressionInfo;
         this.repairedAt = repairedAt;
         this.sstableLevel = sstableLevel;
+        this.epaxos = epaxos;
     }
 
     /**
@@ -153,6 +171,22 @@ public class FileMessageHeader
             CompressionInfo.serializer.serialize(header.compressionInfo, out, version);
             out.writeLong(header.repairedAt);
             out.writeInt(header.sstableLevel);
+
+            if (version >= StreamMessage.VERSION_30)
+            {
+                out.writeInt(header.epaxos.size());
+                for (Map.Entry<ByteBuffer, Map<Scope, ExecutionInfo>> keyEntry: header.epaxos.entrySet())
+                {
+                    ByteBufferUtil.writeWithShortLength(keyEntry.getKey(), out);
+                    out.writeInt(keyEntry.getValue().size());
+
+                    for (Map.Entry<Scope, ExecutionInfo> scopeEntry: keyEntry.getValue().entrySet())
+                    {
+                        Scope.serializer.serialize(scopeEntry.getKey(), out, version);
+                        ExecutionInfo.serializer.serialize(scopeEntry.getValue(), out, version);
+                    }
+                }
+            }
         }
 
         public FileMessageHeader deserialize(DataInput in, int version) throws IOException
@@ -173,7 +207,33 @@ public class FileMessageHeader
             CompressionInfo compressionInfo = CompressionInfo.serializer.deserialize(in, MessagingService.current_version);
             long repairedAt = in.readLong();
             int sstableLevel = in.readInt();
-            return new FileMessageHeader(cfId, sequenceNumber, sstableVersion, format, estimatedKeys, sections, compressionInfo, repairedAt, sstableLevel);
+
+            Map<ByteBuffer, Map<Scope, ExecutionInfo>> epaxos;
+            if (version >= StreamMessage.VERSION_30)
+            {
+                int epaxosSize = in.readInt();
+                epaxos = new HashMap<>(epaxosSize);
+                for (int i=0; i<epaxosSize; i++)
+                {
+                    ByteBuffer key = ByteBufferUtil.readWithShortLength(in);
+
+                    int numEntry = in.readInt();
+                    Map<Scope, ExecutionInfo> entry = new HashMap<>(numEntry);
+                    for (int j=0; j<numEntry; j++)
+                    {
+                        entry.put(Scope.serializer.deserialize(in, version),
+                                  ExecutionInfo.serializer.deserialize(in, version));
+
+                    }
+                    epaxos.put(key, entry);
+                }
+            }
+            else
+            {
+                epaxos = Collections.emptyMap();
+            }
+
+            return new FileMessageHeader(cfId, sequenceNumber, sstableVersion, format, estimatedKeys, sections, compressionInfo, repairedAt, sstableLevel, epaxos);
         }
 
         public long serializedSize(FileMessageHeader header, int version)
@@ -195,6 +255,22 @@ public class FileMessageHeader
             }
             size += CompressionInfo.serializer.serializedSize(header.compressionInfo, version);
             size += TypeSizes.NATIVE.sizeof(header.sstableLevel);
+
+            if (version >= StreamMessage.CURRENT_VERSION)
+            {
+                size += 4;
+                for (Map.Entry<ByteBuffer, Map<Scope, ExecutionInfo>> keyEntry: header.epaxos.entrySet())
+                {
+                    size += TypeSizes.NATIVE.sizeofWithShortLength(keyEntry.getKey());
+
+                    size += 4;
+                    for (Map.Entry<Scope, ExecutionInfo> scopeEntry: keyEntry.getValue().entrySet())
+                    {
+                        size += Scope.serializer.serializedSize(scopeEntry.getKey(), version);
+                        size += ExecutionInfo.serializer.serializedSize(scopeEntry.getValue(), version);
+                    }
+                }
+            }
             return size;
         }
     }

@@ -381,7 +381,7 @@ public final class CFMetaData
     {
         List<ColumnDefinition> clonedColumns = new ArrayList<>(oldCFMD.allColumns().size());
         for (ColumnDefinition cd : oldCFMD.allColumns())
-            clonedColumns.add(cd.copy());
+            clonedColumns.add(cd.copy(newCFMD.ksName, newCFMD.cfName));
 
         return newCFMD.addAllColumnDefinitions(clonedColumns)
                       .comment(oldCFMD.comment)

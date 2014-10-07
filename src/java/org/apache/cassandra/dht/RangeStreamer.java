@@ -25,19 +25,23 @@ import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.HashMultimap;
 import com.google.common.collect.Multimap;
 import com.google.common.collect.Sets;
+import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.config.KSMetaData;
+import org.apache.cassandra.config.Schema;
+import org.apache.cassandra.gms.EndpointState;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.SystemKeyspace;
-import org.apache.cassandra.gms.EndpointState;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.gms.IFailureDetector;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.locator.TokenMetadata;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.service.epaxos.EpaxosService;
 import org.apache.cassandra.streaming.StreamPlan;
 import org.apache.cassandra.streaming.StreamResultFuture;
 import org.apache.cassandra.utils.FBUtilities;
@@ -341,6 +345,14 @@ public class RangeStreamer
 
             if (logger.isDebugEnabled())
                 logger.debug("{}ing from {} ranges {}", description, source, StringUtils.join(ranges, ", "));
+            KSMetaData ks = Schema.instance.getKSMetaData(keyspace);
+            for (CFMetaData cf: ks.cfMetaData().values())
+            {
+                for (Range<Token> range: ranges)
+                {
+                    streamPlan.requestEpaxosRange(source, preferred, cf.cfId, range, EpaxosService.getInstance().getActiveScopes(source));
+                }
+            }
             /* Send messages to respective folks to stream data over to me */
             streamPlan.requestRanges(source, preferred, keyspace, ranges);
         }

@@ -31,6 +31,7 @@ import com.google.common.base.Function;
 import com.google.common.base.Joiner;
 import com.google.common.collect.*;
 import com.google.common.primitives.Longs;
+import org.apache.cassandra.service.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -2088,62 +2089,4 @@ public class CassandraServer implements Cassandra.Iface
         });
     }
 
-    private static class ThriftCASRequest implements CASRequest
-    {
-        private final ColumnFamily expected;
-        private final ColumnFamily updates;
-
-        private ThriftCASRequest(ColumnFamily expected, ColumnFamily updates)
-        {
-            this.expected = expected;
-            this.updates = updates;
-        }
-
-        public IDiskAtomFilter readFilter()
-        {
-            return expected == null || expected.isEmpty()
-                 ? new SliceQueryFilter(ColumnSlice.ALL_COLUMNS_ARRAY, false, 1)
-                 : new NamesQueryFilter(ImmutableSortedSet.copyOf(expected.getComparator(), expected.getColumnNames()));
-        }
-
-        public boolean appliesTo(ColumnFamily current)
-        {
-            long now = System.currentTimeMillis();
-
-            if (!hasLiveCells(expected, now))
-                return !hasLiveCells(current, now);
-            else if (!hasLiveCells(current, now))
-                return false;
-
-            // current has been built from expected, so we know that it can't have columns
-            // that excepted don't have. So we just check that for each columns in expected:
-            //   - if it is a tombstone, whether current has no column or a tombstone;
-            //   - otherwise, that current has a live column with the same value.
-            for (Cell e : expected)
-            {
-                Cell c = current.getColumn(e.name());
-                if (e.isLive(now))
-                {
-                    if (c == null || !c.isLive(now) || !c.value().equals(e.value()))
-                        return false;
-                }
-                else
-                {
-                    if (c != null && c.isLive(now))
-                        return false;
-                }
-            }
-            return true;
-        }
-
-        private static boolean hasLiveCells(ColumnFamily cf, long now)
-        {
-            return cf != null && !cf.hasOnlyTombstones(now);
-        }
-
-        public ColumnFamily makeUpdates(ColumnFamily current)
-        {
-            return updates;
-        }
-    }
 }

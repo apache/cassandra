@@ -344,6 +344,21 @@ public abstract class ColumnFamily implements Iterable<Cell>, IRowCacheEntry
         return maxTimestamp;
     }
 
+    public long minTimestamp()
+    {
+        if (isEmpty())
+        {
+            return Long.MIN_VALUE;
+        }
+
+        DeletionInfo di = deletionInfo();
+        long minTimestamp = di.equals(DeletionInfo.live()) ? Long.MAX_VALUE : di.minTimestamp();
+        for (Cell cell: this)
+            minTimestamp = Math.min(minTimestamp, cell.timestamp());
+        assert minTimestamp < Long.MAX_VALUE;
+        return minTimestamp;
+    }
+
     @Override
     public int hashCode()
     {

@@ -17,21 +17,25 @@
  */
 package org.apache.cassandra.cql3;
 
+import java.io.DataInput;
+import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.EnumSet;
-import java.util.List;
+import java.util.*;
 
+import com.google.common.annotations.VisibleForTesting;
 import io.netty.buffer.ByteBuf;
 
 import org.apache.cassandra.db.ConsistencyLevel;
+import org.apache.cassandra.db.TypeSizes;
+import org.apache.cassandra.io.IVersionedSerializer;
+import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.service.pager.PagingState;
 import org.apache.cassandra.transport.CBCodec;
 import org.apache.cassandra.transport.CBUtil;
 import org.apache.cassandra.transport.ProtocolException;
 import org.apache.cassandra.transport.Server;
+import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.Pair;
 
 /**
@@ -46,6 +50,27 @@ public abstract class QueryOptions
                                                                        Server.CURRENT_VERSION);
 
     public static final CBCodec<QueryOptions> codec = new Codec();
+
+    public static enum Type { DEFAULT, NAMED, OTHER }
+
+    private static enum SerializerMapHolder
+    {
+        INSTANCE;
+
+        private final Map<Type, IVersionedSerializer<QueryOptions>> serializerMap;
+
+        SerializerMapHolder()
+        {
+            serializerMap = new EnumMap<>(Type.class);
+            serializerMap.put(Type.DEFAULT, DefaultQueryOptions.serializer);
+            serializerMap.put(Type.NAMED, OptionsWithNames.serializer);
+        }
+    }
+
+    public static Map<Type, IVersionedSerializer<QueryOptions>> getSerializerMap()
+    {
+        return SerializerMapHolder.INSTANCE.serializerMap;
+    }
 
     public static QueryOptions fromProtocolV1(ConsistencyLevel consistency, List<ByteBuffer> values)
     {
@@ -85,6 +110,7 @@ public abstract class QueryOptions
     public abstract ConsistencyLevel getConsistency();
     public abstract List<ByteBuffer> getValues();
     public abstract boolean skipMetadata();
+    public abstract Type getType();
 
     /**  The pageSize for this query. Will be <= 0 if not relevant for the query.  */
     public int getPageSize()
@@ -128,6 +154,7 @@ public abstract class QueryOptions
     {
         private final ConsistencyLevel consistency;
         private final List<ByteBuffer> values;
+
         private final boolean skipMetadata;
 
         private final SpecificOptions options;
@@ -167,6 +194,68 @@ public abstract class QueryOptions
         {
             return options;
         }
+
+        @Override
+        public Type getType()
+        {
+            return Type.DEFAULT;
+        }
+
+        public static final IVersionedSerializer<QueryOptions> serializer = new IVersionedSerializer<QueryOptions>()
+        {
+            @Override
+            public void serialize(QueryOptions options, DataOutputPlus out, int version) throws IOException
+            {
+                assert options instanceof DefaultQueryOptions;
+                DefaultQueryOptions opts = (DefaultQueryOptions) options;
+                out.writeInt(opts.values.size());
+                for (ByteBuffer value: opts.values)
+                {
+                   ByteBufferUtil.writeWithShortLength(value, out);
+                }
+
+                out.writeInt(opts.consistency.code);
+                out.writeBoolean(opts.skipMetadata);
+                SpecificOptions.serializer.serialize(opts.options, out, version);
+            }
+
+            @Override
+            public QueryOptions deserialize(DataInput in, int version) throws IOException
+            {
+                int numValues = in.readInt();
+                List<ByteBuffer> values = new ArrayList<>(numValues);
+                for (int i=0; i<numValues; i++)
+                {
+                    values.add(ByteBufferUtil.readWithShortLength(in));
+                }
+
+                return new DefaultQueryOptions(
+                        ConsistencyLevel.fromCode(in.readInt()),
+                        values,
+                        in.readBoolean(),
+                        SpecificOptions.serializer.deserialize(in, version),
+                        version);
+            }
+
+            @Override
+            public long serializedSize(QueryOptions options, int version)
+            {
+                assert options instanceof DefaultQueryOptions;
+                DefaultQueryOptions opts = (DefaultQueryOptions) options;
+                long size = 0;
+                size += 4; //out.writeInt(opts.values.size());
+                for (ByteBuffer value: opts.values)
+                {
+                    size += value.remaining() + 2; //ByteBufferUtil.writeWithLength(value, out);
+                }
+
+                size += 4; //out.writeInt(opts.consistency.code);
+                size += 1; //out.writeBoolean(opts.skipMetadata);
+                size += SpecificOptions.serializer.serializedSize(opts.options, version);
+                return size;
+            }
+        };
+
     }
 
     static abstract class QueryOptionsWrapper extends QueryOptions
@@ -243,6 +332,57 @@ public abstract class QueryOptions
             assert orderedValues != null; // We should have called prepare first!
             return orderedValues;
         }
+
+        @Override
+        public Type getType()
+        {
+            return Type.NAMED;
+        }
+
+        public static final IVersionedSerializer<QueryOptions> serializer = new IVersionedSerializer<QueryOptions>()
+        {
+            @Override
+            public void serialize(QueryOptions options, DataOutputPlus out, int version) throws IOException
+            {
+                assert options instanceof OptionsWithNames;
+                OptionsWithNames opts = (OptionsWithNames) options;
+                out.writeInt(opts.names.size());
+                for (String name: opts.names)
+                {
+                    out.writeUTF(name);
+                }
+
+                DefaultQueryOptions.serializer.serialize(opts.wrapped, out, version);
+            }
+
+            @Override
+            public QueryOptions deserialize(DataInput in, int version) throws IOException
+            {
+                int numNames = in.readInt();
+                List<String> names = new ArrayList<>(numNames);
+                for (int i=0; i<numNames; i++)
+                {
+                    names.add(in.readUTF());
+                }
+                return new OptionsWithNames((DefaultQueryOptions) DefaultQueryOptions.serializer.deserialize(in, version), names);
+            }
+
+            @Override
+            public long serializedSize(QueryOptions options, int version)
+            {
+                assert options instanceof OptionsWithNames;
+                OptionsWithNames opts = (OptionsWithNames) options;
+                long size = 0;
+                size += 4; //out.writeInt(opts.names.size());
+                for (String name: opts.names)
+                {
+                    size += TypeSizes.NATIVE.sizeof(name); //out.writeUTF(name);
+                }
+                size += DefaultQueryOptions.serializer.serializedSize(opts.wrapped, version);
+
+                return size;
+            }
+        };
     }
 
     // Options that are likely to not be present in most queries
@@ -255,14 +395,89 @@ public abstract class QueryOptions
         private final ConsistencyLevel serialConsistency;
         private final long timestamp;
 
-        private SpecificOptions(int pageSize, PagingState state, ConsistencyLevel serialConsistency, long timestamp)
+        @VisibleForTesting
+        SpecificOptions(int pageSize, PagingState state, ConsistencyLevel serialConsistency, long timestamp)
         {
             this.pageSize = pageSize;
             this.state = state;
             this.serialConsistency = serialConsistency == null ? ConsistencyLevel.SERIAL : serialConsistency;
             this.timestamp = timestamp;
         }
+
+        public static IVersionedSerializer<SpecificOptions> serializer = new IVersionedSerializer<SpecificOptions>()
+        {
+            @Override
+            public void serialize(SpecificOptions options, DataOutputPlus out, int version) throws IOException
+            {
+                out.writeBoolean(options.state != null);
+                if (options.state != null)
+                {
+                    ByteBufferUtil.writeWithShortLength(options.state.serialize(), out);
+                }
+
+                out.writeInt(options.pageSize);
+                out.writeInt(options.serialConsistency.code);
+                out.writeLong(options.timestamp);
+            }
+
+            @Override
+            public SpecificOptions deserialize(DataInput in, int version) throws IOException
+            {
+                PagingState pagingState = null;
+                if (in.readBoolean())
+                    pagingState = PagingState.deserialize(ByteBufferUtil.readWithShortLength(in));
+
+                return new SpecificOptions(
+                        in.readInt(),
+                        pagingState,
+                        ConsistencyLevel.fromCode(in.readInt()),
+                        in.readLong()
+                );
+            }
+
+            @Override
+            public long serializedSize(SpecificOptions options, int version)
+            {
+                long size = 0;
+                size += 1;
+                if (options.state != null)
+                    size += options.state.serializedSize() + 2; //ByteBufferUtil.writeWithShortLength(options.state.serialize(), out);
+                size += 4; //out.writeInt(options.pageSize);
+                size += 4; //out.writeInt(options.serialConsistency.code);
+                size += 8; //out.writeLong(options.timestamp);
+                return size;
+            }
+        };
     }
+
+
+    public static IVersionedSerializer<QueryOptions> serializer = new IVersionedSerializer<QueryOptions>()
+    {
+
+        @Override
+        public void serialize(QueryOptions opts, DataOutputPlus out, int version) throws IOException
+        {
+            Type type = opts.getType();
+            assert type != null;
+            out.writeInt(type.ordinal());
+            getSerializerMap().get(type).serialize(opts, out, version);
+        }
+
+        @Override
+        public QueryOptions deserialize(DataInput in, int version) throws IOException
+        {
+            Type type = Type.values()[in.readInt()];
+            return getSerializerMap().get(type).deserialize(in, version);
+        }
+
+        @Override
+        public long serializedSize(QueryOptions opts, int version)
+        {
+            Type type = opts.getType();
+            assert type != null;
+            return 4 + getSerializerMap().get(type).serializedSize(opts, version);
+        }
+    };
 
     private static class Codec implements CBCodec<QueryOptions>
     {
