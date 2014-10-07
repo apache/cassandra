@@ -334,10 +334,14 @@ public class OutboundTcpConnection extends Thread
                     disconnect();
                     continue;
                 }
+                else
+                {
+                    MessagingService.instance().setVersion(poolReference.endPoint(), maxTargetVersion);
+                }
+
                 if (targetVersion > maxTargetVersion)
                 {
                     logger.debug("Target max version is {}; will reconnect with that version", maxTargetVersion);
-                    MessagingService.instance().setVersion(poolReference.endPoint(), maxTargetVersion);
                     disconnect();
                     return false;
                 }
@@ -346,7 +350,6 @@ public class OutboundTcpConnection extends Thread
                 {
                     logger.trace("Detected higher max version {} (using {}); will reconnect when queued messages are done",
                                  maxTargetVersion, targetVersion);
-                    MessagingService.instance().setVersion(poolReference.endPoint(), Math.min(MessagingService.current_version, maxTargetVersion));
                     softCloseSocket();
                 }
 
