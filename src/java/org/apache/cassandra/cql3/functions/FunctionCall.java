@@ -22,7 +22,6 @@ import java.util.ArrayList;
 import java.util.List;
 
 import org.apache.cassandra.cql3.*;
-import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.CollectionType;
 import org.apache.cassandra.db.marshal.ListType;
 import org.apache.cassandra.db.marshal.MapType;
@@ -33,10 +32,10 @@ import org.apache.cassandra.serializers.MarshalException;
 
 public class FunctionCall extends Term.NonTerminal
 {
-    private final Function fun;
+    private final ScalarFunction fun;
     private final List<Term> terms;
 
-    private FunctionCall(Function fun, List<Term> terms)
+    private FunctionCall(ScalarFunction fun, List<Term> terms)
     {
         this.fun = fun;
         this.terms = terms;
@@ -68,7 +67,7 @@ public class FunctionCall extends Term.NonTerminal
         return executeInternal(fun, buffers);
     }
 
-    private static ByteBuffer executeInternal(Function fun, List<ByteBuffer> params) throws InvalidRequestException
+    private static ByteBuffer executeInternal(ScalarFunction fun, List<ByteBuffer> params) throws InvalidRequestException
     {
         ByteBuffer result = fun.execute(params);
         try
@@ -125,12 +124,16 @@ public class FunctionCall extends Term.NonTerminal
             Function fun = Functions.get(keyspace, name, terms, receiver.ksName, receiver.cfName);
             if (fun == null)
                 throw new InvalidRequestException(String.format("Unknown function %s called", name));
+            if (fun.isAggregate())
+                throw new InvalidRequestException("Aggregation function are not supported in the where clause");
+
+            ScalarFunction scalarFun = (ScalarFunction) fun;
 
             // Functions.get() will complain if no function "name" type check with the provided arguments.
             // We still have to validate that the return type matches however
-            if (!receiver.type.isValueCompatibleWith(fun.returnType()))
+            if (!receiver.type.isValueCompatibleWith(scalarFun.returnType()))
                 throw new InvalidRequestException(String.format("Type error: cannot assign result of function %s (type %s) to %s (type %s)",
-                                                                fun.name(), fun.returnType().asCQL3Type(),
+                                                                scalarFun.name(), scalarFun.returnType().asCQL3Type(),
                                                                 receiver.name, receiver.type.asCQL3Type()));
 
             if (fun.argTypes().size() != terms.size())
@@ -141,7 +144,7 @@ public class FunctionCall extends Term.NonTerminal
             boolean allTerminal = true;
             for (int i = 0; i < terms.size(); i++)
             {
-                Term t = terms.get(i).prepare(keyspace, Functions.makeArgSpec(receiver.ksName, receiver.cfName, fun, i));
+                Term t = terms.get(i).prepare(keyspace, Functions.makeArgSpec(receiver.ksName, receiver.cfName, scalarFun, i));
                 if (t instanceof NonTerminal)
                     allTerminal = false;
                 parameters.add(t);
@@ -149,13 +152,13 @@ public class FunctionCall extends Term.NonTerminal
 
             // If all parameters are terminal and the function is pure, we can
             // evaluate it now, otherwise we'd have to wait execution time
-            return allTerminal && fun.isPure()
-                ? makeTerminal(fun, execute(fun, parameters), QueryOptions.DEFAULT.getProtocolVersion())
-                : new FunctionCall(fun, parameters);
+            return allTerminal && scalarFun.isPure()
+                ? makeTerminal(scalarFun, execute(scalarFun, parameters), QueryOptions.DEFAULT.getProtocolVersion())
+                : new FunctionCall(scalarFun, parameters);
         }
 
         // All parameters must be terminal
-        private static ByteBuffer execute(Function fun, List<Term> parameters) throws InvalidRequestException
+        private static ByteBuffer execute(ScalarFunction fun, List<Term> parameters) throws InvalidRequestException
         {
             List<ByteBuffer> buffers = new ArrayList<ByteBuffer>(parameters.size());
             for (Term t : parameters)

@@ -262,14 +262,12 @@ useStatement returns [UseStatement stmt]
 selectStatement returns [SelectStatement.RawStatement expr]
     @init {
         boolean isDistinct = false;
-        boolean isCount = false;
-        ColumnIdentifier countAlias = null;
         Term.Raw limit = null;
         Map<ColumnIdentifier, Boolean> orderings = new LinkedHashMap<ColumnIdentifier, Boolean>();
         boolean allowFiltering = false;
     }
     : K_SELECT ( ( K_DISTINCT { isDistinct = true; } )? sclause=selectClause
-               | (K_COUNT '(' sclause=selectCountClause ')' { isCount = true; } (K_AS c=cident { countAlias = c; })?) )
+               | sclause=selectCountClause )
       K_FROM cf=columnFamilyName
       ( K_WHERE wclause=whereClause )?
       ( K_ORDER K_BY orderByClause[orderings] ( ',' orderByClause[orderings] )* )?
@@ -278,8 +276,6 @@ selectStatement returns [SelectStatement.RawStatement expr]
       {
           SelectStatement.Parameters params = new SelectStatement.Parameters(orderings,
                                                                              isDistinct,
-                                                                             isCount,
-                                                                             countAlias,
                                                                              allowFiltering);
           $expr = new SelectStatement.RawStatement(cf, params, sclause, wclause, limit);
       }
@@ -312,8 +308,13 @@ selectionFunctionArgs returns [List<Selectable> a]
     ;
 
 selectCountClause returns [List<RawSelector> expr]
-    : '\*'           { $expr = Collections.<RawSelector>emptyList();}
-    | i=INTEGER      { if (!i.getText().equals("1")) addRecognitionError("Only COUNT(1) is supported, got COUNT(" + i.getText() + ")"); $expr = Collections.<RawSelector>emptyList();}
+    @init{ ColumnIdentifier alias = new ColumnIdentifier("count", false); }
+    : K_COUNT '(' countArgument ')' (K_AS c=cident { alias = c; })? { $expr = new ArrayList<RawSelector>(); $expr.add( new RawSelector(new Selectable.WithFunction(new FunctionName("countRows"), Collections.<Selectable>emptyList()), alias));}
+    ;
+
+countArgument
+    : '\*'
+    | i=INTEGER { if (!i.getText().equals("1")) addRecognitionError("Only COUNT(1) is supported, got COUNT(" + i.getText() + ")");}
     ;
 
 whereClause returns [List<Relation> clause]
@@ -984,6 +985,7 @@ allowedFunctionName returns [String s]
     : f=IDENT                       { $s = $f.text; }
     | u=unreserved_function_keyword { $s = u; }
     | K_TOKEN                       { $s = "token"; }
+    | K_COUNT                       { $s = "count"; }
     ;
 
 functionArgs returns [List<Term.Raw> a]

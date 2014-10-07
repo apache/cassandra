@@ -29,7 +29,7 @@ import org.apache.cassandra.utils.UUIDGen;
 
 public abstract class TimeuuidFcts
 {
-    public static final Function nowFct = new NativeFunction("now", TimeUUIDType.instance)
+    public static final Function nowFct = new NativeScalarFunction("now", TimeUUIDType.instance)
     {
         public ByteBuffer execute(List<ByteBuffer> parameters)
         {
@@ -43,7 +43,7 @@ public abstract class TimeuuidFcts
         }
     };
 
-    public static final Function minTimeuuidFct = new NativeFunction("mintimeuuid", TimeUUIDType.instance, TimestampType.instance)
+    public static final Function minTimeuuidFct = new NativeScalarFunction("mintimeuuid", TimeUUIDType.instance, TimestampType.instance)
     {
         public ByteBuffer execute(List<ByteBuffer> parameters)
         {
@@ -55,7 +55,7 @@ public abstract class TimeuuidFcts
         }
     };
 
-    public static final Function maxTimeuuidFct = new NativeFunction("maxtimeuuid", TimeUUIDType.instance, TimestampType.instance)
+    public static final Function maxTimeuuidFct = new NativeScalarFunction("maxtimeuuid", TimeUUIDType.instance, TimestampType.instance)
     {
         public ByteBuffer execute(List<ByteBuffer> parameters)
         {
@@ -67,7 +67,7 @@ public abstract class TimeuuidFcts
         }
     };
 
-    public static final Function dateOfFct = new NativeFunction("dateof", TimestampType.instance, TimeUUIDType.instance)
+    public static final Function dateOfFct = new NativeScalarFunction("dateof", TimestampType.instance, TimeUUIDType.instance)
     {
         public ByteBuffer execute(List<ByteBuffer> parameters)
         {
@@ -79,7 +79,7 @@ public abstract class TimeuuidFcts
         }
     };
 
-    public static final Function unixTimestampOfFct = new NativeFunction("unixtimestampof", LongType.instance, TimeUUIDType.instance)
+    public static final Function unixTimestampOfFct = new NativeScalarFunction("unixtimestampof", LongType.instance, TimeUUIDType.instance)
     {
         public ByteBuffer execute(List<ByteBuffer> parameters)
         {

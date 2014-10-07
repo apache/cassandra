@@ -48,6 +48,7 @@ public abstract class Functions
 
     static
     {
+        declare(AggregateFcts.countRowsFunction);
         declare(TimeuuidFcts.nowFct);
         declare(TimeuuidFcts.minTimeuuidFct);
         declare(TimeuuidFcts.maxTimeuuidFct);
@@ -64,9 +65,25 @@ public abstract class Functions
 
             declare(BytesConversionFcts.makeToBlobFunction(type.getType()));
             declare(BytesConversionFcts.makeFromBlobFunction(type.getType()));
+
+            declare(AggregateFcts.makeCountFunction(type.getType()));
+            declare(AggregateFcts.makeMaxFunction(type.getType()));
+            declare(AggregateFcts.makeMinFunction(type.getType()));
         }
         declare(BytesConversionFcts.VarcharAsBlobFct);
         declare(BytesConversionFcts.BlobAsVarcharFact);
+        declare(AggregateFcts.sumFunctionForInt32);
+        declare(AggregateFcts.sumFunctionForLong);
+        declare(AggregateFcts.sumFunctionForFloat);
+        declare(AggregateFcts.sumFunctionForDouble);
+        declare(AggregateFcts.sumFunctionForDecimal);
+        declare(AggregateFcts.sumFunctionForVarint);
+        declare(AggregateFcts.avgFunctionForInt32);
+        declare(AggregateFcts.avgFunctionForLong);
+        declare(AggregateFcts.avgFunctionForFloat);
+        declare(AggregateFcts.avgFunctionForDouble);
+        declare(AggregateFcts.avgFunctionForVarint);
+        declare(AggregateFcts.avgFunctionForDecimal);
     }
 
     private static void declare(Function fun)

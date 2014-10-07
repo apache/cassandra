@@ -19,24 +19,41 @@ package org.apache.cassandra.cql3.functions;
 
 import java.nio.ByteBuffer;
 import java.util.List;
-import java.util.UUID;
 
-import org.apache.cassandra.db.marshal.UUIDType;
-import org.apache.cassandra.serializers.UUIDSerializer;
-
-public abstract class UuidFcts
+/**
+ * Performs a calculation on a set of values and return a single value.
+ */
+public interface AggregateFunction extends Function
 {
-    public static final Function uuidFct = new NativeScalarFunction("uuid", UUIDType.instance)
-    {
-        public ByteBuffer execute(List<ByteBuffer> parameters)
-        {
-            return UUIDSerializer.instance.serialize(UUID.randomUUID());
-        }
+    /**
+     * Creates a new <code>Aggregate</code> instance.
+     *
+     * @return a new <code>Aggregate</code> instance.
+     */
+    public Aggregate newAggregate();
 
-        @Override
-        public boolean isPure()
-        {
-            return false;
-        }
-    };
+    /**
+     * An aggregation operation.
+     */
+    interface Aggregate
+    {
+        /**
+         * Adds the specified input to this aggregate.
+         *
+         * @param values the values to add to the aggregate.
+         */
+        public void addInput(List<ByteBuffer> values);
+
+        /**
+         * Computes and returns the aggregate current value.
+         *
+         * @return the aggregate current value.
+         */
+        public ByteBuffer compute();
+
+        /**
+         * Reset this aggregate.
+         */
+        public void reset();
+    }
 }

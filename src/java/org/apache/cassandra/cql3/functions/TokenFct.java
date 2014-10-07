@@ -28,7 +28,7 @@ import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.service.StorageService;
 
-public class TokenFct extends NativeFunction
+public class TokenFct extends NativeScalarFunction
 {
     // The actual token function depends on the partitioner used
     private static final IPartitioner partitioner = StorageService.getPartitioner();

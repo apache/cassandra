@@ -40,7 +40,7 @@ import org.apache.cassandra.utils.FBUtilities;
 /**
  * Base class for User Defined Functions.
  */
-public abstract class UDFunction extends AbstractFunction
+public abstract class UDFunction extends AbstractFunction implements ScalarFunction
 {
     protected static final Logger logger = LoggerFactory.getLogger(UDFunction.class);
 
@@ -63,6 +63,11 @@ public abstract class UDFunction extends AbstractFunction
         this.language = language;
         this.body = body;
         this.deterministic = deterministic;
+    }
+
+    public boolean isAggregate()
+    {
+        return false;
     }
 
     public static UDFunction create(FunctionName name,

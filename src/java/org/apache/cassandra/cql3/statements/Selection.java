@@ -22,13 +22,16 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 
-import com.google.common.collect.Iterators;
-
-import org.apache.cassandra.cql3.*;
-import org.apache.cassandra.cql3.functions.Function;
-import org.apache.cassandra.cql3.functions.Functions;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
+import org.apache.cassandra.cql3.AssignmentTestable;
+import org.apache.cassandra.cql3.ColumnIdentifier;
+import org.apache.cassandra.cql3.ColumnSpecification;
+import org.apache.cassandra.cql3.ResultSet;
+import org.apache.cassandra.cql3.functions.AggregateFunction;
+import org.apache.cassandra.cql3.functions.Function;
+import org.apache.cassandra.cql3.functions.Functions;
+import org.apache.cassandra.cql3.functions.ScalarFunction;
 import org.apache.cassandra.db.Cell;
 import org.apache.cassandra.db.CounterCell;
 import org.apache.cassandra.db.ExpiringCell;
@@ -36,10 +39,12 @@ import org.apache.cassandra.db.context.CounterContext;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.LongType;
-import org.apache.cassandra.db.marshal.UserType;
 import org.apache.cassandra.db.marshal.UTF8Type;
+import org.apache.cassandra.db.marshal.UserType;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.utils.ByteBufferUtil;
+
+import com.google.common.collect.Iterators;
 
 public abstract class Selection
 {
@@ -166,7 +171,8 @@ public abstract class Selection
                 throw new InvalidRequestException(String.format("Unknown function '%s'", withFun.functionName));
             if (metadata != null)
                 metadata.add(makeFunctionSpec(cfm, withFun, fun.returnType(), raw.alias));
-            return new FunctionSelector(fun, args);
+            return fun.isAggregate() ? new AggregateFunctionSelector(fun, args)
+                                     : new ScalarFunctionSelector(fun, args);
         }
     }
 
@@ -245,7 +251,13 @@ public abstract class Selection
         }
     }
 
-    protected abstract List<ByteBuffer> handleRow(ResultSetBuilder rs) throws InvalidRequestException;
+    protected abstract void addInputRow(ResultSetBuilder rs) throws InvalidRequestException;
+
+    protected abstract boolean isAggregate();
+
+    protected abstract List<ByteBuffer> getOutputRow() throws InvalidRequestException;
+
+    protected abstract void reset();
 
     /**
      * @return the list of CQL3 columns value this SelectionClause needs.
@@ -265,6 +277,26 @@ public abstract class Selection
         return (c instanceof CounterCell)
             ? ByteBufferUtil.bytes(CounterContext.instance().total(c.value()))
             : c.value();
+    }
+
+    /**
+     * Checks that selectors are either all aggregates or that none of them is.
+     *
+     * @param selectors the selectors to test.
+     * @param msgTemplate the error message template
+     * @param messageArgs the error message arguments
+     * @throws InvalidRequestException if some of the selectors are aggregate but not all of them
+     */
+    private static void validateSelectors(List<Selector> selectors, String messageTemplate, Object... messageArgs)
+            throws InvalidRequestException
+    {
+        int aggregates = 0;
+        for (Selector s : selectors)
+            if (s.isAggregate())
+                ++aggregates;
+
+        if (aggregates != 0 && aggregates != selectors.size())
+            throw new InvalidRequestException(String.format(messageTemplate, messageArgs));
     }
 
     public class ResultSetBuilder
@@ -321,7 +353,14 @@ public abstract class Selection
         public void newRow() throws InvalidRequestException
         {
             if (current != null)
-                resultSet.addRow(handleRow(this));
+            {
+                addInputRow(this);
+                if (!isAggregate())
+                {
+                    resultSet.addRow(getOutputRow());
+                    reset();
+                }
+            }
             current = new ArrayList<ByteBuffer>(columns.size());
         }
 
@@ -329,7 +368,9 @@ public abstract class Selection
         {
             if (current != null)
             {
-                resultSet.addRow(handleRow(this));
+                addInputRow(this);
+                resultSet.addRow(getOutputRow());
+                reset();
                 current = null;
             }
             return resultSet;
@@ -340,6 +381,8 @@ public abstract class Selection
     private static class SimpleSelection extends Selection
     {
         private final boolean isWildcard;
+
+        private List<ByteBuffer> current;
 
         public SimpleSelection(Collection<ColumnDefinition> columns, boolean isWildcard)
         {
@@ -357,22 +400,47 @@ public abstract class Selection
             this.isWildcard = isWildcard;
         }
 
-        protected List<ByteBuffer> handleRow(ResultSetBuilder rs)
-        {
-            return rs.current;
-        }
-
         @Override
         public boolean isWildcard()
         {
             return isWildcard;
         }
+
+        protected void addInputRow(ResultSetBuilder rs) throws InvalidRequestException
+        {
+            current = rs.current;
+        }
+
+        protected boolean isAggregate()
+        {
+            return false;
+        }
+
+        protected List<ByteBuffer> getOutputRow() throws InvalidRequestException
+        {
+            return current;
+        }
+
+        protected void reset()
+        {
+            current = null;
+        }
     }
 
     private static abstract class Selector implements AssignmentTestable
     {
-        public abstract ByteBuffer compute(ResultSetBuilder rs) throws InvalidRequestException;
+        public abstract void addInput(ResultSetBuilder rs) throws InvalidRequestException;
+
+        public abstract ByteBuffer getOutput() throws InvalidRequestException;
+
         public abstract AbstractType<?> getType();
+
+        public boolean isAggregate()
+        {
+            return false;
+        }
+
+        public abstract void reset();
 
         public AssignmentTestable.TestResult testAssignment(String keyspace, ColumnSpecification receiver)
         {
@@ -390,6 +458,7 @@ public abstract class Selection
         private final String columnName;
         private final int idx;
         private final AbstractType<?> type;
+        private ByteBuffer current;
 
         public SimpleSelector(String columnName, int idx, AbstractType<?> type)
         {
@@ -398,9 +467,19 @@ public abstract class Selection
             this.type = type;
         }
 
-        public ByteBuffer compute(ResultSetBuilder rs)
+        public void addInput(ResultSetBuilder rs) throws InvalidRequestException
         {
-            return rs.current.get(idx);
+            current = rs.current.get(idx);
+        }
+
+        public ByteBuffer getOutput() throws InvalidRequestException
+        {
+            return current;
+        }
+
+        public void reset()
+        {
+            current = null;
         }
 
         public AbstractType<?> getType()
@@ -415,24 +494,15 @@ public abstract class Selection
         }
     }
 
-    private static class FunctionSelector extends Selector
+    private static abstract class AbstractFunctionSelector<T extends Function> extends Selector
     {
-        private final Function fun;
-        private final List<Selector> argSelectors;
+        protected final T fun;
+        protected final List<Selector> argSelectors;
 
-        public FunctionSelector(Function fun, List<Selector> argSelectors)
+        public AbstractFunctionSelector(T fun, List<Selector> argSelectors)
         {
             this.fun = fun;
             this.argSelectors = argSelectors;
-        }
-
-        public ByteBuffer compute(ResultSetBuilder rs) throws InvalidRequestException
-        {
-            List<ByteBuffer> args = new ArrayList<ByteBuffer>(argSelectors.size());
-            for (Selector s : argSelectors)
-                args.add(s.compute(rs));
-
-            return fun.execute(args);
         }
 
         public AbstractType<?> getType()
@@ -455,6 +525,102 @@ public abstract class Selection
         }
     }
 
+    private static class ScalarFunctionSelector extends AbstractFunctionSelector<ScalarFunction>
+    {
+        public ScalarFunctionSelector(Function fun, List<Selector> argSelectors) throws InvalidRequestException
+        {
+            super((ScalarFunction) fun, argSelectors);
+            validateSelectors(argSelectors,
+                              "the %s function arguments must be either all aggregates or all none aggregates",
+                              fun.name().name);
+        }
+
+        public boolean isAggregate()
+        {
+            // We cannot just return true as it is possible to have a scalar function wrapping an aggregation function
+            if (argSelectors.isEmpty())
+                return false;
+
+            return argSelectors.get(0).isAggregate();
+        }
+
+        public void addInput(ResultSetBuilder rs) throws InvalidRequestException
+        {
+            for (Selector s : argSelectors)
+                s.addInput(rs);
+        }
+
+        public void reset()
+        {
+        }
+
+        public ByteBuffer getOutput() throws InvalidRequestException
+        {
+            List<ByteBuffer> args = new ArrayList<ByteBuffer>(argSelectors.size());
+            for (Selector s : argSelectors)
+            {
+                args.add(s.getOutput());
+                s.reset();
+            }
+            return fun.execute(args);
+        }
+    }
+
+    private static class AggregateFunctionSelector extends AbstractFunctionSelector<AggregateFunction>
+    {
+        private final AggregateFunction.Aggregate aggregate;
+
+        public AggregateFunctionSelector(Function fun, List<Selector> argSelectors) throws InvalidRequestException
+        {
+            super((AggregateFunction) fun, argSelectors);
+
+            validateAgruments(argSelectors);
+            this.aggregate = this.fun.newAggregate();
+        }
+
+        public boolean isAggregate()
+        {
+            return true;
+        }
+
+        public void addInput(ResultSetBuilder rs) throws InvalidRequestException
+        {
+            List<ByteBuffer> args = new ArrayList<ByteBuffer>(argSelectors.size());
+            // Aggregation of aggregation is not supported
+            for (Selector s : argSelectors)
+            {
+                s.addInput(rs);
+                args.add(s.getOutput());
+                s.reset();
+            }
+            this.aggregate.addInput(args);
+        }
+
+        public ByteBuffer getOutput() throws InvalidRequestException
+        {
+            return aggregate.compute();
+        }
+
+        public void reset()
+        {
+            aggregate.reset();
+        }
+
+        /**
+         * Checks that the arguments are not themselves aggregation functions.
+         *
+         * @param argSelectors the selector to check
+         * @throws InvalidRequestException if on of the arguments is an aggregation function
+         */
+        private static void validateAgruments(List<Selector> argSelectors) throws InvalidRequestException
+        {
+            for (Selector selector : argSelectors)
+                if (selector.isAggregate())
+                    throw new InvalidRequestException(
+                            "aggregate functions cannot be used as arguments of aggregate functions");
+        }
+    }
+
     private static class FieldSelector extends Selector
     {
         private final UserType type;
@@ -468,9 +634,19 @@ public abstract class Selection
             this.selected = selected;
         }
 
-        public ByteBuffer compute(ResultSetBuilder rs) throws InvalidRequestException
+        public boolean isAggregate()
         {
-            ByteBuffer value = selected.compute(rs);
+            return selected.isAggregate();
+        }
+
+        public void addInput(ResultSetBuilder rs) throws InvalidRequestException
+        {
+            selected.addInput(rs);
+        }
+
+        public ByteBuffer getOutput() throws InvalidRequestException
+        {
+            ByteBuffer value = selected.getOutput();
             if (value == null)
                 return null;
             ByteBuffer[] buffers = type.split(value);
@@ -480,6 +656,11 @@ public abstract class Selection
         public AbstractType<?> getType()
         {
             return type.fieldType(field);
+        }
+
+        public void reset()
+        {
+            selected.reset();
         }
 
         @Override
@@ -494,6 +675,7 @@ public abstract class Selection
         private final String columnName;
         private final int idx;
         private final boolean isWritetime;
+        private ByteBuffer current;
 
         public WritetimeOrTTLSelector(String columnName, int idx, boolean isWritetime)
         {
@@ -502,16 +684,28 @@ public abstract class Selection
             this.isWritetime = isWritetime;
         }
 
-        public ByteBuffer compute(ResultSetBuilder rs)
+        public void addInput(ResultSetBuilder rs)
         {
             if (isWritetime)
             {
                 long ts = rs.timestamps[idx];
-                return ts >= 0 ? ByteBufferUtil.bytes(ts) : null;
+                current = ts >= 0 ? ByteBufferUtil.bytes(ts) : null;
             }
+            else
+            {
+                int ttl = rs.ttls[idx];
+                current = ttl > 0 ? ByteBufferUtil.bytes(ttl) : null;
+            }
+        }
 
-            int ttl = rs.ttls[idx];
-            return ttl > 0 ? ByteBufferUtil.bytes(ttl) : null;
+        public ByteBuffer getOutput()
+        {
+            return current;
+        }
+
+        public void reset()
+        {
+            current = null;
         }
 
         public AbstractType<?> getType()
@@ -530,20 +724,47 @@ public abstract class Selection
     {
         private final List<Selector> selectors;
 
-        public SelectionWithFunctions(Collection<ColumnDefinition> columns, List<ColumnSpecification> metadata, List<Selector> selectors, boolean collectTimestamps, boolean collectTTLs)
+        public SelectionWithFunctions(Collection<ColumnDefinition> columns,
+                                      List<ColumnSpecification> metadata,
+                                      List<Selector> selectors,
+                                      boolean collectTimestamps,
+                                      boolean collectTTLs) throws InvalidRequestException
         {
             super(columns, metadata, collectTimestamps, collectTTLs);
             this.selectors = selectors;
+
+            validateSelectors(selectors, "the select clause must either contains only aggregates or none");
         }
 
-        protected List<ByteBuffer> handleRow(ResultSetBuilder rs) throws InvalidRequestException
+        protected void addInputRow(ResultSetBuilder rs) throws InvalidRequestException
+        {
+            for (Selector selector : selectors)
+            {
+                selector.addInput(rs);
+            }
+        }
+
+        protected List<ByteBuffer> getOutputRow() throws InvalidRequestException
         {
             List<ByteBuffer> result = new ArrayList<ByteBuffer>();
             for (Selector selector : selectors)
             {
-                result.add(selector.compute(rs));
+                result.add(selector.getOutput());
             }
             return result;
+        }
+
+        protected void reset()
+        {
+            for (Selector selector : selectors)
+            {
+                selector.reset();
+            }
+        }
+
+        public boolean isAggregate()
+        {
+            return selectors.get(0).isAggregate();
         }
     }
 }

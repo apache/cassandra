@@ -19,24 +19,20 @@ package org.apache.cassandra.cql3.functions;
 
 import java.nio.ByteBuffer;
 import java.util.List;
-import java.util.UUID;
 
-import org.apache.cassandra.db.marshal.UUIDType;
-import org.apache.cassandra.serializers.UUIDSerializer;
+import org.apache.cassandra.exceptions.InvalidRequestException;
 
-public abstract class UuidFcts
+/**
+ * Determines a single output value based on a single input value.
+ */
+public interface ScalarFunction extends Function
 {
-    public static final Function uuidFct = new NativeScalarFunction("uuid", UUIDType.instance)
-    {
-        public ByteBuffer execute(List<ByteBuffer> parameters)
-        {
-            return UUIDSerializer.instance.serialize(UUID.randomUUID());
-        }
-
-        @Override
-        public boolean isPure()
-        {
-            return false;
-        }
-    };
+    /**
+     * Applies this function to the specified parameter.
+     *
+     * @param parameters the input parameters
+     * @return the result of applying this function to the parameter
+     * @throws InvalidRequestException if this function cannot not be applied to the parameter
+     */
+    public ByteBuffer execute(List<ByteBuffer> parameters) throws InvalidRequestException;
 }

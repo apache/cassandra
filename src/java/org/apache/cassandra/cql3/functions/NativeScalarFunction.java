@@ -17,26 +17,20 @@
  */
 package org.apache.cassandra.cql3.functions;
 
-import java.nio.ByteBuffer;
-import java.util.List;
-import java.util.UUID;
+import org.apache.cassandra.db.marshal.AbstractType;
 
-import org.apache.cassandra.db.marshal.UUIDType;
-import org.apache.cassandra.serializers.UUIDSerializer;
-
-public abstract class UuidFcts
+/**
+ * Base class for the <code>ScalarFunction</code> native classes.
+ */
+public abstract class NativeScalarFunction extends NativeFunction implements ScalarFunction
 {
-    public static final Function uuidFct = new NativeScalarFunction("uuid", UUIDType.instance)
+    protected NativeScalarFunction(String name, AbstractType<?> returnType, AbstractType<?>... argsType)
     {
-        public ByteBuffer execute(List<ByteBuffer> parameters)
-        {
-            return UUIDSerializer.instance.serialize(UUID.randomUUID());
-        }
+        super(name, returnType, argsType);
+    }
 
-        @Override
-        public boolean isPure()
-        {
-            return false;
-        }
-    };
+    public final boolean isAggregate()
+    {
+        return false;
+    }
 }

@@ -97,7 +97,7 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
     private boolean selectsOnlyStaticColumns;
 
     // Used by forSelection below
-    private static final Parameters defaultParameters = new Parameters(Collections.<ColumnIdentifier, Boolean>emptyMap(), false, false, null, false);
+    private static final Parameters defaultParameters = new Parameters(Collections.<ColumnIdentifier, Boolean>emptyMap(), false, false);
 
     private static final Predicate<ColumnDefinition> isStaticFilter = new Predicate<ColumnDefinition>()
     {
@@ -156,9 +156,7 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
 
     public ResultSet.Metadata getResultMetadata()
     {
-        return parameters.isCount
-             ? ResultSet.makeCountMetadata(keyspace(), columnFamily(), parameters.countAlias)
-             : selection.getResultMetadata();
+        return selection.getResultMetadata();
     }
 
     public long measureForPreparedCache(MemoryMeter meter)
@@ -203,32 +201,31 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
         Pageable command = getPageableCommand(options, limit, now);
 
         int pageSize = options.getPageSize();
-        // A count query will never be paged for the user, but we always page it internally to avoid OOM.
+
+        // An aggregation query will never be paged for the user, but we always page it internally to avoid OOM.
         // If we user provided a pageSize we'll use that to page internally (because why not), otherwise we use our default
         // Note that if there are some nodes in the cluster with a version less than 2.0, we can't use paging (CASSANDRA-6707).
-        if (parameters.isCount && pageSize <= 0)
+        if (selection.isAggregate() && pageSize <= 0)
             pageSize = DEFAULT_COUNT_PAGE_SIZE;
 
         if (pageSize <= 0 || command == null || !QueryPagers.mayNeedPaging(command, pageSize))
         {
             return execute(command, options, limit, now);
         }
-        else
-        {
-            QueryPager pager = QueryPagers.pager(command, cl, options.getPagingState());
-            if (parameters.isCount)
-                return pageCountQuery(pager, options, pageSize, now, limit);
 
-            // We can't properly do post-query ordering if we page (see #6722)
-            if (needsPostQueryOrdering())
-                throw new InvalidRequestException("Cannot page queries with both ORDER BY and a IN restriction on the partition key; you must either remove the "
-                                                + "ORDER BY or the IN and sort client side, or disable paging for this query");
+        QueryPager pager = QueryPagers.pager(command, cl, options.getPagingState());
+        if (selection.isAggregate())
+            return pageAggregateQuery(pager, options, pageSize, now);
 
-            List<Row> page = pager.fetchPage(pageSize);
-            ResultMessage.Rows msg = processResults(page, options, limit, now);
+        // We can't properly do post-query ordering if we page (see #6722)
+        if (needsPostQueryOrdering())
+            throw new InvalidRequestException("Cannot page queries with both ORDER BY and a IN restriction on the partition key; you must either remove the "
+                                            + "ORDER BY or the IN and sort client side, or disable paging for this query");
 
-            return pager.isExhausted() ? msg : msg.withPagingState(pager.state());
-        }
+        List<Row> page = pager.fetchPage(pageSize);
+        ResultMessage.Rows msg = processResults(page, options, limit, now);
+
+        return pager.isExhausted() ? msg : msg.withPagingState(pager.state());
     }
 
     private Pageable getPageableCommand(QueryOptions options, int limit, long now) throws RequestValidationException
@@ -263,28 +260,27 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
         return processResults(rows, options, limit, now);
     }
 
-    private ResultMessage.Rows pageCountQuery(QueryPager pager, QueryOptions options, int pageSize, long now, int limit) throws RequestValidationException, RequestExecutionException
+    private ResultMessage.Rows pageAggregateQuery(QueryPager pager, QueryOptions options, int pageSize, long now)
+            throws RequestValidationException, RequestExecutionException
     {
-        int count = 0;
+        Selection.ResultSetBuilder result = selection.resultSetBuilder(now);
         while (!pager.isExhausted())
         {
-            int maxLimit = pager.maxRemaining();
-            logger.debug("New maxLimit for paged count query is {}", maxLimit);
-            ResultSet rset = process(pager.fetchPage(pageSize), options, maxLimit, now);
-            count += rset.rows.size();
-        }
+            for (org.apache.cassandra.db.Row row : pager.fetchPage(pageSize))
+            {
+                // Not columns match the query, skip
+                if (row.cf == null)
+                    continue;
 
-        // We sometimes query one more result than the user limit asks to handle exclusive bounds with compact tables (see updateLimitForQuery).
-        // So do make sure the count is not greater than what the user asked for.
-        ResultSet result = ResultSet.makeCountResult(keyspace(), columnFamily(), Math.min(count, limit), parameters.countAlias);
-        return new ResultMessage.Rows(result);
+                processColumnFamily(row.key.getKey(), row.cf, options, now, result);
+            }
+        }
+        return new ResultMessage.Rows(result.build());
     }
 
     public ResultMessage.Rows processResults(List<Row> rows, QueryOptions options, int limit, long now) throws RequestValidationException
     {
-        // Even for count, we need to process the result as it'll group some column together in sparse column families
         ResultSet rset = process(rows, options, limit, now);
-        rset = parameters.isCount ? rset.makeCountResult(parameters.countAlias) : rset;
         return new ResultMessage.Rows(rset);
     }
 
@@ -313,7 +309,6 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
 
     public ResultSet process(List<Row> rows) throws InvalidRequestException
     {
-        assert !parameters.isCount; // not yet needed
         QueryOptions options = QueryOptions.DEFAULT;
         return process(rows, options, getLimit(options), System.currentTimeMillis());
     }
@@ -1333,10 +1328,6 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
             CFMetaData cfm = ThriftValidation.validateColumnFamily(keyspace(), columnFamily());
             VariableSpecifications boundNames = getBoundVariables();
 
-            // Select clause
-            if (parameters.isCount && !selectClause.isEmpty())
-                throw new InvalidRequestException("Only COUNT(*) and COUNT(1) operations are currently supported.");
-
             Selection selection = selectClause.isEmpty()
                                 ? Selection.wildcard(cfm)
                                 : Selection.fromSelectors(cfm, selectClause);
@@ -2070,7 +2061,6 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
                           .add("selectClause", selectClause)
                           .add("whereClause", whereClause)
                           .add("isDistinct", parameters.isDistinct)
-                          .add("isCount", parameters.isCount)
                           .toString();
         }
     }
@@ -2079,20 +2069,14 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
     {
         private final Map<ColumnIdentifier, Boolean> orderings;
         private final boolean isDistinct;
-        private final boolean isCount;
-        private final ColumnIdentifier countAlias;
         private final boolean allowFiltering;
 
         public Parameters(Map<ColumnIdentifier, Boolean> orderings,
                           boolean isDistinct,
-                          boolean isCount,
-                          ColumnIdentifier countAlias,
                           boolean allowFiltering)
         {
             this.orderings = orderings;
             this.isDistinct = isDistinct;
-            this.isCount = isCount;
-            this.countAlias = countAlias;
             this.allowFiltering = allowFiltering;
         }
     }
