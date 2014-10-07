@@ -62,6 +62,7 @@
  * Fix snapshot repair error on indexed tables (CASSANDRA-8020)
  * Do not exit nodetool repair when receiving JMX NOTIF_LOST (CASSANDRA-7909)
 Merged from 2.0:
+ * Schedule fat client schema pull on join (CASSANDRA-7993)
  * Don't reset nodes' versions when closing IncomingTcpConnections
    (CASSANDRA-7734)
  * Record the real messaging version in all cases in OutboundTcpConnection
