@@ -57,7 +57,7 @@ public class LocalSyncTask extends SyncTask implements StreamEventHandler
         InetAddress dst = r2.endpoint.equals(local) ? r1.endpoint : r2.endpoint;
 
         logger.info(String.format("[repair #%s] Performing streaming repair of %d ranges with %s", desc.sessionId, differences.size(), dst));
-        new StreamPlan("Repair", repairedAt, 1).listeners(this)
+        new StreamPlan("Repair", repairedAt, 1, false).listeners(this)
                                             .flushBeforeTransfer(true)
                                             // request ranges from the remote node
                                             .requestRanges(dst, desc.keyspace, differences, desc.columnFamily)

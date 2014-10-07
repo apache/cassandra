@@ -62,6 +62,7 @@ import org.apache.cassandra.io.util.FileMark;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.io.util.SegmentedFile;
 import org.apache.cassandra.io.util.SequentialWriter;
+import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FilterFactory;
@@ -84,14 +85,19 @@ public class SSTableWriter extends SSTable
     private final MetadataCollector sstableMetadataCollector;
     private final long repairedAt;
 
-    public SSTableWriter(String filename, long keyCount, long repairedAt)
+    public SSTableWriter(String filename, long keyCount, long repairedAt, int sstableLevel)
     {
         this(filename,
              keyCount,
              repairedAt,
              Schema.instance.getCFMetaData(Descriptor.fromFilename(filename)),
              StorageService.getPartitioner(),
-             new MetadataCollector(Schema.instance.getCFMetaData(Descriptor.fromFilename(filename)).comparator));
+             new MetadataCollector(Schema.instance.getCFMetaData(Descriptor.fromFilename(filename)).comparator).sstableLevel(sstableLevel));
+    }
+
+    public SSTableWriter(String filename, long keyCount)
+    {
+        this(filename, keyCount, ActiveRepairService.UNREPAIRED_SSTABLE, 0);
     }
 
     private static Set<Component> components(CFMetaData metadata)

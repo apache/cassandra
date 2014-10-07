@@ -47,14 +47,19 @@ public class StreamPlan
      */
     public StreamPlan(String description)
     {
-        this(description, ActiveRepairService.UNREPAIRED_SSTABLE, 1);
+        this(description, ActiveRepairService.UNREPAIRED_SSTABLE, 1, false);
     }
 
-    public StreamPlan(String description, long repairedAt, int connectionsPerHost)
+    public StreamPlan(String description, boolean keepSSTableLevels)
+    {
+        this(description, ActiveRepairService.UNREPAIRED_SSTABLE, 1, keepSSTableLevels);
+    }
+
+    public StreamPlan(String description, long repairedAt, int connectionsPerHost, boolean keepSSTableLevels)
     {
         this.description = description;
         this.repairedAt = repairedAt;
-        this.coordinator = new StreamCoordinator(connectionsPerHost, new DefaultConnectionFactory());
+        this.coordinator = new StreamCoordinator(connectionsPerHost, keepSSTableLevels, new DefaultConnectionFactory());
     }
 
     /**

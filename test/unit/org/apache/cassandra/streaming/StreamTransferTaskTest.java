@@ -63,7 +63,7 @@ public class StreamTransferTaskTest
         String ks = KEYSPACE1;
         String cf = "Standard1";
 
-        StreamSession session = new StreamSession(FBUtilities.getBroadcastAddress(), null, 0);
+        StreamSession session = new StreamSession(FBUtilities.getBroadcastAddress(), null, 0, true);
         ColumnFamilyStore cfs = Keyspace.open(ks).getColumnFamilyStore(cf);
 
         // create two sstables

@@ -109,16 +109,12 @@ public class RangeStreamer
         this.tokens = tokens;
         this.address = address;
         this.description = description;
-        this.streamPlan = new StreamPlan(description);
+        this.streamPlan = new StreamPlan(description, true);
     }
 
     public RangeStreamer(TokenMetadata metadata, InetAddress address, String description)
     {
-        this.metadata = metadata;
-        this.tokens = null;
-        this.address = address;
-        this.description = description;
-        this.streamPlan = new StreamPlan(description);
+        this(metadata, null, address, description);
     }
 
     public void addSourceFilter(ISourceFilter filter)

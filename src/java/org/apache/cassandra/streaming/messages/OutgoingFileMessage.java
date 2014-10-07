@@ -60,7 +60,7 @@ public class OutgoingFileMessage extends StreamMessage
     public FileMessageHeader header;
     public SSTableReader sstable;
 
-    public OutgoingFileMessage(SSTableReader sstable, int sequenceNumber, long estimatedKeys, List<Pair<Long, Long>> sections, long repairedAt)
+    public OutgoingFileMessage(SSTableReader sstable, int sequenceNumber, long estimatedKeys, List<Pair<Long, Long>> sections, long repairedAt, boolean keepSSTableLevel)
     {
         super(Type.FILE);
         this.sstable = sstable;
@@ -77,7 +77,8 @@ public class OutgoingFileMessage extends StreamMessage
                                             estimatedKeys,
                                             sections,
                                             compressionInfo,
-                                            repairedAt);
+                                            repairedAt,
+                                            keepSSTableLevel ? sstable.getSSTableLevel() : 0);
     }
 
     @Override

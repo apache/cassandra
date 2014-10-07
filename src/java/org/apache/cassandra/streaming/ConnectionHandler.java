@@ -179,7 +179,8 @@ public class ConnectionHandler
                     session.sessionIndex(),
                     session.planId(),
                     session.description(),
-                    isForOutgoing);
+                    isForOutgoing,
+                    session.keepSSTableLevel());
             ByteBuffer messageBuf = message.createMessage(false, protocolVersion);
             getWriteChannel(socket).write(messageBuf);
         }

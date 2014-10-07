@@ -58,6 +58,7 @@ public class StreamReader
     protected final StreamSession session;
     protected final Descriptor.Version inputVersion;
     protected final long repairedAt;
+    protected final int sstableLevel;
 
     protected Descriptor desc;
 
@@ -69,6 +70,7 @@ public class StreamReader
         this.sections = header.sections;
         this.inputVersion = new Descriptor.Version(header.version);
         this.repairedAt = header.repairedAt;
+        this.sstableLevel = header.sstableLevel;
     }
 
     /**
@@ -78,7 +80,7 @@ public class StreamReader
      */
     public SSTableWriter read(ReadableByteChannel channel) throws IOException
     {
-        logger.debug("reading file from {}, repairedAt = {}", session.peer, repairedAt);
+        logger.debug("reading file from {}, repairedAt = {}, level = {}", session.peer, repairedAt, sstableLevel);
         long totalSize = totalSize();
 
         Pair<String, String> kscf = Schema.instance.getCF(cfId);
@@ -119,8 +121,7 @@ public class StreamReader
         if (localDir == null)
             throw new IOException("Insufficient disk space to store " + totalSize + " bytes");
         desc = Descriptor.fromFilename(cfs.getTempSSTablePath(cfs.directories.getLocationForDisk(localDir)));
-
-        return new SSTableWriter(desc.filenameFor(Component.DATA), estimatedKeys, repairedAt);
+        return new SSTableWriter(desc.filenameFor(Component.DATA), estimatedKeys, repairedAt, sstableLevel);
     }
 
     protected void drain(InputStream dis, long bytesRead) throws IOException

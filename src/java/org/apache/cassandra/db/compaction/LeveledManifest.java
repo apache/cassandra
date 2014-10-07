@@ -38,6 +38,7 @@ import org.apache.cassandra.dht.Bounds;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.*;
+import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.Pair;
 
 public class LeveledManifest
@@ -329,6 +330,19 @@ public class LeveledManifest
                     assert !reader.isRepaired();
                 return new CompactionCandidate(unrepairedMostInterresting, 0, Long.MAX_VALUE);
             }
+        }
+
+        // during bootstrap we only do size tiering in L0 to make sure
+        // the streamed files can be placed in their original levels
+        if (StorageService.instance.isBootstrapMode())
+        {
+            List<SSTableReader> mostInteresting = getSSTablesForSTCS(getLevel(0));
+            if (!mostInteresting.isEmpty())
+            {
+                logger.info("Bootstrapping - doing STCS in L0");
+                return new CompactionCandidate(mostInteresting, 0, Long.MAX_VALUE);
+            }
+            return null;
         }
         // LevelDB gives each level a score of how much data it contains vs its ideal amount, and
         // compacts the level with the highest score. But this falls apart spectacularly once you

@@ -133,6 +133,7 @@ public class StreamSession implements IEndpointStateChangeSubscriber
     private int retries;
 
     private AtomicBoolean isAborted = new AtomicBoolean(false);
+    private final boolean keepSSTableLevel;
 
     public static enum State
     {
@@ -153,13 +154,14 @@ public class StreamSession implements IEndpointStateChangeSubscriber
      * @param peer Address of streaming peer
      * @param factory is used for establishing connection
      */
-    public StreamSession(InetAddress peer, StreamConnectionFactory factory, int index)
+    public StreamSession(InetAddress peer, StreamConnectionFactory factory, int index, boolean keepSSTableLevel)
     {
         this.peer = peer;
         this.index = index;
         this.factory = factory;
         this.handler = new ConnectionHandler(this);
         this.metrics = StreamingMetrics.get(peer);
+        this.keepSSTableLevel = keepSSTableLevel;
     }
 
     public UUID planId()
@@ -175,6 +177,11 @@ public class StreamSession implements IEndpointStateChangeSubscriber
     public String description()
     {
         return streamResult == null ? null : streamResult.description;
+    }
+
+    public boolean keepSSTableLevel()
+    {
+        return keepSSTableLevel;
     }
 
     /**
