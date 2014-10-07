@@ -927,8 +927,8 @@ public class CassandraServer implements Cassandra.Iface
                                      del.timestamp);
             else
                 mutation.deleteRange(cfm.cfName,
-                                     cfm.comparator.cellFromByteBuffer(del.predicate.getSlice_range().start),
-                                     cfm.comparator.cellFromByteBuffer(del.predicate.getSlice_range().finish),
+                                     cfm.comparator.fromByteBuffer(del.predicate.getSlice_range().start),
+                                     cfm.comparator.fromByteBuffer(del.predicate.getSlice_range().finish),
                                      del.timestamp);
         }
         else

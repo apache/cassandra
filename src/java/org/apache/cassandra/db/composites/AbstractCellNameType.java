@@ -184,6 +184,7 @@ public abstract class AbstractCellNameType extends AbstractCType implements Cell
 
     public CellName cellFromByteBuffer(ByteBuffer bytes)
     {
+        // we're not guaranteed to get a CellName back from fromByteBuffer(), so it's on the caller to guarantee this
         return (CellName)fromByteBuffer(bytes);
     }
 
