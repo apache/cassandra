@@ -324,6 +324,7 @@ public abstract class ExtendedFilter
         private static boolean collectionSatisfies(ColumnDefinition def, ColumnFamily data, Composite prefix, IndexExpression expr, ByteBuffer collectionElement)
         {
             assert def.type.isCollection();
+            CollectionType type = (CollectionType)def.type;
 
             if (expr.operator == IndexExpression.Operator.CONTAINS)
             {
@@ -331,14 +332,22 @@ public abstract class ExtendedFilter
                 Iterator<Cell> iter = data.iterator(new ColumnSlice[]{ data.getComparator().create(prefix, def).slice() });
                 while (iter.hasNext())
                 {
-                    if (((CollectionType) def.type).valueComparator().compare(iter.next().value(), expr.value) == 0)
-                        return true;
+                    Cell cell = iter.next();
+                    if (type.kind == CollectionType.Kind.SET)
+                    {
+                        if (type.nameComparator().compare(cell.name().collectionElement(), expr.value) == 0)
+                            return true;
+                    }
+                    else
+                    {
+                        if (type.valueComparator().compare(cell.value(), expr.value) == 0)
+                            return true;
+                    }
                 }
 
                 return false;
             }
 
-            CollectionType type = (CollectionType)def.type;
             switch (type.kind)
             {
                 case LIST:
