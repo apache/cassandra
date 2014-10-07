@@ -62,6 +62,10 @@
  * Fix snapshot repair error on indexed tables (CASSANDRA-8020)
  * Do not exit nodetool repair when receiving JMX NOTIF_LOST (CASSANDRA-7909)
 Merged from 2.0:
+ * Don't reset nodes' versions when closing IncomingTcpConnections
+   (CASSANDRA-7734)
+ * Record the real messaging version in all cases in OutboundTcpConnection
+   (CASSANDRA-8057)
  * SSL does not work in cassandra-cli (CASSANDRA-7899)
  * Fix potential exception when using ReversedType in DynamicCompositeType
    (CASSANDRA-7898)
