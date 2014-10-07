@@ -67,17 +67,17 @@ public class QueryProcessor implements QueryHandler
         }
     };
 
-    private static EntryWeigher<Integer, CQLStatement> thriftMemoryUsageWeigher = new EntryWeigher<Integer, CQLStatement>()
+    private static EntryWeigher<Integer, ParsedStatement.Prepared> thriftMemoryUsageWeigher = new EntryWeigher<Integer, ParsedStatement.Prepared>()
     {
         @Override
-        public int weightOf(Integer key, CQLStatement value)
+        public int weightOf(Integer key, ParsedStatement.Prepared value)
         {
-            return Ints.checkedCast(measure(key) + measure(value));
+            return Ints.checkedCast(measure(key) + measure(value.statement) + measure(value.boundNames));
         }
     };
 
     private static final ConcurrentLinkedHashMap<MD5Digest, ParsedStatement.Prepared> preparedStatements;
-    private static final ConcurrentLinkedHashMap<Integer, CQLStatement> thriftPreparedStatements;
+    private static final ConcurrentLinkedHashMap<Integer, ParsedStatement.Prepared> thriftPreparedStatements;
 
     // A map for prepared statements used internally (which we don't want to mix with user statement, in particular we don't
     // bother with expiration on those.
@@ -103,12 +103,12 @@ public class QueryProcessor implements QueryHandler
                                  }
                              }).build();
 
-        thriftPreparedStatements = new ConcurrentLinkedHashMap.Builder<Integer, CQLStatement>()
+        thriftPreparedStatements = new ConcurrentLinkedHashMap.Builder<Integer, ParsedStatement.Prepared>()
                                    .maximumWeightedCapacity(MAX_CACHE_PREPARED_MEMORY)
                                    .weigher(thriftMemoryUsageWeigher)
-                                   .listener(new EvictionListener<Integer, CQLStatement>()
+                                   .listener(new EvictionListener<Integer, ParsedStatement.Prepared>()
                                    {
-                                       public void onEviction(Integer integer, CQLStatement cqlStatement)
+                                       public void onEviction(Integer integer, ParsedStatement.Prepared prepared)
                                        {
                                            metrics.preparedStatementsEvicted.inc();
                                            lastMinuteEvictionsCount.incrementAndGet();
@@ -171,7 +171,7 @@ public class QueryProcessor implements QueryHandler
         return preparedStatements.get(id);
     }
 
-    public CQLStatement getPreparedForThrift(Integer id)
+    public ParsedStatement.Prepared getPreparedForThrift(Integer id)
     {
         return thriftPreparedStatements.get(id);
     }
@@ -391,6 +391,10 @@ public class QueryProcessor implements QueryHandler
     public static ResultMessage.Prepared prepare(String queryString, ClientState clientState, boolean forThrift)
     throws RequestValidationException
     {
+        ResultMessage.Prepared existing = getStoredPreparedStatement(queryString, clientState.getRawKeyspace(), forThrift);
+        if (existing != null)
+            return existing;
+
         ParsedStatement.Prepared prepared = getStatement(queryString, clientState);
         int boundTerms = prepared.statement.getBoundTerms();
         if (boundTerms > FBUtilities.MAX_UNSIGNED_SHORT)
@@ -400,12 +404,40 @@ public class QueryProcessor implements QueryHandler
         return storePreparedStatement(queryString, clientState.getRawKeyspace(), prepared, forThrift);
     }
 
+    private static MD5Digest computeId(String queryString, String keyspace)
+    {
+        String toHash = keyspace == null ? queryString : keyspace + queryString;
+        return MD5Digest.compute(toHash);
+    }
+
+    private static Integer computeThriftId(String queryString, String keyspace)
+    {
+        String toHash = keyspace == null ? queryString : keyspace + queryString;
+        return toHash.hashCode();
+    }
+
+    private static ResultMessage.Prepared getStoredPreparedStatement(String queryString, String keyspace, boolean forThrift)
+    throws InvalidRequestException
+    {
+        if (forThrift)
+        {
+            Integer thriftStatementId = computeThriftId(queryString, keyspace);
+            ParsedStatement.Prepared existing = thriftPreparedStatements.get(thriftStatementId);
+            return existing == null ? null : ResultMessage.Prepared.forThrift(thriftStatementId, existing.boundNames);
+        }
+        else
+        {
+            MD5Digest statementId = computeId(queryString, keyspace);
+            ParsedStatement.Prepared existing = preparedStatements.get(statementId);
+            return existing == null ? null : new ResultMessage.Prepared(statementId, existing);
+        }
+    }
+
     private static ResultMessage.Prepared storePreparedStatement(String queryString, String keyspace, ParsedStatement.Prepared prepared, boolean forThrift)
     throws InvalidRequestException
     {
         // Concatenate the current keyspace so we don't mix prepared statements between keyspace (#5352).
         // (if the keyspace is null, queryString has to have a fully-qualified keyspace so it's fine.
-        String toHash = keyspace == null ? queryString : keyspace + queryString;
         long statementSize = measure(prepared.statement);
         // don't execute the statement if it's bigger than the allowed threshold
         if (statementSize > MAX_CACHE_PREPARED_MEMORY)
@@ -414,13 +446,13 @@ public class QueryProcessor implements QueryHandler
                                                             MAX_CACHE_PREPARED_MEMORY));
         if (forThrift)
         {
-            int statementId = toHash.hashCode();
-            thriftPreparedStatements.put(statementId, prepared.statement);
+            Integer statementId = computeThriftId(queryString, keyspace);
+            thriftPreparedStatements.put(statementId, prepared);
             return ResultMessage.Prepared.forThrift(statementId, prepared.boundNames);
         }
         else
         {
-            MD5Digest statementId = MD5Digest.compute(toHash);
+            MD5Digest statementId = computeId(queryString, keyspace);
             preparedStatements.put(statementId, prepared);
             return new ResultMessage.Prepared(statementId, prepared);
         }
@@ -520,18 +552,16 @@ public class QueryProcessor implements QueryHandler
     {
         private void removeInvalidPreparedStatements(String ksName, String cfName)
         {
-            Iterator<ParsedStatement.Prepared> iterator = preparedStatements.values().iterator();
+            removeInvalidPreparedStatements(preparedStatements.values().iterator(), ksName, cfName);
+            removeInvalidPreparedStatements(thriftPreparedStatements.values().iterator(), ksName, cfName);
+        }
+
+        private void removeInvalidPreparedStatements(Iterator<ParsedStatement.Prepared> iterator, String ksName, String cfName)
+        {
             while (iterator.hasNext())
             {
                 if (shouldInvalidate(ksName, cfName, iterator.next().statement))
                     iterator.remove();
-            }
-
-            Iterator<CQLStatement> thriftIterator = thriftPreparedStatements.values().iterator();
-            while (thriftIterator.hasNext())
-            {
-                if (shouldInvalidate(ksName, cfName, thriftIterator.next()))
-                    thriftIterator.remove();
             }
         }
 
