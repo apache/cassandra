@@ -108,6 +108,8 @@ public final class Stress
             StressAction stressAction = new StressAction(settings, logout);
             stressAction.run();
         }
+
+        System.exit(0);
     }
 
     /**
