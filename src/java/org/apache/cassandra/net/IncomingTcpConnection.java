@@ -79,7 +79,7 @@ public class IncomingTcpConnection extends Thread
                                                                       + "The earliest version supported is 2.0.0",
                                                                       version));
 
-            handleModernVersion();
+            receiveMessages();
         }
         catch (EOFException e)
         {
@@ -100,21 +100,27 @@ public class IncomingTcpConnection extends Thread
         }
     }
 
-    private void handleModernVersion() throws IOException
+    private void receiveMessages() throws IOException
     {
+        // handshake (true) endpoint versions
         DataOutputStream out = new DataOutputStream(socket.getOutputStream());
         out.writeInt(MessagingService.current_version);
         out.flush();
-
         DataInputStream in = new DataInputStream(socket.getInputStream());
         int maxVersion = in.readInt();
+
         from = CompactEndpointSerializationHelper.deserialize(in);
+        // record the (true) version of the endpoint
+        MessagingService.instance().setVersion(from, maxVersion);
+        logger.debug("Set version for {} to {} (will use {})", from, maxVersion, MessagingService.instance().getVersion(from));
 
         if (compressed)
         {
             logger.debug("Upgrading incoming connection to be compressed");
             if (version < MessagingService.VERSION_21)
+            {
                 in = new DataInputStream(new SnappyInputStream(socket.getInputStream()));
+            }
             else
             {
                 LZ4FastDecompressor decompressor = LZ4Factory.fastestInstance().fastDecompressor();
@@ -129,7 +135,6 @@ public class IncomingTcpConnection extends Thread
             in = new DataInputStream(new BufferedInputStream(socket.getInputStream(), 4096));
         }
 
-        logger.debug("Max version for {} is {}", from, maxVersion);
         if (version > MessagingService.current_version)
         {
             // save the endpoint so gossip will reconnect to it
@@ -137,8 +142,6 @@ public class IncomingTcpConnection extends Thread
             logger.info("Received messages from newer protocol version {}. Ignoring", version);
             return;
         }
-        MessagingService.instance().setVersion(from, maxVersion);
-        logger.debug("Set version for {} to {} (will use {})", from, maxVersion, Math.min(MessagingService.current_version, maxVersion));
         // outbound side will reconnect if necessary to upgrade version
 
         while (true)
@@ -181,17 +184,13 @@ public class IncomingTcpConnection extends Thread
 
     private void close()
     {
-        // reset version here, since we set when starting an incoming socket
-        if (from != null)
-            MessagingService.instance().resetVersion(from);
         try
         {
             socket.close();
         }
         catch (IOException e)
         {
-            if (logger.isDebugEnabled())
-                logger.debug("error closing socket", e);
+            logger.debug("Error closing socket", e);
         }
     }
 }
