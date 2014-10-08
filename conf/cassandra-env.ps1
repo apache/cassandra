@@ -292,6 +292,9 @@ Function SetCassandraEnvironment
     CalculateHeapSizes
 
     ParseJVMInfo
+    # Add sigar env - see Cassandra-7838
+    $env:JVM_OPTS = "$env:JVM_OPTS -Djava.library.path=$env:CASSANDRA_HOME\lib\sigar-bin"
+
     # add the jamm javaagent
     if (($env:JVM_VENDOR -ne "OpenJDK") -or ($env:JVM_VERSION.CompareTo("1.6.0") -eq 1) -or
         (($env:JVM_VERSION -eq "1.6.0") -and ($env:JVM_PATCH_VERSION.CompareTo("22") -eq 1)))

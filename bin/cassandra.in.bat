@@ -48,3 +48,6 @@ set CASSANDRA_CLASSPATH=%CLASSPATH%;"%CASSANDRA_HOME%\build\classes\main";%CASSA
 
 REM Add the default storage location.  Can be overridden in conf\cassandra.yaml
 set CASSANDRA_PARAMS=%CASSANDRA_PARAMS% "-Dcassandra.storagedir=%CASSANDRA_HOME%\data"
+
+REM Add the sigar-bin path to the java.library.path CASSANDRA-7838
+set JAVA_OPTS=%JAVA_OPTS% -Djava.library.path=%CASSANDRA_HOME%\lib\sigar-bin"

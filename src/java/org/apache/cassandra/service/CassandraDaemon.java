@@ -33,6 +33,7 @@ import javax.management.StandardMBean;
 
 import com.google.common.collect.Iterables;
 import com.google.common.util.concurrent.Uninterruptibles;
+import org.hyperic.sigar.SigarException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -85,7 +86,7 @@ public class CassandraDaemon
      */
     protected void setup()
     {
-        try 
+        try
         {
             logger.info("Hostname: {}", InetAddress.getLocalHost().getHostName());
         }
@@ -178,6 +179,13 @@ public class CassandraDaemon
         Iterable<String> dirs = Iterables.concat(Arrays.asList(DatabaseDescriptor.getAllDataFileLocations()),
                                                  Arrays.asList(DatabaseDescriptor.getCommitLogLocation(),
                                                                DatabaseDescriptor.getSavedCachesLocation()));
+
+        SigarLibrary sigarLibrary = new SigarLibrary();
+        if (sigarLibrary.initialized())
+            sigarLibrary.warnIfRunningInDegradedMode();
+        else
+            logger.info("Sigar could not be initialized");
+
         for (String dataDir : dirs)
         {
             logger.debug("Checking directory {}", dataDir);
@@ -200,6 +208,8 @@ public class CassandraDaemon
                 // if permissions aren't sufficient, stop cassandra.
                 System.exit(3);
             }
+
+
         }
 
         if (CacheService.instance == null) // should never happen
@@ -441,7 +451,7 @@ public class CassandraDaemon
                 logger.error("error registering MBean {}", MBEAN_NAME, e);
                 //Allow the server to start even if the bean can't be registered
             }
-            
+
             setup();
 
             if (pidFile != null)
@@ -533,15 +543,15 @@ public class CassandraDaemon
     {
         instance.activate();
     }
-    
+
     static class NativeAccess implements NativeAccessMBean
     {
         public boolean isAvailable()
         {
             return CLibrary.jnaAvailable();
         }
-        
-        public boolean isMemoryLockable() 
+
+        public boolean isMemoryLockable()
         {
             return CLibrary.jnaMemoryLockable();
         }

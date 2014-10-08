@@ -18,7 +18,6 @@
 if "%OS%" == "Windows_NT" setlocal
 
 set ARG=%1
-if /i "%ARG%" == "LEGACY" goto runLegacy
 set INSTALL="INSTALL"
 set UNINSTALL="UNINSTALL"
 
@@ -26,6 +25,7 @@ pushd %~dp0..
 if NOT DEFINED CASSANDRA_HOME set CASSANDRA_HOME=%CD%
 popd
 
+if /i "%ARG%" == "LEGACY" goto runLegacy
 REM -----------------------------------------------------------------------------
 REM See if we have access to run unsigned powershell scripts
 for /F "delims=" %%i in ('powershell Get-ExecutionPolicy') do set PERMISSION=%%i
@@ -67,7 +67,8 @@ set JAVA_OPTS=-ea^
  -Dcom.sun.management.jmxremote.port=7199^
  -Dcom.sun.management.jmxremote.ssl=false^
  -Dcom.sun.management.jmxremote.authenticate=false^
- -Dlogback.configurationFile=logback.xml
+ -Dlogback.configurationFile=logback.xml^
+ -Djava.library.path=%CASSANDRA_HOME%\lib\sigar-bin
 
 REM ***** CLASSPATH library setting *****
 

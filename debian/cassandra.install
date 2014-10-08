@@ -20,4 +20,5 @@ bin/sstableupgrade usr/bin
 tools/bin/cassandra-stress usr/bin
 lib/*.jar usr/share/cassandra/lib
 lib/*.zip usr/share/cassandra/lib
+lib/sigar-bin/* usr/share/cassandra/lib/sigar-bin
 lib/licenses usr/share/doc/cassandra

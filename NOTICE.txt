@@ -63,3 +63,6 @@ HLL++ support provided by stream-lib
 
 Javassist
 (http://www.csg.ci.i.u-tokyo.ac.jp/~chiba/javassist/)
+
+SIGAR
+http://sigar.hyperic.com/
