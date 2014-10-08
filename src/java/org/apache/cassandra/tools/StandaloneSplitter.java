@@ -116,6 +116,11 @@ public class StandaloneSplitter
                 try
                 {
                     SSTableReader sstable = SSTableReader.openNoValidation(fn.getKey(), fn.getValue(), cfs.metadata);
+                    if (!isSSTableLargerEnough(sstable, options.sizeInMB)) {
+                        System.out.println(String.format("Skipping %s: it's size (%.3f MB) is less than the split size (%d MB)",
+                                sstable.getFilename(), ((sstable.onDiskLength() * 1.0d) / 1024L) / 1024L, options.sizeInMB));
+                        continue;
+                    }
                     sstables.add(sstable);
 
                     if (options.snapshot) {
@@ -130,6 +135,10 @@ public class StandaloneSplitter
                     if (options.debug)
                         e.printStackTrace(System.err);
                 }
+            }
+            if (sstables.isEmpty()) {
+                System.out.println("No sstables needed splitting.");
+                System.exit(0);
             }
             if (options.snapshot)
                 System.out.println(String.format("Pre-split sstables snapshotted into snapshot %s", snapshotName));
@@ -158,6 +167,13 @@ public class StandaloneSplitter
                 e.printStackTrace(System.err);
             System.exit(1);
         }
+    }
+
+    /**
+     * filter the sstable which size is less than the expected max sstable size.
+     */
+    private static boolean isSSTableLargerEnough(SSTableReader sstable, int sizeInMB) {
+        return sstable.onDiskLength() > sizeInMB * 1024L * 1024L;
     }
 
     private static class Options
