@@ -17,6 +17,9 @@
  */
 package org.apache.cassandra.cql3;
 
+import java.math.BigDecimal;
+import java.math.BigInteger;
+
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -446,5 +449,215 @@ public class UFTest extends CQLTester
 
         assertRows(execute("SELECT language, body FROM system.schema_functions WHERE namespace='foo' AND name='pgfun1'"),
                    row("java", functionBody));
+    }
+
+    @Test
+    public void testJavascriptFunction() throws Throwable
+    {
+        createTable("CREATE TABLE %s (key int primary key, val double)");
+
+        String functionBody = "\n" +
+                              "  Math.sin(val);\n";
+
+        String cql = "CREATE OR REPLACE FUNCTION jsft(val double) RETURNS double LANGUAGE javascript\n" +
+                     "AS '" + functionBody + "';";
+
+        execute(cql);
+
+        assertRows(execute("SELECT language, body FROM system.schema_functions WHERE namespace='' AND name='jsft'"),
+                   row("javascript", functionBody));
+
+        execute("INSERT INTO %s (key, val) VALUES (?, ?)", 1, 1d);
+        execute("INSERT INTO %s (key, val) VALUES (?, ?)", 2, 2d);
+        execute("INSERT INTO %s (key, val) VALUES (?, ?)", 3, 3d);
+        assertRows(execute("SELECT key, val, jsft(val) FROM %s"),
+                   row(1, 1d, Math.sin(1d)),
+                   row(2, 2d, Math.sin(2d)),
+                   row(3, 3d, Math.sin(3d))
+        );
+    }
+
+    @Test
+    public void testJavascriptBadReturnType() throws Throwable
+    {
+        createTable("CREATE TABLE %s (key int primary key, val double)");
+
+        execute("CREATE OR REPLACE FUNCTION jsft(val double) RETURNS double LANGUAGE javascript\n" +
+                "AS '\"string\";';");
+
+        execute("INSERT INTO %s (key, val) VALUES (?, ?)", 1, 1d);
+        // throws IRE with ClassCastException
+        assertInvalid("SELECT key, val, jsft(val) FROM %s");
+    }
+
+    @Test
+    public void testJavascriptThrow() throws Throwable
+    {
+        createTable("CREATE TABLE %s (key int primary key, val double)");
+
+        execute("CREATE OR REPLACE FUNCTION jsft(val double) RETURNS double LANGUAGE javascript\n" +
+                "AS 'throw \"fool\";';");
+
+        execute("INSERT INTO %s (key, val) VALUES (?, ?)", 1, 1d);
+        // throws IRE with ScriptException
+        assertInvalid("SELECT key, val, jsft(val) FROM %s");
+    }
+
+    @Test
+    public void testDuplicateArgNames() throws Throwable
+    {
+        assertInvalid("CREATE OR REPLACE FUNCTION scrinv(val double, val text) RETURNS text LANGUAGE javascript\n" +
+                      "AS '\"foo bar\";';");
+    }
+
+    @Test
+    public void testJavascriptCompileFailure() throws Throwable
+    {
+        assertInvalid("CREATE OR REPLACE FUNCTION scrinv(val double) RETURNS double LANGUAGE javascript\n" +
+                      "AS 'foo bar';");
+    }
+
+    @Test
+    public void testScriptInvalidLanguage() throws Throwable
+    {
+        assertInvalid("CREATE OR REPLACE FUNCTION scrinv(val double) RETURNS double LANGUAGE artificial_intelligence\n" +
+                      "AS 'question for 42?';");
+    }
+
+    @Test
+    public void testScriptReturnTypeCasting() throws Throwable
+    {
+        createTable("CREATE TABLE %s (key int primary key, val double)");
+        execute("INSERT INTO %s (key, val) VALUES (?, ?)", 1, 1d);
+
+        execute("CREATE OR REPLACE FUNCTION js(val double) RETURNS boolean LANGUAGE javascript\n" +
+                "AS 'true;';");
+        assertRows(execute("SELECT key, val, js(val) FROM %s"),
+                   row(1, 1d, true));
+        execute("CREATE OR REPLACE FUNCTION js(val double) RETURNS boolean LANGUAGE javascript\n" +
+                "AS 'false;';");
+        assertRows(execute("SELECT key, val, js(val) FROM %s"),
+                   row(1, 1d, false));
+        execute("DROP FUNCTION js(double)");
+
+        // declared rtype = int , return type = int
+        execute("CREATE OR REPLACE FUNCTION js(val double) RETURNS int LANGUAGE javascript\n" +
+                "AS '100;';");
+        assertRows(execute("SELECT key, val, js(val) FROM %s"),
+                   row(1, 1d, 100));
+        execute("DROP FUNCTION js(double)");
+
+        // declared rtype = int , return type = double
+        execute("CREATE OR REPLACE FUNCTION js(val double) RETURNS int LANGUAGE javascript\n" +
+                "AS '100.;';");
+        assertRows(execute("SELECT key, val, js(val) FROM %s"),
+                   row(1, 1d, 100));
+        execute("DROP FUNCTION js(double)");
+
+        // declared rtype = double , return type = int
+        execute("CREATE OR REPLACE FUNCTION js(val double) RETURNS double LANGUAGE javascript\n" +
+                "AS '100;';");
+        assertRows(execute("SELECT key, val, js(val) FROM %s"),
+                   row(1, 1d, 100d));
+        execute("DROP FUNCTION js(double)");
+
+        // declared rtype = double , return type = double
+        execute("CREATE OR REPLACE FUNCTION js(val double) RETURNS double LANGUAGE javascript\n" +
+                "AS '100.;';");
+        assertRows(execute("SELECT key, val, js(val) FROM %s"),
+                   row(1, 1d, 100d));
+        execute("DROP FUNCTION js(double)");
+
+        // declared rtype = bigint , return type = int
+        execute("CREATE OR REPLACE FUNCTION js(val double) RETURNS bigint LANGUAGE javascript\n" +
+                "AS '100;';");
+        assertRows(execute("SELECT key, val, js(val) FROM %s"),
+                   row(1, 1d, 100L));
+        execute("DROP FUNCTION js(double)");
+
+        // declared rtype = bigint , return type = double
+        execute("CREATE OR REPLACE FUNCTION js(val double) RETURNS bigint LANGUAGE javascript\n" +
+                "AS '100.;';");
+        assertRows(execute("SELECT key, val, js(val) FROM %s"),
+                   row(1, 1d, 100L));
+        execute("DROP FUNCTION js(double)");
+
+        // declared rtype = varint , return type = int
+        execute("CREATE OR REPLACE FUNCTION js(val double) RETURNS varint LANGUAGE javascript\n" +
+                "AS '100;';");
+        assertRows(execute("SELECT key, val, js(val) FROM %s"),
+                   row(1, 1d, BigInteger.valueOf(100L)));
+        execute("DROP FUNCTION js(double)");
+
+        // declared rtype = varint , return type = double
+        execute("CREATE OR REPLACE FUNCTION js(val double) RETURNS varint LANGUAGE javascript\n" +
+                "AS '100.;';");
+        assertRows(execute("SELECT key, val, js(val) FROM %s"),
+                   row(1, 1d, BigInteger.valueOf(100L)));
+        execute("DROP FUNCTION js(double)");
+
+        // declared rtype = decimal , return type = int
+        execute("CREATE OR REPLACE FUNCTION js(val double) RETURNS decimal LANGUAGE javascript\n" +
+                "AS '100;';");
+        assertRows(execute("SELECT key, val, js(val) FROM %s"),
+                   row(1, 1d, BigDecimal.valueOf(100d)));
+        execute("DROP FUNCTION js(double)");
+
+        // declared rtype = decimal , return type = double
+        execute("CREATE OR REPLACE FUNCTION js(val double) RETURNS decimal LANGUAGE javascript\n" +
+                "AS '100.;';");
+        assertRows(execute("SELECT key, val, js(val) FROM %s"),
+                   row(1, 1d, BigDecimal.valueOf(100d)));
+        execute("DROP FUNCTION js(double)");
+    }
+
+    @Test
+    public void testScriptParamReturnTypes() throws Throwable
+    {
+        createTable("CREATE TABLE %s (key int primary key, ival int, lval bigint, fval float, dval double, vval varint, ddval decimal)");
+        execute("INSERT INTO %s (key, ival, lval, fval, dval, vval, ddval) VALUES (?, ?, ?, ?, ?, ?, ?)", 1,
+                1, 1L, 1f, 1d, BigInteger.valueOf(1L), BigDecimal.valueOf(1d));
+
+        // type = int
+        execute("CREATE OR REPLACE FUNCTION jsint(val int) RETURNS int LANGUAGE javascript\n" +
+                "AS 'val+1;';");
+        assertRows(execute("SELECT key, ival, jsint(ival) FROM %s"),
+                   row(1, 1, 2));
+        execute("DROP FUNCTION jsint(int)");
+
+        // bigint
+        execute("CREATE OR REPLACE FUNCTION jsbigint(val bigint) RETURNS bigint LANGUAGE javascript\n" +
+                "AS 'val+1;';");
+        assertRows(execute("SELECT key, lval, jsbigint(lval) FROM %s"),
+                   row(1, 1L, 2L));
+        execute("DROP FUNCTION jsbigint(bigint)");
+
+        // float
+        execute("CREATE OR REPLACE FUNCTION jsfloat(val float) RETURNS float LANGUAGE javascript\n" +
+                "AS 'val+1;';");
+        assertRows(execute("SELECT key, fval, jsfloat(fval) FROM %s"),
+                   row(1, 1f, 2f));
+        execute("DROP FUNCTION jsfloat(float)");
+
+        // double
+        execute("CREATE OR REPLACE FUNCTION jsdouble(val double) RETURNS double LANGUAGE javascript\n" +
+                "AS 'val+1;';");
+        assertRows(execute("SELECT key, dval, jsdouble(dval) FROM %s"),
+                   row(1, 1d, 2d));
+        execute("DROP FUNCTION jsdouble(double)");
+
+        // varint
+        execute("CREATE OR REPLACE FUNCTION jsvarint(val varint) RETURNS varint LANGUAGE javascript\n" +
+                "AS 'val+1;';");
+        assertRows(execute("SELECT key, vval, jsvarint(vval) FROM %s"),
+                   row(1, BigInteger.valueOf(1L), BigInteger.valueOf(2L)));
+        execute("DROP FUNCTION jsvarint(varint)");
+
+        // decimal
+        execute("CREATE OR REPLACE FUNCTION jsdecimal(val decimal) RETURNS decimal LANGUAGE javascript\n" +
+                "AS 'val+1;';");
+        assertRows(execute("SELECT key, ddval, jsdecimal(ddval) FROM %s"),
+                   row(1, BigDecimal.valueOf(1d), BigDecimal.valueOf(2d)));
+        execute("DROP FUNCTION jsdecimal(decimal)");
     }
 }

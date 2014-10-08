@@ -59,6 +59,7 @@ public abstract class UDFunction extends AbstractFunction implements ScalarFunct
                          boolean deterministic)
     {
         super(name, argTypes, returnType);
+        assert new HashSet<>(argNames).size() == argNames.size() : "duplicate argument names";
         this.argNames = argNames;
         this.language = language;
         this.body = body;
@@ -83,7 +84,7 @@ public abstract class UDFunction extends AbstractFunction implements ScalarFunct
         {
             case "class": return new ReflectionBasedUDF(name, argNames, argTypes, returnType, language, body, deterministic);
             case "java": return JavaSourceUDFFactory.buildUDF(name, argNames, argTypes, returnType, body, deterministic);
-            default: throw new InvalidRequestException(String.format("Invalid language %s for '%s'", language, name));
+            default: return new ScriptBasedUDF(name, argNames, argTypes, returnType, language, body, deterministic);
         }
     }
 

@@ -18,6 +18,8 @@
 package org.apache.cassandra.cql3;
 
 import java.io.File;
+import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.concurrent.CountDownLatch;
@@ -612,6 +614,12 @@ public abstract class CQLTester
 
         if (value instanceof Double)
             return DoubleType.instance;
+
+        if (value instanceof BigInteger)
+            return IntegerType.instance;
+
+        if (value instanceof BigDecimal)
+            return DecimalType.instance;
 
         if (value instanceof String)
             return UTF8Type.instance;
