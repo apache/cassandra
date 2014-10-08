@@ -30,6 +30,8 @@
 
 
 2.1.1
+ * Don't duplicate sstables smaller than split size when using
+   the sstablesplitter tool (CASSANDRA-7616)
  * Avoid re-parsing already prepared statements (CASSANDRA-7923)
  * Fix some Thrift slice deletions and updates of COMPACT STORAGE
    tables with some clustering columns omitted (CASSANDRA-7990)
