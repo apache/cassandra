@@ -34,6 +34,15 @@ Upgrading
      can be customized by modifying batch_size_fail_threshold_in_kb.
 
 
+2.1.1
+=====
+
+New features
+------------
+   - Netty support for epoll on linux is now enabled.  If for some
+     reason you want to disable it pass, the following system property
+     -Dcassandra.native.epoll.enabled=false
+
 2.1
 ===
 
