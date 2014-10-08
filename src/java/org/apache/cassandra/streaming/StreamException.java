@@ -17,7 +17,7 @@
  */
 package org.apache.cassandra.streaming;
 
-public class StreamException extends Throwable
+public class StreamException extends Exception
 {
     public final StreamState finalState;
 
