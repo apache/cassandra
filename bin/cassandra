@@ -98,6 +98,11 @@ else
     JAVA=java
 fi
 
+if [ -z $JAVA ] ; then
+    echo Unable to find java executable. Check JAVA_HOME and PATH environment variables. > /dev/stderr
+    exit 1;
+fi
+
 # If numactl is available, use it. For Cassandra, the priority is to
 # avoid disk I/O. Even for the purpose of CPU efficiency, we don't
 # really have CPU<->data affinity anyway. Also, empirically test that numactl
