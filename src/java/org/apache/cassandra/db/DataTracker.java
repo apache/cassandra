@@ -475,6 +475,13 @@ public class DataTracker
             subscriber.handleNotification(notification, this);
     }
 
+    public void notifyTruncated(long truncatedAt)
+    {
+        INotification notification = new TruncationNotification(truncatedAt);
+        for (INotificationConsumer subscriber : subscribers)
+            subscriber.handleNotification(notification, this);
+    }
+
     public void subscribe(INotificationConsumer consumer)
     {
         subscribers.add(consumer);
