@@ -185,7 +185,7 @@ public class CassandraAuthorizer implements IAuthorizer
         {
             process(String.format("DELETE FROM %s.%s WHERE username = '%s'", Auth.AUTH_KS, PERMISSIONS_CF, escape(droppedUser)));
         }
-        catch (Throwable e)
+        catch (RequestExecutionException e)
         {
             logger.warn("CassandraAuthorizer failed to revoke all permissions of {}: {}", droppedUser, e);
         }
@@ -204,7 +204,7 @@ public class CassandraAuthorizer implements IAuthorizer
                                          PERMISSIONS_CF,
                                          escape(droppedResource.getName())));
         }
-        catch (Throwable e)
+        catch (RequestExecutionException e)
         {
             logger.warn("CassandraAuthorizer failed to revoke all permissions on {}: {}", droppedResource, e);
             return;
@@ -220,7 +220,7 @@ public class CassandraAuthorizer implements IAuthorizer
                                       escape(row.getString(USERNAME)),
                                       escape(droppedResource.getName())));
             }
-            catch (Throwable e)
+            catch (RequestExecutionException e)
             {
                 logger.warn("CassandraAuthorizer failed to revoke all permissions on {}: {}", droppedResource, e);
             }

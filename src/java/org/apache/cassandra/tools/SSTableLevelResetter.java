@@ -29,6 +29,7 @@ import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.metadata.MetadataType;
 import org.apache.cassandra.io.sstable.metadata.StatsMetadata;
+import org.apache.cassandra.utils.JVMStabilityInspector;
 
 /**
  * Reset level to 0 on a given set of sstables
@@ -99,9 +100,10 @@ public class SSTableLevelResetter
                 out.println("Found no sstables, did you give the correct keyspace/table?");
             }
         }
-        catch (Throwable e)
+        catch (Throwable t)
         {
-            e.printStackTrace();
+            JVMStabilityInspector.inspectThrowable(t);
+            t.printStackTrace();
             System.exit(1);
         }
         System.exit(0);

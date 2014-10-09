@@ -24,6 +24,8 @@ import java.util.concurrent.locks.LockSupport;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.utils.JVMStabilityInspector;
+
 final class SEPWorker extends AtomicReference<SEPWorker.Work> implements Runnable
 {
     private static final Logger logger = LoggerFactory.getLogger(SEPWorker.class);
@@ -122,6 +124,7 @@ final class SEPWorker extends AtomicReference<SEPWorker.Work> implements Runnabl
         }
         catch (Throwable t)
         {
+            JVMStabilityInspector.inspectThrowable(t);
             while (true)
             {
                 if (get().assigned != null)

@@ -27,6 +27,7 @@ import org.apache.cassandra.io.util.DataOutputStreamAndChannel;
 import org.apache.cassandra.streaming.StreamReader;
 import org.apache.cassandra.streaming.StreamSession;
 import org.apache.cassandra.streaming.compress.CompressedStreamReader;
+import org.apache.cassandra.utils.JVMStabilityInspector;
 
 /**
  * IncomingFileMessage is used to receive the part(or whole) of a SSTable data file.
@@ -46,9 +47,10 @@ public class IncomingFileMessage extends StreamMessage
             {
                 return new IncomingFileMessage(reader.read(in), header);
             }
-            catch (Throwable e)
+            catch (Throwable t)
             {
-                session.doRetry(header, e);
+                JVMStabilityInspector.inspectThrowable(t);
+                session.doRetry(header, t);
                 return null;
             }
         }

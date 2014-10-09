@@ -36,6 +36,7 @@ import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.io.compress.CompressionParameters;
 import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.utils.JVMStabilityInspector;
 
 /**
  * A SSTable writer that doesn't assume rows are in sorted order.
@@ -217,6 +218,7 @@ public class SSTableSimpleUnsortedWriter extends AbstractSSTableSimpleWriter
             }
             catch (Throwable e)
             {
+                JVMStabilityInspector.inspectThrowable(e);
                 if (writer != null)
                     writer.abort();
                 exception = e;

@@ -358,6 +358,7 @@ public class CommitLogReplayer
                     }
                     catch (Throwable t)
                     {
+                        JVMStabilityInspector.inspectThrowable(t);
                         File f = File.createTempFile("mutation", "dat");
                         DataOutputStream out = new DataOutputStream(new FileOutputStream(f));
                         try

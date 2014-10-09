@@ -57,10 +57,7 @@ import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.metrics.StorageMetrics;
 import org.apache.cassandra.thrift.ThriftServer;
 import org.apache.cassandra.tracing.Tracing;
-import org.apache.cassandra.utils.CLibrary;
-import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.utils.Mx4jTool;
-import org.apache.cassandra.utils.Pair;
+import org.apache.cassandra.utils.*;
 
 /**
  * The <code>CassandraDaemon</code> is an abstraction for a Cassandra daemon
@@ -71,16 +68,6 @@ import org.apache.cassandra.utils.Pair;
 public class CassandraDaemon
 {
     public static final String MBEAN_NAME = "org.apache.cassandra.db:type=NativeAccess";
-
-    // Have a dedicated thread to call exit to avoid deadlock in the case where the thread that wants to invoke exit
-    // belongs to an executor that our shutdown hook wants to wait to exit gracefully. See CASSANDRA-5273.
-    private static final Thread exitThread = new Thread(new Runnable()
-    {
-        public void run()
-        {
-            System.exit(100);
-        }
-    }, "Exit invoker");
 
     private static final Logger logger = LoggerFactory.getLogger(CassandraDaemon.class);
 
@@ -168,9 +155,7 @@ public class CassandraDaemon
                 Tracing.trace("Exception in thread {}", t, e);
                 for (Throwable e2 = e; e2 != null; e2 = e2.getCause())
                 {
-                    // some code, like FileChannel.map, will wrap an OutOfMemoryError in another exception
-                    if (e2 instanceof OutOfMemoryError)
-                        exitThread.start();
+                    JVMStabilityInspector.inspectThrowable(e2);
 
                     if (e2 instanceof FSError)
                     {
@@ -289,6 +274,7 @@ public class CassandraDaemon
         }
         catch (Throwable t)
         {
+            JVMStabilityInspector.inspectThrowable(t);
             logger.warn("Unable to start GCInspector (currently only supported on the Sun JVM)");
         }
 
