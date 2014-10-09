@@ -60,6 +60,7 @@ public class ResourceWatcher
             }
             catch (Throwable t)
             {
+                JVMStabilityInspector.inspectThrowable(t);
                 logger.error(String.format("Timed run of %s failed.", callback.getClass()), t);
             }
         }

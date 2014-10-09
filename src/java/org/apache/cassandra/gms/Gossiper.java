@@ -47,6 +47,7 @@ import org.apache.cassandra.net.MessageOut;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.JVMStabilityInspector;
 
 import com.google.common.collect.ImmutableList;
 
@@ -511,6 +512,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
             }
             catch (Throwable th)
             {
+                JVMStabilityInspector.inspectThrowable(th);
                 // TODO this is broken
                 logger.warn("Unable to calculate tokens for {}.  Will use a random one", address);
                 tokens = Collections.singletonList(StorageService.getPartitioner().getRandomToken());

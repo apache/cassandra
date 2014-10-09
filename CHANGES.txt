@@ -1,4 +1,5 @@
 2.1.1
+ * Shutdown JVM on OOM (CASSANDRA-7507)
  * Upgrade netty version and enable epoll event loop (CASSANDRA-7761)
  * Don't duplicate sstables smaller than split size when using
    the sstablesplitter tool (CASSANDRA-7616)

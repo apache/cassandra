@@ -33,6 +33,8 @@ import java.nio.file.StandardCopyOption;
 import java.text.DecimalFormat;
 import java.util.Arrays;
 
+import sun.nio.ch.DirectBuffer;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -45,7 +47,7 @@ import org.apache.cassandra.io.FSReadError;
 import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.io.sstable.CorruptSSTableException;
 import org.apache.cassandra.service.StorageService;
-import sun.nio.ch.DirectBuffer;
+import org.apache.cassandra.utils.JVMStabilityInspector;
 
 public class FileUtils
 {
@@ -69,6 +71,7 @@ public class FileUtils
         }
         catch (Throwable t)
         {
+            JVMStabilityInspector.inspectThrowable(t);
             logger.info("Cannot initialize un-mmaper.  (Are you using a non-Oracle JVM?)  Compacted data files will not be removed promptly.  Consider using an Oracle JVM or using standard disk access mode");
         }
         canCleanDirectBuffers = canClean;

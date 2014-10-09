@@ -312,6 +312,7 @@ public final class CLibrary
         }
         catch (Throwable t)
         {
+            JVMStabilityInspector.inspectThrowable(t);
             // ignore
             return -1;
         }

@@ -29,6 +29,7 @@ import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.io.util.RandomAccessReader;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.OutputHandler;
 
 public class Scrubber implements Closeable
@@ -150,6 +151,7 @@ public class Scrubber implements Closeable
                 }
                 catch (Throwable th)
                 {
+                    JVMStabilityInspector.inspectThrowable(th);
                     outputHandler.warn("Error reading index file", th);
                     nextIndexKey = null;
                     nextRowPositionFromIndex = dataFile.length();

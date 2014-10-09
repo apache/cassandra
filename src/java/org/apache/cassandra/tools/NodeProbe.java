@@ -60,6 +60,7 @@ import org.apache.cassandra.streaming.StreamState;
 import org.apache.cassandra.streaming.StreamManagerMBean;
 import org.apache.cassandra.streaming.management.StreamStateCompositeData;
 import org.apache.cassandra.utils.concurrent.SimpleCondition;
+import org.apache.cassandra.utils.JVMStabilityInspector;
 
 /**
  * JMX client operations for Cassandra.
@@ -264,9 +265,10 @@ public class NodeProbe implements AutoCloseable
                 ssProxy.removeNotificationListener(runner);
                 jmxc.removeConnectionNotificationListener(runner);
             }
-            catch (Throwable e) 
+            catch (Throwable t)
             {
-                out.println("Exception occurred during clean-up. " + e);
+                JVMStabilityInspector.inspectThrowable(t);
+                out.println("Exception occurred during clean-up. " + t);
             }
         }
     }

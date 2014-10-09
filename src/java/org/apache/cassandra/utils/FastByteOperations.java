@@ -117,7 +117,9 @@ public class FastByteOperations
                 return comparer;
             }
             catch (Throwable t)
-            { // ensure we really catch *everything*
+            {
+                JVMStabilityInspector.inspectThrowable(t);
+                // ensure we really catch *everything*
                 return new PureJavaOperations();
             }
         }
