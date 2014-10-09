@@ -220,11 +220,6 @@ public abstract class ResultMessage extends Message.Response
             this.result = result;
         }
 
-        public Rows withPagingState(PagingState state)
-        {
-            return new Rows(result.withPagingState(state));
-        }
-
         public CqlResult toThriftResult()
         {
             return result.toThriftResult();

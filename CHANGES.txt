@@ -32,6 +32,8 @@
 
 
 2.1.1
+ * Fix EXECUTE request with skipMetadata=false returning no metadata
+   (CASSANDRA-8054)
  * Allow concurrent use of CQLBulkOutputFormat (CASSANDRA-7776)
  * Shutdown JVM on OOM (CASSANDRA-7507)
  * Upgrade netty version and enable epoll event loop (CASSANDRA-7761)
