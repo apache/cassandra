@@ -23,6 +23,7 @@ import java.nio.ByteBuffer;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.exceptions.InvalidRequestException;
@@ -150,7 +151,7 @@ public class CqlBulkRecordWriter extends AbstractBulkRecordWriter<Object, List<B
     
     private File getColumnFamilyDirectory() throws IOException
     {
-        File dir = new File(String.format("%s%s%s%s%s", getOutputLocation(), File.separator, keyspace, File.separator, columnFamily));
+        File dir = new File(String.format("%s%s%s%s%s-%s", getOutputLocation(), File.separator, keyspace, File.separator, columnFamily, UUID.randomUUID().toString()));
         
         if (!dir.exists() && !dir.mkdirs())
         {
