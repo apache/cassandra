@@ -23,59 +23,40 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.repair.messages.SyncComplete;
 import org.apache.cassandra.repair.messages.SyncRequest;
-import org.apache.cassandra.service.ActiveRepairService;
-import org.apache.cassandra.streaming.*;
-import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.streaming.StreamEvent;
+import org.apache.cassandra.streaming.StreamEventHandler;
+import org.apache.cassandra.streaming.StreamPlan;
+import org.apache.cassandra.streaming.StreamState;
 
 /**
- * Task that make two nodes exchange (stream) some ranges (for a given table/cf).
- * This handle the case where the local node is neither of the two nodes that
- * must stream their range, and allow to register a callback to be called on
- * completion.
+ * StreamingRepairTask performs data streaming between two remote replica which neither is not repair coordinator.
+ * Task will send {@link SyncComplete} message back to coordinator upon streaming completion.
  */
 public class StreamingRepairTask implements Runnable, StreamEventHandler
 {
     private static final Logger logger = LoggerFactory.getLogger(StreamingRepairTask.class);
 
-    /** Repair session ID that this streaming task belongs */
-    public final RepairJobDesc desc;
-    public final SyncRequest request;
+    private final RepairJobDesc desc;
+    private final SyncRequest request;
+    private final long repairedAt;
 
-    public StreamingRepairTask(RepairJobDesc desc, SyncRequest request)
+    public StreamingRepairTask(RepairJobDesc desc, SyncRequest request, long repairedAt)
     {
         this.desc = desc;
         this.request = request;
+        this.repairedAt = repairedAt;
     }
 
     public void run()
     {
-        if (request.src.equals(FBUtilities.getBroadcastAddress()))
-            initiateStreaming();
-        else
-            forwardToSource();
-    }
-
-    private void initiateStreaming()
-    {
-        long repairedAt = ActiveRepairService.UNREPAIRED_SSTABLE;
-        if (desc.parentSessionId != null && ActiveRepairService.instance.getParentRepairSession(desc.parentSessionId) != null)
-            repairedAt = ActiveRepairService.instance.getParentRepairSession(desc.parentSessionId).repairedAt;
-
         logger.info(String.format("[streaming task #%s] Performing streaming repair of %d ranges with %s", desc.sessionId, request.ranges.size(), request.dst));
-        StreamResultFuture op = new StreamPlan("Repair", repairedAt, 1)
-                                    .flushBeforeTransfer(true)
-                                    // request ranges from the remote node
-                                    .requestRanges(request.dst, desc.keyspace, request.ranges, desc.columnFamily)
-                                    // send ranges to the remote node
-                                    .transferRanges(request.dst, desc.keyspace, request.ranges, desc.columnFamily)
-                                    .execute();
-        op.addEventListener(this);
-    }
-
-    private void forwardToSource()
-    {
-        logger.info(String.format("[repair #%s] Forwarding streaming repair of %d ranges to %s (to be streamed with %s)", desc.sessionId, request.ranges.size(), request.src, request.dst));
-        MessagingService.instance().sendOneWay(request.createMessage(), request.src);
+        new StreamPlan("Repair", repairedAt, 1).listeners(this)
+                                            .flushBeforeTransfer(true)
+                                            // request ranges from the remote node
+                                            .requestRanges(request.dst, desc.keyspace, request.ranges, desc.columnFamily)
+                                            // send ranges to the remote node
+                                            .transferRanges(request.dst, desc.keyspace, request.ranges, desc.columnFamily)
+                                            .execute();
     }
 
     public void handleStreamEvent(StreamEvent event)
@@ -85,7 +66,7 @@ public class StreamingRepairTask implements Runnable, StreamEventHandler
     }
 
     /**
-     * If we succeeded on both stream in and out, reply back to the initiator.
+     * If we succeeded on both stream in and out, reply back to coordinator
      */
     public void onSuccess(StreamState state)
     {
@@ -94,7 +75,7 @@ public class StreamingRepairTask implements Runnable, StreamEventHandler
     }
 
     /**
-     * If we failed on either stream in or out, reply fail to the initiator.
+     * If we failed on either stream in or out, reply fail to coordinator
      */
     public void onFailure(Throwable t)
     {

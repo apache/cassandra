@@ -18,14 +18,16 @@
 package org.apache.cassandra.repair;
 
 /**
- * Implemented by the RepairSession to accept callbacks from sequential snapshot creation failure.
+ * Statistics about synchronizing two replica
  */
-
-public interface IRepairJobEventListener
+public class SyncStat
 {
-    /**
-     * Signal that there was a failure during the snapshot creation process.
-     *
-     */
-    public void failedSnapshot();
+    public final NodePair nodes;
+    public final long numberOfDifferences;
+
+    public SyncStat(NodePair nodes, long numberOfDifferences)
+    {
+        this.nodes = nodes;
+        this.numberOfDifferences = numberOfDifferences;
+    }
 }

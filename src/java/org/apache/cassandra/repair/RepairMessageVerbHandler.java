@@ -103,7 +103,12 @@ public class RepairMessageVerbHandler implements IVerbHandler<RepairMessage>
             case SYNC_REQUEST:
                 // forwarded sync request
                 SyncRequest request = (SyncRequest) message.payload;
-                StreamingRepairTask task = new StreamingRepairTask(desc, request);
+
+                long repairedAt = ActiveRepairService.UNREPAIRED_SSTABLE;
+                if (desc.parentSessionId != null && ActiveRepairService.instance.getParentRepairSession(desc.parentSessionId) != null)
+                    repairedAt = ActiveRepairService.instance.getParentRepairSession(desc.parentSessionId).repairedAt;
+
+                StreamingRepairTask task = new StreamingRepairTask(desc, request, repairedAt);
                 task.run();
                 break;
 

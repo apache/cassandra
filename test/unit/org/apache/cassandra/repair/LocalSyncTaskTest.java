@@ -23,7 +23,6 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.UUID;
 
-import org.junit.After;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
@@ -36,20 +35,12 @@ import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.locator.SimpleStrategy;
-import org.apache.cassandra.net.MessageIn;
-import org.apache.cassandra.net.MessageOut;
-import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.ActiveRepairService;
-import org.apache.cassandra.sink.IMessageSink;
-import org.apache.cassandra.sink.SinkManager;
-import org.apache.cassandra.repair.messages.RepairMessage;
-import org.apache.cassandra.repair.messages.SyncComplete;
 import org.apache.cassandra.utils.MerkleTree;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
 
-public class DifferencerTest
+public class LocalSyncTaskTest extends SchemaLoader
 {
     private static final IPartitioner partirioner = new Murmur3Partitioner();
     public static final String KEYSPACE1 = "DifferencerTest";
@@ -65,14 +56,8 @@ public class DifferencerTest
                                     SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARD));
     }
 
-    @After
-    public void tearDown()
-    {
-        SinkManager.clear();
-    }
-
     /**
-     * When there is no difference between two, Differencer should respond SYNC_COMPLETE
+     * When there is no difference between two, LocalSyncTask should return stats with 0 difference.
      */
     @Test
     public void testNoDifference() throws Throwable
@@ -80,26 +65,6 @@ public class DifferencerTest
         final InetAddress ep1 = InetAddress.getByName("127.0.0.1");
         final InetAddress ep2 = InetAddress.getByName("127.0.0.1");
 
-        SinkManager.add(new IMessageSink()
-        {
-            @SuppressWarnings("unchecked")
-            public MessageOut handleMessage(MessageOut message, int id, InetAddress to)
-            {
-                if (message.verb == MessagingService.Verb.REPAIR_MESSAGE)
-                {
-                    RepairMessage m = (RepairMessage) message.payload;
-                    assertEquals(RepairMessage.Type.SYNC_COMPLETE, m.messageType);
-                    // we should see SYNC_COMPLETE
-                    assertEquals(new NodePair(ep1, ep2), ((SyncComplete)m).nodes);
-                }
-                return null;
-            }
-
-            public MessageIn handleMessage(MessageIn message, int id, InetAddress to)
-            {
-                return null;
-            }
-        });
         Range<Token> range = new Range<>(partirioner.getMinimumToken(), partirioner.getRandomToken());
         RepairJobDesc desc = new RepairJobDesc(UUID.randomUUID(), UUID.randomUUID(), KEYSPACE1, "Standard1", range);
 
@@ -110,10 +75,10 @@ public class DifferencerTest
         // note: we reuse the same endpoint which is bogus in theory but fine here
         TreeResponse r1 = new TreeResponse(ep1, tree1);
         TreeResponse r2 = new TreeResponse(ep2, tree2);
-        Differencer diff = new Differencer(desc, r1, r2);
-        diff.run();
+        LocalSyncTask task = new LocalSyncTask(desc, r1, r2, ActiveRepairService.UNREPAIRED_SSTABLE);
+        task.run();
 
-        assertTrue(diff.differences.isEmpty());
+        assertEquals(0, task.get().numberOfDifferences);
     }
 
     @Test
@@ -144,11 +109,11 @@ public class DifferencerTest
         // note: we reuse the same endpoint which is bogus in theory but fine here
         TreeResponse r1 = new TreeResponse(InetAddress.getByName("127.0.0.1"), tree1);
         TreeResponse r2 = new TreeResponse(InetAddress.getByName("127.0.0.2"), tree2);
-        Differencer diff = new Differencer(desc, r1, r2);
-        diff.run();
+        LocalSyncTask task = new LocalSyncTask(desc, r1, r2, ActiveRepairService.UNREPAIRED_SSTABLE);
+        task.run();
 
         // ensure that the changed range was recorded
-        assertEquals("Wrong differing ranges", interesting, new HashSet<>(diff.differences));
+        assertEquals("Wrong differing ranges", interesting.size(), task.getCurrentStat().numberOfDifferences);
     }
 
     private MerkleTree createInitialTree(RepairJobDesc desc)

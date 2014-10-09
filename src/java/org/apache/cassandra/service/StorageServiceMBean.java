@@ -270,29 +270,22 @@ public interface StorageServiceMBean extends NotificationEmitter
      *   type: "repair"
      *   userObject: int array of length 2, [0]=command number, [1]=ordinal of AntiEntropyService.Status
      *
+     * @param keyspace Keyspace name to repair. Should not be null.
+     * @param options repair option.
      * @return Repair command number, or 0 if nothing to repair
      */
+    public int repairAsync(String keyspace, Map<String, String> options);
+
+    @Deprecated
     public int forceRepairAsync(String keyspace, boolean isSequential, Collection<String> dataCenters, Collection<String> hosts,  boolean primaryRange, boolean repairedAt, String... columnFamilies) throws IOException;
 
-    /**
-     * Same as forceRepairAsync, but handles a specified range
-     */
+    @Deprecated
     public int forceRepairRangeAsync(String beginToken, String endToken, String keyspaceName, boolean isSequential, Collection<String> dataCenters, Collection<String> hosts, boolean repairedAt, String... columnFamilies) throws IOException;
 
-    /**
-     * Invoke repair asynchronously.
-     * You can track repair progress by subscribing JMX notification sent from this StorageServiceMBean.
-     * Notification format is:
-     *   type: "repair"
-     *   userObject: int array of length 2, [0]=command number, [1]=ordinal of AntiEntropyService.Status
-     *
-     * @return Repair command number, or 0 if nothing to repair
-     */
+    @Deprecated
     public int forceRepairAsync(String keyspace, boolean isSequential, boolean isLocal, boolean primaryRange, boolean fullRepair, String... columnFamilies);
 
-    /**
-     * Same as forceRepairAsync, but handles a specified range
-     */
+    @Deprecated
     public int forceRepairRangeAsync(String beginToken, String endToken, String keyspaceName, boolean isSequential, boolean isLocal, boolean repairedAt, String... columnFamilies);
 
     public void forceTerminateAllRepairSessions();

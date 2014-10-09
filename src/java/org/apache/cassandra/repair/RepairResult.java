@@ -17,15 +17,16 @@
  */
 package org.apache.cassandra.repair;
 
-import java.util.concurrent.FutureTask;
+import java.util.List;
 
-public class RepairFuture extends FutureTask<Void>
+public class RepairResult
 {
-    public final RepairSession session;
+    public final RepairJobDesc desc;
+    public final List<SyncStat> stats;
 
-    public RepairFuture(RepairSession session)
+    public RepairResult(RepairJobDesc desc, List<SyncStat> stats)
     {
-        super(session, null);
-        this.session = session;
+        this.desc = desc;
+        this.stats = stats;
     }
 }

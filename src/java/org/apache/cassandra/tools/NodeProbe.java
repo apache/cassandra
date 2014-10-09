@@ -43,6 +43,7 @@ import com.google.common.base.Function;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Sets;
 
+import com.google.common.util.concurrent.AbstractFuture;
 import com.yammer.metrics.reporting.JmxReporter;
 import org.apache.cassandra.concurrent.JMXEnabledThreadPoolExecutorMBean;
 import org.apache.cassandra.db.ColumnFamilyStoreMBean;
@@ -249,43 +250,15 @@ public class NodeProbe implements AutoCloseable
         ssProxy.forceKeyspaceFlush(keyspaceName, columnFamilies);
     }
 
-    public void forceRepairAsync(final PrintStream out, final String keyspaceName, boolean isSequential, Collection<String> dataCenters, Collection<String> hosts, boolean primaryRange, boolean fullRepair, String... columnFamilies) throws IOException
+    public void repairAsync(final PrintStream out, final String keyspace, Map<String, String> options) throws IOException
     {
-        RepairRunner runner = new RepairRunner(out, keyspaceName, columnFamilies);
+        RepairRunner runner = new RepairRunner(out, ssProxy, keyspace, options);
         try
         {
             jmxc.addConnectionNotificationListener(runner, null, null);
             ssProxy.addNotificationListener(runner, null, null);
-            if (!runner.repairAndWait(ssProxy, isSequential, dataCenters, hosts, primaryRange, fullRepair))
-                failed = true;
-        }
-        catch (Exception e)
-        {
-            throw new IOException(e) ;
-        }
-        finally
-        {
-            try
-            {
-                ssProxy.removeNotificationListener(runner);
-                jmxc.removeConnectionNotificationListener(runner);
-            }
-            catch (Throwable t)
-            {
-                JVMStabilityInspector.inspectThrowable(t);
-                out.println("Exception occurred during clean-up. " + t);
-            }
-        }
-    }
-
-    public void forceRepairRangeAsync(final PrintStream out, final String keyspaceName, boolean isSequential, Collection<String> dataCenters, Collection<String> hosts, final String startToken, final String endToken, boolean fullRepair, String... columnFamilies) throws IOException
-    {
-        RepairRunner runner = new RepairRunner(out, keyspaceName, columnFamilies);
-        try
-        {
-            jmxc.addConnectionNotificationListener(runner, null, null);
-            ssProxy.addNotificationListener(runner, null, null);
-            if (!runner.repairRangeAndWait(ssProxy,  isSequential, dataCenters, hosts, startToken, endToken, fullRepair))
+            runner.run();
+            if (!runner.get())
                 failed = true;
         }
         catch (Exception e)
@@ -1271,90 +1244,5 @@ class ThreadPoolProxyMBeanIterator implements Iterator<Map.Entry<String, JMXEnab
     public void remove()
     {
         throw new UnsupportedOperationException();
-    }
-}
-
-class RepairRunner implements NotificationListener
-{
-    private final SimpleDateFormat format = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss,SSS");
-    private final Condition condition = new SimpleCondition();
-    private final PrintStream out;
-    private final String keyspace;
-    private final String[] columnFamilies;
-    private int cmd;
-    private volatile boolean success = true;
-    private volatile Exception error = null;
-
-    RepairRunner(PrintStream out, String keyspace, String... columnFamilies)
-    {
-        this.out = out;
-        this.keyspace = keyspace;
-        this.columnFamilies = columnFamilies;
-    }
-
-    public boolean repairAndWait(StorageServiceMBean ssProxy, boolean isSequential, Collection<String> dataCenters, Collection<String> hosts, boolean primaryRangeOnly, boolean fullRepair) throws Exception
-    {
-        cmd = ssProxy.forceRepairAsync(keyspace, isSequential, dataCenters, hosts, primaryRangeOnly, fullRepair, columnFamilies);
-        waitForRepair();
-        return success;
-    }
-
-    public boolean repairRangeAndWait(StorageServiceMBean ssProxy, boolean isSequential, Collection<String> dataCenters, Collection<String> hosts, String startToken, String endToken, boolean fullRepair) throws Exception
-    {
-        cmd = ssProxy.forceRepairRangeAsync(startToken, endToken, keyspace, isSequential, dataCenters, hosts, fullRepair, columnFamilies);
-        waitForRepair();
-        return success;
-    }
-
-    private void waitForRepair() throws Exception
-    {
-        if (cmd > 0)
-        {
-            condition.await();
-        }
-        else
-        {
-            String message = String.format("[%s] Nothing to repair for keyspace '%s'", format.format(System.currentTimeMillis()), keyspace);
-            out.println(message);
-        }
-        if (error != null)
-        {
-            throw error;
-        }
-    }
-
-    public void handleNotification(Notification notification, Object handback)
-    {
-        if ("repair".equals(notification.getType()))
-        {
-            int[] status = (int[]) notification.getUserData();
-            assert status.length == 2;
-            if (cmd == status[0])
-            {
-                String message = String.format("[%s] %s", format.format(notification.getTimeStamp()), notification.getMessage());
-                out.println(message);
-                // repair status is int array with [0] = cmd number, [1] = status
-                if (status[1] == ActiveRepairService.Status.SESSION_FAILED.ordinal())
-                    success = false;
-                else if (status[1] == ActiveRepairService.Status.FINISHED.ordinal())
-                    condition.signalAll();
-            }
-        }
-        else if (JMXConnectionNotification.NOTIFS_LOST.equals(notification.getType()))
-        {
-            String message = String.format("[%s] Lost notification. You should check server log for repair status of keyspace %s",
-                                           format.format(notification.getTimeStamp()),
-                                           keyspace);
-            out.println(message);
-        }
-        else if (JMXConnectionNotification.FAILED.equals(notification.getType())
-                 || JMXConnectionNotification.CLOSED.equals(notification.getType()))
-        {
-            String message = String.format("JMX connection closed. You should check server log for repair status of keyspace %s"
-                                           + "(Subsequent keyspaces are not going to be repaired).",
-                                           keyspace);
-            error = new IOException(message);
-            condition.signalAll();
-        }
     }
 }

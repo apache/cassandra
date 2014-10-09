@@ -37,6 +37,7 @@ import com.google.common.collect.Maps;
 import com.yammer.metrics.reporting.JmxReporter;
 
 import io.airlift.command.*;
+import org.apache.commons.lang3.StringUtils;
 
 import org.apache.cassandra.concurrent.JMXEnabledThreadPoolExecutorMBean;
 import org.apache.cassandra.config.Schema;
@@ -48,6 +49,7 @@ import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.locator.EndpointSnitchInfoMBean;
 import org.apache.cassandra.locator.LocalStrategy;
 import org.apache.cassandra.net.MessagingServiceMBean;
+import org.apache.cassandra.repair.messages.RepairOption;
 import org.apache.cassandra.service.CacheServiceMBean;
 import org.apache.cassandra.streaming.ProgressInfo;
 import org.apache.cassandra.streaming.SessionInfo;
@@ -1677,6 +1679,11 @@ public class NodeTool
         @Option(title = "full", name = {"-full", "--full"}, description = "Use -full to issue a full repair.")
         private boolean fullRepair = false;
 
+        @Option(title = "job_threads", name = {"-j", "--job-threads"}, description = "Number of threads to run repair jobs. " +
+                                                                                     "Usually this means number of CFs to repair concurrently. " +
+                                                                                     "WARNING: increasing this puts more load on repairing nodes, so be careful. (default: 1, max: 4)")
+        private int numJobThreads = 1;
+
         @Override
         public void execute(NodeProbe probe)
         {
@@ -1688,20 +1695,28 @@ public class NodeTool
 
             for (String keyspace : keyspaces)
             {
+                Map<String, String> options = new HashMap<>();
+                options.put(RepairOption.SEQUENTIAL_KEY, Boolean.toString(sequential));
+                options.put(RepairOption.PRIMARY_RANGE_KEY, Boolean.toString(primaryRange));
+                options.put(RepairOption.INCREMENTAL_KEY, Boolean.toString(!fullRepair));
+                options.put(RepairOption.JOB_THREADS_KEY, Integer.toString(numJobThreads));
+                options.put(RepairOption.COLUMNFAMILIES_KEY, StringUtils.join(cfnames, ","));
+                if (!startToken.isEmpty() || !endToken.isEmpty())
+                {
+                    options.put(RepairOption.RANGES_KEY, startToken + ":" + endToken);
+                }
+                if (localDC)
+                {
+                    options.put(RepairOption.DATACENTERS_KEY, StringUtils.join(newArrayList(probe.getDataCenter()), ","));
+                }
+                else
+                {
+                    options.put(RepairOption.DATACENTERS_KEY, StringUtils.join(specificDataCenters, ","));
+                }
+                options.put(RepairOption.HOSTS_KEY, StringUtils.join(specificHosts, ","));
                 try
                 {
-                    Collection<String> dataCenters = null;
-                    Collection<String> hosts = null;
-                    if (!specificDataCenters.isEmpty())
-                        dataCenters = newArrayList(specificDataCenters);
-                    else if (localDC)
-                        dataCenters = newArrayList(probe.getDataCenter());
-                    else if(!specificHosts.isEmpty())
-                        hosts = newArrayList(specificHosts);
-                    if (!startToken.isEmpty() || !endToken.isEmpty())
-                        probe.forceRepairRangeAsync(System.out, keyspace, sequential, dataCenters,hosts, startToken, endToken, fullRepair);
-                    else
-                        probe.forceRepairAsync(System.out, keyspace, sequential, dataCenters, hosts, primaryRange, fullRepair, cfnames);
+                    probe.repairAsync(System.out, keyspace, options);
                 } catch (Exception e)
                 {
                     throw new RuntimeException("Error occurred during repair", e);
