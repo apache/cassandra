@@ -39,6 +39,12 @@ public class BufferCounterUpdateCell extends BufferCell implements CounterUpdate
         super(name, value, timestamp);
     }
 
+    @Override
+    public Cell withUpdatedName(CellName newName)
+    {
+        return new BufferCounterUpdateCell(newName, value, timestamp);
+    }
+
     public long delta()
     {
         return value().getLong(value.position());
