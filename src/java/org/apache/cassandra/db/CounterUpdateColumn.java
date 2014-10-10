@@ -56,6 +56,12 @@ public class CounterUpdateColumn extends Column
     }
 
     @Override
+    public CounterUpdateColumn withUpdatedName(ByteBuffer newName)
+    {
+        return new CounterUpdateColumn(newName, value, timestamp);
+    }
+
+    @Override
     public Column reconcile(Column column, Allocator allocator)
     {
         // The only time this could happen is if a batchAdd ships two
