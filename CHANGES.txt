@@ -70,6 +70,7 @@
  * Fix snapshot repair error on indexed tables (CASSANDRA-8020)
  * Do not exit nodetool repair when receiving JMX NOTIF_LOST (CASSANDRA-7909)
 Merged from 2.0:
+ * Fix counters in supercolumns during live upgrades from 1.2 (CASSANDRA-7188)
  * Notify DT subscribers when a column family is truncated (CASSANDRA-8088)
  * Add sanity check of $JAVA on startup (CASSANDRA-7676)
  * Schedule fat client schema pull on join (CASSANDRA-7993)
