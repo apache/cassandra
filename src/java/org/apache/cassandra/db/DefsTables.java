@@ -21,6 +21,7 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.*;
 
+import com.google.common.base.Function;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.MapDifference;
 import com.google.common.collect.Maps;
@@ -122,7 +123,7 @@ public class DefsTables
     {
         List<Row> serializedSchema = SystemKeyspace.serializedSchema(SystemKeyspace.SCHEMA_KEYSPACES_CF);
 
-        List<KSMetaData> keyspaces = new ArrayList<KSMetaData>(serializedSchema.size());
+        List<KSMetaData> keyspaces = new ArrayList<>(serializedSchema.size());
 
         for (Row row : serializedSchema)
         {
@@ -198,183 +199,157 @@ public class DefsTables
             dropKeyspace(keyspaceToDrop);
     }
 
-    private static Set<String> mergeKeyspaces(Map<DecoratedKey, ColumnFamily> old, Map<DecoratedKey, ColumnFamily> updated)
+    private static Set<String> mergeKeyspaces(Map<DecoratedKey, ColumnFamily> before, Map<DecoratedKey, ColumnFamily> after)
     {
-        // calculate the difference between old and new states (note that entriesOnlyLeft() will be always empty)
-        MapDifference<DecoratedKey, ColumnFamily> diff = Maps.difference(old, updated);
+        List<Row> created = new ArrayList<>();
+        List<String> altered = new ArrayList<>();
+        Set<String> dropped = new HashSet<>();
 
-        /**
-         * At first step we check if any new keyspaces were added.
+        /*
+         * - we don't care about entriesOnlyOnLeft() or entriesInCommon(), because only the changes are of interest to us
+         * - of all entriesOnlyOnRight(), we only care about ones that have live columns; it's possible to have a ColumnFamily
+         *   there that only has the top-level deletion, if:
+         *      a) a pushed DROP KEYSPACE change for a keyspace hadn't ever made it to this node in the first place
+         *      b) a pulled dropped keyspace that got dropped before it could find a way to this node
+         * - of entriesDiffering(), we don't care about the scenario where both pre and post-values have zero live columns:
+         *   that means that a keyspace had been recreated and dropped, and the recreated keyspace had never found a way
+         *   to this node
          */
+        MapDifference<DecoratedKey, ColumnFamily> diff = Maps.difference(before, after);
+
         for (Map.Entry<DecoratedKey, ColumnFamily> entry : diff.entriesOnlyOnRight().entrySet())
-        {
-            ColumnFamily ksAttrs = entry.getValue();
+            if (entry.getValue().hasColumns())
+                created.add(new Row(entry.getKey(), entry.getValue()));
 
-            // we don't care about nested ColumnFamilies here because those are going to be processed separately
-            if (ksAttrs.hasColumns())
-                addKeyspace(KSMetaData.fromSchema(new Row(entry.getKey(), entry.getValue()), Collections.<CFMetaData>emptyList(), new UTMetaData()));
+        for (Map.Entry<DecoratedKey, MapDifference.ValueDifference<ColumnFamily>> entry : diff.entriesDiffering().entrySet())
+        {
+            String keyspaceName = AsciiType.instance.compose(entry.getKey().getKey());
+
+            ColumnFamily pre  = entry.getValue().leftValue();
+            ColumnFamily post = entry.getValue().rightValue();
+
+            if (pre.hasColumns() && post.hasColumns())
+                altered.add(keyspaceName);
+            else if (pre.hasColumns())
+                dropped.add(keyspaceName);
+            else if (post.hasColumns()) // a (re)created keyspace
+                created.add(new Row(entry.getKey(), post));
         }
 
-        /**
-         * At second step we check if there were any keyspaces re-created, in this context
-         * re-created means that they were previously deleted but still exist in the low-level schema as empty keys
-         */
-
-        Map<DecoratedKey, MapDifference.ValueDifference<ColumnFamily>> modifiedEntries = diff.entriesDiffering();
-
-        // instead of looping over all modified entries and skipping processed keys all the time
-        // we would rather store "left to process" items and iterate over them removing already met keys
-        List<DecoratedKey> leftToProcess = new ArrayList<DecoratedKey>(modifiedEntries.size());
-
-        for (Map.Entry<DecoratedKey, MapDifference.ValueDifference<ColumnFamily>> entry : modifiedEntries.entrySet())
-        {
-            ColumnFamily prevValue = entry.getValue().leftValue();
-            ColumnFamily newValue = entry.getValue().rightValue();
-
-            if (!prevValue.hasColumns())
-            {
-                addKeyspace(KSMetaData.fromSchema(new Row(entry.getKey(), newValue), Collections.<CFMetaData>emptyList(), new UTMetaData()));
-                continue;
-            }
-
-            leftToProcess.add(entry.getKey());
-        }
-
-        if (leftToProcess.size() == 0)
-            return Collections.emptySet();
-
-        /**
-         * At final step we updating modified keyspaces and saving keyspaces drop them later
-         */
-
-        Set<String> keyspacesToDrop = new HashSet<String>();
-
-        for (DecoratedKey key : leftToProcess)
-        {
-            MapDifference.ValueDifference<ColumnFamily> valueDiff = modifiedEntries.get(key);
-
-            ColumnFamily newState = valueDiff.rightValue();
-
-            if (newState.hasColumns())
-                updateKeyspace(KSMetaData.fromSchema(new Row(key, newState), Collections.<CFMetaData>emptyList(), new UTMetaData()));
-            else
-                keyspacesToDrop.add(AsciiType.instance.getString(key.getKey()));
-        }
-
-        return keyspacesToDrop;
+        for (Row row : created)
+            addKeyspace(KSMetaData.fromSchema(row, Collections.<CFMetaData>emptyList(), new UTMetaData()));
+        for (String name : altered)
+            updateKeyspace(name);
+        return dropped;
     }
 
-    private static void mergeColumnFamilies(Map<DecoratedKey, ColumnFamily> old, Map<DecoratedKey, ColumnFamily> updated)
+    // see the comments for mergeKeyspaces()
+    private static void mergeColumnFamilies(Map<DecoratedKey, ColumnFamily> before, Map<DecoratedKey, ColumnFamily> after)
     {
-        // calculate the difference between old and new states (note that entriesOnlyLeft() will be always empty)
-        MapDifference<DecoratedKey, ColumnFamily> diff = Maps.difference(old, updated);
+        List<CFMetaData> created = new ArrayList<>();
+        List<CFMetaData> altered = new ArrayList<>();
+        List<CFMetaData> dropped = new ArrayList<>();
 
-        // check if any new Keyspaces with ColumnFamilies were added.
+        MapDifference<DecoratedKey, ColumnFamily> diff = Maps.difference(before, after);
+
         for (Map.Entry<DecoratedKey, ColumnFamily> entry : diff.entriesOnlyOnRight().entrySet())
+            if (entry.getValue().hasColumns())
+                created.addAll(KSMetaData.deserializeColumnFamilies(new Row(entry.getKey(), entry.getValue())).values());
+
+        for (Map.Entry<DecoratedKey, MapDifference.ValueDifference<ColumnFamily>> entry : diff.entriesDiffering().entrySet())
         {
-            ColumnFamily cfAttrs = entry.getValue();
+            String keyspaceName = AsciiType.instance.compose(entry.getKey().getKey());
 
-            if (cfAttrs.hasColumns())
+            ColumnFamily pre  = entry.getValue().leftValue();
+            ColumnFamily post = entry.getValue().rightValue();
+
+            if (pre.hasColumns() && post.hasColumns())
             {
-               Map<String, CFMetaData> cfDefs = KSMetaData.deserializeColumnFamilies(new Row(entry.getKey(), cfAttrs));
+                MapDifference<String, CFMetaData> delta =
+                        Maps.difference(Schema.instance.getKSMetaData(keyspaceName).cfMetaData(),
+                                        KSMetaData.deserializeColumnFamilies(new Row(entry.getKey(), post)));
 
-                for (CFMetaData cfDef : cfDefs.values())
-                    addColumnFamily(cfDef);
+                dropped.addAll(delta.entriesOnlyOnLeft().values());
+                created.addAll(delta.entriesOnlyOnRight().values());
+                Iterables.addAll(altered, Iterables.transform(delta.entriesDiffering().values(), new Function<MapDifference.ValueDifference<CFMetaData>, CFMetaData>()
+                {
+                    public CFMetaData apply(MapDifference.ValueDifference<CFMetaData> pair)
+                    {
+                        return pair.rightValue();
+                    }
+                }));
+            }
+            else if (pre.hasColumns())
+            {
+                dropped.addAll(Schema.instance.getKSMetaData(keyspaceName).cfMetaData().values());
+            }
+            else if (post.hasColumns())
+            {
+                created.addAll(KSMetaData.deserializeColumnFamilies(new Row(entry.getKey(), post)).values());
             }
         }
 
-        // deal with modified ColumnFamilies (remember that all of the keyspace nested ColumnFamilies are put to the single row)
-        Map<DecoratedKey, MapDifference.ValueDifference<ColumnFamily>> modifiedEntries = diff.entriesDiffering();
-
-        for (DecoratedKey keyspace : modifiedEntries.keySet())
-        {
-            MapDifference.ValueDifference<ColumnFamily> valueDiff = modifiedEntries.get(keyspace);
-
-            ColumnFamily prevValue = valueDiff.leftValue(); // state before external modification
-            ColumnFamily newValue = valueDiff.rightValue(); // updated state
-
-            Row newRow = new Row(keyspace, newValue);
-
-            if (!prevValue.hasColumns()) // whole keyspace was deleted and now it's re-created
-            {
-                for (CFMetaData cfm : KSMetaData.deserializeColumnFamilies(newRow).values())
-                    addColumnFamily(cfm);
-            }
-            else if (!newValue.hasColumns()) // whole keyspace is deleted
-            {
-                for (CFMetaData cfm : KSMetaData.deserializeColumnFamilies(new Row(keyspace, prevValue)).values())
-                    dropColumnFamily(cfm.ksName, cfm.cfName);
-            }
-            else // has modifications in the nested ColumnFamilies, need to perform nested diff to determine what was really changed
-            {
-                String ksName = AsciiType.instance.getString(keyspace.getKey());
-
-                Map<String, CFMetaData> oldCfDefs = new HashMap<String, CFMetaData>();
-                for (CFMetaData cfm : Schema.instance.getKSMetaData(ksName).cfMetaData().values())
-                    oldCfDefs.put(cfm.cfName, cfm);
-
-                Map<String, CFMetaData> newCfDefs = KSMetaData.deserializeColumnFamilies(newRow);
-
-                MapDifference<String, CFMetaData> cfDefDiff = Maps.difference(oldCfDefs, newCfDefs);
-
-                for (CFMetaData cfDef : cfDefDiff.entriesOnlyOnRight().values())
-                    addColumnFamily(cfDef);
-
-                for (CFMetaData cfDef : cfDefDiff.entriesOnlyOnLeft().values())
-                    dropColumnFamily(cfDef.ksName, cfDef.cfName);
-
-                for (MapDifference.ValueDifference<CFMetaData> cfDef : cfDefDiff.entriesDiffering().values())
-                    updateColumnFamily(cfDef.rightValue());
-            }
-        }
+        for (CFMetaData cfm : created)
+            addColumnFamily(cfm);
+        for (CFMetaData cfm : altered)
+            updateColumnFamily(cfm.ksName, cfm.cfName);
+        for (CFMetaData cfm : dropped)
+            dropColumnFamily(cfm.ksName, cfm.cfName);
     }
 
-    private static void mergeTypes(Map<DecoratedKey, ColumnFamily> old, Map<DecoratedKey, ColumnFamily> updated)
+    // see the comments for mergeKeyspaces()
+    private static void mergeTypes(Map<DecoratedKey, ColumnFamily> before, Map<DecoratedKey, ColumnFamily> after)
     {
-        MapDifference<DecoratedKey, ColumnFamily> diff = Maps.difference(old, updated);
+        List<UserType> created = new ArrayList<>();
+        List<UserType> altered = new ArrayList<>();
+        List<UserType> dropped = new ArrayList<>();
+
+        MapDifference<DecoratedKey, ColumnFamily> diff = Maps.difference(before, after);
 
         // New keyspace with types
         for (Map.Entry<DecoratedKey, ColumnFamily> entry : diff.entriesOnlyOnRight().entrySet())
-        {
-            ColumnFamily cfTypes = entry.getValue();
-            if (!cfTypes.hasColumns())
-                continue;
+            if (entry.getValue().hasColumns())
+                created.addAll(UTMetaData.fromSchema(new Row(entry.getKey(), entry.getValue())).values());
 
-            for (UserType ut : UTMetaData.fromSchema(new Row(entry.getKey(), cfTypes)).values())
-                addType(ut);
+        for (Map.Entry<DecoratedKey, MapDifference.ValueDifference<ColumnFamily>> entry : diff.entriesDiffering().entrySet())
+        {
+            String keyspaceName = AsciiType.instance.compose(entry.getKey().getKey());
+
+            ColumnFamily pre  = entry.getValue().leftValue();
+            ColumnFamily post = entry.getValue().rightValue();
+
+            if (pre.hasColumns() && post.hasColumns())
+            {
+                MapDifference<ByteBuffer, UserType> delta =
+                        Maps.difference(Schema.instance.getKSMetaData(keyspaceName).userTypes.getAllTypes(),
+                                        UTMetaData.fromSchema(new Row(entry.getKey(), post)));
+
+                dropped.addAll(delta.entriesOnlyOnLeft().values());
+                created.addAll(delta.entriesOnlyOnRight().values());
+                Iterables.addAll(altered, Iterables.transform(delta.entriesDiffering().values(), new Function<MapDifference.ValueDifference<UserType>, UserType>()
+                {
+                    public UserType apply(MapDifference.ValueDifference<UserType> pair)
+                    {
+                        return pair.rightValue();
+                    }
+                }));
+            }
+            else if (pre.hasColumns())
+            {
+                dropped.addAll(Schema.instance.getKSMetaData(keyspaceName).userTypes.getAllTypes().values());
+            }
+            else if (post.hasColumns())
+            {
+                created.addAll(UTMetaData.fromSchema(new Row(entry.getKey(), post)).values());
+            }
         }
 
-        for (Map.Entry<DecoratedKey, MapDifference.ValueDifference<ColumnFamily>> modifiedEntry : diff.entriesDiffering().entrySet())
-        {
-            DecoratedKey keyspace = modifiedEntry.getKey();
-            ColumnFamily prevCFTypes = modifiedEntry.getValue().leftValue(); // state before external modification
-            ColumnFamily newCFTypes = modifiedEntry.getValue().rightValue(); // updated state
-
-            if (!prevCFTypes.hasColumns()) // whole keyspace was deleted and now it's re-created
-            {
-                for (UserType ut : UTMetaData.fromSchema(new Row(keyspace, newCFTypes)).values())
-                    addType(ut);
-            }
-            else if (!newCFTypes.hasColumns()) // whole keyspace is deleted
-            {
-                for (UserType ut : UTMetaData.fromSchema(new Row(keyspace, prevCFTypes)).values())
-                    dropType(ut);
-            }
-            else // has modifications in the types, need to perform nested diff to determine what was really changed
-            {
-                MapDifference<ByteBuffer, UserType> typesDiff = Maps.difference(UTMetaData.fromSchema(new Row(keyspace, prevCFTypes)),
-                                                                                UTMetaData.fromSchema(new Row(keyspace, newCFTypes)));
-
-                for (UserType type : typesDiff.entriesOnlyOnRight().values())
-                    addType(type);
-
-                for (UserType type : typesDiff.entriesOnlyOnLeft().values())
-                    dropType(type);
-
-                for (MapDifference.ValueDifference<UserType> tdiff : typesDiff.entriesDiffering().values())
-                    updateType(tdiff.rightValue()); // use the most recent value
-            }
-        }
+        for (UserType type : created)
+            addType(type);
+        for (UserType type : altered)
+            updateType(type);
+        for (UserType type : dropped)
+            dropType(type);
     }
 
     private static void addKeyspace(KSMetaData ksm)
@@ -425,9 +400,9 @@ public class DefsTables
             MigrationManager.instance.notifyCreateUserType(ut);
     }
 
-    private static void updateKeyspace(KSMetaData newState)
+    private static void updateKeyspace(String ksName)
     {
-        KSMetaData oldKsm = Schema.instance.getKSMetaData(newState.name);
+        KSMetaData oldKsm = Schema.instance.getKSMetaData(ksName);
         assert oldKsm != null;
         KSMetaData newKsm = KSMetaData.cloneWith(oldKsm.reloadAttributes(), oldKsm.cfMetaData().values());
 
@@ -435,14 +410,14 @@ public class DefsTables
 
         if (!StorageService.instance.isClientMode())
         {
-            Keyspace.open(newState.name).createReplicationStrategy(newKsm);
+            Keyspace.open(ksName).createReplicationStrategy(newKsm);
             MigrationManager.instance.notifyUpdateKeyspace(newKsm);
         }
     }
 
-    private static void updateColumnFamily(CFMetaData newState)
+    private static void updateColumnFamily(String ksName, String cfName)
     {
-        CFMetaData cfm = Schema.instance.getCFMetaData(newState.ksName, newState.cfName);
+        CFMetaData cfm = Schema.instance.getCFMetaData(ksName, cfName);
         assert cfm != null;
         cfm.reload();
 
@@ -549,7 +524,7 @@ public class DefsTables
     private static KSMetaData makeNewKeyspaceDefinition(KSMetaData ksm, CFMetaData toExclude)
     {
         // clone ksm but do not include the new def
-        List<CFMetaData> newCfs = new ArrayList<CFMetaData>(ksm.cfMetaData().values());
+        List<CFMetaData> newCfs = new ArrayList<>(ksm.cfMetaData().values());
         newCfs.remove(toExclude);
         assert newCfs.size() == ksm.cfMetaData().size() - 1;
         return KSMetaData.cloneWith(ksm, newCfs);
