@@ -479,6 +479,10 @@ def cf_prop_val_mapkey_completer(ctxt, cass):
             opts.add('cold_reads_to_omit')
         elif csc == 'LeveledCompactionStrategy':
             opts.add('sstable_size_in_mb')
+        elif csc == 'DateTieredCompactionStrategy':
+            opts.add('base_time_seconds')
+            opts.add('max_sstable_age_days')
+            opts.add('timestamp_resolution')
         return map(escape_value, opts)
     return ()
 
