@@ -20,9 +20,7 @@ package org.apache.cassandra.service;
 import java.net.InetAddress;
 import java.util.Collection;
 
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.Keyspace;
-import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.net.MessageIn;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.WriteType;
@@ -32,8 +30,6 @@ import org.apache.cassandra.db.WriteType;
  */
 public class DatacenterWriteResponseHandler extends WriteResponseHandler
 {
-    private static final IEndpointSnitch snitch = DatabaseDescriptor.getEndpointSnitch();
-
     public DatacenterWriteResponseHandler(Collection<InetAddress> naturalEndpoints,
                                           Collection<InetAddress> pendingEndpoints,
                                           ConsistencyLevel consistencyLevel,
@@ -48,10 +44,16 @@ public class DatacenterWriteResponseHandler extends WriteResponseHandler
     @Override
     public void response(MessageIn message)
     {
-        if (message == null || DatabaseDescriptor.getLocalDataCenter().equals(snitch.getDatacenter(message.from)))
-        {
+        if (message == null || consistencyLevel.isLocal(message.from))
             if (responses.decrementAndGet() == 0)
                 signal();
-        }
+    }
+
+    @Override
+    protected int totalBlockFor()
+    {
+        // during bootstrap, include pending endpoints (only local here) in the count
+        // or we may fail the consistency level guarantees (see #833, #8058)
+        return consistencyLevel.blockFor(keyspace) + consistencyLevel.countLocalEndpoints(pendingEndpoints);
     }
 }
