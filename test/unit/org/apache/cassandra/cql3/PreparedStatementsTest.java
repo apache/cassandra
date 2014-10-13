@@ -17,6 +17,10 @@
  */
 package org.apache.cassandra.cql3;
 
+import org.junit.AfterClass;
+import org.junit.BeforeClass;
+import org.junit.Test;
+
 import com.datastax.driver.core.Cluster;
 import com.datastax.driver.core.PreparedStatement;
 import com.datastax.driver.core.Session;
@@ -24,11 +28,10 @@ import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.service.EmbeddedCassandraService;
-import org.junit.AfterClass;
-import org.junit.BeforeClass;
-import org.junit.Test;
 
-public class PreparedStatementCleanupTest extends SchemaLoader
+import static junit.framework.Assert.assertEquals;
+
+public class PreparedStatementsTest extends SchemaLoader
 {
     private static Cluster cluster;
     private static Session session;
@@ -82,5 +85,38 @@ public class PreparedStatementCleanupTest extends SchemaLoader
         session.execute(createTableStatement);
         session.execute(prepared.bind(1, 1, "value"));
         session.execute(dropKsStatement);
+
+        // FIXME: where is invalidation actually tested?
 	}
+
+    @Test
+    public void testStatementRePreparationOnReconnect()
+    {
+        session.execute(dropKsStatement);
+        session.execute(createKsStatement);
+
+        session.execute("CREATE TABLE IF NOT EXISTS " + KEYSPACE + ".qp_test (id int PRIMARY KEY, cid int, val text);");
+
+        String insertCQL = "INSERT INTO " + KEYSPACE + ".qp_test (id, cid, val) VALUES (?, ?, ?)";
+        String selectCQL = "Select * from " + KEYSPACE + ".qp_test where id = ?";
+
+        PreparedStatement preparedInsert = session.prepare(insertCQL);
+        PreparedStatement preparedSelect = session.prepare(selectCQL);
+
+        session.execute(preparedInsert.bind(1, 1, "value"));
+        assertEquals(1, session.execute(preparedSelect.bind(1)).all().size());
+
+        cluster.close();
+
+        cluster = Cluster.builder().addContactPoint("127.0.0.1")
+                                   .withPort(DatabaseDescriptor.getNativeTransportPort())
+                                   .build();
+        session = cluster.connect();
+
+        preparedInsert = session.prepare(insertCQL);
+        preparedSelect = session.prepare(selectCQL);
+        session.execute(preparedInsert.bind(1, 1, "value"));
+
+        assertEquals(1, session.execute(preparedSelect.bind(1)).all().size());
+    }
 }

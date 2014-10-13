@@ -266,7 +266,7 @@ public class ResultSet
 
         public Metadata copy()
         {
-            return new Metadata(flags, names, columnCount, pagingState);
+            return new Metadata(EnumSet.copyOf(flags), names, columnCount, pagingState);
         }
 
         // The maximum number of values that the ResultSet can hold. This can be bigger than columnCount due to CASSANDRA-4911
