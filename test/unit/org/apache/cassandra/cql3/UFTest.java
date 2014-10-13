@@ -27,59 +27,6 @@ import org.apache.cassandra.exceptions.InvalidRequestException;
 
 public class UFTest extends CQLTester
 {
-    public static Double sin(Double val)
-    {
-        return val != null ? Math.sin(val) : null;
-    }
-
-    public static Float sin(Float val)
-    {
-        return val != null ? (float)Math.sin(val) : null;
-    }
-
-    public static Double badSin(Double val)
-    {
-        return 42.0;
-    }
-
-    public static String badSinBadReturn(Double val)
-    {
-        return "foo";
-    }
-
-    public Float nonStaticMethod(Float val)
-    {
-        return new Float(1.0);
-    }
-
-    private static Float privateMethod(Float val)
-    {
-        return new Float(1.0);
-    }
-
-    public static String repeat(String v, Integer n)
-    {
-        StringBuilder sb = new StringBuilder();
-        for (int i = 0; i < n; i++)
-            sb.append(v);
-        return sb.toString();
-    }
-
-    public static String overloaded(String v)
-    {
-        return "f1";
-    }
-
-    public static String overloaded(Integer v)
-    {
-        return "f2";
-    }
-
-    public static String overloaded(String v1, String v2)
-    {
-        return "f3";
-    }
-
     @Test
     public void testFunctionCreationAndDrop() throws Throwable
     {
@@ -89,26 +36,12 @@ public class UFTest extends CQLTester
         execute("INSERT INTO %s(key, d) VALUES (?, ?)", 2, 2d);
         execute("INSERT INTO %s(key, d) VALUES (?, ?)", 3, 3d);
 
-        // creation with a bad class
-        assertInvalid("CREATE FUNCTION foo::sin1 ( input double ) RETURNS double USING 'org.apache.cassandra.cql3.DoesNotExist#doesnotexist'");
-        // and a good class but inexisting method
-        assertInvalid("CREATE FUNCTION foo::sin2 ( input double ) RETURNS double USING 'org.apache.cassandra.cql3.UFTest#doesnotexist'");
-        // with a non static method
-        assertInvalid("CREATE FUNCTION foo::sin3 ( input float ) RETURNS float USING 'org.apache.cassandra.cql3.UFTest#nonStaticMethod'");
-        // with a non public method
-        assertInvalid("CREATE FUNCTION foo::sin4 ( input float ) RETURNS float USING 'org.apache.cassandra.cql3.UFTest#privateMethod'");
-
-        // creation with bad argument types
-        assertInvalid("CREATE FUNCTION foo::sin5 ( input text ) RETURNS double USING 'org.apache.cassandra.cql3.UFTest#sin'");
-        // with bad return types
-        assertInvalid("CREATE FUNCTION foo::sin6 ( input double ) RETURNS text USING 'org.apache.cassandra.cql3.UFTest#sin'");
-
         // simple creation
-        execute("CREATE FUNCTION foo::sin ( input double ) RETURNS double USING 'org.apache.cassandra.cql3.UFTest#sin'");
+        execute("CREATE FUNCTION foo::sin ( input double ) RETURNS double LANGUAGE java AS 'return Double.valueOf(Math.sin(input.doubleValue()));'");
         // check we can't recreate the same function
-        assertInvalid("CREATE FUNCTION foo::sin ( input double ) RETURNS double USING 'org.apache.cassandra.cql3.UFTest#sin'");
+        assertInvalid("CREATE FUNCTION foo::sin ( input double ) RETURNS double LANGUAGE java AS 'return Double.valueOf(Math.sin(input.doubleValue()));'");
         // but that it doesn't complay with "IF NOT EXISTS"
-        execute("CREATE FUNCTION IF NOT EXISTS foo::sin ( input double ) RETURNS double USING 'org.apache.cassandra.cql3.UFTest#sin'");
+        execute("CREATE FUNCTION IF NOT EXISTS foo::sin ( input double ) RETURNS double LANGUAGE java AS 'return Double.valueOf(Math.sin(input.doubleValue()));'");
 
         // Validate that it works as expected
         assertRows(execute("SELECT key, foo::sin(d) FROM %s"),
@@ -117,10 +50,8 @@ public class UFTest extends CQLTester
             row(3, Math.sin(3d))
         );
 
-        // Replace the method with incompatible return type
-        assertInvalid("CREATE OR REPLACE FUNCTION foo::sin ( input double ) RETURNS text USING 'org.apache.cassandra.cql3.UFTest#badSinBadReturn'");
         // proper replacement
-        execute("CREATE OR REPLACE FUNCTION foo::sin ( input double ) RETURNS double USING 'org.apache.cassandra.cql3.UFTest#badSin'");
+        execute("CREATE OR REPLACE FUNCTION foo::sin ( input double ) RETURNS double LANGUAGE java AS 'return Double.valueOf(42d);'");
 
         // Validate the method as been replaced
         assertRows(execute("SELECT key, foo::sin(d) FROM %s"),
@@ -130,7 +61,7 @@ public class UFTest extends CQLTester
         );
 
         // same function but without namespace
-        execute("CREATE FUNCTION sin ( input double ) RETURNS double USING 'org.apache.cassandra.cql3.UFTest#sin'");
+        execute("CREATE FUNCTION sin ( input double ) RETURNS double LANGUAGE java AS 'return Double.valueOf(Math.sin(input.doubleValue()));'");
         assertRows(execute("SELECT key, sin(d) FROM %s"),
             row(1, Math.sin(1d)),
             row(2, Math.sin(2d)),
@@ -161,7 +92,10 @@ public class UFTest extends CQLTester
 
         execute("INSERT INTO %s(v) VALUES (?)", "aaa");
 
-        execute("CREATE FUNCTION repeat (v text, n int) RETURNS text USING 'org.apache.cassandra.cql3.UFTest#repeat'");
+        execute("CREATE FUNCTION repeat (v text, n int) RETURNS text LANGUAGE java AS 'StringBuilder sb = new StringBuilder();\n" +
+                "        for (int i = 0; i < n.intValue(); i++)\n" +
+                "            sb.append(v);\n" +
+                "        return sb.toString();'");
 
         assertRows(execute("SELECT v FROM %s WHERE v=repeat(?, ?)", "a", 3), row("aaa"));
         assertEmpty(execute("SELECT v FROM %s WHERE v=repeat(?, ?)", "a", 2));
@@ -174,13 +108,13 @@ public class UFTest extends CQLTester
 
         execute("INSERT INTO %s(k, v) VALUES (?, ?)", "f2", 1);
 
-        execute("CREATE FUNCTION overloaded(v varchar) RETURNS text USING 'org.apache.cassandra.cql3.UFTest'");
-        execute("CREATE OR REPLACE FUNCTION overloaded(i int) RETURNS text USING 'org.apache.cassandra.cql3.UFTest'");
-        execute("CREATE OR REPLACE FUNCTION overloaded(v1 text, v2 text) RETURNS text USING 'org.apache.cassandra.cql3.UFTest'");
-        execute("CREATE OR REPLACE FUNCTION overloaded(v ascii) RETURNS text USING 'org.apache.cassandra.cql3.UFTest'");
+        execute("CREATE FUNCTION overloaded(v varchar) RETURNS text LANGUAGE java AS 'return \"f1\";'");
+        execute("CREATE OR REPLACE FUNCTION overloaded(i int) RETURNS text LANGUAGE java AS 'return \"f2\";'");
+        execute("CREATE OR REPLACE FUNCTION overloaded(v1 text, v2 text) RETURNS text LANGUAGE java AS 'return \"f3\";'");
+        execute("CREATE OR REPLACE FUNCTION overloaded(v ascii) RETURNS text LANGUAGE java AS 'return \"f1\";'");
 
         // text == varchar, so this should be considered as a duplicate
-        assertInvalid("CREATE FUNCTION overloaded(v varchar) RETURNS text USING 'org.apache.cassandra.cql3.UFTest'");
+        assertInvalid("CREATE FUNCTION overloaded(v varchar) RETURNS text LANGUAGE java AS 'return \"f1\";'");
 
         assertRows(execute("SELECT overloaded(k), overloaded(v), overloaded(k, k) FROM %s"),
             row("f1", "f2", "f3")
@@ -445,7 +379,7 @@ public class UFTest extends CQLTester
 
         execute("create function foo::pgfun1 ( input double ) returns text language java\n" +
                 "AS $$" + functionBody + "$$;");
-        execute("CREATE FUNCTION foo::pgsin ( input double ) RETURNS double USING $$org.apache.cassandra.cql3.UFTest#sin$$");
+        execute("CREATE FUNCTION foo::pgsin ( input double ) RETURNS double LANGUAGE java AS $$return Double.valueOf(Math.sin(input.doubleValue()));$$");
 
         assertRows(execute("SELECT language, body FROM system.schema_functions WHERE namespace='foo' AND name='pgfun1'"),
                    row("java", functionBody));
@@ -600,7 +534,7 @@ public class UFTest extends CQLTester
         execute("CREATE OR REPLACE FUNCTION js(val double) RETURNS decimal LANGUAGE javascript\n" +
                 "AS '100;';");
         assertRows(execute("SELECT key, val, js(val) FROM %s"),
-                   row(1, 1d, BigDecimal.valueOf(100d)));
+                   row(1, 1d, BigDecimal.valueOf(100L)));
         execute("DROP FUNCTION js(double)");
 
         // declared rtype = decimal , return type = double

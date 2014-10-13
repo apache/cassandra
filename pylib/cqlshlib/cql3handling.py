@@ -1004,14 +1004,7 @@ syntax_rules += r'''
                               ( "," [newcolname]=<cident> <storageType> )* )?
                             ")" )?
                             "RETURNS" <storageType>
-                            (
-                              ("LANGUAGE" <cident> "AS"
-                                (
-                                  <stringLiteral>
-                                )
-                              )
-                              | ("USING" <stringLiteral>)
-                            )
+                            "LANGUAGE" <cident> "AS" <stringLiteral>
                          ;
 
 '''

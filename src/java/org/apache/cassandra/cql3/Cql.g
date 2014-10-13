@@ -493,8 +493,6 @@ createFunctionStatement returns [CreateFunctionStatement expr]
         boolean ifNotExists = false;
 
         boolean deterministic = true;
-        String language = "class";
-        String bodyOrClassName = null;
         List<ColumnIdentifier> argsNames = new ArrayList<>();
         List<CQL3Type.Raw> argsTypes = new ArrayList<>();
     }
@@ -509,19 +507,10 @@ createFunctionStatement returns [CreateFunctionStatement expr]
           ( ',' k=cident v=comparatorType { argsNames.add(k); argsTypes.add(v); } )*
         )?
       ')'
-      K_RETURNS
-      rt=comparatorType
-      (
-          ( K_USING cls = STRING_LITERAL { bodyOrClassName = $cls.text; } )
-        | ( K_LANGUAGE l = IDENT { language=$l.text; } K_AS
-            (
-              ( body = STRING_LITERAL
-                { bodyOrClassName = $body.text; }
-              )
-            )
-          )
-      )
-      { $expr = new CreateFunctionStatement(fn, language.toLowerCase(), bodyOrClassName, deterministic, argsNames, argsTypes, rt, orReplace, ifNotExists); }
+      K_RETURNS rt = comparatorType
+      K_LANGUAGE language = IDENT
+      K_AS body = STRING_LITERAL
+      { $expr = new CreateFunctionStatement(fn, $language.text.toLowerCase(), $body.text, deterministic, argsNames, argsTypes, rt, orReplace, ifNotExists); }
     ;
 
 dropFunctionStatement returns [DropFunctionStatement expr]

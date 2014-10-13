@@ -1,21 +1,16 @@
 3.0
  * Keep sstable levels when bootstrapping (CASSANDRA-7460)
  * Add Sigar library and perform basic OS settings check on startup (CASSANDRA-7838)
- * Support for scripting languages in user-defined functions (CASSANDRA-7526)
  * Support for aggregation functions (CASSANDRA-4914)
- * Improve query to read paxos table on propose (CASSANDRA-7929)
  * Remove cassandra-cli (CASSANDRA-7920)
- * Optimize java source-based UDF invocation (CASSANDRA-7924)
  * Accept dollar quoted strings in CQL (CASSANDRA-7769)
  * Make assassinate a first class command (CASSANDRA-7935)
  * Support IN clause on any clustering column (CASSANDRA-4762)
  * Improve compaction logging (CASSANDRA-7818)
  * Remove YamlFileNetworkTopologySnitch (CASSANDRA-7917)
- * Support Java source code for user-defined functions (CASSANDRA-7562)
- * Require arg types to disambiguate UDF drops (CASSANDRA-7812)
  * Do anticompaction in groups (CASSANDRA-6851)
- * Verify that UDF class methods are static (CASSANDRA-7781)
- * Support pure user-defined functions (CASSANDRA-7395, 7740)
+ * Support pure user-defined functions (CASSANDRA-7395, 7526, 7562, 7740, 7781, 7929,
+   7924, 7812, 8063)
  * Permit configurable timestamps with cassandra-stress (CASSANDRA-7416)
  * Move sstable RandomAccessReader to nio2, which allows using the
    FILE_SHARE_DELETE flag on Windows (CASSANDRA-4050)

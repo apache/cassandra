@@ -82,7 +82,6 @@ public abstract class UDFunction extends AbstractFunction implements ScalarFunct
     {
         switch (language)
         {
-            case "class": return new ReflectionBasedUDF(name, argNames, argTypes, returnType, language, body, deterministic);
             case "java": return JavaSourceUDFFactory.buildUDF(name, argNames, argTypes, returnType, body, deterministic);
             default: return new ScriptBasedUDF(name, argNames, argTypes, returnType, language, body, deterministic);
         }
