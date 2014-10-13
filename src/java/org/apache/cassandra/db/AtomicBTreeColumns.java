@@ -23,6 +23,7 @@ import java.util.Collection;
 import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
 import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
 
 import com.google.common.base.Function;
@@ -39,6 +40,7 @@ import org.apache.cassandra.utils.SearchIterator;
 import org.apache.cassandra.utils.btree.BTree;
 import org.apache.cassandra.utils.btree.BTreeSearchIterator;
 import org.apache.cassandra.utils.btree.UpdateFunction;
+import org.apache.cassandra.utils.concurrent.Locks;
 import org.apache.cassandra.utils.concurrent.OpOrder;
 import org.apache.cassandra.utils.memory.HeapAllocator;
 import org.apache.cassandra.utils.memory.MemtableAllocator;
@@ -59,6 +61,31 @@ public class AtomicBTreeColumns extends ColumnFamily
 {
     static final long EMPTY_SIZE = ObjectSizes.measure(new AtomicBTreeColumns(CFMetaData.IndexCf, null))
             + ObjectSizes.measure(new Holder(null, null));
+
+    // Reserved values for wasteTracker field. These values must not be consecutive (see avoidReservedValues)
+    private static final int TRACKER_NEVER_WASTED = 0;
+    private static final int TRACKER_PESSIMISTIC_LOCKING = Integer.MAX_VALUE;
+
+    // The granularity with which we track wasted allocation/work; we round up
+    private static final int ALLOCATION_GRANULARITY_BYTES = 1024;
+    // The number of bytes we have to waste in excess of our acceptable realtime rate of waste (defined below)
+    private static final long EXCESS_WASTE_BYTES = 10 * 1024 * 1024L;
+    private static final int EXCESS_WASTE_OFFSET = (int) (EXCESS_WASTE_BYTES / ALLOCATION_GRANULARITY_BYTES);
+    // Note this is a shift, because dividing a long time and then picking the low 32 bits doesn't give correct rollover behavior
+    private static final int CLOCK_SHIFT = 17;
+    // CLOCK_GRANULARITY = 1^9ns >> CLOCK_SHIFT == 132us == (1/7.63)ms
+
+    /**
+     * (clock + allocation) granularity are combined to give us an acceptable (waste) allocation rate that is defined by
+     * the passage of real time of ALLOCATION_GRANULARITY_BYTES/CLOCK_GRANULARITY, or in this case 7.63Kb/ms, or 7.45Mb/s
+     *
+     * in wasteTracker we maintain within EXCESS_WASTE_OFFSET before the current time; whenever we waste bytes
+     * we increment the current value if it is within this window, and set it to the min of the window plus our waste
+     * otherwise.
+     */
+    private volatile int wasteTracker = TRACKER_NEVER_WASTED;
+
+    private static final AtomicIntegerFieldUpdater<AtomicBTreeColumns> wasteTrackerUpdater = AtomicIntegerFieldUpdater.newUpdater(AtomicBTreeColumns.class, "wasteTracker");
 
     private static final Function<Cell, CellName> NAME = new Function<Cell, CellName>()
     {
@@ -174,35 +201,108 @@ public class AtomicBTreeColumns extends ColumnFamily
         ColumnUpdater updater = new ColumnUpdater(this, cm.metadata, allocator, writeOp, indexer);
         DeletionInfo inputDeletionInfoCopy = null;
 
-        while (true)
+        boolean monitorOwned = false;
+        try
         {
-            Holder current = ref;
-            updater.ref = current;
-            updater.reset();
-
-            DeletionInfo deletionInfo;
-            if (cm.deletionInfo().mayModify(current.deletionInfo))
+            if (usePessimisticLocking())
             {
-                if (inputDeletionInfoCopy == null)
-                    inputDeletionInfoCopy = cm.deletionInfo().copy(HeapAllocator.instance);
-
-                deletionInfo = current.deletionInfo.copy().add(inputDeletionInfoCopy);
-                updater.allocated(deletionInfo.unsharedHeapSize() - current.deletionInfo.unsharedHeapSize());
+                Locks.monitorEnterUnsafe(this);
+                monitorOwned = true;
             }
-            else
+            while (true)
             {
-                deletionInfo = current.deletionInfo;
-            }
+                Holder current = ref;
+                updater.ref = current;
+                updater.reset();
 
-            Object[] tree = BTree.update(current.tree, metadata.comparator.columnComparator(Memtable.MEMORY_POOL instanceof NativePool), cm, cm.getColumnCount(), true, updater);
+                DeletionInfo deletionInfo;
+                if (cm.deletionInfo().mayModify(current.deletionInfo))
+                {
+                    if (inputDeletionInfoCopy == null)
+                        inputDeletionInfoCopy = cm.deletionInfo().copy(HeapAllocator.instance);
 
-            if (tree != null && refUpdater.compareAndSet(this, current, new Holder(tree, deletionInfo)))
-            {
-                indexer.updateRowLevelIndexes();
-                updater.finish();
-                return updater.dataSize;
+                    deletionInfo = current.deletionInfo.copy().add(inputDeletionInfoCopy);
+                    updater.allocated(deletionInfo.unsharedHeapSize() - current.deletionInfo.unsharedHeapSize());
+                }
+                else
+                {
+                    deletionInfo = current.deletionInfo;
+                }
+
+                Object[] tree = BTree.update(current.tree, metadata.comparator.columnComparator(Memtable.MEMORY_POOL instanceof NativePool), cm, cm.getColumnCount(), true, updater);
+
+                if (tree != null && refUpdater.compareAndSet(this, current, new Holder(tree, deletionInfo)))
+                {
+                    indexer.updateRowLevelIndexes();
+                    updater.finish();
+                    return updater.dataSize;
+                }
+                else if (!monitorOwned)
+                {
+                    boolean shouldLock = usePessimisticLocking();
+                    if (!shouldLock)
+                    {
+                        shouldLock = updateWastedAllocationTracker(updater.heapSize);
+                    }
+                    if (shouldLock)
+                    {
+                        Locks.monitorEnterUnsafe(this);
+                        monitorOwned = true;
+                    }
+                }
             }
         }
+        finally
+        {
+            if (monitorOwned)
+                Locks.monitorExitUnsafe(this);
+        }
+    }
+
+    boolean usePessimisticLocking()
+    {
+        return wasteTracker == TRACKER_PESSIMISTIC_LOCKING;
+    }
+
+    /**
+     * Update the wasted allocation tracker state based on newly wasted allocation information
+     *
+     * @param wastedBytes the number of bytes wasted by this thread
+     * @return true if the caller should now proceed with pessimistic locking because the waste limit has been reached
+     */
+    private boolean updateWastedAllocationTracker(long wastedBytes) {
+        // Early check for huge allocation that exceeds the limit
+        if (wastedBytes < EXCESS_WASTE_BYTES)
+        {
+            // We round up to ensure work < granularity are still accounted for
+            int wastedAllocation = ((int) (wastedBytes + ALLOCATION_GRANULARITY_BYTES - 1)) / ALLOCATION_GRANULARITY_BYTES;
+
+            int oldTrackerValue;
+            while (TRACKER_PESSIMISTIC_LOCKING != (oldTrackerValue = wasteTracker))
+            {
+                // Note this time value has an arbitrary offset, but is a constant rate 32 bit counter (that may wrap)
+                int time = (int) (System.nanoTime() >>> CLOCK_SHIFT);
+                int delta = oldTrackerValue - time;
+                if (oldTrackerValue == TRACKER_NEVER_WASTED || delta >= 0 || delta < -EXCESS_WASTE_OFFSET)
+                    delta = -EXCESS_WASTE_OFFSET;
+                delta += wastedAllocation;
+                if (delta >= 0)
+                    break;
+                if (wasteTrackerUpdater.compareAndSet(this, oldTrackerValue, avoidReservedValues(time + delta)))
+                    return false;
+            }
+        }
+        // We have definitely reached our waste limit so set the state if it isn't already
+        wasteTrackerUpdater.set(this, TRACKER_PESSIMISTIC_LOCKING);
+        // And tell the caller to proceed with pessimistic locking
+        return true;
+    }
+
+    private static int avoidReservedValues(int wasteTracker)
+    {
+        if (wasteTracker == TRACKER_NEVER_WASTED || wasteTracker == TRACKER_PESSIMISTIC_LOCKING)
+            return wasteTracker + 1;
+        return wasteTracker;
     }
 
     // no particular reason not to implement these next methods, we just haven't needed them yet
