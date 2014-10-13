@@ -328,11 +328,13 @@ public class Memtable
             SSTableWriter writer = createFlushWriter(cfs.getTempSSTablePath(sstableDirectory));
             try
             {
+                boolean trackContention = logger.isDebugEnabled();
+                int heavilyContendedRowCount = 0;
                 // (we can't clear out the map as-we-go to free up memory,
                 //  since the memtable is being used for queries in the "pending flush" category)
                 for (Map.Entry<RowPosition, AtomicBTreeColumns> entry : rows.entrySet())
                 {
-                    ColumnFamily cf = entry.getValue();
+                    AtomicBTreeColumns cf = entry.getValue();
 
                     if (cf.isMarkedForDelete() && cf.hasColumns())
                     {
@@ -344,6 +346,9 @@ public class Memtable
                         if (cfs.name.equals(SystemKeyspace.BATCHLOG_CF) && cfs.keyspace.getName().equals(Keyspace.SYSTEM_KS))
                             continue;
                     }
+
+                    if (trackContention && cf.usePessimisticLocking())
+                        heavilyContendedRowCount++;
 
                     if (!cf.isEmpty())
                         writer.append((DecoratedKey)entry.getKey(), cf);
@@ -365,6 +370,9 @@ public class Memtable
                     logger.info("Completed flushing; nothing needed to be retained.  Commitlog position was {}",
                                 context);
                 }
+
+                if (heavilyContendedRowCount > 0)
+                    logger.debug(String.format("High update contention in %d/%d partitions of %s ", heavilyContendedRowCount, rows.size(), Memtable.this.toString()));
 
                 return ssTable;
             }
