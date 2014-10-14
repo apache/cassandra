@@ -1,4 +1,5 @@
 2.1.1
+ * Gossip should ignore generation numbers too far in the future (CASSANDRA-8113)
  * Fix NPE when creating a table with frozen sets, lists (CASSANDRA-8104)
  * Fix high memory use due to tracking reads on incrementally opened sstable
    readers (CASSANDRA-8066)

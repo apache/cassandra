@@ -82,6 +82,9 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
     public static final Gossiper instance = new Gossiper();
 
     public static final long aVeryLongTime = 259200 * 1000; // 3 days
+
+    /** Maximimum difference in generation and version values we are willing to accept about a peer */
+    private static final long MAX_GENERATION_DIFFERENCE = 86400 * 365;
     private long FatClientTimeout;
     private final Random random = new Random();
     private final Comparator<InetAddress> inetcomparator = new Comparator<InetAddress>()
@@ -984,7 +987,13 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
                 if (logger.isTraceEnabled())
                     logger.trace(ep + "local generation " + localGeneration + ", remote generation " + remoteGeneration);
 
-                if (remoteGeneration > localGeneration)
+                if (remoteGeneration > localGeneration + MAX_GENERATION_DIFFERENCE)
+                {
+                    // assume some peer has corrupted memory and is broadcasting an unbelievable generation about another peer (or itself)
+                    logger.warn("received an invalid gossip generation for peer {}; local generation = {}, received generation = {}", ep, localGeneration, remoteGeneration);
+                    continue;
+                }
+                else if (remoteGeneration > localGeneration)
                 {
                     if (logger.isTraceEnabled())
                         logger.trace("Updating heartbeat state generation to " + remoteGeneration + " from " + localGeneration + " for " + ep);
