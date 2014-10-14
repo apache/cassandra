@@ -53,6 +53,7 @@ public class CqlBulkOutputFormat extends AbstractBulkOutputFormat<Object, List<B
   
     private static final String OUTPUT_CQL_SCHEMA_PREFIX = "cassandra.columnfamily.schema.";
     private static final String OUTPUT_CQL_INSERT_PREFIX = "cassandra.columnfamily.insert.";
+    private static final String DELETE_SOURCE = "cassandra.output.delete.source";
   
     /** Fills the deprecated OutputFormat interface for streaming. */
     @Deprecated
@@ -102,5 +103,15 @@ public class CqlBulkOutputFormat extends AbstractBulkOutputFormat<Object, List<B
             throw new UnsupportedOperationException("You must set the ColumnFamily insert statement using setColumnFamilySchema.");
         }
         return insert;
+    }
+    
+    public static void setDeleteSourceOnSuccess(Configuration conf, boolean deleteSrc)
+    {
+        conf.setBoolean(DELETE_SOURCE, deleteSrc);
+    }
+    
+    public static boolean getDeleteSourceOnSuccess(Configuration conf)
+    {
+        return conf.getBoolean(DELETE_SOURCE, false);
     }
 }
