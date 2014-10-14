@@ -33,4 +33,15 @@ public class ColumnSpecification
         this.name = name;
         this.type = type;
     }
+
+    /**
+     * Returns a new <code>ColumnSpecification</code> for the same column but with the specified alias.
+     *
+     * @param alias the column alias
+     * @return a new <code>ColumnSpecification</code> for the same column but with the specified alias.
+     */
+    public ColumnSpecification withAlias(ColumnIdentifier alias)
+    {
+        return new ColumnSpecification(ksName, cfName, alias, type);
+    }
 }
