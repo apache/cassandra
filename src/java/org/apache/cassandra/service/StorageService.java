@@ -178,15 +178,13 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     /* we bootstrap but do NOT join the ring unless told to do so */
     private boolean isSurveyMode= Boolean.parseBoolean(System.getProperty("cassandra.write_survey", "false"));
 
-    /* when intialized as a client, we shouldn't write to the system keyspace. */
-    private boolean isClientMode;
     private boolean initialized;
     private volatile boolean joined = false;
 
     /* the probability for tracing any particular request, 0 disables tracing and 1 enables for all */
     private double traceProbability = 0.0;
 
-    private static enum Mode { STARTING, NORMAL, CLIENT, JOINING, LEAVING, DECOMMISSIONED, MOVING, DRAINING, DRAINED }
+    private static enum Mode { STARTING, NORMAL, JOINING, LEAVING, DECOMMISSIONED, MOVING, DRAINING, DRAINED }
     private Mode operationMode = Mode.STARTING;
 
     /* Used for tracking drain progress */
@@ -455,7 +453,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             MessagingService.instance().listen(FBUtilities.getLocalAddress());
         Gossiper.instance.doShadowRound();
         EndpointState epState = Gossiper.instance.getEndpointStateForEndpoint(FBUtilities.getBroadcastAddress());
-        if (epState != null && !Gossiper.instance.isDeadState(epState) && !Gossiper.instance.isFatClient(FBUtilities.getBroadcastAddress()))
+        if (epState != null && !Gossiper.instance.isDeadState(epState) && !Gossiper.instance.isGossipOnlyMember(FBUtilities.getBroadcastAddress()))
         {
             throw new RuntimeException(String.format("A node with address %s already exists, cancelling join. " +
                                                      "Use cassandra.replace_address if you want to replace this node.",
@@ -478,49 +476,15 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         Gossiper.instance.resetEndpointStateMap();
     }
 
-    public synchronized void initClient() throws ConfigurationException
+    // for testing only
+    public void unsafeInitialize() throws ConfigurationException
     {
-        // We don't wait, because we're going to actually try to work on
-        initClient(0);
-
-        // sleep a while to allow gossip to warm up (the other nodes need to know about this one before they can reply).
-        outer:
-        while (true)
-        {
-            Uninterruptibles.sleepUninterruptibly(1, TimeUnit.SECONDS);
-            for (InetAddress address : Gossiper.instance.getLiveMembers())
-            {
-                if (!Gossiper.instance.isFatClient(address))
-                    break outer;
-            }
-        }
-
-        // sleep until any schema migrations have finished
-        while (!MigrationManager.isReadyForBootstrap())
-        {
-            Uninterruptibles.sleepUninterruptibly(1, TimeUnit.SECONDS);
-        }
-    }
-
-    public synchronized void initClient(int ringDelay) throws ConfigurationException
-    {
-        if (initialized)
-        {
-            if (!isClientMode)
-                throw new UnsupportedOperationException("StorageService does not support switching modes.");
-            return;
-        }
         initialized = true;
-        isClientMode = true;
-        logger.info("Starting up client gossip");
-        setMode(Mode.CLIENT, false);
         Gossiper.instance.register(this);
         Gossiper.instance.start((int) (System.currentTimeMillis() / 1000)); // needed for node-ring gathering.
         Gossiper.instance.addLocalApplicationState(ApplicationState.NET_VERSION, valueFactory.networkVersion());
-
         if (!MessagingService.instance().isListening())
             MessagingService.instance().listen(FBUtilities.getLocalAddress());
-        Uninterruptibles.sleepUninterruptibly(ringDelay, TimeUnit.MILLISECONDS);
     }
 
     public synchronized void initServer() throws ConfigurationException
@@ -534,14 +498,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         logger.info("Thrift API version: {}", cassandraConstants.VERSION);
         logger.info("CQL supported versions: {} (default: {})", StringUtils.join(ClientState.getCQLSupportedVersion(), ","), ClientState.DEFAULT_CQL_VERSION);
 
-        if (initialized)
-        {
-            if (isClientMode)
-                throw new UnsupportedOperationException("StorageService does not support switching modes.");
-            return;
-        }
         initialized = true;
-        isClientMode = false;
 
         try
         {
@@ -1608,21 +1565,18 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             {
                 logger.debug("New node {} at token {}", endpoint, token);
                 tokensToUpdateInMetadata.add(token);
-                if (!isClientMode)
-                    tokensToUpdateInSystemKeyspace.add(token);
+                tokensToUpdateInSystemKeyspace.add(token);
             }
             else if (endpoint.equals(currentOwner))
             {
                 // set state back to normal, since the node may have tried to leave, but failed and is now back up
                 tokensToUpdateInMetadata.add(token);
-                if (!isClientMode)
-                    tokensToUpdateInSystemKeyspace.add(token);
+                tokensToUpdateInSystemKeyspace.add(token);
             }
             else if (Gossiper.instance.compareEndpointStartup(endpoint, currentOwner) > 0)
             {
                 tokensToUpdateInMetadata.add(token);
-                if (!isClientMode)
-                    tokensToUpdateInSystemKeyspace.add(token);
+                tokensToUpdateInSystemKeyspace.add(token);
 
                 // currentOwner is no longer current, endpoint is.  Keep track of these moves, because when
                 // a host no longer has any tokens, we'll want to remove it.
@@ -1658,12 +1612,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         if (tokenMetadata.isMoving(endpoint)) // if endpoint was moving to a new token
         {
             tokenMetadata.removeFromMoving(endpoint);
-
-            if (!isClientMode)
-            {
-                for (IEndpointLifecycleSubscriber subscriber : lifecycleSubscribers)
-                    subscriber.onMove(endpoint);
-            }
+            for (IEndpointLifecycleSubscriber subscriber : lifecycleSubscribers)
+                subscriber.onMove(endpoint);
         }
 
         PendingRangeCalculatorService.instance.update();
@@ -1803,11 +1753,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         tokenMetadata.removeEndpoint(endpoint);
         tokenMetadata.removeBootstrapTokens(tokens);
 
-        if (!isClientMode)
-        {
-            for (IEndpointLifecycleSubscriber subscriber : lifecycleSubscribers)
-                subscriber.onLeaveCluster(endpoint);
-        }
+        for (IEndpointLifecycleSubscriber subscriber : lifecycleSubscribers)
+            subscriber.onLeaveCluster(endpoint);
         PendingRangeCalculatorService.instance.update();
     }
 
@@ -1821,8 +1768,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     private void removeEndpoint(InetAddress endpoint)
     {
         Gossiper.instance.removeEndpoint(endpoint);
-        if (!isClientMode)
-            SystemKeyspace.removeEndpoint(endpoint);
+        SystemKeyspace.removeEndpoint(endpoint);
     }
 
     protected void addExpireTimeIfFound(InetAddress endpoint, long expireTime)
@@ -2019,9 +1965,6 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     {
         MigrationManager.instance.scheduleSchemaPull(endpoint, state);
 
-        if (isClientMode)
-            return;
-
         if (tokenMetadata.isMember(endpoint))
         {
             HintedHandOffManager.instance.scheduleHintDelivery(endpoint);
@@ -2044,11 +1987,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     public void onDead(InetAddress endpoint, EndpointState state)
     {
         MessagingService.instance().convict(endpoint);
-        if (!isClientMode)
-        {
-            for (IEndpointLifecycleSubscriber subscriber : lifecycleSubscribers)
-                subscriber.onDown(endpoint);
-        }
+        for (IEndpointLifecycleSubscriber subscriber : lifecycleSubscribers)
+            subscriber.onDown(endpoint);
     }
 
     public void onRestart(InetAddress endpoint, EndpointState state)
@@ -3577,11 +3517,6 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         {
             logger.info("Received unexpected REPLICATION_FINISHED message from {}. Was this node recently a removal coordinator?", node);
         }
-    }
-
-    public boolean isClientMode()
-    {
-        return isClientMode;
     }
 
     public synchronized void requestGC()

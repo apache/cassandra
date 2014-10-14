@@ -123,7 +123,7 @@ public class DefsTables
         for (Mutation mutation : mutations)
             mutation.apply();
 
-        if (doFlush && !StorageService.instance.isClientMode())
+        if (doFlush)
             flushSchemaCFs();
 
         // with new data applied
@@ -353,11 +353,8 @@ public class DefsTables
         assert Schema.instance.getKSMetaData(ksm.name) == null;
         Schema.instance.load(ksm);
 
-        if (!StorageService.instance.isClientMode())
-        {
-            Keyspace.open(ksm.name);
-            MigrationManager.instance.notifyCreateKeyspace(ksm);
-        }
+        Keyspace.open(ksm.name);
+        MigrationManager.instance.notifyCreateKeyspace(ksm);
     }
 
     private static void addColumnFamily(CFMetaData cfm)
@@ -375,12 +372,8 @@ public class DefsTables
         Keyspace.open(cfm.ksName);
 
         Schema.instance.setKeyspaceDefinition(ksm);
-
-        if (!StorageService.instance.isClientMode())
-        {
-            Keyspace.open(ksm.name).initCf(cfm.cfId, cfm.cfName, true);
-            MigrationManager.instance.notifyCreateColumnFamily(cfm);
-        }
+        Keyspace.open(ksm.name).initCf(cfm.cfId, cfm.cfName, true);
+        MigrationManager.instance.notifyCreateColumnFamily(cfm);
     }
 
     private static void addType(UserType ut)
@@ -392,8 +385,7 @@ public class DefsTables
 
         ksm.userTypes.addType(ut);
 
-        if (!StorageService.instance.isClientMode())
-            MigrationManager.instance.notifyCreateUserType(ut);
+        MigrationManager.instance.notifyCreateUserType(ut);
     }
 
     private static void addFunction(UDFunction udf)
@@ -402,8 +394,7 @@ public class DefsTables
 
         Functions.addFunction(udf);
 
-        if (!StorageService.instance.isClientMode())
-            MigrationManager.instance.notifyCreateFunction(udf);
+        MigrationManager.instance.notifyCreateFunction(udf);
     }
 
     private static void updateKeyspace(String ksName)
@@ -414,11 +405,8 @@ public class DefsTables
 
         Schema.instance.setKeyspaceDefinition(newKsm);
 
-        if (!StorageService.instance.isClientMode())
-        {
-            Keyspace.open(ksName).createReplicationStrategy(newKsm);
-            MigrationManager.instance.notifyUpdateKeyspace(newKsm);
-        }
+        Keyspace.open(ksName).createReplicationStrategy(newKsm);
+        MigrationManager.instance.notifyUpdateKeyspace(newKsm);
     }
 
     private static void updateColumnFamily(String ksName, String cfName)
@@ -427,12 +415,9 @@ public class DefsTables
         assert cfm != null;
         cfm.reload();
 
-        if (!StorageService.instance.isClientMode())
-        {
-            Keyspace keyspace = Keyspace.open(cfm.ksName);
-            keyspace.getColumnFamilyStore(cfm.cfName).reload();
-            MigrationManager.instance.notifyUpdateColumnFamily(cfm);
-        }
+        Keyspace keyspace = Keyspace.open(cfm.ksName);
+        keyspace.getColumnFamilyStore(cfm.cfName).reload();
+        MigrationManager.instance.notifyUpdateColumnFamily(cfm);
     }
 
     private static void updateType(UserType ut)
@@ -444,8 +429,7 @@ public class DefsTables
 
         ksm.userTypes.addType(ut);
 
-        if (!StorageService.instance.isClientMode())
-            MigrationManager.instance.notifyUpdateUserType(ut);
+        MigrationManager.instance.notifyUpdateUserType(ut);
     }
 
     private static void updateFunction(UDFunction udf)
@@ -454,8 +438,7 @@ public class DefsTables
 
         Functions.replaceFunction(udf);
 
-        if (!StorageService.instance.isClientMode())
-            MigrationManager.instance.notifyUpdateFunction(udf);
+        MigrationManager.instance.notifyUpdateFunction(udf);
     }
 
     private static void dropKeyspace(String ksName)
@@ -475,12 +458,9 @@ public class DefsTables
 
             Schema.instance.purge(cfm);
 
-            if (!StorageService.instance.isClientMode())
-            {
-                if (DatabaseDescriptor.isAutoSnapshot())
-                    cfs.snapshot(snapshotName);
-                Keyspace.open(ksm.name).dropCf(cfm.cfId);
-            }
+            if (DatabaseDescriptor.isAutoSnapshot())
+                cfs.snapshot(snapshotName);
+            Keyspace.open(ksm.name).dropCf(cfm.cfId);
 
             droppedCfs.add(cfm.cfId);
         }
@@ -494,10 +474,7 @@ public class DefsTables
         // force a new segment in the CL
         CommitLog.instance.forceRecycleAllSegments(droppedCfs);
 
-        if (!StorageService.instance.isClientMode())
-        {
-            MigrationManager.instance.notifyDropKeyspace(ksm);
-        }
+        MigrationManager.instance.notifyDropKeyspace(ksm);
     }
 
     private static void dropColumnFamily(String ksName, String cfName)
@@ -515,15 +492,12 @@ public class DefsTables
 
         CompactionManager.instance.interruptCompactionFor(Arrays.asList(cfm), true);
 
-        if (!StorageService.instance.isClientMode())
-        {
-            if (DatabaseDescriptor.isAutoSnapshot())
-                cfs.snapshot(Keyspace.getTimestampedSnapshotName(cfs.name));
-            Keyspace.open(ksm.name).dropCf(cfm.cfId);
-            MigrationManager.instance.notifyDropColumnFamily(cfm);
+        if (DatabaseDescriptor.isAutoSnapshot())
+            cfs.snapshot(Keyspace.getTimestampedSnapshotName(cfs.name));
+        Keyspace.open(ksm.name).dropCf(cfm.cfId);
+        MigrationManager.instance.notifyDropColumnFamily(cfm);
 
-            CommitLog.instance.forceRecycleAllSegments(Collections.singleton(cfm.cfId));
-        }
+        CommitLog.instance.forceRecycleAllSegments(Collections.singleton(cfm.cfId));
     }
 
     private static void dropType(UserType ut)
@@ -533,8 +507,7 @@ public class DefsTables
 
         ksm.userTypes.removeType(ut);
 
-        if (!StorageService.instance.isClientMode())
-            MigrationManager.instance.notifyDropUserType(ut);
+        MigrationManager.instance.notifyDropUserType(ut);
     }
 
     private static void dropFunction(UDFunction udf)
@@ -544,8 +517,7 @@ public class DefsTables
         // TODO: this is kind of broken as this remove all overloads of the function name
         Functions.removeFunction(udf.name(), udf.argTypes());
 
-        if (!StorageService.instance.isClientMode())
-            MigrationManager.instance.notifyDropFunction(udf);
+        MigrationManager.instance.notifyDropFunction(udf);
     }
 
     private static KSMetaData makeNewKeyspaceDefinition(KSMetaData ksm, CFMetaData toExclude)

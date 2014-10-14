@@ -115,21 +115,9 @@ public class DatabaseDescriptor
 
     static
     {
-        // In client mode, we use a default configuration. Note that the fields of this class will be
-        // left unconfigured however (the partitioner or localDC will be null for instance) so this
-        // should be used with care.
         try
         {
-            if (Config.isClientMode())
-            {
-                conf = new Config();
-                // at least we have to set memoryAllocator to open SSTable in client mode
-                memoryAllocator = FBUtilities.newOffHeapAllocator(conf.memory_allocator);
-            }
-            else
-            {
-                applyConfig(loadConfig());
-            }
+            applyConfig(loadConfig());
         }
         catch (ConfigurationException e)
         {

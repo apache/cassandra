@@ -57,7 +57,6 @@ public class SSTableLoader implements StreamEventHandler
 
     static
     {
-        Config.setClientMode(true);
     }
 
     public SSTableLoader(File directory, Client client, OutputHandler outputHandler)

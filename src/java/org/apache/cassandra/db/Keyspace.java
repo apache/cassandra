@@ -68,8 +68,7 @@ public class Keyspace
     // proper directories here as well as in CassandraDaemon.
     static
     {
-        if (!StorageService.instance.isClientMode())
-            DatabaseDescriptor.createAllDirectories();
+        DatabaseDescriptor.createAllDirectories();
     }
 
     public final KSMetaData metadata;

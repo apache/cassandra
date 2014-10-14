@@ -85,7 +85,6 @@ implements org.apache.hadoop.mapred.RecordWriter<K, V>
 
     protected AbstractBulkRecordWriter(Configuration conf)
     {
-        Config.setClientMode(true);
         Config.setOutboundBindAny(true);
         this.conf = conf;
         DatabaseDescriptor.setStreamThroughputOutboundMegabitsPerSec(Integer.parseInt(conf.get(STREAM_THROTTLE_MBITS, "0")));

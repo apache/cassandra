@@ -148,7 +148,7 @@ public class MigrationManager
          */
         return MessagingService.instance().knowsVersion(endpoint)
                 && MessagingService.instance().getRawVersion(endpoint) == MessagingService.current_version
-                && !Gossiper.instance.isFatClient(endpoint);
+                && !Gossiper.instance.isGossipOnlyMember(endpoint);
     }
 
     public static boolean isReadyForBootstrap()

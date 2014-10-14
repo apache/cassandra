@@ -506,10 +506,9 @@ public class SSTableReader extends SSTable
 
         deletingTask = new SSTableDeletingTask(this);
 
-        // Don't track read rates for tables in the system keyspace and don't bother trying to load or persist
-        // the read meter when in client mode.  Also don't track reads for special operations (like early open)
+        // Don't track read rates for tables in the system keyspace.  Also don't track reads for special operations (like early open)
         // this is to avoid overflowing the executor queue (see CASSANDRA-8066)
-        if (Keyspace.SYSTEM_KS.equals(desc.ksname) || Config.isClientMode() || openReason != OpenReason.NORMAL)
+        if (Keyspace.SYSTEM_KS.equals(desc.ksname) || openReason != OpenReason.NORMAL)
         {
             readMeter = null;
             readMeterSyncFuture = null;

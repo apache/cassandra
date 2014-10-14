@@ -25,6 +25,7 @@ New features
 
 Upgrading
 ---------
+   - Fat client support has been removed since we have push notifications to clients
    - cassandra-cli has been removed. Please use cqlsh instead.
    - YamlFileNetworkTopologySnitch has been removed; switch to
      GossipingPropertyFileSnitch instead.

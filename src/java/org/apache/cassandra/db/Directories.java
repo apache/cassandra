@@ -182,11 +182,6 @@ public class Directories
     public Directories(CFMetaData metadata)
     {
         this.metadata = metadata;
-        if (StorageService.instance.isClientMode())
-        {
-            dataPaths = null;
-            return;
-        }
 
         String cfId = ByteBufferUtil.bytesToHex(ByteBufferUtil.bytes(metadata.cfId));
         int idx = metadata.cfName.indexOf(SECONDARY_INDEX_NAME_SEPARATOR);
