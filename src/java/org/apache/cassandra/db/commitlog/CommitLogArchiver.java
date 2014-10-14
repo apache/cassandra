@@ -82,14 +82,17 @@ public class CommitLogArchiver
                 archiveCommand = commitlog_commands.getProperty("archive_command");
                 restoreCommand = commitlog_commands.getProperty("restore_command");
                 restoreDirectories = commitlog_commands.getProperty("restore_directories");
-                for (String dir : restoreDirectories.split(DELIMITER))
+                if (restoreDirectories != null && !restoreDirectories.isEmpty())
                 {
-                    File directory = new File(dir);
-                    if (!directory.exists())
+                    for (String dir : restoreDirectories.split(DELIMITER))
                     {
-                        if (!directory.mkdir())
+                        File directory = new File(dir);
+                        if (!directory.exists())
                         {
-                            throw new RuntimeException("Unable to create directory " + dir);
+                            if (!directory.mkdir())
+                            {
+                                throw new RuntimeException("Unable to create directory: " + dir);
+                            }
                         }
                     }
                 }
