@@ -999,7 +999,6 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
                 {
                     // assume some peer has corrupted memory and is broadcasting an unbelievable generation about another peer (or itself)
                     logger.warn("received an invalid gossip generation for peer {}; local generation = {}, received generation = {}", ep, localGeneration, remoteGeneration);
-                    continue;
                 }
                 else if (remoteGeneration > localGeneration)
                 {
