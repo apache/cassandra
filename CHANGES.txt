@@ -71,6 +71,7 @@
  * Fix snapshot repair error on indexed tables (CASSANDRA-8020)
  * Do not exit nodetool repair when receiving JMX NOTIF_LOST (CASSANDRA-7909)
 Merged from 2.0:
+ * Properly validate ascii and utf8 string literals in CQL queries (CASSANDRA-8101)
  * (cqlsh) Fix autocompletion for alter keyspace (CASSANDRA-8021)
  * Create backup directories for commitlog archiving during startup (CASSANDRA-8111)
  * Reduce totalBlockFor() for LOCAL_* consistency levels (CASSANDRA-8058)

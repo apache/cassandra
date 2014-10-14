@@ -21,7 +21,11 @@ import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
+import java.nio.CharBuffer;
 import java.nio.charset.CharacterCodingException;
+import java.nio.charset.Charset;
+import java.nio.charset.CharsetDecoder;
+import java.nio.charset.CoderResult;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -36,6 +40,7 @@ import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.UUIDGen;
+import org.apache.cassandra.utils.ByteBufferUtil;
 
 /**
  * ByteBuf utility methods.
@@ -50,21 +55,30 @@ public abstract class CBUtil
 
     private CBUtil() {}
 
+    private final static ThreadLocal<CharsetDecoder> decoder = new ThreadLocal<CharsetDecoder>()
+    {
+        @Override
+        protected CharsetDecoder initialValue()
+        {
+            return Charset.forName("UTF-8").newDecoder();
+        }
+    };
+
     private static String readString(ByteBuf cb, int length)
     {
+        if (length == 0)
+            return "";
+
+        ByteBuffer buffer = cb.nioBuffer(cb.readerIndex(), length);
         try
         {
-            String str = cb.toString(cb.readerIndex(), length, CharsetUtil.UTF_8);
+            String str = decodeString(buffer);
             cb.readerIndex(cb.readerIndex() + length);
             return str;
         }
-        catch (IllegalStateException e)
+        catch (IllegalStateException | CharacterCodingException e)
         {
-            // That's the way netty encapsulate a CCE
-            if (e.getCause() instanceof CharacterCodingException)
-                throw new ProtocolException("Cannot decode string as UTF8");
-            else
-                throw e;
+            throw new ProtocolException("Cannot decode string as UTF8: '" + ByteBufferUtil.bytesToHex(buffer) + "'; " + e);
         }
     }
 
@@ -79,6 +93,29 @@ public abstract class CBUtil
         {
             throw new ProtocolException("Not enough bytes to read an UTF8 serialized string preceded by it's 2 bytes length");
         }
+    }
+
+    // Taken from Netty's ChannelBuffers.decodeString(). We need to use our own decoder to properly handle invalid
+    // UTF-8 sequences.  See CASSANDRA-8101 for more details.  This can be removed once https://github.com/netty/netty/pull/2999
+    // is resolved in a release used by Cassandra.
+    private static String decodeString(ByteBuffer src) throws CharacterCodingException
+    {
+        // the decoder needs to be reset every time we use it, hence the copy per thread
+        CharsetDecoder theDecoder = decoder.get();
+        theDecoder.reset();
+
+        final CharBuffer dst = CharBuffer.allocate(
+                (int) ((double) src.remaining() * theDecoder.maxCharsPerByte()));
+
+        CoderResult cr = theDecoder.decode(src, dst, true);
+        if (!cr.isUnderflow())
+            cr.throwException();
+
+        cr = theDecoder.flush(dst);
+        if (!cr.isUnderflow())
+            cr.throwException();
+
+        return dst.flip().toString();
     }
 
     public static void writeString(String str, ByteBuf cb)
