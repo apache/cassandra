@@ -403,7 +403,7 @@ public class SSTableWriter extends SSTable
                                                            components, metadata,
                                                            partitioner, ifile,
                                                            dfile, iwriter.summary.build(partitioner, exclusiveUpperBoundOfReadableIndex),
-                                                           iwriter.bf, maxDataAge, sstableMetadata, true);
+                                                           iwriter.bf, maxDataAge, sstableMetadata, SSTableReader.OpenReason.EARLY);
 
         // now it's open, find the ACTUAL last readable key (i.e. for which the data file has also been flushed)
         sstable.first = getMinimalKey(first);
@@ -454,7 +454,7 @@ public class SSTableWriter extends SSTable
                                                            iwriter.bf,
                                                            maxDataAge,
                                                            sstableMetadata,
-                                                           false);
+                                                           SSTableReader.OpenReason.NORMAL);
         sstable.first = getMinimalKey(first);
         sstable.last = getMinimalKey(last);
         // try to save the summaries to disk
