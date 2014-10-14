@@ -54,6 +54,9 @@ import com.datastax.driver.core.ColumnMetadata;
 import com.datastax.driver.core.ResultSet;
 import com.datastax.driver.core.Row;
 import com.datastax.driver.core.Session;
+import com.datastax.driver.core.TupleValue;
+import com.datastax.driver.core.UDTValue;
+
 /**
  * CqlRecordReader reads the rows return from the CQL query
  * It uses CQL auto-paging.
@@ -513,6 +516,30 @@ public class CqlRecordReader extends RecordReader<Long, Row>
         public <K, V> Map<K, V> getMap(String name, Class<K> keysClass, Class<V> valuesClass)
         {
             return row.getMap(name, keysClass, valuesClass);
+        }
+
+        @Override
+        public UDTValue getUDTValue(int i)
+        {
+            return row.getUDTValue(i);
+        }
+
+        @Override
+        public UDTValue getUDTValue(String name)
+        {
+            return row.getUDTValue(name);
+        }
+
+        @Override
+        public TupleValue getTupleValue(int i)
+        {
+            return row.getTupleValue(i);
+        }
+
+        @Override
+        public TupleValue getTupleValue(String name)
+        {
+            return row.getTupleValue(name);
         }
     }
 
