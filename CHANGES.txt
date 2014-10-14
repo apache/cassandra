@@ -102,6 +102,7 @@
  * Fix snapshot repair error on indexed tables (CASSANDRA-8020)
  * Do not exit nodetool repair when receiving JMX NOTIF_LOST (CASSANDRA-7909)
 Merged from 2.0:
+ * Create backup directories for commitlog archiving during startup (CASSANDRA-8111)
  * Reduce totalBlockFor() for LOCAL_* consistency levels (CASSANDRA-8058)
  * Fix merging schemas with re-dropped keyspaces (CASSANDRA-7256)
  * Fix counters in supercolumns during live upgrades from 1.2 (CASSANDRA-7188)
