@@ -993,7 +993,7 @@ def alter_table_col_completer(ctxt, cass):
 explain_completion('alterInstructions', 'newcol', '<new_column_name>')
 
 syntax_rules += r'''
-<alterKeyspaceStatement> ::= "ALTER" ( "KEYSPACE" | "SCHEMA" ) ks=<alterableKeyspaceName>
+<alterKeyspaceStatement> ::= "ALTER" wat=( "KEYSPACE" | "SCHEMA" ) ks=<alterableKeyspaceName>
                                  "WITH" <property> ( "AND" <property> )*
                            ;
 '''

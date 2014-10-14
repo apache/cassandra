@@ -1,4 +1,5 @@
 2.0.11:
+ * (cqlsh) Fix autocompletion for alter keyspace (CASSANDRA-8021)
  * Create backup directories for commitlog archiving during startup (CASSANDRA-8111)
  * Reduce totalBlockFor() for LOCAL_* consistency levels (CASSANDRA-8058)
  * Fix merging schemas with re-dropped keyspaces (CASSANDRA-7256)
