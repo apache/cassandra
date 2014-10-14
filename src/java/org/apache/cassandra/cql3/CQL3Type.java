@@ -347,7 +347,7 @@ public interface CQL3Type
         public static Raw tuple(List<CQL3Type.Raw> ts) throws InvalidRequestException
         {
             for (int i = 0; i < ts.size(); i++)
-                if (ts.get(i).isCounter())
+                if (ts.get(i) != null && ts.get(i).isCounter())
                     throw new InvalidRequestException("counters are not allowed inside tuples");
 
             return new RawTuple(ts);
@@ -404,7 +404,8 @@ public interface CQL3Type
 
             public Raw freeze()
             {
-                keys.freeze();
+                if (keys != null)
+                    keys.freeze();
                 values.freeze();
                 return super.freeze();
             }
@@ -500,7 +501,8 @@ public interface CQL3Type
             public Raw freeze()
             {
                 for (CQL3Type.Raw t : types)
-                    t.freeze();
+                    if (t != null)
+                        t.freeze();
                 return super.freeze();
             }
 

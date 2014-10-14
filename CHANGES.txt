@@ -1,5 +1,7 @@
 2.1.1
- * Fix high memory use due to tracking reads on incrementally opened sstable readers (CASSANDRA-8066)
+ * Fix NPE when creating a table with frozen sets, lists (CASSANDRA-8104)
+ * Fix high memory use due to tracking reads on incrementally opened sstable
+   readers (CASSANDRA-8066)
  * Fix EXECUTE request with skipMetadata=false returning no metadata
    (CASSANDRA-8054)
  * Allow concurrent use of CQLBulkOutputFormat (CASSANDRA-7776)
