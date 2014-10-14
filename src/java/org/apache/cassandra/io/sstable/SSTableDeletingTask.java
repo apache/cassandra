@@ -51,7 +51,7 @@ public class SSTableDeletingTask implements Runnable
     public SSTableDeletingTask(SSTableReader referent)
     {
         this.referent = referent;
-        if (referent.isOpenEarly)
+        if (referent.openReason == SSTableReader.OpenReason.EARLY)
         {
             this.desc = referent.descriptor.asType(Descriptor.Type.TEMPLINK);
             this.components = Sets.newHashSet(Component.DATA, Component.PRIMARY_INDEX);
