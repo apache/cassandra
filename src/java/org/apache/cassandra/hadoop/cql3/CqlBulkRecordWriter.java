@@ -32,6 +32,8 @@ import org.apache.cassandra.hadoop.ConfigHelper;
 import org.apache.cassandra.hadoop.HadoopCompat;
 import org.apache.cassandra.io.sstable.CQLSSTableWriter;
 import org.apache.cassandra.io.sstable.SSTableLoader;
+import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.streaming.StreamState;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.mapreduce.TaskAttemptContext;
 import org.apache.hadoop.util.Progressable;
@@ -57,6 +59,7 @@ public class CqlBulkRecordWriter extends AbstractBulkRecordWriter<Object, List<B
     private String schema;
     private String insertStatement;
     private File outputDir;
+    private boolean deleteSrc;
 
     CqlBulkRecordWriter(TaskAttemptContext context) throws IOException
     {
@@ -84,6 +87,7 @@ public class CqlBulkRecordWriter extends AbstractBulkRecordWriter<Object, List<B
         schema = CqlBulkOutputFormat.getColumnFamilySchema(conf, columnFamily);
         insertStatement = CqlBulkOutputFormat.getColumnFamilyInsertStatement(conf, columnFamily);
         outputDir = getColumnFamilyDirectory();
+        deleteSrc = CqlBulkOutputFormat.getDeleteSourceOnSuccess(conf);
     }
 
     
@@ -107,7 +111,14 @@ public class CqlBulkRecordWriter extends AbstractBulkRecordWriter<Object, List<B
                 
                 externalClient.addKnownCfs(keyspace, schema);
 
-                this.loader = new SSTableLoader(outputDir, externalClient, new BulkRecordWriter.NullOutputHandler());
+                this.loader = new SSTableLoader(outputDir, externalClient, new BulkRecordWriter.NullOutputHandler()) {
+                    @Override
+                    public void onSuccess(StreamState finalState)
+                    {
+                        if (deleteSrc)
+                            FileUtils.deleteRecursive(outputDir);
+                    }
+                };
             }
         }
         catch (Exception e)
