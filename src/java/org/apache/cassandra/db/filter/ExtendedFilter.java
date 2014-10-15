@@ -149,6 +149,7 @@ public abstract class ExtendedFilter
         }
     }
 
+    @Override
     public String toString()
     {
         return Objects.toStringHelper(this)
@@ -405,6 +406,7 @@ public abstract class ExtendedFilter
             throw new AssertionError();
         }
 
+        @Override
         public String toString()
         {
             return Objects.toStringHelper(this)
