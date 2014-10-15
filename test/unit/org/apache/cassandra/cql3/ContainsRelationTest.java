@@ -157,4 +157,29 @@ public class ContainsRelationTest extends CQLTester
 
         assertEmpty(execute("SELECT * FROM %s WHERE k2 = ? AND v CONTAINS ? ALLOW FILTERING", 1, 7));
     }
+
+    // See CASSANDRA-8073
+    @Test
+    public void testIndexLookupWithClusteringPrefix() throws Throwable
+    {
+        createTable("CREATE TABLE %s (a int, b int, c int, d set<int>, PRIMARY KEY (a, b, c))");
+        createIndex("CREATE INDEX ON %s(d)");
+        execute("INSERT INTO %s (a, b, c, d) VALUES (?, ?, ?, ?)", 0, 0, 0, set(1, 2, 3));
+        execute("INSERT INTO %s (a, b, c, d) VALUES (?, ?, ?, ?)", 0, 0, 1, set(3, 4, 5));
+        execute("INSERT INTO %s (a, b, c, d) VALUES (?, ?, ?, ?)", 0, 1, 0, set(1, 2, 3));
+        execute("INSERT INTO %s (a, b, c, d) VALUES (?, ?, ?, ?)", 0, 1, 1, set(3, 4, 5));
+
+        assertRows(execute("SELECT * FROM %s WHERE a=? AND b=? AND d CONTAINS ?", 0, 1, 3),
+            row(0, 1, 0, set(1, 2, 3)),
+            row(0, 1, 1, set(3, 4, 5))
+        );
+
+        assertRows(execute("SELECT * FROM %s WHERE a=? AND b=? AND d CONTAINS ?", 0, 1, 2),
+            row(0, 1, 0, set(1, 2, 3))
+        );
+
+        assertRows(execute("SELECT * FROM %s WHERE a=? AND b=? AND d CONTAINS ?", 0, 1, 5),
+            row(0, 1, 1, set(3, 4, 5))
+        );
+    }
 }

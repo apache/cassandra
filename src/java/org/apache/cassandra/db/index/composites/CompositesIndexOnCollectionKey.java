@@ -74,7 +74,7 @@ public class CompositesIndexOnCollectionKey extends CompositesIndex
         int count = 1 + baseCfs.metadata.clusteringColumns().size();
         CBuilder builder = getIndexComparator().builder();
         builder.add(rowKey);
-        for (int i = 0; i < count - 1; i++)
+        for (int i = 0; i < Math.min(cellName.size(), count - 1); i++)
             builder.add(cellName.get(i));
         return builder.build();
     }
