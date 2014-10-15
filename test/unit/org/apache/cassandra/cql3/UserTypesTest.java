@@ -32,6 +32,25 @@ public class UserTypesTest extends CQLTester
     }
 
     @Test
+    public void testCassandra8105() throws Throwable
+    {
+        String ut1 = createType("CREATE TYPE %s (a int, b int)");
+        String ut2 = createType("CREATE TYPE %s (j frozen<" + KEYSPACE + "." + ut1 + ">, k int)");
+        createTable("CREATE TABLE %s (x int PRIMARY KEY, y set<frozen<" + KEYSPACE + "." + ut2 + ">>)");
+        execute("INSERT INTO %s (x, y) VALUES (1, { { k: 1 } })");
+
+        String ut3 = createType("CREATE TYPE %s (a int, b int)");
+        String ut4 = createType("CREATE TYPE %s (j frozen<" + KEYSPACE + "." + ut3 + ">, k int)");
+        createTable("CREATE TABLE %s (x int PRIMARY KEY, y list<frozen<" + KEYSPACE + "." + ut4 + ">>)");
+        execute("INSERT INTO %s (x, y) VALUES (1, [ { k: 1 } ])");
+
+        String ut5 = createType("CREATE TYPE %s (a int, b int)");
+        String ut6 = createType("CREATE TYPE %s (i int, j frozen<" + KEYSPACE + "." + ut5 + ">)");
+        createTable("CREATE TABLE %s (x int PRIMARY KEY, y set<frozen<" + KEYSPACE + "." + ut6 + ">>)");
+        execute("INSERT INTO %s (x, y) VALUES (1, { { i: 1 } })");
+    }
+
+    @Test
     public void testFor7684() throws Throwable
     {
         String myType = createType("CREATE TYPE %s (x double)");
