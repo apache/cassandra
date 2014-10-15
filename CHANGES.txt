@@ -1,4 +1,5 @@
 2.1.1
+ * Fix NPE on null nested UDT inside a set (CASSANDRA-8105)
  * Fix exception when querying secondary index on set items or map keys
    when some clustering columns are specified (CASSANDRA-8073)
  * Send proper error response when there is an error during native

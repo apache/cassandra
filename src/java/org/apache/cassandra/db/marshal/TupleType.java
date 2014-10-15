@@ -72,8 +72,7 @@ public class TupleType extends AbstractType<ByteBuffer>
         ByteBuffer bb1 = o1.duplicate();
         ByteBuffer bb2 = o2.duplicate();
 
-        int i = 0;
-        while (bb1.remaining() > 0 && bb2.remaining() > 0)
+        for (int i = 0; bb1.remaining() > 0 && bb2.remaining() > 0; i++)
         {
             AbstractType<?> comparator = types.get(i);
 
@@ -95,8 +94,6 @@ public class TupleType extends AbstractType<ByteBuffer>
             int cmp = comparator.compare(value1, value2);
             if (cmp != 0)
                 return cmp;
-
-            ++i;
         }
 
         if (bb1.remaining() == 0)
