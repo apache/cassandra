@@ -29,6 +29,8 @@
 
 
 2.1.1
+ * Fix exception when querying secondary index on set items or map keys
+   when some clustering columns are specified (CASSANDRA-8073)
  * Send proper error response when there is an error during native
    protocol message decode (CASSANDRA-8118)
  * Gossip should ignore generation numbers too far in the future (CASSANDRA-8113)

@@ -20,7 +20,7 @@ package org.apache.cassandra.db.filter;
 import java.nio.ByteBuffer;
 import java.util.*;
 
-import org.apache.cassandra.db.marshal.CollectionType;
+import com.google.common.base.Objects;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -30,6 +30,7 @@ import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.composites.CellName;
 import org.apache.cassandra.db.composites.Composite;
 import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.CollectionType;
 import org.apache.cassandra.db.marshal.CompositeType;
 
 /**
@@ -146,6 +147,17 @@ public abstract class ExtendedFilter
             default:
                 throw new IllegalStateException();
         }
+    }
+
+    public String toString()
+    {
+        return Objects.toStringHelper(this)
+                      .add("dataRange", dataRange)
+                      .add("maxResults", maxResults)
+                      .add("currentLimit", currentLimit)
+                      .add("timestamp", timestamp)
+                      .add("countCQL3Rows", countCQL3Rows)
+                      .toString();
     }
 
     public static class WithClauses extends ExtendedFilter
@@ -391,6 +403,15 @@ public abstract class ExtendedFilter
                     return data.getSortedColumns().iterator().next().value();
             }
             throw new AssertionError();
+        }
+
+        public String toString()
+        {
+            return Objects.toStringHelper(this)
+                          .add("dataRange", dataRange)
+                          .add("timestamp", timestamp)
+                          .add("clause", clause)
+                          .toString();
         }
     }
 
