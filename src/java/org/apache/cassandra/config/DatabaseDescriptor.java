@@ -119,17 +119,9 @@ public class DatabaseDescriptor
         {
             applyConfig(loadConfig());
         }
-        catch (ConfigurationException e)
-        {
-            logger.error("Fatal configuration error", e);
-            System.err.println(e.getMessage() + "\nFatal configuration error; unable to start. See log for stacktrace.");
-            System.exit(1);
-        }
         catch (Exception e)
         {
-            logger.error("Fatal error during configuration loading", e);
-            System.err.println(e.getMessage() + "\nFatal error during configuration loading; unable to start. See log for stacktrace.");
-            System.exit(1);
+            throw new ExceptionInInitializerError(e.getMessage() + "\nFatal configuration error; unable to start. See log for stacktrace.");
         }
     }
 
@@ -601,9 +593,7 @@ public class DatabaseDescriptor
         // there are about 5 checked exceptions that could be thrown here.
         catch (Exception e)
         {
-            logger.error("Fatal configuration error", e);
-            System.err.println(e.getMessage() + "\nFatal configuration error; unable to start server.  See log for stacktrace.");
-            System.exit(1);
+            throw new ConfigurationException(e.getMessage() + "\nFatal configuration error; unable to start server.  See log for stacktrace.");
         }
         if (seedProvider.getSeeds().size() == 0)
             throw new ConfigurationException("The seed provider lists no seeds.");
@@ -722,15 +712,11 @@ public class DatabaseDescriptor
         }
         catch (ConfigurationException e)
         {
-            logger.error("Fatal error: {}", e.getMessage());
-            System.err.println("Bad configuration; unable to start server");
-            System.exit(1);
+            throw new IllegalArgumentException("Bad configuration; unable to start server: "+e.getMessage());
         }
         catch (FSWriteError e)
         {
-            logger.error("Fatal error: {}", e.getMessage());
-            System.err.println(e.getCause().getMessage() + "; unable to start server");
-            System.exit(1);
+            throw new IllegalStateException(e.getCause().getMessage() + "; unable to start server");
         }
     }
 
@@ -1571,8 +1557,7 @@ public class DatabaseDescriptor
             case offheap_buffers:
                 if (!FileUtils.isCleanerAvailable())
                 {
-                    logger.error("Could not free direct byte buffer: offheap_buffers is not a safe memtable_allocation_type without this ability, please adjust your config. This feature is only guaranteed to work on an Oracle JVM. Refusing to start.");
-                    System.exit(-1);
+                    throw new IllegalStateException("Could not free direct byte buffer: offheap_buffers is not a safe memtable_allocation_type without this ability, please adjust your config. This feature is only guaranteed to work on an Oracle JVM. Refusing to start.");
                 }
                 return new SlabPool(heapLimit, offHeapLimit, conf.memtable_cleanup_threshold, new ColumnFamilyStore.FlushLargestColumnFamily());
             case offheap_objects:

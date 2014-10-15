@@ -77,6 +77,16 @@ public class CassandraDaemon
     public Server thriftServer;
     public Server nativeServer;
 
+    private final boolean runManaged;
+
+    public CassandraDaemon() {
+        this(false);
+    }
+
+    public CassandraDaemon(boolean runManaged) {
+        this.runManaged = runManaged;
+    }
+
     /**
      * This is a hook for concrete daemons to initialize themselves suitably.
      *
@@ -140,8 +150,7 @@ public class CassandraDaemon
 
             if (jnaRequired)
             {
-                logger.error("JNA failing to initialize properly. Use -Dcassandra.boot_without_jna=true to bootstrap even so.");
-                System.exit(3);
+                exitOrFail(3, "JNA failing to initialize properly. Use -Dcassandra.boot_without_jna=true to bootstrap even so.");
             }
         }
 
@@ -198,15 +207,14 @@ public class CassandraDaemon
                 // if they don't, failing their creation, stop cassandra.
                 if (!dir.mkdirs())
                 {
-                    logger.error("Has no permission to create {} directory", dataDir);
-                    System.exit(3);
+                    exitOrFail(3, "Has no permission to create directory "+ dataDir);
                 }
             }
             // if directories exist verify their permissions
             if (!Directories.verifyFullPermissions(dir, dataDir))
             {
                 // if permissions aren't sufficient, stop cassandra.
-                System.exit(3);
+                exitOrFail(3, "Insufficient permissions on directory " + dataDir);
             }
 
 
@@ -226,9 +234,9 @@ public class CassandraDaemon
         }
         catch (ConfigurationException e)
         {
-            logger.error("Fatal exception during initialization", e);
-            System.exit(100);
+            exitOrFail(100, "Fatal exception during initialization", e);
         }
+
 
         // load keyspace && function descriptions.
         DatabaseDescriptor.loadSchemas();
@@ -337,9 +345,8 @@ public class CassandraDaemon
         }
         catch (ConfigurationException e)
         {
-            logger.error("Fatal configuration error", e);
             System.err.println(e.getMessage() + "\nFatal configuration error; unable to start server.  See log for stacktrace.");
-            System.exit(1);
+            exitOrFail(1, "Fatal configuration error", e);
         }
 
         Mx4jTool.maybeLoad();
@@ -474,8 +481,7 @@ public class CassandraDaemon
             // try to warn user on stdout too, if we haven't already detached
             e.printStackTrace();
             System.out.println("Exception encountered during startup: " + e.getMessage());
-
-            System.exit(3);
+            exitOrFail(3, "Exception encountered during startup", e);
         }
     }
 
@@ -486,6 +492,10 @@ public class CassandraDaemon
     {
         stop();
         destroy();
+        // completely shut down cassandra
+        if(!runManaged) {
+            System.exit(0);
+        }
     }
 
     private void waitForGossipToSettle()
@@ -543,6 +553,22 @@ public class CassandraDaemon
     {
         instance.activate();
     }
+    
+    private void exitOrFail(int code, String message) {
+        exitOrFail(code, message, null);
+    }
+
+    private void exitOrFail(int code, String message, Throwable cause) {
+            if(runManaged) {
+                RuntimeException t = cause!=null ? new RuntimeException(message, cause) : new RuntimeException(message);
+                throw t;
+            }
+            else {
+                logger.error(message, cause);
+                System.exit(code);
+            }
+
+        }
 
     static class NativeAccess implements NativeAccessMBean
     {
