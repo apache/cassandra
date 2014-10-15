@@ -35,8 +35,9 @@ public class DateTieredCompactionStrategy extends AbstractCompactionStrategy
 {
     private static final Logger logger = LoggerFactory.getLogger(DateTieredCompactionStrategy.class);
 
-    protected DateTieredCompactionStrategyOptions options;
+    private final DateTieredCompactionStrategyOptions options;
     protected volatile int estimatedRemainingTasks;
+    private final Set<SSTableReader> sstables = new HashSet<>();
 
     public DateTieredCompactionStrategy(ColumnFamilyStore cfs, Map<String, String> options)
     {
@@ -75,36 +76,12 @@ public class DateTieredCompactionStrategy extends AbstractCompactionStrategy
 
         int base = cfs.getMinimumCompactionThreshold();
         long now = getNow();
-        Iterable<SSTableReader> candidates = filterSuspectSSTables(cfs.getUncompactingSSTables());
+        Iterable<SSTableReader> candidates = filterSuspectSSTables(Sets.intersection(cfs.getUncompactingSSTables(), sstables));
 
-        Set<SSTableReader> repairedCandidates = new HashSet<>();
-        Set<SSTableReader> unRepairedCandidates = new HashSet<>();
-        for (SSTableReader sstable : candidates)
+        List<SSTableReader> mostInteresting = getCompactionCandidates(candidates, now, base);
+        if (mostInteresting != null)
         {
-            if (sstable.isRepaired())
-            {
-                repairedCandidates.add(sstable);
-            }
-            else
-            {
-                unRepairedCandidates.add(sstable);
-            }
-        }
-
-
-        List<SSTableReader> mostInterestingRepaired = getCompactionCandidates(repairedCandidates, now, base);
-        List<SSTableReader> mostInterestingUnrepaired = getCompactionCandidates(unRepairedCandidates, now, base);
-        if (mostInterestingRepaired != null && mostInterestingUnrepaired != null)
-        {
-            return mostInterestingRepaired.size() > mostInterestingUnrepaired.size() ? mostInterestingRepaired : mostInterestingUnrepaired;
-        }
-        else if (mostInterestingRepaired != null)
-        {
-            return mostInterestingRepaired;
-        }
-        else if (mostInterestingUnrepaired != null)
-        {
-            return mostInterestingUnrepaired;
+            return mostInteresting;
         }
 
         // if there is no sstable to compact in standard way, try compacting single sstable whose droppable tombstone
@@ -185,8 +162,17 @@ public class DateTieredCompactionStrategy extends AbstractCompactionStrategy
             sstableMinTimestampPairs.add(Pair.create(sstable, sstable.getMinTimestamp()));
         return sstableMinTimestampPairs;
     }
+    @Override
+    public void addSSTable(SSTableReader sstable)
+    {
+        sstables.add(sstable);
+    }
 
-
+    @Override
+    public void removeSSTable(SSTableReader sstable)
+    {
+        sstables.remove(sstable);
+    }
     /**
      * A target time span used for bucketing SSTables based on timestamps.
      */

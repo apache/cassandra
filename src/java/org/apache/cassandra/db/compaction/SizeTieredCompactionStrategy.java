@@ -31,7 +31,6 @@ import org.apache.cassandra.cql3.statements.CFPropDefs;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.sstable.SSTableReader;
-import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.utils.Pair;
 
 public class SizeTieredCompactionStrategy extends AbstractCompactionStrategy
@@ -62,6 +61,7 @@ public class SizeTieredCompactionStrategy extends AbstractCompactionStrategy
 
     protected SizeTieredCompactionStrategyOptions options;
     protected volatile int estimatedRemainingTasks;
+    private final Set<SSTableReader> sstables = new HashSet<>();
 
     public SizeTieredCompactionStrategy(ColumnFamilyStore cfs, Map<String, String> options)
     {
@@ -79,17 +79,8 @@ public class SizeTieredCompactionStrategy extends AbstractCompactionStrategy
         int minThreshold = cfs.getMinimumCompactionThreshold();
         int maxThreshold = cfs.getMaximumCompactionThreshold();
 
-        Iterable<SSTableReader> candidates = filterSuspectSSTables(cfs.getUncompactingSSTables());
+        Iterable<SSTableReader> candidates = filterSuspectSSTables(Sets.intersection(cfs.getUncompactingSSTables(), sstables));
         candidates = filterColdSSTables(Lists.newArrayList(candidates), options.coldReadsToOmit);
-        Pair<Set<SSTableReader>,Set<SSTableReader>> repairedUnrepaired = splitInRepairedAndUnrepaired(candidates);
-        if (repairedUnrepaired.left.size() > repairedUnrepaired.right.size())
-        {
-            candidates = repairedUnrepaired.left;
-        }
-        else
-        {
-            candidates = repairedUnrepaired.right;
-        }
 
         List<List<SSTableReader>> buckets = getBuckets(createSSTableAndLengthPairs(candidates), options.bucketHigh, options.bucketLow, options.minSSTableSize);
         logger.debug("Compaction buckets are {}", buckets);
@@ -111,20 +102,6 @@ public class SizeTieredCompactionStrategy extends AbstractCompactionStrategy
 
         Collections.sort(sstablesWithTombstones, new SSTableReader.SizeComparator());
         return Collections.singletonList(sstablesWithTombstones.get(0));
-    }
-
-    private static Pair<Set<SSTableReader>, Set<SSTableReader>> splitInRepairedAndUnrepaired(Iterable<SSTableReader> candidates)
-    {
-        Set<SSTableReader> repaired = new HashSet<>();
-        Set<SSTableReader> unRepaired = new HashSet<>();
-        for(SSTableReader candidate : candidates)
-        {
-            if (!candidate.isRepaired())
-                unRepaired.add(candidate);
-            else
-                repaired.add(candidate);
-        }
-        return Pair.create(repaired, unRepaired);
     }
 
     /**
@@ -276,20 +253,12 @@ public class SizeTieredCompactionStrategy extends AbstractCompactionStrategy
 
     public Collection<AbstractCompactionTask> getMaximalTask(final int gcBefore)
     {
-        Iterable<SSTableReader> allSSTables = cfs.markAllCompacting();
-        if (allSSTables == null || Iterables.isEmpty(allSSTables))
+        Iterable<SSTableReader> filteredSSTables = filterSuspectSSTables(sstables);
+        if (Iterables.isEmpty(sstables))
             return null;
-        Set<SSTableReader> sstables = Sets.newHashSet(allSSTables);
-        Set<SSTableReader> repaired = new HashSet<>();
-        Set<SSTableReader> unrepaired = new HashSet<>();
-        for (SSTableReader sstable : sstables)
-        {
-            if (sstable.isRepaired())
-                repaired.add(sstable);
-            else
-                unrepaired.add(sstable);
-        }
-        return Arrays.<AbstractCompactionTask>asList(new CompactionTask(cfs, repaired, gcBefore, false), new CompactionTask(cfs, unrepaired, gcBefore, false));
+        if (!cfs.getDataTracker().markCompacting(filteredSSTables))
+            return null;
+        return Arrays.<AbstractCompactionTask>asList(new CompactionTask(cfs, filteredSSTables, gcBefore, false));
     }
 
     public AbstractCompactionTask getUserDefinedTask(Collection<SSTableReader> sstables, final int gcBefore)
@@ -394,6 +363,24 @@ public class SizeTieredCompactionStrategy extends AbstractCompactionStrategy
         uncheckedOptions.remove(CFPropDefs.KW_MAXCOMPACTIONTHRESHOLD);
 
         return uncheckedOptions;
+    }
+
+    @Override
+    public boolean shouldDefragment()
+    {
+        return true;
+    }
+
+    @Override
+    public void addSSTable(SSTableReader added)
+    {
+        sstables.add(added);
+    }
+
+    @Override
+    public void removeSSTable(SSTableReader sstable)
+    {
+        sstables.remove(sstable);
     }
 
     public String toString()

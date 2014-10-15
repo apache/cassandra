@@ -35,6 +35,8 @@ import org.apache.cassandra.db.*;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.SSTableReader;
+import org.apache.cassandra.notifications.SSTableAddedNotification;
+import org.apache.cassandra.notifications.SSTableRepairStatusChanged;
 import org.apache.cassandra.repair.RepairJobDesc;
 import org.apache.cassandra.repair.Validator;
 import org.apache.cassandra.service.ActiveRepairService;
@@ -93,10 +95,10 @@ public class LeveledCompactionStrategyTest extends SchemaLoader
         }
 
         waitForLeveling(cfs);
-        LeveledCompactionStrategy strategy = (LeveledCompactionStrategy) cfs.getCompactionStrategy();
+        WrappingCompactionStrategy strategy = (WrappingCompactionStrategy) cfs.getCompactionStrategy();
         // Checking we're not completely bad at math
-        assert strategy.getLevelSize(1) > 0;
-        assert strategy.getLevelSize(2) > 0;
+        assert strategy.getSSTableCountPerLevel()[1] > 0;
+        assert strategy.getSSTableCountPerLevel()[2] > 0;
 
         Range<Token> range = new Range<>(Util.token(""), Util.token(""));
         int gcBefore = keyspace.getColumnFamilyStore(cfname).gcBefore(System.currentTimeMillis());
@@ -112,9 +114,9 @@ public class LeveledCompactionStrategyTest extends SchemaLoader
      */
     private void waitForLeveling(ColumnFamilyStore cfs) throws InterruptedException
     {
-        LeveledCompactionStrategy strategy = (LeveledCompactionStrategy) cfs.getCompactionStrategy();
+        WrappingCompactionStrategy strategy = (WrappingCompactionStrategy) cfs.getCompactionStrategy();
         // L0 is the lowest priority, so when that's done, we know everything is done
-        while (strategy.getLevelSize(0) > 1)
+        while (strategy.getSSTableCountPerLevel()[0] > 1)
             Thread.sleep(100);
     }
 
@@ -138,7 +140,7 @@ public class LeveledCompactionStrategyTest extends SchemaLoader
         }
 
         waitForLeveling(cfs);
-        LeveledCompactionStrategy strategy = (LeveledCompactionStrategy) cfs.getCompactionStrategy();
+        LeveledCompactionStrategy strategy = (LeveledCompactionStrategy) ((WrappingCompactionStrategy) cfs.getCompactionStrategy()).getWrappedStrategies().get(1);
         assert strategy.getLevelSize(1) > 0;
 
         // get LeveledScanner for level 1 sstables
@@ -177,7 +179,7 @@ public class LeveledCompactionStrategyTest extends SchemaLoader
         }
         waitForLeveling(cfs);
         cfs.forceBlockingFlush();
-        LeveledCompactionStrategy strategy = (LeveledCompactionStrategy) cfs.getCompactionStrategy();
+        LeveledCompactionStrategy strategy = (LeveledCompactionStrategy) ((WrappingCompactionStrategy) cfs.getCompactionStrategy()).getWrappedStrategies().get(1);
         cfs.disableAutoCompaction();
 
         while(CompactionManager.instance.isCompacting(Arrays.asList(cfs)))
@@ -227,61 +229,45 @@ public class LeveledCompactionStrategyTest extends SchemaLoader
         while(CompactionManager.instance.isCompacting(Arrays.asList(cfs)))
             Thread.sleep(100);
 
-        LeveledCompactionStrategy strategy = (LeveledCompactionStrategy) cfs.getCompactionStrategy();
-        assertTrue(strategy.getLevelSize(1) > 0);
-        assertTrue(strategy.getLevelSize(2) > 0);
+        WrappingCompactionStrategy strategy = (WrappingCompactionStrategy) cfs.getCompactionStrategy();
+        List<AbstractCompactionStrategy> strategies = strategy.getWrappedStrategies();
+        LeveledCompactionStrategy repaired = (LeveledCompactionStrategy) strategies.get(0);
+        LeveledCompactionStrategy unrepaired = (LeveledCompactionStrategy) strategies.get(1);
+        assertEquals(0, repaired.manifest.getLevelCount() );
+        assertEquals(2, unrepaired.manifest.getLevelCount());
+        assertTrue(strategy.getSSTableCountPerLevel()[1] > 0);
+        assertTrue(strategy.getSSTableCountPerLevel()[2] > 0);
 
         for (SSTableReader sstable : cfs.getSSTables())
-        {
             assertFalse(sstable.isRepaired());
-        }
-        int sstableCount = 0;
-        for (List<SSTableReader> level : strategy.manifest.generations)
-            sstableCount += level.size();
 
+        int sstableCount = 0;
+        for (List<SSTableReader> level : unrepaired.manifest.generations)
+            sstableCount += level.size();
+        // we only have unrepaired sstables:
         assertEquals(sstableCount, cfs.getSSTables().size());
 
-        assertFalse(strategy.manifest.hasRepairedData());
-        assertTrue(strategy.manifest.unrepairedL0.size() == 0);
+        SSTableReader sstable1 = unrepaired.manifest.generations[2].get(0);
+        SSTableReader sstable2 = unrepaired.manifest.generations[1].get(0);
 
-        SSTableReader sstable1 = strategy.manifest.generations[2].get(0);
-        SSTableReader sstable2 = strategy.manifest.generations[1].get(0);
-
-        // "repair" an sstable:
-        strategy.manifest.remove(sstable1);
         sstable1.descriptor.getMetadataSerializer().mutateRepairedAt(sstable1.descriptor, System.currentTimeMillis());
         sstable1.reloadSSTableMetadata();
         assertTrue(sstable1.isRepaired());
 
-        // make sure adding a repaired sstable makes the manifest contain only repaired data;
-        strategy.manifest.add(sstable1);
-        assertTrue(strategy.manifest.hasRepairedData());
-        assertTrue(strategy.manifest.generations[2].contains(sstable1));
-        assertFalse(strategy.manifest.generations[1].contains(sstable2));
-        assertTrue(strategy.manifest.unrepairedL0.contains(sstable2));
-        sstableCount = 0;
-        for (int i = 0; i < strategy.manifest.generations.length; i++)
-        {
-            sstableCount += strategy.manifest.generations[i].size();
-            if (i != 2)
-                assertEquals(strategy.manifest.generations[i].size(), 0);
-            else
-                assertEquals(strategy.manifest.generations[i].size(), 1);
-        }
-        assertEquals(1, sstableCount);
+        strategy.handleNotification(new SSTableRepairStatusChanged(Arrays.asList(sstable1)), this);
 
-        // make sure adding an unrepaired sstable puts it in unrepairedL0:
-        strategy.manifest.remove(sstable2);
-        strategy.manifest.add(sstable2);
-        assertTrue(strategy.manifest.unrepairedL0.contains(sstable2));
-        assertEquals(strategy.manifest.unrepairedL0.size(), cfs.getSSTables().size() - 1);
+        int repairedSSTableCount = 0;
+        for (List<SSTableReader> level : repaired.manifest.generations)
+            repairedSSTableCount += level.size();
+        assertEquals(1, repairedSSTableCount);
+        // make sure the repaired sstable ends up in the same level in the repaired manifest:
+        assertTrue(repaired.manifest.generations[2].contains(sstable1));
+        // and that it is gone from unrepaired
+        assertFalse(unrepaired.manifest.generations[2].contains(sstable1));
 
-        // make sure repairing an sstable takes it away from unrepairedL0 and puts it in the correct level:
-        strategy.manifest.remove(sstable2);
-        sstable2.descriptor.getMetadataSerializer().mutateRepairedAt(sstable2.descriptor, System.currentTimeMillis());
-        sstable2.reloadSSTableMetadata();
-        strategy.manifest.add(sstable2);
-        assertFalse(strategy.manifest.unrepairedL0.contains(sstable2));
-        assertTrue(strategy.manifest.generations[1].contains(sstable2));
+        unrepaired.removeSSTable(sstable2);
+        strategy.handleNotification(new SSTableAddedNotification(sstable2), this);
+        assertTrue(unrepaired.manifest.getLevel(1).contains(sstable2));
+        assertFalse(repaired.manifest.getLevel(1).contains(sstable2));
     }
 }
