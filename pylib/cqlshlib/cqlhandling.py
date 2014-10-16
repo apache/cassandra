@@ -33,7 +33,8 @@ class CqlParsingRuleSet(pylexotron.ParsingRuleSet):
 
     available_compaction_classes = (
         'LeveledCompactionStrategy',
-        'SizeTieredCompactionStrategy'
+        'SizeTieredCompactionStrategy',
+        'DateTieredCompactionStrategy'
     )
 
     replication_strategies = (
