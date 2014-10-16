@@ -111,6 +111,13 @@ Upgrading
      has been deprecated.
    - support for supercolumns has been removed from json2sstable
 
+2.0.11
+======
+New features
+------------
+    - DateTieredCompactionStrategy added, optimized for time series data and groups
+      data that is written closely in time (CASSANDRA-6602 for details). Consider
+      this experimental for now.
 
 2.0.10
 ======
