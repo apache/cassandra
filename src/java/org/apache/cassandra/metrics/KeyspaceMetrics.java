@@ -62,6 +62,12 @@ public class KeyspaceMetrics
     public final Histogram tombstoneScannedHistogram;
     /** Live cells scanned in queries on this Keyspace */
     public final Histogram liveScannedHistogram;
+    /** CAS Prepare metric */
+    public final LatencyMetrics casPrepare;
+    /** CAS Propose metrics */
+    public final LatencyMetrics casPropose;
+    /** CAS Commit metrics */
+    public final LatencyMetrics casCommit;
 
     private final MetricNameFactory factory;
     private Keyspace keyspace;
@@ -151,6 +157,10 @@ public class KeyspaceMetrics
         liveScannedHistogram = Metrics.newHistogram(factory.createMetricName("LiveScannedHistogram"), true);
         // add manually since histograms do not use createKeyspaceGauge method
         allMetrics.addAll(Lists.newArrayList("SSTablesPerReadHistogram", "TombstoneScannedHistogram", "LiveScannedHistogram"));
+
+        casPrepare = new LatencyMetrics(factory, "CasPrepare");
+        casPropose = new LatencyMetrics(factory, "CasPropose");
+        casCommit = new LatencyMetrics(factory, "CasCommit");
     }
 
     /**
