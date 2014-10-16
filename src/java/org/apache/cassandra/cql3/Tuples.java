@@ -240,13 +240,13 @@ public class Tuples
             this.elements = items;
         }
 
-        public static InValue fromSerialized(ByteBuffer value, ListType type) throws InvalidRequestException
+        public static InValue fromSerialized(ByteBuffer value, ListType type, QueryOptions options) throws InvalidRequestException
         {
             try
             {
                 // Collections have this small hack that validate cannot be called on a serialized object,
-                // but compose does the validation (so we're fine).
-                List<?> l = (List<?>)type.compose(value);
+                // but the deserialization does the validation (so we're fine).
+                List<?> l = (List<?>)type.getSerializer().deserializeForNativeProtocol(value, options.getProtocolVersion());
 
                 assert type.elements instanceof TupleType;
                 TupleType tupleType = (TupleType) type.elements;
@@ -391,7 +391,7 @@ public class Tuples
         public InValue bind(QueryOptions options) throws InvalidRequestException
         {
             ByteBuffer value = options.getValues().get(bindIndex);
-            return value == null ? null : InValue.fromSerialized(value, (ListType)receiver.type);
+            return value == null ? null : InValue.fromSerialized(value, (ListType)receiver.type, options);
         }
     }
 
