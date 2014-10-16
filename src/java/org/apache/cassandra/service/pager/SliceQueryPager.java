@@ -23,6 +23,7 @@ import java.util.List;
 
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.composites.CellName;
+import org.apache.cassandra.db.composites.Composite;
 import org.apache.cassandra.db.filter.SliceQueryFilter;
 import org.apache.cassandra.exceptions.RequestValidationException;
 import org.apache.cassandra.exceptions.RequestExecutionException;
@@ -39,7 +40,7 @@ public class SliceQueryPager extends AbstractQueryPager implements SinglePartiti
 
     private final SliceFromReadCommand command;
 
-    private volatile CellName lastReturned;
+    private volatile Composite lastReturned;
 
     // Don't use directly, use QueryPagers method instead
     SliceQueryPager(SliceFromReadCommand command, ConsistencyLevel consistencyLevel, boolean localQuery)
@@ -54,7 +55,7 @@ public class SliceQueryPager extends AbstractQueryPager implements SinglePartiti
 
         if (state != null)
         {
-            lastReturned = cfm.comparator.cellFromByteBuffer(state.cellName);
+            lastReturned = cfm.comparator.fromByteBuffer(state.cellName);
             restoreState(state.remaining, true);
         }
     }
@@ -74,7 +75,10 @@ public class SliceQueryPager extends AbstractQueryPager implements SinglePartiti
     protected List<Row> queryNextPage(int pageSize, ConsistencyLevel consistencyLevel, boolean localQuery)
     throws RequestValidationException, RequestExecutionException
     {
-        SliceQueryFilter filter = command.filter.withUpdatedCount(pageSize);
+        // For some queries, such as a DISTINCT query on static columns, the limit for slice queries will be lower
+        // than the page size (in the static example, it will be 1).  We use the min here to ensure we don't fetch
+        // more rows than we're supposed to.  See CASSANDRA-8108 for more details.
+        SliceQueryFilter filter = command.filter.withUpdatedCount(Math.min(command.filter.count, pageSize));
         if (lastReturned != null)
             filter = filter.withUpdatedStart(lastReturned, cfm.comparator);
 

@@ -29,6 +29,8 @@
 
 
 2.1.1
+ * Fix ClassCastException in DISTINCT query on static columns with
+   query paging (CASSANDRA-8108)
  * Fix NPE on null nested UDT inside a set (CASSANDRA-8105)
  * Fix exception when querying secondary index on set items or map keys
    when some clustering columns are specified (CASSANDRA-8073)
@@ -110,6 +112,8 @@
  * Fix snapshot repair error on indexed tables (CASSANDRA-8020)
  * Do not exit nodetool repair when receiving JMX NOTIF_LOST (CASSANDRA-7909)
 Merged from 2.0:
+ * Fix duplicate results in DISTINCT queries on static columns with query
+   paging (CASSANDRA-8108)
  * Properly validate ascii and utf8 string literals in CQL queries (CASSANDRA-8101)
  * (cqlsh) Fix autocompletion for alter keyspace (CASSANDRA-8021)
  * Create backup directories for commitlog archiving during startup (CASSANDRA-8111)

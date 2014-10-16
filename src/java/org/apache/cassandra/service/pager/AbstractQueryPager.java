@@ -47,7 +47,7 @@ abstract class AbstractQueryPager implements QueryPager
 
     private int remaining;
     private boolean exhausted;
-    private boolean lastWasRecorded;
+    private boolean shouldFetchExtraRow;
 
     protected AbstractQueryPager(ConsistencyLevel consistencyLevel,
                                  int toFetch,
@@ -123,9 +123,9 @@ abstract class AbstractQueryPager implements QueryPager
             rows = discardFirst(rows);
             remaining++;
         }
-        // Otherwise, if 'lastWasRecorded', we queried for one more than the page size,
+        // Otherwise, if 'shouldFetchExtraRow' was set, we queried for one more than the page size,
         // so if the page is full, trim the last entry
-        else if (lastWasRecorded && !exhausted)
+        else if (shouldFetchExtraRow && !exhausted)
         {
             // We've asked for one more than necessary
             rows = discardLast(rows);
@@ -135,7 +135,7 @@ abstract class AbstractQueryPager implements QueryPager
         logger.debug("Remaining rows to page: {}", remaining);
 
         if (!isExhausted())
-            lastWasRecorded = recordLast(rows.get(rows.size() - 1));
+            shouldFetchExtraRow = recordLast(rows.get(rows.size() - 1));
 
         return rows;
     }
@@ -160,10 +160,10 @@ abstract class AbstractQueryPager implements QueryPager
         return result;
     }
 
-    protected void restoreState(int remaining, boolean lastWasRecorded)
+    protected void restoreState(int remaining, boolean shouldFetchExtraRow)
     {
         this.remaining = remaining;
-        this.lastWasRecorded = lastWasRecorded;
+        this.shouldFetchExtraRow = shouldFetchExtraRow;
     }
 
     public boolean isExhausted()
@@ -183,7 +183,7 @@ abstract class AbstractQueryPager implements QueryPager
 
     private int nextPageSize(int pageSize)
     {
-        return Math.min(remaining, pageSize) + (lastWasRecorded ? 1 : 0);
+        return Math.min(remaining, pageSize) + (shouldFetchExtraRow ? 1 : 0);
     }
 
     public ColumnCounter columnCounter()
@@ -192,8 +192,21 @@ abstract class AbstractQueryPager implements QueryPager
     }
 
     protected abstract List<Row> queryNextPage(int pageSize, ConsistencyLevel consistency, boolean localQuery) throws RequestValidationException, RequestExecutionException;
+
+    /**
+     * Checks to see if the first row of a new page contains the last row from the previous page.
+     * @param first the first row of the new page
+     * @return true if <code>first</code> contains the last from from the previous page and it is live, false otherwise
+     */
     protected abstract boolean containsPreviousLast(Row first);
+
+    /**
+     * Saves the paging state by recording the last seen partition key and cell name (where applicable).
+     * @param last the last row in the current page
+     * @return true if an extra row should be fetched in the next page,false otherwise
+     */
     protected abstract boolean recordLast(Row last);
+
     protected abstract boolean isReversed();
 
     private List<Row> discardFirst(List<Row> rows)
