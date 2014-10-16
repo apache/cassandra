@@ -73,7 +73,10 @@ public class SliceQueryPager extends AbstractQueryPager implements SinglePartiti
     protected List<Row> queryNextPage(int pageSize, ConsistencyLevel consistencyLevel, boolean localQuery)
     throws RequestValidationException, RequestExecutionException
     {
-        SliceQueryFilter filter = command.filter.withUpdatedCount(pageSize);
+        // For some queries, such as a DISTINCT query on static columns, the limit for slice queries will be lower
+        // than the page size (in the static example, it will be 1).  We use the min here to ensure we don't fetch
+        // more rows than we're supposed to.  See CASSANDRA-8108 for more details.
+        SliceQueryFilter filter = command.filter.withUpdatedCount(Math.min(command.filter.count, pageSize));
         if (lastReturned != null)
             filter = filter.withUpdatedStart(lastReturned, cfm.comparator);
 
