@@ -350,7 +350,8 @@ rpc_keepalive: true
 # hsha  -> Stands for "half synchronous, half asynchronous." All thrift clients are handled
 #          asynchronously using a small number of threads that does not vary with the amount
 #          of thrift clients (and thus scales well to many clients). The rpc requests are still
-#          synchronous (one thread per active request).
+#          synchronous (one thread per active request). If hsha is selected then it is essential
+#          that rpc_max_threads is changed from the default value of unlimited.
 #
 # The default is sync because on Windows hsha is about 30% slower.  On Linux,
 # sync/hsha performance is about the same, with hsha of course using less memory.
