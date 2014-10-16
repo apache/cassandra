@@ -109,6 +109,12 @@ public class ColumnFamilyMetrics
     public final Counter rowCacheHit;
     /** Number of row cache misses */
     public final Counter rowCacheMiss;
+    /** CAS Prepare metrics */
+    public final LatencyMetrics casPrepare;
+    /** CAS Propose metrics */
+    public final LatencyMetrics casPropose;
+    /** CAS Commit metrics */
+    public final LatencyMetrics casCommit;
 
     public final Timer coordinatorReadLatency;
     public final Timer coordinatorScanLatency;
@@ -505,6 +511,10 @@ public class ColumnFamilyMetrics
         rowCacheHitOutOfRange = createColumnFamilyCounter("RowCacheHitOutOfRange");
         rowCacheHit = createColumnFamilyCounter("RowCacheHit");
         rowCacheMiss = createColumnFamilyCounter("RowCacheMiss");
+
+        casPrepare = new LatencyMetrics(factory, "CasPrepare", cfs.keyspace.metric.casPrepare);
+        casPropose = new LatencyMetrics(factory, "CasPropose", cfs.keyspace.metric.casPropose);
+        casCommit = new LatencyMetrics(factory, "CasCommit", cfs.keyspace.metric.casCommit);
     }
 
     public void updateSSTableIterated(int count)

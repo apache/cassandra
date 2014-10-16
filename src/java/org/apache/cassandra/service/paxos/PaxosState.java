@@ -27,9 +27,7 @@ import com.google.common.util.concurrent.Striped;
 
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.db.Mutation;
-import org.apache.cassandra.db.Keyspace;
-import org.apache.cassandra.db.SystemKeyspace;
+import org.apache.cassandra.db.*;
 import org.apache.cassandra.tracing.Tracing;
 
 public class PaxosState
@@ -57,67 +55,92 @@ public class PaxosState
 
     public static PrepareResponse prepare(Commit toPrepare)
     {
-        Lock lock = LOCKS.get(toPrepare.key);
-        lock.lock();
+        long start = System.nanoTime();
         try
         {
-            PaxosState state = SystemKeyspace.loadPaxosState(toPrepare.key, toPrepare.update.metadata());
-            if (toPrepare.isAfter(state.promised))
+            Lock lock = LOCKS.get(toPrepare.key);
+            lock.lock();
+            try
             {
-                Tracing.trace("Promising ballot {}", toPrepare.ballot);
-                SystemKeyspace.savePaxosPromise(toPrepare);
-                return new PrepareResponse(true, state.accepted, state.mostRecentCommit);
+                PaxosState state = SystemKeyspace.loadPaxosState(toPrepare.key, toPrepare.update.metadata());
+                if (toPrepare.isAfter(state.promised))
+                {
+                    Tracing.trace("Promising ballot {}", toPrepare.ballot);
+                    SystemKeyspace.savePaxosPromise(toPrepare);
+                    return new PrepareResponse(true, state.accepted, state.mostRecentCommit);
+                }
+                else
+                {
+                    Tracing.trace("Promise rejected; {} is not sufficiently newer than {}", toPrepare, state.promised);
+                    // return the currently promised ballot (not the last accepted one) so the coordinator can make sure it uses newer ballot next time (#5667)
+                    return new PrepareResponse(false, state.promised, state.mostRecentCommit);
+                }
             }
-            else
+            finally
             {
-                Tracing.trace("Promise rejected; {} is not sufficiently newer than {}", toPrepare, state.promised);
-                // return the currently promised ballot (not the last accepted one) so the coordinator can make sure it uses newer ballot next time (#5667)
-                return new PrepareResponse(false, state.promised, state.mostRecentCommit);
+                lock.unlock();
             }
         }
         finally
         {
-            lock.unlock();
+            Keyspace.open(toPrepare.update.metadata().ksName).getColumnFamilyStore(toPrepare.update.metadata().cfId).metric.casPrepare.addNano(System.nanoTime() - start);
         }
+
     }
 
     public static Boolean propose(Commit proposal)
     {
-        Lock lock = LOCKS.get(proposal.key);
-        lock.lock();
+        long start = System.nanoTime();
         try
         {
-            Commit promised = SystemKeyspace.loadPaxosPromise(proposal.key, proposal.update.metadata());
-            if (proposal.hasBallot(promised.ballot) || proposal.isAfter(promised))
+            Lock lock = LOCKS.get(proposal.key);
+            lock.lock();
+            try
             {
-                Tracing.trace("Accepting proposal {}", proposal);
-                SystemKeyspace.savePaxosProposal(proposal);
-                return true;
+                PaxosState state = SystemKeyspace.loadPaxosState(proposal.key, proposal.update.metadata());
+                if (proposal.hasBallot(state.promised.ballot) || proposal.isAfter(state.promised))
+                {
+                    Tracing.trace("Accepting proposal {}", proposal);
+                    SystemKeyspace.savePaxosProposal(proposal);
+                    return true;
+                }
+                else
+                {
+                    Tracing.trace("Rejecting proposal for {} because inProgress is now {}", proposal, state.promised);
+                    return false;
+                }
             }
-            else
+            finally
             {
-                Tracing.trace("Rejecting proposal for {} because inProgress is now {}", proposal, promised);
-                return false;
+                lock.unlock();
             }
         }
         finally
         {
-            lock.unlock();
+            Keyspace.open(proposal.update.metadata().ksName).getColumnFamilyStore(proposal.update.metadata().cfId).metric.casPropose.addNano(System.nanoTime() - start);
         }
     }
 
     public static void commit(Commit proposal)
     {
-        // There is no guarantee we will see commits in the right order, because messages
-        // can get delayed, so a proposal can be older than our current most recent ballot/commit.
-        // Committing it is however always safe due to column timestamps, so always do it. However,
-        // if our current in-progress ballot is strictly greater than the proposal one, we shouldn't
-        // erase the in-progress update.
-        Tracing.trace("Committing proposal {}", proposal);
-        Mutation mutation = proposal.makeMutation();
-        Keyspace.open(mutation.getKeyspaceName()).apply(mutation, true);
+        long start = System.nanoTime();
+        try
+        {
+            // There is no guarantee we will see commits in the right order, because messages
+            // can get delayed, so a proposal can be older than our current most recent ballot/commit.
+            // Committing it is however always safe due to column timestamps, so always do it. However,
+            // if our current in-progress ballot is strictly greater than the proposal one, we shouldn't
+            // erase the in-progress update.
+            Tracing.trace("Committing proposal {}", proposal);
+            Mutation mutation = proposal.makeMutation();
+            Keyspace.open(mutation.getKeyspaceName()).apply(mutation, true);
 
-        // We don't need to lock, we're just blindly updating
-        SystemKeyspace.savePaxosCommit(proposal);
+            // We don't need to lock, we're just blindly updating
+            SystemKeyspace.savePaxosCommit(proposal);
+        }
+        finally
+        {
+            Keyspace.open(proposal.update.metadata().ksName).getColumnFamilyStore(proposal.update.metadata().cfId).metric.casCommit.addNano(System.nanoTime() - start);
+        }
     }
 }
