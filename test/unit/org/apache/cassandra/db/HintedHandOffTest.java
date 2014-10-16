@@ -23,7 +23,6 @@ package org.apache.cassandra.db;
 import java.net.InetAddress;
 import java.util.Map;
 import java.util.UUID;
-import java.util.concurrent.TimeUnit;
 
 import org.junit.Test;
 
@@ -31,12 +30,10 @@ import com.google.common.collect.Iterators;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.cql3.UntypedResultSet;
-import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.compaction.SizeTieredCompactionStrategy;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.UUIDType;
 import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.utils.FBUtilities;
 
 import static org.junit.Assert.assertEquals;
 import static org.apache.cassandra.cql3.QueryProcessor.processInternal;
@@ -75,9 +72,7 @@ public class HintedHandOffTest extends SchemaLoader
         assertEquals(1, hintStore.getSSTables().size());
 
         // submit compaction
-        FBUtilities.waitOnFuture(HintedHandOffManager.instance.compact());
-        while (CompactionManager.instance.getPendingTasks() > 0 || CompactionManager.instance.getActiveCompactions() > 0)
-            TimeUnit.SECONDS.sleep(1);
+        HintedHandOffManager.instance.compact();
 
         // single row should not be removed because of gc_grace_seconds
         // is 10 hours and there are no any tombstones in sstable

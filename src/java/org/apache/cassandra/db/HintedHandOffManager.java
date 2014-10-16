@@ -216,6 +216,7 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
                 {
                     logger.info("Deleting any stored hints for {}", endpoint);
                     rm.apply();
+                    hintStore.forceBlockingFlush();
                     compact();
                 }
                 catch (Exception e)
@@ -250,13 +251,20 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
     }
 
     @VisibleForTesting
-    protected Future<?> compact()
+    protected void compact()
     {
-        hintStore.forceBlockingFlush();
-        ArrayList<Descriptor> descriptors = new ArrayList<Descriptor>();
+        ArrayList<Descriptor> descriptors = new ArrayList<>();
         for (SSTable sstable : hintStore.getDataTracker().getUncompactingSSTables())
             descriptors.add(sstable.descriptor);
-        return CompactionManager.instance.submitUserDefined(hintStore, descriptors, (int) (System.currentTimeMillis() / 1000));
+
+        try
+        {
+            CompactionManager.instance.submitUserDefined(hintStore, descriptors, (int) (System.currentTimeMillis() / 1000)).get();
+        }
+        catch (InterruptedException | ExecutionException e)
+        {
+            throw new RuntimeException(e);
+        }
     }
 
     private static boolean pagingFinished(ColumnFamily hintColumnFamily, ByteBuffer startColumn)
@@ -333,9 +341,8 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
     /*
      * 1. Get the key of the endpoint we need to handoff
      * 2. For each column, deserialize the mutation and send it to the endpoint
-     * 3. Delete the subcolumn if the write was successful
+     * 3. Delete the column if the write was successful
      * 4. Force a flush
-     * 5. Do major compaction to clean up all deletes etc.
      */
     private void doDeliverHintsToEndpoint(InetAddress endpoint)
     {
@@ -357,7 +364,6 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
                            / (StorageService.instance.getTokenMetadata().getAllEndpoints().size() - 1);
         RateLimiter rateLimiter = RateLimiter.create(throttleInKB == 0 ? Double.MAX_VALUE : throttleInKB * 1024);
 
-        boolean finished = false;
         delivery:
         while (true)
         {
@@ -375,7 +381,6 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
             if (pagingFinished(hintsPage, startColumn))
             {
                 logger.info("Finished hinted handoff of {} rows to endpoint {}", rowsReplayed, endpoint);
-                finished = true;
                 break;
             }
 
@@ -469,17 +474,8 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
             }
         }
 
-        if (finished || rowsReplayed.get() >= DatabaseDescriptor.getTombstoneWarnThreshold())
-        {
-            try
-            {
-                compact().get();
-            }
-            catch (Exception e)
-            {
-                throw new RuntimeException(e);
-            }
-        }
+        // Flush all the tombstones to disk
+        hintStore.forceBlockingFlush();
     }
 
     // read less columns (mutations) per page if they are very large
@@ -503,8 +499,12 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
      */
     private void scheduleAllDeliveries()
     {
-        if (logger.isDebugEnabled())
-          logger.debug("Started scheduleAllDeliveries");
+        logger.debug("Started scheduleAllDeliveries");
+
+        // Force a major compaction to get rid of the tombstones and expired hints. Do it once, before we schedule any
+        // individual replay, to avoid N - 1 redundant individual compactions (when N is the number of nodes with hints
+        // to deliver to).
+        compact();
 
         IPartitioner p = StorageService.getPartitioner();
         RowPosition minPos = p.getMinimumToken().minKeyBound();
@@ -517,11 +517,10 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
             InetAddress target = StorageService.instance.getTokenMetadata().getEndpointForHostId(hostId);
             // token may have since been removed (in which case we have just read back a tombstone)
             if (target != null)
-                scheduleHintDelivery(target);
+                scheduleHintDelivery(target, false);
         }
 
-        if (logger.isDebugEnabled())
-          logger.debug("Finished scheduleAllDeliveries");
+        logger.debug("Finished scheduleAllDeliveries");
     }
 
     /*
@@ -529,7 +528,7 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
      * When we learn that some endpoint is back up we deliver the data
      * to him via an event driven mechanism.
     */
-    public void scheduleHintDelivery(final InetAddress to)
+    public void scheduleHintDelivery(final InetAddress to, final boolean precompact)
     {
         // We should not deliver hints to the same host in 2 different threads
         if (!queuedDeliveries.add(to))
@@ -543,6 +542,11 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
             {
                 try
                 {
+                    // If it's an individual node hint replay (triggered by Gossip or via JMX), and not the global scheduled replay
+                    // (every 10 minutes), force a major compaction to get rid of the tombstones and expired hints.
+                    if (precompact)
+                        compact();
+
                     deliverHintsToEndpoint(to);
                 }
                 finally
@@ -555,7 +559,7 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
 
     public void scheduleHintDelivery(String to) throws UnknownHostException
     {
-        scheduleHintDelivery(InetAddress.getByName(to));
+        scheduleHintDelivery(InetAddress.getByName(to), true);
     }
 
     public void pauseHintsDelivery(boolean b)
