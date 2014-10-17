@@ -115,6 +115,7 @@
  * Fix snapshot repair error on indexed tables (CASSANDRA-8020)
  * Do not exit nodetool repair when receiving JMX NOTIF_LOST (CASSANDRA-7909)
 Merged from 2.0:
+ * Reject conditions on DELETE unless full PK is given (CASSANDRA-6430)
  * Properly reject the token function DELETE (CASSANDRA-7747)
  * Force batchlog replay before decommissioning a node (CASSANDRA-7446)
  * Fix hint replay with many accumulated expired hints (CASSANDRA-6998)

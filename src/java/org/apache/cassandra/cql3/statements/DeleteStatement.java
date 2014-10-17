@@ -20,6 +20,8 @@ package org.apache.cassandra.cql3.statements;
 import java.nio.ByteBuffer;
 import java.util.*;
 
+import com.google.common.collect.Iterators;
+
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
@@ -82,6 +84,23 @@ public class DeleteStatement extends ModificationStatement
             for (Operation op : deletions)
                 op.execute(key, cf, prefix, params);
         }
+    }
+
+    protected void validateWhereClauseForConditions() throws InvalidRequestException
+    {
+        Iterator<ColumnDefinition> iterator = Iterators.concat(cfm.partitionKeyColumns().iterator(), cfm.clusteringColumns().iterator());
+        while (iterator.hasNext())
+        {
+            ColumnDefinition def = iterator.next();
+            Restriction restriction = processedKeys.get(def.name);
+            if (restriction == null || !(restriction.isEQ() || restriction.isIN()))
+            {
+                throw new InvalidRequestException(
+                        String.format("DELETE statements must restrict all PRIMARY KEY columns with equality relations in order " +
+                                      "to use IF conditions, but column '%s' is not restricted", def.name));
+            }
+        }
+
     }
 
     public static class Parsed extends ModificationStatement.Parsed
