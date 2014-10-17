@@ -264,9 +264,12 @@ public abstract class ModificationStatement implements CQLStatement, MeasurableF
             if (!(relation instanceof SingleColumnRelation))
             {
                 throw new InvalidRequestException(
-                        String.format("Multi-column relations cannot be used in WHERE clauses for modification statements: %s", relation));
+                        String.format("Multi-column relations cannot be used in WHERE clauses for UPDATE and DELETE statements: %s", relation));
             }
             SingleColumnRelation rel = (SingleColumnRelation) relation;
+
+            if (rel.onToken)
+                throw new InvalidRequestException(String.format("The token function cannot be used in WHERE clauses for UPDATE and DELETE statements: %s", relation));
 
             CFDefinition.Name name = cfDef.get(rel.getEntity());
             if (name == null)
