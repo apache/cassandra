@@ -3062,8 +3062,9 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         if (logger.isDebugEnabled())
             logger.debug("DECOMMISSIONING");
         startLeaving();
-        setMode(Mode.LEAVING, "sleeping " + RING_DELAY + " ms for pending range setup", true);
-        Thread.sleep(RING_DELAY);
+        long timeout = Math.max(RING_DELAY, BatchlogManager.instance.getBatchlogTimeout());
+        setMode(Mode.LEAVING, "sleeping " + timeout + " ms for batch processing and pending range setup", true);
+        Thread.sleep(timeout);
 
         Runnable finishLeaving = new Runnable()
         {
@@ -3106,13 +3107,29 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             rangesToStream.put(keyspaceName, rangesMM);
         }
 
-        setMode(Mode.LEAVING, "streaming data to other nodes", true);
+        setMode(Mode.LEAVING, "replaying batch log and streaming data to other nodes", true);
 
+        // Start with BatchLog replay, which may create hints but no writes since this is no longer a valid endpoint.
+        Future<?> batchlogReplay = BatchlogManager.instance.startBatchlogReplay();
         Future<StreamState> streamSuccess = streamRanges(rangesToStream);
+
+        // Wait for batch log to complete before streaming hints.
+        logger.debug("waiting for batch log processing.");
+        try
+        {
+            batchlogReplay.get();
+        }
+        catch (ExecutionException | InterruptedException e)
+        {
+            throw new RuntimeException(e);
+        }
+
+        setMode(Mode.LEAVING, "streaming hints to other nodes", true);
+
         Future<StreamState> hintsSuccess = streamHints();
 
         // wait for the transfer runnables to signal the latch.
-        logger.debug("waiting for stream aks.");
+        logger.debug("waiting for stream acks.");
         try
         {
             streamSuccess.get();
