@@ -152,7 +152,7 @@ public class CompactionTask extends AbstractCompactionTask
             {
                 AbstractCompactionIterable ci = new CompactionIterable(compactionType, scanners.scanners, controller);
                 Iterator<AbstractCompactedRow> iter = ci.iterator();
-
+                List<SSTableReader> newSStables;
                 // we can't preheat until the tracker has been set. This doesn't happen until we tell the cfs to
                 // replace the old entries.  Track entries to preheat here until then.
                 long minRepairedAt = getMinRepairedAt(actuallyCompact);
@@ -161,7 +161,7 @@ public class CompactionTask extends AbstractCompactionTask
                 if (collector != null)
                     collector.beginCompaction(ci);
                 long lastCheckObsoletion = start;
-                SSTableRewriter writer = new SSTableRewriter(cfs, sstables, maxAge, compactionType, offline);
+                SSTableRewriter writer = new SSTableRewriter(cfs, sstables, maxAge, offline);
                 try
                 {
                     if (!iter.hasNext())
@@ -197,7 +197,7 @@ public class CompactionTask extends AbstractCompactionTask
                     }
 
                     // don't replace old sstables yet, as we need to mark the compaction finished in the system table
-                    writer.finish(false);
+                    newSStables = writer.finish();
                 }
                 catch (Throwable t)
                 {
@@ -217,7 +217,6 @@ public class CompactionTask extends AbstractCompactionTask
                 }
 
                 Collection<SSTableReader> oldSStables = this.sstables;
-                List<SSTableReader> newSStables = writer.finished();
                 if (!offline)
                     cfs.getDataTracker().markCompactedSSTablesReplaced(oldSStables, newSStables, compactionType);
 

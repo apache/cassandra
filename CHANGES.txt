@@ -1,4 +1,5 @@
 2.1.2
+ * Refactor how we track live size (CASSANDRA-7852)
  * Make sure unfinished compaction files are removed (CASSANDRA-8124)
  * Fix shutdown when run as Windows service (CASSANDRA-8136)
  * Fix DESCRIBE TABLE with custom indexes (CASSANDRA-8031)
