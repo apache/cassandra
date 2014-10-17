@@ -995,7 +995,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
                 if (logger.isTraceEnabled())
                     logger.trace("{} local generation {}, remote generation {}", ep, localGeneration, remoteGeneration);
 
-                if (remoteGeneration > localGeneration + MAX_GENERATION_DIFFERENCE)
+                if (localGeneration != 0 && remoteGeneration > localGeneration + MAX_GENERATION_DIFFERENCE)
                 {
                     // assume some peer has corrupted memory and is broadcasting an unbelievable generation about another peer (or itself)
                     logger.warn("received an invalid gossip generation for peer {}; local generation = {}, received generation = {}", ep, localGeneration, remoteGeneration);
