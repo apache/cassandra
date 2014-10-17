@@ -219,11 +219,11 @@ public class DynamicCompositeTypeTest extends SchemaLoader
 
         Iterator<Cell> iter = cf.getSortedColumns().iterator();
 
-        assert iter.next().name().equals(cname5);
-        assert iter.next().name().equals(cname4);
-        assert iter.next().name().equals(cname1); // null UUID < reversed value
-        assert iter.next().name().equals(cname3);
-        assert iter.next().name().equals(cname2);
+        assert iter.next().name().toByteBuffer().equals(cname5);
+        assert iter.next().name().toByteBuffer().equals(cname4);
+        assert iter.next().name().toByteBuffer().equals(cname1); // null UUID < reversed value
+        assert iter.next().name().toByteBuffer().equals(cname3);
+        assert iter.next().name().toByteBuffer().equals(cname2);
     }
 
     @Test
