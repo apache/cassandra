@@ -25,7 +25,6 @@ import java.net.InetAddress;
 import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.concurrent.*;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import javax.management.MBeanServer;
 import javax.management.ObjectName;
@@ -69,8 +68,8 @@ public class BatchlogManager implements BatchlogManagerMBean
     public static final BatchlogManager instance = new BatchlogManager();
 
     private final AtomicLong totalBatchesReplayed = new AtomicLong();
-    private final AtomicBoolean isReplaying = new AtomicBoolean();
 
+    // Single-thread executor service for scheduling and serializing log replay.
     public static final ScheduledExecutorService batchlogTasks = new DebuggableScheduledThreadPoolExecutor("BatchlogTasks");
 
     public void start()
@@ -108,6 +107,11 @@ public class BatchlogManager implements BatchlogManagerMBean
 
     public void forceBatchlogReplay()
     {
+        startBatchlogReplay();
+    }
+
+    public Future<?> startBatchlogReplay()
+    {
         Runnable runnable = new WrappedRunnable()
         {
             public void runMayThrow() throws ExecutionException, InterruptedException
@@ -115,7 +119,8 @@ public class BatchlogManager implements BatchlogManagerMBean
                 replayAllFailedBatches();
             }
         };
-        batchlogTasks.execute(runnable);
+        // If a replay is already in progress this request will be executed after it completes.
+        return batchlogTasks.submit(runnable);
     }
 
     public static RowMutation getBatchlogMutationFor(Collection<RowMutation> mutations, UUID uuid)
@@ -156,12 +161,8 @@ public class BatchlogManager implements BatchlogManagerMBean
         return ByteBuffer.wrap(bos.toByteArray());
     }
 
-    @VisibleForTesting
-    void replayAllFailedBatches() throws ExecutionException, InterruptedException
+    private void replayAllFailedBatches() throws ExecutionException, InterruptedException
     {
-        if (!isReplaying.compareAndSet(false, true))
-            return;
-
         logger.debug("Started replayAllFailedBatches");
 
         // rate limit is in bytes per second. Uses Double.MAX_VALUE if disabled (set to 0 in cassandra.yaml).
@@ -169,33 +170,26 @@ public class BatchlogManager implements BatchlogManagerMBean
         int throttleInKB = DatabaseDescriptor.getBatchlogReplayThrottleInKB() / StorageService.instance.getTokenMetadata().getAllEndpoints().size();
         RateLimiter rateLimiter = RateLimiter.create(throttleInKB == 0 ? Double.MAX_VALUE : throttleInKB * 1024);
 
-        try
+        UntypedResultSet page = process("SELECT id, data, written_at, version FROM %s.%s LIMIT %d",
+                                        Keyspace.SYSTEM_KS,
+                                        SystemKeyspace.BATCHLOG_CF,
+                                        PAGE_SIZE);
+
+        while (!page.isEmpty())
         {
-            UntypedResultSet page = process("SELECT id, data, written_at, version FROM %s.%s LIMIT %d",
-                                            Keyspace.SYSTEM_KS,
-                                            SystemKeyspace.BATCHLOG_CF,
-                                            PAGE_SIZE);
+            UUID id = processBatchlogPage(page, rateLimiter);
 
-            while (!page.isEmpty())
-            {
-                UUID id = processBatchlogPage(page, rateLimiter);
+            if (page.size() < PAGE_SIZE)
+                break; // we've exhausted the batchlog, next query would be empty.
 
-                if (page.size() < PAGE_SIZE)
-                    break; // we've exhausted the batchlog, next query would be empty.
-
-                page = process("SELECT id, data, written_at, version FROM %s.%s WHERE token(id) > token(%s) LIMIT %d",
-                               Keyspace.SYSTEM_KS,
-                               SystemKeyspace.BATCHLOG_CF,
-                               id,
-                               PAGE_SIZE);
-            }
-
-            cleanup();
+            page = process("SELECT id, data, written_at, version FROM %s.%s WHERE token(id) > token(%s) LIMIT %d",
+                           Keyspace.SYSTEM_KS,
+                           SystemKeyspace.BATCHLOG_CF,
+                           id,
+                           PAGE_SIZE);
         }
-        finally
-        {
-            isReplaying.set(false);
-        }
+
+        cleanup();
 
         logger.debug("Finished replayAllFailedBatches");
     }
@@ -210,12 +204,17 @@ public class BatchlogManager implements BatchlogManagerMBean
             long writtenAt = row.getLong("written_at");
             int version = row.has("version") ? row.getInt("version") : MessagingService.VERSION_12;
             // enough time for the actual write + batchlog entry mutation delivery (two separate requests).
-            long timeout = DatabaseDescriptor.getWriteRpcTimeout() * 2; // enough time for the actual write + BM removal mutation
+            long timeout = getBatchlogTimeout();
             if (System.currentTimeMillis() < writtenAt + timeout)
                 continue; // not ready to replay yet, might still get a deletion.
             replayBatch(id, row.getBytes("data"), writtenAt, version, rateLimiter);
         }
         return id;
+    }
+
+    public long getBatchlogTimeout()
+    {
+        return DatabaseDescriptor.getWriteRpcTimeout() * 2; // enough time for the actual write + BM removal mutation
     }
 
     private void replayBatch(UUID id, ByteBuffer data, long writtenAt, int version, RateLimiter rateLimiter)

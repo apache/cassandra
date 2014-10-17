@@ -1,4 +1,5 @@
 2.0.11:
+ * Force batchlog replay before decommissioning a node (CASSANDRA-7446)
  * Fix hint replay with many accumulated expired hints (CASSANDRA-6998)
  * Fix duplicate results in DISTINCT queries on static columns with query
    paging (CASSANDRA-8108)
