@@ -84,7 +84,8 @@ public class QueryProcessor implements QueryHandler
     // bother with expiration on those.
     private static final ConcurrentMap<String, ParsedStatement.Prepared> internalStatements = new ConcurrentHashMap<>();
 
-    @VisibleForTesting
+    // Direct calls to processStatement do not increment the preparedStatementsExecuted/regularStatementsExecuted
+    // counters. Callers of processStatement are responsible for correctly notifying metrics
     public static final CQLMetrics metrics = new CQLMetrics();
 
     private static final AtomicInteger lastMinuteEvictionsCount = new AtomicInteger(0);
@@ -214,9 +215,7 @@ public class QueryProcessor implements QueryHandler
                                                             Cell.MAX_NAME_LENGTH));
     }
 
-    private static ResultMessage processStatement(CQLStatement statement,
-                                                  QueryState queryState,
-                                                  QueryOptions options)
+    public ResultMessage processStatement(CQLStatement statement, QueryState queryState, QueryOptions options)
     throws RequestExecutionException, RequestValidationException
     {
         logger.trace("Process {} @CL.{}", statement, options.getConsistency());
