@@ -56,56 +56,70 @@ public class StreamPlan
      * Request data in {@code keyspace} and {@code ranges} from specific node.
      *
      * @param from endpoint address to fetch data from.
+     * @param connecting Actual connecting address for the endpoint
      * @param keyspace name of keyspace
      * @param ranges ranges to fetch
      * @return this object for chaining
      */
-    public StreamPlan requestRanges(InetAddress from, String keyspace, Collection<Range<Token>> ranges)
+    public StreamPlan requestRanges(InetAddress from, InetAddress connecting, String keyspace, Collection<Range<Token>> ranges)
     {
-        return requestRanges(from, keyspace, ranges, new String[0]);
+        return requestRanges(from, connecting, keyspace, ranges, new String[0]);
     }
 
     /**
      * Request data in {@code columnFamilies} under {@code keyspace} and {@code ranges} from specific node.
      *
      * @param from endpoint address to fetch data from.
+     * @param connecting Actual connecting address for the endpoint
      * @param keyspace name of keyspace
      * @param ranges ranges to fetch
      * @param columnFamilies specific column families
      * @return this object for chaining
      */
-    public StreamPlan requestRanges(InetAddress from, String keyspace, Collection<Range<Token>> ranges, String... columnFamilies)
+    public StreamPlan requestRanges(InetAddress from, InetAddress connecting, String keyspace, Collection<Range<Token>> ranges, String... columnFamilies)
     {
-        StreamSession session = getOrCreateSession(from);
+        StreamSession session = getOrCreateSession(from, connecting);
         session.addStreamRequest(keyspace, ranges, Arrays.asList(columnFamilies));
         return this;
+    }
+
+    /**
+     * Add transfer task to send data of specific {@code columnFamilies} under {@code keyspace} and {@code ranges}.
+     *
+     * @see #transferRanges(java.net.InetAddress, java.net.InetAddress, String, java.util.Collection, String...)
+     */
+    public StreamPlan transferRanges(InetAddress to, String keyspace, Collection<Range<Token>> ranges, String... columnFamilies)
+    {
+        return transferRanges(to, to, keyspace, ranges, columnFamilies);
     }
 
     /**
      * Add transfer task to send data of specific keyspace and ranges.
      *
      * @param to endpoint address of receiver
+     * @param connecting Actual connecting address of the endpoint
      * @param keyspace name of keyspace
      * @param ranges ranges to send
      * @return this object for chaining
      */
-    public StreamPlan transferRanges(InetAddress to, String keyspace, Collection<Range<Token>> ranges)
+    public StreamPlan transferRanges(InetAddress to, InetAddress connecting, String keyspace, Collection<Range<Token>> ranges)
     {
-        return transferRanges(to, keyspace, ranges, new String[0]);
+        return transferRanges(to, connecting, keyspace, ranges, new String[0]);
     }
 
     /**
      * Add transfer task to send data of specific {@code columnFamilies} under {@code keyspace} and {@code ranges}.
      *
      * @param to endpoint address of receiver
+     * @param connecting Actual connecting address of the endpoint
      * @param keyspace name of keyspace
      * @param ranges ranges to send
      * @param columnFamilies specific column families
      * @return this object for chaining
      */
-    public StreamPlan transferRanges(InetAddress to, String keyspace, Collection<Range<Token>> ranges, String... columnFamilies)
+    public StreamPlan transferRanges(InetAddress to, InetAddress connecting, String keyspace, Collection<Range<Token>> ranges, String... columnFamilies)
     {
-        StreamSession session = getOrCreateSession(to);
+        StreamSession session = getOrCreateSession(to, connecting);
         session.addTransferRanges(keyspace, ranges, Arrays.asList(columnFamilies), flushBeforeTransfer);
         return this;
     }
@@ -120,7 +134,7 @@ public class StreamPlan
      */
     public StreamPlan transferFiles(InetAddress to, Collection<StreamSession.SSTableStreamingSections> sstableDetails)
     {
-        StreamSession session = getOrCreateSession(to);
+        StreamSession session = getOrCreateSession(to, to);
         session.addTransferFiles(sstableDetails);
         return this;
     }
@@ -176,12 +190,12 @@ public class StreamPlan
         return this;
     }
 
-    private StreamSession getOrCreateSession(InetAddress peer)
+    private StreamSession getOrCreateSession(InetAddress peer, InetAddress preferred)
     {
         StreamSession session = sessions.get(peer);
         if (session == null)
         {
-            session = new StreamSession(peer, connectionFactory);
+            session = new StreamSession(peer, preferred, connectionFactory);
             sessions.put(peer, session);
         }
         return session;

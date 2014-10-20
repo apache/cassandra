@@ -17,9 +17,12 @@
  */
 package org.apache.cassandra.repair;
 
+import java.net.InetAddress;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.repair.messages.SyncComplete;
 import org.apache.cassandra.repair.messages.SyncRequest;
@@ -56,13 +59,15 @@ public class StreamingRepairTask implements Runnable, StreamEventHandler
 
     private void initiateStreaming()
     {
+        InetAddress dest = request.dst;
+        InetAddress preferred = SystemKeyspace.getPreferredIP(dest);
         logger.info(String.format("[streaming task #%s] Performing streaming repair of %d ranges with %s", desc.sessionId, request.ranges.size(), request.dst));
         StreamResultFuture op = new StreamPlan("Repair")
                                     .flushBeforeTransfer(true)
                                     // request ranges from the remote node
-                                    .requestRanges(request.dst, desc.keyspace, request.ranges, desc.columnFamily)
+                                    .requestRanges(dest, preferred, desc.keyspace, request.ranges, desc.columnFamily)
                                     // send ranges to the remote node
-                                    .transferRanges(request.dst, desc.keyspace, request.ranges, desc.columnFamily)
+                                    .transferRanges(dest, preferred, desc.keyspace, request.ranges, desc.columnFamily)
                                     .execute();
         op.addEventListener(this);
     }

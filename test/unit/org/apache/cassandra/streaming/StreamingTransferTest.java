@@ -107,7 +107,7 @@ public class StreamingTransferTest extends SchemaLoader
         ranges.add(new Range<>(p.getToken(ByteBufferUtil.bytes("key2")), p.getMinimumToken()));
 
         StreamResultFuture futureResult = new StreamPlan("StreamingTransferTest")
-                                                  .requestRanges(LOCAL, "Keyspace2", ranges)
+                                                  .requestRanges(LOCAL, LOCAL, "Keyspace2", ranges)
                                                   .execute();
 
         UUID planId = futureResult.planId;
