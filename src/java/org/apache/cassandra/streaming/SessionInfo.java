@@ -34,6 +34,7 @@ public final class SessionInfo implements Serializable
 {
     public final InetAddress peer;
     public final int sessionIndex;
+    public final InetAddress connecting;
     /** Immutable collection of receiving summaries */
     public final Collection<StreamSummary> receivingSummaries;
     /** Immutable collection of sending summaries*/
@@ -46,12 +47,14 @@ public final class SessionInfo implements Serializable
 
     public SessionInfo(InetAddress peer,
                        int sessionIndex,
+                       InetAddress connecting,
                        Collection<StreamSummary> receivingSummaries,
                        Collection<StreamSummary> sendingSummaries,
                        StreamSession.State state)
     {
         this.peer = peer;
         this.sessionIndex = sessionIndex;
+        this.connecting = connecting;
         this.receivingSummaries = ImmutableSet.copyOf(receivingSummaries);
         this.sendingSummaries = ImmutableSet.copyOf(sendingSummaries);
         this.receivingFiles = new ConcurrentHashMap<>();

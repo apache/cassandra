@@ -137,7 +137,7 @@ public class StreamingTransferTest
         ranges.add(new Range<>(p.getToken(ByteBufferUtil.bytes("key2")), p.getMinimumToken()));
 
         StreamResultFuture futureResult = new StreamPlan("StreamingTransferTest")
-                                                  .requestRanges(LOCAL, KEYSPACE2, ranges)
+                                                  .requestRanges(LOCAL, LOCAL, KEYSPACE2, ranges)
                                                   .execute();
 
         UUID planId = futureResult.planId;

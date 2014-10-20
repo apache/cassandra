@@ -36,6 +36,7 @@ public class SessionInfoCompositeData
 {
     private static final String[] ITEM_NAMES = new String[]{"planId",
                                                             "peer",
+                                                            "connecting",
                                                             "receivingSummaries",
                                                             "sendingSummaries",
                                                             "state",
@@ -44,6 +45,7 @@ public class SessionInfoCompositeData
                                                             "sessionIndex"};
     private static final String[] ITEM_DESCS = new String[]{"Plan ID",
                                                             "Session peer",
+                                                            "Connecting address",
                                                             "Summaries of receiving data",
                                                             "Summaries of sending data",
                                                             "Current session state",
@@ -57,6 +59,7 @@ public class SessionInfoCompositeData
         try
         {
             ITEM_TYPES = new OpenType[]{SimpleType.STRING,
+                                        SimpleType.STRING,
                                         SimpleType.STRING,
                                         ArrayType.getArrayType(StreamSummaryCompositeData.COMPOSITE_TYPE),
                                         ArrayType.getArrayType(StreamSummaryCompositeData.COMPOSITE_TYPE),
@@ -81,6 +84,7 @@ public class SessionInfoCompositeData
         Map<String, Object> valueMap = new HashMap<>();
         valueMap.put(ITEM_NAMES[0], planId.toString());
         valueMap.put(ITEM_NAMES[1], sessionInfo.peer.getHostAddress());
+        valueMap.put(ITEM_NAMES[2], sessionInfo.connecting.getHostAddress());
         Function<StreamSummary, CompositeData> fromStreamSummary = new Function<StreamSummary, CompositeData>()
         {
             public CompositeData apply(StreamSummary input)
@@ -88,9 +92,9 @@ public class SessionInfoCompositeData
                 return StreamSummaryCompositeData.toCompositeData(input);
             }
         };
-        valueMap.put(ITEM_NAMES[2], toArrayOfCompositeData(sessionInfo.receivingSummaries, fromStreamSummary));
-        valueMap.put(ITEM_NAMES[3], toArrayOfCompositeData(sessionInfo.sendingSummaries, fromStreamSummary));
-        valueMap.put(ITEM_NAMES[4], sessionInfo.state.name());
+        valueMap.put(ITEM_NAMES[3], toArrayOfCompositeData(sessionInfo.receivingSummaries, fromStreamSummary));
+        valueMap.put(ITEM_NAMES[4], toArrayOfCompositeData(sessionInfo.sendingSummaries, fromStreamSummary));
+        valueMap.put(ITEM_NAMES[5], sessionInfo.state.name());
         Function<ProgressInfo, CompositeData> fromProgressInfo = new Function<ProgressInfo, CompositeData>()
         {
             public CompositeData apply(ProgressInfo input)
@@ -98,9 +102,9 @@ public class SessionInfoCompositeData
                 return ProgressInfoCompositeData.toCompositeData(planId, input);
             }
         };
-        valueMap.put(ITEM_NAMES[5], toArrayOfCompositeData(sessionInfo.getReceivingFiles(), fromProgressInfo));
-        valueMap.put(ITEM_NAMES[6], toArrayOfCompositeData(sessionInfo.getSendingFiles(), fromProgressInfo));
-        valueMap.put(ITEM_NAMES[7], sessionInfo.sessionIndex);
+        valueMap.put(ITEM_NAMES[6], toArrayOfCompositeData(sessionInfo.getReceivingFiles(), fromProgressInfo));
+        valueMap.put(ITEM_NAMES[7], toArrayOfCompositeData(sessionInfo.getSendingFiles(), fromProgressInfo));
+        valueMap.put(ITEM_NAMES[8], sessionInfo.sessionIndex);
         try
         {
             return new CompositeDataSupport(COMPOSITE_TYPE, valueMap);
@@ -116,10 +120,11 @@ public class SessionInfoCompositeData
         assert cd.getCompositeType().equals(COMPOSITE_TYPE);
 
         Object[] values = cd.getAll(ITEM_NAMES);
-        InetAddress peer;
+        InetAddress peer, connecting;
         try
         {
             peer = InetAddress.getByName((String) values[1]);
+            connecting = InetAddress.getByName((String) values[2]);
         }
         catch (UnknownHostException e)
         {
@@ -133,10 +138,11 @@ public class SessionInfoCompositeData
             }
         };
         SessionInfo info = new SessionInfo(peer,
-                                           (int)values[7],
-                                           fromArrayOfCompositeData((CompositeData[]) values[2], toStreamSummary),
+                                           (int)values[8],
+                                           connecting,
                                            fromArrayOfCompositeData((CompositeData[]) values[3], toStreamSummary),
-                                           StreamSession.State.valueOf((String) values[4]));
+                                           fromArrayOfCompositeData((CompositeData[]) values[4], toStreamSummary),
+                                           StreamSession.State.valueOf((String) values[5]));
         Function<CompositeData, ProgressInfo> toProgressInfo = new Function<CompositeData, ProgressInfo>()
         {
             public ProgressInfo apply(CompositeData input)
@@ -144,11 +150,11 @@ public class SessionInfoCompositeData
                 return ProgressInfoCompositeData.fromCompositeData(input);
             }
         };
-        for (ProgressInfo progress : fromArrayOfCompositeData((CompositeData[]) values[5], toProgressInfo))
+        for (ProgressInfo progress : fromArrayOfCompositeData((CompositeData[]) values[6], toProgressInfo))
         {
             info.updateProgress(progress);
         }
-        for (ProgressInfo progress : fromArrayOfCompositeData((CompositeData[]) values[6], toProgressInfo))
+        for (ProgressInfo progress : fromArrayOfCompositeData((CompositeData[]) values[7], toProgressInfo))
         {
             info.updateProgress(progress);
         }

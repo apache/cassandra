@@ -23,6 +23,7 @@ import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.streaming.StreamEvent;
@@ -55,14 +56,15 @@ public class LocalSyncTask extends SyncTask implements StreamEventHandler
         InetAddress local = FBUtilities.getBroadcastAddress();
         // We can take anyone of the node as source or destination, however if one is localhost, we put at source to avoid a forwarding
         InetAddress dst = r2.endpoint.equals(local) ? r1.endpoint : r2.endpoint;
+        InetAddress preferred = SystemKeyspace.getPreferredIP(dst);
 
         logger.info(String.format("[repair #%s] Performing streaming repair of %d ranges with %s", desc.sessionId, differences.size(), dst));
         new StreamPlan("Repair", repairedAt, 1, false).listeners(this)
                                             .flushBeforeTransfer(true)
                                             // request ranges from the remote node
-                                            .requestRanges(dst, desc.keyspace, differences, desc.columnFamily)
+                                            .requestRanges(dst, preferred, desc.keyspace, differences, desc.columnFamily)
                                             // send ranges to the remote node
-                                            .transferRanges(dst, desc.keyspace, differences, desc.columnFamily)
+                                            .transferRanges(dst, preferred, desc.keyspace, differences, desc.columnFamily)
                                             .execute();
     }
 
