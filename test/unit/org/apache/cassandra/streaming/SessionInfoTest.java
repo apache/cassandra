@@ -46,7 +46,7 @@ public class SessionInfoTest
         }
 
         StreamSummary sending = new StreamSummary(cfId, 10, 100);
-        SessionInfo info = new SessionInfo(local, 0, summaries, Collections.singleton(sending), StreamSession.State.PREPARING);
+        SessionInfo info = new SessionInfo(local, 0, local, summaries, Collections.singleton(sending), StreamSession.State.PREPARING);
 
         assert info.getTotalFilesToReceive() == 45;
         assert info.getTotalFilesToSend() == 10;

@@ -83,6 +83,7 @@
  * Fix error in sstableloader with -cph > 1 (CASSANDRA-8007)
  * Fix snapshot repair error on indexed tables (CASSANDRA-8020)
  * Do not exit nodetool repair when receiving JMX NOTIF_LOST (CASSANDRA-7909)
+ * Stream to private IP when available (CASSANDRA-8084)
 Merged from 2.0:
  * Reject conditions on DELETE unless full PK is given (CASSANDRA-6430)
  * Properly reject the token function DELETE (CASSANDRA-7747)

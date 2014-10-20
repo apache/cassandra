@@ -508,13 +508,19 @@ public class SystemKeyspace
         return hostIdMap;
     }
 
+    /**
+     * Get preferred IP for given endpoint if it is known. Otherwise this returns given endpoint itself.
+     *
+     * @param ep endpoint address to check
+     * @return Preferred IP for given endpoint if present, otherwise returns given ep
+     */
     public static InetAddress getPreferredIP(InetAddress ep)
     {
         String req = "SELECT preferred_ip FROM system.%s WHERE peer=?";
         UntypedResultSet result = executeInternal(String.format(req, PEERS_CF), ep);
         if (!result.isEmpty() && result.one().has("preferred_ip"))
             return result.one().getInetAddress("preferred_ip");
-        return null;
+        return ep;
     }
 
     /**

@@ -126,7 +126,7 @@ public final class StreamResultFuture extends AbstractFuture<StreamState>
 
     private void attachSocket(InetAddress from, int sessionIndex, Socket socket, boolean isForOutgoing, int version) throws IOException
     {
-        StreamSession session = coordinator.getOrCreateSessionById(from, sessionIndex);
+        StreamSession session = coordinator.getOrCreateSessionById(from, sessionIndex, socket.getInetAddress());
         session.init(this);
         session.handler.initiateOnReceivingSide(socket, isForOutgoing, version);
     }

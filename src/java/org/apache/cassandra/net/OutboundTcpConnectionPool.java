@@ -41,14 +41,14 @@ public class OutboundTcpConnectionPool
     private final CountDownLatch started;
     public final OutboundTcpConnection cmdCon;
     public final OutboundTcpConnection ackCon;
-    // pointer to the reseted Address.
-    private InetAddress resetedEndpoint;
+    // pointer to the reset Address.
+    private InetAddress resetEndpoint;
     private ConnectionMetrics metrics;
 
     OutboundTcpConnectionPool(InetAddress remoteEp)
     {
         id = remoteEp;
-        resetedEndpoint = SystemKeyspace.getPreferredIP(remoteEp);
+        resetEndpoint = SystemKeyspace.getPreferredIP(remoteEp);
         started = new CountDownLatch(1);
 
         cmdCon = new OutboundTcpConnection(this);
@@ -90,13 +90,13 @@ public class OutboundTcpConnectionPool
     public void reset(InetAddress remoteEP)
     {
         SystemKeyspace.updatePreferredIP(id, remoteEP);
-        resetedEndpoint = remoteEP;
+        resetEndpoint = remoteEP;
         for (OutboundTcpConnection conn : new OutboundTcpConnection[] { cmdCon, ackCon })
             conn.softCloseSocket();
 
         // release previous metrics and create new one with reset address
         metrics.release();
-        metrics = new ConnectionMetrics(resetedEndpoint, this);
+        metrics = new ConnectionMetrics(resetEndpoint, this);
     }
 
     public long getTimeouts()
@@ -142,7 +142,7 @@ public class OutboundTcpConnectionPool
     {
         if (id.equals(FBUtilities.getBroadcastAddress()))
             return FBUtilities.getLocalAddress();
-        return resetedEndpoint == null ? id : resetedEndpoint;
+        return resetEndpoint;
     }
 
     public static boolean isEncryptedChannel(InetAddress address)

@@ -577,7 +577,13 @@ public class NodeTool
                 System.out.printf("%s %s%n", status.description, status.planId.toString());
                 for (SessionInfo info : status.sessions)
                 {
-                    System.out.printf("    %s%n", info.peer.toString());
+                    System.out.printf("    %s", info.peer.toString());
+                    // print private IP when it is used
+                    if (!info.peer.equals(info.connecting))
+                    {
+                        System.out.printf(" (using %s)", info.connecting.toString());
+                    }
+                    System.out.printf("%n");
                     if (!info.receivingSummaries.isEmpty())
                     {
                         if (humanReadable)

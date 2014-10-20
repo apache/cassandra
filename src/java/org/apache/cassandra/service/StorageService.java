@@ -1939,10 +1939,11 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             for (Map.Entry<InetAddress, Collection<Range<Token>>> entry : rangesToFetch.get(keyspaceName))
             {
                 InetAddress source = entry.getKey();
+                InetAddress preferred = SystemKeyspace.getPreferredIP(source);
                 Collection<Range<Token>> ranges = entry.getValue();
                 if (logger.isDebugEnabled())
                     logger.debug("Requesting from {} ranges {}", source, StringUtils.join(ranges, ", "));
-                stream.requestRanges(source, keyspaceName, ranges);
+                stream.requestRanges(source, preferred, keyspaceName, ranges);
             }
         }
         StreamResultFuture future = stream.execute();
@@ -3170,12 +3171,14 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             // stream to the closest peer as chosen by the snitch
             DatabaseDescriptor.getEndpointSnitch().sortByProximity(FBUtilities.getBroadcastAddress(), candidates);
             InetAddress hintsDestinationHost = candidates.get(0);
+            InetAddress preferred = SystemKeyspace.getPreferredIP(hintsDestinationHost);
 
             // stream all hints -- range list will be a singleton of "the entire ring"
             Token token = StorageService.getPartitioner().getMinimumToken();
             List<Range<Token>> ranges = Collections.singletonList(new Range<>(token, token));
 
             return new StreamPlan("Hints").transferRanges(hintsDestinationHost,
+                                                          preferred,
                                                                       Keyspace.SYSTEM_KS,
                                                                       ranges,
                                                                       SystemKeyspace.HINTS_CF)
@@ -3376,7 +3379,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                     for (InetAddress address : endpointRanges.keySet())
                     {
                         logger.debug("Will stream range {} of keyspace {} to endpoint {}", endpointRanges.get(address), keyspace, address);
-                        streamPlan.transferRanges(address, keyspace, endpointRanges.get(address));
+                        InetAddress preferred = SystemKeyspace.getPreferredIP(address);
+                        streamPlan.transferRanges(address, preferred, keyspace, endpointRanges.get(address));
                     }
 
                     // stream requests
@@ -3384,11 +3388,11 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                     for (InetAddress address : workMap.keySet())
                     {
                         logger.debug("Will request range {} of keyspace {} from endpoint {}", workMap.get(address), keyspace, address);
-                        streamPlan.requestRanges(address, keyspace, workMap.get(address));
+                        InetAddress preferred = SystemKeyspace.getPreferredIP(address);
+                        streamPlan.requestRanges(address, preferred, keyspace, workMap.get(address));
                     }
 
-                    if (logger.isDebugEnabled())
-                        logger.debug("Keyspace {}: work map {}.", keyspace, workMap);
+                    logger.debug("Keyspace {}: work map {}.", keyspace, workMap);
                 }
             }
         }
@@ -3870,9 +3874,10 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             {
                 List<Range<Token>> ranges = rangesEntry.getValue();
                 InetAddress newEndpoint = rangesEntry.getKey();
+                InetAddress preferred = SystemKeyspace.getPreferredIP(newEndpoint);
 
                 // TODO each call to transferRanges re-flushes, this is potentially a lot of waste
-                streamPlan.transferRanges(newEndpoint, keyspaceName, ranges);
+                streamPlan.transferRanges(newEndpoint, preferred, keyspaceName, ranges);
             }
         }
         return streamPlan.execute();
