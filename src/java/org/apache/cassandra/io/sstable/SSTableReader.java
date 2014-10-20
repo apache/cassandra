@@ -626,7 +626,9 @@ public class SSTableReader extends SSTable implements Closeable
 
         CompressionMetadata cmd = ((ICompressedFile) dfile).getMetadata();
 
-        cmd.parameters.setLiveMetadata(Schema.instance.getCFMetaData(descriptor));
+        //We need the parent cf metadata
+        String cfName = metadata.isSecondaryIndex() ? metadata.getParentColumnFamilyName() : metadata.cfName;
+        cmd.parameters.setLiveMetadata(Schema.instance.getCFMetaData(metadata.ksName, cfName));
 
         return cmd;
     }

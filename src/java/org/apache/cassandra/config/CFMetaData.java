@@ -633,6 +633,23 @@ public final class CFMetaData
         return cfType == ColumnFamilyType.Super;
     }
 
+    /**
+      * The '.' char is the only way to identify if the CFMetadata is for a secondary index
+      */
+    public boolean isSecondaryIndex()
+    {
+        return cfName.contains(".");
+    }
+
+    /**
+     *
+     * @return The name of the parent cf if this is a seconday index
+     */
+    public String getParentColumnFamilyName()
+    {
+       return isSecondaryIndex() ? cfName.substring(0, cfName.indexOf('.')) : null;
+    }
+
     public double getReadRepairChance()
     {
         return readRepairChance;

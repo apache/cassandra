@@ -17,10 +17,7 @@
  */
 package org.apache.cassandra.cql3;
 
-import org.junit.AfterClass;
-import org.junit.Before;
-import org.junit.BeforeClass;
-import org.junit.Test;
+import org.junit.*;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.db.ColumnFamilyStore;
@@ -177,6 +174,83 @@ public class SSTableMetadataTrackingTest
         assertEquals(metadata.maxLocalDeletionTime, metadata2.maxLocalDeletionTime);
         assertEquals(metadata.minTimestamp, metadata2.minTimestamp);
         assertEquals(metadata.maxTimestamp, metadata2.maxTimestamp);
+    }
+
+    @Test
+    public void testChangingCrcCheckChance() throws Throwable
+    {
+        String currentTable = "crctest";
+
+        //Start with crc_check_chance of 99%
+        createTable("CREATE TABLE %s.crctest (p text, c text, v text, s text static, PRIMARY KEY (p, c)) WITH compression = {'sstable_compression': 'LZ4Compressor', 'crc_check_chance' : 0.99}");
+
+        createTable("CREATE INDEX foo ON %s.crctest(v)");
+
+        execute("INSERT INTO %s.crctest(p, c, v, s) values ('p1', 'k1', 'v1', 'sv1')");
+        execute("INSERT INTO %s.crctest(p, c, v) values ('p1', 'k2', 'v2')");
+        execute("INSERT INTO %s.crctest(p, s) values ('p2', 'sv2')");
+
+
+        ColumnFamilyStore cfs = Keyspace.open(keyspace).getColumnFamilyStore(currentTable);
+        ColumnFamilyStore indexCfs = cfs.indexManager.getIndexesBackedByCfs().iterator().next();
+        cfs.forceBlockingFlush();
+
+        Assert.assertEquals(0.99, cfs.metadata.compressionParameters.getCrcCheckChance(), 0.00);
+        Assert.assertEquals(0.99, cfs.getSSTables().iterator().next().getCompressionMetadata().parameters.getCrcCheckChance(), 0.00);
+        Assert.assertEquals(0.99, indexCfs.metadata.compressionParameters.getCrcCheckChance(), 0.00);
+        Assert.assertEquals(0.99, indexCfs.getSSTables().iterator().next().getCompressionMetadata().parameters.getCrcCheckChance(), 0.00);
+
+
+        Assert.assertEquals(execute("SELECT * FROM %s.crctest WHERE p='p1'").size(), 2);
+        Assert.assertEquals(execute("SELECT * FROM %s.crctest WHERE v='v1'").size(), 1);
+
+
+
+
+        //Write a few SSTables then Compact
+
+        execute("INSERT INTO %s.crctest(p, c, v, s) values ('p1', 'k1', 'v1', 'sv1')");
+        execute("INSERT INTO %s.crctest(p, c, v) values ('p1', 'k2', 'v2')");
+        execute("INSERT INTO %s.crctest(p, s) values ('p2', 'sv2')");
+
+        cfs.forceBlockingFlush();
+
+        execute("INSERT INTO %s.crctest(p, c, v, s) values ('p1', 'k1', 'v1', 'sv1')");
+        execute("INSERT INTO %s.crctest(p, c, v) values ('p1', 'k2', 'v2')");
+        execute("INSERT INTO %s.crctest(p, s) values ('p2', 'sv2')");
+
+
+        cfs.forceBlockingFlush();
+
+        execute("INSERT INTO %s.crctest(p, c, v, s) values ('p1', 'k1', 'v1', 'sv1')");
+        execute("INSERT INTO %s.crctest(p, c, v) values ('p1', 'k2', 'v2')");
+        execute("INSERT INTO %s.crctest(p, s) values ('p2', 'sv2')");
+
+
+        cfs.forceBlockingFlush();
+
+        cfs.forceMajorCompaction();
+
+        //Verify when we alter the value the live sstable readers hold the new one
+        createTable("ALTER TABLE %s.crctest WITH compression = {'sstable_compression': 'LZ4Compressor', 'crc_check_chance': 0.01}");
+
+        Assert.assertEquals( 0.01, cfs.metadata.compressionParameters.getCrcCheckChance(), 0.00);
+        Assert.assertEquals( 0.01, cfs.getSSTables().iterator().next().getCompressionMetadata().parameters.getCrcCheckChance(), 0.00);
+        Assert.assertEquals( 0.01, indexCfs.metadata.compressionParameters.getCrcCheckChance(), 0.00);
+        Assert.assertEquals( 0.01, indexCfs.getSSTables().iterator().next().getCompressionMetadata().parameters.getCrcCheckChance(), 0.00);
+
+
+        Assert.assertEquals(execute("SELECT * FROM %s.crctest WHERE p='p1'").size(), 2);
+        Assert.assertEquals(execute("SELECT * FROM %s.crctest WHERE v='v1'").size(), 1);
+
+
+        //Verify the call used by JMX still works
+        cfs.setCrcCheckChance(0.03);
+        Assert.assertEquals( 0.03, cfs.metadata.compressionParameters.getCrcCheckChance(), 0.00);
+        Assert.assertEquals( 0.03, cfs.getSSTables().iterator().next().getCompressionMetadata().parameters.getCrcCheckChance(), 0.00);
+        Assert.assertEquals( 0.03, indexCfs.metadata.compressionParameters.getCrcCheckChance(), 0.00);
+        Assert.assertEquals( 0.03, indexCfs.getSSTables().iterator().next().getCompressionMetadata().parameters.getCrcCheckChance(), 0.00);
+
     }
 
     @AfterClass
