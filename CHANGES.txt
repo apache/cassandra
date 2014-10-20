@@ -1,4 +1,5 @@
 2.1.1
+ * Fix validation of collections in TriggerExecutor (CASSANDRA-8146)
  * Fix IllegalArgumentException when a list of IN values containing tuples
    is passed as a single arg to a prepared statement with the v1 or v2
    protocol (CASSANDRA-8062)
