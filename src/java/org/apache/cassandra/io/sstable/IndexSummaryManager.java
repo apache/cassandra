@@ -426,7 +426,7 @@ public class IndexSummaryManager implements IndexSummaryManagerMBean
 
         for (DataTracker tracker : replacedByTracker.keySet())
         {
-            tracker.replaceReaders(replacedByTracker.get(tracker), replacementsByTracker.get(tracker));
+            tracker.replaceReaders(replacedByTracker.get(tracker), replacementsByTracker.get(tracker), true);
             newSSTables.addAll(replacementsByTracker.get(tracker));
         }
 

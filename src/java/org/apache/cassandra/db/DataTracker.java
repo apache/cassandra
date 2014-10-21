@@ -358,7 +358,7 @@ public class DataTracker
      * @param oldSSTables replaced readers
      * @param newSSTables replacement readers
      */
-    public void replaceReaders(Collection<SSTableReader> oldSSTables, Collection<SSTableReader> newSSTables)
+    public void replaceReaders(Collection<SSTableReader> oldSSTables, Collection<SSTableReader> newSSTables, boolean notify)
     {
         View currentView, newView;
         do
@@ -368,7 +368,7 @@ public class DataTracker
         }
         while (!view.compareAndSet(currentView, newView));
 
-        if (!oldSSTables.isEmpty())
+        if (!oldSSTables.isEmpty() && notify)
             notifySSTablesChanged(oldSSTables, newSSTables, OperationType.COMPACTION);
 
         for (SSTableReader sstable : newSSTables)
