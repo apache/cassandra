@@ -334,6 +334,16 @@ public abstract class SingleColumnRestriction implements Restriction
             return keys != null;
         }
 
+        public int numberOfValues()
+        {
+            return values == null ? 0 : values.size();
+        }
+
+        public int numberOfKeys()
+        {
+            return keys == null ? 0 : keys.size();
+        }
+
         public void add(Term t, boolean isKey)
         {
             if (isKey)
