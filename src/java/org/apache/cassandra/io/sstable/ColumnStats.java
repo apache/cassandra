@@ -63,18 +63,19 @@ public class ColumnStats
         this.hasLegacyCounterShards = hasLegacyCounterShards;
     }
 
-    public static class MinTracker<T extends Comparable<T>>
+    // We use explicit classes for ints and longs instead of generics to avoid boxing and unboxing (See CASSANDRA-8109)
+    public static class MinLongTracker
     {
-        private final T defaultValue;
+        private final long defaultValue;
         private boolean isSet = false;
-        private T value;
+        private long value;
 
-        public MinTracker(T defaultValue)
+        public MinLongTracker(long defaultValue)
         {
             this.defaultValue = defaultValue;
         }
 
-        public void update(T value)
+        public void update(long value)
         {
             if (!isSet)
             {
@@ -83,12 +84,12 @@ public class ColumnStats
             }
             else
             {
-                if (value.compareTo(this.value) < 0)
+                if (value < this.value)
                     this.value = value;
             }
         }
 
-        public T get()
+        public long get()
         {
             if (isSet)
                 return value;
@@ -96,18 +97,18 @@ public class ColumnStats
         }
     }
 
-    public static class MaxTracker<T extends Comparable<T>>
+    public static class MaxLongTracker
     {
-        private final T defaultValue;
+        private final long defaultValue;
         private boolean isSet = false;
-        private T value;
+        private long value;
 
-        public MaxTracker(T defaultValue)
+        public MaxLongTracker(long defaultValue)
         {
             this.defaultValue = defaultValue;
         }
 
-        public void update(T value)
+        public void update(long value)
         {
             if (!isSet)
             {
@@ -116,16 +117,50 @@ public class ColumnStats
             }
             else
             {
-                if (value.compareTo(this.value) > 0)
+                if (value >this.value)
                     this.value = value;
             }
         }
 
-        public T get()
+        public long get()
         {
             if (isSet)
                 return value;
             return defaultValue;
         }
     }
+
+    public static class MaxIntTracker
+    {
+        private final int defaultValue;
+        private boolean isSet = false;
+        private int value;
+
+        public MaxIntTracker(int defaultValue)
+        {
+            this.defaultValue = defaultValue;
+        }
+
+        public void update(int value)
+        {
+            if (!isSet)
+            {
+                this.value = value;
+                isSet = true;
+            }
+            else
+            {
+                if (value > this.value)
+                    this.value = value;
+            }
+        }
+
+        public int get()
+        {
+            if (isSet)
+                return value;
+            return defaultValue;
+        }
+    }
+
 }
