@@ -174,7 +174,7 @@ public class SSTableRewriter
                 SSTableReader reader = writer.openEarly(maxAge);
                 if (reader != null)
                 {
-                    replaceReader(currentlyOpenedEarly, reader);
+                    replaceReader(currentlyOpenedEarly, reader, false);
                     currentlyOpenedEarly = reader;
                     currentlyOpenedEarlyAt = writer.getFilePointer();
                     moveStarts(reader, Functions.constant(reader.last), false);
@@ -197,7 +197,7 @@ public class SSTableRewriter
         // releases reference in replaceReaders
         if (!isOffline)
         {
-            dataTracker.replaceReaders(close, Collections.<SSTableReader>emptyList());
+            dataTracker.replaceReaders(close, Collections.<SSTableReader>emptyList(), false);
             dataTracker.unmarkCompacting(close);
         }
         writer.abort(currentlyOpenedEarly == null);
@@ -247,12 +247,12 @@ public class SSTableRewriter
                 }));
             }
         }
-        replaceReaders(toReplace, replaceWith);
+        replaceReaders(toReplace, replaceWith, true);
         rewriting.removeAll(toReplace);
         rewriting.addAll(replaceWith);
     }
 
-    private void replaceReader(SSTableReader toReplace, SSTableReader replaceWith)
+    private void replaceReader(SSTableReader toReplace, SSTableReader replaceWith, boolean notify)
     {
         if (isOffline)
             return;
@@ -267,14 +267,14 @@ public class SSTableRewriter
             dataTracker.markCompacting(Collections.singleton(replaceWith));
             toReplaceSet = Collections.emptySet();
         }
-        replaceReaders(toReplaceSet, Collections.singleton(replaceWith));
+        replaceReaders(toReplaceSet, Collections.singleton(replaceWith), notify);
     }
 
-    private void replaceReaders(Collection<SSTableReader> toReplace, Collection<SSTableReader> replaceWith)
+    private void replaceReaders(Collection<SSTableReader> toReplace, Collection<SSTableReader> replaceWith, boolean notify)
     {
         if (isOffline)
             return;
-        dataTracker.replaceReaders(toReplace, replaceWith);
+        dataTracker.replaceReaders(toReplace, replaceWith, notify);
     }
 
     public void switchWriter(SSTableWriter newWriter)
@@ -287,7 +287,7 @@ public class SSTableRewriter
         // tmp = false because later we want to query it with descriptor from SSTableReader
         SSTableReader reader = writer.closeAndOpenReader(maxAge);
         finished.add(reader);
-        replaceReader(currentlyOpenedEarly, reader);
+        replaceReader(currentlyOpenedEarly, reader, false);
         moveStarts(reader, Functions.constant(reader.last), false);
         currentlyOpenedEarly = null;
         currentlyOpenedEarlyAt = 0;
@@ -314,7 +314,7 @@ public class SSTableRewriter
                                     writer.closeAndOpenReader(maxAge) :
                                     writer.closeAndOpenReader(maxAge, repairedAt);
             finished.add(reader);
-            replaceReader(currentlyOpenedEarly, reader);
+            replaceReader(currentlyOpenedEarly, reader, false);
             moveStarts(reader, Functions.constant(reader.last), false);
         }
         else

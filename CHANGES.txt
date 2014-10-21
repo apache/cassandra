@@ -1,4 +1,5 @@
 2.1.1
+ * Dont notify when replacing tmplink files (CASSANDRA-8157)
  * Fix validation with multiple CONTAINS clause (CASSANDRA-8131)
  * Fix validation of collections in TriggerExecutor (CASSANDRA-8146)
  * Fix IllegalArgumentException when a list of IN values containing tuples
