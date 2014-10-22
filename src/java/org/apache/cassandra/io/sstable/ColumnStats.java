@@ -18,7 +18,6 @@
 package org.apache.cassandra.io.sstable;
 
 import java.nio.ByteBuffer;
-import java.util.Comparator;
 import java.util.List;
 
 import org.apache.cassandra.utils.StreamingHistogram;

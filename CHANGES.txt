@@ -1,5 +1,4 @@
 3.0
- * Avoid boxing in ColumnStats min/max trackers (CASSANDRA-8109)
  * Integrate JMH for microbenchmarks (CASSANDRA-8151)
  * Keep sstable levels when bootstrapping (CASSANDRA-7460)
  * Add Sigar library and perform basic OS settings check on startup (CASSANDRA-7838)
@@ -32,6 +31,7 @@
 
 2.1.2
  * Fix CREATE TABLE for CQL2 (CASSANDRA-8144)
+ * Avoid boxing in ColumnStats min/max trackers (CASSANDRA-8109)
 
 
 2.1.1
