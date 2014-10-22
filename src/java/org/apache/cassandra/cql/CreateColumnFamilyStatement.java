@@ -27,7 +27,7 @@ import java.util.Set;
 import org.apache.cassandra.cache.CachingOptions;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
-import org.apache.cassandra.db.composites.SimpleDenseCellNameType;
+import org.apache.cassandra.db.composites.CellNames;
 import org.apache.cassandra.db.ColumnFamilyType;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.TypeParser;
@@ -168,15 +168,13 @@ public class CreateColumnFamilyStatement
     {
         validate(variables);
 
-        CFMetaData newCFMD;
         try
         {
-            AbstractType<?> comparator = cfProps.getComparator();
-
-            newCFMD = new CFMetaData(keyspace,
-                                     name,
-                                     ColumnFamilyType.Standard,
-                                     new SimpleDenseCellNameType(comparator));
+            boolean isDense = columns.isEmpty();
+            CFMetaData newCFMD = new CFMetaData(keyspace,
+                                                name,
+                                                ColumnFamilyType.Standard,
+                                                CellNames.fromAbstractType(cfProps.getComparator(), isDense));
 
             if (CFMetaData.DEFAULT_COMPRESSOR != null && cfProps.compressionParameters.isEmpty())
                 cfProps.compressionParameters.put(CompressionParameters.SSTABLE_COMPRESSION, CFMetaData.DEFAULT_COMPRESSOR);
@@ -185,7 +183,8 @@ public class CreateColumnFamilyStatement
             if (minCompactionThreshold <= 0 || maxCompactionThreshold <= 0)
                 throw new ConfigurationException("Disabling compaction by setting compaction thresholds to 0 has been deprecated, set the compaction option 'enabled' to false instead.");
 
-            newCFMD.addAllColumnDefinitions(getColumns(newCFMD))
+            newCFMD.isDense(isDense)
+                   .addAllColumnDefinitions(getColumns(newCFMD))
                    .comment(cfProps.getProperty(CFPropDefs.KW_COMMENT))
                    .readRepairChance(getPropertyDouble(CFPropDefs.KW_READREPAIRCHANCE, CFMetaData.DEFAULT_READ_REPAIR_CHANCE))
                    .dcLocalReadRepairChance(getPropertyDouble(CFPropDefs.KW_DCLOCALREADREPAIRCHANCE, CFMetaData.DEFAULT_DCLOCAL_READ_REPAIR_CHANCE))
@@ -206,16 +205,13 @@ public class CreateColumnFamilyStatement
             // CQL2 can have null keyAliases
             if (keyAlias != null)
                 newCFMD.addColumnDefinition(ColumnDefinition.partitionKeyDef(newCFMD, keyAlias, newCFMD.getKeyValidator(), null));
+
+            return newCFMD.rebuild();
         }
-        catch (ConfigurationException e)
+        catch (ConfigurationException | SyntaxException e)
         {
             throw new InvalidRequestException(e.toString());
         }
-        catch (SyntaxException e)
-        {
-            throw new InvalidRequestException(e.toString());
-        }
-        return newCFMD;
     }
 
     private String getPropertyString(String key, String defaultValue)

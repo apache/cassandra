@@ -1,3 +1,7 @@
+2.1.2
+ * Fix CREATE TABLE for CQL2 (CASSANDRA-8144)
+
+
 2.1.1
  * Dont notify when replacing tmplink files (CASSANDRA-8157)
  * Fix validation with multiple CONTAINS clause (CASSANDRA-8131)
