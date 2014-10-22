@@ -269,6 +269,11 @@ Function SetCassandraEnvironment
     SetCassandraHome
     $env:CASSANDRA_CONF = "$env:CASSANDRA_HOME\conf"
     $env:CASSANDRA_PARAMS="-Dcassandra -Dlogback.configurationFile=logback.xml"
+
+    $logdir = "$env:CASSANDRA_HOME\logs"
+    $storagedir = "$env:CASSANDRA_HOME\data"
+    $env:CASSANDRA_PARAMS = $env:CASSANDRA_PARAMS + " -Dcassandra.logdir=""$logdir"" -Dcassandra.storagedir=""$storagedir"""
+
     SetCassandraMain
     BuildClassPath
 
