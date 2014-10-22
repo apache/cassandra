@@ -1,5 +1,6 @@
 2.1.2
  * Fix CREATE TABLE for CQL2 (CASSANDRA-8144)
+ * Avoid boxing in ColumnStats min/max trackers (CASSANDRA-8109)
 
 
 2.1.1
