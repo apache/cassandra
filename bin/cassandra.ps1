@@ -212,7 +212,7 @@ $env:JAVA_BIN
         echo "Running cassandra with: [$cmd $arg1 $arg2 $arg3 $arg4]"
     }
 
-    if ($foreground -ne "False")
+    if ($foreground)
     {
         $cygwin = $false
         try
