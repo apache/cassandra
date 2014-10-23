@@ -86,7 +86,6 @@ public class CqlRecordReader extends RecordReader<Long, Row>
     private IPartitioner partitioner;
     private String inputColumns;
     private String userDefinedWhereClauses;
-    private int pageRowSize;
 
     private List<String> partitionKeys = new ArrayList<>();
 
@@ -111,14 +110,7 @@ public class CqlRecordReader extends RecordReader<Long, Row>
         inputColumns = CqlConfigHelper.getInputcolumns(conf);
         userDefinedWhereClauses = CqlConfigHelper.getInputWhereClauses(conf);
         Optional<Integer> pageRowSizeOptional = CqlConfigHelper.getInputPageRowSize(conf);
-        try
-        {
-            pageRowSize = pageRowSizeOptional.isPresent() ? pageRowSizeOptional.get() : DEFAULT_CQL_PAGE_LIMIT;
-        }
-        catch(NumberFormatException e)
-        {
-            pageRowSize = DEFAULT_CQL_PAGE_LIMIT;
-        }
+
         try
         {
             if (cluster != null)
@@ -143,7 +135,6 @@ public class CqlRecordReader extends RecordReader<Long, Row>
         // otherwise we will fall back to building a query using the:
         //   inputColumns
         //   whereClauses
-        //   pageRowSize
         cqlQuery = CqlConfigHelper.getInputCql(conf);
         // validate that the user hasn't tried to give us a custom query along with input columns
         // and where clauses
@@ -519,8 +510,7 @@ public class CqlRecordReader extends RecordReader<Long, Row>
     /**
      * Build a query for the reader of the form:
      *
-     * SELECT * FROM ks>cf token(pk1,...pkn)>? AND token(pk1,...pkn)<=? [AND user where clauses]
-     * LIMIT pageRowSize [ALLOW FILTERING]
+     * SELECT * FROM ks>cf token(pk1,...pkn)>? AND token(pk1,...pkn)<=? [AND user where clauses] [ALLOW FILTERING]
      */
     private String buildQuery()
     {
@@ -539,7 +529,6 @@ public class CqlRecordReader extends RecordReader<Long, Row>
         String whereClause = "";
         if (StringUtils.isNotEmpty(userDefinedWhereClauses))
             whereClause += " AND " + userDefinedWhereClauses;
-        whereClause += " LIMIT " + pageRowSize;
         if (StringUtils.isNotEmpty(userDefinedWhereClauses))
             whereClause += " ALLOW FILTERING";
         return whereClause;
