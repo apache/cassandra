@@ -35,7 +35,7 @@
  * Fix CREATE TABLE for CQL2 (CASSANDRA-8144)
  * Avoid boxing in ColumnStats min/max trackers (CASSANDRA-8109)
 Merged from 2.0:
- * Pig: Remove errant LIMIT clause in CqlNativeStorage
+ * Pig: Remove errant LIMIT clause in CqlNativeStorage (CASSANDRA-8166)
 
 
 2.1.1
