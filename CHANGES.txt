@@ -2,6 +2,8 @@
  * Fix installing as service on Windows (CASSANDRA-8115)
  * Fix CREATE TABLE for CQL2 (CASSANDRA-8144)
  * Avoid boxing in ColumnStats min/max trackers (CASSANDRA-8109)
+Merged from 2.0:
+ * Pig: Remove errant LIMIT clause in CqlNativeStorage
 
 
 2.1.1
