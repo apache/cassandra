@@ -80,13 +80,12 @@ Function Main
         $env:CASSANDRA_PARAMS = $env:CASSANDRA_PARAMS + ' -Dcassandra-pidfile="' + "$pidfile" + '"'
     }
 
-    # Parse -D JVM_OPTS
+    # Parse -D and -X JVM_OPTS
     for ($i = 0; $i -lt $script:args.Length; ++$i)
     {
-        if ($script:args[$i].Substring(0,2) -eq "-D")
+        if ($script:args[$i].StartsWith("-D") -Or $script:args[$i].StartsWith("-X"))
         {
-            $param = $script:args[$i].Substring(2)
-            $env:JVM_OPTS = "$env:JVM_OPTS -D$param"
+            $env:JVM_OPTS = "$env:JVM_OPTS " + $script:args[$i]
         }
     }
 
@@ -304,6 +303,11 @@ Function CheckEmptyParam($param)
 
 for ($i = 0; $i -lt $args.count; $i++)
 {
+    # Skip JVM args
+    if ($args[$i].StartsWith("-D") -Or $args[$i].StartsWith("-X"))
+    {
+        continue;
+    }
     Switch($args[$i])
     {
         "-install"          { $install = $True }
