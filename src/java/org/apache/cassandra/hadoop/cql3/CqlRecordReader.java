@@ -97,6 +97,7 @@ public class CqlRecordReader extends RecordReader<Long, Row>
         super();
     }
 
+    @Override
     public void initialize(InputSplit split, TaskAttemptContext context) throws IOException
     {
         this.split = (ColumnFamilySplit) split;
@@ -109,7 +110,6 @@ public class CqlRecordReader extends RecordReader<Long, Row>
         partitioner = ConfigHelper.getInputPartitioner(conf);
         inputColumns = CqlConfigHelper.getInputcolumns(conf);
         userDefinedWhereClauses = CqlConfigHelper.getInputWhereClauses(conf);
-        Optional<Integer> pageRowSizeOptional = CqlConfigHelper.getInputPageRowSize(conf);
 
         try
         {
