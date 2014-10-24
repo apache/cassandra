@@ -25,9 +25,12 @@ import java.util.*;
 import javax.management.MBeanServer;
 import javax.management.ObjectName;
 
-import org.apache.commons.lang3.StringUtils;
+import com.google.common.annotations.VisibleForTesting;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import org.apache.commons.lang3.StringUtils;
+
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.*;
@@ -36,6 +39,7 @@ import org.apache.cassandra.io.util.DataOutputByteBuffer;
 import org.apache.cassandra.metrics.CommitLogMetrics;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.PureJavaCrc32;
 
 import static org.apache.cassandra.db.commitlog.CommitLogSegment.*;
@@ -349,10 +353,14 @@ public class CommitLog implements CommitLogMBean
         return allocator.getActiveSegments().size();
     }
 
-    static boolean handleCommitError(String message, Throwable t)
+    @VisibleForTesting
+    public static boolean handleCommitError(String message, Throwable t)
     {
+        JVMStabilityInspector.inspectCommitLogThrowable(t);
         switch (DatabaseDescriptor.getCommitFailurePolicy())
         {
+            // Needed here for unit tests to not fail on default assertion
+            case die:
             case stop:
                 StorageService.instance.stopTransports();
             case stop_commit:

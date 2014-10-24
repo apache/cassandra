@@ -31,6 +31,7 @@
 
 
 2.1.2
+ * Add 'die' policy for commit log and disk failure (CASSANDRA-7927)
  * Fix installing as service on Windows (CASSANDRA-8115)
  * Fix CREATE TABLE for CQL2 (CASSANDRA-8144)
  * Avoid boxing in ColumnStats min/max trackers (CASSANDRA-8109)
