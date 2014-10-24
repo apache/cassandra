@@ -53,10 +53,10 @@ public class TriggerExecutor
      */
     public void reloadClasses()
     {
-        File tiggerDirectory = FBUtilities.cassandraTriggerDir();
-        if (tiggerDirectory == null)
+        File triggerDirectory = FBUtilities.cassandraTriggerDir();
+        if (triggerDirectory == null)
             return;
-        customClassLoader = new CustomClassLoader(parent, tiggerDirectory);
+        customClassLoader = new CustomClassLoader(parent, triggerDirectory);
         cachedTriggers.clear();
     }
 
