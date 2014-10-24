@@ -34,9 +34,9 @@ import org.apache.thrift.transport.TTransportFactory;
 public class ThriftServer implements CassandraDaemon.Server
 {
     private static Logger logger = LoggerFactory.getLogger(ThriftServer.class);
-    protected final static String SYNC = "sync";
-    protected final static String ASYNC = "async";
-    protected final static String HSHA = "hsha";
+    public final static String SYNC = "sync";
+    public final static String ASYNC = "async";
+    public final static String HSHA = "hsha";
 
     protected final InetAddress address;
     protected final int port;
