@@ -70,7 +70,7 @@ public class CQLSSTableWriterTest
         CQLSSTableWriter writer = CQLSSTableWriter.builder()
                                                   .inDirectory(dataDir)
                                                   .forTable(schema)
-                                                  .withPartitioner(StorageService.instance.getPartitioner())
+                                                  .withPartitioner(StorageService.getPartitioner())
                                                   .using(insert).build();
 
         writer.addRow(0, "test1", 24);
@@ -129,16 +129,21 @@ public class CQLSSTableWriterTest
         // Check that the write respect the buffer size even if we only insert rows withing the same partition (#7360)
         // To do that simply, we use a writer with a buffer of 1MB, and write 2 rows in the same partition with a value
         // > 1MB and validate that this created more than 1 sstable.
+        String KS = "ks";
+        String TABLE = "test";
+
         File tempdir = Files.createTempDir();
+        File dataDir = new File(tempdir.getAbsolutePath() + File.separator + KS + File.separator + TABLE);
+        assert dataDir.mkdirs();
         String schema = "CREATE TABLE ks.test ("
                       + "  k int PRIMARY KEY,"
                       + "  v blob"
                       + ")";
         String insert = "INSERT INTO ks.test (k, v) VALUES (?, ?)";
         CQLSSTableWriter writer = CQLSSTableWriter.builder()
-                                                  .inDirectory(tempdir)
+                                                  .inDirectory(dataDir)
                                                   .forTable(schema)
-                                                  .withPartitioner(StorageService.instance.getPartitioner())
+                                                  .withPartitioner(StorageService.getPartitioner())
                                                   .using(insert)
                                                   .withBufferSizeInMB(1)
                                                   .build();
@@ -156,6 +161,6 @@ public class CQLSSTableWriterTest
                 return name.endsWith("-Data.db");
             }
         };
-        assert tempdir.list(filterDataFiles).length > 1 : Arrays.toString(tempdir.list(filterDataFiles));
+        assert dataDir.list(filterDataFiles).length > 1 : Arrays.toString(dataDir.list(filterDataFiles));
     }
 }
