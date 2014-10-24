@@ -1,4 +1,5 @@
 2.1.2
+ * Make cache serializers pluggable (CASSANDRA-8096)
  * Fix issues with CONTAINS (KEY) queries on secondary indexes
    (CASSANDRA-8147)
  * Fix read-rate tracking of sstables for some queries (CASSANDRA-8239)
