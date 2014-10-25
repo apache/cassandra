@@ -42,6 +42,7 @@ Merged from 2.0:
 
 
 2.1.1
+ * Fix spin loop in AtomicSortedColumns (CASSANDRA-7546)
  * Dont notify when replacing tmplink files (CASSANDRA-8157)
  * Fix validation with multiple CONTAINS clause (CASSANDRA-8131)
  * Fix validation of collections in TriggerExecutor (CASSANDRA-8146)
@@ -197,7 +198,6 @@ Merged from 2.0:
  * Fix wrong progress when streaming uncompressed (CASSANDRA-7878)
  * Fix possible infinite loop in creating repair range (CASSANDRA-7983)
  * Fix unit in nodetool for streaming throughput (CASSANDRA-7375)
- * Fix spin loop in AtomicSortedColumns (CASSANDRA-7546)
 Merged from 1.2:
  * Don't index tombstones (CASSANDRA-7828)
  * Improve PasswordAuthenticator default super user setup (CASSANDRA-7788)
