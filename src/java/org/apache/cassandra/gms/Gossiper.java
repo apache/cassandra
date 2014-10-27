@@ -178,6 +178,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
             }
             catch (Exception e)
             {
+                JVMStabilityInspector.inspectThrowable(e);
                 logger.error("Gossip error", e);
             }
             finally

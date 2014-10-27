@@ -56,6 +56,7 @@ import org.apache.cassandra.streaming.SessionInfo;
 import org.apache.cassandra.streaming.StreamState;
 import org.apache.cassandra.utils.EstimatedHistogram;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.JVMStabilityInspector;
 
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkState;
@@ -2195,8 +2196,9 @@ public class NodeTool
             try
             {
                 probe.stopCassandraDaemon();
-            } catch (Exception ignored)
+            } catch (Exception e)
             {
+                JVMStabilityInspector.inspectThrowable(e);
                 // ignored
             }
             System.out.println("Cassandra has shutdown.");

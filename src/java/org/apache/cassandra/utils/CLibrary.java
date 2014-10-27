@@ -294,6 +294,7 @@ public final class CLibrary
         }
         catch (Exception e)
         {
+            JVMStabilityInspector.inspectThrowable(e);
             logger.warn("unable to read fd field from FileDescriptor");
         }
 

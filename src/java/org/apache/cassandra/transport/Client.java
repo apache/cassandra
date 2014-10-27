@@ -38,6 +38,7 @@ import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.transport.messages.*;
 import org.apache.cassandra.utils.Hex;
+import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.MD5Digest;
 
 import static org.apache.cassandra.config.EncryptionOptions.ClientEncryptionOptions;
@@ -80,6 +81,7 @@ public class Client extends SimpleClient
             }
             catch (Exception e)
             {
+                JVMStabilityInspector.inspectThrowable(e);
                 System.err.println("ERROR: " + e.getMessage());
             }
         }

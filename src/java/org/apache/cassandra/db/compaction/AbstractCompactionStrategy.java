@@ -34,6 +34,7 @@ import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.sstable.Component;
+import org.apache.cassandra.utils.JVMStabilityInspector;
 
 /**
  * Pluggable compaction strategy determines how SSTables get merged.
@@ -307,6 +308,7 @@ public abstract class AbstractCompactionStrategy
                 }
                 catch (Throwable t2)
                 {
+                    JVMStabilityInspector.inspectThrowable(t2);
                     if (t == null)
                         t = t2;
                     else

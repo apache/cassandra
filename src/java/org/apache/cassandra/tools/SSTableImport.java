@@ -47,6 +47,7 @@ import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.codehaus.jackson.JsonFactory;
 import org.codehaus.jackson.JsonParser;
 import org.codehaus.jackson.JsonToken;
@@ -515,6 +516,7 @@ public class SSTableImport
         }
         catch (Exception e)
         {
+            JVMStabilityInspector.inspectThrowable(e);
             e.printStackTrace();
             System.err.println("ERROR: " + e.getMessage());
             System.exit(-1);

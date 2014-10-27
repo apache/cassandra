@@ -31,6 +31,7 @@
 
 
 2.1.2
+ * Shutdown JVM on file descriptor exhaustion (CASSANDRA-7579)
  * Add 'die' policy for commit log and disk failure (CASSANDRA-7927)
  * Fix installing as service on Windows (CASSANDRA-8115)
  * Fix CREATE TABLE for CQL2 (CASSANDRA-8144)

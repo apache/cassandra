@@ -28,6 +28,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.io.FSReadError;
+import org.apache.cassandra.utils.JVMStabilityInspector;
 
 public class MmappedSegmentedFile extends SegmentedFile
 {
@@ -105,6 +106,7 @@ public class MmappedSegmentedFile extends SegmentedFile
         }
         catch (Exception e)
         {
+            JVMStabilityInspector.inspectThrowable(e);
             // This is not supposed to happen
             logger.error("Error while unmapping segments", e);
         }

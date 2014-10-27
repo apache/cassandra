@@ -65,6 +65,7 @@ import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.*;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.UUIDGen;
 import org.cliffc.high_scale_lib.NonBlockingHashSet;
 
@@ -222,6 +223,7 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
                 }
                 catch (Exception e)
                 {
+                    JVMStabilityInspector.inspectThrowable(e);
                     logger.warn("Could not delete hints for {}: {}", endpoint, e);
                 }
             }

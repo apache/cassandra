@@ -366,6 +366,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         }
         catch (Exception e)
         {
+            JVMStabilityInspector.inspectThrowable(e);
             // this shouldn't block anything.
             logger.warn("Failed unregistering mbean: {}", mbeanName, e);
         }

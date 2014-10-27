@@ -35,6 +35,7 @@ import org.apache.cassandra.thrift.*;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Hex;
+import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.hadoop.mapreduce.*;
 import org.apache.pig.Expression;
 import org.apache.pig.ResourceSchema;
@@ -236,7 +237,8 @@ public class CassandraStorage extends AbstractCassandraStorage
                 }
                 catch (Exception e)
                 {
-                    cql3Table = true;                  
+                    JVMStabilityInspector.inspectThrowable(e);
+                    cql3Table = true;
                 }
                 if (hasColumn)
                 {

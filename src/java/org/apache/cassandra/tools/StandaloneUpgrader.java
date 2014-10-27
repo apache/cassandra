@@ -29,6 +29,7 @@ import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.compaction.Upgrader;
 import org.apache.cassandra.io.sstable.*;
+import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.OutputHandler;
 
 import static org.apache.cassandra.tools.BulkLoader.CmdLineOptions;
@@ -80,6 +81,7 @@ public class StandaloneUpgrader
                 }
                 catch (Exception e)
                 {
+                    JVMStabilityInspector.inspectThrowable(e);
                     System.err.println(String.format("Error Loading %s: %s", entry.getKey(), e.getMessage()));
                     if (options.debug)
                         e.printStackTrace(System.err);

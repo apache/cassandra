@@ -69,6 +69,7 @@ import org.apache.cassandra.service.CacheService;
 import org.apache.cassandra.thrift.ThriftServer;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.memory.HeapPool;
 import org.apache.cassandra.utils.memory.NativePool;
 import org.apache.cassandra.utils.memory.MemtablePool;
@@ -126,6 +127,7 @@ public class DatabaseDescriptor
         catch (Exception e)
         {
             throw new ExceptionInInitializerError(e.getMessage() + "\nFatal configuration error; unable to start. See log for stacktrace.");
+            JVMStabilityInspector.inspectThrowable(e);
         }
     }
 
