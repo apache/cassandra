@@ -29,6 +29,8 @@ import java.util.concurrent.CopyOnWriteArraySet;
 import javax.management.MBeanServer;
 import javax.management.ObjectName;
 
+import org.apache.cassandra.utils.JVMStabilityInspector;
+
 public class BlacklistedDirectories implements BlacklistedDirectoriesMBean
 {
     public static final String MBEAN_NAME = "org.apache.cassandra.db:type=BlacklistedDirectories";
@@ -48,6 +50,7 @@ public class BlacklistedDirectories implements BlacklistedDirectoriesMBean
         }
         catch (Exception e)
         {
+            JVMStabilityInspector.inspectThrowable(e);
             logger.error("error registering MBean {}", MBEAN_NAME, e);
             //Allow the server to start even if the bean can't be registered
         }

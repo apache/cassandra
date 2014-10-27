@@ -105,6 +105,7 @@ public class Hex
             }
             catch (Exception e)
             {
+                JVMStabilityInspector.inspectThrowable(e);
                 // Swallowing as we'll just use a copying constructor
             }
         }

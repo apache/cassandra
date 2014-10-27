@@ -27,6 +27,8 @@ import org.slf4j.LoggerFactory;
 import org.xerial.snappy.Snappy;
 import org.xerial.snappy.SnappyError;
 
+import org.apache.cassandra.utils.JVMStabilityInspector;
+
 public class SnappyCompressor implements ICompressor
 {
     public static final SnappyCompressor instance = new SnappyCompressor();
@@ -57,6 +59,7 @@ public class SnappyCompressor implements ICompressor
         }
         catch (Exception e)
         {
+            JVMStabilityInspector.inspectThrowable(e);
             return false;
         }
         catch (NoClassDefFoundError e)

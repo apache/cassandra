@@ -32,7 +32,6 @@ import com.google.common.base.Predicate;
 import com.google.common.collect.Collections2;
 import com.google.common.collect.Iterables;
 
-import org.apache.cassandra.serializers.MarshalException;
 import org.apache.commons.lang3.StringUtils;
 
 import org.antlr.runtime.tree.Tree;
@@ -44,10 +43,12 @@ import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.locator.SimpleSnitch;
+import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.thrift.*;
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.UUIDGen;
 import org.apache.thrift.TBaseHelper;
 import org.apache.thrift.TException;
@@ -1658,6 +1659,7 @@ public class CliClient
             }
             catch (Exception ne)
             {
+                JVMStabilityInspector.inspectThrowable(ne);
                 String functions = Function.getFunctionNames();
                 sessionState.out.println("Type '" + defaultType + "' was not found. Available: " + functions
                                          + " Or any class which extends o.a.c.db.marshal.AbstractType.");

@@ -5,7 +5,14 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.FSReadError;
 import org.junit.Test;
 
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.net.ServerSocket;
+import java.net.Socket;
+import java.net.SocketException;
+import java.util.ArrayList;
 
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
@@ -48,4 +55,33 @@ public class JVMStabilityInspectorTest
         }
     }
 
+    @Test
+    public void fileHandleTest() throws FileNotFoundException
+    {
+        KillerForTests killerForTests = new KillerForTests();
+        JVMStabilityInspector.Killer originalKiller = JVMStabilityInspector.replaceKiller(killerForTests);
+
+        try
+        {
+            killerForTests.reset();
+            JVMStabilityInspector.inspectThrowable(new SocketException("Should not fail"));
+            assertFalse(killerForTests.wasKilled());
+
+            killerForTests.reset();
+            JVMStabilityInspector.inspectThrowable(new FileNotFoundException("Also should not fail"));
+            assertFalse(killerForTests.wasKilled());
+
+            killerForTests.reset();
+            JVMStabilityInspector.inspectThrowable(new SocketException("Too many open files"));
+            assertTrue(killerForTests.wasKilled());
+
+            killerForTests.reset();
+            JVMStabilityInspector.inspectCommitLogThrowable(new FileNotFoundException("Too many open files"));
+            assertTrue(killerForTests.wasKilled());
+        }
+        finally
+        {
+            JVMStabilityInspector.replaceKiller(originalKiller);
+        }
+    }
 }

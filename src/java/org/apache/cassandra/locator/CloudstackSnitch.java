@@ -41,6 +41,7 @@ import org.apache.cassandra.gms.EndpointState;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.JVMStabilityInspector;
 
 /**
  * A snitch that assumes a Cloudstack Zone follows the typical convention
@@ -160,6 +161,7 @@ public class CloudstackSnitch extends AbstractNetworkTopologySnitch
             } 
             catch (Exception e) 
             {
+                JVMStabilityInspector.inspectThrowable(e);
                 continue;
             }
 

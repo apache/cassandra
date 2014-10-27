@@ -27,6 +27,8 @@ import org.xerial.snappy.SnappyError;
 import net.jpountz.lz4.LZ4Exception;
 import net.jpountz.lz4.LZ4Factory;
 
+import org.apache.cassandra.utils.JVMStabilityInspector;
+
 public interface FrameCompressor
 {
     public Frame compress(Frame frame) throws IOException;
@@ -48,6 +50,7 @@ public interface FrameCompressor
             }
             catch (Exception e)
             {
+                JVMStabilityInspector.inspectThrowable(e);
                 i = null;
             }
             catch (NoClassDefFoundError e)

@@ -28,6 +28,7 @@ import org.apache.cassandra.auth.IAuthenticator;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.thrift.*;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.thrift.TException;
 import org.apache.thrift.protocol.TBinaryProtocol;
 import org.apache.thrift.transport.TTransport;
@@ -139,6 +140,7 @@ public class CliMain
         }
         catch (Exception e)
         {
+            JVMStabilityInspector.inspectThrowable(e);
             sessionState.err.println("Exception retrieving information about the cassandra node, check you have connected to the thrift port.");
 
             e.printStackTrace(sessionState.err);

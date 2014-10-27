@@ -17,6 +17,9 @@
  */
 package org.apache.cassandra.utils;
 
+import java.io.FileNotFoundException;
+import java.net.SocketException;
+
 import com.google.common.annotations.VisibleForTesting;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -50,6 +53,11 @@ public final class JVMStabilityInspector
 
         if (DatabaseDescriptor.getDiskFailurePolicy() == Config.DiskFailurePolicy.die)
             if (t instanceof FSError || t instanceof CorruptSSTableException)
+            isUnstable = true;
+
+        // Check for file handle exhaustion
+        if (t instanceof FileNotFoundException || t instanceof SocketException)
+            if (t.getMessage().contains("Too many open files"))
                 isUnstable = true;
 
         if (isUnstable)

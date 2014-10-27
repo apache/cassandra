@@ -43,6 +43,7 @@ import org.apache.cassandra.io.sstable.SSTableLoader;
 import org.apache.cassandra.streaming.*;
 import org.apache.cassandra.thrift.*;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.OutputHandler;
 
 public class BulkLoader
@@ -107,6 +108,7 @@ public class BulkLoader
         }
         catch (Exception e)
         {
+            JVMStabilityInspector.inspectThrowable(e);
             System.err.println(e.getMessage());
             if (e.getCause() != null)
                 System.err.println(e.getCause());

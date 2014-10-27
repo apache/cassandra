@@ -43,6 +43,7 @@ import org.apache.cassandra.metrics.StreamingMetrics;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.streaming.messages.*;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.Pair;
 
 /**
@@ -217,6 +218,7 @@ public class StreamSession implements IEndpointStateChangeSubscriber
         }
         catch (Exception e)
         {
+            JVMStabilityInspector.inspectThrowable(e);
             onError(e);
         }
     }

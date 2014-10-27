@@ -25,6 +25,7 @@ import org.apache.cassandra.config.EncryptionOptions.ClientEncryptionOptions;
 import org.apache.cassandra.thrift.ITransportFactory;
 import org.apache.cassandra.thrift.TFramedTransportFactory;
 import org.apache.cassandra.tools.NodeProbe;
+import org.apache.cassandra.utils.JVMStabilityInspector;
 
 /**
  * Used to hold the state for the CLI.
@@ -86,6 +87,7 @@ public class CliSessionState
         }
         catch (Exception e)
         {
+            JVMStabilityInspector.inspectThrowable(e);
             err.printf("WARNING: Could not connect to the JMX on %s:%d - some information won't be shown.%n%n", hostName, jmxPort);
         }
 
