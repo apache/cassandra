@@ -2624,14 +2624,6 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                 logger.info(message);
                 sendNotification("repair", message, new int[]{cmd, ActiveRepairService.Status.STARTED.ordinal()});
 
-                if (options.isSequential() && options.isIncremental())
-                {
-                    message = "It is not possible to mix sequential repair and incremental repairs.";
-                    logger.error(message);
-                    sendNotification("repair", message, new int[]{cmd, ActiveRepairService.Status.FINISHED.ordinal()});
-                    return;
-                }
-
                 final Set<InetAddress> allNeighbors = new HashSet<>();
                 Map<Range, Set<InetAddress>> rangeToNeighbors = new HashMap<>();
                 for (Range<Token> range : options.getRanges())
@@ -2664,23 +2656,16 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                 }
 
                 final UUID parentSession;
-                long repairedAt = ActiveRepairService.UNREPAIRED_SSTABLE;
-                if (options.isIncremental())
+                long repairedAt;
+                try
                 {
-                    try
-                    {
-                        parentSession = ActiveRepairService.instance.prepareForRepair(allNeighbors, options.getRanges(), columnFamilyStores);
-                        repairedAt = ActiveRepairService.instance.getParentRepairSession(parentSession).repairedAt;
-                    }
-                    catch (Throwable t)
-                    {
-                        sendNotification("repair", String.format("Repair failed with error %s", t.getMessage()), new int[]{cmd, ActiveRepairService.Status.FINISHED.ordinal()});
-                        return;
-                    }
+                    parentSession = ActiveRepairService.instance.prepareForRepair(allNeighbors, options, columnFamilyStores);
+                    repairedAt = ActiveRepairService.instance.getParentRepairSession(parentSession).repairedAt;
                 }
-                else
+                catch (Throwable t)
                 {
-                    parentSession = null;
+                    sendNotification("repair", String.format("Repair failed with error %s", t.getMessage()), new int[]{cmd, ActiveRepairService.Status.FINISHED.ordinal()});
+                    return;
                 }
 
                 // Set up RepairJob executor for this repair command.
@@ -2736,16 +2721,13 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                 {
                     public void onSuccess(@Nullable Object result)
                     {
-                        if (options.isIncremental())
+                        try
                         {
-                            try
-                            {
-                                ActiveRepairService.instance.finishParentSession(parentSession, allNeighbors);
-                            }
-                            catch (Exception e)
-                            {
-                                logger.error("Error in incremental repair", e);
-                            }
+                            ActiveRepairService.instance.finishParentSession(parentSession, allNeighbors);
+                        }
+                        catch (Exception e)
+                        {
+                            logger.error("Error in incremental repair", e);
                         }
                         repairComplete();
                     }

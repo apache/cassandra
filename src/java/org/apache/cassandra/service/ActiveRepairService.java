@@ -228,10 +228,10 @@ public class ActiveRepairService
         return neighbors;
     }
 
-    public UUID prepareForRepair(Set<InetAddress> endpoints, Collection<Range<Token>> ranges, List<ColumnFamilyStore> columnFamilyStores)
+    public UUID prepareForRepair(Set<InetAddress> endpoints, RepairOption options, List<ColumnFamilyStore> columnFamilyStores)
     {
         UUID parentRepairSession = UUIDGen.getTimeUUID();
-        registerParentRepairSession(parentRepairSession, columnFamilyStores, ranges);
+        registerParentRepairSession(parentRepairSession, columnFamilyStores, options.getRanges(), options.isIncremental());
         final CountDownLatch prepareLatch = new CountDownLatch(endpoints.size());
         final AtomicBoolean status = new AtomicBoolean(true);
         IAsyncCallbackWithFailure callback = new IAsyncCallbackWithFailure()
@@ -259,7 +259,7 @@ public class ActiveRepairService
 
         for(InetAddress neighbour : endpoints)
         {
-            PrepareMessage message = new PrepareMessage(parentRepairSession, cfIds, ranges);
+            PrepareMessage message = new PrepareMessage(parentRepairSession, cfIds, options.getRanges(), options.isIncremental());
             MessageOut<RepairMessage> msg = message.createMessage();
             MessagingService.instance().sendRRWithFailure(msg, neighbour, callback);
         }
@@ -282,25 +282,9 @@ public class ActiveRepairService
         return parentRepairSession;
     }
 
-    public void registerParentRepairSession(UUID parentRepairSession, List<ColumnFamilyStore> columnFamilyStores, Collection<Range<Token>> ranges)
+    public void registerParentRepairSession(UUID parentRepairSession, List<ColumnFamilyStore> columnFamilyStores, Collection<Range<Token>> ranges, boolean isIncremental)
     {
-        Map<UUID, Set<SSTableReader>> sstablesToRepair = new HashMap<>();
-        for (ColumnFamilyStore cfs : columnFamilyStores)
-        {
-            Set<SSTableReader> sstables = new HashSet<>();
-            for (SSTableReader sstable : cfs.getSSTables())
-            {
-                if (new Bounds<>(sstable.first.getToken(), sstable.last.getToken()).intersects(ranges))
-                {
-                    if (!sstable.isRepaired())
-                    {
-                        sstables.add(sstable);
-                    }
-                }
-            }
-            sstablesToRepair.put(cfs.metadata.cfId, sstables);
-        }
-        parentRepairSessions.put(parentRepairSession, new ParentRepairSession(columnFamilyStores, ranges, sstablesToRepair, System.currentTimeMillis()));
+        parentRepairSessions.put(parentRepairSession, new ParentRepairSession(columnFamilyStores, ranges, isIncremental, System.currentTimeMillis()));
     }
 
     public void finishParentSession(UUID parentSession, Set<InetAddress> neighbors)
@@ -379,18 +363,28 @@ public class ActiveRepairService
 
     public static class ParentRepairSession
     {
-        public final Map<UUID, ColumnFamilyStore> columnFamilyStores = new HashMap<>();
-        public final Collection<Range<Token>> ranges;
-        public final Map<UUID, Set<SSTableReader>> sstableMap;
+        private final Map<UUID, ColumnFamilyStore> columnFamilyStores = new HashMap<>();
+        private final Collection<Range<Token>> ranges;
+        private final Map<UUID, Set<SSTableReader>> sstableMap = new HashMap<>();
         public final long repairedAt;
+        public final boolean isIncremental;
 
-        public ParentRepairSession(List<ColumnFamilyStore> columnFamilyStores, Collection<Range<Token>> ranges, Map<UUID, Set<SSTableReader>> sstables, long repairedAt)
+        public ParentRepairSession(List<ColumnFamilyStore> columnFamilyStores, Collection<Range<Token>> ranges, boolean isIncremental, long repairedAt)
         {
             for (ColumnFamilyStore cfs : columnFamilyStores)
                 this.columnFamilyStores.put(cfs.metadata.cfId, cfs);
             this.ranges = ranges;
-            this.sstableMap = sstables;
             this.repairedAt = repairedAt;
+            this.isIncremental = isIncremental;
+        }
+
+        public void addSSTables(UUID cfId, Set<SSTableReader> sstables)
+        {
+            Set<SSTableReader> existingSSTables = this.sstableMap.get(cfId);
+            if (existingSSTables == null)
+                existingSSTables = new HashSet<>();
+            existingSSTables.addAll(sstables);
+            this.sstableMap.put(cfId, sstables);
         }
 
         public synchronized Collection<SSTableReader> getAndReferenceSSTables(UUID cfId)
@@ -411,6 +405,21 @@ public class ActiveRepairService
                 }
             }
             return sstables;
+        }
+
+        public synchronized Set<SSTableReader> getAndReferenceSSTablesInRange(UUID cfId, Range<Token> range)
+        {
+            Collection<SSTableReader> allSSTables= getAndReferenceSSTables(cfId);
+            Set<SSTableReader> sstables = new HashSet<>();
+            for (SSTableReader sstable : allSSTables)
+            {
+                if (new Bounds<>(sstable.first.getToken(), sstable.last.getToken()).intersects(Arrays.asList(range)))
+                    sstables.add(sstable);
+                else
+                    sstable.releaseReference();
+            }
+            return sstables;
+
         }
     }
 }

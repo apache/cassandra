@@ -53,4 +53,12 @@ public class AnticompactionRequest extends RepairMessage
             return UUIDSerializer.serializer.serializedSize(message.parentRepairSession, version);
         }
     }
+
+    @Override
+    public String toString()
+    {
+        return "AnticompactionRequest{" +
+                "parentRepairSession=" + parentRepairSession +
+                "} " + super.toString();
+    }
 }

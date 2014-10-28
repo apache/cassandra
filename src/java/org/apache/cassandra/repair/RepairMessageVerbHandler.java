@@ -18,12 +18,18 @@
 package org.apache.cassandra.repair;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.Future;
 
 import com.google.common.base.Predicate;
+
+import org.apache.cassandra.dht.Bounds;
+import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -32,10 +38,7 @@ import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.compaction.CompactionManager;
-import org.apache.cassandra.dht.Bounds;
 import org.apache.cassandra.dht.LocalPartitioner;
-import org.apache.cassandra.dht.Range;
-import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.MessageIn;
 import org.apache.cassandra.net.MessageOut;
@@ -61,6 +64,7 @@ public class RepairMessageVerbHandler implements IVerbHandler<RepairMessage>
         {
             case PREPARE_MESSAGE:
                 PrepareMessage prepareMessage = (PrepareMessage) message.payload;
+                logger.debug("Preparing, {}", prepareMessage);
                 List<ColumnFamilyStore> columnFamilyStores = new ArrayList<>(prepareMessage.cfIds.size());
                 for (UUID cfId : prepareMessage.cfIds)
                 {
@@ -70,14 +74,16 @@ public class RepairMessageVerbHandler implements IVerbHandler<RepairMessage>
                 }
                 ActiveRepairService.instance.registerParentRepairSession(prepareMessage.parentRepairSession,
                                                                          columnFamilyStores,
-                                                                         prepareMessage.ranges);
+                                                                         prepareMessage.ranges,
+                                                                         prepareMessage.isIncremental);
                 MessagingService.instance().sendReply(new MessageOut(MessagingService.Verb.INTERNAL_RESPONSE), id, message.from);
                 break;
 
             case SNAPSHOT:
+                logger.debug("Snapshotting {}", desc);
                 ColumnFamilyStore cfs = Keyspace.open(desc.keyspace).getColumnFamilyStore(desc.columnFamily);
                 final Range<Token> repairingRange = desc.range;
-                cfs.snapshot(desc.sessionId.toString(), new Predicate<SSTableReader>()
+                Set<SSTableReader> snapshottedSSSTables = cfs.snapshot(desc.sessionId.toString(), new Predicate<SSTableReader>()
                 {
                     public boolean apply(SSTableReader sstable)
                     {
@@ -86,13 +92,14 @@ public class RepairMessageVerbHandler implements IVerbHandler<RepairMessage>
                                new Bounds<>(sstable.first.getToken(), sstable.last.getToken()).intersects(Collections.singleton(repairingRange));
                     }
                 });
-
+                ActiveRepairService.instance.getParentRepairSession(desc.parentSessionId).addSSTables(cfs.metadata.cfId, snapshottedSSSTables);
                 logger.debug("Enqueuing response to snapshot request {} to {}", desc.sessionId, message.from);
                 MessagingService.instance().sendReply(new MessageOut(MessagingService.Verb.INTERNAL_RESPONSE), id, message.from);
                 break;
 
             case VALIDATION_REQUEST:
                 ValidationRequest validationRequest = (ValidationRequest) message.payload;
+                logger.debug("Validating {}", validationRequest);
                 // trigger read-only compaction
                 ColumnFamilyStore store = Keyspace.open(desc.keyspace).getColumnFamilyStore(desc.columnFamily);
 
@@ -103,7 +110,7 @@ public class RepairMessageVerbHandler implements IVerbHandler<RepairMessage>
             case SYNC_REQUEST:
                 // forwarded sync request
                 SyncRequest request = (SyncRequest) message.payload;
-
+                logger.debug("Syncing {}", request);
                 long repairedAt = ActiveRepairService.UNREPAIRED_SSTABLE;
                 if (desc.parentSessionId != null && ActiveRepairService.instance.getParentRepairSession(desc.parentSessionId) != null)
                     repairedAt = ActiveRepairService.instance.getParentRepairSession(desc.parentSessionId).repairedAt;
@@ -113,8 +120,8 @@ public class RepairMessageVerbHandler implements IVerbHandler<RepairMessage>
                 break;
 
             case ANTICOMPACTION_REQUEST:
-                logger.debug("Got anticompaction request");
                 AnticompactionRequest anticompactionRequest = (AnticompactionRequest) message.payload;
+                logger.debug("Got anticompaction request {}", anticompactionRequest);
                 try
                 {
                     List<Future<?>> futures = ActiveRepairService.instance.doAntiCompaction(anticompactionRequest.parentRepairSession);

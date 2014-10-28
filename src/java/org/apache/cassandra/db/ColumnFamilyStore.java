@@ -2151,8 +2151,9 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         snapshotWithoutFlush(snapshotName, null);
     }
 
-    public void snapshotWithoutFlush(String snapshotName, Predicate<SSTableReader> predicate)
+    public Set<SSTableReader> snapshotWithoutFlush(String snapshotName, Predicate<SSTableReader> predicate)
     {
+        Set<SSTableReader> snapshottedSSTables = new HashSet<>();
         for (ColumnFamilyStore cfs : concatWithIndexes())
         {
             DataTracker.View currentView = cfs.markCurrentViewReferenced();
@@ -2171,6 +2172,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                     filesJSONArr.add(ssTable.descriptor.relativeFilenameFor(Component.DATA));
                     if (logger.isDebugEnabled())
                         logger.debug("Snapshot for {} keyspace data file {} created in {}", keyspace, ssTable.getFilename(), snapshotDirectory);
+                    snapshottedSSTables.add(ssTable);
                 }
 
                 writeSnapshotManifest(filesJSONArr, snapshotName);
@@ -2180,6 +2182,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                 SSTableReader.releaseReferences(currentView.sstables);
             }
         }
+        return snapshottedSSTables;
     }
 
     private void writeSnapshotManifest(final JSONArray filesJSONArr, final String snapshotName)
@@ -2216,15 +2219,15 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
      *
      * @param snapshotName the name of the associated with the snapshot
      */
-    public void snapshot(String snapshotName)
+    public Set<SSTableReader> snapshot(String snapshotName)
     {
-        snapshot(snapshotName, null);
+        return snapshot(snapshotName, null);
     }
 
-    public void snapshot(String snapshotName, Predicate<SSTableReader> predicate)
+    public Set<SSTableReader> snapshot(String snapshotName, Predicate<SSTableReader> predicate)
     {
         forceBlockingFlush();
-        snapshotWithoutFlush(snapshotName, predicate);
+        return snapshotWithoutFlush(snapshotName, predicate);
     }
 
     public boolean snapshotExists(String snapshotName)

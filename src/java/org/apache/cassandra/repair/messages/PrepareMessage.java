@@ -38,13 +38,15 @@ public class PrepareMessage extends RepairMessage
     public final Collection<Range<Token>> ranges;
 
     public final UUID parentRepairSession;
+    public final boolean isIncremental;
 
-    public PrepareMessage(UUID parentRepairSession, List<UUID> cfIds, Collection<Range<Token>> ranges)
+    public PrepareMessage(UUID parentRepairSession, List<UUID> cfIds, Collection<Range<Token>> ranges, boolean isIncremental)
     {
         super(Type.PREPARE_MESSAGE, null);
         this.parentRepairSession = parentRepairSession;
         this.cfIds = cfIds;
         this.ranges = ranges;
+        this.isIncremental = isIncremental;
     }
 
     public static class PrepareMessageSerializer implements MessageSerializer<PrepareMessage>
@@ -58,6 +60,7 @@ public class PrepareMessage extends RepairMessage
             out.writeInt(message.ranges.size());
             for (Range r : message.ranges)
                 Range.serializer.serialize(r, out, version);
+            out.writeBoolean(message.isIncremental);
         }
 
         public PrepareMessage deserialize(DataInput in, int version) throws IOException
@@ -71,7 +74,8 @@ public class PrepareMessage extends RepairMessage
             List<Range<Token>> ranges = new ArrayList<>(rangeCount);
             for (int i = 0; i < rangeCount; i++)
                 ranges.add((Range<Token>) Range.serializer.deserialize(in, version).toTokenBounds());
-            return new PrepareMessage(parentRepairSession, cfIds, ranges);
+            boolean isIncremental = in.readBoolean();
+            return new PrepareMessage(parentRepairSession, cfIds, ranges, isIncremental);
         }
 
         public long serializedSize(PrepareMessage message, int version)
@@ -85,6 +89,7 @@ public class PrepareMessage extends RepairMessage
             size += sizes.sizeof(message.ranges.size());
             for (Range r : message.ranges)
                 size += Range.serializer.serializedSize(r, version);
+            size += sizes.sizeof(message.isIncremental);
             return size;
         }
     }
@@ -96,6 +101,7 @@ public class PrepareMessage extends RepairMessage
                 "cfIds='" + cfIds + '\'' +
                 ", ranges=" + ranges +
                 ", parentRepairSession=" + parentRepairSession +
+                ", isIncremental="+isIncremental +
                 '}';
     }
 }

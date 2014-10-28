@@ -92,4 +92,15 @@ public class SyncRequest extends RepairMessage
             return size;
         }
     }
+
+    @Override
+    public String toString()
+    {
+        return "SyncRequest{" +
+                "initiator=" + initiator +
+                ", src=" + src +
+                ", dst=" + dst +
+                ", ranges=" + ranges +
+                "} " + super.toString();
+    }
 }

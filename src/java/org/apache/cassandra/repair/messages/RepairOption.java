@@ -211,13 +211,6 @@ public class RepairOption
 
     public RepairOption(boolean sequential, boolean primaryRange, boolean incremental, int jobThreads, Collection<Range<Token>> ranges)
     {
-        if (sequential && incremental)
-        {
-            String message = "It is not possible to mix sequential repair and incremental repairs.";
-            logger.error(message);
-            throw new IllegalArgumentException(message);
-        }
-
         if (!FBUtilities.isUnix() && sequential)
         {
             logger.warn("Snapshot-based repair is not yet supported on Windows.  Reverting to parallel repair.");

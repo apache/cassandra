@@ -903,7 +903,10 @@ public class CompactionManager implements CompactionManagerMBean
             if (isSnapshotValidation)
             {
                 // If there is a snapshot created for the session then read from there.
+                // note that we populate the parent repair session when creating the snapshot, meaning the sstables in the snapshot are the ones we
+                // are supposed to validate.
                 sstables = cfs.getSnapshotSSTableReader(snapshotName);
+
 
                 // Computing gcbefore based on the current time wouldn't be very good because we know each replica will execute
                 // this at a different time (that's the whole purpose of repair with snaphsot). So instead we take the creation
@@ -915,12 +918,21 @@ public class CompactionManager implements CompactionManagerMBean
             {
                 // flush first so everyone is validating data that is as similar as possible
                 StorageService.instance.forceKeyspaceFlush(cfs.keyspace.getName(), cfs.name);
-                // we don't mark validating sstables as compacting in DataTracker, so we have to mark them referenced
-                // instead so they won't be cleaned up if they do get compacted during the validation
-                if (validator.desc.parentSessionId == null || ActiveRepairService.instance.getParentRepairSession(validator.desc.parentSessionId) == null)
-                    sstables = cfs.markCurrentSSTablesReferenced();
-                else
-                    sstables = ActiveRepairService.instance.getParentRepairSession(validator.desc.parentSessionId).getAndReferenceSSTables(cfs.metadata.cfId);
+                ActiveRepairService.ParentRepairSession prs = ActiveRepairService.instance.getParentRepairSession(validator.desc.parentSessionId);
+                Set<SSTableReader> sstablesToValidate = new HashSet<>();
+                for (SSTableReader sstable : cfs.getSSTables())
+                {
+                    if (new Bounds<>(sstable.first.getToken(), sstable.last.getToken()).intersects(Arrays.asList(validator.desc.range)))
+                    {
+                        if (!prs.isIncremental || !sstable.isRepaired())
+                        {
+                            sstablesToValidate.add(sstable);
+                        }
+                    }
+                }
+                prs.addSSTables(cfs.metadata.cfId, sstablesToValidate);
+
+                sstables = prs.getAndReferenceSSTablesInRange(cfs.metadata.cfId, validator.desc.range);
 
                 if (validator.gcBefore > 0)
                     gcBefore = validator.gcBefore;
