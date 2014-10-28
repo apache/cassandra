@@ -1,4 +1,6 @@
 2.1.2
+ * Avoid IllegalArgumentException while sorting sstables in
+   IndexSummaryManager (CASSANDRA-8182)
  * Shutdown JVM on file descriptor exhaustion (CASSANDRA-7579)
  * Add 'die' policy for commit log and disk failure (CASSANDRA-7927)
  * Fix installing as service on Windows (CASSANDRA-8115)
