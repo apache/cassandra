@@ -5,6 +5,7 @@
    rpc_max_threads setting of 'unlimited' (CASSANDRA-8116)
  * Allow concurrent writing of the same table in the same JVM using
    CQLSSTableWriter (CASSANDRA-7463)
+ * Fix totalDiskSpaceUsed calculation (CASSANDRA-8205)
 
 
 2.0.11:
