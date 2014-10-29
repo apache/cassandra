@@ -1,4 +1,5 @@
 2.1.2
+ * Fix DESCRIBE TABLE with custom indexes (CASSANDRA-8031)
  * Fix race in RecoveryManagerTest (CASSANDRA-8176)
  * Avoid IllegalArgumentException while sorting sstables in
    IndexSummaryManager (CASSANDRA-8182)
