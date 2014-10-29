@@ -24,6 +24,7 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -43,6 +44,7 @@ public abstract class AbstractSSTableSimpleWriter implements Closeable
     protected ColumnFamily columnFamily;
     protected ByteBuffer currentSuperColumn;
     protected final CounterId counterid = CounterId.generate();
+    protected static AtomicInteger generation = new AtomicInteger(0);
 
     public AbstractSSTableSimpleWriter(File directory, CFMetaData metadata, IPartitioner partitioner)
     {
@@ -80,9 +82,15 @@ public abstract class AbstractSSTableSimpleWriter implements Closeable
                 return false;
             }
         });
-        int maxGen = 0;
+        int maxGen = generation.getAndIncrement();
         for (Descriptor desc : existing)
-            maxGen = Math.max(maxGen, desc.generation);
+        {
+            while (desc.generation > maxGen)
+            {
+                maxGen = generation.getAndIncrement();
+            }
+        }
+
         return new Descriptor(directory, keyspace, columnFamily, maxGen + 1, true).filenameFor(Component.DATA);
     }
 
