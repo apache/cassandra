@@ -12,6 +12,9 @@ Merged from 2.0:
  * Pig: Remove errant LIMIT clause in CqlNativeStorage (CASSANDRA-8166)
  * Throw ConfigurationException when hsha is used with the default
    rpc_max_threads setting of 'unlimited' (CASSANDRA-8116)
+ * Allow concurrent writing of the same table in the same JVM using
+   CQLSSTableWriter (CASSANDRA-7463)
+ * Fix totalDiskSpaceUsed calculation (CASSANDRA-8205)
 
 
 2.1.1
