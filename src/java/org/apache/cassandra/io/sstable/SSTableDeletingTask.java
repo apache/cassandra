@@ -47,7 +47,6 @@ public class SSTableDeletingTask implements Runnable
     private final Descriptor desc;
     private final Set<Component> components;
     private DataTracker tracker;
-    private final long size;
 
     public SSTableDeletingTask(SSTableReader referent)
     {
@@ -62,7 +61,6 @@ public class SSTableDeletingTask implements Runnable
             this.desc = referent.descriptor;
             this.components = referent.components;
         }
-        this.size = referent.bytesOnDisk();
     }
 
     public void setTracker(DataTracker tracker)
@@ -77,6 +75,8 @@ public class SSTableDeletingTask implements Runnable
 
     public void run()
     {
+        long size = referent.bytesOnDisk();
+
         if (tracker != null)
             tracker.notifyDeleting(referent);
 
