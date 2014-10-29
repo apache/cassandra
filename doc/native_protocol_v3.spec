@@ -187,8 +187,8 @@ Table of Contents
   To describe the layout of the frame body for the messages in Section 4, we
   define the following:
 
-    [int]          A 4 bytes integer
-    [long]         A 8 bytes integer
+    [int]          A 4 bytes signed integer
+    [long]         A 8 bytes signed integer
     [short]        A 2 bytes unsigned integer
     [string]       A [short] n, followed by n bytes representing an UTF-8
                    string.
@@ -321,7 +321,9 @@ Table of Contents
               conditional update/insert.
         0x20: With default timestamp. If present, <timestamp> should be present.
               <timestamp> is a [long] representing the default timestamp for the query
-              in microseconds (negative values are forbidden). If provided, this will
+              in microseconds (negative values are discouraged but supported for
+              backward compatibility reasons except for the smallest negative
+              value (-2^63) that is forbidden). If provided, this will
               replace the server side assigned timestamp as default timestamp.
               Note that a timestamp in the query itself will still override
               this timestamp. This is entirely optional.
