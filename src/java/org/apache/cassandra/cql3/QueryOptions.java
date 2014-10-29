@@ -101,7 +101,7 @@ public abstract class QueryOptions
     public long getTimestamp(QueryState state)
     {
         long tstamp = getSpecificOptions().timestamp;
-        return tstamp >= 0 ? tstamp : state.getTimestamp();
+        return tstamp != Long.MIN_VALUE ? tstamp : state.getTimestamp();
     }
 
     /**
@@ -326,12 +326,12 @@ public abstract class QueryOptions
                 int pageSize = flags.contains(Flag.PAGE_SIZE) ? body.readInt() : -1;
                 PagingState pagingState = flags.contains(Flag.PAGING_STATE) ? PagingState.deserialize(CBUtil.readValue(body)) : null;
                 ConsistencyLevel serialConsistency = flags.contains(Flag.SERIAL_CONSISTENCY) ? CBUtil.readConsistencyLevel(body) : ConsistencyLevel.SERIAL;
-                long timestamp = -1L;
+                long timestamp = Long.MIN_VALUE;
                 if (flags.contains(Flag.TIMESTAMP))
                 {
                     long ts = body.readLong();
-                    if (ts < 0)
-                        throw new ProtocolException("Invalid negative (" + ts + ") protocol level timestamp");
+                    if (ts == Long.MIN_VALUE)
+                        throw new ProtocolException(String.format("Out of bound timestamp, must be in [%d, %d] (got %d)", Long.MIN_VALUE + 1, Long.MAX_VALUE, ts));
                     timestamp = ts;
                 }
 
@@ -402,7 +402,7 @@ public abstract class QueryOptions
                 flags.add(Flag.PAGING_STATE);
             if (options.getSerialConsistency() != ConsistencyLevel.SERIAL)
                 flags.add(Flag.SERIAL_CONSISTENCY);
-            if (options.getSpecificOptions().timestamp >= 0)
+            if (options.getSpecificOptions().timestamp != Long.MIN_VALUE)
                 flags.add(Flag.TIMESTAMP);
             return flags;
         }

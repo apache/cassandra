@@ -44,6 +44,7 @@ public class UpdateParameters
     private final Map<ByteBuffer, CQL3Row> prefetchedLists;
 
     public UpdateParameters(CFMetaData metadata, QueryOptions options, long timestamp, int ttl, Map<ByteBuffer, CQL3Row> prefetchedLists)
+    throws InvalidRequestException
     {
         this.metadata = metadata;
         this.options = options;
@@ -51,6 +52,11 @@ public class UpdateParameters
         this.ttl = ttl;
         this.localDeletionTime = (int)(System.currentTimeMillis() / 1000);
         this.prefetchedLists = prefetchedLists;
+
+        // We use MIN_VALUE internally to mean the absence of of timestamp (in Selection, in sstable stats, ...), so exclude
+        // it to avoid potential confusion.
+        if (timestamp == Long.MIN_VALUE)
+            throw new InvalidRequestException(String.format("Out of bound timestamp, must be in [%d, %d]", Long.MIN_VALUE + 1, Long.MAX_VALUE));
     }
 
     public Cell makeColumn(CellName name, ByteBuffer value) throws InvalidRequestException

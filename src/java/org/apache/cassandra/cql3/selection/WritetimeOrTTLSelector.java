@@ -70,7 +70,7 @@ final class WritetimeOrTTLSelector extends Selector
         if (isWritetime)
         {
             long ts = rs.timestamps[idx];
-            current = ts >= 0 ? ByteBufferUtil.bytes(ts) : null;
+            current = ts != Long.MIN_VALUE ? ByteBufferUtil.bytes(ts) : null;
         }
         else
         {
