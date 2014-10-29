@@ -69,13 +69,16 @@ public class RecoveryManagerTest
     }
 
     @Test
-    public void testNothingToRecover() throws IOException {
+    public void testNothingToRecover() throws IOException
+    {
+        CommitLog.instance.resetUnsafe();
         CommitLog.instance.recover();
     }
 
     @Test
     public void testOne() throws IOException
     {
+        CommitLog.instance.resetUnsafe();
         Keyspace keyspace1 = Keyspace.open(KEYSPACE1);
         Keyspace keyspace2 = Keyspace.open(KEYSPACE2);
 
@@ -106,6 +109,7 @@ public class RecoveryManagerTest
     @Test
     public void testRecoverCounter() throws IOException
     {
+        CommitLog.instance.resetUnsafe();
         Keyspace keyspace1 = Keyspace.open(KEYSPACE1);
 
         Mutation rm;
@@ -137,6 +141,7 @@ public class RecoveryManagerTest
     @Test
     public void testRecoverPIT() throws Exception
     {
+        CommitLog.instance.resetUnsafe();
         Date date = CommitLogArchiver.format.parse("2112:12:12 12:12:12");
         long timeMS = date.getTime() - 5000;
 
@@ -162,6 +167,7 @@ public class RecoveryManagerTest
     @Test
     public void testRecoverPITUnordered() throws Exception
     {
+        CommitLog.instance.resetUnsafe();
         Date date = CommitLogArchiver.format.parse("2112:12:12 12:12:12");
         long timeMS = date.getTime();
 
