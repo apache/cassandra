@@ -40,13 +40,16 @@ import static org.apache.cassandra.Util.cellname;
 public class RecoveryManagerTest extends SchemaLoader
 {
     @Test
-    public void testNothingToRecover() throws IOException {
+    public void testNothingToRecover() throws IOException
+    {
+        CommitLog.instance.resetUnsafe();
         CommitLog.instance.recover();
     }
 
     @Test
     public void testOne() throws IOException
     {
+        CommitLog.instance.resetUnsafe();
         Keyspace keyspace1 = Keyspace.open("Keyspace1");
         Keyspace keyspace2 = Keyspace.open("Keyspace2");
 
@@ -77,6 +80,7 @@ public class RecoveryManagerTest extends SchemaLoader
     @Test
     public void testRecoverCounter() throws IOException
     {
+        CommitLog.instance.resetUnsafe();
         Keyspace keyspace1 = Keyspace.open("Keyspace1");
 
         Mutation rm;
@@ -108,6 +112,7 @@ public class RecoveryManagerTest extends SchemaLoader
     @Test
     public void testRecoverPIT() throws Exception
     {
+        CommitLog.instance.resetUnsafe();
         Date date = CommitLogArchiver.format.parse("2112:12:12 12:12:12");
         long timeMS = date.getTime() - 5000;
 
@@ -133,6 +138,7 @@ public class RecoveryManagerTest extends SchemaLoader
     @Test
     public void testRecoverPITUnordered() throws Exception
     {
+        CommitLog.instance.resetUnsafe();
         Date date = CommitLogArchiver.format.parse("2112:12:12 12:12:12");
         long timeMS = date.getTime();
 
