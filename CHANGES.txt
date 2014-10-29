@@ -1,4 +1,5 @@
 2.0.12:
+ * Handle negative timestamp in writetime method (CASSANDRA-8139)
  * Pig: Remove errant LIMIT clause in CqlNativeStorage (CASSANDRA-8166)
  * Throw ConfigurationException when hsha is used with the default
    rpc_max_threads setting of 'unlimited' (CASSANDRA-8116)
