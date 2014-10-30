@@ -51,7 +51,7 @@ public class SettingsPort implements Serializable
         @Override
         public List<? extends Option> options()
         {
-            return Arrays.asList(nativePort, thriftPort);
+            return Arrays.asList(nativePort, thriftPort, jmxPort);
         }
     }
 
