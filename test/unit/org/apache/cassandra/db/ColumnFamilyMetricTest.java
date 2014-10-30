@@ -23,7 +23,7 @@ import java.util.Collection;
 import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
-import org.apache.cassandra.io.sstable.SSTableReader;
+import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 import static org.junit.Assert.assertEquals;
@@ -47,7 +47,7 @@ public class ColumnFamilyMetricTest extends SchemaLoader
         {
             ByteBuffer key = ByteBufferUtil.bytes(String.valueOf(j));
             Mutation rm = new Mutation("Keyspace1", key);
-            rm.add("Standard2", cellname("0"), ByteBufferUtil.EMPTY_BYTE_BUFFER, j);
+            rm.add("Standard1", cellname("0"), ByteBufferUtil.EMPTY_BYTE_BUFFER, j);
             rm.apply();
         }
         store.forceBlockingFlush();
