@@ -20,22 +20,35 @@ package org.apache.cassandra.db;
 import java.nio.ByteBuffer;
 import java.util.Collection;
 
+import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
-import org.apache.cassandra.io.sstable.SSTableReader;
+import org.apache.cassandra.config.KSMetaData;
+import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.locator.SimpleStrategy;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 import static org.junit.Assert.assertEquals;
 import static org.apache.cassandra.Util.cellname;
 
-public class ColumnFamilyMetricTest extends SchemaLoader
+public class ColumnFamilyMetricTest
 {
+    @BeforeClass
+    public static void defineSchema() throws Exception
+    {
+        SchemaLoader.prepareServer();
+        SchemaLoader.createKeyspace("Keyspace1",
+                                    SimpleStrategy.class,
+                                    KSMetaData.optsWithRF(1),
+                                    SchemaLoader.standardCFMD("Keyspace1", "Standard2"));
+    }
+
     @Test
     public void testSizeMetric()
     {
         Keyspace keyspace = Keyspace.open("Keyspace1");
-        ColumnFamilyStore store = keyspace.getColumnFamilyStore("Standard1");
+        ColumnFamilyStore store = keyspace.getColumnFamilyStore("Standard2");
         store.disableAutoCompaction();
 
         store.truncateBlocking();
