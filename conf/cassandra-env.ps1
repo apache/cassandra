@@ -312,6 +312,9 @@ Function SetCassandraEnvironment
     # JMX connections.
     $JMX_PORT="7199"
 
+    # store in env to check if it's avail in verification
+    $env:JMX_PORT=$JMX_PORT
+
     $env:JVM_OPTS = "$env:JVM_OPTS -Dlog4j.defaultInitOverride=true"
 
     # some JVMs will fill up their heap when accessed via JMX, see CASSANDRA-6541
@@ -405,3 +408,5 @@ Function SetCassandraEnvironment
 
     $env:JVM_OPTS = "$env:JVM_OPTS -Dlog4j.configuration=log4j-server.properties"
 }
+
+
