@@ -401,15 +401,20 @@ public class CassandraDaemon
     /**
      * Stop the daemon, ideally in an idempotent manner.
      *
-     * Hook for JSVC
+     * Hook for JSVC / Procrun
      */
     public void stop()
     {
-        // this doesn't entirely shut down Cassandra, just the RPC server.
+        // On linux, this doesn't entirely shut down Cassandra, just the RPC server.
         // jsvc takes care of taking the rest down
         logger.info("Cassandra shutting down...");
         thriftServer.stop();
         nativeServer.stop();
+
+        // On windows, we need to stop the entire system as prunsrv doesn't have the jsvc hooks
+        // We rely on the shutdown hook to drain the node
+        if (!FBUtilities.isUnix())
+            System.exit(0);
     }
 
 
