@@ -95,6 +95,7 @@ Function Main
     }
     else
     {
+        VerifyPortsAreAvailable
         RunCassandra($f)
     }
 }
@@ -274,6 +275,99 @@ WARNING! Failed to write pidfile to $pidfile.  stop-server.bat and
         if (-Not $exitCode)
         {
             exit 1
+        }
+    }
+}
+
+#-----------------------------------------------------------------------------
+Function VerifyPortsAreAvailable
+{
+    # Need to confirm 5 different ports are available or die if any are currently bound
+    # From cassandra.yaml:
+    #   storage_port
+    #   ssl_storage_port
+    #   native_transport_port
+    #   rpc_port, which we'll match to rpc_address
+    # and from env: JMX_PORT which we cache in our environment during SetCassandraEnvironment for this check
+    $toMatch = @("storage_port:","ssl_storage_port:","native_transport_port:","rpc_port")
+    $yaml = Get-Content "$env:CASSANDRA_CONF\cassandra.yaml"
+
+    $listenAddress = "unknown"
+    $rpcAddress = "unknown"
+    foreach ($line in $yaml)
+    {
+        if ($line -match "^listen_address:")
+        {
+            $args = $line -Split ":"
+            $listenAddress = $args[1] -replace " ", ""
+        }
+        if ($line -match "^rpc_address:")
+        {
+            $args = $line -Split ":"
+            $rpcAddress = $args[1] -replace " ", ""
+        }
+    }
+    if ($listenAddress -eq "unknown")
+    {
+        echo "Failed to parse listen_address from cassandra.yaml to check open ports.  Aborting startup."
+        Exit
+    }
+    if ($rpcAddress -eq "unknown")
+    {
+        echo "Failed to parse rpc_address from cassandra.yaml to check open ports.  Aborting startup."
+        Exit
+    }
+
+    foreach ($line in $yaml)
+    {
+        foreach ($match in $toMatch)
+        {
+            if ($line -match "^$match")
+            {
+                if ($line.contains("rpc"))
+                {
+                    CheckPort $rpcAddress $line
+                }
+                else
+                {
+                    CheckPort $listenAddress $line
+                }
+            }
+        }
+    }
+    CheckPort $listenAddress "jmx_port: $env:JMX_PORT"
+}
+
+#-----------------------------------------------------------------------------
+Function CheckPort([string]$listenAddress, [string]$configLine)
+{
+    $split = $configLine -Split ":"
+    if ($split.Length -ne 2)
+    {
+        echo "Invalid cassandra.yaml config line parsed while checking for available ports:"
+        echo "$configLine"
+        echo "Aborting startup"
+        Exit
+    }
+    else
+    {
+        $port = $split[1] -replace " ", ""
+
+        # start an async connect to the ip/port combo, give it 25ms, and error out if it succeeded
+        $tcpobject = new-Object system.Net.Sockets.TcpClient
+        $connect = $tcpobject.BeginConnect($listenAddress, $port, $null, $null)
+        $wait = $connect.AsyncWaitHandle.WaitOne(25, $false)
+
+        if (!$wait)
+        {
+            # still trying to connect, if it's not serviced in 25ms we'll assume it's not open
+            $tcpobject.Close()
+        }
+        else
+        {
+            $tcpobject.EndConnect($connect) | out-Null
+            echo "Cassandra port already in use ($configLine).  Aborting"
+            Exit
         }
     }
 }
