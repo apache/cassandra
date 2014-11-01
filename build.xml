@@ -1522,13 +1522,22 @@
   	 </fileset>
   	</path>
   	<property name="eclipse-project-libs" refid="eclipse-project-libs-path"/>
-  	<script language="javascript"> <![CDATA[
+  	<script language="javascript" classpathref="cassandra.classpath"> <![CDATA[
   		var File = java.io.File;
+  		var FilenameUtils = Packages.org.apache.commons.io.FilenameUtils;
   		jars = project.getProperty("eclipse-project-libs").split(project.getProperty("path.separator"));
   		
   		cp = "";
   	    for (i=0; i< jars.length; i++) {
-  	       cp += ' <classpathentry kind="lib" path="'+jars[i]+'"/>\n';
+  	       srcjar = FilenameUtils.getBaseName(jars[i]) + '-sources.jar';
+  		   srcdir = FilenameUtils.concat(project.getProperty("build.dir.lib"), 'sources');
+  		   srcfile = new File(FilenameUtils.concat(srcdir, srcjar));
+  		
+  		   cp += ' <classpathentry kind="lib" path="' + jars[i] + '"';
+  		   if (srcfile.exists()) {
+  		      cp += ' sourcepath="' + srcfile.getAbsolutePath() + '"';
+  		   }
+  		   cp += '/>\n';
   		}
   		
   		cp += '</classpath>';
