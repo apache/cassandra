@@ -75,7 +75,7 @@ import org.apache.cassandra.utils.Pair;
  * Similarly, if a job is sequential, it will handle one SyncTask at a time, but will handle
  * all of them in parallel otherwise.
  */
-public class RepairSession extends AbstractFuture<List<RepairResult>> implements IEndpointStateChangeSubscriber,
+public class RepairSession extends AbstractFuture<RepairSessionResult> implements IEndpointStateChangeSubscriber,
                                                                                  IFailureDetectionEventListener
 {
     private static Logger logger = LoggerFactory.getLogger(RepairSession.class);
@@ -223,7 +223,7 @@ public class RepairSession extends AbstractFuture<List<RepairResult>> implements
         if (endpoints.isEmpty())
         {
             logger.info(String.format("[repair #%s] No neighbors to repair with on range %s: session completed", getId(), range));
-            set(Lists.<RepairResult>newArrayList());
+            set(new RepairSessionResult(id, keyspace, range, Lists.<RepairResult>newArrayList()));
             return;
         }
 
@@ -255,7 +255,7 @@ public class RepairSession extends AbstractFuture<List<RepairResult>> implements
             {
                 // this repair session is completed
                 logger.info(String.format("[repair #%s] session completed successfully", getId()));
-                set(results);
+                set(new RepairSessionResult(id, keyspace, range, results));
                 taskExecutor.shutdown();
                 // mark this session as terminated
                 terminate();

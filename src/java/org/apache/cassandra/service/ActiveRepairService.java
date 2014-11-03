@@ -257,7 +257,7 @@ public class ActiveRepairService
         for (ColumnFamilyStore cfs : columnFamilyStores)
             cfIds.add(cfs.metadata.cfId);
 
-        for(InetAddress neighbour : endpoints)
+        for (InetAddress neighbour : endpoints)
         {
             PrepareMessage message = new PrepareMessage(parentRepairSession, cfIds, options.getRanges(), options.isIncremental());
             MessageOut<RepairMessage> msg = message.createMessage();
@@ -287,17 +287,17 @@ public class ActiveRepairService
         parentRepairSessions.put(parentRepairSession, new ParentRepairSession(columnFamilyStores, ranges, isIncremental, System.currentTimeMillis()));
     }
 
-    public void finishParentSession(UUID parentSession, Set<InetAddress> neighbors)
+    public void finishParentSession(UUID parentSession, Set<InetAddress> neighbors, Collection<Range<Token>> successfulRanges)
     {
         try
         {
             for (InetAddress neighbor : neighbors)
             {
-                AnticompactionRequest acr = new AnticompactionRequest(parentSession);
+                AnticompactionRequest acr = new AnticompactionRequest(parentSession, successfulRanges);
                 MessageOut<RepairMessage> req = acr.createMessage();
                 MessagingService.instance().sendOneWay(req, neighbor);
             }
-            List<Future<?>> futures = doAntiCompaction(parentSession);
+            List<Future<?>> futures = doAntiCompaction(parentSession, successfulRanges);
             FBUtilities.waitOnFutures(futures);
         }
         finally
@@ -316,12 +316,16 @@ public class ActiveRepairService
         return parentRepairSessions.remove(parentSessionId);
     }
 
-    public List<Future<?>> doAntiCompaction(UUID parentRepairSession)
+    public List<Future<?>> doAntiCompaction(UUID parentRepairSession, Collection<Range<Token>> successfulRanges)
     {
         assert parentRepairSession != null;
         ParentRepairSession prs = getParentRepairSession(parentRepairSession);
+        assert prs.ranges.containsAll(successfulRanges) : "Trying to perform anticompaction on unknown ranges";
 
         List<Future<?>> futures = new ArrayList<>();
+        // if we don't have successful repair ranges, then just skip anticompaction
+        if (successfulRanges.isEmpty())
+            return futures;
         for (Map.Entry<UUID, ColumnFamilyStore> columnFamilyStoreEntry : prs.columnFamilyStores.entrySet())
         {
 
@@ -338,7 +342,7 @@ public class ActiveRepairService
                 success = sstables.isEmpty() || cfs.getDataTracker().markCompacting(sstables);
             }
 
-            futures.add(CompactionManager.instance.submitAntiCompaction(cfs, prs.ranges, sstables, prs.repairedAt));
+            futures.add(CompactionManager.instance.submitAntiCompaction(cfs, successfulRanges, sstables, prs.repairedAt));
         }
 
         return futures;

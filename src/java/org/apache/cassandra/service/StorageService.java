@@ -30,7 +30,6 @@ import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
-import javax.annotation.Nullable;
 import javax.management.JMX;
 import javax.management.MBeanServer;
 import javax.management.Notification;
@@ -78,6 +77,7 @@ import org.apache.cassandra.net.MessageOut;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.ResponseVerbHandler;
 import org.apache.cassandra.repair.RepairMessageVerbHandler;
+import org.apache.cassandra.repair.RepairSessionResult;
 import org.apache.cassandra.repair.messages.RepairOption;
 import org.apache.cassandra.repair.RepairResult;
 import org.apache.cassandra.repair.RepairSession;
@@ -2679,7 +2679,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                                                                                                                            new NamedThreadFactory("Repair#" + cmd),
                                                                                                                            "internal"));
 
-                List<ListenableFuture<?>> futures = new ArrayList<>(options.getRanges().size());
+                List<ListenableFuture<RepairSessionResult>> futures = new ArrayList<>(options.getRanges().size());
                 String[] cfnames = new String[columnFamilyStores.size()];
                 for (int i = 0; i < columnFamilyStores.size(); i++)
                 {
@@ -2698,9 +2698,9 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                     if (session == null)
                         continue;
                     // After repair session completes, notify client its result
-                    Futures.addCallback(session, new FutureCallback<List<RepairResult>>()
+                    Futures.addCallback(session, new FutureCallback<RepairSessionResult>()
                     {
-                        public void onSuccess(List<RepairResult> results)
+                        public void onSuccess(RepairSessionResult result)
                         {
                             String message = String.format("Repair session %s for range %s finished", session.getId(), session.getRange().toString());
                             logger.info(message);
@@ -2719,14 +2719,23 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
                 // After all repair sessions completes(successful or not),
                 // run anticompaction if necessary and send finish notice back to client
-                ListenableFuture<?> allSessions = Futures.allAsList(futures);
-                Futures.addCallback(allSessions, new FutureCallback<Object>()
+                final ListenableFuture<List<RepairSessionResult>> allSessions = Futures.successfulAsList(futures);
+                Futures.addCallback(allSessions, new FutureCallback<List<RepairSessionResult>>()
                 {
-                    public void onSuccess(@Nullable Object result)
+                    public void onSuccess(List<RepairSessionResult> result)
                     {
+                        // filter out null(=failed) results and get successful ranges
+                        Collection<Range<Token>> successfulRanges = new ArrayList<>();
+                        for (RepairSessionResult sessionResult : result)
+                        {
+                            if (sessionResult != null)
+                            {
+                                successfulRanges.add(sessionResult.range);
+                            }
+                        }
                         try
                         {
-                            ActiveRepairService.instance.finishParentSession(parentSession, allNeighbors);
+                            ActiveRepairService.instance.finishParentSession(parentSession, allNeighbors, successfulRanges);
                         }
                         catch (Exception e)
                         {
@@ -2742,14 +2751,15 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
                     private void repairComplete()
                     {
-                        String duration = DurationFormatUtils.formatDurationWords(System.currentTimeMillis() - startTime, true, true);
+                        String duration = DurationFormatUtils.formatDurationWords(System.currentTimeMillis() - startTime,
+                                                                                  true, true);
                         String message = String.format("Repair command #%d finished in %s", cmd, duration);
                         sendNotification("repair", message,
                                          new int[]{cmd, ActiveRepairService.Status.FINISHED.ordinal()});
                         logger.info(message);
                         executor.shutdownNow();
                     }
-                }, MoreExecutors.sameThreadExecutor());
+                });
             }
         }, null);
     }

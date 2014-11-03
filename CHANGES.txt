@@ -30,7 +30,7 @@
  * Use unsafe mutations for most unit tests (CASSANDRA-6969)
  * Fix race condition during calculation of pending ranges (CASSANDRA-7390)
  * Fail on very large batch sizes (CASSANDRA-8011)
- * improve concurrency of repair (CASSANDRA-6455)
+ * improve concurrency of repair (CASSANDRA-6455, 8208)
 
 2.1.3
  * Support for frozen collections (CASSANDRA-7859)

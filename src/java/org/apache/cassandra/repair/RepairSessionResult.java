@@ -17,19 +17,27 @@
  */
 package org.apache.cassandra.repair;
 
-import java.util.List;
+import java.util.Collection;
+import java.util.UUID;
+
+import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.dht.Token;
 
 /**
- * RepairJob's result
+ * Repair session result
  */
-public class RepairResult
+public class RepairSessionResult
 {
-    public final RepairJobDesc desc;
-    public final List<SyncStat> stats;
+    public final UUID sessionId;
+    public final String keyspace;
+    public final Range<Token> range;
+    public final Collection<RepairResult> repairJobResults;
 
-    public RepairResult(RepairJobDesc desc, List<SyncStat> stats)
+    public RepairSessionResult(UUID sessionId, String keyspace, Range<Token> range, Collection<RepairResult> repairJobResults)
     {
-        this.desc = desc;
-        this.stats = stats;
+        this.sessionId = sessionId;
+        this.keyspace = keyspace;
+        this.range = range;
+        this.repairJobResults = repairJobResults;
     }
 }

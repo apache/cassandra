@@ -19,8 +19,13 @@ package org.apache.cassandra.repair.messages;
 
 import java.io.DataInput;
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.List;
 import java.util.UUID;
 
+import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.utils.UUIDSerializer;
 
@@ -28,11 +33,16 @@ public class AnticompactionRequest extends RepairMessage
 {
     public static MessageSerializer serializer = new AnticompactionRequestSerializer();
     public final UUID parentRepairSession;
+    /**
+     * Successfully repaired ranges. Does not contain null.
+     */
+    public final Collection<Range<Token>> successfulRanges;
 
-    public AnticompactionRequest(UUID parentRepairSession)
+    public AnticompactionRequest(UUID parentRepairSession, Collection<Range<Token>> ranges)
     {
         super(Type.ANTICOMPACTION_REQUEST, null);
         this.parentRepairSession = parentRepairSession;
+        this.successfulRanges = ranges;
     }
 
     public static class AnticompactionRequestSerializer implements MessageSerializer<AnticompactionRequest>
@@ -40,17 +50,27 @@ public class AnticompactionRequest extends RepairMessage
         public void serialize(AnticompactionRequest message, DataOutputPlus out, int version) throws IOException
         {
             UUIDSerializer.serializer.serialize(message.parentRepairSession, out, version);
+            out.writeInt(message.successfulRanges.size());
+            for (Range r : message.successfulRanges)
+                Range.serializer.serialize(r, out, version);
         }
 
         public AnticompactionRequest deserialize(DataInput in, int version) throws IOException
         {
             UUID parentRepairSession = UUIDSerializer.serializer.deserialize(in, version);
-            return new AnticompactionRequest(parentRepairSession);
+            int rangeCount = in.readInt();
+            List<Range<Token>> ranges = new ArrayList<>(rangeCount);
+            for (int i = 0; i < rangeCount; i++)
+                ranges.add((Range<Token>) Range.serializer.deserialize(in, version).toTokenBounds());
+            return new AnticompactionRequest(parentRepairSession, ranges);
         }
 
         public long serializedSize(AnticompactionRequest message, int version)
         {
-            return UUIDSerializer.serializer.serializedSize(message.parentRepairSession, version);
+            long size = UUIDSerializer.serializer.serializedSize(message.parentRepairSession, version);
+            for (Range r : message.successfulRanges)
+                size += Range.serializer.serializedSize(r, version);
+            return size;
         }
     }
 
