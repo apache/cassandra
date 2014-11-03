@@ -264,7 +264,7 @@ public class SSTableExport
         RandomAccessReader dfile = sstable.openDataReader();
         try
         {
-            IPartitioner<?> partitioner = sstable.partitioner;
+            IPartitioner partitioner = sstable.partitioner;
 
             if (excludes != null)
                 toExport.removeAll(Arrays.asList(excludes));

@@ -17,7 +17,7 @@
  */
 package org.apache.cassandra.dht;
 
-public class LongToken extends Token<Long>
+public class LongToken extends AbstractToken<Long>
 {
     static final long serialVersionUID = -5833580143318243006L;
 
@@ -26,8 +26,8 @@ public class LongToken extends Token<Long>
         super(token);
     }
 
-    public int compareTo(Token<Long> o)
+    public int compareTo(Token o)
     {
-        return token.compareTo(o.token);
+        return token.compareTo(((LongToken) o).token);
     }
 }

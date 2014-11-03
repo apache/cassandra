@@ -28,7 +28,7 @@ import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.ObjectSizes;
 
-public class LocalPartitioner extends AbstractPartitioner<LocalToken>
+public class LocalPartitioner extends AbstractPartitioner
 {
     private static final long EMPTY_SIZE = ObjectSizes.measure(new LocalToken(null, null));
 
@@ -59,9 +59,9 @@ public class LocalPartitioner extends AbstractPartitioner<LocalToken>
         return new LocalToken(comparator, key);
     }
 
-    public long getHeapSizeOf(LocalToken token)
+    public long getHeapSizeOf(Token token)
     {
-        return EMPTY_SIZE + ObjectSizes.sizeOnHeapOf(token.token);
+        return EMPTY_SIZE + ObjectSizes.sizeOnHeapOf(((LocalToken) token).token);
     }
 
     public LocalToken getRandomToken()

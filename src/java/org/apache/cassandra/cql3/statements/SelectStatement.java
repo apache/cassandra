@@ -374,7 +374,7 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
 
     private AbstractBounds<RowPosition> getKeyBounds(QueryOptions options) throws InvalidRequestException
     {
-        IPartitioner<?> p = StorageService.getPartitioner();
+        IPartitioner p = StorageService.getPartitioner();
 
         if (onToken)
         {
@@ -632,7 +632,7 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
         return buildBound(b, cfm.partitionKeyColumns(), keyRestrictions, false, cfm.getKeyValidatorAsCType(), options).get(0).toByteBuffer();
     }
 
-    private Token getTokenBound(Bound b, QueryOptions options, IPartitioner<?> p) throws InvalidRequestException
+    private Token getTokenBound(Bound b, QueryOptions options, IPartitioner p) throws InvalidRequestException
     {
         assert onToken;
 

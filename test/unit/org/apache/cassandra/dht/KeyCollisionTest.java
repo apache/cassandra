@@ -16,23 +16,23 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.cassandra.db;
+package org.apache.cassandra.dht;
 
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.util.*;
 
 import org.junit.Test;
-
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
+import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.columniterator.IdentityQueryFilter;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.IntegerType;
-import org.apache.cassandra.dht.*;
 import org.apache.cassandra.config.*;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.*;
+
 import static org.apache.cassandra.Util.dk;
 
 
@@ -93,19 +93,17 @@ public class KeyCollisionTest extends SchemaLoader
         rm.apply();
     }
 
-    public static class LengthPartitioner extends AbstractPartitioner<BigIntegerToken>
+    public static class LengthPartitioner extends AbstractPartitioner
     {
         public static final BigInteger ZERO = new BigInteger("0");
         public static final BigIntegerToken MINIMUM = new BigIntegerToken("-1");
-
-        private static final byte DELIMITER_BYTE = ":".getBytes()[0];
 
         public DecoratedKey decorateKey(ByteBuffer key)
         {
             return new BufferDecoratedKey(getToken(key), key);
         }
 
-        public Token midpoint(Token ltoken, Token rtoken)
+        public BigIntegerToken midpoint(Token ltoken, Token rtoken)
         {
             // the symbolic MINIMUM token should act as ZERO: the empty bit array
             BigInteger left = ltoken.equals(MINIMUM) ? ZERO : ((BigIntegerToken)ltoken).token;
@@ -125,23 +123,25 @@ public class KeyCollisionTest extends SchemaLoader
             return new BigIntegerToken(BigInteger.valueOf(new Random().nextInt(15)));
         }
 
-        private final Token.TokenFactory<BigInteger> tokenFactory = new Token.TokenFactory<BigInteger>() {
-            public ByteBuffer toByteArray(Token<BigInteger> bigIntegerToken)
+        private final Token.TokenFactory tokenFactory = new Token.TokenFactory() {
+            public ByteBuffer toByteArray(Token token)
             {
+                BigIntegerToken bigIntegerToken = (BigIntegerToken) token;
                 return ByteBuffer.wrap(bigIntegerToken.token.toByteArray());
             }
 
-            public Token<BigInteger> fromByteArray(ByteBuffer bytes)
+            public Token fromByteArray(ByteBuffer bytes)
             {
                 return new BigIntegerToken(new BigInteger(ByteBufferUtil.getArray(bytes)));
             }
 
-            public String toString(Token<BigInteger> bigIntegerToken)
+            public String toString(Token token)
             {
+                BigIntegerToken bigIntegerToken = (BigIntegerToken) token;
                 return bigIntegerToken.token.toString();
             }
 
-            public Token<BigInteger> fromString(String string)
+            public Token fromString(String string)
             {
                 return new BigIntegerToken(new BigInteger(string));
             }
@@ -149,7 +149,7 @@ public class KeyCollisionTest extends SchemaLoader
             public void validate(String token) {}
         };
 
-        public Token.TokenFactory<BigInteger> getTokenFactory()
+        public Token.TokenFactory getTokenFactory()
         {
             return tokenFactory;
         }
@@ -167,7 +167,7 @@ public class KeyCollisionTest extends SchemaLoader
         }
 
         @Override
-        public long getHeapSizeOf(BigIntegerToken token)
+        public long getHeapSizeOf(Token token)
         {
             return 0;
         }

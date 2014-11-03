@@ -197,7 +197,7 @@ public class ColumnFamilyStoreTest extends SchemaLoader
     {
         ColumnFamilyStore cfs = insertKey1Key2();
 
-        IPartitioner<?> p = StorageService.getPartitioner();
+        IPartitioner p = StorageService.getPartitioner();
         List<Row> result = cfs.getRangeSlice(Util.range(p, "key1", "key2"),
                                              null,
                                              Util.namesFilter(cfs, "asdf"),

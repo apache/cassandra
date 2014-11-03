@@ -27,7 +27,7 @@ import org.apache.cassandra.utils.Pair;
 /**
  * AbstractBounds containing both its endpoints: [left, right].  Used by "classic" by-key range scans.
  */
-public class Bounds<T extends RingPosition> extends AbstractBounds<T>
+public class Bounds<T extends RingPosition<T>> extends AbstractBounds<T>
 {
     public Bounds(T left, T right)
     {
@@ -78,7 +78,7 @@ public class Bounds<T extends RingPosition> extends AbstractBounds<T>
     {
         if (!(o instanceof Bounds))
             return false;
-        Bounds<T> rhs = (Bounds<T>)o;
+        Bounds<?> rhs = (Bounds<?>)o;
         return left.equals(rhs.left) && right.equals(rhs.right);
     }
 
@@ -106,11 +106,13 @@ public class Bounds<T extends RingPosition> extends AbstractBounds<T>
         return new Bounds<RowPosition>(left.minKeyBound(partitioner), right.maxKeyBound(partitioner), partitioner);
     }
 
+    @SuppressWarnings("unchecked")
     public AbstractBounds<RowPosition> toRowBounds()
     {
         return (left instanceof Token) ? makeRowBounds((Token)left, (Token)right, partitioner) : (Bounds<RowPosition>)this;
     }
 
+    @SuppressWarnings("unchecked")
     public AbstractBounds<Token> toTokenBounds()
     {
         return (left instanceof RowPosition) ? new Bounds<Token>(((RowPosition)left).getToken(), ((RowPosition)right).getToken(), partitioner) : (Bounds<Token>)this;

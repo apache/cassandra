@@ -21,7 +21,7 @@ import java.nio.ByteBuffer;
 
 import org.apache.cassandra.db.marshal.AbstractType;
 
-public class LocalToken extends Token<ByteBuffer>
+public class LocalToken extends AbstractToken<ByteBuffer>
 {
     static final long serialVersionUID = 8437543776403014875L;
 
@@ -39,9 +39,9 @@ public class LocalToken extends Token<ByteBuffer>
         return comparator.getString(token);
     }
 
-    public int compareTo(Token<ByteBuffer> o)
+    public int compareTo(Token o)
     {
-        return comparator.compare(token, o.token);
+        return comparator.compare(token, ((LocalToken) o).token);
     }
 
     @Override

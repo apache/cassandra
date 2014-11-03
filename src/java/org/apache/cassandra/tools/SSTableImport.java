@@ -282,7 +282,7 @@ public class SSTableImport
     public int importJson(String jsonFile, String keyspace, String cf, String ssTablePath) throws IOException
     {
         ColumnFamily columnFamily = ArrayBackedSortedColumns.factory.create(keyspace, cf);
-        IPartitioner<?> partitioner = DatabaseDescriptor.getPartitioner();
+        IPartitioner partitioner = DatabaseDescriptor.getPartitioner();
 
         int importedKeys = (isSorted) ? importSorted(jsonFile, columnFamily, ssTablePath, partitioner)
                                       : importUnsorted(jsonFile, columnFamily, ssTablePath, partitioner);
@@ -293,7 +293,7 @@ public class SSTableImport
         return importedKeys;
     }
 
-    private int importUnsorted(String jsonFile, ColumnFamily columnFamily, String ssTablePath, IPartitioner<?> partitioner) throws IOException
+    private int importUnsorted(String jsonFile, ColumnFamily columnFamily, String ssTablePath, IPartitioner partitioner) throws IOException
     {
         int importedKeys = 0;
         long start = System.nanoTime();
@@ -350,7 +350,7 @@ public class SSTableImport
     }
 
     private int importSorted(String jsonFile, ColumnFamily columnFamily, String ssTablePath,
-            IPartitioner<?> partitioner) throws IOException
+            IPartitioner partitioner) throws IOException
     {
         int importedKeys = 0; // already imported keys count
         long start = System.nanoTime();

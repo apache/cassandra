@@ -47,7 +47,7 @@ public class RingCache
 {
     final private static Logger logger = LoggerFactory.getLogger(RingCache.class);
 
-    private final IPartitioner<?> partitioner;
+    private final IPartitioner partitioner;
     private final Configuration conf;
 
     private Multimap<Range<Token>, InetAddress> rangeMap;
@@ -73,8 +73,8 @@ public class RingCache
 
             for (TokenRange range : ring)
             {
-                Token<?> left = partitioner.getTokenFactory().fromString(range.start_token);
-                Token<?> right = partitioner.getTokenFactory().fromString(range.end_token);
+                Token left = partitioner.getTokenFactory().fromString(range.start_token);
+                Token right = partitioner.getTokenFactory().fromString(range.end_token);
                 Range<Token> r = new Range<Token>(left, right, partitioner);
                 for (String host : range.endpoints)
                 {
@@ -112,7 +112,7 @@ public class RingCache
     public Range<Token> getRange(ByteBuffer key)
     {
         // TODO: naive linear search of the token map
-        Token<?> t = partitioner.getToken(key);
+        Token t = partitioner.getToken(key);
         for (Range<Token> range : rangeMap.keySet())
             if (range.contains(t))
                 return range;

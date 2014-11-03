@@ -142,7 +142,7 @@ public class RangeStreamer
         {
             if (logger.isDebugEnabled())
             {
-                for (Range r : entry.getValue())
+                for (Range<Token> r : entry.getValue())
                     logger.debug(String.format("%s: range %s from source %s for keyspace %s", description, r, entry.getKey(), keyspaceName));
             }
             toFetch.put(keyspaceName, entry);
