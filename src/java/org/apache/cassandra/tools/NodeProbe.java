@@ -782,6 +782,11 @@ public class NodeProbe
         ssProxy.startGossiping();
     }
 
+    public boolean isGossipRunning()
+    {
+        return ssProxy.isGossipRunning();
+    }
+
     public void stopThriftServer()
     {
         ssProxy.stopRPCServer();

@@ -100,6 +100,9 @@ commands:
   - name: gossipinfo
     help: |
       Shows the gossip information for the cluster
+  - name: statusgossip
+    help: |
+      Status of gossip
   - name: invalidatekeycache
     help: |
       Invalidate the key cache

@@ -1,4 +1,5 @@
 2.0.12:
+ * Add 'nodetool statusgossip' (CASSANDRA-8125)
  * Improve client notification that nodes are ready for requests (CASSANDRA-7510)
  * Handle negative timestamp in writetime method (CASSANDRA-8139)
  * Pig: Remove errant LIMIT clause in CqlNativeStorage (CASSANDRA-8166)

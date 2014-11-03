@@ -27,6 +27,7 @@ import java.text.SimpleDateFormat;
 import java.util.*;
 import java.util.Map.Entry;
 import java.util.concurrent.ExecutionException;
+
 import javax.management.openmbean.TabularData;
 
 import com.google.common.base.Joiner;
@@ -171,6 +172,7 @@ public class NodeCmd
         SNAPSHOT,
         STATUS,
         STATUSBINARY,
+        STATUSGOSSIP,
         STATUSTHRIFT,
         STOP,
         STOPDAEMON,
@@ -1246,6 +1248,7 @@ public class NodeCmd
                 case STATUSBINARY    : nodeCmd.printIsNativeTransportRunning(System.out); break;
                 case DISABLEGOSSIP   : probe.stopGossiping(); break;
                 case ENABLEGOSSIP    : probe.startGossiping(); break;
+                case STATUSGOSSIP    : nodeCmd.printIsGossipRunning(System.out); break;
                 case DISABLEHANDOFF  : probe.disableHintedHandoff(); break;
                 case ENABLEHANDOFF   :
                     if (arguments.length > 0) { probe.enableHintedHandoff(arguments[0]); }
@@ -1492,6 +1495,11 @@ public class NodeCmd
             }
         }
         System.exit(probe.isFailed() ? 1 : 0);
+    }
+
+    private void printIsGossipRunning(PrintStream outs)
+    {
+        outs.println(probe.isGossipRunning() ? "running" : "not running");
     }
 
     private void getLoggingLevels(PrintStream out)
