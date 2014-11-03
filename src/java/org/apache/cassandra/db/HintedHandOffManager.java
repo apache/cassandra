@@ -260,6 +260,9 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
         for (SSTable sstable : hintStore.getDataTracker().getUncompactingSSTables())
             descriptors.add(sstable.descriptor);
 
+        if (descriptors.isEmpty())
+            return;
+
         try
         {
             CompactionManager.instance.submitUserDefined(hintStore, descriptors, (int) (System.currentTimeMillis() / 1000)).get();
