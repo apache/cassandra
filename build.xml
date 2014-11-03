@@ -1128,6 +1128,12 @@
             <filelist dir="@{inputdir}" files="@{filelist}"/>
         </batchtest>
       </junit>
+      <junitreport todir="${build.test.dir}">
+        <fileset dir="${build.test.dir}/output">
+          <include name="TEST-*.xml"/>
+        </fileset>
+        <report format="frames" todir="${build.test.dir}/junitreport"/>
+      </junitreport>
       <fail message="Some @{suitename} test(s) failed.">
         <condition>
             <and>
