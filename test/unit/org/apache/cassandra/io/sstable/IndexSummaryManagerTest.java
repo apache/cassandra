@@ -451,7 +451,7 @@ public class IndexSummaryManagerTest
         }
 
         // don't leave replaced SSTRs around to break other tests
-        cfs.getDataTracker().replaceReaders(Collections.singleton(original), Collections.singleton(sstable), true);
+        cfs.getDataTracker().replaceWithNewInstances(Collections.singleton(original), Collections.singleton(sstable));
     }
 
     @Test

@@ -435,7 +435,7 @@ public class SSTableReaderTest
         }
 
         SSTableReader replacement = sstable.cloneWithNewSummarySamplingLevel(store, 1);
-        store.getDataTracker().replaceReaders(Arrays.asList(sstable), Arrays.asList(replacement), true);
+        store.getDataTracker().replaceWithNewInstances(Arrays.asList(sstable), Arrays.asList(replacement));
         for (Future future : futures)
             future.get();
 

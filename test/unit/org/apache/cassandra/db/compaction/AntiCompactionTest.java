@@ -23,6 +23,7 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 
+import java.io.File;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
@@ -32,6 +33,7 @@ import java.util.concurrent.ExecutionException;
 import org.apache.cassandra.config.KSMetaData;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.io.sstable.format.SSTableWriter;
 import org.apache.cassandra.locator.SimpleStrategy;
 import org.junit.BeforeClass;
 import org.junit.After;
@@ -39,7 +41,7 @@ import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
-import org.apache.cassandra.config.KSMetaData;
+import org.apache.cassandra.db.ArrayBackedSortedColumns;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.Keyspace;
@@ -50,6 +52,8 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.sstable.SSTableIdentityIterator;
 import org.apache.cassandra.service.ActiveRepairService;
+import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
+import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 import org.junit.After;
@@ -135,6 +139,42 @@ public class AntiCompactionTest
         assertEquals(nonRepairedKeys, 6);
     }
 
+    @Test
+    public void antiCompactionSizeTest() throws ExecutionException, InterruptedException, IOException
+    {
+        Keyspace keyspace = Keyspace.open(KEYSPACE1);
+        ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(CF);
+        cfs.disableAutoCompaction();
+        SSTableReader s = writeFile(cfs, 1000);
+        cfs.addSSTable(s);
+        long origSize = s.bytesOnDisk();
+        System.out.println(cfs.metric.liveDiskSpaceUsed.count());
+        Range<Token> range = new Range<Token>(new BytesToken(ByteBufferUtil.bytes(0)), new BytesToken(ByteBufferUtil.bytes(500)));
+        Collection<SSTableReader> sstables = cfs.getSSTables();
+        SSTableReader.acquireReferences(sstables);
+        CompactionManager.instance.performAnticompaction(cfs, Arrays.asList(range), sstables, 12345);
+        long sum = 0;
+        for (SSTableReader x : cfs.getSSTables())
+            sum += x.bytesOnDisk();
+        assertEquals(sum, cfs.metric.liveDiskSpaceUsed.count());
+        assertEquals(origSize, cfs.metric.liveDiskSpaceUsed.count(), 100000);
+
+    }
+
+    private SSTableReader writeFile(ColumnFamilyStore cfs, int count)
+    {
+        ArrayBackedSortedColumns cf = ArrayBackedSortedColumns.factory.create(cfs.metadata);
+        for (int i = 0; i < count; i++)
+            cf.addColumn(Util.column(String.valueOf(i), "a", 1));
+        File dir = cfs.directories.getDirectoryForNewSSTables();
+        String filename = cfs.getTempSSTablePath(dir);
+
+        SSTableWriter writer = SSTableWriter.create(filename,0,0);
+
+        for (int i = 0; i < count * 5; i++)
+            writer.append(StorageService.getPartitioner().decorateKey(ByteBufferUtil.bytes(i)), cf);
+        return writer.closeAndOpenReader();
+    }
 
     public void generateSStable(ColumnFamilyStore store, String Suffix)
     {

@@ -18,15 +18,16 @@
 package org.apache.cassandra.io.sstable;
 
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Function;
 import com.google.common.base.Functions;
+import com.google.common.collect.Lists;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
@@ -34,11 +35,11 @@ import org.apache.cassandra.db.DataTracker;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.RowIndexEntry;
 import org.apache.cassandra.db.compaction.AbstractCompactedRow;
-import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.SSTableWriter;
 import org.apache.cassandra.utils.CLibrary;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.Pair;
 
 /**
  * Wraps one or more writers as output for rewriting one or more readers: every sstable_preemptive_open_interval_in_mb
@@ -57,14 +58,19 @@ import org.apache.cassandra.utils.FBUtilities;
  */
 public class SSTableRewriter
 {
-
-    private static final long preemptiveOpenInterval;
+    private static long preemptiveOpenInterval;
     static
     {
         long interval = DatabaseDescriptor.getSSTablePreempiveOpenIntervalInMB() * (1L << 20);
         if (interval < 0)
             interval = Long.MAX_VALUE;
         preemptiveOpenInterval = interval;
+    }
+
+    @VisibleForTesting
+    static void overrideOpenInterval(long size)
+    {
+        preemptiveOpenInterval = size;
     }
 
     private final DataTracker dataTracker;
@@ -78,14 +84,14 @@ public class SSTableRewriter
     private SSTableReader currentlyOpenedEarly; // the reader for the most recent (re)opening of the target file
     private long currentlyOpenedEarlyAt; // the position (in MB) in the target file we last (re)opened at
 
-    private final List<SSTableReader> finished = new ArrayList<>(); // the resultant sstables
-    private final OperationType rewriteType; // the type of rewrite/compaction being performed
+    private final List<SSTableReader> finishedOpenedEarly = new ArrayList<>(); // the 'finished' tmplink sstables
+    private final List<Pair<SSTableWriter, SSTableReader>> finishedWriters = new ArrayList<>();
     private final boolean isOffline; // true for operations that are performed without Cassandra running (prevents updates of DataTracker)
 
     private SSTableWriter writer;
     private Map<DecoratedKey, RowIndexEntry> cachedKeys = new HashMap<>();
 
-    public SSTableRewriter(ColumnFamilyStore cfs, Set<SSTableReader> rewriting, long maxAge, OperationType rewriteType, boolean isOffline)
+    public SSTableRewriter(ColumnFamilyStore cfs, Set<SSTableReader> rewriting, long maxAge, boolean isOffline)
     {
         this.rewriting = rewriting;
         for (SSTableReader sstable : rewriting)
@@ -96,7 +102,6 @@ public class SSTableRewriter
         this.dataTracker = cfs.getDataTracker();
         this.cfs = cfs;
         this.maxAge = maxAge;
-        this.rewriteType = rewriteType;
         this.isOffline = isOffline;
     }
 
@@ -137,26 +142,16 @@ public class SSTableRewriter
     // attempts to append the row, if fails resets the writer position
     public RowIndexEntry tryAppend(AbstractCompactedRow row)
     {
-        mark();
+        writer.mark();
         try
         {
             return append(row);
         }
         catch (Throwable t)
         {
-            resetAndTruncate();
+            writer.resetAndTruncate();
             throw t;
         }
-    }
-
-    private void mark()
-    {
-        writer.mark();
-    }
-
-    private void resetAndTruncate()
-    {
-        writer.resetAndTruncate();
     }
 
     private void maybeReopenEarly(DecoratedKey key)
@@ -176,7 +171,7 @@ public class SSTableRewriter
                 SSTableReader reader = writer.openEarly(maxAge);
                 if (reader != null)
                 {
-                    replaceReader(currentlyOpenedEarly, reader, false);
+                    replaceEarlyOpenedFile(currentlyOpenedEarly, reader);
                     currentlyOpenedEarly = reader;
                     currentlyOpenedEarlyAt = writer.getFilePointer();
                     moveStarts(reader, Functions.constant(reader.last), false);
@@ -189,26 +184,43 @@ public class SSTableRewriter
     {
         if (writer == null)
             return;
+
+        switchWriter(null);
+
         moveStarts(null, Functions.forMap(originalStarts), true);
-        List<SSTableReader> close = new ArrayList<>(finished);
+
+        List<SSTableReader> close = Lists.newArrayList(finishedOpenedEarly);
         if (currentlyOpenedEarly != null)
             close.add(currentlyOpenedEarly);
+
+        for (Pair<SSTableWriter, SSTableReader> w : finishedWriters)
+        {
+        // we should close the bloom filter if we have not opened an sstable reader from this
+        // writer (it will get closed when we release the sstable reference below):
+            w.left.abort(w.right == null);
+        }
+
         // also remove already completed SSTables
         for (SSTableReader sstable : close)
             sstable.markObsolete();
+
         // releases reference in replaceReaders
         if (!isOffline)
         {
-            dataTracker.replaceReaders(close, Collections.<SSTableReader>emptyList(), false);
+            dataTracker.replaceEarlyOpenedFiles(close, Collections.<SSTableReader>emptyList());
             dataTracker.unmarkCompacting(close);
         }
-        writer.abort(currentlyOpenedEarly == null);
     }
 
     /**
      * Replace the readers we are rewriting with cloneWithNewStart, reclaiming any page cache that is no longer
      * needed, and transferring any key cache entries over to the new reader, expiring them from the old. if reset
      * is true, we are instead restoring the starts of the readers from before the rewriting began
+     *
+     * note that we replace an existing sstable with a new *instance* of the same sstable, the replacement
+     * sstable .equals() the old one, BUT, it is a new instance, so, for example, since we releaseReference() on the old
+     * one, the old *instance* will have reference count == 0 and if we were to start a new compaction with that old
+     * instance, we would get exceptions.
      *
      * @param newReader the rewritten reader that replaces them for this region
      * @param newStarts a function mapping a reader's descriptor to their new start value
@@ -249,12 +261,14 @@ public class SSTableRewriter
                 }));
             }
         }
-        replaceReaders(toReplace, replaceWith, true);
+        cfs.getDataTracker().replaceWithNewInstances(toReplace, replaceWith);
         rewriting.removeAll(toReplace);
         rewriting.addAll(replaceWith);
     }
 
-    private void replaceReader(SSTableReader toReplace, SSTableReader replaceWith, boolean notify)
+
+
+    private void replaceEarlyOpenedFile(SSTableReader toReplace, SSTableReader replaceWith)
     {
         if (isOffline)
             return;
@@ -269,14 +283,7 @@ public class SSTableRewriter
             dataTracker.markCompacting(Collections.singleton(replaceWith));
             toReplaceSet = Collections.emptySet();
         }
-        replaceReaders(toReplaceSet, Collections.singleton(replaceWith), notify);
-    }
-
-    private void replaceReaders(Collection<SSTableReader> toReplace, Collection<SSTableReader> replaceWith, boolean notify)
-    {
-        if (isOffline)
-            return;
-        dataTracker.replaceReaders(toReplace, replaceWith, notify);
+        dataTracker.replaceEarlyOpenedFiles(toReplaceSet, Collections.singleton(replaceWith));
     }
 
     public void switchWriter(SSTableWriter newWriter)
@@ -286,63 +293,74 @@ public class SSTableRewriter
             writer = newWriter;
             return;
         }
-        // tmp = false because later we want to query it with descriptor from SSTableReader
-        SSTableReader reader = writer.closeAndOpenReader(maxAge);
-        finished.add(reader);
-        replaceReader(currentlyOpenedEarly, reader, false);
-        moveStarts(reader, Functions.constant(reader.last), false);
+        // we leave it as a tmp file, but we open it early and add it to the dataTracker
+        SSTableReader reader = writer.openEarly(maxAge);
+        if (reader != null)
+        {
+            finishedOpenedEarly.add(reader);
+            replaceEarlyOpenedFile(currentlyOpenedEarly, reader);
+            moveStarts(reader, Functions.constant(reader.last), false);
+        }
+        finishedWriters.add(Pair.create(writer, reader));
         currentlyOpenedEarly = null;
         currentlyOpenedEarlyAt = 0;
         writer = newWriter;
     }
 
-    public void finish()
+    public List<SSTableReader> finish()
     {
-        finish(-1);
+        return finish(-1);
     }
-    public void finish(long repairedAt)
+
+    /**
+     * Finishes the new file(s)
+     *
+     * Creates final files, adds the new files to the dataTracker (via replaceReader).
+     *
+     * We add them to the tracker to be able to get rid of the tmpfiles
+     *
+     * It is up to the caller to do the compacted sstables replacement
+     * gymnastics (ie, call DataTracker#markCompactedSSTablesReplaced(..))
+     *
+     *
+     * @param repairedAt the repair time, -1 if we should use the time we supplied when we created
+     *                   the SSTableWriter (and called rewriter.switchWriter(..)), actual time if we want to override the
+     *                   repair time.
+     */
+    public List<SSTableReader> finish(long repairedAt)
     {
-        finish(true, repairedAt);
-    }
-    public void finish(boolean cleanupOldReaders)
-    {
-        finish(cleanupOldReaders, -1);
-    }
-    public void finish(boolean cleanupOldReaders, long repairedAt)
-    {
+        List<SSTableReader> finished = new ArrayList<>();
         if (writer.getFilePointer() > 0)
         {
-            SSTableReader reader = repairedAt < 0 ?
-                                    writer.closeAndOpenReader(maxAge) :
-                                    writer.closeAndOpenReader(maxAge, repairedAt);
+            SSTableReader reader = repairedAt < 0 ? writer.closeAndOpenReader(maxAge) : writer.closeAndOpenReader(maxAge, repairedAt);
             finished.add(reader);
-            replaceReader(currentlyOpenedEarly, reader, false);
+            replaceEarlyOpenedFile(currentlyOpenedEarly, reader);
             moveStarts(reader, Functions.constant(reader.last), false);
         }
         else
         {
-            writer.abort();
-            writer = null;
+            writer.abort(true);
         }
-
+        // make real sstables of the written ones:
+        for (Pair<SSTableWriter, SSTableReader> w : finishedWriters)
+        {
+            if (w.left.getFilePointer() > 0)
+            {
+                SSTableReader newReader = repairedAt < 0 ? w.left.closeAndOpenReader(maxAge) : w.left.closeAndOpenReader(maxAge, repairedAt);
+                finished.add(newReader);
+                // w.right is the tmplink-reader we added when switching writer, replace with the real sstable.
+                replaceEarlyOpenedFile(w.right, newReader);
+            }
+            else
+            {
+                assert w.right == null;
+                w.left.abort(true);
+            }
+        }
         if (!isOffline)
         {
             dataTracker.unmarkCompacting(finished);
-            if (cleanupOldReaders)
-                dataTracker.markCompactedSSTablesReplaced(rewriting, finished, rewriteType);
         }
-        else if (cleanupOldReaders)
-        {
-            for (SSTableReader reader : rewriting)
-            {
-                reader.markObsolete();
-                reader.releaseReference();
-            }
-        }
-    }
-
-    public List<SSTableReader> finished()
-    {
         return finished;
     }
 }

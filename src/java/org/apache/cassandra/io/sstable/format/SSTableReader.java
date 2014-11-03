@@ -1410,6 +1410,12 @@ public abstract class SSTableReader extends SSTable
         }
     }
 
+    @VisibleForTesting
+    public int referenceCount()
+    {
+        return references.get();
+    }
+
     /**
      * Release reference to this SSTableReader.
      * If there is no one referring to this SSTable, and is marked as compacted,
