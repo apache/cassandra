@@ -1666,6 +1666,14 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                     subscriber.onMove(endpoint);
             }
         }
+        else
+        {
+            if (!isClientMode)
+            {
+                for (IEndpointLifecycleSubscriber subscriber : lifecycleSubscribers)
+                    subscriber.onJoinCluster(endpoint);
+            }
+        }
 
         PendingRangeCalculatorService.instance.update();
     }
@@ -2029,11 +2037,6 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             HintedHandOffManager.instance.scheduleHintDelivery(endpoint, true);
             for (IEndpointLifecycleSubscriber subscriber : lifecycleSubscribers)
                 subscriber.onUp(endpoint);
-        }
-        else
-        {
-            for (IEndpointLifecycleSubscriber subscriber : lifecycleSubscribers)
-                subscriber.onJoinCluster(endpoint);
         }
     }
 
