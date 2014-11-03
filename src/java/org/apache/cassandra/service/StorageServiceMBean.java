@@ -398,6 +398,9 @@ public interface StorageServiceMBean extends NotificationEmitter
     // allows a user to recover a forcibly 'killed' node
     public void startGossiping();
 
+    // allows a user to see whether gossip is running or not
+    public boolean isGossipRunning();
+
     // allows a user to forcibly completely stop cassandra
     public void stopDaemon();
 

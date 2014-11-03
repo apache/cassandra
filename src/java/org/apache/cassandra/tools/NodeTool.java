@@ -127,6 +127,7 @@ public class NodeTool
                 ListSnapshots.class,
                 Status.class,
                 StatusBinary.class,
+                StatusGossip.class,
                 StatusThrift.class,
                 Stop.class,
                 StopDaemon.class,
@@ -2131,6 +2132,19 @@ public class NodeTool
         {
             System.out.println(
                     probe.isNativeTransportRunning()
+                    ? "running"
+                    : "not running");
+        }
+    }
+
+    @Command(name = "statusgossip", description = "Status of gossip")
+    public static class StatusGossip extends NodeToolCmd
+    {
+        @Override
+        public void execute(NodeProbe probe)
+        {
+            System.out.println(
+                    probe.isGossipRunning()
                     ? "running"
                     : "not running");
         }

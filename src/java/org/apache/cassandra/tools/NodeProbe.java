@@ -829,6 +829,11 @@ public class NodeProbe implements AutoCloseable
         ssProxy.startGossiping();
     }
 
+    public boolean isGossipRunning()
+    {
+        return ssProxy.isGossipRunning();
+    }
+
     public void stopThriftServer()
     {
         ssProxy.stopRPCServer();

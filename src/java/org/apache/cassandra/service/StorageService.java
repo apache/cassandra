@@ -306,6 +306,12 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     }
 
     // should only be called via JMX
+    public boolean isGossipRunning()
+    {
+        return Gossiper.instance.isEnabled();
+    }
+
+    // should only be called via JMX
     public void startRPCServer()
     {
         if (daemon == null)
