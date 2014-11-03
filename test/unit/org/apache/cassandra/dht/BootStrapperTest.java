@@ -113,7 +113,7 @@ public class BootStrapperTest
     {
         TokenMetadata tmd = StorageService.instance.getTokenMetadata();
         tmd.clearUnsafe();
-        IPartitioner<?> p = StorageService.getPartitioner();
+        IPartitioner p = StorageService.getPartitioner();
 
         for (int i = 1; i <= numOldNodes; i++)
         {

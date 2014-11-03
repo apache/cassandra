@@ -24,7 +24,7 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Hex;
 
-public class BytesToken extends Token<byte[]>
+public class BytesToken extends AbstractToken<byte[]>
 {
     static final long serialVersionUID = -2630749093733680626L;
 
@@ -44,8 +44,9 @@ public class BytesToken extends Token<byte[]>
         return Hex.bytesToHex(token);
     }
 
-    public int compareTo(Token<byte[]> o)
+    public int compareTo(Token other)
     {
+        BytesToken o = (BytesToken) other;
         return FBUtilities.compareUnsigned(token, o.token, 0, 0, token.length, o.token.length);
     }
 

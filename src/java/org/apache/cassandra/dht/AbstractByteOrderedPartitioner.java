@@ -35,7 +35,7 @@ import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Hex;
 import org.apache.cassandra.utils.Pair;
 
-public abstract class AbstractByteOrderedPartitioner extends AbstractPartitioner<BytesToken>
+public abstract class AbstractByteOrderedPartitioner extends AbstractPartitioner
 {
     public static final BytesToken MINIMUM = new BytesToken(ArrayUtils.EMPTY_BYTE_ARRAY);
 
@@ -46,8 +46,10 @@ public abstract class AbstractByteOrderedPartitioner extends AbstractPartitioner
         return new BufferDecoratedKey(getToken(key), key);
     }
 
-    public BytesToken midpoint(Token ltoken, Token rtoken)
+    public BytesToken midpoint(Token lt, Token rt)
     {
+        AbstractToken<?> ltoken = (AbstractToken<?>) lt;
+        AbstractToken<?> rtoken = (AbstractToken<?>) rt;
         int ll,rl;
         ByteBuffer lb,rb;
 
@@ -127,19 +129,21 @@ public abstract class AbstractByteOrderedPartitioner extends AbstractPartitioner
         return new BytesToken(buffer);
     }
 
-    private final Token.TokenFactory<byte[]> tokenFactory = new Token.TokenFactory<byte[]>() {
-        public ByteBuffer toByteArray(Token<byte[]> bytesToken)
+    private final Token.TokenFactory tokenFactory = new Token.TokenFactory() {
+        public ByteBuffer toByteArray(Token token)
         {
+            BytesToken bytesToken = (BytesToken) token;
             return ByteBuffer.wrap(bytesToken.token);
         }
 
-        public Token<byte[]> fromByteArray(ByteBuffer bytes)
+        public Token fromByteArray(ByteBuffer bytes)
         {
             return new BytesToken(bytes);
         }
 
-        public String toString(Token<byte[]> bytesToken)
+        public String toString(Token token)
         {
+            BytesToken bytesToken = (BytesToken) token;
             return Hex.bytesToHex(bytesToken.token);
         }
 
@@ -157,7 +161,7 @@ public abstract class AbstractByteOrderedPartitioner extends AbstractPartitioner
             }
         }
 
-        public Token<byte[]> fromString(String string)
+        public Token fromString(String string)
         {
             if (string.length() % 2 == 1)
                 string = "0" + string;
@@ -165,7 +169,7 @@ public abstract class AbstractByteOrderedPartitioner extends AbstractPartitioner
         }
     };
 
-    public Token.TokenFactory<byte[]> getTokenFactory()
+    public Token.TokenFactory getTokenFactory()
     {
         return tokenFactory;
     }

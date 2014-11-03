@@ -1155,11 +1155,11 @@ public class CassandraServer implements Cassandra.Iface
 
             List<Row> rows = null;
 
-            IPartitioner<?> p = StorageService.getPartitioner();
+            IPartitioner p = StorageService.getPartitioner();
             AbstractBounds<RowPosition> bounds;
             if (range.start_key == null)
             {
-                Token.TokenFactory<?> tokenFactory = p.getTokenFactory();
+                Token.TokenFactory tokenFactory = p.getTokenFactory();
                 Token left = tokenFactory.fromString(range.start_token);
                 Token right = tokenFactory.fromString(range.end_token);
                 bounds = Range.makeRowRange(left, right, p);

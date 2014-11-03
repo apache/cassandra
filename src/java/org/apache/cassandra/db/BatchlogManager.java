@@ -378,7 +378,7 @@ public class BatchlogManager implements BatchlogManagerMBean
         {
             Set<InetAddress> liveEndpoints = new HashSet<>();
             String ks = mutation.getKeyspaceName();
-            Token<?> tk = StorageService.getPartitioner().getToken(mutation.key());
+            Token tk = StorageService.getPartitioner().getToken(mutation.key());
 
             for (InetAddress endpoint : Iterables.concat(StorageService.instance.getNaturalEndpoints(ks, tk),
                                                          StorageService.instance.getTokenMetadata().pendingEndpointsFor(tk, ks)))

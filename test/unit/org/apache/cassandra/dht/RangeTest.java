@@ -179,7 +179,7 @@ public class RangeTest
         assert not.intersects(twowrap);
     }
 
-    static <T extends RingPosition> void assertIntersection(Range one, Range two, Range<T> ... ranges)
+    static <T extends RingPosition<T>> void assertIntersection(Range one, Range two, Range<T> ... ranges)
     {
         Set<Range<T>> correct = Range.rangeSet(ranges);
         Set<Range> result1 = one.intersectionWith(two);
@@ -466,7 +466,7 @@ public class RangeTest
         checkDifference(oldRange, newTokens6, expected6);
     }
 
-    private <T extends RingPosition> void assertNormalize(List<Range<T>> input, List<Range<T>> expected)
+    private <T extends RingPosition<T>> void assertNormalize(List<Range<T>> input, List<Range<T>> expected)
     {
         List<Range<T>> result = Range.normalize(input);
         assert result.equals(expected) : "Expecting " + expected + " but got " + result;

@@ -17,24 +17,37 @@
  */
 package org.apache.cassandra.dht;
 
-import java.math.BigInteger;
-
-public class BigIntegerToken extends AbstractToken<BigInteger>
+abstract class AbstractToken<C> extends Token
 {
-    static final long serialVersionUID = -5833589141319293006L;
+    private static final long serialVersionUID = 1L;
 
-    public BigIntegerToken(BigInteger token)
+    final C token;   // Package-private to allow access from subtypes, which should all reside in the dht package.
+
+    protected AbstractToken(C token)
     {
-        super(token);
+        this.token = token;
     }
 
-    // convenience method for testing
-    public BigIntegerToken(String token) {
-        this(new BigInteger(token));
+    @Override
+    public String toString()
+    {
+        return token.toString();
     }
 
-    public int compareTo(Token o)
+    @Override
+    public boolean equals(Object obj)
     {
-        return token.compareTo(((BigIntegerToken) o).token);
+        if (this == obj)
+            return true;
+        if (obj == null || this.getClass() != obj.getClass())
+            return false;
+
+        return token.equals(((AbstractToken<?>)obj).token);
+    }
+
+    @Override
+    public int hashCode()
+    {
+        return token.hashCode();
     }
 }

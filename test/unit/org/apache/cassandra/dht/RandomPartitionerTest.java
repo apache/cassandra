@@ -20,7 +20,7 @@ package org.apache.cassandra.dht;
  *
  */
 
-public class RandomPartitionerTest extends PartitionerTestCase<BigIntegerToken>
+public class RandomPartitionerTest extends PartitionerTestCase
 {
     public void initPartitioner()
     {

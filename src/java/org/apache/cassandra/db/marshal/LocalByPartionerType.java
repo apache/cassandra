@@ -24,16 +24,15 @@ import org.apache.cassandra.serializers.MarshalException;
 
 import org.apache.cassandra.db.RowPosition;
 import org.apache.cassandra.dht.IPartitioner;
-import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 /** for sorting columns representing row keys in the row ordering as determined by a partitioner.
  * Not intended for user-defined CFs, and will in fact error out if used with such. */
-public class LocalByPartionerType<T extends Token> extends AbstractType<ByteBuffer>
+public class LocalByPartionerType extends AbstractType<ByteBuffer>
 {
-    private final IPartitioner<T> partitioner;
+    private final IPartitioner partitioner;
 
-    public LocalByPartionerType(IPartitioner<T> partitioner)
+    public LocalByPartionerType(IPartitioner partitioner)
     {
         this.partitioner = partitioner;
     }

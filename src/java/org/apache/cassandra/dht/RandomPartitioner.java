@@ -36,7 +36,7 @@ import org.apache.cassandra.utils.Pair;
 /**
  * This class generates a BigIntegerToken using MD5 hash.
  */
-public class RandomPartitioner extends AbstractPartitioner<BigIntegerToken>
+public class RandomPartitioner extends AbstractPartitioner
 {
     public static final BigInteger ZERO = new BigInteger("0");
     public static final BigIntegerToken MINIMUM = new BigIntegerToken("-1");
@@ -72,19 +72,21 @@ public class RandomPartitioner extends AbstractPartitioner<BigIntegerToken>
         return new BigIntegerToken(token);
     }
 
-    private final Token.TokenFactory<BigInteger> tokenFactory = new Token.TokenFactory<BigInteger>() {
-        public ByteBuffer toByteArray(Token<BigInteger> bigIntegerToken)
+    private final Token.TokenFactory tokenFactory = new Token.TokenFactory() {
+        public ByteBuffer toByteArray(Token token)
         {
+            BigIntegerToken bigIntegerToken = (BigIntegerToken) token;
             return ByteBuffer.wrap(bigIntegerToken.token.toByteArray());
         }
 
-        public Token<BigInteger> fromByteArray(ByteBuffer bytes)
+        public Token fromByteArray(ByteBuffer bytes)
         {
             return new BigIntegerToken(new BigInteger(ByteBufferUtil.getArray(bytes)));
         }
 
-        public String toString(Token<BigInteger> bigIntegerToken)
+        public String toString(Token token)
         {
+            BigIntegerToken bigIntegerToken = (BigIntegerToken) token;
             return bigIntegerToken.token.toString();
         }
 
@@ -104,13 +106,13 @@ public class RandomPartitioner extends AbstractPartitioner<BigIntegerToken>
             }
         }
 
-        public Token<BigInteger> fromString(String string)
+        public Token fromString(String string)
         {
             return new BigIntegerToken(new BigInteger(string));
         }
     };
 
-    public Token.TokenFactory<BigInteger> getTokenFactory()
+    public Token.TokenFactory getTokenFactory()
     {
         return tokenFactory;
     }
@@ -127,7 +129,7 @@ public class RandomPartitioner extends AbstractPartitioner<BigIntegerToken>
         return new BigIntegerToken(FBUtilities.hashToBigInteger(key));
     }
 
-    public long getHeapSizeOf(BigIntegerToken token)
+    public long getHeapSizeOf(Token token)
     {
         return EMPTY_SIZE;
     }

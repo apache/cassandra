@@ -1816,7 +1816,7 @@ public class StorageProxy implements StorageProxyMBean
      * Compute all ranges we're going to query, in sorted order. Nodes can be replica destinations for many ranges,
      * so we need to restrict each scan to the specific range we want, or else we'd get duplicate results.
      */
-    static <T extends RingPosition> List<AbstractBounds<T>> getRestrictedRanges(final AbstractBounds<T> queryRange)
+    static <T extends RingPosition<T>> List<AbstractBounds<T>> getRestrictedRanges(final AbstractBounds<T> queryRange)
     {
         // special case for bounds containing exactly 1 (non-minimum) token
         if (queryRange instanceof Bounds && queryRange.left.equals(queryRange.right) && !queryRange.left.isMinimum(StorageService.getPartitioner()))

@@ -33,8 +33,8 @@ public class ByteOrderedPartitioner extends AbstractByteOrderedPartitioner
     }
 
     @Override
-    public long getHeapSizeOf(BytesToken token)
+    public long getHeapSizeOf(Token token)
     {
-        return EMPTY_SIZE + ObjectSizes.sizeOfArray(token.token);
+        return EMPTY_SIZE + ObjectSizes.sizeOfArray(((BytesToken) token).token);
     }
 }
