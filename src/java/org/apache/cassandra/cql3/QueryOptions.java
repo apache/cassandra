@@ -242,7 +242,7 @@ public abstract class QueryOptions
     // Options that are likely to not be present in most queries
     static class SpecificOptions
     {
-        private static final SpecificOptions DEFAULT = new SpecificOptions(-1, null, null, -1L);
+        private static final SpecificOptions DEFAULT = new SpecificOptions(-1, null, null, Long.MIN_VALUE);
 
         private final int pageSize;
         private final PagingState state;

@@ -1,4 +1,5 @@
 2.1.2
+ * Fix default timestamp in QueryOptions (CASSANDRA-8246)
  * Set socket timeout when reading remote version (CASSANDRA-8188)
  * Refactor how we track live size (CASSANDRA-7852)
  * Make sure unfinished compaction files are removed (CASSANDRA-8124)
