@@ -29,6 +29,8 @@ import org.apache.cassandra.cql3.selection.Selector;
 import org.apache.cassandra.cql3.selection.SimpleSelector;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.db.marshal.CompositeType;
+import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.memory.AbstractAllocator;
@@ -37,7 +39,7 @@ import org.apache.cassandra.utils.memory.AbstractAllocator;
  * Represents an identifer for a CQL column definition.
  * TODO : should support light-weight mode without text representation for when not interned
  */
-public class ColumnIdentifier extends Selectable implements IMeasurableMemory
+public class ColumnIdentifier extends org.apache.cassandra.cql3.selection.Selectable implements IMeasurableMemory
 {
     public final ByteBuffer bytes;
     private final String text;
@@ -114,5 +116,62 @@ public class ColumnIdentifier extends Selectable implements IMeasurableMemory
             throw new InvalidRequestException(String.format("Undefined name %s in selection clause", this));
 
         return SimpleSelector.newFactory(def.name.toString(), addAndGetIndex(def, defs), def.type);
+    }
+
+    /**
+     * Because Thrift-created tables may have a non-text comparator, we cannot determine the proper 'key' until
+     * we know the comparator. ColumnIdentifier.Raw is a placeholder that can be converted to a real ColumnIdentifier
+     * once the comparator is known with prepare(). This should only be used with identifiers that are actual
+     * column names. See CASSANDRA-8178 for more background.
+     */
+    public static class Raw implements Selectable.Raw
+    {
+        private final String rawText;
+        private final String text;
+
+        public Raw(String rawText, boolean keepCase)
+        {
+            this.rawText = rawText;
+            this.text =  keepCase ? rawText : rawText.toLowerCase(Locale.US);
+        }
+
+        public ColumnIdentifier prepare(CFMetaData cfm)
+        {
+            AbstractType<?> comparator = cfm.comparator.asAbstractType();
+            if (cfm.getIsDense() || comparator instanceof CompositeType || comparator instanceof UTF8Type)
+                return new ColumnIdentifier(text, true);
+
+            // We have a Thrift-created table with a non-text comparator.  We need to parse column names with the comparator
+            // to get the correct ByteBuffer representation.  However, this doesn't apply to key aliases, so we need to
+            // make a special check for those and treat them normally.  See CASSANDRA-8178.
+            ByteBuffer bufferName = ByteBufferUtil.bytes(text);
+            for (ColumnDefinition def : cfm.partitionKeyColumns())
+            {
+                if (def.name.bytes.equals(bufferName))
+                    return new ColumnIdentifier(text, true);
+            }
+            return new ColumnIdentifier(comparator.fromString(rawText), text);
+        }
+
+        @Override
+        public final int hashCode()
+        {
+            return text.hashCode();
+        }
+
+        @Override
+        public final boolean equals(Object o)
+        {
+            if(!(o instanceof ColumnIdentifier.Raw))
+                return false;
+            ColumnIdentifier.Raw that = (ColumnIdentifier.Raw)o;
+            return text.equals(that.text);
+        }
+
+        @Override
+        public String toString()
+        {
+            return text;
+        }
     }
 }

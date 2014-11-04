@@ -325,7 +325,7 @@ public class SchemaLoader
         MigrationManager.announceNewKeyspace(ksm, announceLocally);
     }
 
-    private static ColumnDefinition integerColumn(String ksName, String cfName)
+    public static ColumnDefinition integerColumn(String ksName, String cfName)
     {
         return new ColumnDefinition(ksName,
                                     cfName,
@@ -357,7 +357,7 @@ public class SchemaLoader
                                                       SecondaryIndex.CUSTOM_INDEX_OPTION_NAME,
                                                       PerRowSecondaryIndexTest.TestIndex.class.getName());
 
-        CFMetaData cfm =  CFMetaData.sparseCFMetaData(ksName, cfName, BytesType.instance).keyValidator(AsciiType.instance);
+        CFMetaData cfm =  CFMetaData.sparseCFMetaData(ksName, cfName, AsciiType.instance).keyValidator(AsciiType.instance);
 
         ByteBuffer cName = ByteBufferUtil.bytes("indexed");
         return cfm.addOrReplaceColumnDefinition(ColumnDefinition.regularDef(cfm, cName, AsciiType.instance, null)
@@ -412,7 +412,7 @@ public class SchemaLoader
         return CFMetaData.denseCFMetaData(ksName, cfName, comp).defaultValidator(comp);
     }
 
-    private static CFMetaData jdbcSparseCFMD(String ksName, String cfName, AbstractType comp)
+    public static CFMetaData jdbcSparseCFMD(String ksName, String cfName, AbstractType comp)
     {
         return CFMetaData.sparseCFMetaData(ksName, cfName, comp).defaultValidator(comp);
     }

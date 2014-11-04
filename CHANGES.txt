@@ -50,6 +50,7 @@
  * Fix CREATE TABLE for CQL2 (CASSANDRA-8144)
  * Avoid boxing in ColumnStats min/max trackers (CASSANDRA-8109)
 Merged from 2.0:
+ * Correctly handle non-text column names in cql3 (CASSANDRA-8178)
  * Fix deletion for indexes on primary key columns (CASSANDRA-8206)
  * Add 'nodetool statusgossip' (CASSANDRA-8125)
  * Improve client notification that nodes are ready for requests (CASSANDRA-7510)

@@ -101,7 +101,7 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
     private boolean selectsOnlyStaticColumns;
 
     // Used by forSelection below
-    private static final Parameters defaultParameters = new Parameters(Collections.<ColumnIdentifier, Boolean>emptyMap(), false, false);
+    private static final Parameters defaultParameters = new Parameters(Collections.<ColumnIdentifier.Raw, Boolean>emptyMap(), false, false);
 
     private static final Predicate<ColumnDefinition> isStaticFilter = new Predicate<ColumnDefinition>()
     {
@@ -1261,9 +1261,9 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
         List<Integer> idToSort = new ArrayList<Integer>();
         List<Comparator<ByteBuffer>> sorters = new ArrayList<Comparator<ByteBuffer>>();
 
-        for (ColumnIdentifier identifier : parameters.orderings.keySet())
+        for (ColumnIdentifier.Raw identifier : parameters.orderings.keySet())
         {
-            ColumnDefinition orderingColumn = cfm.getColumnDefinition(identifier);
+            ColumnDefinition orderingColumn = cfm.getColumnDefinition(identifier.prepare(cfm));
             idToSort.add(orderingIndexes.get(orderingColumn.name));
             sorters.add(orderingColumn.type);
         }
@@ -1384,8 +1384,9 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
                 {
                     MultiColumnRelation rel = (MultiColumnRelation) relation;
                     List<ColumnDefinition> names = new ArrayList<>(rel.getEntities().size());
-                    for (ColumnIdentifier entity : rel.getEntities())
+                    for (ColumnIdentifier.Raw rawEntity : rel.getEntities())
                     {
+                        ColumnIdentifier entity = rawEntity.prepare(cfm);
                         ColumnDefinition def = cfm.getColumnDefinition(entity);
                         boolean[] queriable = processRelationEntity(stmt, indexManager, relation, entity, def);
                         hasQueriableIndex |= queriable[0];
@@ -1398,7 +1399,7 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
                 else
                 {
                     SingleColumnRelation rel = (SingleColumnRelation) relation;
-                    ColumnIdentifier entity = rel.getEntity();
+                    ColumnIdentifier entity = rel.getEntity().prepare(cfm);
                     ColumnDefinition def = cfm.getColumnDefinition(entity);
                     boolean[] queriable = processRelationEntity(stmt, indexManager, relation, entity, def);
                     hasQueriableIndex |= queriable[0];
@@ -1835,7 +1836,7 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
             for (Relation relation : whereClause)
             {
                 SingleColumnRelation singleColumnRelation = (SingleColumnRelation) relation;
-                if (singleColumnRelation.onToken && !cfm.getColumnDefinition(singleColumnRelation.getEntity()).equals(iter.next()))
+                if (singleColumnRelation.onToken && !cfm.getColumnDefinition(singleColumnRelation.getEntity().prepare(cfm)).equals(iter.next()))
                     throw new InvalidRequestException(String.format("The token function arguments must be in the partition key order: %s",
                                                                     Joiner.on(',').join(cfm.partitionKeyColumns())));
             }
@@ -1935,8 +1936,9 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
             if (stmt.keyIsInRelation)
             {
                 stmt.orderingIndexes = new HashMap<>();
-                for (ColumnIdentifier column : stmt.parameters.orderings.keySet())
+                for (ColumnIdentifier.Raw rawColumn : stmt.parameters.orderings.keySet())
                 {
+                    ColumnIdentifier column = rawColumn.prepare(cfm);
                     final ColumnDefinition def = cfm.getColumnDefinition(column);
                     if (def == null)
                         handleUnrecognizedOrderingColumn(column);
@@ -1954,9 +1956,9 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
         {
             Boolean[] reversedMap = new Boolean[cfm.clusteringColumns().size()];
             int i = 0;
-            for (Map.Entry<ColumnIdentifier, Boolean> entry : stmt.parameters.orderings.entrySet())
+            for (Map.Entry<ColumnIdentifier.Raw, Boolean> entry : stmt.parameters.orderings.entrySet())
             {
-                ColumnIdentifier column = entry.getKey();
+                ColumnIdentifier column = entry.getKey().prepare(cfm);
                 boolean reversed = entry.getValue();
 
                 ColumnDefinition def = cfm.getColumnDefinition(column);
@@ -2064,7 +2066,7 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
                 // We only call this when sliceRestriction != null, i.e. for compact table with non composite comparator,
                 // so it can't be a MultiColumnRelation.
                 SingleColumnRelation rel = (SingleColumnRelation)r;
-                if (cfm.getColumnDefinition(rel.getEntity()).kind == ColumnDefinition.Kind.CLUSTERING_COLUMN
+                if (cfm.getColumnDefinition(rel.getEntity().prepare(cfm)).kind == ColumnDefinition.Kind.CLUSTERING_COLUMN
                     && (rel.operator() == Operator.GT || rel.operator() == Operator.LT))
                     return rel;
             }
@@ -2120,11 +2122,11 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
 
     public static class Parameters
     {
-        private final Map<ColumnIdentifier, Boolean> orderings;
+        private final Map<ColumnIdentifier.Raw, Boolean> orderings;
         private final boolean isDistinct;
         private final boolean allowFiltering;
 
-        public Parameters(Map<ColumnIdentifier, Boolean> orderings,
+        public Parameters(Map<ColumnIdentifier.Raw, Boolean> orderings,
                           boolean isDistinct,
                           boolean allowFiltering)
         {

@@ -20,6 +20,7 @@ package org.apache.cassandra.cql3.selection;
 
 import java.util.List;
 
+import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 
 import com.google.common.base.Function;
@@ -27,10 +28,10 @@ import com.google.common.collect.Lists;
 
 public class RawSelector
 {
-    public final Selectable selectable;
+    public final Selectable.Raw selectable;
     public final ColumnIdentifier alias;
 
-    public RawSelector(Selectable selectable, ColumnIdentifier alias)
+    public RawSelector(Selectable.Raw selectable, ColumnIdentifier alias)
     {
         this.selectable = selectable;
         this.alias = alias;
@@ -42,13 +43,13 @@ public class RawSelector
      * @param raws the <code>RawSelector</code>s to converts.
      * @return a list of <code>Selectable</code>s
      */
-    public static List<Selectable> toSelectables(List<RawSelector> raws)
+    public static List<Selectable> toSelectables(List<RawSelector> raws, final CFMetaData cfm)
     {
         return Lists.transform(raws, new Function<RawSelector, Selectable>()
         {
             public Selectable apply(RawSelector raw)
             {
-                return raw.selectable;
+                return raw.selectable.prepare(cfm);
             }
         });
     }

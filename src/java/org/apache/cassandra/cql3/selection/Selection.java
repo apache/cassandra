@@ -97,7 +97,7 @@ public abstract class Selection
         List<ColumnDefinition> defs = new ArrayList<ColumnDefinition>();
 
         SelectorFactories factories =
-                SelectorFactories.createFactoriesAndCollectColumnDefinitions(RawSelector.toSelectables(rawSelectors), cfm, defs);
+                SelectorFactories.createFactoriesAndCollectColumnDefinitions(RawSelector.toSelectables(rawSelectors, cfm), cfm, defs);
         List<ColumnSpecification> metadata = collectMetadata(cfm, rawSelectors, factories);
 
         return isUsingFunction(rawSelectors) ? new SelectionWithFunctions(defs, metadata, factories)
@@ -140,7 +140,7 @@ public abstract class Selection
      * Checks that selectors are either all aggregates or that none of them is.
      *
      * @param selectors the selectors to test.
-     * @param msgTemplate the error message template
+     * @param messageTemplate the error message template
      * @param messageArgs the error message arguments
      * @throws InvalidRequestException if some of the selectors are aggregate but not all of them
      */

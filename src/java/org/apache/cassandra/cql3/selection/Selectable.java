@@ -18,6 +18,7 @@
  */
 package org.apache.cassandra.cql3.selection;
 
+import java.util.ArrayList;
 import java.util.List;
 
 import org.apache.cassandra.config.CFMetaData;
@@ -45,6 +46,11 @@ public abstract class Selectable
             l.add(def);
         }
         return idx;
+    }
+
+    public static interface Raw
+    {
+        public Selectable prepare(CFMetaData cfm);
     }
 
     public static class WritetimeOrTTL extends Selectable
@@ -80,6 +86,23 @@ public abstract class Selectable
                                                                 isWritetime ? "writeTime" : "ttl"));
 
             return WritetimeOrTTLSelector.newFactory(def.name.toString(), addAndGetIndex(def, defs), isWritetime);
+        }
+
+        public static class Raw implements Selectable.Raw
+        {
+            private final ColumnIdentifier.Raw id;
+            private final boolean isWritetime;
+
+            public Raw(ColumnIdentifier.Raw id, boolean isWritetime)
+            {
+                this.id = id;
+                this.isWritetime = isWritetime;
+            }
+
+            public WritetimeOrTTL prepare(CFMetaData cfm)
+            {
+                return new WritetimeOrTTL(id.prepare(cfm), isWritetime);
+            }
         }
     }
 
@@ -119,6 +142,26 @@ public abstract class Selectable
                                                                 functionName));
 
             return AbstractFunctionSelector.newFactory(fun, factories);
+        }
+
+        public static class Raw implements Selectable.Raw
+        {
+            private final FunctionName functionName;
+            private final List<Selectable.Raw> args;
+
+            public Raw(FunctionName functionName, List<Selectable.Raw> args)
+            {
+                this.functionName = functionName;
+                this.args = args;
+            }
+
+            public WithFunction prepare(CFMetaData cfm)
+            {
+                List<Selectable> preparedArgs = new ArrayList<>(args.size());
+                for (Selectable.Raw arg : args)
+                    preparedArgs.add(arg.prepare(cfm));
+                return new WithFunction(functionName, preparedArgs);
+            }
         }
     }
 
@@ -161,6 +204,23 @@ public abstract class Selectable
                                                             selected,
                                                             type.asCQL3Type(),
                                                             field));
+        }
+
+        public static class Raw implements Selectable.Raw
+        {
+            private final Selectable.Raw selected;
+            private final ColumnIdentifier.Raw field;
+
+            public Raw(Selectable.Raw selected, ColumnIdentifier.Raw field)
+            {
+                this.selected = selected;
+                this.field = field;
+            }
+
+            public WithFieldSelection prepare(CFMetaData cfm)
+            {
+                return new WithFieldSelection(selected.prepare(cfm), field.prepare(cfm));
+            }
         }
     }
 }

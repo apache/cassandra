@@ -19,6 +19,7 @@ package org.apache.cassandra.cql3;
 
 import java.nio.ByteBuffer;
 
+import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.composites.Composite;
@@ -130,7 +131,7 @@ public abstract class Operation
         /**
          * The name of the column affected by this delete operation.
          */
-        public ColumnIdentifier affectedColumn();
+        public ColumnIdentifier.Raw affectedColumn();
 
         /**
          * This method validates the operation (i.e. validate it is well typed)
@@ -356,14 +357,14 @@ public abstract class Operation
 
     public static class ColumnDeletion implements RawDeletion
     {
-        private final ColumnIdentifier id;
+        private final ColumnIdentifier.Raw id;
 
-        public ColumnDeletion(ColumnIdentifier id)
+        public ColumnDeletion(ColumnIdentifier.Raw id)
         {
             this.id = id;
         }
 
-        public ColumnIdentifier affectedColumn()
+        public ColumnIdentifier.Raw affectedColumn()
         {
             return id;
         }
@@ -377,16 +378,16 @@ public abstract class Operation
 
     public static class ElementDeletion implements RawDeletion
     {
-        private final ColumnIdentifier id;
+        private final ColumnIdentifier.Raw id;
         private final Term.Raw element;
 
-        public ElementDeletion(ColumnIdentifier id, Term.Raw element)
+        public ElementDeletion(ColumnIdentifier.Raw id, Term.Raw element)
         {
             this.id = id;
             this.element = element;
         }
 
-        public ColumnIdentifier affectedColumn()
+        public ColumnIdentifier.Raw affectedColumn()
         {
             return id;
         }
