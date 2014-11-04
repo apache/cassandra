@@ -112,7 +112,7 @@ public class DeleteStatement extends ModificationStatement
                       Attributes.Raw attrs,
                       List<Operation.RawDeletion> deletions,
                       List<Relation> whereClause,
-                      List<Pair<ColumnIdentifier, ColumnCondition.Raw>> conditions,
+                      List<Pair<ColumnIdentifier.Raw, ColumnCondition.Raw>> conditions,
                       boolean ifExists)
         {
             super(name, attrs, conditions, false, ifExists);
@@ -126,9 +126,10 @@ public class DeleteStatement extends ModificationStatement
 
             for (Operation.RawDeletion deletion : deletions)
             {
-                ColumnDefinition def = cfm.getColumnDefinition(deletion.affectedColumn());
+                ColumnIdentifier id = deletion.affectedColumn().prepare(cfm);
+                ColumnDefinition def = cfm.getColumnDefinition(id);
                 if (def == null)
-                    throw new InvalidRequestException(String.format("Unknown identifier %s", deletion.affectedColumn()));
+                    throw new InvalidRequestException(String.format("Unknown identifier %s", id));
 
                 // For compact, we only have one value except the key, so the only form of DELETE that make sense is without a column
                 // list. However, we support having the value name for coherence with the static/sparse case

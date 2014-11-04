@@ -44,19 +44,19 @@ public class CreateIndexStatement extends SchemaAlteringStatement
     private static final Logger logger = LoggerFactory.getLogger(CreateIndexStatement.class);
 
     private final String indexName;
-    private final IndexTarget target;
+    private final IndexTarget.Raw rawTarget;
     private final IndexPropDefs properties;
     private final boolean ifNotExists;
 
     public CreateIndexStatement(CFName name,
                                 String indexName,
-                                IndexTarget target,
+                                IndexTarget.Raw target,
                                 IndexPropDefs properties,
                                 boolean ifNotExists)
     {
         super(name);
         this.indexName = indexName;
-        this.target = target;
+        this.rawTarget = target;
         this.properties = properties;
         this.ifNotExists = ifNotExists;
     }
@@ -72,6 +72,7 @@ public class CreateIndexStatement extends SchemaAlteringStatement
         if (cfm.isCounter())
             throw new InvalidRequestException("Secondary indexes are not supported on counter tables");
 
+        IndexTarget target = rawTarget.prepare(cfm);
         ColumnDefinition cd = cfm.getColumnDefinition(target.column);
 
         if (cd == null)
@@ -120,8 +121,9 @@ public class CreateIndexStatement extends SchemaAlteringStatement
 
     public boolean announceMigration(boolean isLocalOnly) throws RequestValidationException
     {
-        logger.debug("Updating column {} definition for index {}", target.column, indexName);
         CFMetaData cfm = Schema.instance.getCFMetaData(keyspace(), columnFamily()).copy();
+        IndexTarget target = rawTarget.prepare(cfm);
+        logger.debug("Updating column {} definition for index {}", target.column, indexName);
         ColumnDefinition cd = cfm.getColumnDefinition(target.column);
 
         if (cd.getIndexType() != null && ifNotExists)

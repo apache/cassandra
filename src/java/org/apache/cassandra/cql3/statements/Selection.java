@@ -109,18 +109,25 @@ public abstract class Selection
 
     private static Selector makeSelector(CFMetaData cfm, RawSelector raw, List<ColumnDefinition> defs, List<ColumnSpecification> metadata) throws InvalidRequestException
     {
-        if (raw.selectable instanceof ColumnIdentifier)
+        Selectable selectable = raw.selectable.prepare(cfm);
+        return makeSelector(cfm, selectable, raw.alias, defs, metadata);
+    }
+
+    private static Selector makeSelector(CFMetaData cfm, Selectable selectable, ColumnIdentifier alias, List<ColumnDefinition> defs, List<ColumnSpecification> metadata) throws InvalidRequestException
+    {
+        if (selectable instanceof ColumnIdentifier)
         {
-            ColumnDefinition def = cfm.getColumnDefinition((ColumnIdentifier)raw.selectable);
+            ColumnDefinition def = cfm.getColumnDefinition((ColumnIdentifier)selectable);
             if (def == null)
-                throw new InvalidRequestException(String.format("Undefined name %s in selection clause", raw.selectable));
+                throw new InvalidRequestException(String.format("Undefined name %s in selection clause", selectable));
+
             if (metadata != null)
-                metadata.add(raw.alias == null ? def : makeAliasSpec(cfm, def.type, raw.alias));
+                metadata.add(alias == null ? def : makeAliasSpec(cfm, def.type, alias));
             return new SimpleSelector(def.name.toString(), addAndGetIndex(def, defs), def.type);
         }
-        else if (raw.selectable instanceof Selectable.WritetimeOrTTL)
+        else if (selectable instanceof Selectable.WritetimeOrTTL)
         {
-            Selectable.WritetimeOrTTL tot = (Selectable.WritetimeOrTTL)raw.selectable;
+            Selectable.WritetimeOrTTL tot = (Selectable.WritetimeOrTTL)selectable;
             ColumnDefinition def = cfm.getColumnDefinition(tot.id);
             if (def == null)
                 throw new InvalidRequestException(String.format("Undefined name %s in selection clause", tot.id));
@@ -130,13 +137,13 @@ public abstract class Selection
                 throw new InvalidRequestException(String.format("Cannot use selection function %s on collections", tot.isWritetime ? "writeTime" : "ttl"));
 
             if (metadata != null)
-                metadata.add(makeWritetimeOrTTLSpec(cfm, tot, raw.alias));
+                metadata.add(makeWritetimeOrTTLSpec(cfm, tot, alias));
             return new WritetimeOrTTLSelector(def.name.toString(), addAndGetIndex(def, defs), tot.isWritetime);
         }
-        else if (raw.selectable instanceof Selectable.WithFieldSelection)
+        else if (selectable instanceof Selectable.WithFieldSelection)
         {
-            Selectable.WithFieldSelection withField = (Selectable.WithFieldSelection)raw.selectable;
-            Selector selected = makeSelector(cfm, new RawSelector(withField.selected, null), defs, null);
+            Selectable.WithFieldSelection withField = (Selectable.WithFieldSelection)selectable;
+            Selector selected = makeSelector(cfm, withField.selected, null, defs, null);
             AbstractType<?> type = selected.getType();
             if (!(type instanceof UserType))
                 throw new InvalidRequestException(String.format("Invalid field selection: %s of type %s is not a user type", withField.selected, type.asCQL3Type()));
@@ -148,22 +155,23 @@ public abstract class Selection
                     continue;
 
                 if (metadata != null)
-                    metadata.add(makeFieldSelectSpec(cfm, withField, ut.fieldType(i), raw.alias));
+                    metadata.add(makeFieldSelectSpec(cfm, withField, ut.fieldType(i), alias));
                 return new FieldSelector(ut, i, selected);
             }
             throw new InvalidRequestException(String.format("%s of type %s has no field %s", withField.selected, type.asCQL3Type(), withField.field));
         }
         else
         {
-            Selectable.WithFunction withFun = (Selectable.WithFunction)raw.selectable;
+            Selectable.WithFunction withFun = (Selectable.WithFunction)selectable;
             List<Selector> args = new ArrayList<Selector>(withFun.args.size());
-            for (Selectable rawArg : withFun.args)
-                args.add(makeSelector(cfm, new RawSelector(rawArg, null), defs, null));
+            for (Selectable arg : withFun.args)
+                args.add(makeSelector(cfm, arg, null, defs, null));
 
             AbstractType<?> returnType = Functions.getReturnType(withFun.functionName, cfm.ksName, cfm.cfName);
             if (returnType == null)
                 throw new InvalidRequestException(String.format("Unknown function '%s'", withFun.functionName));
-            ColumnSpecification spec = makeFunctionSpec(cfm, withFun, returnType, raw.alias);
+
+            ColumnSpecification spec = makeFunctionSpec(cfm, withFun, returnType, alias);
             Function fun = Functions.get(cfm.ksName, withFun.functionName, args, spec);
             if (metadata != null)
                 metadata.add(spec);

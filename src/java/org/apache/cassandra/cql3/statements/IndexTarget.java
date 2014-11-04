@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.cql3.statements;
 
+import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 
 public class IndexTarget
@@ -30,13 +31,30 @@ public class IndexTarget
         this.isCollectionKeys = isCollectionKeys;
     }
 
-    public static IndexTarget of(ColumnIdentifier c)
+    public static class Raw
     {
-        return new IndexTarget(c, false);
-    }
+        private final ColumnIdentifier.Raw column;
+        public final boolean isCollectionKeys;
 
-    public static IndexTarget keysOf(ColumnIdentifier c)
-    {
-        return new IndexTarget(c, true);
+        private Raw(ColumnIdentifier.Raw column, boolean isCollectionKeys)
+        {
+            this.column = column;
+            this.isCollectionKeys = isCollectionKeys;
+        }
+
+        public static Raw of(ColumnIdentifier.Raw c)
+        {
+            return new Raw(c, false);
+        }
+
+        public static Raw keysOf(ColumnIdentifier.Raw c)
+        {
+            return new Raw(c, true);
+        }
+
+        public IndexTarget prepare(CFMetaData cfm)
+        {
+            return new IndexTarget(column.prepare(cfm), isCollectionKeys);
+        }
     }
 }
