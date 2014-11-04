@@ -1567,14 +1567,13 @@
   <classpathentry kind="src" path="src/java"/>
   <classpathentry kind="src" path="src/resources"/>
   <classpathentry kind="src" path="src/gen-java"/>
-  <classpathentry kind="src" path="interface/thrift/gen-java"/>
   <classpathentry kind="src" path="test/unit"/>
   <classpathentry kind="src" path="test/long"/>
   <classpathentry kind="src" path="test/pig"/>
   <classpathentry kind="src" path="tools/stress/src"/>
   <classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER"/>
   <classpathentry kind="output" path="build/classes/main"/>
-  <classpathentry kind="lib" path="build/classes/thrift"/>
+  <classpathentry kind="lib" path="build/classes/thrift" sourcepath="interface/thrift/gen-java/"/>
   <classpathentry kind="lib" path="build/test/classes"/>
   <classpathentry kind="lib" path="test/conf"/>
 ]]>
@@ -1591,13 +1590,22 @@
   	 </fileset>
   	</path>
   	<property name="eclipse-project-libs" refid="eclipse-project-libs-path"/>
-  	<script language="javascript"> <![CDATA[
+  	<script language="javascript" classpathref="cassandra.classpath"> <![CDATA[
   		var File = java.io.File;
+  		var FilenameUtils = Packages.org.apache.commons.io.FilenameUtils;
   		jars = project.getProperty("eclipse-project-libs").split(project.getProperty("path.separator"));
   		
   		cp = "";
   	    for (i=0; i< jars.length; i++) {
-  	       cp += ' <classpathentry kind="lib" path="'+jars[i]+'"/>\n';
+  	       srcjar = FilenameUtils.getBaseName(jars[i]) + '-sources.jar';
+  		   srcdir = FilenameUtils.concat(project.getProperty("build.dir.lib"), 'sources');
+  		   srcfile = new File(FilenameUtils.concat(srcdir, srcjar));
+  		
+  		   cp += ' <classpathentry kind="lib" path="' + jars[i] + '"';
+  		   if (srcfile.exists()) {
+  		      cp += ' sourcepath="' + srcfile.getAbsolutePath() + '"';
+  		   }
+  		   cp += '/>\n';
   		}
   		
   		cp += '</classpath>';
