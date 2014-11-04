@@ -21,6 +21,7 @@ import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.concurrent.*;
 
+import com.google.common.base.Objects;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -370,5 +371,11 @@ public abstract class SecondaryIndex
                 return null;
         }
         throw new AssertionError();
+    }
+
+    @Override
+    public String toString()
+    {
+        return Objects.toStringHelper(this).add("columnDefs", columnDefs).toString();
     }
 }

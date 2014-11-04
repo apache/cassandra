@@ -465,7 +465,7 @@ public class SecondaryIndexManager
                 }
                 else
                 {
-                    ((PerColumnSecondaryIndex) index).delete(key.key, column);
+                    ((PerColumnSecondaryIndex) index).deleteForCleanup(key.key, column);
                 }
             }
         }
@@ -618,7 +618,7 @@ public class SecondaryIndexManager
         {
             if (oldColumn.equals(column))
                 return;
-            
+
             for (SecondaryIndex index : indexFor(column.name()))
             {
                 if (index instanceof PerColumnSecondaryIndex)

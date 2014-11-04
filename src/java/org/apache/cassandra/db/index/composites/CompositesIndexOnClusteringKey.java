@@ -112,4 +112,12 @@ public class CompositesIndexOnClusteringKey extends CompositesIndex
     {
         return data.hasOnlyTombstones(now);
     }
+
+    @Override
+    public void delete(ByteBuffer rowKey, Column column)
+    {
+        // We only know that one column of the CQL row has been updated/deleted, but we don't know if the
+        // full row has been deleted so we should not do anything. If it ends up that the whole row has
+        // been deleted, it will be eventually cleaned up on read because the entry will be detected stale.
+    }
 }

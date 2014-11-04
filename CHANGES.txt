@@ -1,4 +1,5 @@
 2.0.12:
+ * Fix deletion for indexes on primary key columns (CASSANDRA-8206)
  * Add 'nodetool statusgossip' (CASSANDRA-8125)
  * Improve client notification that nodes are ready for requests (CASSANDRA-7510)
  * Handle negative timestamp in writetime method (CASSANDRA-8139)
