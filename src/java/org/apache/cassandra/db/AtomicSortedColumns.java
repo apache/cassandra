@@ -22,7 +22,6 @@ import java.util.*;
 import java.util.concurrent.atomic.AtomicReference;
 
 import com.google.common.base.Function;
-import com.google.common.collect.Iterables;
 
 import edu.stanford.ppl.concurrent.SnapTreeMap;
 
@@ -30,7 +29,7 @@ import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.filter.ColumnSlice;
 import org.apache.cassandra.db.index.SecondaryIndexManager;
 import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.utils.Allocator;
+import org.apache.cassandra.utils.*;
 
 /**
  * A thread-safe and atomic ISortedColumns implementation.
@@ -50,6 +49,8 @@ import org.apache.cassandra.utils.Allocator;
 public class AtomicSortedColumns extends ColumnFamily
 {
     private final AtomicReference<Holder> ref;
+
+    private static final boolean enableColUpdateTimeDelta = Boolean.parseBoolean(System.getProperty("cassandra.enableColUpdateTimeDelta", "false"));
 
     public static final ColumnFamily.Factory<AtomicSortedColumns> factory = new Factory<AtomicSortedColumns>()
     {
@@ -155,9 +156,9 @@ public class AtomicSortedColumns extends ColumnFamily
     /**
      *  This is only called by Memtable.resolve, so only AtomicSortedColumns needs to implement it.
      *
-     *  @return the difference in size seen after merging the given columns
+     *  @return the difference in size seen after merging the given columns and minimum time delta between timestamps of two reconciled columns.
      */
-    public long addAllWithSizeDelta(ColumnFamily cm, Allocator allocator, Function<Column, Column> transformation, SecondaryIndexManager.Updater indexer)
+    public Pair<Long,Long> addAllWithSizeDelta(ColumnFamily cm, Allocator allocator, Function<Column, Column> transformation, SecondaryIndexManager.Updater indexer)
     {
         /*
          * This operation needs to atomicity and isolation. To that end, we
@@ -172,11 +173,13 @@ public class AtomicSortedColumns extends ColumnFamily
          */
         Holder current, modified;
         long sizeDelta;
+        long timeDelta;
 
         main_loop:
         do
         {
             sizeDelta = 0;
+            timeDelta = Long.MAX_VALUE;
             current = ref.get();
             DeletionInfo newDelInfo = current.deletionInfo;
             if (cm.deletionInfo().mayModify(newDelInfo))
@@ -188,7 +191,13 @@ public class AtomicSortedColumns extends ColumnFamily
 
             for (Column column : cm)
             {
-                sizeDelta += modified.addColumn(transformation.apply(column), allocator, indexer);
+                final Pair<Integer, Long> pair = modified.addColumn(transformation.apply(column), allocator, indexer);
+                sizeDelta += pair.left;
+
+                //We will store the minimum delta for all columns if enabled
+                if(enableColUpdateTimeDelta)
+                    timeDelta = Math.min(pair.right, timeDelta);
+
                 // bail early if we know we've been beaten
                 if (ref.get() != current)
                     continue main_loop;
@@ -198,7 +207,7 @@ public class AtomicSortedColumns extends ColumnFamily
 
         indexer.updateRowLevelIndexes();
 
-        return sizeDelta;
+        return Pair.create(sizeDelta, timeDelta);
     }
 
     public boolean replace(Column oldColumn, Column newColumn)
@@ -311,7 +320,7 @@ public class AtomicSortedColumns extends ColumnFamily
             return new Holder(new SnapTreeMap<ByteBuffer, Column>(map.comparator()), LIVE);
         }
 
-        long addColumn(Column column, Allocator allocator, SecondaryIndexManager.Updater indexer)
+        Pair<Integer, Long> addColumn(Column column, Allocator allocator, SecondaryIndexManager.Updater indexer)
         {
             ByteBuffer name = column.name();
             while (true)
@@ -320,14 +329,15 @@ public class AtomicSortedColumns extends ColumnFamily
                 if (oldColumn == null)
                 {
                     indexer.insert(column);
-                    return column.dataSize();
+                    return Pair.create(column.dataSize(), Long.MAX_VALUE);
                 }
 
                 Column reconciledColumn = column.reconcile(oldColumn, allocator);
                 if (map.replace(name, oldColumn, reconciledColumn))
                 {
                     indexer.update(oldColumn, reconciledColumn);
-                    return reconciledColumn.dataSize() - oldColumn.dataSize();
+                    return Pair.create(reconciledColumn.dataSize() - oldColumn.dataSize(),
+                            enableColUpdateTimeDelta?  Math.abs(oldColumn.timestamp - column.timestamp): Long.MAX_VALUE );
                 }
                 // We failed to replace column due to a concurrent update or a concurrent removal. Keep trying.
                 // (Currently, concurrent removal should not happen (only updates), but let us support that anyway.)
