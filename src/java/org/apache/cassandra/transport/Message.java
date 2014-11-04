@@ -348,7 +348,7 @@ public abstract class Message
             }
         }
 
-        private final class Flusher implements Runnable
+        private static final class Flusher implements Runnable
         {
             final EventLoop eventLoop;
             final ConcurrentLinkedQueue<FlushItem> queued = new ConcurrentLinkedQueue<>();
