@@ -1140,9 +1140,11 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         long start = System.nanoTime();
 
         Memtable mt = data.getMemtableFor(opGroup);
-        mt.put(key, columnFamily, indexer, opGroup, replayPosition);
+        final long timeDelta = mt.put(key, columnFamily, indexer, opGroup, replayPosition);
         maybeUpdateRowCache(key);
         metric.writeLatency.addNano(System.nanoTime() - start);
+        if(timeDelta < Long.MAX_VALUE)
+            metric.colUpdateTimeDeltaHistogram.update(timeDelta);
     }
 
     /**
