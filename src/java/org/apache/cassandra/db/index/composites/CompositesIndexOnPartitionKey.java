@@ -27,6 +27,7 @@ import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.composites.*;
 import org.apache.cassandra.db.index.SecondaryIndex;
 import org.apache.cassandra.db.marshal.*;
+import org.apache.cassandra.utils.concurrent.OpOrder;
 
 /**
  * Index on a PARTITION_KEY column definition.
@@ -95,5 +96,13 @@ public class CompositesIndexOnPartitionKey extends CompositesIndex
     public boolean isStale(IndexedEntry entry, ColumnFamily data, long now)
     {
         return data.hasOnlyTombstones(now);
+    }
+
+    @Override
+    public void delete(ByteBuffer rowKey, Cell cell, OpOrder.Group opGroup)
+    {
+        // We only know that one column of the CQL row has been updated/deleted, but we don't know if the
+        // full row has been deleted so we should not do anything. If it ends up that the whole row has
+        // been deleted, it will be eventually cleaned up on read because the entry will be detected stale.
     }
 }

@@ -26,6 +26,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Future;
 import java.util.concurrent.FutureTask;
 
+import com.google.common.base.Objects;
 import org.apache.commons.lang3.StringUtils;
 
 import org.slf4j.Logger;
@@ -383,5 +384,11 @@ public abstract class SecondaryIndex
                 return null;
         }
         throw new AssertionError();
+    }
+
+    @Override
+    public String toString()
+    {
+        return Objects.toStringHelper(this).add("columnDefs", columnDefs).toString();
     }
 }
