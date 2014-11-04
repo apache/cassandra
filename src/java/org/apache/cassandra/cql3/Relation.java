@@ -17,52 +17,11 @@
  */
 package org.apache.cassandra.cql3;
 
-
 public abstract class Relation {
 
-    protected Type relationType;
+    protected Operator relationType;
 
-    public static enum Type
-    {
-        EQ, LT, LTE, GTE, GT, IN, CONTAINS, CONTAINS_KEY, NEQ;
-
-        public boolean allowsIndexQuery()
-        {
-            switch (this)
-            {
-                case EQ:
-                case CONTAINS:
-                case CONTAINS_KEY:
-                    return true;
-                default:
-                    return false;
-            }
-        }
-
-        @Override
-        public String toString()
-        {
-            switch (this)
-            {
-                case EQ:
-                    return "=";
-                case LT:
-                    return "<";
-                case LTE:
-                    return "<=";
-                case GT:
-                    return ">";
-                case GTE:
-                    return ">=";
-                case NEQ:
-                    return "!=";
-                default:
-                    return this.name();
-            }
-        }
-    }
-
-    public Type operator()
+    public Operator operator()
     {
         return relationType;
     }

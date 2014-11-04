@@ -71,7 +71,7 @@ public class ColumnConditionTest
         ColumnDefinition definition = new ColumnDefinition("ks", "cf", new ColumnIdentifier("c", true), Int32Type.instance, null, null, null, null, null);
 
         // EQ
-        ColumnCondition condition = ColumnCondition.condition(definition, new Constants.Value(ONE), Relation.Type.EQ);
+        ColumnCondition condition = ColumnCondition.condition(definition, new Constants.Value(ONE), Operator.EQ);
         ColumnCondition.Bound bound = condition.bind(QueryOptions.DEFAULT);
         assertTrue(isSatisfiedBy(bound, ONE, ONE));
         assertFalse(isSatisfiedBy(bound, ZERO, ONE));
@@ -84,7 +84,7 @@ public class ColumnConditionTest
         assertFalse(isSatisfiedBy(bound, null, ONE));
 
         // NEQ
-        condition = ColumnCondition.condition(definition, new Constants.Value(ONE), Relation.Type.NEQ);
+        condition = ColumnCondition.condition(definition, new Constants.Value(ONE), Operator.NEQ);
         bound = condition.bind(QueryOptions.DEFAULT);
         assertFalse(isSatisfiedBy(bound, ONE, ONE));
         assertTrue(isSatisfiedBy(bound, ZERO, ONE));
@@ -97,7 +97,7 @@ public class ColumnConditionTest
         assertTrue(isSatisfiedBy(bound, null, ONE));
 
         // LT
-        condition = ColumnCondition.condition(definition, new Constants.Value(ONE), Relation.Type.LT);
+        condition = ColumnCondition.condition(definition, new Constants.Value(ONE), Operator.LT);
         bound = condition.bind(QueryOptions.DEFAULT);
         assertFalse(isSatisfiedBy(bound, ONE, ONE));
         assertFalse(isSatisfiedBy(bound, ZERO, ONE));
@@ -109,7 +109,7 @@ public class ColumnConditionTest
         assertFalse(isSatisfiedBy(bound, ONE, null));
 
         // LTE
-        condition = ColumnCondition.condition(definition, new Constants.Value(ONE), Relation.Type.LTE);
+        condition = ColumnCondition.condition(definition, new Constants.Value(ONE), Operator.LTE);
         bound = condition.bind(QueryOptions.DEFAULT);
         assertTrue(isSatisfiedBy(bound, ONE, ONE));
         assertFalse(isSatisfiedBy(bound, ZERO, ONE));
@@ -121,7 +121,7 @@ public class ColumnConditionTest
         assertFalse(isSatisfiedBy(bound, ONE, null));
 
         // GT
-        condition = ColumnCondition.condition(definition, new Constants.Value(ONE), Relation.Type.GT);
+        condition = ColumnCondition.condition(definition, new Constants.Value(ONE), Operator.GT);
         bound = condition.bind(QueryOptions.DEFAULT);
         assertFalse(isSatisfiedBy(bound, ONE, ONE));
         assertTrue(isSatisfiedBy(bound, ZERO, ONE));
@@ -133,7 +133,7 @@ public class ColumnConditionTest
         assertFalse(isSatisfiedBy(bound, ONE, null));
 
         // GT
-        condition = ColumnCondition.condition(definition, new Constants.Value(ONE), Relation.Type.GTE);
+        condition = ColumnCondition.condition(definition, new Constants.Value(ONE), Operator.GTE);
         bound = condition.bind(QueryOptions.DEFAULT);
         assertTrue(isSatisfiedBy(bound, ONE, ONE));
         assertTrue(isSatisfiedBy(bound, ZERO, ONE));
@@ -179,7 +179,7 @@ public class ColumnConditionTest
         ColumnDefinition definition = new ColumnDefinition("ks", "cf", new ColumnIdentifier("c", true), ListType.getInstance(Int32Type.instance), null, null, null, null, null);
 
         // EQ
-        ColumnCondition condition = ColumnCondition.condition(definition, null, new Lists.Value(Arrays.asList(ONE)), Relation.Type.EQ);
+        ColumnCondition condition = ColumnCondition.condition(definition, null, new Lists.Value(Arrays.asList(ONE)), Operator.EQ);
         ColumnCondition.CollectionBound bound = (ColumnCondition.CollectionBound) condition.bind(QueryOptions.DEFAULT);
         assertTrue(listAppliesTo(bound, list(ONE), list(ONE)));
         assertTrue(listAppliesTo(bound, list(), list()));
@@ -195,7 +195,7 @@ public class ColumnConditionTest
         assertTrue(listAppliesTo(bound, list(ByteBufferUtil.EMPTY_BYTE_BUFFER), list(ByteBufferUtil.EMPTY_BYTE_BUFFER)));
 
         // NEQ
-        condition = ColumnCondition.condition(definition, null, new Lists.Value(Arrays.asList(ONE)), Relation.Type.NEQ);
+        condition = ColumnCondition.condition(definition, null, new Lists.Value(Arrays.asList(ONE)), Operator.NEQ);
         bound = (ColumnCondition.CollectionBound) condition.bind(QueryOptions.DEFAULT);
         assertFalse(listAppliesTo(bound, list(ONE), list(ONE)));
         assertFalse(listAppliesTo(bound, list(), list()));
@@ -211,7 +211,7 @@ public class ColumnConditionTest
         assertFalse(listAppliesTo(bound, list(ByteBufferUtil.EMPTY_BYTE_BUFFER), list(ByteBufferUtil.EMPTY_BYTE_BUFFER)));
 
         // LT
-        condition = ColumnCondition.condition(definition, null, new Lists.Value(Arrays.asList(ONE)), Relation.Type.LT);
+        condition = ColumnCondition.condition(definition, null, new Lists.Value(Arrays.asList(ONE)), Operator.LT);
         bound = (ColumnCondition.CollectionBound) condition.bind(QueryOptions.DEFAULT);
         assertFalse(listAppliesTo(bound, list(ONE), list(ONE)));
         assertFalse(listAppliesTo(bound, list(), list()));
@@ -227,7 +227,7 @@ public class ColumnConditionTest
         assertFalse(listAppliesTo(bound, list(ByteBufferUtil.EMPTY_BYTE_BUFFER), list(ByteBufferUtil.EMPTY_BYTE_BUFFER)));
 
         // LTE
-        condition = ColumnCondition.condition(definition, null, new Lists.Value(Arrays.asList(ONE)), Relation.Type.LTE);
+        condition = ColumnCondition.condition(definition, null, new Lists.Value(Arrays.asList(ONE)), Operator.LTE);
         bound = (ColumnCondition.CollectionBound) condition.bind(QueryOptions.DEFAULT);
         assertTrue(listAppliesTo(bound, list(ONE), list(ONE)));
         assertTrue(listAppliesTo(bound, list(), list()));
@@ -243,7 +243,7 @@ public class ColumnConditionTest
         assertTrue(listAppliesTo(bound, list(ByteBufferUtil.EMPTY_BYTE_BUFFER), list(ByteBufferUtil.EMPTY_BYTE_BUFFER)));
 
         // GT
-        condition = ColumnCondition.condition(definition, null, new Lists.Value(Arrays.asList(ONE)), Relation.Type.GT);
+        condition = ColumnCondition.condition(definition, null, new Lists.Value(Arrays.asList(ONE)), Operator.GT);
         bound = (ColumnCondition.CollectionBound) condition.bind(QueryOptions.DEFAULT);
         assertFalse(listAppliesTo(bound, list(ONE), list(ONE)));
         assertFalse(listAppliesTo(bound, list(), list()));
@@ -259,7 +259,7 @@ public class ColumnConditionTest
         assertFalse(listAppliesTo(bound, list(ByteBufferUtil.EMPTY_BYTE_BUFFER), list(ByteBufferUtil.EMPTY_BYTE_BUFFER)));
 
         // GTE
-        condition = ColumnCondition.condition(definition, null, new Lists.Value(Arrays.asList(ONE)), Relation.Type.GTE);
+        condition = ColumnCondition.condition(definition, null, new Lists.Value(Arrays.asList(ONE)), Operator.GTE);
         bound = (ColumnCondition.CollectionBound) condition.bind(QueryOptions.DEFAULT);
         assertTrue(listAppliesTo(bound, list(ONE), list(ONE)));
         assertTrue(listAppliesTo(bound, list(), list()));
@@ -309,7 +309,7 @@ public class ColumnConditionTest
         ColumnDefinition definition = new ColumnDefinition("ks", "cf", new ColumnIdentifier("c", true), SetType.getInstance(Int32Type.instance), null, null, null, null, null);
 
         // EQ
-        ColumnCondition condition = ColumnCondition.condition(definition, null, new Sets.Value(set(ONE)), Relation.Type.EQ);
+        ColumnCondition condition = ColumnCondition.condition(definition, null, new Sets.Value(set(ONE)), Operator.EQ);
         ColumnCondition.CollectionBound bound = (ColumnCondition.CollectionBound) condition.bind(QueryOptions.DEFAULT);
         assertTrue(setAppliesTo(bound, set(ONE), list(ONE)));
         assertTrue(setAppliesTo(bound, set(), list()));
@@ -325,7 +325,7 @@ public class ColumnConditionTest
         assertTrue(setAppliesTo(bound, set(ByteBufferUtil.EMPTY_BYTE_BUFFER), list(ByteBufferUtil.EMPTY_BYTE_BUFFER)));
 
         // NEQ
-        condition = ColumnCondition.condition(definition, null, new Sets.Value(set(ONE)), Relation.Type.NEQ);
+        condition = ColumnCondition.condition(definition, null, new Sets.Value(set(ONE)), Operator.NEQ);
         bound = (ColumnCondition.CollectionBound) condition.bind(QueryOptions.DEFAULT);
         assertFalse(setAppliesTo(bound, set(ONE), list(ONE)));
         assertFalse(setAppliesTo(bound, set(), list()));
@@ -341,7 +341,7 @@ public class ColumnConditionTest
         assertFalse(setAppliesTo(bound, set(ByteBufferUtil.EMPTY_BYTE_BUFFER), list(ByteBufferUtil.EMPTY_BYTE_BUFFER)));
 
         // LT
-        condition = ColumnCondition.condition(definition, null, new Lists.Value(Arrays.asList(ONE)), Relation.Type.LT);
+        condition = ColumnCondition.condition(definition, null, new Lists.Value(Arrays.asList(ONE)), Operator.LT);
         bound = (ColumnCondition.CollectionBound) condition.bind(QueryOptions.DEFAULT);
         assertFalse(setAppliesTo(bound, set(ONE), list(ONE)));
         assertFalse(setAppliesTo(bound, set(), list()));
@@ -357,7 +357,7 @@ public class ColumnConditionTest
         assertFalse(setAppliesTo(bound, set(ByteBufferUtil.EMPTY_BYTE_BUFFER), list(ByteBufferUtil.EMPTY_BYTE_BUFFER)));
 
         // LTE
-        condition = ColumnCondition.condition(definition, null, new Lists.Value(Arrays.asList(ONE)), Relation.Type.LTE);
+        condition = ColumnCondition.condition(definition, null, new Lists.Value(Arrays.asList(ONE)), Operator.LTE);
         bound = (ColumnCondition.CollectionBound) condition.bind(QueryOptions.DEFAULT);
         assertTrue(setAppliesTo(bound, set(ONE), list(ONE)));
         assertTrue(setAppliesTo(bound, set(), list()));
@@ -373,7 +373,7 @@ public class ColumnConditionTest
         assertTrue(setAppliesTo(bound, set(ByteBufferUtil.EMPTY_BYTE_BUFFER), list(ByteBufferUtil.EMPTY_BYTE_BUFFER)));
 
         // GT
-        condition = ColumnCondition.condition(definition, null, new Lists.Value(Arrays.asList(ONE)), Relation.Type.GT);
+        condition = ColumnCondition.condition(definition, null, new Lists.Value(Arrays.asList(ONE)), Operator.GT);
         bound = (ColumnCondition.CollectionBound) condition.bind(QueryOptions.DEFAULT);
         assertFalse(setAppliesTo(bound, set(ONE), list(ONE)));
         assertFalse(setAppliesTo(bound, set(), list()));
@@ -389,7 +389,7 @@ public class ColumnConditionTest
         assertFalse(setAppliesTo(bound, set(ByteBufferUtil.EMPTY_BYTE_BUFFER), list(ByteBufferUtil.EMPTY_BYTE_BUFFER)));
 
         // GTE
-        condition = ColumnCondition.condition(definition, null, new Lists.Value(Arrays.asList(ONE)), Relation.Type.GTE);
+        condition = ColumnCondition.condition(definition, null, new Lists.Value(Arrays.asList(ONE)), Operator.GTE);
         bound = (ColumnCondition.CollectionBound) condition.bind(QueryOptions.DEFAULT);
         assertTrue(setAppliesTo(bound, set(ONE), list(ONE)));
         assertTrue(setAppliesTo(bound, set(), list()));
@@ -443,7 +443,7 @@ public class ColumnConditionTest
         Maps.Value placeholder = new Maps.Value(placeholderMap);
 
         // EQ
-        ColumnCondition condition = ColumnCondition.condition(definition, null, placeholder, Relation.Type.EQ);
+        ColumnCondition condition = ColumnCondition.condition(definition, null, placeholder, Operator.EQ);
         ColumnCondition.CollectionBound bound = (ColumnCondition.CollectionBound) condition.bind(QueryOptions.DEFAULT);
 
         assertTrue(mapAppliesTo(bound, map(ONE, ONE), map(ONE, ONE)));
@@ -465,7 +465,7 @@ public class ColumnConditionTest
         assertTrue(mapAppliesTo(bound, map(ONE, ByteBufferUtil.EMPTY_BYTE_BUFFER), map(ONE, ByteBufferUtil.EMPTY_BYTE_BUFFER)));
 
         // NEQ
-        condition = ColumnCondition.condition(definition, null, placeholder, Relation.Type.NEQ);
+        condition = ColumnCondition.condition(definition, null, placeholder, Operator.NEQ);
         bound = (ColumnCondition.CollectionBound) condition.bind(QueryOptions.DEFAULT);
 
         assertFalse(mapAppliesTo(bound, map(ONE, ONE), map(ONE, ONE)));
@@ -487,7 +487,7 @@ public class ColumnConditionTest
         assertFalse(mapAppliesTo(bound, map(ONE, ByteBufferUtil.EMPTY_BYTE_BUFFER), map(ONE, ByteBufferUtil.EMPTY_BYTE_BUFFER)));
 
         // LT
-        condition = ColumnCondition.condition(definition, null, placeholder, Relation.Type.LT);
+        condition = ColumnCondition.condition(definition, null, placeholder, Operator.LT);
         bound = (ColumnCondition.CollectionBound) condition.bind(QueryOptions.DEFAULT);
 
         assertFalse(mapAppliesTo(bound, map(ONE, ONE), map(ONE, ONE)));
@@ -509,7 +509,7 @@ public class ColumnConditionTest
         assertFalse(mapAppliesTo(bound, map(ONE, ByteBufferUtil.EMPTY_BYTE_BUFFER), map(ONE, ByteBufferUtil.EMPTY_BYTE_BUFFER)));
 
         // LTE
-        condition = ColumnCondition.condition(definition, null, placeholder, Relation.Type.LTE);
+        condition = ColumnCondition.condition(definition, null, placeholder, Operator.LTE);
         bound = (ColumnCondition.CollectionBound) condition.bind(QueryOptions.DEFAULT);
 
         assertTrue(mapAppliesTo(bound, map(ONE, ONE), map(ONE, ONE)));
@@ -531,7 +531,7 @@ public class ColumnConditionTest
         assertTrue(mapAppliesTo(bound, map(ONE, ByteBufferUtil.EMPTY_BYTE_BUFFER), map(ONE, ByteBufferUtil.EMPTY_BYTE_BUFFER)));
 
         // GT
-        condition = ColumnCondition.condition(definition, null, placeholder, Relation.Type.GT);
+        condition = ColumnCondition.condition(definition, null, placeholder, Operator.GT);
         bound = (ColumnCondition.CollectionBound) condition.bind(QueryOptions.DEFAULT);
 
         assertFalse(mapAppliesTo(bound, map(ONE, ONE), map(ONE, ONE)));
@@ -553,7 +553,7 @@ public class ColumnConditionTest
         assertFalse(mapAppliesTo(bound, map(ONE, ByteBufferUtil.EMPTY_BYTE_BUFFER), map(ONE, ByteBufferUtil.EMPTY_BYTE_BUFFER)));
 
         // GTE
-        condition = ColumnCondition.condition(definition, null, placeholder, Relation.Type.GTE);
+        condition = ColumnCondition.condition(definition, null, placeholder, Operator.GTE);
         bound = (ColumnCondition.CollectionBound) condition.bind(QueryOptions.DEFAULT);
 
         assertTrue(mapAppliesTo(bound, map(ONE, ONE), map(ONE, ONE)));

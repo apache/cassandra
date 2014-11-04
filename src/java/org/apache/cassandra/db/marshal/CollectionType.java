@@ -115,6 +115,15 @@ public abstract class CollectionType<T> extends AbstractType<T>
         return true;
     }
 
+    /**
+     * Checks if this collection is Map.
+     * @return <code>true</code> if this collection is a Map, <code>false</code> otherwise.
+     */
+    public boolean isMap()
+    {
+        return kind == Kind.MAP;
+    }
+
     protected List<Cell> enforceLimit(List<Cell> cells, int version)
     {
         if (version >= 3 || cells.size() <= MAX_ELEMENTS)

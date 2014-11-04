@@ -21,6 +21,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
+import org.apache.cassandra.cql3.Operator;
 import org.apache.cassandra.db.WriteType;
 import org.apache.cassandra.exceptions.RequestExecutionException;
 import org.apache.cassandra.exceptions.RequestTimeoutException;
@@ -124,7 +125,7 @@ public class ThriftConversion
         for (IndexExpression expr : exprs)
         {
             converted.add(new org.apache.cassandra.db.IndexExpression(expr.column_name,
-                                                                      org.apache.cassandra.db.IndexExpression.Operator.findByOrdinal(expr.op.getValue()),
+                                                                      Operator.valueOf(expr.op.name()),
                                                                       expr.value));
         }
         return converted;

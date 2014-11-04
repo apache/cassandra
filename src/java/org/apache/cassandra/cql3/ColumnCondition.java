@@ -52,9 +52,9 @@ public class ColumnCondition
     private final Term value;  // a single value or a marker for a list of IN values
     private final List<Term> inValues;
 
-    public final Relation.Type operator;
+    public final Operator operator;
 
-    private ColumnCondition(ColumnDefinition column, Term collectionElement, Term value, List<Term> inValues, Relation.Type op)
+    private ColumnCondition(ColumnDefinition column, Term collectionElement, Term value, List<Term> inValues, Operator op)
     {
         this.column = column;
         this.collectionElement = collectionElement;
@@ -62,38 +62,38 @@ public class ColumnCondition
         this.inValues = inValues;
         this.operator = op;
 
-        if (!operator.equals(Relation.Type.IN))
+        if (!operator.equals(Operator.IN))
             assert this.inValues == null;
     }
 
-    public static ColumnCondition condition(ColumnDefinition column, Term value, Relation.Type op)
+    public static ColumnCondition condition(ColumnDefinition column, Term value, Operator op)
     {
         return new ColumnCondition(column, null, value, null, op);
     }
 
-    public static ColumnCondition condition(ColumnDefinition column, Term collectionElement, Term value, Relation.Type op)
+    public static ColumnCondition condition(ColumnDefinition column, Term collectionElement, Term value, Operator op)
     {
         return new ColumnCondition(column, collectionElement, value, null, op);
     }
 
     public static ColumnCondition inCondition(ColumnDefinition column, List<Term> inValues)
     {
-        return new ColumnCondition(column, null, null, inValues, Relation.Type.IN);
+        return new ColumnCondition(column, null, null, inValues, Operator.IN);
     }
 
     public static ColumnCondition inCondition(ColumnDefinition column, Term collectionElement, List<Term> inValues)
     {
-        return new ColumnCondition(column, collectionElement, null, inValues, Relation.Type.IN);
+        return new ColumnCondition(column, collectionElement, null, inValues, Operator.IN);
     }
 
     public static ColumnCondition inCondition(ColumnDefinition column, Term inMarker)
     {
-        return new ColumnCondition(column, null, inMarker, null, Relation.Type.IN);
+        return new ColumnCondition(column, null, inMarker, null, Operator.IN);
     }
 
     public static ColumnCondition inCondition(ColumnDefinition column, Term collectionElement, Term inMarker)
     {
-        return new ColumnCondition(column, collectionElement, inMarker, null, Relation.Type.IN);
+        return new ColumnCondition(column, collectionElement, inMarker, null, Operator.IN);
     }
 
     /**
@@ -107,7 +107,7 @@ public class ColumnCondition
         if (collectionElement != null)
             collectionElement.collectMarkerSpecification(boundNames);
 
-        if (operator.equals(Relation.Type.IN) && inValues != null)
+        if (operator.equals(Operator.IN) && inValues != null)
         {
             for (Term value : inValues)
                 value.collectMarkerSpecification(boundNames);
@@ -120,7 +120,7 @@ public class ColumnCondition
 
     public ColumnCondition.Bound bind(QueryOptions options) throws InvalidRequestException
     {
-        boolean isInCondition = operator.equals(Relation.Type.IN);
+        boolean isInCondition = operator.equals(Operator.IN);
         if (column.type instanceof CollectionType)
         {
             if (collectionElement == null)
@@ -134,9 +134,9 @@ public class ColumnCondition
     public static abstract class Bound
     {
         public final ColumnDefinition column;
-        public final Relation.Type operator;
+        public final Operator operator;
 
-        protected Bound(ColumnDefinition column, Relation.Type operator)
+        protected Bound(ColumnDefinition column, Operator operator)
         {
             this.column = column;
             this.operator = operator;
@@ -152,14 +152,14 @@ public class ColumnCondition
             return null;
         }
 
-        protected boolean isSatisfiedByValue(ByteBuffer value, Cell c, AbstractType<?> type, Relation.Type operator, long now) throws InvalidRequestException
+        protected boolean isSatisfiedByValue(ByteBuffer value, Cell c, AbstractType<?> type, Operator operator, long now) throws InvalidRequestException
         {
             ByteBuffer columnValue = (c == null || !c.isLive(now)) ? null : c.value();
             return compareWithOperator(operator, type, value, columnValue);
         }
 
         /** Returns true if the operator is satisfied (i.e. "value operator otherValue == true"), false otherwise. */
-        protected boolean compareWithOperator(Relation.Type operator, AbstractType<?> type, ByteBuffer value, ByteBuffer otherValue) throws InvalidRequestException
+        protected boolean compareWithOperator(Operator operator, AbstractType<?> type, ByteBuffer value, ByteBuffer otherValue) throws InvalidRequestException
         {
             if (value == null)
             {
@@ -176,7 +176,7 @@ public class ColumnCondition
             else if (otherValue == null)
             {
                 // the condition value is not null, so only NEQ can return true
-                return operator.equals(Relation.Type.NEQ);
+                return operator.equals(Operator.NEQ);
             }
             int comparison = type.compare(otherValue, value);
             switch (operator)
@@ -226,7 +226,7 @@ public class ColumnCondition
         {
             super(condition.column, condition.operator);
             assert !(column.type instanceof CollectionType) && condition.collectionElement == null;
-            assert !condition.operator.equals(Relation.Type.IN);
+            assert !condition.operator.equals(Operator.IN);
             this.value = condition.value.bindAndGet(options);
         }
 
@@ -254,7 +254,7 @@ public class ColumnCondition
         {
             super(condition.column, condition.operator);
             assert !(column.type instanceof CollectionType) && condition.collectionElement == null;
-            assert condition.operator.equals(Relation.Type.IN);
+            assert condition.operator.equals(Operator.IN);
             if (condition.inValues == null)
                 this.inValues = ((Lists.Marker) condition.value).bind(options).getElements();
             else
@@ -270,7 +270,7 @@ public class ColumnCondition
             CellName name = current.metadata().comparator.create(rowPrefix, column);
             for (ByteBuffer value : inValues)
             {
-                if (isSatisfiedByValue(value, current.getColumn(name), column.type, Relation.Type.EQ, now))
+                if (isSatisfiedByValue(value, current.getColumn(name), column.type, Operator.EQ, now))
                     return true;
             }
             return false;
@@ -293,7 +293,7 @@ public class ColumnCondition
         {
             super(condition.column, condition.operator);
             assert column.type instanceof CollectionType && condition.collectionElement != null;
-            assert !condition.operator.equals(Relation.Type.IN);
+            assert !condition.operator.equals(Operator.IN);
             this.collectionElement = condition.collectionElement.bindAndGet(options);
             this.value = condition.value.bindAndGet(options);
         }
@@ -380,7 +380,7 @@ public class ColumnCondition
                 AbstractType<?> valueType = ((MapType) column.type).values;
                 for (ByteBuffer value : inValues)
                 {
-                    if (isSatisfiedByValue(value, item, valueType, Relation.Type.EQ, now))
+                    if (isSatisfiedByValue(value, item, valueType, Operator.EQ, now))
                         return true;
                 }
                 return false;
@@ -394,7 +394,7 @@ public class ColumnCondition
             AbstractType<?> valueType = ((ListType) column.type).elements;
             for (ByteBuffer value : inValues)
             {
-                if (compareWithOperator(Relation.Type.EQ, valueType, value, columnValue))
+                if (compareWithOperator(Operator.EQ, valueType, value, columnValue))
                     return true;
             }
             return false;
@@ -416,7 +416,7 @@ public class ColumnCondition
         {
             super(condition.column, condition.operator);
             assert column.type instanceof CollectionType && condition.collectionElement == null;
-            assert !condition.operator.equals(Relation.Type.IN);
+            assert !condition.operator.equals(Operator.IN);
             this.value = condition.value.bind(options);
         }
 
@@ -427,9 +427,9 @@ public class ColumnCondition
             Iterator<Cell> iter = collectionColumns(current.metadata().comparator.create(rowPrefix, column), current, now);
             if (value == null)
             {
-                if (operator.equals(Relation.Type.EQ))
+                if (operator.equals(Operator.EQ))
                     return !iter.hasNext();
-                else if (operator.equals(Relation.Type.NEQ))
+                else if (operator.equals(Operator.NEQ))
                     return iter.hasNext();
                 else
                     throw new InvalidRequestException(String.format("Invalid comparison with null for operator \"%s\"", operator));
@@ -438,7 +438,7 @@ public class ColumnCondition
             return valueAppliesTo(type, iter, value, operator);
         }
 
-        static boolean valueAppliesTo(CollectionType type, Iterator<Cell> iter, Term.Terminal value, Relation.Type operator)
+        static boolean valueAppliesTo(CollectionType type, Iterator<Cell> iter, Term.Terminal value, Operator operator)
         {
             if (value == null)
                 return !iter.hasNext();
@@ -452,12 +452,12 @@ public class ColumnCondition
             throw new AssertionError();
         }
 
-        private static boolean setOrListAppliesTo(AbstractType<?> type, Iterator<Cell> iter, Iterator<ByteBuffer> conditionIter, Relation.Type operator, boolean isSet)
+        private static boolean setOrListAppliesTo(AbstractType<?> type, Iterator<Cell> iter, Iterator<ByteBuffer> conditionIter, Operator operator, boolean isSet)
         {
             while(iter.hasNext())
             {
                 if (!conditionIter.hasNext())
-                    return operator.equals(Relation.Type.GT) || operator.equals(Relation.Type.GTE) || operator.equals(Relation.Type.NEQ);
+                    return operator.equals(Operator.GT) || operator.equals(Operator.GTE) || operator.equals(Operator.NEQ);
 
                 // for lists we use the cell value; for sets we use the cell name
                 ByteBuffer cellValue = isSet? iter.next().name().collectionElement() : iter.next().value();
@@ -467,13 +467,13 @@ public class ColumnCondition
             }
 
             if (conditionIter.hasNext())
-                return operator.equals(Relation.Type.LT) || operator.equals(Relation.Type.LTE) || operator.equals(Relation.Type.NEQ);
+                return operator.equals(Operator.LT) || operator.equals(Operator.LTE) || operator.equals(Operator.NEQ);
 
             // they're equal
-            return operator == Relation.Type.EQ || operator == Relation.Type.LTE || operator == Relation.Type.GTE;
+            return operator == Operator.EQ || operator == Operator.LTE || operator == Operator.GTE;
         }
 
-        private static boolean evaluateComparisonWithOperator(int comparison, Relation.Type operator)
+        private static boolean evaluateComparisonWithOperator(int comparison, Operator operator)
         {
             // called when comparison != 0
             switch (operator)
@@ -493,12 +493,12 @@ public class ColumnCondition
             }
         }
 
-        static boolean listAppliesTo(ListType type, Iterator<Cell> iter, List<ByteBuffer> elements, Relation.Type operator)
+        static boolean listAppliesTo(ListType type, Iterator<Cell> iter, List<ByteBuffer> elements, Operator operator)
         {
             return setOrListAppliesTo(type.elements, iter, elements.iterator(), operator, false);
         }
 
-        static boolean setAppliesTo(SetType type, Iterator<Cell> iter, Set<ByteBuffer> elements, Relation.Type operator)
+        static boolean setAppliesTo(SetType type, Iterator<Cell> iter, Set<ByteBuffer> elements, Operator operator)
         {
             ArrayList<ByteBuffer> sortedElements = new ArrayList<>(elements.size());
             sortedElements.addAll(elements);
@@ -506,13 +506,13 @@ public class ColumnCondition
             return setOrListAppliesTo(type.elements, iter, sortedElements.iterator(), operator, true);
         }
 
-        static boolean mapAppliesTo(MapType type, Iterator<Cell> iter, Map<ByteBuffer, ByteBuffer> elements, Relation.Type operator)
+        static boolean mapAppliesTo(MapType type, Iterator<Cell> iter, Map<ByteBuffer, ByteBuffer> elements, Operator operator)
         {
             Iterator<Map.Entry<ByteBuffer, ByteBuffer>> conditionIter = elements.entrySet().iterator();
             while(iter.hasNext())
             {
                 if (!conditionIter.hasNext())
-                    return operator.equals(Relation.Type.GT) || operator.equals(Relation.Type.GTE) || operator.equals(Relation.Type.NEQ);
+                    return operator.equals(Operator.GT) || operator.equals(Operator.GTE) || operator.equals(Operator.NEQ);
 
                 Map.Entry<ByteBuffer, ByteBuffer> conditionEntry = conditionIter.next();
                 Cell c = iter.next();
@@ -529,10 +529,10 @@ public class ColumnCondition
             }
 
             if (conditionIter.hasNext())
-                return operator.equals(Relation.Type.LT) || operator.equals(Relation.Type.LTE) || operator.equals(Relation.Type.NEQ);
+                return operator.equals(Operator.LT) || operator.equals(Operator.LTE) || operator.equals(Operator.NEQ);
 
             // they're equal
-            return operator == Relation.Type.EQ || operator == Relation.Type.LTE || operator == Relation.Type.GTE;
+            return operator == Operator.EQ || operator == Operator.LTE || operator == Operator.GTE;
         }
 
         @Override
@@ -566,7 +566,7 @@ public class ColumnCondition
         {
             super(condition.column, condition.operator);
             assert column.type instanceof CollectionType && condition.collectionElement == null;
-            assert condition.operator.equals(Relation.Type.IN);
+            assert condition.operator.equals(Operator.IN);
             inValues = new ArrayList<>();
             if (condition.inValues == null)
             {
@@ -623,7 +623,7 @@ public class ColumnCondition
             List<Cell> cells = newArrayList(collectionColumns(name, current, now));
             for (Term.Terminal value : inValues)
             {
-                if (CollectionBound.valueAppliesTo(type, cells.iterator(), value, Relation.Type.EQ))
+                if (CollectionBound.valueAppliesTo(type, cells.iterator(), value, Operator.EQ))
                     return true;
             }
             return false;
@@ -669,9 +669,9 @@ public class ColumnCondition
         // Can be null, only used with the syntax "IF m[e] = ..." (in which case it's 'e')
         private final Term.Raw collectionElement;
 
-        private final Relation.Type operator;
+        private final Operator operator;
 
-        private Raw(Term.Raw value, List<Term.Raw> inValues, AbstractMarker.INRaw inMarker, Term.Raw collectionElement, Relation.Type op)
+        private Raw(Term.Raw value, List<Term.Raw> inValues, AbstractMarker.INRaw inMarker, Term.Raw collectionElement, Operator op)
         {
             this.value = value;
             this.inValues = inValues;
@@ -681,7 +681,7 @@ public class ColumnCondition
         }
 
         /** A condition on a column. For example: "IF col = 'foo'" */
-        public static Raw simpleCondition(Term.Raw value, Relation.Type op)
+        public static Raw simpleCondition(Term.Raw value, Operator op)
         {
             return new Raw(value, null, null, null, op);
         }
@@ -689,17 +689,17 @@ public class ColumnCondition
         /** An IN condition on a column. For example: "IF col IN ('foo', 'bar', ...)" */
         public static Raw simpleInCondition(List<Term.Raw> inValues)
         {
-            return new Raw(null, inValues, null, null, Relation.Type.IN);
+            return new Raw(null, inValues, null, null, Operator.IN);
         }
 
         /** An IN condition on a column with a single marker. For example: "IF col IN ?" */
         public static Raw simpleInCondition(AbstractMarker.INRaw inMarker)
         {
-            return new Raw(null, null, inMarker, null, Relation.Type.IN);
+            return new Raw(null, null, inMarker, null, Operator.IN);
         }
 
         /** A condition on a collection element. For example: "IF col['key'] = 'foo'" */
-        public static Raw collectionCondition(Term.Raw value, Term.Raw collectionElement, Relation.Type op)
+        public static Raw collectionCondition(Term.Raw value, Term.Raw collectionElement, Operator op)
         {
             return new Raw(value, null, null, collectionElement, op);
         }
@@ -707,13 +707,13 @@ public class ColumnCondition
         /** An IN condition on a collection element. For example: "IF col['key'] IN ('foo', 'bar', ...)" */
         public static Raw collectionInCondition(Term.Raw collectionElement, List<Term.Raw> inValues)
         {
-            return new Raw(null, inValues, null, collectionElement, Relation.Type.IN);
+            return new Raw(null, inValues, null, collectionElement, Operator.IN);
         }
 
         /** An IN condition on a collection element with a single marker. For example: "IF col['key'] IN ?" */
         public static Raw collectionInCondition(Term.Raw collectionElement, AbstractMarker.INRaw inMarker)
         {
-            return new Raw(null, null, inMarker, collectionElement, Relation.Type.IN);
+            return new Raw(null, null, inMarker, collectionElement, Operator.IN);
         }
 
         public ColumnCondition prepare(String keyspace, ColumnDefinition receiver) throws InvalidRequestException
@@ -723,7 +723,7 @@ public class ColumnCondition
 
             if (collectionElement == null)
             {
-                if (operator.equals(Relation.Type.IN))
+                if (operator.equals(Operator.IN))
                 {
                     if (inValues == null)
                         return ColumnCondition.inCondition(receiver, inMarker.prepare(keyspace, receiver));
@@ -757,7 +757,7 @@ public class ColumnCondition
                 default:
                     throw new AssertionError();
             }
-            if (operator.equals(Relation.Type.IN))
+            if (operator.equals(Operator.IN))
             {
                 if (inValues == null)
                     return ColumnCondition.inCondition(receiver, collectionElement.prepare(keyspace, elementSpec), inMarker.prepare(keyspace, valueSpec));

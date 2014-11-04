@@ -256,13 +256,13 @@ public abstract class ModificationStatement implements CQLStatement, MeasurableF
                 case CLUSTERING_COLUMN:
                     Restriction restriction;
 
-                    if (rel.operator() == Relation.Type.EQ)
+                    if (rel.operator() == Operator.EQ)
                     {
                         Term t = rel.getValue().prepare(keyspace(), def);
                         t.collectMarkerSpecification(names);
                         restriction = new SingleColumnRestriction.EQ(t, false);
                     }
-                    else if (def.kind == ColumnDefinition.Kind.PARTITION_KEY && rel.operator() == Relation.Type.IN)
+                    else if (def.kind == ColumnDefinition.Kind.PARTITION_KEY && rel.operator() == Operator.IN)
                     {
                         if (rel.getValue() != null)
                         {

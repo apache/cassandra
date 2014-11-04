@@ -187,4 +187,48 @@ public class ContainsRelationTest extends CQLTester
             row(0, 1, 1, set(3, 4, 5))
         );
     }
+
+    @Test
+    public void testContainsKeyAndContainsWithIndexOnMapKey() throws Throwable
+    {
+        createTable("CREATE TABLE %s (account text, id int, categories map<text,text>, PRIMARY KEY (account, id))");
+        createIndex("CREATE INDEX ON %s(keys(categories))");
+
+        execute("INSERT INTO %s (account, id , categories) VALUES (?, ?, ?)", "test", 5, map("lmn", "foo"));
+        execute("INSERT INTO %s (account, id , categories) VALUES (?, ?, ?)", "test", 6, map("lmn", "foo2"));
+
+        assertInvalid("SELECT * FROM %s WHERE account = ? AND categories CONTAINS ?", "test", "foo");
+
+        assertRows(execute("SELECT * FROM %s WHERE account = ? AND categories CONTAINS KEY ?", "test", "lmn"),
+                   row("test", 5, map("lmn", "foo")),
+                   row("test", 6, map("lmn", "foo2")));
+        assertRows(execute("SELECT * FROM %s WHERE account = ? AND categories CONTAINS KEY ? AND categories CONTAINS ? ALLOW FILTERING",
+                           "test", "lmn", "foo"),
+                   row("test", 5, map("lmn", "foo")));
+        assertRows(execute("SELECT * FROM %s WHERE account = ? AND categories CONTAINS ? AND categories CONTAINS KEY ? ALLOW FILTERING",
+                           "test", "foo", "lmn"),
+                   row("test", 5, map("lmn", "foo")));
+    }
+
+    @Test
+    public void testContainsKeyAndContainsWithIndexOnMapValue() throws Throwable
+    {
+        createTable("CREATE TABLE %s (account text, id int, categories map<text,text>, PRIMARY KEY (account, id))");
+        createIndex("CREATE INDEX ON %s(categories)");
+
+        execute("INSERT INTO %s (account, id , categories) VALUES (?, ?, ?)", "test", 5, map("lmn", "foo"));
+        execute("INSERT INTO %s (account, id , categories) VALUES (?, ?, ?)", "test", 6, map("lmn2", "foo"));
+
+        assertInvalid("SELECT * FROM %s WHERE account = ? AND categories CONTAINS KEY ?", "test", "lmn");
+
+        assertRows(execute("SELECT * FROM %s WHERE account = ? AND categories CONTAINS ?", "test", "foo"),
+                   row("test", 5, map("lmn", "foo")),
+                   row("test", 6, map("lmn2", "foo")));
+        assertRows(execute("SELECT * FROM %s WHERE account = ? AND categories CONTAINS KEY ? AND categories CONTAINS ? ALLOW FILTERING",
+                           "test", "lmn", "foo"),
+                   row("test", 5, map("lmn", "foo")));
+        assertRows(execute("SELECT * FROM %s WHERE account = ? AND categories CONTAINS ? AND categories CONTAINS KEY ? ALLOW FILTERING",
+                           "test", "foo", "lmn"),
+                   row("test", 5, map("lmn", "foo")));
+    }
 }

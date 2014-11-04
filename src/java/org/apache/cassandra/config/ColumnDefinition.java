@@ -476,4 +476,16 @@ public class ColumnDefinition extends ColumnSpecification
     {
         return indexOptions;
     }
+
+    /**
+     * Checks if the index option with the specified name has been specified.
+     *
+     * @param name index option name
+     * @return <code>true</code> if the index option with the specified name has been specified, <code>false</code>
+     * otherwise.
+     */
+    public boolean hasIndexOption(String name)
+    {
+        return indexOptions.containsKey(name);
+    }
 }

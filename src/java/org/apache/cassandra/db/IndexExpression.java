@@ -19,13 +19,17 @@
 
 package org.apache.cassandra.db;
 
+import java.io.DataInput;
+import java.io.IOException;
 import java.nio.ByteBuffer;
 
 import com.google.common.base.Objects;
 
+import org.apache.cassandra.cql3.Operator;
+import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
-public class IndexExpression
+public final class IndexExpression
 {
     public final ByteBuffer column;
     public final Operator operator;
@@ -38,44 +42,26 @@ public class IndexExpression
         this.value = value;
     }
 
-    public enum Operator
+    /**
+     * Checks if the operator of this <code>IndexExpression</code> is a <code>CONTAINS</code> operator.
+     *
+     * @return <code>true</code> if the operator of this <code>IndexExpression</code> is a <code>CONTAINS</code>
+     * operator, <code>false</code> otherwise.
+     */
+    public boolean isContains()
     {
-        EQ, GTE, GT, LTE, LT, CONTAINS, CONTAINS_KEY;
+        return Operator.CONTAINS == operator;
+    }
 
-        public static Operator findByOrdinal(int ordinal)
-        {
-            switch (ordinal) {
-                case 0:
-                    return EQ;
-                case 1:
-                    return GTE;
-                case 2:
-                    return GT;
-                case 3:
-                    return LTE;
-                case 4:
-                    return LT;
-                case 5:
-                    return CONTAINS;
-                case 6:
-                    return CONTAINS_KEY;
-                default:
-                    throw new AssertionError();
-            }
-        }
-
-        public boolean allowsIndexQuery()
-        {
-            switch (this)
-            {
-                case EQ:
-                case CONTAINS:
-                case CONTAINS_KEY:
-                    return true;
-                default:
-                    return false;
-            }
-        }
+    /**
+     * Checks if the operator of this <code>IndexExpression</code> is a <code>CONTAINS_KEY</code> operator.
+     *
+     * @return <code>true</code> if the operator of this <code>IndexExpression</code> is a <code>CONTAINS_KEY</code>
+     * operator, <code>false</code> otherwise.
+     */
+    public boolean isContainsKey()
+    {
+        return Operator.CONTAINS_KEY == operator;
     }
 
     @Override
@@ -104,5 +90,32 @@ public class IndexExpression
     public int hashCode()
     {
         return Objects.hashCode(column, operator, value);
+    }
+
+    /**
+     * Write the serialized version of this <code>IndexExpression</code> to the specified output.
+     *
+     * @param output the output to write to
+     * @throws IOException if an I/O problem occurs while writing to the specified output
+     */
+    public void writeTo(DataOutputPlus output) throws IOException
+    {
+        ByteBufferUtil.writeWithShortLength(column, output);
+        operator.writeTo(output);
+        ByteBufferUtil.writeWithShortLength(value, output);
+    }
+
+    /**
+     * Deserializes an <code>IndexExpression</code> instance from the specified input. 
+     *
+     * @param input the input to read from 
+     * @return the <code>IndexExpression</code> instance deserialized
+     * @throws IOException if a problem occurs while deserializing the <code>IndexExpression</code> instance.
+     */
+    public static IndexExpression readFrom(DataInput input) throws IOException
+    {
+        return new IndexExpression(ByteBufferUtil.readWithShortLength(input),
+                                   Operator.readFrom(input),
+                                   ByteBufferUtil.readWithShortLength(input));
     }
 }
