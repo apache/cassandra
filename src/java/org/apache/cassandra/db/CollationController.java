@@ -124,6 +124,7 @@ public class CollationController
                     break;
 
                 Tracing.trace("Merging data from sstable {}", sstable.descriptor.generation);
+                sstable.incrementReadCount();
                 OnDiskAtomIterator iter = reducedFilter.getSSTableColumnIterator(sstable);
                 iterators.add(iter);
                 isEmpty = false;
