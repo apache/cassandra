@@ -591,6 +591,9 @@ public class RangeTombstoneTest extends SchemaLoader
             deletes.add(col);
         }
 
+        @Override
+        public void deleteForCleanup(ByteBuffer rowKey, Column col) { }
+
         public void insert(ByteBuffer rowKey, Column col)
         {
             inserts.add(col);

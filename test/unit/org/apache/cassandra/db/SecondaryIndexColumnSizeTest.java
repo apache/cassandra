@@ -202,6 +202,11 @@ public class SecondaryIndexColumnSizeTest
         }
 
         @Override
+        public void deleteForCleanup(ByteBuffer rowKey, Column col)
+        {
+        }
+
+        @Override
         public void insert(ByteBuffer rowKey, Column col)
         {
         }
