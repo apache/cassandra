@@ -18,7 +18,6 @@
 package org.apache.cassandra.cql3.statements;
 
 import org.apache.cassandra.cql3.*;
-import org.apache.cassandra.db.IndexExpression;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 
 import java.nio.ByteBuffer;
@@ -249,35 +248,35 @@ public abstract class SingleColumnRestriction implements Restriction
             return bounds[b.idx] == null || boundInclusive[b.idx];
         }
 
-        public Relation.Type getRelation(Bound eocBound, Bound inclusiveBound)
+        public Operator getRelation(Bound eocBound, Bound inclusiveBound)
         {
             switch (eocBound)
             {
                 case START:
-                    return boundInclusive[inclusiveBound.idx] ? Relation.Type.GTE : Relation.Type.GT;
+                    return boundInclusive[inclusiveBound.idx] ? Operator.GTE : Operator.GT;
                 case END:
-                    return boundInclusive[inclusiveBound.idx] ? Relation.Type.LTE : Relation.Type.LT;
+                    return boundInclusive[inclusiveBound.idx] ? Operator.LTE : Operator.LT;
             }
             throw new AssertionError();
         }
 
-        public IndexExpression.Operator getIndexOperator(Bound b)
+        public Operator getIndexOperator(Bound b)
         {
             switch (b)
             {
                 case START:
-                    return boundInclusive[b.idx] ? IndexExpression.Operator.GTE : IndexExpression.Operator.GT;
+                    return boundInclusive[b.idx] ? Operator.GTE : Operator.GT;
                 case END:
-                    return boundInclusive[b.idx] ? IndexExpression.Operator.LTE : IndexExpression.Operator.LT;
+                    return boundInclusive[b.idx] ? Operator.LTE : Operator.LT;
             }
             throw new AssertionError();
         }
 
-        public void setBound(ColumnIdentifier name, Relation.Type type, Term t) throws InvalidRequestException
+        public void setBound(ColumnIdentifier name, Operator operator, Term t) throws InvalidRequestException
         {
             Bound b;
             boolean inclusive;
-            switch (type)
+            switch (operator)
             {
                 case GT:
                     b = Bound.START;

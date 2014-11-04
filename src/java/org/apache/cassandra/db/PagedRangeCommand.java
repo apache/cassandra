@@ -31,7 +31,6 @@ import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.net.MessageOut;
 import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.utils.ByteBufferUtil;
 
 public class PagedRangeCommand extends AbstractRangeCommand
 {
@@ -145,9 +144,7 @@ public class PagedRangeCommand extends AbstractRangeCommand
             out.writeInt(cmd.rowFilter.size());
             for (IndexExpression expr : cmd.rowFilter)
             {
-                ByteBufferUtil.writeWithShortLength(expr.column, out);
-                out.writeInt(expr.operator.ordinal());
-                ByteBufferUtil.writeWithShortLength(expr.value, out);
+                expr.writeTo(out);;
             }
 
             out.writeInt(cmd.limit);
@@ -174,10 +171,7 @@ public class PagedRangeCommand extends AbstractRangeCommand
             List<IndexExpression> rowFilter = new ArrayList<IndexExpression>(filterCount);
             for (int i = 0; i < filterCount; i++)
             {
-                IndexExpression expr = new IndexExpression(ByteBufferUtil.readWithShortLength(in),
-                                                           IndexExpression.Operator.findByOrdinal(in.readInt()),
-                                                           ByteBufferUtil.readWithShortLength(in));
-                rowFilter.add(expr);
+                rowFilter.add(IndexExpression.readFrom(in));
             }
 
             int limit = in.readInt();

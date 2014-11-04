@@ -23,6 +23,7 @@ import java.util.List;
 
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
+import org.apache.cassandra.cql3.Operator;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.composites.CBuilder;
 import org.apache.cassandra.db.composites.CellName;
@@ -89,10 +90,10 @@ public class CompositesIndexOnCollectionKey extends CompositesIndex
     }
 
     @Override
-    public boolean supportsOperator(IndexExpression.Operator operator)
+    public boolean supportsOperator(Operator operator)
     {
-        return operator == IndexExpression.Operator.CONTAINS_KEY ||
-                operator == IndexExpression.Operator.CONTAINS && columnDef.type instanceof SetType;
+        return operator == Operator.CONTAINS_KEY ||
+                operator == Operator.CONTAINS && columnDef.type instanceof SetType;
     }
 
     @Override

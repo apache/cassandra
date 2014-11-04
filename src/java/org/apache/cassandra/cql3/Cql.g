@@ -1013,13 +1013,13 @@ propertyValue returns [String str]
     | u=unreserved_keyword { $str = u; }
     ;
 
-relationType returns [Relation.Type op]
-    : '='  { $op = Relation.Type.EQ; }
-    | '<'  { $op = Relation.Type.LT; }
-    | '<=' { $op = Relation.Type.LTE; }
-    | '>'  { $op = Relation.Type.GT; }
-    | '>=' { $op = Relation.Type.GTE; }
-    | '!=' { $op = Relation.Type.NEQ; }
+relationType returns [Operator op]
+    : '='  { $op = Operator.EQ; }
+    | '<'  { $op = Operator.LT; }
+    | '<=' { $op = Operator.LTE; }
+    | '>'  { $op = Operator.GT; }
+    | '>=' { $op = Operator.GTE; }
+    | '!=' { $op = Operator.NEQ; }
     ;
 
 relation[List<Relation> clauses]
@@ -1030,10 +1030,10 @@ relation[List<Relation> clauses]
                 $clauses.add(new SingleColumnRelation(id, type, t, true));
         }
     | name=cident K_IN marker=inMarker
-        { $clauses.add(new SingleColumnRelation(name, Relation.Type.IN, marker)); }
+        { $clauses.add(new SingleColumnRelation(name, Operator.IN, marker)); }
     | name=cident K_IN inValues=singleColumnInValues
         { $clauses.add(SingleColumnRelation.createInRelation($name.id, inValues)); }
-    | name=cident K_CONTAINS { Relation.Type rt = Relation.Type.CONTAINS; } (K_KEY { rt = Relation.Type.CONTAINS_KEY; })?
+    | name=cident K_CONTAINS { Operator rt = Operator.CONTAINS; } (K_KEY { rt = Operator.CONTAINS_KEY; })?
         t=term { $clauses.add(new SingleColumnRelation(name, rt, t)); }
     | ids=tupleOfIdentifiers
       ( K_IN

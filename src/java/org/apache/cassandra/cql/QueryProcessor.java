@@ -33,7 +33,7 @@ import org.apache.cassandra.cql.hooks.ExecutionContext;
 import org.apache.cassandra.cql.hooks.PostPreparationHook;
 import org.apache.cassandra.cql.hooks.PreExecutionHook;
 import org.apache.cassandra.cql.hooks.PreparationContext;
-import org.apache.cassandra.db.CounterCell;
+import org.apache.cassandra.cql3.Operator;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.composites.CellName;
 import org.apache.cassandra.db.composites.CellNameType;
@@ -193,7 +193,7 @@ public class QueryProcessor
             ByteBuffer value = columnRelation.getValue().getByteBuffer(metadata.getValueValidator(metadata.comparator.cellFromByteBuffer(entity)), variables);
 
             expressions.add(new IndexExpression(entity,
-                                                IndexExpression.Operator.valueOf(columnRelation.operator().toString()),
+                                                Operator.valueOf(columnRelation.operator().name()),
                                                 value));
         }
 

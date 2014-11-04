@@ -20,9 +20,11 @@ package org.apache.cassandra.cql3.statements;
 import java.nio.ByteBuffer;
 import java.util.List;
 
+import org.apache.cassandra.cql3.ColumnIdentifier;
+import org.apache.cassandra.cql3.Operator;
+import org.apache.cassandra.cql3.QueryOptions;
+import org.apache.cassandra.cql3.Term;
 import org.apache.cassandra.exceptions.InvalidRequestException;
-import org.apache.cassandra.db.IndexExpression;
-import org.apache.cassandra.cql3.*;
 
 /**
  * A restriction/clause on a column.
@@ -60,10 +62,10 @@ public interface Restriction
         /** Returns true if the start or end bound (depending on the argument) is inclusive, false otherwise */
         public boolean isInclusive(Bound b);
 
-        public Relation.Type getRelation(Bound eocBound, Bound inclusiveBound);
+        public Operator getRelation(Bound eocBound, Bound inclusiveBound);
 
-        public IndexExpression.Operator getIndexOperator(Bound b);
+        public Operator getIndexOperator(Bound b);
 
-        public void setBound(ColumnIdentifier name, Relation.Type type, Term t) throws InvalidRequestException;
+        public void setBound(ColumnIdentifier name, Operator type, Term t) throws InvalidRequestException;
     }
 }

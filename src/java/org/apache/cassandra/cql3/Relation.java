@@ -17,89 +17,11 @@
  */
 package org.apache.cassandra.cql3;
 
-import org.apache.cassandra.config.ColumnDefinition;
-import org.apache.cassandra.db.index.SecondaryIndex;
-import org.apache.cassandra.db.marshal.CollectionType;
-
-
 public abstract class Relation {
 
-    protected Type relationType;
+    protected Operator relationType;
 
-    public static enum Type
-    {
-        EQ
-        {
-            public boolean allowsIndexQueryOn(ColumnDefinition columnDef)
-            {
-                return columnDef.isIndexed();
-            }
-        },
-        LT,
-        LTE,
-        GTE,
-        GT,
-        IN,
-        CONTAINS
-        {
-            public boolean allowsIndexQueryOn(ColumnDefinition columnDef)
-            {
-                return columnDef.isIndexed()
-                        && columnDef.type.isCollection()
-                        && (!((CollectionType<?>) columnDef.type).isMap()
-                                || columnDef.hasIndexOption(SecondaryIndex.INDEX_VALUES_OPTION_NAME));
-            }
-        },
-        CONTAINS_KEY
-        {
-            public boolean allowsIndexQueryOn(ColumnDefinition columnDef)
-            {
-                return columnDef.isIndexed()
-                        && columnDef.type.isCollection()
-                        && (!((CollectionType<?>) columnDef.type).isMap()
-                                || columnDef.hasIndexOption(SecondaryIndex.INDEX_KEYS_OPTION_NAME));
-            }
-        },
-        NEQ;
-
-        /**
-         * Checks if this relation type allow index queries on the specified column
-         *
-         * @param columnDef the column definition.
-         * @return <code>true</code> if this relation type allow index queries on the specified column,
-         * <code>false</code> otherwise.
-         */
-        public boolean allowsIndexQueryOn(ColumnDefinition columnDef)
-        {
-            return false;
-        }
-
-        @Override
-        public String toString()
-        {
-            switch (this)
-            {
-                case EQ:
-                    return "=";
-                case LT:
-                    return "<";
-                case LTE:
-                    return "<=";
-                case GT:
-                    return ">";
-                case GTE:
-                    return ">=";
-                case NEQ:
-                    return "!=";
-                case CONTAINS_KEY:
-                    return "CONTAINS KEY";
-                default:
-                    return this.name();
-            }
-        }
-    }
-
-    public Type operator()
+    public Operator operator()
     {
         return relationType;
     }

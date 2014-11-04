@@ -30,7 +30,7 @@ import com.google.common.collect.ImmutableList;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.SyntaxException;
 import org.apache.cassandra.cql3.ColumnIdentifier;
-import org.apache.cassandra.cql3.Relation;
+import org.apache.cassandra.cql3.Operator;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -430,7 +430,7 @@ public class CompositeType extends AbstractCompositeType
             return bb;
         }
 
-        public ByteBuffer buildForRelation(Relation.Type op)
+        public ByteBuffer buildForRelation(Operator op)
         {
             /*
              * Given the rules for eoc (end-of-component, see AbstractCompositeType.compare()),

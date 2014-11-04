@@ -18,7 +18,6 @@
 */
 package org.apache.cassandra.db;
 
-import static org.junit.Assert.assertEquals;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
@@ -29,11 +28,14 @@ import java.util.List;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
+import org.junit.Test;
+
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
-import org.apache.cassandra.db.filter.IDiskAtomFilter;
+import org.apache.cassandra.cql3.Operator;
 import org.apache.cassandra.db.columniterator.IdentityQueryFilter;
 import org.apache.cassandra.db.compaction.CompactionManager;
+import org.apache.cassandra.db.filter.IDiskAtomFilter;
 import org.apache.cassandra.db.index.SecondaryIndex;
 import org.apache.cassandra.dht.BytesToken;
 import org.apache.cassandra.dht.Range;
@@ -41,7 +43,8 @@ import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.locator.TokenMetadata;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.ByteBufferUtil;
-import org.junit.Test;
+
+import static org.junit.Assert.assertEquals;
 
 public class CleanupTest extends SchemaLoader
 {
@@ -106,7 +109,7 @@ public class CleanupTest extends SchemaLoader
             Thread.sleep(10);
 
         // verify we get it back w/ index query too
-        IndexExpression expr = new IndexExpression(COLUMN, IndexExpression.Operator.EQ, VALUE);
+        IndexExpression expr = new IndexExpression(COLUMN, Operator.EQ, VALUE);
         List<IndexExpression> clause = Arrays.asList(expr);
         IDiskAtomFilter filter = new IdentityQueryFilter();
         Range<RowPosition> range = Util.range("", "");

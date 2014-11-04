@@ -31,7 +31,7 @@ public class SingleColumnRelation extends Relation
     private final List<Term.Raw> inValues;
     public final boolean onToken;
 
-    private SingleColumnRelation(ColumnIdentifier entity, Type type, Term.Raw value, List<Term.Raw> inValues, boolean onToken)
+    private SingleColumnRelation(ColumnIdentifier entity, Operator type, Term.Raw value, List<Term.Raw> inValues, boolean onToken)
     {
         this.entity = entity;
         this.relationType = type;
@@ -47,19 +47,19 @@ public class SingleColumnRelation extends Relation
      * @param type the type that describes how this entity relates to the value.
      * @param value the value being compared.
      */
-    public SingleColumnRelation(ColumnIdentifier entity, Type type, Term.Raw value)
+    public SingleColumnRelation(ColumnIdentifier entity, Operator type, Term.Raw value)
     {
         this(entity, type, value, null, false);
     }
 
-    public SingleColumnRelation(ColumnIdentifier entity, Type type, Term.Raw value, boolean onToken)
+    public SingleColumnRelation(ColumnIdentifier entity, Operator type, Term.Raw value, boolean onToken)
     {
         this(entity, type, value, null, onToken);
     }
 
     public static SingleColumnRelation createInRelation(ColumnIdentifier entity, List<Term.Raw> inValues)
     {
-        return new SingleColumnRelation(entity, Type.IN, null, inValues, false);
+        return new SingleColumnRelation(entity, Operator.IN, null, inValues, false);
     }
 
     public ColumnIdentifier getEntity()
@@ -69,13 +69,13 @@ public class SingleColumnRelation extends Relation
 
     public Term.Raw getValue()
     {
-        assert relationType != Type.IN || value == null || value instanceof AbstractMarker.INRaw;
+        assert relationType != Operator.IN || value == null || value instanceof AbstractMarker.INRaw;
         return value;
     }
 
     public List<Term.Raw> getInValues()
     {
-        assert relationType == Type.IN;
+        assert relationType == Operator.IN;
         return inValues;
     }
 
@@ -88,8 +88,8 @@ public class SingleColumnRelation extends Relation
     {
         switch (relationType)
         {
-            case GT: return new SingleColumnRelation(entity, Type.GTE, value);
-            case LT:  return new SingleColumnRelation(entity, Type.LTE, value);
+            case GT: return new SingleColumnRelation(entity, Operator.GTE, value);
+            case LT:  return new SingleColumnRelation(entity, Operator.LTE, value);
             default: return this;
         }
     }
@@ -97,7 +97,7 @@ public class SingleColumnRelation extends Relation
     @Override
     public String toString()
     {
-        if (relationType == Type.IN)
+        if (relationType == Operator.IN)
             return String.format("%s IN %s", entity, inValues);
         else if (onToken)
             return String.format("token(%s) %s %s", entity, relationType, value);

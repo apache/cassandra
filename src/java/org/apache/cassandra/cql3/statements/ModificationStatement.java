@@ -33,8 +33,6 @@ import org.apache.cassandra.db.composites.CBuilder;
 import org.apache.cassandra.db.composites.Composite;
 import org.apache.cassandra.db.filter.ColumnSlice;
 import org.apache.cassandra.db.filter.SliceQueryFilter;
-import org.apache.cassandra.db.marshal.CompositeType;
-import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.db.marshal.BooleanType;
 import org.apache.cassandra.exceptions.*;
 import org.apache.cassandra.service.ClientState;
@@ -180,7 +178,7 @@ public abstract class ModificationStatement implements CQLStatement, MeasurableF
                                 staticConditions == null ? Collections.<ColumnDefinition>emptyList() : Iterables.transform(staticConditions, getColumnForCondition));
     }
 
-    public void addCondition(ColumnCondition cond) throws InvalidRequestException
+    public void addCondition(ColumnCondition cond)
     {
         List<ColumnCondition> conds = null;
         if (cond.column.isStatic())
@@ -257,13 +255,13 @@ public abstract class ModificationStatement implements CQLStatement, MeasurableF
                 case CLUSTERING_COLUMN:
                     Restriction restriction;
 
-                    if (rel.operator() == Relation.Type.EQ)
+                    if (rel.operator() == Operator.EQ)
                     {
                         Term t = rel.getValue().prepare(keyspace(), def);
                         t.collectMarkerSpecification(names);
                         restriction = new SingleColumnRestriction.EQ(t, false);
                     }
-                    else if (def.kind == ColumnDefinition.Kind.PARTITION_KEY && rel.operator() == Relation.Type.IN)
+                    else if (def.kind == ColumnDefinition.Kind.PARTITION_KEY && rel.operator() == Operator.IN)
                     {
                         if (rel.getValue() != null)
                         {

@@ -38,6 +38,7 @@ import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.*;
+import org.apache.cassandra.db.index.SecondaryIndex;
 import org.apache.cassandra.db.index.SecondaryIndexManager;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.dht.*;
@@ -840,7 +841,7 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
             if (r.isSlice())
             {
                 builder.add(getSliceValue(r, b, options));
-                Relation.Type relType = ((Restriction.Slice)r).getRelation(eocBound, b);
+                Operator relType = ((Restriction.Slice)r).getRelation(eocBound, b);
                 return Collections.singletonList(builder.build().withEOC(eocForRelation(relType)));
             }
             else
@@ -880,7 +881,7 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
         return Collections.singletonList(eocBound == Bound.END && builder.remainingCount() > 0 ? prefix.end() : prefix);
     }
 
-    private static Composite.EOC eocForRelation(Relation.Type op)
+    private static Composite.EOC eocForRelation(Operator op)
     {
         switch (op)
         {
@@ -942,7 +943,7 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
                 throw new InvalidRequestException("Invalid null value in condition for column " + def.name);
             builder.add(v);
         }
-        Relation.Type relType = slice.getRelation(eocBound, firstComponentBound);
+        Operator relType = slice.getRelation(eocBound, firstComponentBound);
         return Collections.singletonList(builder.build().withEOC(eocForRelation(relType)));
     }
 
@@ -1052,7 +1053,7 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
                     if (slice.hasBound(b))
                     {
                         ByteBuffer value = validateIndexedValue(def, slice.bound(b, options));
-                        IndexExpression.Operator op = slice.getIndexOperator(b);
+                        Operator op = slice.getIndexOperator(b);
                         // If the underlying comparator for name is reversed, we need to reverse the IndexOperator: user operation
                         // always refer to the "forward" sorting even if the clustering order is reversed, but the 2ndary code does
                         // use the underlying comparator as is.
@@ -1068,12 +1069,12 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
                 for (ByteBuffer value : contains.values(options))
                 {
                     validateIndexedValue(def, value);
-                    expressions.add(new IndexExpression(def.name.bytes, IndexExpression.Operator.CONTAINS, value));
+                    expressions.add(new IndexExpression(def.name.bytes, Operator.CONTAINS, value));
                 }
                 for (ByteBuffer key : contains.keys(options))
                 {
                     validateIndexedValue(def, key);
-                    expressions.add(new IndexExpression(def.name.bytes, IndexExpression.Operator.CONTAINS_KEY, key));
+                    expressions.add(new IndexExpression(def.name.bytes, Operator.CONTAINS_KEY, key));
                 }
             }
             else
@@ -1084,7 +1085,7 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
                     throw new InvalidRequestException("IN restrictions are not supported on indexed columns");
 
                 ByteBuffer value = validateIndexedValue(def, values.get(0));
-                expressions.add(new IndexExpression(def.name.bytes, IndexExpression.Operator.EQ, value));
+                expressions.add(new IndexExpression(def.name.bytes, Operator.EQ, value));
             }
         }
         
@@ -1136,14 +1137,14 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
         };
     }
 
-    private static IndexExpression.Operator reverse(IndexExpression.Operator op)
+    private static Operator reverse(Operator op)
     {
         switch (op)
         {
-            case LT:  return IndexExpression.Operator.GT;
-            case LTE: return IndexExpression.Operator.GTE;
-            case GT:  return IndexExpression.Operator.LT;
-            case GTE: return IndexExpression.Operator.LTE;
+            case LT:  return Operator.GT;
+            case LTE: return Operator.GTE;
+            case GT:  return Operator.LT;
+            case GTE: return Operator.LTE;
             default: return op;
         }
     }
@@ -1414,6 +1415,10 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
             boolean hasQueriableClusteringColumnIndex = false;
             boolean hasSingleColumnRelations = false;
             boolean hasMultiColumnRelations = false;
+
+            ColumnFamilyStore cfs = Keyspace.open(keyspace()).getColumnFamilyStore(columnFamily());
+            SecondaryIndexManager indexManager = cfs.indexManager;
+
             for (Relation relation : whereClause)
             {
                 if (relation.isMultiColumn())
@@ -1423,7 +1428,7 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
                     for (ColumnIdentifier entity : rel.getEntities())
                     {
                         ColumnDefinition def = cfm.getColumnDefinition(entity);
-                        boolean[] queriable = processRelationEntity(stmt, relation, entity, def);
+                        boolean[] queriable = processRelationEntity(stmt, indexManager, relation, entity, def);
                         hasQueriableIndex |= queriable[0];
                         hasQueriableClusteringColumnIndex |= queriable[1];
                         names.add(def);
@@ -1436,7 +1441,7 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
                     SingleColumnRelation rel = (SingleColumnRelation) relation;
                     ColumnIdentifier entity = rel.getEntity();
                     ColumnDefinition def = cfm.getColumnDefinition(entity);
-                    boolean[] queriable = processRelationEntity(stmt, relation, entity, def);
+                    boolean[] queriable = processRelationEntity(stmt, indexManager, relation, entity, def);
                     hasQueriableIndex |= queriable[0];
                     hasQueriableClusteringColumnIndex |= queriable[1];
                     hasSingleColumnRelations |= ColumnDefinition.Kind.CLUSTERING_COLUMN.equals(def.kind);
@@ -1490,13 +1495,19 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
         }
 
         /** Returns a pair of (hasQueriableIndex, hasQueriableClusteringColumnIndex) */
-        private boolean[] processRelationEntity(SelectStatement stmt, Relation relation, ColumnIdentifier entity, ColumnDefinition def) throws InvalidRequestException
+        private boolean[] processRelationEntity(SelectStatement stmt,
+                                                SecondaryIndexManager indexManager,
+                                                Relation relation,
+                                                ColumnIdentifier entity,
+                                                ColumnDefinition def) throws InvalidRequestException
         {
             if (def == null)
                 handleUnrecognizedEntity(entity, relation);
 
             stmt.restrictedColumns.add(def);
-            if (relation.operator().allowsIndexQueryOn(def))
+
+            SecondaryIndex index = indexManager.getIndexForColumn(def.name.bytes);
+            if (index != null && index.supportsOperator(relation.operator()))
                 return new boolean[]{true, def.kind == ColumnDefinition.Kind.CLUSTERING_COLUMN};
             return new boolean[]{false, false};
         }
@@ -1551,10 +1562,10 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
                 previousPosition++;
 
                 Restriction existing = getExistingRestriction(stmt, def);
-                Relation.Type operator = relation.operator();
+                Operator operator = relation.operator();
                 if (existing != null)
                 {
-                    if (operator == Relation.Type.EQ || operator == Relation.Type.IN)
+                    if (operator == Operator.EQ || operator == Operator.IN)
                         throw new InvalidRequestException(String.format("Column \"%s\" cannot be restricted by more than one relation if it is in an %s relation", def, relation.operator()));
                     else if (!existing.isSlice())
                         throw new InvalidRequestException(String.format("Column \"%s\" cannot be restricted by an equality relation and an inequality relation", def));
@@ -1681,7 +1692,7 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
             }
 
             // We don't support relations against entire collections, like "numbers = {1, 2, 3}"
-            if (receiver.type.isCollection() && !(newRel.operator().equals(Relation.Type.CONTAINS_KEY) || newRel.operator() == Relation.Type.CONTAINS))
+            if (receiver.type.isCollection() && !(newRel.operator().equals(Operator.CONTAINS_KEY) || newRel.operator() == Operator.CONTAINS))
             {
                 throw new InvalidRequestException(String.format("Collection column '%s' (%s) cannot be restricted by a '%s' relation",
                                                                 def.name, receiver.type.asCQL3Type(), newRel.operator()));
@@ -1759,7 +1770,7 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
                         existingRestriction = new SingleColumnRestriction.Contains();
                     else if (!existingRestriction.isContains())
                         throw new InvalidRequestException(String.format("Collection column %s can only be restricted by CONTAINS or CONTAINS KEY", def.name));
-                    boolean isKey = newRel.operator() == Relation.Type.CONTAINS_KEY;
+                    boolean isKey = newRel.operator() == Operator.CONTAINS_KEY;
                     receiver = makeCollectionReceiver(receiver, isKey);
                     Term t = newRel.getValue().prepare(keyspace(), receiver);
                     t.collectMarkerSpecification(boundNames);
@@ -2097,7 +2108,7 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
                 // so it can't be a MultiColumnRelation.
                 SingleColumnRelation rel = (SingleColumnRelation)r;
                 if (cfm.getColumnDefinition(rel.getEntity()).kind == ColumnDefinition.Kind.CLUSTERING_COLUMN
-                    && (rel.operator() == Relation.Type.GT || rel.operator() == Relation.Type.LT))
+                    && (rel.operator() == Operator.GT || rel.operator() == Operator.LT))
                     return rel;
             }
 

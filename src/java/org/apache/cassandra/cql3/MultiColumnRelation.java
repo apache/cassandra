@@ -39,7 +39,7 @@ public class MultiColumnRelation extends Relation
 
     private final Tuples.INRaw inMarker;
 
-    private MultiColumnRelation(List<ColumnIdentifier> entities, Type relationType, Term.MultiColumnRaw valuesOrMarker, List<? extends Term.MultiColumnRaw> inValues, Tuples.INRaw inMarker)
+    private MultiColumnRelation(List<ColumnIdentifier> entities, Operator relationType, Term.MultiColumnRaw valuesOrMarker, List<? extends Term.MultiColumnRaw> inValues, Tuples.INRaw inMarker)
     {
         this.entities = entities;
         this.relationType = relationType;
@@ -56,9 +56,9 @@ public class MultiColumnRelation extends Relation
      * @param relationType the relation operator
      * @param valuesOrMarker a Tuples.Literal instance or a Tuples.Raw marker
      */
-    public static MultiColumnRelation createNonInRelation(List<ColumnIdentifier> entities, Type relationType, Term.MultiColumnRaw valuesOrMarker)
+    public static MultiColumnRelation createNonInRelation(List<ColumnIdentifier> entities, Operator relationType, Term.MultiColumnRaw valuesOrMarker)
     {
-        assert relationType != Relation.Type.IN;
+        assert relationType != Operator.IN;
         return new MultiColumnRelation(entities, relationType, valuesOrMarker, null, null);
     }
 
@@ -70,7 +70,7 @@ public class MultiColumnRelation extends Relation
      */
     public static MultiColumnRelation createInRelation(List<ColumnIdentifier> entities, List<? extends Term.MultiColumnRaw> inValues)
     {
-        return new MultiColumnRelation(entities, Relation.Type.IN, null, inValues, null);
+        return new MultiColumnRelation(entities, Operator.IN, null, inValues, null);
     }
 
     /**
@@ -81,7 +81,7 @@ public class MultiColumnRelation extends Relation
      */
     public static MultiColumnRelation createSingleMarkerInRelation(List<ColumnIdentifier> entities, Tuples.INRaw inMarker)
     {
-        return new MultiColumnRelation(entities, Relation.Type.IN, null, null, inMarker);
+        return new MultiColumnRelation(entities, Operator.IN, null, null, inMarker);
     }
 
     public List<ColumnIdentifier> getEntities()
@@ -94,7 +94,7 @@ public class MultiColumnRelation extends Relation
      */
     public Term.MultiColumnRaw getValue()
     {
-        assert relationType != Relation.Type.IN;
+        assert relationType != Operator.IN;
         return valuesOrMarker;
     }
 
@@ -124,7 +124,7 @@ public class MultiColumnRelation extends Relation
     @Override
     public String toString()
     {
-        if (relationType == Type.IN)
+        if (relationType == Operator.IN)
         {
             StringBuilder sb = new StringBuilder(Tuples.tupleToString(entities));
             sb.append(" IN ");
