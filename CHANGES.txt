@@ -1,4 +1,6 @@
 2.0.12:
+ * Avoid overlap in L1 when L0 contains many nonoverlapping
+   sstables (CASSANDRA-8211)
  * Improve PropertyFileSnitch logging (CASSANDRA-8183)
  * Abort liveRatio calculation if the memtable is flushed (CASSANDRA-8164)
  * Correctly handle non-text column names in cql3 (CASSANDRA-8178)
