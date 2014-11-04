@@ -384,7 +384,7 @@ public class ActiveRepairService
             if (existingSSTables == null)
                 existingSSTables = new HashSet<>();
             existingSSTables.addAll(sstables);
-            this.sstableMap.put(cfId, sstables);
+            this.sstableMap.put(cfId, existingSSTables);
         }
 
         public synchronized Collection<SSTableReader> getAndReferenceSSTables(UUID cfId)
