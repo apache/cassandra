@@ -194,6 +194,9 @@ public class SecondaryIndexCellSizeTest
         }
 
         @Override
+        public void deleteForCleanup(ByteBuffer rowKey, Cell col, OpOrder.Group opGroup) {}
+
+        @Override
         public void insert(ByteBuffer rowKey, Cell col, OpOrder.Group opGroup)
         {
         }
