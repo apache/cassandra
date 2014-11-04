@@ -30,12 +30,17 @@ import org.apache.cassandra.utils.FBUtilities;
 public abstract class PerColumnSecondaryIndex extends SecondaryIndex
 {
     /**
-     * Delete a column from the index.
+     * Called when a column has been tombstoned or replaced.
      *
      * @param rowKey the underlying row key which is indexed
      * @param col all the column info
      */
     public abstract void delete(ByteBuffer rowKey, Cell col, OpOrder.Group opGroup);
+
+    /**
+     * Called when a column has been removed due to a cleanup operation.
+     */
+    public abstract void deleteForCleanup(ByteBuffer rowKey, Cell col, OpOrder.Group opGroup);
 
     /**
      * insert a column to the index

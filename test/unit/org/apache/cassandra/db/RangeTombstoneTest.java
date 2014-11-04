@@ -690,6 +690,9 @@ public class RangeTombstoneTest
             deletes.add(col);
         }
 
+        @Override
+        public void deleteForCleanup(ByteBuffer rowKey, Cell col, OpOrder.Group opGroup) {}
+
         public void insert(ByteBuffer rowKey, Cell col, OpOrder.Group opGroup)
         {
             inserts.add(col);
