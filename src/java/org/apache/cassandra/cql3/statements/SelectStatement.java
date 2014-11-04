@@ -99,7 +99,7 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
     private boolean selectsOnlyStaticColumns;
 
     // Used by forSelection below
-    private static final Parameters defaultParameters = new Parameters(Collections.<ColumnIdentifier, Boolean>emptyMap(), false, false, null, false);
+    private static final Parameters defaultParameters = new Parameters(Collections.<ColumnIdentifier.Raw, Boolean>emptyMap(), false, false, null, false);
 
     private static final Predicate<CFDefinition.Name> isStaticFilter = new Predicate<CFDefinition.Name>()
     {
@@ -1249,7 +1249,7 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
         // because there is no point of using composite comparator if there is only one order condition
         if (parameters.orderings.size() == 1)
         {
-            CFDefinition.Name ordering = cfDef.get(parameters.orderings.keySet().iterator().next());
+            CFDefinition.Name ordering = cfDef.get(parameters.orderings.keySet().iterator().next().prepare(cfDef.cfm));
             Collections.sort(cqlRows.rows, new SingleColumnComparator(orderingIndexes.get(ordering), ordering.type));
             return;
         }
@@ -1261,9 +1261,9 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
         int[] positions = new int[parameters.orderings.size()];
 
         int idx = 0;
-        for (ColumnIdentifier identifier : parameters.orderings.keySet())
+        for (ColumnIdentifier.Raw identifier : parameters.orderings.keySet())
         {
-            CFDefinition.Name orderingColumn = cfDef.get(identifier);
+            CFDefinition.Name orderingColumn = cfDef.get(identifier.prepare(cfDef.cfm));
             types.add(orderingColumn.type);
             positions[idx++] = orderingIndexes.get(orderingColumn);
         }
@@ -1412,8 +1412,9 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
                 {
                     MultiColumnRelation rel = (MultiColumnRelation) relation;
                     List<CFDefinition.Name> names = new ArrayList<>(rel.getEntities().size());
-                    for (ColumnIdentifier entity : rel.getEntities())
+                    for (ColumnIdentifier.Raw rawEntity : rel.getEntities())
                     {
+                        ColumnIdentifier entity = rawEntity.prepare(cfm);
                         boolean[] queriable = processRelationEntity(stmt, relation, entity, cfDef);
                         hasQueriableIndex |= queriable[0];
                         hasQueriableClusteringColumnIndex |= queriable[1];
@@ -1426,10 +1427,11 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
                 else
                 {
                     SingleColumnRelation rel = (SingleColumnRelation) relation;
-                    boolean[] queriable = processRelationEntity(stmt, relation, rel.getEntity(), cfDef);
+                    ColumnIdentifier entity = rel.getEntity().prepare(cfm);
+                    boolean[] queriable = processRelationEntity(stmt, relation, entity, cfDef);
                     hasQueriableIndex |= queriable[0];
                     hasQueriableClusteringColumnIndex |= queriable[1];
-                    Name name = cfDef.get(rel.getEntity());
+                    Name name = cfDef.get(entity);
                     hasSingleColumnRelations |= Kind.COLUMN_ALIAS.equals(name.kind);
                     updateRestrictionsForRelation(stmt, name, rel, boundNames);
                 }
@@ -1832,7 +1834,7 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
             for (Relation relation : whereClause)
             {
                 SingleColumnRelation singleColumnRelation = (SingleColumnRelation) relation;
-                if (singleColumnRelation.onToken && !cfDef.get(singleColumnRelation.getEntity()).equals(iter.next()))
+                if (singleColumnRelation.onToken && !cfDef.get(singleColumnRelation.getEntity().prepare(cfDef.cfm)).equals(iter.next()))
                     throw new InvalidRequestException(String.format("The token function arguments must be in the partition key order: %s",
                                                                     Joiner.on(',').join(cfDef.partitionKeys())));
             }
@@ -1935,8 +1937,9 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
             if (stmt.keyIsInRelation)
             {
                 stmt.orderingIndexes = new HashMap<CFDefinition.Name, Integer>();
-                for (ColumnIdentifier column : stmt.parameters.orderings.keySet())
+                for (ColumnIdentifier.Raw rawColumn : stmt.parameters.orderings.keySet())
                 {
+                    ColumnIdentifier column = rawColumn.prepare(cfDef.cfm);
                     final CFDefinition.Name name = cfDef.get(column);
                     if (name == null)
                         handleUnrecognizedOrderingColumn(column);
@@ -1977,9 +1980,9 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
         {
             Boolean[] reversedMap = new Boolean[cfDef.clusteringColumnsCount()];
             int i = 0;
-            for (Map.Entry<ColumnIdentifier, Boolean> entry : stmt.parameters.orderings.entrySet())
+            for (Map.Entry<ColumnIdentifier.Raw, Boolean> entry : stmt.parameters.orderings.entrySet())
             {
-                ColumnIdentifier column = entry.getKey();
+                ColumnIdentifier column = entry.getKey().prepare(cfDef.cfm);
                 boolean reversed = entry.getValue();
 
                 CFDefinition.Name name = cfDef.get(column);
@@ -2056,7 +2059,7 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
                 // We only call this when sliceRestriction != null, i.e. for compact table with non composite comparator,
                 // so it can't be a MultiColumnRelation.
                 SingleColumnRelation rel = (SingleColumnRelation)r;
-                if (cfDef.get(rel.getEntity()).kind == CFDefinition.Name.Kind.COLUMN_ALIAS
+                if (cfDef.get(rel.getEntity().prepare(cfDef.cfm)).kind == CFDefinition.Name.Kind.COLUMN_ALIAS
                     && (rel.operator() == Relation.Type.GT || rel.operator() == Relation.Type.LT))
                     return rel;
             }
@@ -2096,13 +2099,13 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
 
     public static class Parameters
     {
-        private final Map<ColumnIdentifier, Boolean> orderings;
+        private final Map<ColumnIdentifier.Raw, Boolean> orderings;
         private final boolean isDistinct;
         private final boolean isCount;
         private final ColumnIdentifier countAlias;
         private final boolean allowFiltering;
 
-        public Parameters(Map<ColumnIdentifier, Boolean> orderings,
+        public Parameters(Map<ColumnIdentifier.Raw, Boolean> orderings,
                           boolean isDistinct,
                           boolean isCount,
                           ColumnIdentifier countAlias,

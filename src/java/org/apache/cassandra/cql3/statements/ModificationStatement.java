@@ -22,6 +22,7 @@ import java.util.*;
 
 import com.google.common.base.Function;
 import com.google.common.collect.Iterables;
+import org.apache.cassandra.db.marshal.AbstractType;
 import org.github.jamm.MemoryMeter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -271,9 +272,10 @@ public abstract class ModificationStatement implements CQLStatement, MeasurableF
             if (rel.onToken)
                 throw new InvalidRequestException(String.format("The token function cannot be used in WHERE clauses for UPDATE and DELETE statements: %s", relation));
 
-            CFDefinition.Name name = cfDef.get(rel.getEntity());
+            ColumnIdentifier id = rel.getEntity().prepare(cfm);
+            CFDefinition.Name name = cfDef.get(id);
             if (name == null)
-                throw new InvalidRequestException(String.format("Unknown key identifier %s", rel.getEntity()));
+                throw new InvalidRequestException(String.format("Unknown key identifier %s", id));
 
             switch (name.kind)
             {
@@ -760,15 +762,15 @@ public abstract class ModificationStatement implements CQLStatement, MeasurableF
     public static abstract class Parsed extends CFStatement
     {
         protected final Attributes.Raw attrs;
-        protected final List<Pair<ColumnIdentifier, ColumnCondition.Raw>> conditions;
+        protected final List<Pair<ColumnIdentifier.Raw, ColumnCondition.Raw>> conditions;
         private final boolean ifNotExists;
         private final boolean ifExists;
 
-        protected Parsed(CFName name, Attributes.Raw attrs, List<Pair<ColumnIdentifier, ColumnCondition.Raw>> conditions, boolean ifNotExists, boolean ifExists)
+        protected Parsed(CFName name, Attributes.Raw attrs, List<Pair<ColumnIdentifier.Raw, ColumnCondition.Raw>> conditions, boolean ifNotExists, boolean ifExists)
         {
             super(name);
             this.attrs = attrs;
-            this.conditions = conditions == null ? Collections.<Pair<ColumnIdentifier, ColumnCondition.Raw>>emptyList() : conditions;
+            this.conditions = conditions == null ? Collections.<Pair<ColumnIdentifier.Raw, ColumnCondition.Raw>>emptyList() : conditions;
             this.ifNotExists = ifNotExists;
             this.ifExists = ifExists;
         }
@@ -815,11 +817,12 @@ public abstract class ModificationStatement implements CQLStatement, MeasurableF
                 }
                 else
                 {
-                    for (Pair<ColumnIdentifier, ColumnCondition.Raw> entry : conditions)
+                    for (Pair<ColumnIdentifier.Raw, ColumnCondition.Raw> entry : conditions)
                     {
-                        CFDefinition.Name name = cfDef.get(entry.left);
+                        ColumnIdentifier id = entry.left.prepare(cfDef.cfm);
+                        CFDefinition.Name name = cfDef.get(id);
                         if (name == null)
-                            throw new InvalidRequestException(String.format("Unknown identifier %s", entry.left));
+                            throw new InvalidRequestException(String.format("Unknown identifier %s", id));
 
                         ColumnCondition condition = entry.right.prepare(name);
                         condition.collectMarkerSpecification(boundNames);
@@ -828,7 +831,7 @@ public abstract class ModificationStatement implements CQLStatement, MeasurableF
                         {
                             case KEY_ALIAS:
                             case COLUMN_ALIAS:
-                                throw new InvalidRequestException(String.format("PRIMARY KEY column '%s' cannot have IF conditions", entry.left));
+                                throw new InvalidRequestException(String.format("PRIMARY KEY column '%s' cannot have IF conditions", id));
                             case VALUE_ALIAS:
                             case COLUMN_METADATA:
                             case STATIC:

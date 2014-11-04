@@ -26,12 +26,12 @@ import java.util.List;
  */
 public class SingleColumnRelation extends Relation
 {
-    private final ColumnIdentifier entity;
+    private final ColumnIdentifier.Raw entity;
     private final Term.Raw value;
     private final List<Term.Raw> inValues;
     public final boolean onToken;
 
-    private SingleColumnRelation(ColumnIdentifier entity, Type type, Term.Raw value, List<Term.Raw> inValues, boolean onToken)
+    private SingleColumnRelation(ColumnIdentifier.Raw entity, Type type, Term.Raw value, List<Term.Raw> inValues, boolean onToken)
     {
         this.entity = entity;
         this.relationType = type;
@@ -47,22 +47,22 @@ public class SingleColumnRelation extends Relation
      * @param type the type that describes how this entity relates to the value.
      * @param value the value being compared.
      */
-    public SingleColumnRelation(ColumnIdentifier entity, Type type, Term.Raw value)
+    public SingleColumnRelation(ColumnIdentifier.Raw entity, Type type, Term.Raw value)
     {
         this(entity, type, value, null, false);
     }
 
-    public SingleColumnRelation(ColumnIdentifier entity, Type type, Term.Raw value, boolean onToken)
+    public SingleColumnRelation(ColumnIdentifier.Raw entity, Type type, Term.Raw value, boolean onToken)
     {
         this(entity, type, value, null, onToken);
     }
 
-    public static SingleColumnRelation createInRelation(ColumnIdentifier entity, List<Term.Raw> inValues)
+    public static SingleColumnRelation createInRelation(ColumnIdentifier.Raw entity, List<Term.Raw> inValues)
     {
         return new SingleColumnRelation(entity, Type.IN, null, inValues, false);
     }
 
-    public ColumnIdentifier getEntity()
+    public ColumnIdentifier.Raw getEntity()
     {
         return entity;
     }

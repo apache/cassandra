@@ -29,7 +29,7 @@ import java.util.List;
  */
 public class MultiColumnRelation extends Relation
 {
-    private final List<ColumnIdentifier> entities;
+    private final List<ColumnIdentifier.Raw> entities;
 
     /** A Tuples.Literal or Tuples.Raw marker */
     private final Term.MultiColumnRaw valuesOrMarker;
@@ -39,7 +39,7 @@ public class MultiColumnRelation extends Relation
 
     private final Tuples.INRaw inMarker;
 
-    private MultiColumnRelation(List<ColumnIdentifier> entities, Type relationType, Term.MultiColumnRaw valuesOrMarker, List<? extends Term.MultiColumnRaw> inValues, Tuples.INRaw inMarker)
+    private MultiColumnRelation(List<ColumnIdentifier.Raw> entities, Type relationType, Term.MultiColumnRaw valuesOrMarker, List<? extends Term.MultiColumnRaw> inValues, Tuples.INRaw inMarker)
     {
         this.entities = entities;
         this.relationType = relationType;
@@ -56,7 +56,7 @@ public class MultiColumnRelation extends Relation
      * @param relationType the relation operator
      * @param valuesOrMarker a Tuples.Literal instance or a Tuples.Raw marker
      */
-    public static MultiColumnRelation createNonInRelation(List<ColumnIdentifier> entities, Type relationType, Term.MultiColumnRaw valuesOrMarker)
+    public static MultiColumnRelation createNonInRelation(List<ColumnIdentifier.Raw> entities, Type relationType, Term.MultiColumnRaw valuesOrMarker)
     {
         assert relationType != Relation.Type.IN;
         return new MultiColumnRelation(entities, relationType, valuesOrMarker, null, null);
@@ -68,7 +68,7 @@ public class MultiColumnRelation extends Relation
      * @param entities the columns on the LHS of the relation
      * @param inValues a list of Tuples.Literal instances or a Tuples.Raw markers
      */
-    public static MultiColumnRelation createInRelation(List<ColumnIdentifier> entities, List<? extends Term.MultiColumnRaw> inValues)
+    public static MultiColumnRelation createInRelation(List<ColumnIdentifier.Raw> entities, List<? extends Term.MultiColumnRaw> inValues)
     {
         return new MultiColumnRelation(entities, Relation.Type.IN, null, inValues, null);
     }
@@ -79,12 +79,12 @@ public class MultiColumnRelation extends Relation
      * @param entities the columns on the LHS of the relation
      * @param inMarker a single IN marker
      */
-    public static MultiColumnRelation createSingleMarkerInRelation(List<ColumnIdentifier> entities, Tuples.INRaw inMarker)
+    public static MultiColumnRelation createSingleMarkerInRelation(List<ColumnIdentifier.Raw> entities, Tuples.INRaw inMarker)
     {
         return new MultiColumnRelation(entities, Relation.Type.IN, null, null, inMarker);
     }
 
-    public List<ColumnIdentifier> getEntities()
+    public List<ColumnIdentifier.Raw> getEntities()
     {
         return entities;
     }

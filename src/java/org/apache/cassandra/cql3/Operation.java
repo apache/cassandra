@@ -149,7 +149,7 @@ public abstract class Operation
         /**
          * The name of the column affected by this delete operation.
          */
-        public ColumnIdentifier affectedColumn();
+        public ColumnIdentifier.Raw affectedColumn();
 
         /**
          * This method validates the operation (i.e. validate it is well typed)
@@ -162,7 +162,7 @@ public abstract class Operation
          * @param receiver the "column" this operation applies to.
          * @return the prepared delete operation.
          */
-        public Operation prepare(ColumnSpecification receiver) throws InvalidRequestException;
+        public Operation prepare(ColumnSpecification receiver, CFMetaData cfm) throws InvalidRequestException;
     }
 
     public static class SetValue implements RawUpdate
@@ -372,57 +372,58 @@ public abstract class Operation
 
     public static class ColumnDeletion implements RawDeletion
     {
-        private final ColumnIdentifier id;
+        private final ColumnIdentifier.Raw id;
 
-        public ColumnDeletion(ColumnIdentifier id)
+        public ColumnDeletion(ColumnIdentifier.Raw id)
         {
             this.id = id;
         }
 
-        public ColumnIdentifier affectedColumn()
+        public ColumnIdentifier.Raw affectedColumn()
         {
             return id;
         }
 
-        public Operation prepare(ColumnSpecification receiver) throws InvalidRequestException
+        public Operation prepare(ColumnSpecification receiver, CFMetaData cfm) throws InvalidRequestException
         {
             // No validation, deleting a column is always "well typed"
-            return new Constants.Deleter(id, receiver.type instanceof CollectionType);
+            return new Constants.Deleter(id.prepare(cfm), receiver.type instanceof CollectionType);
         }
     }
 
     public static class ElementDeletion implements RawDeletion
     {
-        private final ColumnIdentifier id;
+        private final ColumnIdentifier.Raw id;
         private final Term.Raw element;
 
-        public ElementDeletion(ColumnIdentifier id, Term.Raw element)
+        public ElementDeletion(ColumnIdentifier.Raw id, Term.Raw element)
         {
             this.id = id;
             this.element = element;
         }
 
-        public ColumnIdentifier affectedColumn()
+        public ColumnIdentifier.Raw affectedColumn()
         {
             return id;
         }
 
-        public Operation prepare(ColumnSpecification receiver) throws InvalidRequestException
+        public Operation prepare(ColumnSpecification receiver, CFMetaData cfm) throws InvalidRequestException
         {
             if (!(receiver.type instanceof CollectionType))
                 throw new InvalidRequestException(String.format("Invalid deletion operation for non collection column %s", receiver));
 
+            ColumnIdentifier preparedId = id.prepare(cfm);
             switch (((CollectionType)receiver.type).kind)
             {
                 case LIST:
                     Term idx = element.prepare(Lists.indexSpecOf(receiver));
-                    return new Lists.DiscarderByIndex(id, idx);
+                    return new Lists.DiscarderByIndex(preparedId, idx);
                 case SET:
                     Term elt = element.prepare(Sets.valueSpecOf(receiver));
-                    return new Sets.Discarder(id, elt);
+                    return new Sets.Discarder(preparedId, elt);
                 case MAP:
                     Term key = element.prepare(Maps.keySpecOf(receiver));
-                    return new Maps.DiscarderByKey(id, key);
+                    return new Maps.DiscarderByKey(preparedId, key);
             }
             throw new AssertionError();
         }
