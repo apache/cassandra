@@ -1829,7 +1829,16 @@ public class ColumnFamilyStoreTest extends SchemaLoader
         ByteBuffer key = bytes("key");
 
         SSTableSimpleWriter writer = new SSTableSimpleWriter(dir.getDirectoryForNewSSTables(),
-                                                              cfmeta, StorageService.getPartitioner());
+                                                              cfmeta, StorageService.getPartitioner())
+        {
+            @Override
+            protected SSTableWriter getWriter()
+            {
+                // hack for reset generation
+                generation.set(0);
+                return super.getWriter();
+            }
+        };
         writer.newRow(key);
         writer.addColumn(bytes("col"), bytes("val"), 1);
         writer.close();
