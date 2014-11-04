@@ -29,6 +29,7 @@ import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.config.IndexType;
 import org.apache.cassandra.config.Schema;
+import org.apache.cassandra.db.index.SecondaryIndex;
 import org.apache.cassandra.db.marshal.MapType;
 import org.apache.cassandra.exceptions.*;
 import org.apache.cassandra.cql3.*;
@@ -82,7 +83,7 @@ public class CreateIndexStatement extends SchemaAlteringStatement
 
         if (cd.getIndexType() != null)
         {
-            boolean previousIsKeys = cd.getIndexOptions().containsKey("index_keys");
+            boolean previousIsKeys = cd.hasIndexOption(SecondaryIndex.INDEX_KEYS_OPTION_NAME);
             if (isMap && target.isCollectionKeys != previousIsKeys)
             {
                 String msg = "Cannot create index on %s %s, an index on %s %s already exists and indexing "
@@ -137,7 +138,8 @@ public class CreateIndexStatement extends SchemaAlteringStatement
             // to also index map keys, so we record that this is the values we index to make our
             // lives easier then.
             if (cd.type.isCollection())
-                options = ImmutableMap.of(target.isCollectionKeys ? "index_keys" : "index_values", "");
+                options = ImmutableMap.of(target.isCollectionKeys ? SecondaryIndex.INDEX_KEYS_OPTION_NAME
+                                                                  : SecondaryIndex.INDEX_VALUES_OPTION_NAME, "");
             cd.setIndexType(IndexType.COMPOSITES, options);
         }
         else

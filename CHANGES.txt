@@ -1,4 +1,6 @@
 2.1.2
+ * Fix issues with CONTAINS (KEY) queries on secondary indexes
+   (CASSANDRA-8147)
  * Fix read-rate tracking of sstables for some queries (CASSANDRA-8239)
  * Fix default timestamp in QueryOptions (CASSANDRA-8246)
  * Set socket timeout when reading remote version (CASSANDRA-8188)

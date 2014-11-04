@@ -528,7 +528,7 @@ public class SecondaryIndexManager
         {
             SecondaryIndex index = getIndexForColumn(ix.column);
 
-            if (index == null)
+            if (index == null || !index.supportsOperator(ix.operator))
                 continue;
 
             Set<ByteBuffer> columns = groupByIndexType.get(index.indexTypeForGrouping());

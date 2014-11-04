@@ -95,6 +95,12 @@ public class CompositesIndexOnCollectionValue extends CompositesIndex
     }
 
     @Override
+    public boolean supportsOperator(IndexExpression.Operator operator)
+    {
+        return operator == IndexExpression.Operator.CONTAINS;
+    }
+
+    @Override
     public boolean indexes(CellName name)
     {
         AbstractType<?> comp = baseCfs.metadata.getColumnDefinitionComparator(columnDef);

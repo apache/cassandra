@@ -76,6 +76,50 @@ public class IndexExpression
                     return false;
             }
         }
+
+        @Override
+        public String toString()
+        {
+            switch (this)
+            {
+                case EQ:
+                    return "=";
+                case LT:
+                    return "<";
+                case LTE:
+                    return "<=";
+                case GT:
+                    return ">";
+                case GTE:
+                    return ">=";
+                case CONTAINS_KEY:
+                    return "CONTAINS KEY";
+                default:
+                    return this.name();
+            }
+        }
+    }
+
+    /**
+     * Checks if the operator of this <code>IndexExpression</code> is a <code>CONTAINS</code> operator.
+     *
+     * @return <code>true</code> if the operator of this <code>IndexExpression</code> is a <code>CONTAINS</code>
+     * operator, <code>false</code> otherwise.
+     */
+    public boolean isContains()
+    {
+        return Operator.CONTAINS == operator;
+    }
+
+    /**
+     * Checks if the operator of this <code>IndexExpression</code> is a <code>CONTAINS_KEY</code> operator.
+     *
+     * @return <code>true</code> if the operator of this <code>IndexExpression</code> is a <code>CONTAINS_KEY</code>
+     * operator, <code>false</code> otherwise.
+     */
+    public boolean isContainsKey()
+    {
+        return Operator.CONTAINS_KEY == operator;
     }
 
     @Override

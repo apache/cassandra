@@ -17,6 +17,10 @@
  */
 package org.apache.cassandra.cql3;
 
+import org.apache.cassandra.config.ColumnDefinition;
+import org.apache.cassandra.db.index.SecondaryIndex;
+import org.apache.cassandra.db.marshal.CollectionType;
+
 
 public abstract class Relation {
 
@@ -24,19 +28,50 @@ public abstract class Relation {
 
     public static enum Type
     {
-        EQ, LT, LTE, GTE, GT, IN, CONTAINS, CONTAINS_KEY, NEQ;
-
-        public boolean allowsIndexQuery()
+        EQ
         {
-            switch (this)
+            public boolean allowsIndexQueryOn(ColumnDefinition columnDef)
             {
-                case EQ:
-                case CONTAINS:
-                case CONTAINS_KEY:
-                    return true;
-                default:
-                    return false;
+                return columnDef.isIndexed();
             }
+        },
+        LT,
+        LTE,
+        GTE,
+        GT,
+        IN,
+        CONTAINS
+        {
+            public boolean allowsIndexQueryOn(ColumnDefinition columnDef)
+            {
+                return columnDef.isIndexed()
+                        && columnDef.type.isCollection()
+                        && (!((CollectionType<?>) columnDef.type).isMap()
+                                || columnDef.hasIndexOption(SecondaryIndex.INDEX_VALUES_OPTION_NAME));
+            }
+        },
+        CONTAINS_KEY
+        {
+            public boolean allowsIndexQueryOn(ColumnDefinition columnDef)
+            {
+                return columnDef.isIndexed()
+                        && columnDef.type.isCollection()
+                        && (!((CollectionType<?>) columnDef.type).isMap()
+                                || columnDef.hasIndexOption(SecondaryIndex.INDEX_KEYS_OPTION_NAME));
+            }
+        },
+        NEQ;
+
+        /**
+         * Checks if this relation type allow index queries on the specified column
+         *
+         * @param columnDef the column definition.
+         * @return <code>true</code> if this relation type allow index queries on the specified column,
+         * <code>false</code> otherwise.
+         */
+        public boolean allowsIndexQueryOn(ColumnDefinition columnDef)
+        {
+            return false;
         }
 
         @Override
@@ -56,6 +91,8 @@ public abstract class Relation {
                     return ">=";
                 case NEQ:
                     return "!=";
+                case CONTAINS_KEY:
+                    return "CONTAINS KEY";
                 default:
                     return this.name();
             }

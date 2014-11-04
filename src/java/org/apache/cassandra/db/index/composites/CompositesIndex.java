@@ -30,6 +30,7 @@ import org.apache.cassandra.db.composites.CellName;
 import org.apache.cassandra.db.composites.CellNameType;
 import org.apache.cassandra.db.composites.Composite;
 import org.apache.cassandra.db.index.AbstractSimplePerColumnSecondaryIndex;
+import org.apache.cassandra.db.index.SecondaryIndex;
 import org.apache.cassandra.db.index.SecondaryIndexManager;
 import org.apache.cassandra.db.index.SecondaryIndexSearcher;
 import org.apache.cassandra.db.marshal.AbstractType;
@@ -66,7 +67,7 @@ public abstract class CompositesIndex extends AbstractSimplePerColumnSecondaryIn
                 case SET:
                     return new CompositesIndexOnCollectionKey();
                 case MAP:
-                    return cfDef.getIndexOptions().containsKey("index_keys")
+                    return cfDef.hasIndexOption(SecondaryIndex.INDEX_KEYS_OPTION_NAME)
                          ? new CompositesIndexOnCollectionKey()
                          : new CompositesIndexOnCollectionValue();
             }
@@ -98,7 +99,7 @@ public abstract class CompositesIndex extends AbstractSimplePerColumnSecondaryIn
                 case SET:
                     return CompositesIndexOnCollectionKey.buildIndexComparator(baseMetadata, cfDef);
                 case MAP:
-                    return cfDef.getIndexOptions().containsKey("index_keys")
+                    return cfDef.hasIndexOption(SecondaryIndex.INDEX_KEYS_OPTION_NAME)
                          ? CompositesIndexOnCollectionKey.buildIndexComparator(baseMetadata, cfDef)
                          : CompositesIndexOnCollectionValue.buildIndexComparator(baseMetadata, cfDef);
             }
@@ -159,8 +160,8 @@ public abstract class CompositesIndex extends AbstractSimplePerColumnSecondaryIn
 
         if (columnDef.type.isCollection())
         {
-            options.remove("index_values");
-            options.remove("index_keys");
+            options.remove(SecondaryIndex.INDEX_VALUES_OPTION_NAME);
+            options.remove(SecondaryIndex.INDEX_KEYS_OPTION_NAME);
         }
 
         if (!options.isEmpty())

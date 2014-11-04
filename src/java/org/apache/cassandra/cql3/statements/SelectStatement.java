@@ -1496,7 +1496,7 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
                 handleUnrecognizedEntity(entity, relation);
 
             stmt.restrictedColumns.add(def);
-            if (def.isIndexed() && relation.operator().allowsIndexQuery())
+            if (relation.operator().allowsIndexQueryOn(def))
                 return new boolean[]{true, def.kind == ColumnDefinition.Kind.CLUSTERING_COLUMN};
             return new boolean[]{false, false};
         }

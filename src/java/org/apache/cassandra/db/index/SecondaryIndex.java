@@ -32,11 +32,14 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
+
 import org.apache.cassandra.db.BufferDecoratedKey;
 import org.apache.cassandra.db.Cell;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.IndexExpression;
 import org.apache.cassandra.db.SystemKeyspace;
+
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.composites.CellName;
 import org.apache.cassandra.db.composites.CellNameType;
@@ -45,6 +48,7 @@ import org.apache.cassandra.db.index.composites.CompositesIndex;
 import org.apache.cassandra.db.index.keys.KeysIndex;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.BytesType;
+import org.apache.cassandra.db.marshal.CollectionType;
 import org.apache.cassandra.db.marshal.LocalByPartionerType;
 import org.apache.cassandra.dht.LocalToken;
 import org.apache.cassandra.exceptions.ConfigurationException;
@@ -52,7 +56,8 @@ import org.apache.cassandra.io.sstable.ReducingKeyIterator;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.utils.memory.MemtableAllocator;
+
+import com.google.common.collect.Iterables;
 
 /**
  * Abstract base class for different types of secondary indexes.
@@ -64,6 +69,16 @@ public abstract class SecondaryIndex
     protected static final Logger logger = LoggerFactory.getLogger(SecondaryIndex.class);
 
     public static final String CUSTOM_INDEX_OPTION_NAME = "class_name";
+
+    /**
+     * The name of the option used to specify that the index is on the collection keys.
+     */
+    public static final String INDEX_KEYS_OPTION_NAME = "index_keys";
+
+    /**
+     * The name of the option used to specify that the index is on the collection values.
+     */
+    public static final String INDEX_VALUES_OPTION_NAME = "index_values";
 
     public static final AbstractType<?> keyComparator = StorageService.getPartitioner().preservesOrder()
                                                       ? BytesType.instance
@@ -279,6 +294,12 @@ public abstract class SecondaryIndex
             if (it.next().name.bytes.equals(name))
                 it.remove();
         }
+    }
+
+    /** Returns true if the index supports lookups for the given operator, false otherwise. */
+    public boolean supportsOperator(IndexExpression.Operator operator)
+    {
+        return operator == IndexExpression.Operator.EQ;
     }
 
     /**

@@ -89,6 +89,13 @@ public class CompositesIndexOnCollectionKey extends CompositesIndex
     }
 
     @Override
+    public boolean supportsOperator(IndexExpression.Operator operator)
+    {
+        return operator == IndexExpression.Operator.CONTAINS_KEY ||
+                operator == IndexExpression.Operator.CONTAINS && columnDef.type instanceof SetType;
+    }
+
+    @Override
     public boolean indexes(CellName name)
     {
         // We index if the CQL3 column name is the one of the collection we index
