@@ -174,8 +174,7 @@ public class Murmur3Partitioner extends AbstractPartitioner
 
         public String toString(Token token)
         {
-            LongToken longToken = (LongToken) token;
-            return longToken.token.toString();
+            return token.toString();
         }
 
         public void validate(String token) throws ConfigurationException

@@ -23,7 +23,6 @@ import java.util.*;
 
 import org.apache.cassandra.config.*;
 import org.apache.cassandra.db.BufferDecoratedKey;
-import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.commons.lang3.ArrayUtils;
 
 import org.apache.cassandra.db.DecoratedKey;
@@ -48,35 +47,12 @@ public abstract class AbstractByteOrderedPartitioner extends AbstractPartitioner
 
     public BytesToken midpoint(Token lt, Token rt)
     {
-        AbstractToken<?> ltoken = (AbstractToken<?>) lt;
-        AbstractToken<?> rtoken = (AbstractToken<?>) rt;
-        int ll,rl;
-        ByteBuffer lb,rb;
+        BytesToken ltoken = (BytesToken) lt;
+        BytesToken rtoken = (BytesToken) rt;
 
-        if(ltoken.token instanceof byte[])
-        {
-            ll = ((byte[])ltoken.token).length;
-            lb = ByteBuffer.wrap(((byte[])ltoken.token));
-        }
-        else
-        {
-            ll = ((ByteBuffer)ltoken.token).remaining();
-            lb = (ByteBuffer)ltoken.token;
-        }
-
-        if(rtoken.token instanceof byte[])
-        {
-            rl = ((byte[])rtoken.token).length;
-            rb = ByteBuffer.wrap(((byte[])rtoken.token));
-        }
-        else
-        {
-            rl = ((ByteBuffer)rtoken.token).remaining();
-            rb = (ByteBuffer)rtoken.token;
-        }
-        int sigbytes = Math.max(ll, rl);
-        BigInteger left = bigForBytes(lb, sigbytes);
-        BigInteger right = bigForBytes(rb, sigbytes);
+        int sigbytes = Math.max(ltoken.token.length, rtoken.token.length);
+        BigInteger left = bigForBytes(ltoken.token, sigbytes);
+        BigInteger right = bigForBytes(rtoken.token, sigbytes);
 
         Pair<BigInteger,Boolean> midpair = FBUtilities.midpoint(left, right, 8*sigbytes);
         return new BytesToken(bytesForBig(midpair.left, sigbytes, midpair.right));
@@ -86,10 +62,15 @@ public abstract class AbstractByteOrderedPartitioner extends AbstractPartitioner
      * Convert a byte array containing the most significant of 'sigbytes' bytes
      * representing a big-endian magnitude into a BigInteger.
      */
-    private BigInteger bigForBytes(ByteBuffer bytes, int sigbytes)
+    private BigInteger bigForBytes(byte[] bytes, int sigbytes)
     {
-        byte[] b = new byte[sigbytes];
-        ByteBufferUtil.arrayCopy(bytes, bytes.position(), b, 0, bytes.remaining());
+        byte[] b;
+        if (sigbytes != bytes.length)
+        {
+            b = new byte[sigbytes];
+            System.arraycopy(bytes, 0, b, 0, bytes.length);
+        } else
+            b = bytes;
         return new BigInteger(1, b);
     }
 
