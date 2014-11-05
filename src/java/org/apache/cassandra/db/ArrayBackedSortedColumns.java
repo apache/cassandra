@@ -22,12 +22,12 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.Iterator;
+import java.util.NoSuchElementException;
 
 import com.google.common.base.Function;
 import com.google.common.collect.AbstractIterator;
 import com.google.common.collect.Iterables;
 
-import net.nicoulaj.compilecommand.annotations.Inline;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.composites.CellName;
 import org.apache.cassandra.db.composites.Composite;
@@ -609,8 +609,17 @@ public class ArrayBackedSortedColumns extends ColumnFamily
 
         public Cell next()
         {
-            shouldCallNext = false;
-            return cells[idx--];
+        	try
+        	{
+                shouldCallNext = false;
+                return cells[idx--];
+        	}
+            catch (ArrayIndexOutOfBoundsException e)
+            {
+                NoSuchElementException ne = new NoSuchElementException(e.getMessage());
+                ne.initCause(e);
+                throw ne;
+        	}
         }
 
         public void remove()
@@ -642,8 +651,17 @@ public class ArrayBackedSortedColumns extends ColumnFamily
 
         public Cell next()
         {
-            shouldCallNext = false;
-            return cells[idx++];
+            try
+            {
+                shouldCallNext = false;
+                return cells[idx++];
+            }
+            catch (ArrayIndexOutOfBoundsException e)
+            {
+                NoSuchElementException ne = new NoSuchElementException(e.getMessage());
+                ne.initCause(e);
+                throw ne;
+            }
         }
 
         public void remove()
