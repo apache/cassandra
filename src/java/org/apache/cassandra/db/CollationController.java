@@ -151,7 +151,7 @@ public class CollationController
             // "hoist up" the requested data into a more recent sstable
             if (sstablesIterated > cfs.getMinimumCompactionThreshold()
                 && !cfs.isAutoCompactionDisabled()
-                && cfs.getCompactionStrategy() instanceof SizeTieredCompactionStrategy)
+                && cfs.getCompactionStrategy().shouldDefragment())
             {
                 Tracing.trace("Defragmenting requested data");
                 Mutation mutation = new Mutation(cfs.keyspace.getName(), filter.key.getKey(), returnCF.cloneMe());

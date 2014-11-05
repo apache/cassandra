@@ -179,7 +179,7 @@ public class CompactionManager implements CompactionManagerMBean
         logger.debug("Scheduling a background task check for {}.{} with {}",
                      cfs.keyspace.getName(),
                      cfs.name,
-                     cfs.getCompactionStrategy().getClass().getSimpleName());
+                     cfs.getCompactionStrategy().getName());
         List<Future<?>> futures = new ArrayList<Future<?>>();
 
         // we must schedule it at least once, otherwise compaction will stop for a CF until next flush
