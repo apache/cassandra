@@ -390,7 +390,7 @@ public final class CFMetaData
     private volatile Double bloomFilterFpChance = null;
     private volatile Caching caching = DEFAULT_CACHING_STRATEGY;
     private volatile int indexInterval = DEFAULT_INDEX_INTERVAL;
-    private int memtableFlushPeriod = 0;
+    private volatile int memtableFlushPeriod = 0;
     private volatile int defaultTimeToLive = DEFAULT_DEFAULT_TIME_TO_LIVE;
     private volatile SpeculativeRetry speculativeRetry = DEFAULT_SPECULATIVE_RETRY;
     private volatile boolean populateIoCacheOnFlush = DEFAULT_POPULATE_IO_CACHE_ON_FLUSH;
