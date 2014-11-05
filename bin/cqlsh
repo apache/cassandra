@@ -943,7 +943,10 @@ class Shell(cmd.Cmd):
         return result
 
     def parse_for_table_meta(self, query_string):
-        parsed = cqlruleset.cql_parse(query_string)[1]
+        try:
+            parsed = cqlruleset.cql_parse(query_string)[1]
+        except IndexError:
+            return None
         ks =  self.cql_unprotect_name(parsed.get_binding('ksname', None))
         cf = self.cql_unprotect_name(parsed.get_binding('cfname'))
         return self.get_table_meta(ks, cf)
@@ -1010,6 +1013,8 @@ class Shell(cmd.Cmd):
 
     def print_static_result(self, rows, table_meta):
         if not rows:
+            if not table_meta:
+                return
             # print header only
             colnames = table_meta.columns.keys()  # full header
             formatted_names = [self.myformat_colname(name, table_meta) for name in colnames]
