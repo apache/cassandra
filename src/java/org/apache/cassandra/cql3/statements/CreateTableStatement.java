@@ -36,7 +36,6 @@ import org.apache.cassandra.exceptions.AlreadyExistsException;
 import org.apache.cassandra.io.compress.CompressionParameters;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.MigrationManager;
-import org.apache.cassandra.thrift.CqlResult;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
@@ -431,16 +430,6 @@ public class CreateTableStatement extends SchemaAlteringStatement
         public void setCompactStorage()
         {
             useCompactStorage = true;
-        }
-
-        public void checkAccess(ClientState state)
-        {
-            throw new UnsupportedOperationException();
-        }
-
-        public CqlResult execute(ClientState state, List<ByteBuffer> variables)
-        {
-            throw new UnsupportedOperationException();
         }
     }
 }
