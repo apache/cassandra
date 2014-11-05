@@ -450,6 +450,12 @@ public class Memtable
                 {
                     deepSize += memtable.meter.measureDeep(entry.getKey()) + memtable.meter.measureDeep(entry.getValue());
                     objects += entry.getValue().getColumnCount();
+
+                    if (memtable != cfs.getMemtableThreadSafe())
+                    {
+                        // this memtable is flushing or already flushed
+                        return;
+                    }
                 }
                 double newRatio = (double) deepSize / memtable.currentSize.get();
 
