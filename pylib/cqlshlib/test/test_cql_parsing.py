@@ -18,10 +18,12 @@
 # for Thrift connections, and $CQL_TEST_PORT to the associated port.
 
 from .basecase import BaseTestCase, cqlsh
+from .cassconnect import get_test_keyspace, testrun_cqlsh, testcall_cqlsh
 
 class TestCqlParsing(BaseTestCase):
     def setUp(self):
-        pass
+        self.cqlsh_runner = testrun_cqlsh(cqlver=cqlsh.DEFAULT_CQLVER, env={'COLUMNS': '100000'})
+        self.cqlsh = self.cqlsh_runner.__enter__()
 
     def tearDown(self):
         pass
@@ -85,3 +87,8 @@ class TestCqlParsing(BaseTestCase):
 
     def test_parse_drop_index(self):
         pass
+
+    def test_parse_select_token(self):
+        self.cqlsh.cmd_and_response('INSERT INTO has_all_types (num) VALUES (1);')
+        response = self.cqlsh.cmd_and_response("SELECT token(num) from has_all_types where num=1;")
+        self.assertIn('-4069959284402364209', response)
