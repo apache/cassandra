@@ -72,6 +72,8 @@ public abstract class Token implements RingPosition<Token>, Serializable
         }
     }
 
+    abstract public Object getTokenValue();
+
     public Token getToken()
     {
         return this;

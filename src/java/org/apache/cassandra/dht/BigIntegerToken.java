@@ -19,7 +19,7 @@ package org.apache.cassandra.dht;
 
 import java.math.BigInteger;
 
-public class BigIntegerToken extends AbstractToken<BigInteger>
+public class BigIntegerToken extends ComparableObjectToken<BigInteger>
 {
     static final long serialVersionUID = -5833589141319293006L;
 
@@ -31,10 +31,5 @@ public class BigIntegerToken extends AbstractToken<BigInteger>
     // convenience method for testing
     public BigIntegerToken(String token) {
         this(new BigInteger(token));
-    }
-
-    public int compareTo(Token o)
-    {
-        return token.compareTo(((BigIntegerToken) o).token);
     }
 }

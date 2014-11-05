@@ -1,4 +1,5 @@
 2.1.2
+ * Optimize partitioner tokens (CASSANDRA-8230)
  * Improve compaction of repaired/unrepaired sstables (CASSANDRA-8004)
  * Make cache serializers pluggable (CASSANDRA-8096)
  * Fix issues with CONTAINS (KEY) queries on secondary indexes
