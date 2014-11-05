@@ -32,6 +32,8 @@
 
 
 2.1.2
+ * (cqlsh) parse_for_table_meta errors out on queries with undefined
+   grammars (CASSANDRA-8262)
  * (cqlsh) Fix SELECT ... TOKEN() function broken in C* 2.1.1 (CASSANDRA-8258)
  * Fix Cassandra crash when running on JDK8 update 40 (CASSANDRA-8209)
  * Optimize partitioner tokens (CASSANDRA-8230)
