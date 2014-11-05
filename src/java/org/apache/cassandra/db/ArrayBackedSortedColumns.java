@@ -609,17 +609,17 @@ public class ArrayBackedSortedColumns extends ColumnFamily
 
         public Cell next()
         {
-        	try
-        	{
+            try
+            {
                 shouldCallNext = false;
                 return cells[idx--];
-        	}
+            }
             catch (ArrayIndexOutOfBoundsException e)
             {
                 NoSuchElementException ne = new NoSuchElementException(e.getMessage());
                 ne.initCause(e);
                 throw ne;
-        	}
+            }
         }
 
         public void remove()
