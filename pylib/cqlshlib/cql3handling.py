@@ -209,7 +209,8 @@ JUNK ::= /([ \t\r\f\v]+|(--|[/][/])[^\n\r]*([\n\r]|$)|[/][*].*?[*][/])/ ;
 <mapLiteral> ::= "{" <term> ":" <term> ( "," <term> ":" <term> )* "}"
                ;
 
-<functionName> ::= <identifier> ( ":" ":" <identifier> )?
+<functionName> ::= <identifier> ( ":" ":" <identifier> )? 
+                 | "TOKEN"
                  ;
 
 <statementBody> ::= <useStatement>
