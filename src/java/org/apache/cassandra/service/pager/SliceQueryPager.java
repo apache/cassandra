@@ -27,6 +27,7 @@ import org.apache.cassandra.db.composites.Composite;
 import org.apache.cassandra.db.filter.SliceQueryFilter;
 import org.apache.cassandra.exceptions.RequestValidationException;
 import org.apache.cassandra.exceptions.RequestExecutionException;
+import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.StorageProxy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -39,19 +40,21 @@ public class SliceQueryPager extends AbstractQueryPager implements SinglePartiti
     private static final Logger logger = LoggerFactory.getLogger(SliceQueryPager.class);
 
     private final SliceFromReadCommand command;
+    private final ClientState cstate;
 
     private volatile Composite lastReturned;
 
     // Don't use directly, use QueryPagers method instead
-    SliceQueryPager(SliceFromReadCommand command, ConsistencyLevel consistencyLevel, boolean localQuery)
+    SliceQueryPager(SliceFromReadCommand command, ConsistencyLevel consistencyLevel, ClientState cstate, boolean localQuery)
     {
         super(consistencyLevel, command.filter.count, localQuery, command.ksName, command.cfName, command.filter, command.timestamp);
         this.command = command;
+        this.cstate = cstate;
     }
 
-    SliceQueryPager(SliceFromReadCommand command, ConsistencyLevel consistencyLevel, boolean localQuery, PagingState state)
+    SliceQueryPager(SliceFromReadCommand command, ConsistencyLevel consistencyLevel, ClientState cstate, boolean localQuery, PagingState state)
     {
-        this(command, consistencyLevel, localQuery);
+        this(command, consistencyLevel, cstate, localQuery);
 
         if (state != null)
         {
@@ -86,7 +89,7 @@ public class SliceQueryPager extends AbstractQueryPager implements SinglePartiti
         ReadCommand pageCmd = command.withUpdatedFilter(filter);
         return localQuery
              ? Collections.singletonList(pageCmd.getRow(Keyspace.open(command.ksName)))
-             : StorageProxy.read(Collections.singletonList(pageCmd), consistencyLevel);
+             : StorageProxy.read(Collections.singletonList(pageCmd), consistencyLevel, cstate);
     }
 
     protected boolean containsPreviousLast(Row first)

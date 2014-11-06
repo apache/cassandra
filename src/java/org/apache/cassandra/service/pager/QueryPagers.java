@@ -29,6 +29,7 @@ import org.apache.cassandra.db.filter.SliceQueryFilter;
 import org.apache.cassandra.db.columniterator.IdentityQueryFilter;
 import org.apache.cassandra.exceptions.RequestExecutionException;
 import org.apache.cassandra.exceptions.RequestValidationException;
+import org.apache.cassandra.service.ClientState;
 
 /**
  * Static utility methods to create query pagers.
@@ -82,27 +83,27 @@ public class QueryPagers
         }
     }
 
-    private static QueryPager pager(ReadCommand command, ConsistencyLevel consistencyLevel, boolean local, PagingState state)
+    private static QueryPager pager(ReadCommand command, ConsistencyLevel consistencyLevel, ClientState cState, boolean local, PagingState state)
     {
         if (command instanceof SliceByNamesReadCommand)
-            return new NamesQueryPager((SliceByNamesReadCommand)command, consistencyLevel, local);
+            return new NamesQueryPager((SliceByNamesReadCommand)command, consistencyLevel, cState, local);
         else
-            return new SliceQueryPager((SliceFromReadCommand)command, consistencyLevel, local, state);
+            return new SliceQueryPager((SliceFromReadCommand)command, consistencyLevel, cState, local, state);
     }
 
-    private static QueryPager pager(Pageable command, ConsistencyLevel consistencyLevel, boolean local, PagingState state)
+    private static QueryPager pager(Pageable command, ConsistencyLevel consistencyLevel, ClientState cState, boolean local, PagingState state)
     {
         if (command instanceof Pageable.ReadCommands)
         {
             List<ReadCommand> commands = ((Pageable.ReadCommands)command).commands;
             if (commands.size() == 1)
-                return pager(commands.get(0), consistencyLevel, local, state);
+                return pager(commands.get(0), consistencyLevel, cState, local, state);
 
-            return new MultiPartitionPager(commands, consistencyLevel, local, state);
+            return new MultiPartitionPager(commands, consistencyLevel, cState, local, state);
         }
         else if (command instanceof ReadCommand)
         {
-            return pager((ReadCommand)command, consistencyLevel, local, state);
+            return pager((ReadCommand)command, consistencyLevel, cState, local, state);
         }
         else
         {
@@ -115,19 +116,19 @@ public class QueryPagers
         }
     }
 
-    public static QueryPager pager(Pageable command, ConsistencyLevel consistencyLevel)
+    public static QueryPager pager(Pageable command, ConsistencyLevel consistencyLevel, ClientState cState)
     {
-        return pager(command, consistencyLevel, false, null);
+        return pager(command, consistencyLevel, cState, false, null);
     }
 
-    public static QueryPager pager(Pageable command, ConsistencyLevel consistencyLevel, PagingState state)
+    public static QueryPager pager(Pageable command, ConsistencyLevel consistencyLevel, ClientState cState, PagingState state)
     {
-        return pager(command, consistencyLevel, false, state);
+        return pager(command, consistencyLevel, cState, false, state);
     }
 
     public static QueryPager localPager(Pageable command)
     {
-        return pager(command, null, true, null);
+        return pager(command, null, null, true, null);
     }
 
     /**
@@ -137,7 +138,7 @@ public class QueryPagers
     public static Iterator<ColumnFamily> pageRowLocally(final ColumnFamilyStore cfs, ByteBuffer key, final int pageSize)
     {
         SliceFromReadCommand command = new SliceFromReadCommand(cfs.metadata.ksName, key, cfs.name, System.currentTimeMillis(), new IdentityQueryFilter());
-        final SliceQueryPager pager = new SliceQueryPager(command, null, true);
+        final SliceQueryPager pager = new SliceQueryPager(command, null, null, true);
 
         return new Iterator<ColumnFamily>()
         {
@@ -176,11 +177,12 @@ public class QueryPagers
                                  ByteBuffer key,
                                  SliceQueryFilter filter,
                                  ConsistencyLevel consistencyLevel,
+                                 ClientState cState,
                                  final int pageSize,
                                  long now) throws RequestValidationException, RequestExecutionException
     {
         SliceFromReadCommand command = new SliceFromReadCommand(keyspace, key, columnFamily, now, filter);
-        final SliceQueryPager pager = new SliceQueryPager(command, consistencyLevel, false);
+        final SliceQueryPager pager = new SliceQueryPager(command, consistencyLevel, cState, false);
 
         ColumnCounter counter = filter.columnCounter(Schema.instance.getCFMetaData(keyspace, columnFamily).comparator, now);
         while (!pager.isExhausted())

@@ -286,7 +286,7 @@ public class BatchStatement implements CQLStatement, MeasurableForPreparedCache
             throw new InvalidRequestException("Invalid empty serial consistency level");
 
         if (hasConditions)
-            return executeWithConditions(options, now);
+            return executeWithConditions(options, queryState);
 
         executeWithoutConditions(getMutations(options, local, now), options.getConsistency());
         return new ResultMessage.Void();
@@ -308,9 +308,10 @@ public class BatchStatement implements CQLStatement, MeasurableForPreparedCache
         StorageProxy.mutateWithTriggers(mutations, cl, mutateAtomic);
     }
 
-    private ResultMessage executeWithConditions(BatchQueryOptions options, long now)
+    private ResultMessage executeWithConditions(BatchQueryOptions options, QueryState state)
     throws RequestExecutionException, RequestValidationException
     {
+        long now = state.getTimestamp();
         ByteBuffer key = null;
         String ksName = null;
         String cfName = null;
@@ -350,7 +351,7 @@ public class BatchStatement implements CQLStatement, MeasurableForPreparedCache
             casRequest.addRowUpdate(clusteringPrefix, statement, statementOptions, timestamp);
         }
 
-        ColumnFamily result = StorageProxy.cas(ksName, cfName, key, casRequest, options.getSerialConsistency(), options.getConsistency());
+        ColumnFamily result = StorageProxy.cas(ksName, cfName, key, casRequest, options.getSerialConsistency(), options.getConsistency(), state.getClientState());
 
         return new ResultMessage.Rows(ModificationStatement.buildCasResultSet(ksName, key, cfName, result, columnsWithConditions, true, options.forStatement(0)));
     }
