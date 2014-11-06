@@ -524,7 +524,8 @@ public abstract class ModificationStatement implements CQLStatement, MeasurableF
                                                key,
                                                request,
                                                options.getSerialConsistency(),
-                                               options.getConsistency());
+                                               options.getConsistency(),
+                                               queryState.getClientState());
         return new ResultMessage.Rows(buildCasResultSet(key, result, options));
     }
 

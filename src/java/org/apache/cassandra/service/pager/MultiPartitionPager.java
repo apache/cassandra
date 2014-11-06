@@ -23,6 +23,7 @@ import java.util.List;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.exceptions.RequestValidationException;
 import org.apache.cassandra.exceptions.RequestExecutionException;
+import org.apache.cassandra.service.ClientState;
 
 /**
  * Pager over a list of ReadCommand.
@@ -46,7 +47,7 @@ class MultiPartitionPager implements QueryPager
     private int remaining;
     private int current;
 
-    MultiPartitionPager(List<ReadCommand> commands, ConsistencyLevel consistencyLevel, boolean localQuery, PagingState state)
+    MultiPartitionPager(List<ReadCommand> commands, ConsistencyLevel consistencyLevel, ClientState cState, boolean localQuery, PagingState state)
     {
         int i = 0;
         // If it's not the beginning (state != null), we need to find where we were and skip previous commands
@@ -65,7 +66,7 @@ class MultiPartitionPager implements QueryPager
 
         pagers = new SinglePartitionPager[commands.size() - i];
         // 'i' is on the first non exhausted pager for the previous page (or the first one)
-        pagers[0] = makePager(commands.get(i), consistencyLevel, localQuery, state);
+        pagers[0] = makePager(commands.get(i), consistencyLevel, cState, localQuery, state);
         timestamp = commands.get(i).timestamp;
 
         // Following ones haven't been started yet
@@ -74,16 +75,16 @@ class MultiPartitionPager implements QueryPager
             ReadCommand command = commands.get(j);
             if (command.timestamp != timestamp)
                 throw new IllegalArgumentException("All commands must have the same timestamp or weird results may happen.");
-            pagers[j - i] = makePager(command, consistencyLevel, localQuery, null);
+            pagers[j - i] = makePager(command, consistencyLevel, cState, localQuery, null);
         }
         remaining = state == null ? computeRemaining(pagers) : state.remaining;
     }
 
-    private static SinglePartitionPager makePager(ReadCommand command, ConsistencyLevel consistencyLevel, boolean localQuery, PagingState state)
+    private static SinglePartitionPager makePager(ReadCommand command, ConsistencyLevel consistencyLevel, ClientState cState, boolean localQuery, PagingState state)
     {
         return command instanceof SliceFromReadCommand
-             ? new SliceQueryPager((SliceFromReadCommand)command, consistencyLevel, localQuery, state)
-             : new NamesQueryPager((SliceByNamesReadCommand)command, consistencyLevel, localQuery);
+             ? new SliceQueryPager((SliceFromReadCommand)command, consistencyLevel, cState, localQuery, state)
+             : new NamesQueryPager((SliceByNamesReadCommand)command, consistencyLevel, cState, localQuery);
     }
 
     private static int computeRemaining(SinglePartitionPager[] pagers)
