@@ -33,6 +33,8 @@
 2.1.3
  * Fix overflow on histogram computation (CASSANDRA-8028)
  * Have paxos reuse the timestamp generation of normal queries (CASSANDRA-7801)
+Merged from 2.0:
+ * Improve PropertyFileSnitch logging (CASSANDRA-8183)
 
 2.1.2
  * (cqlsh) parse_for_table_meta errors out on queries with undefined
