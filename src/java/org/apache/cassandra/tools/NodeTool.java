@@ -897,18 +897,38 @@ public class NodeTool
             long[] estimatedRowSize = (long[]) probe.getColumnFamilyMetric(keyspace, cfname, "EstimatedRowSizeHistogram");
             long[] estimatedColumnCount = (long[]) probe.getColumnFamilyMetric(keyspace, cfname, "EstimatedColumnCountHistogram");
 
-            long[] bucketOffsets = new EstimatedHistogram().getBucketOffsets();
-            EstimatedHistogram rowSizeHist = new EstimatedHistogram(bucketOffsets, estimatedRowSize);
-            EstimatedHistogram columnCountHist = new EstimatedHistogram(bucketOffsets, estimatedColumnCount);
+            long[] rowSizeBucketOffsets = new EstimatedHistogram(estimatedRowSize.length).getBucketOffsets();
+            long[] columnCountBucketOffsets = new EstimatedHistogram(estimatedColumnCount.length).getBucketOffsets();
+            EstimatedHistogram rowSizeHist = new EstimatedHistogram(rowSizeBucketOffsets, estimatedRowSize);
+            EstimatedHistogram columnCountHist = new EstimatedHistogram(columnCountBucketOffsets, estimatedColumnCount);
 
             // build arrays to store percentile values
             double[] estimatedRowSizePercentiles = new double[7];
             double[] estimatedColumnCountPercentiles = new double[7];
             double[] offsetPercentiles = new double[]{0.5, 0.75, 0.95, 0.98, 0.99};
-            for (int i = 0; i < offsetPercentiles.length; i++)
+
+            if (rowSizeHist.isOverflowed())
             {
-                estimatedRowSizePercentiles[i] = rowSizeHist.percentile(offsetPercentiles[i]);
-                estimatedColumnCountPercentiles[i] = columnCountHist.percentile(offsetPercentiles[i]);
+                System.err.println(String.format("Row sizes are larger than %s, unable to calculate percentiles", rowSizeBucketOffsets[rowSizeBucketOffsets.length - 1]));
+                for (int i = 0; i < offsetPercentiles.length; i++)
+                        estimatedRowSizePercentiles[i] = Double.NaN;
+            }
+            else
+            {
+                for (int i = 0; i < offsetPercentiles.length; i++)
+                    estimatedRowSizePercentiles[i] = rowSizeHist.percentile(offsetPercentiles[i]);
+            }
+
+            if (columnCountHist.isOverflowed())
+            {
+                System.err.println(String.format("Column counts are larger than %s, unable to calculate percentiles", columnCountBucketOffsets[columnCountBucketOffsets.length - 1]));
+                for (int i = 0; i < estimatedColumnCountPercentiles.length; i++)
+                    estimatedColumnCountPercentiles[i] = Double.NaN;
+            }
+            else
+            {
+                for (int i = 0; i < offsetPercentiles.length; i++)
+                    estimatedColumnCountPercentiles[i] = columnCountHist.percentile(offsetPercentiles[i]);
             }
 
             // min value
