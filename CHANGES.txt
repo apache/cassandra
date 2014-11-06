@@ -1,4 +1,5 @@
 2.1.3
+ * Fix overflow on histogram computation (CASSANDRA-8028)
  * Have paxos reuse the timestamp generation of normal queries (CASSANDRA-7801)
 
 2.1.2

@@ -18,6 +18,7 @@
 package org.apache.cassandra.metrics;
 
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeUnit;
@@ -146,6 +147,46 @@ public class ColumnFamilyMetrics
      * Stores all metric names created that can be used when unregistering
      */
     public final static Set<String> all = Sets.newHashSet();
+
+    private interface GetHistogram
+    {
+        public EstimatedHistogram getHistogram(SSTableReader reader);
+    }
+
+    private static long[] combineHistograms(Iterable<SSTableReader> sstables, GetHistogram getHistogram)
+    {
+        Iterator<SSTableReader> iterator = sstables.iterator();
+        if (!iterator.hasNext())
+        {
+            return new long[0];
+        }
+        long[] firstBucket = getHistogram.getHistogram(iterator.next()).getBuckets(false);
+        long[] values = new long[firstBucket.length];
+        System.arraycopy(firstBucket, 0, values, 0, values.length);
+
+        while (iterator.hasNext())
+        {
+            long[] nextBucket = getHistogram.getHistogram(iterator.next()).getBuckets(false);
+            if (nextBucket.length > values.length)
+            {
+                long[] newValues = new long[nextBucket.length];
+                System.arraycopy(firstBucket, 0, newValues, 0, firstBucket.length);
+                for (int i = 0; i < newValues.length; i++)
+                {
+                    newValues[i] += nextBucket[i];
+                }
+                values = newValues;
+            }
+            else
+            {
+                for (int i = 0; i < values.length; i++)
+                {
+                    values[i] += nextBucket[i];
+                }
+            }
+        }
+        return values;
+    }
     
     /**
      * Creates metrics for given {@link ColumnFamilyStore}.
@@ -219,28 +260,26 @@ public class ColumnFamilyMetrics
         {
             public long[] value()
             {
-                long[] histogram = new long[90];
-                for (SSTableReader sstable : cfs.getSSTables())
+                return combineHistograms(cfs.getSSTables(), new GetHistogram()
                 {
-                    long[] rowSize = sstable.getEstimatedRowSize().getBuckets(false);
-                    for (int i = 0; i < histogram.length; i++)
-                        histogram[i] += rowSize[i];
-                }
-                return histogram;
+                    public EstimatedHistogram getHistogram(SSTableReader reader)
+                    {
+                        return reader.getEstimatedRowSize();
+                    }
+                });
             }
         });
         estimatedColumnCountHistogram = Metrics.newGauge(factory.createMetricName("EstimatedColumnCountHistogram"), new Gauge<long[]>()
         {
             public long[] value()
             {
-                long[] histogram = new long[90];
-                for (SSTableReader sstable : cfs.getSSTables())
+                return combineHistograms(cfs.getSSTables(), new GetHistogram()
                 {
-                    long[] columnSize = sstable.getEstimatedColumnCount().getBuckets(false);
-                    for (int i = 0; i < histogram.length; i++)
-                        histogram[i] += columnSize[i];
-                }
-                return histogram;
+                    public EstimatedHistogram getHistogram(SSTableReader reader)
+                    {
+                        return reader.getEstimatedColumnCount();
+                    }
+                });
             }
         });
         sstablesPerReadHistogram = createColumnFamilyHistogram("SSTablesPerReadHistogram", cfs.keyspace.metric.sstablesPerReadHistogram);
