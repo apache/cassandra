@@ -112,20 +112,17 @@ public class SystemKeyspace
         copyAllAliasesToColumnsProper();
 
         // add entries to system schema columnfamilies for the hardcoded system definitions
-        for (String ksname : Schema.systemKeyspaceNames)
-        {
-            KSMetaData ksmd = Schema.instance.getKSMetaData(ksname);
+        KSMetaData ksmd = Schema.instance.getKSMetaData(Keyspace.SYSTEM_KS);
 
-            // delete old, possibly obsolete entries in schema columnfamilies
-            for (String cfname : Arrays.asList(SystemKeyspace.SCHEMA_KEYSPACES_CF, SystemKeyspace.SCHEMA_COLUMNFAMILIES_CF, SystemKeyspace.SCHEMA_COLUMNS_CF))
-            {
-                String req = String.format("DELETE FROM system.%s WHERE keyspace_name = '%s'", cfname, ksmd.name);
-                processInternal(req);
-            }
+        // delete old, possibly obsolete entries in schema columnfamilies
+        for (String cfname : Arrays.asList(SystemKeyspace.SCHEMA_KEYSPACES_CF,
+                                           SystemKeyspace.SCHEMA_COLUMNFAMILIES_CF,
+                                           SystemKeyspace.SCHEMA_COLUMNS_CF,
+                                           SystemKeyspace.SCHEMA_TRIGGERS_CF))
+            processInternal(String.format("DELETE FROM system.%s WHERE keyspace_name = '%s'", cfname, ksmd.name));
 
-            // (+1 to timestamp to make sure we don't get shadowed by the tombstones we just added)
-            ksmd.toSchema(FBUtilities.timestampMicros() + 1).apply();
-        }
+        // (+1 to timestamp to make sure we don't get shadowed by the tombstones we just added)
+        ksmd.toSchema(FBUtilities.timestampMicros() + 1).apply();
     }
 
     // Starting with 2.0 (CASSANDRA-5125) we keep all the 'aliases' in system.schema_columns together with the regular columns,
