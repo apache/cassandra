@@ -1477,7 +1477,7 @@
   </target>
 
   <!-- Generate Eclipse project description files -->
-  <target name="generate-eclipse-files" depends="build" description="Generate eclipse files">
+  <target name="generate-eclipse-files" depends="build-test" description="Generate eclipse files">
     <echo file=".project"><![CDATA[<?xml version="1.0" encoding="UTF-8"?>
 <projectDescription>
   <name>${eclipse.project.name}</name>
@@ -1499,14 +1499,14 @@
   <classpathentry kind="src" path="src/java"/>
   <classpathentry kind="src" path="src/resources"/>
   <classpathentry kind="src" path="src/gen-java"/>
-  <classpathentry kind="src" path="test/unit"/>
-  <classpathentry kind="src" path="test/long"/>
-  <classpathentry kind="src" path="test/pig"/>
+  <classpathentry kind="src" output="build/test/classes" path="test/unit"/>
+  <classpathentry kind="src" output="build/test/classes" path="test/long"/>
+  <classpathentry kind="src" output="build/test/classes" path="test/pig"/>
+  <classpathentry kind="src" output="build/test/classes" path="test/resources" />
   <classpathentry kind="src" path="tools/stress/src"/>
   <classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER"/>
   <classpathentry kind="output" path="build/classes/main"/>
   <classpathentry kind="lib" path="build/classes/thrift" sourcepath="interface/thrift/gen-java/"/>
-  <classpathentry kind="lib" path="build/test/classes"/>
   <classpathentry kind="lib" path="test/conf"/>
 ]]>
 	</echo>	  
