@@ -536,6 +536,16 @@ public class LeveledManifest
         {
             Set<SSTableReader> compactingL0 = ImmutableSet.copyOf(Iterables.filter(getLevel(0), Predicates.in(compacting)));
 
+            RowPosition lastCompactingKey = null;
+            RowPosition firstCompactingKey = null;
+            for (SSTableReader candidate : compactingL0)
+            {
+                if (firstCompactingKey == null || candidate.first.compareTo(firstCompactingKey) < 0)
+                    firstCompactingKey = candidate.first;
+                if (lastCompactingKey == null || candidate.last.compareTo(lastCompactingKey) > 0)
+                    lastCompactingKey = candidate.last;
+            }
+
             // L0 is the dumping ground for new sstables which thus may overlap each other.
             //
             // We treat L0 compactions specially:
@@ -563,9 +573,7 @@ public class LeveledManifest
 
                 for (SSTableReader newCandidate : overlappedL0)
                 {
-                    // overlappedL0 could contain sstables that are not in compactingL0, but do overlap
-                    // other sstables that are
-                    if (overlapping(newCandidate, compactingL0).isEmpty())
+                    if (firstCompactingKey == null || lastCompactingKey == null || overlapping(firstCompactingKey.getToken(), lastCompactingKey.getToken(), Arrays.asList(newCandidate)).size() == 0)
                         candidates.add(newCandidate);
                     remaining.remove(newCandidate);
                 }
