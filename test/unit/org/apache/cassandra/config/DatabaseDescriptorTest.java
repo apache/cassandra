@@ -29,6 +29,7 @@ import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.locator.SimpleStrategy;
 import org.apache.cassandra.service.MigrationManager;
+import org.apache.cassandra.thrift.ThriftConversion;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
@@ -45,7 +46,7 @@ public class DatabaseDescriptorTest
         {
             for (CFMetaData cfm : Schema.instance.getKeyspaceMetaData(keyspaceName).values())
             {
-                CFMetaData cfmDupe = CFMetaData.fromThrift(cfm.toThrift());
+                CFMetaData cfmDupe = ThriftConversion.fromThrift(ThriftConversion.toThrift(cfm));
                 assertNotNull(cfmDupe);
                 assertEquals(cfm, cfmDupe);
             }
@@ -58,7 +59,7 @@ public class DatabaseDescriptorTest
         for (KSMetaData ksm : Schema.instance.getKeyspaceDefinitions())
         {
             // Not testing round-trip on the KsDef via serDe() because maps
-            KSMetaData ksmDupe = KSMetaData.fromThrift(ksm.toThrift());
+            KSMetaData ksmDupe = ThriftConversion.fromThrift(ThriftConversion.toThrift(ksm));
             assertNotNull(ksmDupe);
             assertEquals(ksm, ksmDupe);
         }

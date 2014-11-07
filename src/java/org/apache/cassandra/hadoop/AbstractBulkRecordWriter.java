@@ -40,11 +40,7 @@ import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.SSTableLoader;
 import org.apache.cassandra.streaming.StreamState;
-import org.apache.cassandra.thrift.AuthenticationRequest;
-import org.apache.cassandra.thrift.Cassandra;
-import org.apache.cassandra.thrift.CfDef;
-import org.apache.cassandra.thrift.KsDef;
-import org.apache.cassandra.thrift.TokenRange;
+import org.apache.cassandra.thrift.*;
 import org.apache.cassandra.utils.OutputHandler;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.mapreduce.RecordWriter;
@@ -220,7 +216,7 @@ implements org.apache.hadoop.mapred.RecordWriter<K, V>
                     {
                         Map<String, CFMetaData> cfs = new HashMap<>(ksDef.cf_defs.size());
                         for (CfDef cfDef : ksDef.cf_defs)
-                            cfs.put(cfDef.name, CFMetaData.fromThrift(cfDef));
+                            cfs.put(cfDef.name, ThriftConversion.fromThrift(cfDef));
                         knownCfs.put(ksDef.name, cfs);
                     }
                     break;

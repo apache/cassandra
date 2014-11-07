@@ -1124,7 +1124,7 @@ public class CassandraServer implements Cassandra.Iface
         if (ksm == null)
             throw new NotFoundException();
 
-        return ksm.toThrift();
+        return ThriftConversion.toThrift(ksm);
     }
 
     public List<KeySlice> get_range_slices(ColumnParent column_parent, SlicePredicate predicate, KeyRange range, ConsistencyLevel consistency_level)
@@ -1186,7 +1186,7 @@ public class CassandraServer implements Cassandra.Iface
                                                                         now,
                                                                         filter,
                                                                         bounds,
-                                                                        ThriftConversion.fromThrift(range.row_filter),
+                                                                        ThriftConversion.indexExpressionsFromThrift(range.row_filter),
                                                                         range.count),
                                                   consistencyLevel);
             }
@@ -1354,7 +1354,7 @@ public class CassandraServer implements Cassandra.Iface
                                                               now,
                                                               filter,
                                                               bounds,
-                                                              ThriftConversion.fromThrift(index_clause.expressions),
+                                                              ThriftConversion.indexExpressionsFromThrift(index_clause.expressions),
                                                               index_clause.count);
 
             List<Row> rows = StorageProxy.getRangeSlice(command, consistencyLevel);
@@ -1531,7 +1531,7 @@ public class CassandraServer implements Cassandra.Iface
             String keyspace = cState.getKeyspace();
             cState.hasKeyspaceAccess(keyspace, Permission.CREATE);
             cf_def.unsetId(); // explicitly ignore any id set by client (Hector likes to set zero)
-            CFMetaData cfm = CFMetaData.fromThrift(cf_def);
+            CFMetaData cfm = ThriftConversion.fromThrift(cf_def);
             CFMetaData.validateCompactionOptions(cfm.compactionStrategyClass, cfm.compactionStrategyOptions);
             cfm.addDefaultIndexNames();
 
@@ -1591,7 +1591,7 @@ public class CassandraServer implements Cassandra.Iface
             for (CfDef cf_def : ks_def.cf_defs)
             {
                 cf_def.unsetId(); // explicitly ignore any id set by client (same as system_add_column_family)
-                CFMetaData cfm = CFMetaData.fromThrift(cf_def);
+                CFMetaData cfm = ThriftConversion.fromThrift(cf_def);
                 cfm.addDefaultIndexNames();
 
                 if (!cfm.getTriggers().isEmpty())
@@ -1599,7 +1599,7 @@ public class CassandraServer implements Cassandra.Iface
 
                 cfDefs.add(cfm);
             }
-            MigrationManager.announceNewKeyspace(KSMetaData.fromThrift(ks_def, cfDefs.toArray(new CFMetaData[cfDefs.size()])));
+            MigrationManager.announceNewKeyspace(ThriftConversion.fromThrift(ks_def, cfDefs.toArray(new CFMetaData[cfDefs.size()])));
             return Schema.instance.getVersion().toString();
         }
         catch (RequestValidationException e)
@@ -1643,7 +1643,7 @@ public class CassandraServer implements Cassandra.Iface
             if (ks_def.getCf_defs() != null && ks_def.getCf_defs().size() > 0)
                 throw new InvalidRequestException("Keyspace update must not contain any table definitions.");
 
-            MigrationManager.announceKeyspaceUpdate(KSMetaData.fromThrift(ks_def));
+            MigrationManager.announceKeyspaceUpdate(ThriftConversion.fromThrift(ks_def));
             return Schema.instance.getVersion().toString();
         }
         catch (RequestValidationException e)
@@ -1671,7 +1671,7 @@ public class CassandraServer implements Cassandra.Iface
             if (!oldCfm.isThriftCompatible())
                 throw new InvalidRequestException("Cannot modify CQL3 table " + oldCfm.cfName + " as it may break the schema. You should use cqlsh to modify CQL3 tables instead.");
 
-            CFMetaData cfm = CFMetaData.fromThriftForUpdate(cf_def, oldCfm);
+            CFMetaData cfm = ThriftConversion.fromThriftForUpdate(cf_def, oldCfm);
             CFMetaData.validateCompactionOptions(cfm.compactionStrategyClass, cfm.compactionStrategyOptions);
             cfm.addDefaultIndexNames();
 

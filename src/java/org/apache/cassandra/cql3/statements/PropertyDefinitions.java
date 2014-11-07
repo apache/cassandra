@@ -94,8 +94,8 @@ public class PropertyDefinitions
         return (value == null) ? defaultValue : value.toLowerCase().matches("(1|true|yes)");
     }
 
-    // Return a property value, typed as a Double
-    public Double getDouble(String key, Double defaultValue) throws SyntaxException
+    // Return a property value, typed as a double
+    public double getDouble(String key, double defaultValue) throws SyntaxException
     {
         String value = getSimple(key);
         if (value == null)

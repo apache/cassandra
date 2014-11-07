@@ -22,16 +22,12 @@ import java.util.*;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Objects;
-import com.google.common.collect.Maps;
 
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.composites.Composite;
 import org.apache.cassandra.db.marshal.*;
-import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.exceptions.*;
-import org.apache.cassandra.thrift.ColumnDef;
-import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 
 import static org.apache.cassandra.utils.FBUtilities.json;
@@ -239,15 +235,6 @@ public class ColumnDefinition extends ColumnSpecification
         return kind == Kind.PARTITION_KEY || kind == Kind.CLUSTERING_COLUMN;
     }
 
-    public static List<ColumnDef> toThrift(Map<ByteBuffer, ColumnDefinition> columns)
-    {
-        List<ColumnDef> thriftDefs = new ArrayList<>(columns.size());
-        for (ColumnDefinition def : columns.values())
-            if (def.kind == ColumnDefinition.Kind.REGULAR)
-                thriftDefs.add(def.toThrift());
-        return thriftDefs;
-    }
-
     /**
      * Whether the name of this definition is serialized in the cell nane, i.e. whether
      * it's not just a non-stored CQL metadata.
@@ -255,56 +242,6 @@ public class ColumnDefinition extends ColumnSpecification
     public boolean isPartOfCellName()
     {
         return kind == Kind.REGULAR || kind == Kind.STATIC;
-    }
-
-    public ColumnDef toThrift()
-    {
-        ColumnDef cd = new ColumnDef();
-
-        cd.setName(ByteBufferUtil.clone(name.bytes));
-        cd.setValidation_class(type.toString());
-        cd.setIndex_type(indexType == null ? null : org.apache.cassandra.thrift.IndexType.valueOf(indexType.name()));
-        cd.setIndex_name(indexName == null ? null : indexName);
-        cd.setIndex_options(indexOptions == null ? null : Maps.newHashMap(indexOptions));
-
-        return cd;
-    }
-
-    public static ColumnDefinition fromThrift(String ksName, String cfName, AbstractType<?> thriftComparator, AbstractType<?> thriftSubcomparator, ColumnDef thriftColumnDef) throws SyntaxException, ConfigurationException
-    {
-        // For super columns, the componentIndex is 1 because the ColumnDefinition applies to the column component.
-        Integer componentIndex = thriftSubcomparator != null ? 1 : null;
-        AbstractType<?> comparator = thriftSubcomparator == null ? thriftComparator : thriftSubcomparator;
-        try
-        {
-            comparator.validate(thriftColumnDef.name);
-        }
-        catch (MarshalException e)
-        {
-            throw new ConfigurationException(String.format("Column name %s is not valid for comparator %s", ByteBufferUtil.bytesToHex(thriftColumnDef.name), comparator));
-        }
-
-        return new ColumnDefinition(ksName,
-                                    cfName,
-                                    new ColumnIdentifier(ByteBufferUtil.clone(thriftColumnDef.name), comparator),
-                                    TypeParser.parse(thriftColumnDef.validation_class),
-                                    thriftColumnDef.index_type == null ? null : IndexType.valueOf(thriftColumnDef.index_type.name()),
-                                    thriftColumnDef.index_options,
-                                    thriftColumnDef.index_name,
-                                    componentIndex,
-                                    Kind.REGULAR);
-    }
-
-    public static List<ColumnDefinition> fromThrift(String ksName, String cfName, AbstractType<?> thriftComparator, AbstractType<?> thriftSubcomparator, List<ColumnDef> thriftDefs) throws SyntaxException, ConfigurationException
-    {
-        if (thriftDefs == null)
-            return Collections.emptyList();
-
-        List<ColumnDefinition> defs = new ArrayList<>(thriftDefs.size());
-        for (ColumnDef thriftColumnDef : thriftDefs)
-            defs.add(fromThrift(ksName, cfName, thriftComparator, thriftSubcomparator, thriftColumnDef));
-
-        return defs;
     }
 
     /**

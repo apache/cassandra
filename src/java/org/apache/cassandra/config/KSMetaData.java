@@ -28,8 +28,6 @@ import org.apache.cassandra.db.*;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.locator.*;
 import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.thrift.CfDef;
-import org.apache.cassandra.thrift.KsDef;
 import org.apache.cassandra.tracing.Tracing;
 
 import static org.apache.cassandra.utils.FBUtilities.*;
@@ -44,7 +42,11 @@ public final class KSMetaData
 
     public final UTMetaData userTypes;
 
-    KSMetaData(String name, Class<? extends AbstractReplicationStrategy> strategyClass, Map<String, String> strategyOptions, boolean durableWrites, Iterable<CFMetaData> cfDefs)
+    public KSMetaData(String name,
+                      Class<? extends AbstractReplicationStrategy> strategyClass,
+                      Map<String, String> strategyOptions,
+                      boolean durableWrites,
+                      Iterable<CFMetaData> cfDefs)
     {
         this(name, strategyClass, strategyOptions, durableWrites, cfDefs, new UTMetaData());
     }
@@ -171,35 +173,6 @@ public final class KSMetaData
     public static Map<String,String> optsWithRF(final Integer rf)
     {
         return Collections.singletonMap("replication_factor", rf.toString());
-    }
-
-    public static KSMetaData fromThrift(KsDef ksd, CFMetaData... cfDefs) throws ConfigurationException
-    {
-        Class<? extends AbstractReplicationStrategy> cls = AbstractReplicationStrategy.getClass(ksd.strategy_class);
-        if (cls.equals(LocalStrategy.class))
-            throw new ConfigurationException("Unable to use given strategy class: LocalStrategy is reserved for internal use.");
-
-        return new KSMetaData(ksd.name,
-                              cls,
-                              ksd.strategy_options == null ? Collections.<String, String>emptyMap() : ksd.strategy_options,
-                              ksd.durable_writes,
-                              Arrays.asList(cfDefs));
-    }
-
-    public KsDef toThrift()
-    {
-        List<CfDef> cfDefs = new ArrayList<>(cfMetaData.size());
-        for (CFMetaData cfm : cfMetaData().values())
-        {
-            // Don't expose CF that cannot be correctly handle by thrift; see CASSANDRA-4377 for further details
-            if (cfm.isThriftCompatible())
-                cfDefs.add(cfm.toThrift());
-        }
-        KsDef ksdef = new KsDef(name, strategyClass.getName(), cfDefs);
-        ksdef.setStrategy_options(strategyOptions);
-        ksdef.setDurable_writes(durableWrites);
-
-        return ksdef;
     }
 
     public Mutation toSchemaUpdate(KSMetaData newState, long modificationTimestamp)

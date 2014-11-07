@@ -36,13 +36,12 @@ import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.thrift.CfDef;
 import org.apache.cassandra.thrift.ColumnDef;
 import org.apache.cassandra.thrift.IndexType;
+import org.apache.cassandra.thrift.ThriftConversion;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import static org.hamcrest.CoreMatchers.is;
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertThat;
 
 public class CFMetaDataTest
 {
@@ -82,14 +81,14 @@ public class CFMetaDataTest
                                  .setName(CF_STANDARD1);
 
         // convert Thrift to CFMetaData
-        CFMetaData cfMetaData = CFMetaData.fromThrift(cfDef);
+        CFMetaData cfMetaData = ThriftConversion.fromThrift(cfDef);
 
         CfDef thriftCfDef = new CfDef();
         thriftCfDef.keyspace = KEYSPACE1;
         thriftCfDef.name = CF_STANDARD1;
         thriftCfDef.default_validation_class = cfDef.default_validation_class;
         thriftCfDef.comment = cfDef.comment;
-        thriftCfDef.column_metadata = new ArrayList<ColumnDef>();
+        thriftCfDef.column_metadata = new ArrayList<>();
         for (ColumnDef columnDef : columnDefs)
         {
             ColumnDef c = new ColumnDef();
@@ -100,7 +99,7 @@ public class CFMetaDataTest
             thriftCfDef.column_metadata.add(c);
         }
 
-        CfDef converted = cfMetaData.toThrift();
+        CfDef converted = ThriftConversion.toThrift(cfMetaData);
 
         assertEquals(thriftCfDef.keyspace, converted.keyspace);
         assertEquals(thriftCfDef.name, converted.name);
@@ -136,7 +135,7 @@ public class CFMetaDataTest
 
         // Test thrift conversion
         CFMetaData before = cfm;
-        CFMetaData after = CFMetaData.fromThriftForUpdate(before.toThrift(), before);
+        CFMetaData after = ThriftConversion.fromThriftForUpdate(ThriftConversion.toThrift(before), before);
         assert before.equals(after) : String.format("%n%s%n!=%n%s", before, after);
 
         // Test schema conversion

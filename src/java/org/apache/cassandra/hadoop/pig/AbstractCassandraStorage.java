@@ -777,7 +777,7 @@ public abstract class AbstractCassandraStorage extends LoadFunc implements Store
         for (CfDef cfDef : ksDef.cf_defs)
         {
             if (cfDef.name.equalsIgnoreCase(cf))
-                return CFMetaData.fromThrift(cfDef);
+                return ThriftConversion.fromThrift(cfDef);
         }
         return null;
     }

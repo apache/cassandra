@@ -161,7 +161,7 @@ public class ThriftValidationTest
 
         try
         {
-            KSMetaData.fromThrift(ks_def).validate();
+            ThriftConversion.fromThrift(ks_def).validate();
         }
         catch (ConfigurationException e)
         {
@@ -176,7 +176,7 @@ public class ThriftValidationTest
 
         try
         {
-            KSMetaData.fromThrift(ks_def).validate();
+            ThriftConversion.fromThrift(ks_def).validate();
         }
         catch (ConfigurationException e)
         {
@@ -191,7 +191,7 @@ public class ThriftValidationTest
 
         try
         {
-            KSMetaData.fromThrift(ks_def).validate();
+            ThriftConversion.fromThrift(ks_def).validate();
         }
         catch (ConfigurationException e)
         {
