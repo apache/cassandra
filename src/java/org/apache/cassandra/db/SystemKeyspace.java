@@ -120,7 +120,8 @@ public class SystemKeyspace
         for (String cfname : Arrays.asList(SystemKeyspace.SCHEMA_KEYSPACES_CF,
                                            SystemKeyspace.SCHEMA_COLUMNFAMILIES_CF,
                                            SystemKeyspace.SCHEMA_COLUMNS_CF,
-                                           SystemKeyspace.SCHEMA_TRIGGERS_CF))
+                                           SystemKeyspace.SCHEMA_TRIGGERS_CF,
+                                           SystemKeyspace.SCHEMA_USER_TYPES_CF))
             executeOnceInternal(String.format("DELETE FROM system.%s WHERE keyspace_name = ?", cfname), ksmd.name);
 
         // (+1 to timestamp to make sure we don't get shadowed by the tombstones we just added)
