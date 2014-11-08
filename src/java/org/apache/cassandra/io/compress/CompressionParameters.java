@@ -225,6 +225,10 @@ public class CompressionParameters
 
     /**
      * Parse the chunk length (in KB) and returns it as bytes.
+     * 
+     * @param chLengthKB the length of the chunk to parse
+     * @return the chunk length in bytes
+     * @throws ConfigurationException if the chunk size is too large
      */
     public static Integer parseChunkLength(String chLengthKB) throws ConfigurationException
     {

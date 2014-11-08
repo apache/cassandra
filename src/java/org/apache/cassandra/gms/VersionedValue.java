@@ -43,9 +43,9 @@ import org.apache.commons.lang3.StringUtils;
  * application wants to make available to the rest of the nodes in the cluster.
  * Whenever a piece of state needs to be disseminated to the rest of cluster wrap
  * the state in an instance of <i>ApplicationState</i> and add it to the Gossiper.
- * <p/>
+ * <p></p>
  * e.g. if we want to disseminate load information for node A do the following:
- * <p/>
+ * <p></p>
  * ApplicationState loadState = new ApplicationState(<string representation of load>);
  * Gossiper.instance.addApplicationState("LOAD STATE", loadState);
  */

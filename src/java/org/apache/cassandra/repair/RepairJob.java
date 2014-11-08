@@ -50,6 +50,7 @@ public class RepairJob extends AbstractFuture<RepairResult> implements Runnable
      * @param session RepairSession that this RepairJob belongs
      * @param columnFamily name of the ColumnFamily to repair
      * @param isSequential when true, validation runs sequentially among replica
+     * @param repairedAt when the repair occurred (millis)
      * @param taskExecutor Executor to run various repair tasks
      */
     public RepairJob(RepairSession session,

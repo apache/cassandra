@@ -67,8 +67,6 @@ public abstract class AbstractColumnFamilyOutputFormat<K, Y> extends OutputForma
      *
      * @param context
      *            information about the job
-     * @throws IOException
-     *             when output should not be attempted
      */
     public void checkOutputSpecs(JobContext context)
     {

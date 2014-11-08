@@ -91,8 +91,6 @@ public class CassandraDaemon
      * This is a hook for concrete daemons to initialize themselves suitably.
      *
      * Subclasses should override this to finish the job (listening on ports, etc.)
-     *
-     * @throws IOException
      */
     protected void setup()
     {

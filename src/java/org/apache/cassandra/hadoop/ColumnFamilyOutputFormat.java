@@ -60,7 +60,6 @@ public class ColumnFamilyOutputFormat extends AbstractColumnFamilyOutputFormat<B
      * @param context
      *            the information about the current task.
      * @return a {@link RecordWriter} to write the output for the job.
-     * @throws IOException
      */
     public ColumnFamilyRecordWriter getRecordWriter(final TaskAttemptContext context) throws InterruptedException
     {

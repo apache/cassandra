@@ -340,6 +340,8 @@ public class CompressionMetadata
         /**
          * Reset the writer so that the next chunk offset written will be the
          * one of {@code chunkIndex}.
+         * 
+         * @param chunkIndex the next index to write
          */
         public void resetAndTruncate(int chunkIndex)
         {

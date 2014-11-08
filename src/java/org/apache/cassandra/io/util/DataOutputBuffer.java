@@ -74,6 +74,8 @@ public final class DataOutputBuffer extends DataOutputStreamPlus
     /**
      * Returns the current contents of the buffer. Data is only valid to
      * {@link #getLength()}.
+     * 
+     * @return the buffer contents
      */
     public byte[] getData()
     {
@@ -93,7 +95,7 @@ public final class DataOutputBuffer extends DataOutputStreamPlus
         return ByteBuffer.wrap(out.buf, 0, out.count);
     }
 
-    /** Returns the length of the valid data currently in the buffer. */
+    /** @return the length of the valid data currently in the buffer. */
     public int getLength()
     {
         return ((FastByteArrayOutputStream) out).count;

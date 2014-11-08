@@ -106,10 +106,13 @@ public class RepairSession extends AbstractFuture<List<RepairResult>> implements
     /**
      * Create new repair session.
      *
+     * @param parentRepairSession the parent sessions id
+     * @param id this sessions id
      * @param range range to repair
      * @param keyspace name of keyspace
      * @param isSequential true if performing repair on snapshots sequentially
      * @param endpoints the data centers that should be part of the repair; null for all DCs
+     * @param repairedAt when the repair occurred (millis)
      * @param cfnames names of columnfamilies
      */
     public RepairSession(UUID parentRepairSession,

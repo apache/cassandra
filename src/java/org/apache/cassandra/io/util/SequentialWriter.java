@@ -322,11 +322,13 @@ public class SequentialWriter extends OutputStream implements WritableByteChanne
     }
 
     /**
-     * Return the current file pointer of the underlying on-disk file.
+     * Returns the current file pointer of the underlying on-disk file.
      * Note that since write works by buffering data, the value of this will increase by buffer
      * size and not every write to the writer will modify this value.
      * Furthermore, for compressed files, this value refers to compressed data, while the
      * writer getFilePointer() refers to uncompressedFile
+     * 
+     * @return the current file pointer
      */
     public long getOnDiskFilePointer()
     {
