@@ -327,6 +327,7 @@
           <dependency groupId="org.antlr" artifactId="antlr-runtime" version="3.5.2"/>
           <dependency groupId="org.antlr" artifactId="stringtemplate" version="4.0.2"/>
           <dependency groupId="org.slf4j" artifactId="slf4j-api" version="1.7.2"/>
+          <dependency groupId="org.slf4j" artifactId="log4j-over-slf4j" version="1.7.2"/>
           <dependency groupId="ch.qos.logback" artifactId="logback-core" version="1.1.2"/>
           <dependency groupId="ch.qos.logback" artifactId="logback-classic" version="1.1.2"/>
           <dependency groupId="org.codehaus.jackson" artifactId="jackson-core-asl" version="1.9.2"/>
@@ -335,7 +336,7 @@
           <dependency groupId="com.boundary" artifactId="high-scale-lib" version="1.0.6"/>
           <dependency groupId="com.github.jbellis" artifactId="jamm" version="0.2.8"/>
           <dependency groupId="com.thinkaurelius.thrift" artifactId="thrift-server" version="0.3.7">
-	   	<exclusion groupId="org.slf4j" artifactId="slf4j-log4j12"/>
+            <exclusion groupId="org.slf4j" artifactId="slf4j-log4j12"/>
           </dependency>
           <dependency groupId="org.yaml" artifactId="snakeyaml" version="1.11"/>
           <dependency groupId="org.apache.thrift" artifactId="libthrift" version="0.9.1"/>
@@ -374,7 +375,9 @@
           <dependency groupId="org.javassist" artifactId="javassist" version="3.18.2-GA" />
           <dependency groupId="net.sf.supercsv" artifactId="super-csv" version="2.1.0" />
 	      <dependency groupId="net.ju-n.compile-command-annotations" artifactId="compile-command-annotations" version="1.2.0" />
-          <dependency groupId="org.fusesource" artifactId="sigar" version="1.6.4" />
+          <dependency groupId="org.fusesource" artifactId="sigar" version="1.6.4">
+          	<exclusion groupId="log4j" artifactId="log4j"/>
+          </dependency>
         </dependencyManagement>
         <developer id="alakshman" name="Avinash Lakshman"/>
         <developer id="aleksey" name="Aleksey Yeschenko"/>
@@ -468,6 +471,7 @@
         <dependency groupId="org.antlr" artifactId="antlr-runtime"/>
         <dependency groupId="org.antlr" artifactId="stringtemplate" version="4.0.2"/>
         <dependency groupId="org.slf4j" artifactId="slf4j-api"/>
+        <dependency groupId="org.slf4j" artifactId="log4j-over-slf4j"/>
         <dependency groupId="org.codehaus.jackson" artifactId="jackson-core-asl"/>
         <dependency groupId="org.codehaus.jackson" artifactId="jackson-mapper-asl"/>
         <dependency groupId="com.googlecode.json-simple" artifactId="json-simple"/>
@@ -512,6 +516,7 @@
         <scm connection="${scm.connection}" developerConnection="${scm.developerConnection}" url="${scm.url}"/>
         <dependency groupId="org.apache.commons" artifactId="commons-lang3"/>
         <dependency groupId="org.slf4j" artifactId="slf4j-api"/>
+        <dependency groupId="org.slf4j" artifactId="log4j-over-slf4j"/>
         <dependency groupId="org.apache.thrift" artifactId="libthrift"/>
       </artifact:pom>
       <artifact:pom id="clientutil-pom"
@@ -1163,6 +1168,7 @@
         <pathelement location="${build.dir}/${ant.project.name}-thrift-${version}.jar" />
         <pathelement location="${build.lib}/libthrift-0.9.0.jar" />
         <pathelement location="${build.lib}/slf4j-api-1.7.2.jar" />
+        <pathelement location="${build.lib}/log4j-over-slf4j.jar" />
         <pathelement location="${build.lib}/logback-core-1.1.2.jar" />
         <pathelement location="${build.lib}/logback-classic-1.1.2.jar" />
         <pathelement location="${build.lib}/jackson-core-asl-1.9.2.jar" />
