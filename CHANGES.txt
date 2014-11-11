@@ -1,4 +1,6 @@
 2.0.12:
+ * Include keyspace name in error message when there are insufficient
+   live nodes to stream from (CASSANDRA-8221)
  * Avoid overlap in L1 when L0 contains many nonoverlapping
    sstables (CASSANDRA-8211)
  * Improve PropertyFileSnitch logging (CASSANDRA-8183)
