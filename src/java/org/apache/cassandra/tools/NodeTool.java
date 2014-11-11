@@ -2365,7 +2365,7 @@ public class NodeTool
         }
     }
 
-    @Command(name = "disablehandoff", description = "Disable gossip (effectively marking the node down)")
+    @Command(name = "disablehandoff", description = "Disable storing hinted handoffs")
     public static class DisableHandoff extends NodeToolCmd
     {
         @Override
