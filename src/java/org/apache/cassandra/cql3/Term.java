@@ -138,6 +138,12 @@ public interface Term
         public abstract List<ByteBuffer> getElements();
     }
 
+    public interface CollectionTerminal
+    {
+        /** Gets the value of the collection when serialized with the given protocol version format */
+        public ByteBuffer getWithProtocolVersion(int protocolVersion);
+    }
+
     /**
      * A non terminal term, i.e. a term that can only be reduce to a byte buffer
      * at execution time.

@@ -217,6 +217,24 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>
         return false;
     }
 
+    public boolean isMultiCell()
+    {
+        return false;
+    }
+
+    public AbstractType<?> freeze()
+    {
+        return this;
+    }
+
+    /**
+     * @param ignoreFreezing if true, the type string will not be wrapped with FrozenType(...), even if this type is frozen.
+     */
+    public String toString(boolean ignoreFreezing)
+    {
+        return this.toString();
+    }
+
     /**
      * The number of subcomponents this type has.
      * This is always 1, i.e. the type has only itself as "subcomponents", except for CompositeType.

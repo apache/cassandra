@@ -625,8 +625,9 @@ createIndexStatement returns [CreateIndexStatement expr]
     ;
 
 indexIdent returns [IndexTarget.Raw id]
-    : c=cident                { $id = IndexTarget.Raw.of(c); }
+    : c=cident                { $id = IndexTarget.Raw.valuesOf(c); }
     | K_KEYS '(' c=cident ')' { $id = IndexTarget.Raw.keysOf(c); }
+    | K_FULL '(' c=cident ')' { $id = IndexTarget.Raw.fullCollection(c); }
     ;
 
 
@@ -1204,21 +1205,21 @@ native_type returns [CQL3Type t]
 
 collection_type returns [CQL3Type.Raw pt]
     : K_MAP  '<' t1=comparatorType ',' t2=comparatorType '>'
-        { try {
+        {
             // if we can't parse either t1 or t2, antlr will "recover" and we may have t1 or t2 null.
             if (t1 != null && t2 != null)
                 $pt = CQL3Type.Raw.map(t1, t2);
-          } catch (InvalidRequestException e) { addRecognitionError(e.getMessage()); } }
+        }
     | K_LIST '<' t=comparatorType '>'
-        { try { if (t != null) $pt = CQL3Type.Raw.list(t); } catch (InvalidRequestException e) { addRecognitionError(e.getMessage()); } }
+        { if (t != null) $pt = CQL3Type.Raw.list(t); }
     | K_SET  '<' t=comparatorType '>'
-        { try { if (t != null) $pt = CQL3Type.Raw.set(t); } catch (InvalidRequestException e) { addRecognitionError(e.getMessage()); } }
+        { if (t != null) $pt = CQL3Type.Raw.set(t); }
     ;
 
 tuple_type returns [CQL3Type.Raw t]
     : K_TUPLE '<' { List<CQL3Type.Raw> types = new ArrayList<>(); }
          t1=comparatorType { types.add(t1); } (',' tn=comparatorType { types.add(tn); })*
-      '>' { try { $t = CQL3Type.Raw.tuple(types); } catch (InvalidRequestException e) { addRecognitionError(e.getMessage()); }}
+      '>' { $t = CQL3Type.Raw.tuple(types); }
     ;
 
 username
@@ -1287,6 +1288,7 @@ K_WHERE:       W H E R E;
 K_AND:         A N D;
 K_KEY:         K E Y;
 K_KEYS:        K E Y S;
+K_FULL:        F U L L;
 K_INSERT:      I N S E R T;
 K_UPDATE:      U P D A T E;
 K_WITH:        W I T H;

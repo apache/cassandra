@@ -137,6 +137,47 @@ public final class CompositesBuilder
         return this;
     }
 
+
+    /**
+     * Adds individually each of the specified list of elements to the end of all of the existing composites.
+     * <p>
+     * If this builder contains 2 composites: A-B and A-C a call to this method to add [[D, E], [F, G]] will result in the 4
+     * composites: A-B-D-E, A-B-F-G, A-C-D-E and A-C-F-G.
+     * </p>
+     *
+     * @param values the elements to add
+     * @return this <code>CompositeBuilder</code>
+     */
+    public CompositesBuilder addAllElementsToAll(List<List<ByteBuffer>> values)
+    {
+        assert !values.isEmpty();
+        checkUpdateable();
+
+        if (isEmpty())
+            elementsList.add(new ArrayList<ByteBuffer>());
+
+        for (int i = 0, m = elementsList.size(); i < m; i++)
+        {
+            List<ByteBuffer> oldComposite = elementsList.remove(0);
+
+            for (int j = 0, n = values.size(); j < n; j++)
+            {
+                List<ByteBuffer> newComposite = new ArrayList<>(oldComposite);
+                elementsList.add(newComposite);
+
+                List<ByteBuffer> value = values.get(j);
+
+                if (value.contains(null))
+                    containsNull = true;
+
+                newComposite.addAll(value);
+            }
+        }
+
+        remaining -= values.get(0).size();
+        return this;
+    }
+
     /**
      * Returns the number of elements that can be added to the composites.
      *

@@ -369,7 +369,7 @@ public abstract class Constants
         public void execute(ByteBuffer rowKey, ColumnFamily cf, Composite prefix, UpdateParameters params) throws InvalidRequestException
         {
             CellName cname = cf.getComparator().create(prefix, column);
-            if (column.type.isCollection())
+            if (column.type.isMultiCell())
                 cf.addAtom(params.makeRangeTombstone(cname.slice()));
             else
                 cf.addColumn(params.makeTombstone(cname));

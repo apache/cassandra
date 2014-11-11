@@ -60,7 +60,7 @@ public class UserType extends TupleType
         for (Pair<ByteBuffer, AbstractType> p : params.right)
         {
             columnNames.add(p.left);
-            columnTypes.add(p.right);
+            columnTypes.add(p.right.freeze());
         }
         return new UserType(keyspace, name, columnNames, columnTypes);
     }

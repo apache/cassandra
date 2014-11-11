@@ -35,6 +35,7 @@ import org.apache.cassandra.db.marshal.MapType;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.serializers.CollectionSerializer;
 import org.apache.cassandra.serializers.MarshalException;
+import org.apache.cassandra.transport.Server;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
 
@@ -47,12 +48,12 @@ public abstract class Maps
 
     public static ColumnSpecification keySpecOf(ColumnSpecification column)
     {
-        return new ColumnSpecification(column.ksName, column.cfName, new ColumnIdentifier("key(" + column.name + ")", true), ((MapType)column.type).keys);
+        return new ColumnSpecification(column.ksName, column.cfName, new ColumnIdentifier("key(" + column.name + ")", true), ((MapType)column.type).getKeysType());
     }
 
     public static ColumnSpecification valueSpecOf(ColumnSpecification column)
     {
-        return new ColumnSpecification(column.ksName, column.cfName, new ColumnIdentifier("value(" + column.name + ")", true), ((MapType)column.type).values);
+        return new ColumnSpecification(column.ksName, column.cfName, new ColumnIdentifier("value(" + column.name + ")", true), ((MapType)column.type).getValuesType());
     }
 
     public static class Literal implements Term.Raw
@@ -85,7 +86,7 @@ public abstract class Maps
 
                 values.put(k, v);
             }
-            DelayedValue value = new DelayedValue(((MapType)receiver.type).keys, values);
+            DelayedValue value = new DelayedValue(((MapType)receiver.type).getKeysType(), values);
             return allTerminal ? value.bind(QueryOptions.DEFAULT) : value;
         }
 
@@ -145,7 +146,7 @@ public abstract class Maps
         }
     }
 
-    public static class Value extends Term.Terminal
+    public static class Value extends Term.Terminal implements Term.CollectionTerminal
     {
         public final Map<ByteBuffer, ByteBuffer> map;
 
@@ -163,7 +164,7 @@ public abstract class Maps
                 Map<?, ?> m = (Map<?, ?>)type.getSerializer().deserializeForNativeProtocol(value, version);
                 Map<ByteBuffer, ByteBuffer> map = new LinkedHashMap<ByteBuffer, ByteBuffer>(m.size());
                 for (Map.Entry<?, ?> entry : m.entrySet())
-                    map.put(type.keys.decompose(entry.getKey()), type.values.decompose(entry.getValue()));
+                    map.put(type.getKeysType().decompose(entry.getKey()), type.getValuesType().decompose(entry.getValue()));
                 return new Value(map);
             }
             catch (MarshalException e)
@@ -174,13 +175,18 @@ public abstract class Maps
 
         public ByteBuffer get(QueryOptions options)
         {
-            List<ByteBuffer> buffers = new ArrayList<ByteBuffer>(2 * map.size());
+            return getWithProtocolVersion(options.getProtocolVersion());
+        }
+
+        public ByteBuffer getWithProtocolVersion(int protocolVersion)
+        {
+            List<ByteBuffer> buffers = new ArrayList<>(2 * map.size());
             for (Map.Entry<ByteBuffer, ByteBuffer> entry : map.entrySet())
             {
                 buffers.add(entry.getKey());
                 buffers.add(entry.getValue());
             }
-            return CollectionSerializer.pack(buffers, map.size(), options.getProtocolVersion());
+            return CollectionSerializer.pack(buffers, map.size(), protocolVersion);
         }
 
         public boolean equals(MapType mt, Value v)
@@ -195,7 +201,7 @@ public abstract class Maps
             {
                 Map.Entry<ByteBuffer, ByteBuffer> thisEntry = thisIter.next();
                 Map.Entry<ByteBuffer, ByteBuffer> thatEntry = thatIter.next();
-                if (mt.keys.compare(thisEntry.getKey(), thatEntry.getKey()) != 0 || mt.values.compare(thisEntry.getValue(), thatEntry.getValue()) != 0)
+                if (mt.getKeysType().compare(thisEntry.getKey(), thatEntry.getKey()) != 0 || mt.getValuesType().compare(thisEntry.getValue(), thatEntry.getValue()) != 0)
                     return false;
             }
 
@@ -277,9 +283,12 @@ public abstract class Maps
 
         public void execute(ByteBuffer rowKey, ColumnFamily cf, Composite prefix, UpdateParameters params) throws InvalidRequestException
         {
-            // delete + put
-            CellName name = cf.getComparator().create(prefix, column);
-            cf.addAtom(params.makeTombstoneForOverwrite(name.slice()));
+            if (column.type.isMultiCell())
+            {
+                // delete + put
+                CellName name = cf.getComparator().create(prefix, column);
+                cf.addAtom(params.makeTombstoneForOverwrite(name.slice()));
+            }
             Putter.doPut(t, cf, prefix, column, params);
         }
     }
@@ -303,6 +312,7 @@ public abstract class Maps
 
         public void execute(ByteBuffer rowKey, ColumnFamily cf, Composite prefix, UpdateParameters params) throws InvalidRequestException
         {
+            assert column.type.isMultiCell() : "Attempted to set a value for a single key on a frozen map";
             ByteBuffer key = k.bindAndGet(params.options);
             ByteBuffer value = t.bindAndGet(params.options);
             if (key == null)
@@ -336,21 +346,33 @@ public abstract class Maps
 
         public void execute(ByteBuffer rowKey, ColumnFamily cf, Composite prefix, UpdateParameters params) throws InvalidRequestException
         {
+            assert column.type.isMultiCell() : "Attempted to add items to a frozen map";
             doPut(t, cf, prefix, column, params);
         }
 
         static void doPut(Term t, ColumnFamily cf, Composite prefix, ColumnDefinition column, UpdateParameters params) throws InvalidRequestException
         {
             Term.Terminal value = t.bind(params.options);
-            if (value == null)
-                return;
-            assert value instanceof Maps.Value;
-
-            Map<ByteBuffer, ByteBuffer> toAdd = ((Maps.Value)value).map;
-            for (Map.Entry<ByteBuffer, ByteBuffer> entry : toAdd.entrySet())
+            Maps.Value mapValue = (Maps.Value) value;
+            if (column.type.isMultiCell())
             {
-                CellName cellName = cf.getComparator().create(prefix, column, entry.getKey());
-                cf.addColumn(params.makeColumn(cellName, entry.getValue()));
+                if (value == null)
+                    return;
+
+                for (Map.Entry<ByteBuffer, ByteBuffer> entry : mapValue.map.entrySet())
+                {
+                    CellName cellName = cf.getComparator().create(prefix, column, entry.getKey());
+                    cf.addColumn(params.makeColumn(cellName, entry.getValue()));
+                }
+            }
+            else
+            {
+                // for frozen maps, we're overwriting the whole cell
+                CellName cellName = cf.getComparator().create(prefix, column);
+                if (value == null)
+                    cf.addAtom(params.makeTombstone(cellName));
+                else
+                    cf.addColumn(params.makeColumn(cellName, mapValue.getWithProtocolVersion(Server.CURRENT_VERSION)));
             }
         }
     }
@@ -364,6 +386,7 @@ public abstract class Maps
 
         public void execute(ByteBuffer rowKey, ColumnFamily cf, Composite prefix, UpdateParameters params) throws InvalidRequestException
         {
+            assert column.type.isMultiCell() : "Attempted to delete a single key in a frozen map";
             Term.Terminal key = t.bind(params.options);
             if (key == null)
                 throw new InvalidRequestException("Invalid null map key");

@@ -56,7 +56,7 @@ public class DeleteStatement extends ModificationStatement
             // However, if we delete only static colums, it's fine since we won't really use the prefix anyway.
             for (Operation deletion : deletions)
                 if (!deletion.column.isStatic())
-                    throw new InvalidRequestException(String.format("Missing mandatory PRIMARY KEY part %s since %s specified", getFirstEmptyKey(), deletion.column.name));
+                    throw new InvalidRequestException(String.format("Primary key column '%s' must be specified in order to delete column '%s'", getFirstEmptyKey().name, deletion.column.name));
         }
 
         if (deletions.isEmpty())

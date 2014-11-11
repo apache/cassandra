@@ -33,7 +33,7 @@ public class Lists extends Generator<List>
 
     public Lists(String name, Generator valueType, GeneratorConfig config)
     {
-        super(ListType.getInstance(valueType.type), config, name, List.class);
+        super(ListType.getInstance(valueType.type, true), config, name, List.class);
         this.valueType = valueType;
         buffer = new Object[(int) sizeDistribution.maxValue()];
     }

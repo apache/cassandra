@@ -36,7 +36,7 @@ public class CollectionTypeTest
     @Test
     public void testListComparison()
     {
-        ListType<String> lt = ListType.getInstance(UTF8Type.instance);
+        ListType<String> lt = ListType.getInstance(UTF8Type.instance, true);
 
         ByteBuffer[] lists = new ByteBuffer[] {
             ByteBufferUtil.EMPTY_BYTE_BUFFER,
@@ -63,7 +63,7 @@ public class CollectionTypeTest
     @Test
     public void testSetComparison()
     {
-        SetType<String> st = SetType.getInstance(UTF8Type.instance);
+        SetType<String> st = SetType.getInstance(UTF8Type.instance, true);
 
         ByteBuffer[] sets = new ByteBuffer[] {
             ByteBufferUtil.EMPTY_BYTE_BUFFER,
@@ -90,7 +90,7 @@ public class CollectionTypeTest
     @Test
     public void testMapComparison()
     {
-        MapType<String, String> mt = MapType.getInstance(UTF8Type.instance, UTF8Type.instance);
+        MapType<String, String> mt = MapType.getInstance(UTF8Type.instance, UTF8Type.instance, true);
 
         ByteBuffer[] maps = new ByteBuffer[] {
             ByteBufferUtil.EMPTY_BYTE_BUFFER,
@@ -119,8 +119,8 @@ public class CollectionTypeTest
     @Test
     public void listSerDerTest()
     {
-        ListSerializer<String> sls = ListType.getInstance(UTF8Type.instance).getSerializer();
-        ListSerializer<Integer> ils = ListType.getInstance(Int32Type.instance).getSerializer();
+        ListSerializer<String> sls = ListType.getInstance(UTF8Type.instance, true).getSerializer();
+        ListSerializer<Integer> ils = ListType.getInstance(Int32Type.instance, true).getSerializer();
 
         List<String> sl = Arrays.asList("Foo", "Bar");
         List<Integer> il = Arrays.asList(3, 1, 5);
@@ -143,8 +143,8 @@ public class CollectionTypeTest
     @Test
     public void setSerDerTest()
     {
-        SetSerializer<String> sss = SetType.getInstance(UTF8Type.instance).getSerializer();
-        SetSerializer<Integer> iss = SetType.getInstance(Int32Type.instance).getSerializer();
+        SetSerializer<String> sss = SetType.getInstance(UTF8Type.instance, true).getSerializer();
+        SetSerializer<Integer> iss = SetType.getInstance(Int32Type.instance, true).getSerializer();
 
         Set<String> ss = new HashSet(){{ add("Foo"); add("Bar"); }};
         Set<Integer> is = new HashSet(){{ add(3); add(1); add(5); }};
@@ -167,8 +167,8 @@ public class CollectionTypeTest
     @Test
     public void setMapDerTest()
     {
-        MapSerializer<String, String> sms = MapType.getInstance(UTF8Type.instance, UTF8Type.instance).getSerializer();
-        MapSerializer<Integer, Integer> ims = MapType.getInstance(Int32Type.instance, Int32Type.instance).getSerializer();
+        MapSerializer<String, String> sms = MapType.getInstance(UTF8Type.instance, UTF8Type.instance, true).getSerializer();
+        MapSerializer<Integer, Integer> ims = MapType.getInstance(Int32Type.instance, Int32Type.instance, true).getSerializer();
 
         Map<String, String> sm = new HashMap(){{ put("Foo", "xxx"); put("Bar", "yyy"); }};
         Map<Integer, Integer> im = new HashMap(){{ put(3, 0); put(1, 8); put(5, 2); }};
@@ -187,8 +187,8 @@ public class CollectionTypeTest
         // non map value
         assertInvalid(sms, UTF8Type.instance.getSerializer().serialize("foo"));
 
-        MapSerializer<Integer, String> sims = MapType.getInstance(Int32Type.instance, UTF8Type.instance).getSerializer();
-        MapSerializer<String, Integer> isms = MapType.getInstance(UTF8Type.instance, Int32Type.instance).getSerializer();
+        MapSerializer<Integer, String> sims = MapType.getInstance(Int32Type.instance, UTF8Type.instance, true).getSerializer();
+        MapSerializer<String, Integer> isms = MapType.getInstance(UTF8Type.instance, Int32Type.instance, true).getSerializer();
 
         // only key are invalid
         assertInvalid(isms, sb);

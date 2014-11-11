@@ -31,7 +31,6 @@ import org.apache.cassandra.serializers.CollectionSerializer;
 import org.apache.cassandra.transport.Event.TopologyChange;
 import org.apache.cassandra.transport.Event.SchemaChange;
 import org.apache.cassandra.transport.Event.StatusChange;
-import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
 
@@ -53,7 +52,7 @@ public class SerDeserTest
     public void collectionSerDeserTest(int version) throws Exception
     {
         // Lists
-        ListType<?> lt = ListType.getInstance(Int32Type.instance);
+        ListType<?> lt = ListType.getInstance(Int32Type.instance, true);
         List<Integer> l = Arrays.asList(2, 6, 1, 9);
 
         List<ByteBuffer> lb = new ArrayList<>(l.size());
@@ -63,7 +62,7 @@ public class SerDeserTest
         assertEquals(l, lt.getSerializer().deserializeForNativeProtocol(CollectionSerializer.pack(lb, lb.size(), version), version));
 
         // Sets
-        SetType<?> st = SetType.getInstance(UTF8Type.instance);
+        SetType<?> st = SetType.getInstance(UTF8Type.instance, true);
         Set<String> s = new LinkedHashSet<>();
         s.addAll(Arrays.asList("bar", "foo", "zee"));
 
@@ -74,7 +73,7 @@ public class SerDeserTest
         assertEquals(s, st.getSerializer().deserializeForNativeProtocol(CollectionSerializer.pack(sb, sb.size(), version), version));
 
         // Maps
-        MapType<?, ?> mt = MapType.getInstance(UTF8Type.instance, LongType.instance);
+        MapType<?, ?> mt = MapType.getInstance(UTF8Type.instance, LongType.instance, true);
         Map<String, Long> m = new LinkedHashMap<>();
         m.put("bar", 12L);
         m.put("foo", 42L);
@@ -165,9 +164,9 @@ public class SerDeserTest
 
     public void udtSerDeserTest(int version) throws Exception
     {
-        ListType<?> lt = ListType.getInstance(Int32Type.instance);
-        SetType<?> st = SetType.getInstance(UTF8Type.instance);
-        MapType<?, ?> mt = MapType.getInstance(UTF8Type.instance, LongType.instance);
+        ListType<?> lt = ListType.getInstance(Int32Type.instance, true);
+        SetType<?> st = SetType.getInstance(UTF8Type.instance, true);
+        MapType<?, ?> mt = MapType.getInstance(UTF8Type.instance, LongType.instance, true);
 
         UserType udt = new UserType("ks",
                                     bb("myType"),

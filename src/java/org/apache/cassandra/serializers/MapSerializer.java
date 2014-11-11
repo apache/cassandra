@@ -22,6 +22,8 @@ import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
 import java.util.*;
 
+import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.transport.Server;
 import org.apache.cassandra.utils.Pair;
 
 public class MapSerializer<K, V> extends CollectionSerializer<Map<K, V>>
@@ -113,6 +115,38 @@ public class MapSerializer<K, V> extends CollectionSerializer<Map<K, V>>
         }
     }
 
+    /**
+     * Given a serialized map, gets the value associated with a given key.
+     * @param serializedMap a serialized map
+     * @param serializedKey a serialized key
+     * @param keyType the key type for the map
+     * @return the value associated with the key if one exists, null otherwise
+     */
+    public ByteBuffer getSerializedValue(ByteBuffer serializedMap, ByteBuffer serializedKey, AbstractType keyType)
+    {
+        try
+        {
+            ByteBuffer input = serializedMap.duplicate();
+            int n = readCollectionSize(input, Server.VERSION_3);
+            for (int i = 0; i < n; i++)
+            {
+                ByteBuffer kbb = readValue(input, Server.VERSION_3);
+                ByteBuffer vbb = readValue(input, Server.VERSION_3);
+                int comparison = keyType.compare(kbb, serializedKey);
+                if (comparison == 0)
+                    return vbb;
+                else if (comparison > 0)
+                    // since the map is in sorted order, we know we've gone too far and the element doesn't exist
+                    return null;
+            }
+            return null;
+        }
+        catch (BufferUnderflowException e)
+        {
+            throw new MarshalException("Not enough bytes to read a map");
+        }
+    }
+
     public String toString(Map<K, V> value)
     {
         StringBuilder sb = new StringBuilder();
@@ -120,13 +154,9 @@ public class MapSerializer<K, V> extends CollectionSerializer<Map<K, V>>
         for (Map.Entry<K, V> element : value.entrySet())
         {
             if (isFirst)
-            {
                 isFirst = false;
-            }
             else
-            {
                 sb.append("; ");
-            }
             sb.append('(');
             sb.append(keys.toString(element.getKey()));
             sb.append(", ");

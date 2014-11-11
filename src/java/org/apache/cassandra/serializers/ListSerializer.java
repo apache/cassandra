@@ -18,10 +18,11 @@
 
 package org.apache.cassandra.serializers;
 
+import org.apache.cassandra.transport.Server;
+
 import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
 import java.util.*;
-
 
 public class ListSerializer<T> extends CollectionSerializer<List<T>>
 {
@@ -110,6 +111,34 @@ public class ListSerializer<T> extends CollectionSerializer<List<T>>
         }
     }
 
+    /**
+     * Returns the element at the given index in a list.
+     * @param serializedList a serialized list
+     * @param index the index to get
+     * @return the serialized element at the given index, or null if the index exceeds the list size
+     */
+    public ByteBuffer getElement(ByteBuffer serializedList, int index)
+    {
+        try
+        {
+            ByteBuffer input = serializedList.duplicate();
+            int n = readCollectionSize(input, Server.VERSION_3);
+            if (n <= index)
+                return null;
+
+            for (int i = 0; i < index; i++)
+            {
+                int length = input.getInt();
+                input.position(input.position() + length);
+            }
+            return readValue(input, Server.VERSION_3);
+        }
+        catch (BufferUnderflowException e)
+        {
+            throw new MarshalException("Not enough bytes to read a list");
+        }
+    }
+
     public String toString(List<T> value)
     {
         StringBuilder sb = new StringBuilder();
@@ -117,13 +146,9 @@ public class ListSerializer<T> extends CollectionSerializer<List<T>>
         for (T element : value)
         {
             if (isFirst)
-            {
                 isFirst = false;
-            }
             else
-            {
                 sb.append("; ");
-            }
             sb.append(elements.toString(element));
         }
         return sb.toString();

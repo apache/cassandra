@@ -32,6 +32,7 @@ import org.apache.cassandra.db.marshal.ListType;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.serializers.CollectionSerializer;
 import org.apache.cassandra.serializers.MarshalException;
+import org.apache.cassandra.transport.Server;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.UUIDGen;
@@ -54,7 +55,7 @@ public abstract class Lists
 
     public static ColumnSpecification valueSpecOf(ColumnSpecification column)
     {
-        return new ColumnSpecification(column.ksName, column.cfName, new ColumnIdentifier("value(" + column.name + ")", true), ((ListType)column.type).elements);
+        return new ColumnSpecification(column.ksName, column.cfName, new ColumnIdentifier("value(" + column.name + ")", true), ((ListType)column.type).getElementsType());
     }
 
     public static class Literal implements Term.Raw
@@ -122,7 +123,7 @@ public abstract class Lists
         }
     }
 
-    public static class Value extends Term.MultiItemTerminal
+    public static class Value extends Term.MultiItemTerminal implements Term.CollectionTerminal
     {
         public final List<ByteBuffer> elements;
 
@@ -141,7 +142,7 @@ public abstract class Lists
                 List<ByteBuffer> elements = new ArrayList<ByteBuffer>(l.size());
                 for (Object element : l)
                     // elements can be null in lists that represent a set of IN values
-                    elements.add(element == null ? null : type.elements.decompose(element));
+                    elements.add(element == null ? null : type.getElementsType().decompose(element));
                 return new Value(elements);
             }
             catch (MarshalException e)
@@ -152,7 +153,12 @@ public abstract class Lists
 
         public ByteBuffer get(QueryOptions options)
         {
-            return CollectionSerializer.pack(elements, elements.size(), options.getProtocolVersion());
+            return getWithProtocolVersion(options.getProtocolVersion());
+        }
+
+        public ByteBuffer getWithProtocolVersion(int protocolVersion)
+        {
+            return CollectionSerializer.pack(elements, elements.size(), protocolVersion);
         }
 
         public boolean equals(ListType lt, Value v)
@@ -161,7 +167,7 @@ public abstract class Lists
                 return false;
 
             for (int i = 0; i < elements.size(); i++)
-                if (lt.elements.compare(elements.get(i), v.elements.get(i)) != 0)
+                if (lt.getElementsType().compare(elements.get(i), v.elements.get(i)) != 0)
                     return false;
 
             return true;
@@ -290,9 +296,12 @@ public abstract class Lists
 
         public void execute(ByteBuffer rowKey, ColumnFamily cf, Composite prefix, UpdateParameters params) throws InvalidRequestException
         {
-            // delete + append
-            CellName name = cf.getComparator().create(prefix, column);
-            cf.addAtom(params.makeTombstoneForOverwrite(name.slice()));
+            if (column.type.isMultiCell())
+            {
+                // delete + append
+                CellName name = cf.getComparator().create(prefix, column);
+                cf.addAtom(params.makeTombstoneForOverwrite(name.slice()));
+            }
             Appender.doAppend(t, cf, prefix, column, params);
         }
     }
@@ -322,6 +331,9 @@ public abstract class Lists
 
         public void execute(ByteBuffer rowKey, ColumnFamily cf, Composite prefix, UpdateParameters params) throws InvalidRequestException
         {
+            // we should not get here for frozen lists
+            assert column.type.isMultiCell() : "Attempted to set an individual element on a frozen list";
+
             ByteBuffer index = idx.bindAndGet(params.options);
             ByteBuffer value = t.bindAndGet(params.options);
 
@@ -360,23 +372,36 @@ public abstract class Lists
 
         public void execute(ByteBuffer rowKey, ColumnFamily cf, Composite prefix, UpdateParameters params) throws InvalidRequestException
         {
+            assert column.type.isMultiCell() : "Attempted to append to a frozen list";
             doAppend(t, cf, prefix, column, params);
         }
 
         static void doAppend(Term t, ColumnFamily cf, Composite prefix, ColumnDefinition column, UpdateParameters params) throws InvalidRequestException
         {
             Term.Terminal value = t.bind(params.options);
-            // If we append null, do nothing. Note that for Setter, we've
-            // already removed the previous value so we're good here too
-            if (value == null)
-                return;
-
-            assert value instanceof Lists.Value;
-            List<ByteBuffer> toAdd = ((Lists.Value)value).elements;
-            for (int i = 0; i < toAdd.size(); i++)
+            Lists.Value listValue = (Lists.Value)value;
+            if (column.type.isMultiCell())
             {
-                ByteBuffer uuid = ByteBuffer.wrap(UUIDGen.getTimeUUIDBytes());
-                cf.addColumn(params.makeColumn(cf.getComparator().create(prefix, column, uuid), toAdd.get(i)));
+                // If we append null, do nothing. Note that for Setter, we've
+                // already removed the previous value so we're good here too
+                if (value == null)
+                    return;
+
+                List<ByteBuffer> toAdd = listValue.elements;
+                for (int i = 0; i < toAdd.size(); i++)
+                {
+                    ByteBuffer uuid = ByteBuffer.wrap(UUIDGen.getTimeUUIDBytes());
+                    cf.addColumn(params.makeColumn(cf.getComparator().create(prefix, column, uuid), toAdd.get(i)));
+                }
+            }
+            else
+            {
+                // for frozen lists, we're overwriting the whole cell value
+                CellName name = cf.getComparator().create(prefix, column);
+                if (value == null)
+                    cf.addAtom(params.makeTombstone(name));
+                else
+                    cf.addColumn(params.makeColumn(name, listValue.getWithProtocolVersion(Server.CURRENT_VERSION)));
             }
         }
     }
@@ -390,6 +415,7 @@ public abstract class Lists
 
         public void execute(ByteBuffer rowKey, ColumnFamily cf, Composite prefix, UpdateParameters params) throws InvalidRequestException
         {
+            assert column.type.isMultiCell() : "Attempted to prepend to a frozen list";
             Term.Terminal value = t.bind(params.options);
             if (value == null)
                 return;
@@ -422,6 +448,7 @@ public abstract class Lists
 
         public void execute(ByteBuffer rowKey, ColumnFamily cf, Composite prefix, UpdateParameters params) throws InvalidRequestException
         {
+            assert column.type.isMultiCell() : "Attempted to delete from a frozen list";
             List<Cell> existingList = params.getPrefetchedList(rowKey, column.name);
             // We want to call bind before possibly returning to reject queries where the value provided is not a list.
             Term.Terminal value = t.bind(params.options);
@@ -462,6 +489,7 @@ public abstract class Lists
 
         public void execute(ByteBuffer rowKey, ColumnFamily cf, Composite prefix, UpdateParameters params) throws InvalidRequestException
         {
+            assert column.type.isMultiCell() : "Attempted to delete an item by index from a frozen list";
             Term.Terminal index = t.bind(params.options);
             if (index == null)
                 throw new InvalidRequestException("Invalid null value for list index");

@@ -214,23 +214,27 @@ public abstract class AlterTypeStatement extends SchemaAlteringStatement
         {
             if (type instanceof ListType)
             {
-                AbstractType<?> t = updateWith(((ListType)type).elements, keyspace, toReplace, updated);
-                return t == null ? null : ListType.getInstance(t);
+                AbstractType<?> t = updateWith(((ListType)type).getElementsType(), keyspace, toReplace, updated);
+                if (t == null)
+                    return null;
+                return ListType.getInstance(t, type.isMultiCell());
             }
             else if (type instanceof SetType)
             {
-                AbstractType<?> t = updateWith(((SetType)type).elements, keyspace, toReplace, updated);
-                return t == null ? null : SetType.getInstance(t);
+                AbstractType<?> t = updateWith(((SetType)type).getElementsType(), keyspace, toReplace, updated);
+                if (t == null)
+                    return null;
+                return SetType.getInstance(t, type.isMultiCell());
             }
             else
             {
                 assert type instanceof MapType;
                 MapType mt = (MapType)type;
-                AbstractType<?> k = updateWith(mt.keys, keyspace, toReplace, updated);
-                AbstractType<?> v = updateWith(mt.values, keyspace, toReplace, updated);
+                AbstractType<?> k = updateWith(mt.getKeysType(), keyspace, toReplace, updated);
+                AbstractType<?> v = updateWith(mt.getValuesType(), keyspace, toReplace, updated);
                 if (k == null && v == null)
                     return null;
-                return MapType.getInstance(k == null ? mt.keys : k, v == null ? mt.values : v);
+                return MapType.getInstance(k == null ? mt.getKeysType() : k, v == null ? mt.getValuesType() : v, type.isMultiCell());
             }
         }
         else

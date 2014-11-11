@@ -25,14 +25,20 @@ import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.SyntaxException;
 import org.apache.cassandra.serializers.CollectionSerializer;
 import org.apache.cassandra.serializers.ListSerializer;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class ListType<T> extends CollectionType<List<T>>
 {
-    // interning instances
-    private static final Map<AbstractType<?>, ListType> instances = new HashMap<AbstractType<?>, ListType>();
+    private static final Logger logger = LoggerFactory.getLogger(ListType.class);
 
-    public final AbstractType<T> elements;
+    // interning instances
+    private static final Map<AbstractType<?>, ListType> instances = new HashMap<>();
+    private static final Map<AbstractType<?>, ListType> frozenInstances = new HashMap<>();
+
+    private final AbstractType<T> elements;
     public final ListSerializer<T> serializer;
+    private final boolean isMultiCell;
 
     public static ListType<?> getInstance(TypeParser parser) throws ConfigurationException, SyntaxException
     {
@@ -40,25 +46,32 @@ public class ListType<T> extends CollectionType<List<T>>
         if (l.size() != 1)
             throw new ConfigurationException("ListType takes exactly 1 type parameter");
 
-        return getInstance(l.get(0));
+        return getInstance(l.get(0), true);
     }
 
-    public static synchronized <T> ListType<T> getInstance(AbstractType<T> elements)
+    public static synchronized <T> ListType<T> getInstance(AbstractType<T> elements, boolean isMultiCell)
     {
-        ListType<T> t = instances.get(elements);
+        Map<AbstractType<?>, ListType> internMap = isMultiCell ? instances : frozenInstances;
+        ListType<T> t = internMap.get(elements);
         if (t == null)
         {
-            t = new ListType<T>(elements);
-            instances.put(elements, t);
+            t = new ListType<T>(elements, isMultiCell);
+            internMap.put(elements, t);
         }
         return t;
     }
 
-    private ListType(AbstractType<T> elements)
+    private ListType(AbstractType<T> elements, boolean isMultiCell)
     {
         super(Kind.LIST);
         this.elements = elements;
         this.serializer = ListSerializer.getInstance(elements.getSerializer());
+        this.isMultiCell = isMultiCell;
+    }
+
+    public AbstractType<T> getElementsType()
+    {
+        return elements;
     }
 
     public AbstractType<UUID> nameComparator()
@@ -77,6 +90,35 @@ public class ListType<T> extends CollectionType<List<T>>
     }
 
     @Override
+    public AbstractType<?> freeze()
+    {
+        if (isMultiCell)
+            return getInstance(this.elements, false);
+        else
+            return this;
+    }
+
+    @Override
+    public boolean isMultiCell()
+    {
+        return isMultiCell;
+    }
+
+    @Override
+    public boolean isCompatibleWithFrozen(CollectionType<?> previous)
+    {
+        assert !isMultiCell;
+        return this.elements.isCompatibleWith(((ListType) previous).elements);
+    }
+
+    @Override
+    public boolean isValueCompatibleWithFrozen(CollectionType<?> previous)
+    {
+        assert !isMultiCell;
+        return this.elements.isValueCompatibleWithInternal(((ListType) previous).elements);
+    }
+
+    @Override
     public int compare(ByteBuffer o1, ByteBuffer o2)
     {
         return compareListOrSet(elements, o1, o2);
@@ -84,7 +126,7 @@ public class ListType<T> extends CollectionType<List<T>>
 
     static int compareListOrSet(AbstractType<?> elementsComparator, ByteBuffer o1, ByteBuffer o2)
     {
-        // Note that this is only used if the collection is inside an UDT
+        // Note that this is only used if the collection is frozen
         if (!o1.hasRemaining() || !o2.hasRemaining())
             return o1.hasRemaining() ? 1 : o2.hasRemaining() ? -1 : 0;
 
@@ -106,13 +148,24 @@ public class ListType<T> extends CollectionType<List<T>>
         return size1 == size2 ? 0 : (size1 < size2 ? -1 : 1);
     }
 
-    protected void appendToStringBuilder(StringBuilder sb)
+    @Override
+    public String toString(boolean ignoreFreezing)
     {
-        sb.append(getClass().getName()).append(TypeParser.stringifyTypeParameters(Collections.<AbstractType<?>>singletonList(elements)));
+        boolean includeFrozenType = !ignoreFreezing && !isMultiCell();
+
+        StringBuilder sb = new StringBuilder();
+        if (includeFrozenType)
+            sb.append(FrozenType.class.getName()).append("(");
+        sb.append(getClass().getName());
+        sb.append(TypeParser.stringifyTypeParameters(Collections.<AbstractType<?>>singletonList(elements), ignoreFreezing || !isMultiCell));
+        if (includeFrozenType)
+            sb.append(")");
+        return sb.toString();
     }
 
     public List<ByteBuffer> serializedValues(List<Cell> cells)
     {
+        assert isMultiCell;
         List<ByteBuffer> bbs = new ArrayList<ByteBuffer>(cells.size());
         for (Cell c : cells)
             bbs.add(c.value());

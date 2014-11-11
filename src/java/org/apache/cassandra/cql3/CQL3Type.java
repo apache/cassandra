@@ -26,9 +26,13 @@ import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.SyntaxException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public interface CQL3Type
 {
+    static final Logger logger = LoggerFactory.getLogger(CQL3Type.class);
+
     public boolean isCollection();
     public AbstractType<?> getType();
 
@@ -160,17 +164,30 @@ public interface CQL3Type
         @Override
         public String toString()
         {
+            boolean isFrozen = !this.type.isMultiCell();
+            StringBuilder sb = new StringBuilder(isFrozen ? "frozen<" : "");
             switch (type.kind)
             {
                 case LIST:
-                    return "list<" + ((ListType)type).elements.asCQL3Type() + ">";
+                    AbstractType<?> listType = ((ListType)type).getElementsType();
+                    sb.append("list<").append(listType.asCQL3Type());
+                    break;
                 case SET:
-                    return "set<" + ((SetType)type).elements.asCQL3Type() + ">";
+                    AbstractType<?> setType = ((SetType)type).getElementsType();
+                    sb.append("set<").append(setType.asCQL3Type());
+                    break;
                 case MAP:
-                    MapType mt = (MapType)type;
-                    return "map<" + mt.keys.asCQL3Type() + ", " + mt.values.asCQL3Type() + ">";
+                    AbstractType<?> keysType = ((MapType)type).getKeysType();
+                    AbstractType<?> valuesType = ((MapType)type).getValuesType();
+                    sb.append("map<").append(keysType.asCQL3Type()).append(", ").append(valuesType.asCQL3Type());
+                    break;
+                default:
+                    throw new AssertionError();
             }
-            throw new AssertionError();
+            sb.append(">");
+            if (isFrozen)
+                sb.append(">");
+            return sb.toString();
         }
     }
 
@@ -284,7 +301,9 @@ public interface CQL3Type
     // actual type used, so Raw is a "not yet prepared" CQL3Type.
     public abstract class Raw
     {
-        protected boolean frozen;
+        protected boolean frozen = false;
+
+        protected abstract boolean supportsFreezing();
 
         public boolean isCollection()
         {
@@ -296,10 +315,10 @@ public interface CQL3Type
             return false;
         }
 
-        public Raw freeze()
+        public void freeze() throws InvalidRequestException
         {
-            frozen = true;
-            return this;
+            String message = String.format("frozen<> is only allowed on collections, tuples, and user-defined types (got %s)", this);
+            throw new InvalidRequestException(message);
         }
 
         public abstract CQL3Type prepare(String keyspace) throws InvalidRequestException;
@@ -314,53 +333,30 @@ public interface CQL3Type
             return new RawUT(name);
         }
 
-        public static Raw map(CQL3Type.Raw t1, CQL3Type.Raw t2) throws InvalidRequestException
+        public static Raw map(CQL3Type.Raw t1, CQL3Type.Raw t2)
         {
-            if (t1.isCollection() || t2.isCollection())
-                throw new InvalidRequestException("map type cannot contain another collection");
-            if (t1.isCounter() || t2.isCounter())
-                throw new InvalidRequestException("counters are not allowed inside a collection");
-
             return new RawCollection(CollectionType.Kind.MAP, t1, t2);
         }
 
-        public static Raw list(CQL3Type.Raw t) throws InvalidRequestException
+        public static Raw list(CQL3Type.Raw t)
         {
-            if (t.isCollection())
-                throw new InvalidRequestException("list type cannot contain another collection");
-            if (t.isCounter())
-                throw new InvalidRequestException("counters are not allowed inside a collection");
-
             return new RawCollection(CollectionType.Kind.LIST, null, t);
         }
 
-        public static Raw set(CQL3Type.Raw t) throws InvalidRequestException
+        public static Raw set(CQL3Type.Raw t)
         {
-            if (t.isCollection())
-                throw new InvalidRequestException("set type cannot contain another collection");
-            if (t.isCounter())
-                throw new InvalidRequestException("counters are not allowed inside a collection");
-
             return new RawCollection(CollectionType.Kind.SET, null, t);
         }
 
-        public static Raw tuple(List<CQL3Type.Raw> ts) throws InvalidRequestException
+        public static Raw tuple(List<CQL3Type.Raw> ts)
         {
-            for (int i = 0; i < ts.size(); i++)
-                if (ts.get(i) != null && ts.get(i).isCounter())
-                    throw new InvalidRequestException("counters are not allowed inside tuples");
-
             return new RawTuple(ts);
         }
 
         public static Raw frozen(CQL3Type.Raw t) throws InvalidRequestException
         {
-            if (t instanceof RawUT)
-                return ((RawUT)t).freeze();
-            if (t instanceof RawTuple)
-                return ((RawTuple)t).freeze();
-
-            throw new InvalidRequestException("frozen<> is only currently only allowed on User-Defined and tuple types");
+            t.freeze();
+            return t;
         }
 
         private static class RawType extends Raw
@@ -375,6 +371,11 @@ public interface CQL3Type
             public CQL3Type prepare(String keyspace) throws InvalidRequestException
             {
                 return type;
+            }
+
+            protected boolean supportsFreezing()
+            {
+                return false;
             }
 
             public boolean isCounter()
@@ -402,12 +403,18 @@ public interface CQL3Type
                 this.values = values;
             }
 
-            public Raw freeze()
+            public void freeze() throws InvalidRequestException
             {
-                if (keys != null)
+                if (keys != null && keys.supportsFreezing())
                     keys.freeze();
-                values.freeze();
-                return super.freeze();
+                if (values != null && values.supportsFreezing())
+                    values.freeze();
+                frozen = true;
+            }
+
+            protected boolean supportsFreezing()
+            {
+                return true;
             }
 
             public boolean isCollection()
@@ -417,11 +424,28 @@ public interface CQL3Type
 
             public CQL3Type prepare(String keyspace) throws InvalidRequestException
             {
+                assert values != null : "Got null values type for a collection";
+
+                if (!frozen && values.supportsFreezing() && !values.frozen)
+                    throw new InvalidRequestException("Non-frozen collections are not allowed inside collections: " + this);
+                if (values.isCounter())
+                    throw new InvalidRequestException("Counters are not allowed inside collections: " + this);
+
+                if (keys != null)
+                {
+                    if (!frozen && keys.supportsFreezing() && !keys.frozen)
+                        throw new InvalidRequestException("Non-frozen collections are not allowed inside collections: " + this);
+                }
+
                 switch (kind)
                 {
-                    case LIST: return new Collection(ListType.getInstance(values.prepare(keyspace).getType()));
-                    case SET:  return new Collection(SetType.getInstance(values.prepare(keyspace).getType()));
-                    case MAP:  return new Collection(MapType.getInstance(keys.prepare(keyspace).getType(), values.prepare(keyspace).getType()));
+                    case LIST:
+                        return new Collection(ListType.getInstance(values.prepare(keyspace).getType(), !frozen));
+                    case SET:
+                        return new Collection(SetType.getInstance(values.prepare(keyspace).getType(), !frozen));
+                    case MAP:
+                        assert keys != null : "Got null keys type for a collection";
+                        return new Collection(MapType.getInstance(keys.prepare(keyspace).getType(), values.prepare(keyspace).getType(), !frozen));
                 }
                 throw new AssertionError();
             }
@@ -429,11 +453,13 @@ public interface CQL3Type
             @Override
             public String toString()
             {
+                String start = frozen? "frozen<" : "";
+                String end = frozen ? ">" : "";
                 switch (kind)
                 {
-                    case LIST: return "list<" + values + ">";
-                    case SET:  return "set<" + values + ">";
-                    case MAP:  return "map<" + keys + ", " + values + ">";
+                    case LIST: return start + "list<" + values + ">" + end;
+                    case SET:  return start + "set<" + values + ">" + end;
+                    case MAP:  return start + "map<" + keys + ", " + values + ">" + end;
                 }
                 throw new AssertionError();
             }
@@ -446,6 +472,11 @@ public interface CQL3Type
             private RawUT(UTName name)
             {
                 this.name = name;
+            }
+
+            public void freeze()
+            {
+                frozen = true;
             }
 
             public CQL3Type prepare(String keyspace) throws InvalidRequestException
@@ -477,7 +508,7 @@ public interface CQL3Type
                 return new UserDefined(name.toString(), type);
             }
 
-            public boolean isUDT()
+            protected boolean supportsFreezing()
             {
                 return true;
             }
@@ -498,12 +529,9 @@ public interface CQL3Type
                 this.types = types;
             }
 
-            public Raw freeze()
+            protected boolean supportsFreezing()
             {
-                for (CQL3Type.Raw t : types)
-                    if (t != null)
-                        t.freeze();
-                return super.freeze();
+                return true;
             }
 
             public boolean isCollection()
@@ -511,15 +539,29 @@ public interface CQL3Type
                 return false;
             }
 
+            public void freeze() throws InvalidRequestException
+            {
+                for (CQL3Type.Raw t : types)
+                {
+                    if (t.supportsFreezing())
+                        t.freeze();
+                }
+                frozen = true;
+            }
+
             public CQL3Type prepare(String keyspace) throws InvalidRequestException
             {
+                if (!frozen)
+                    freeze();
+
                 List<AbstractType<?>> ts = new ArrayList<>(types.size());
                 for (CQL3Type.Raw t : types)
+                {
+                    if (t.isCounter())
+                        throw new InvalidRequestException("Counters are not allowed inside tuples");
+
                     ts.add(t.prepare(keyspace).getType());
-
-                if (!frozen)
-                    throw new InvalidRequestException("Non-frozen tuples are not supported, please use frozen<>");
-
+                }
                 return new Tuple(new TupleType(ts));
             }
 

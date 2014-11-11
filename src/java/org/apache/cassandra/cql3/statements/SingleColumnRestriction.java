@@ -73,6 +73,11 @@ public abstract class SingleColumnRestriction implements Restriction
             return onToken;
         }
 
+        public boolean canEvaluateWithSlices()
+        {
+            return true;
+        }
+
         @Override
         public String toString()
         {
@@ -125,6 +130,11 @@ public abstract class SingleColumnRestriction implements Restriction
         public boolean isOnToken()
         {
             return false;
+        }
+
+        public boolean canEvaluateWithSlices()
+        {
+            return true;
         }
 
         @Override
@@ -181,6 +191,11 @@ public abstract class SingleColumnRestriction implements Restriction
             return false;
         }
 
+        public boolean canEvaluateWithSlices()
+        {
+            return true;
+        }
+
         @Override
         public String toString()
         {
@@ -229,6 +244,11 @@ public abstract class SingleColumnRestriction implements Restriction
         public boolean isOnToken()
         {
             return onToken;
+        }
+
+        public boolean canEvaluateWithSlices()
+        {
+            return true;
         }
 
         /** Returns true if the start or end bound (depending on the argument) is set, false otherwise */
@@ -412,6 +432,10 @@ public abstract class SingleColumnRestriction implements Restriction
             return false;
         }
 
+        public boolean canEvaluateWithSlices()
+        {
+            return false;
+        }
 
         @Override
         public String toString()
