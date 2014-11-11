@@ -98,7 +98,7 @@ public class CompositesIndexOnCollectionValue extends CompositesIndex
     @Override
     public boolean supportsOperator(Operator operator)
     {
-        return operator == Operator.CONTAINS;
+        return operator == Operator.CONTAINS && !(columnDef.type instanceof SetType);
     }
 
     @Override

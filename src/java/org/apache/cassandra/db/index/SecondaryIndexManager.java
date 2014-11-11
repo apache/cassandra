@@ -18,6 +18,7 @@
 package org.apache.cassandra.db.index;
 
 import java.nio.ByteBuffer;
+import java.nio.charset.CharacterCodingException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -33,6 +34,7 @@ import java.util.concurrent.ConcurrentNavigableMap;
 import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.Future;
 
+import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -585,6 +587,7 @@ public class SecondaryIndexManager
         }
 
         // Validate
+        boolean haveSupportedIndexLookup = false;
         for (Map.Entry<String, Set<IndexExpression>> expressions : expressionsByIndexType.entrySet())
         {
             Set<ByteBuffer> columns = columnsByIndexType.get(expressions.getKey());
@@ -593,7 +596,36 @@ public class SecondaryIndexManager
             for (IndexExpression expression : expressions.getValue())
             {
                 searcher.validate(expression);
+                haveSupportedIndexLookup |= secondaryIndex.supportsOperator(expression.operator);
             }
+        }
+
+        if (!haveSupportedIndexLookup)
+        {
+            // build the error message
+            int i = 0;
+            StringBuilder sb = new StringBuilder("No secondary indexes on the restricted columns support the provided operators: ");
+            for (Map.Entry<String, Set<IndexExpression>> expressions : expressionsByIndexType.entrySet())
+            {
+                for (IndexExpression expression : expressions.getValue())
+                {
+                    if (i++ > 0)
+                        sb.append(", ");
+                    sb.append("'");
+                    String columnName;
+                    try
+                    {
+                        columnName = ByteBufferUtil.string(expression.column);
+                    }
+                    catch (CharacterCodingException ex)
+                    {
+                        columnName = "<unprintable>";
+                    }
+                    sb.append(columnName).append(" ").append(expression.operator).append(" <value>").append("'");
+                }
+            }
+
+            throw new InvalidRequestException(sb.toString());
         }
     }
 

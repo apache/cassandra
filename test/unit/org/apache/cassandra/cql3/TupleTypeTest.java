@@ -24,26 +24,30 @@ public class TupleTypeTest extends CQLTester
     @Test
     public void testTuplePutAndGet() throws Throwable
     {
-        createTable("CREATE TABLE %s (k int PRIMARY KEY, t frozen<tuple<int, text, double>>)");
+        String[] valueTypes = {"frozen<tuple<int, text, double>>", "tuple<int, text, double>"};
+        for (String valueType : valueTypes)
+        {
+            createTable("CREATE TABLE %s (k int PRIMARY KEY, t " + valueType + ")");
 
-        execute("INSERT INTO %s (k, t) VALUES (?, ?)", 0, tuple(3, "foo", 3.4));
-        execute("INSERT INTO %s (k, t) VALUES (?, ?)", 1, tuple(8, "bar", 0.2));
-        assertAllRows(
-            row(0, tuple(3, "foo", 3.4)),
-            row(1, tuple(8, "bar", 0.2))
-        );
+            execute("INSERT INTO %s (k, t) VALUES (?, ?)", 0, tuple(3, "foo", 3.4));
+            execute("INSERT INTO %s (k, t) VALUES (?, ?)", 1, tuple(8, "bar", 0.2));
+            assertAllRows(
+                row(0, tuple(3, "foo", 3.4)),
+                row(1, tuple(8, "bar", 0.2))
+            );
 
-        // nulls
-        execute("INSERT INTO %s (k, t) VALUES (?, ?)", 2, tuple(5, null, 3.4));
-        assertRows(execute("SELECT * FROM %s WHERE k=?", 2),
-            row(2, tuple(5, null, 3.4))
-        );
+            // nulls
+            execute("INSERT INTO %s (k, t) VALUES (?, ?)", 2, tuple(5, null, 3.4));
+            assertRows(execute("SELECT * FROM %s WHERE k=?", 2),
+                row(2, tuple(5, null, 3.4))
+            );
 
-        // incomplete tuple
-        execute("INSERT INTO %s (k, t) VALUES (?, ?)", 3, tuple(5, "bar"));
-        assertRows(execute("SELECT * FROM %s WHERE k=?", 3),
-            row(3, tuple(5, "bar"))
-        );
+            // incomplete tuple
+            execute("INSERT INTO %s (k, t) VALUES (?, ?)", 3, tuple(5, "bar"));
+            assertRows(execute("SELECT * FROM %s WHERE k=?", 3),
+                row(3, tuple(5, "bar"))
+            );
+        }
     }
 
     @Test
@@ -93,11 +97,5 @@ public class TupleTypeTest extends CQLTester
 
         assertInvalidSyntax("INSERT INTO %s (k, t) VALUES (0, ())");
         assertInvalid("INSERT INTO %s (k, t) VALUES (0, (2, 'foo', 3.1, 'bar'))");
-    }
-
-    @Test
-    public void testNonFrozenTuple() throws Throwable
-    {
-        assertInvalid("CREATE TABLE wrong (k int PRIMARY KEY, v tuple<int, text>)");
     }
 }

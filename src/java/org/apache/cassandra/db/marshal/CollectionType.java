@@ -20,20 +20,20 @@ package org.apache.cassandra.db.marshal;
 import java.nio.ByteBuffer;
 import java.util.List;
 
+import org.apache.cassandra.db.Cell;
+import org.apache.cassandra.transport.Server;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.cql3.CQL3Type;
-import org.apache.cassandra.db.Cell;
 import org.apache.cassandra.serializers.CollectionSerializer;
 import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 /**
- * The abstract validator that is the base for maps, sets and lists.
+ * The abstract validator that is the base for maps, sets and lists (both frozen and non-frozen).
  *
  * Please note that this comparator shouldn't be used "manually" (through thrift for instance).
- *
  */
 public abstract class CollectionType<T> extends AbstractType<T>
 {
@@ -56,26 +56,8 @@ public abstract class CollectionType<T> extends AbstractType<T>
     public abstract AbstractType<?> nameComparator();
     public abstract AbstractType<?> valueComparator();
 
-    protected abstract void appendToStringBuilder(StringBuilder sb);
-
-    public abstract List<ByteBuffer> serializedValues(List<Cell> cells);
-
     @Override
     public abstract CollectionSerializer<T> getSerializer();
-
-    @Override
-    public void validateCellValue(ByteBuffer cellValue) throws MarshalException
-    {
-        valueComparator().validate(cellValue);
-    }
-
-    @Override
-    public String toString()
-    {
-        StringBuilder sb = new StringBuilder();
-        appendToStringBuilder(sb);
-        return sb.toString();
-    }
 
     public String getString(ByteBuffer bytes)
     {
@@ -94,25 +76,18 @@ public abstract class CollectionType<T> extends AbstractType<T>
         }
     }
 
-    @Override
-    public boolean isCompatibleWith(AbstractType<?> previous)
-    {
-        if (this == previous)
-            return true;
-
-        if (!getClass().equals(previous.getClass()))
-            return false;
-
-        CollectionType tprev = (CollectionType) previous;
-        // The name is part of the Cell name, so we need sorting compatibility, i.e. isCompatibleWith().
-        // But value is the Cell value, so isValueCompatibleWith() is enough
-        return this.nameComparator().isCompatibleWith(tprev.nameComparator())
-            && this.valueComparator().isValueCompatibleWith(tprev.valueComparator());
-    }
-
     public boolean isCollection()
     {
         return true;
+    }
+
+    @Override
+    public void validateCellValue(ByteBuffer cellValue) throws MarshalException
+    {
+        if (isMultiCell())
+            valueComparator().validate(cellValue);
+        else
+            super.validateCellValue(cellValue);
     }
 
     /**
@@ -124,9 +99,11 @@ public abstract class CollectionType<T> extends AbstractType<T>
         return kind == Kind.MAP;
     }
 
-    protected List<Cell> enforceLimit(List<Cell> cells, int version)
+    public List<Cell> enforceLimit(List<Cell> cells, int version)
     {
-        if (version >= 3 || cells.size() <= MAX_ELEMENTS)
+        assert isMultiCell();
+
+        if (version >= Server.VERSION_3 || cells.size() <= MAX_ELEMENTS)
             return cells;
 
         logger.error("Detected collection with {} elements, more than the {} limit. Only the first {} elements will be returned to the client. "
@@ -134,15 +111,75 @@ public abstract class CollectionType<T> extends AbstractType<T>
         return cells.subList(0, MAX_ELEMENTS);
     }
 
+    public abstract List<ByteBuffer> serializedValues(List<Cell> cells);
+
     public ByteBuffer serializeForNativeProtocol(List<Cell> cells, int version)
     {
+        assert isMultiCell();
         cells = enforceLimit(cells, version);
         List<ByteBuffer> values = serializedValues(cells);
         return CollectionSerializer.pack(values, cells.size(), version);
     }
 
+    @Override
+    public boolean isCompatibleWith(AbstractType<?> previous)
+    {
+        if (this == previous)
+            return true;
+
+        if (!getClass().equals(previous.getClass()))
+            return false;
+
+        CollectionType tprev = (CollectionType) previous;
+        if (this.isMultiCell() != tprev.isMultiCell())
+            return false;
+
+        // subclasses should handle compatibility checks for frozen collections
+        if (!this.isMultiCell())
+            return isCompatibleWithFrozen(tprev);
+
+        if (!this.nameComparator().isCompatibleWith(tprev.nameComparator()))
+            return false;
+
+        // the value comparator is only used for Cell values, so sorting doesn't matter
+        return this.valueComparator().isValueCompatibleWith(tprev.valueComparator());
+    }
+
+    @Override
+    public boolean isValueCompatibleWithInternal(AbstractType<?> previous)
+    {
+        // for multi-cell collections, compatibility and value-compatibility are the same
+        if (this.isMultiCell())
+            return isCompatibleWith(previous);
+
+        if (this == previous)
+            return true;
+
+        if (!getClass().equals(previous.getClass()))
+            return false;
+
+        CollectionType tprev = (CollectionType) previous;
+        if (this.isMultiCell() != tprev.isMultiCell())
+            return false;
+
+        // subclasses should handle compatibility checks for frozen collections
+        return isValueCompatibleWithFrozen(tprev);
+    }
+
+    /** A version of isCompatibleWith() to deal with non-multicell (frozen) collections */
+    protected abstract boolean isCompatibleWithFrozen(CollectionType<?> previous);
+
+    /** A version of isValueCompatibleWith() to deal with non-multicell (frozen) collections */
+    protected abstract boolean isValueCompatibleWithFrozen(CollectionType<?> previous);
+
     public CQL3Type asCQL3Type()
     {
         return new CQL3Type.Collection(this);
+    }
+
+    @Override
+    public String toString()
+    {
+        return this.toString(false);
     }
 }

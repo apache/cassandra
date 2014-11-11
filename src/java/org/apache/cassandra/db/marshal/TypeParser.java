@@ -241,7 +241,7 @@ public class TypeParser
 
     public Map<ByteBuffer, CollectionType> getCollectionsParameters() throws SyntaxException, ConfigurationException
     {
-        Map<ByteBuffer, CollectionType> map = new HashMap<ByteBuffer, CollectionType>();
+        Map<ByteBuffer, CollectionType> map = new HashMap<>();
 
         if (isEOS())
             return map;
@@ -539,25 +539,37 @@ public class TypeParser
      */
     public static String stringifyTypeParameters(List<AbstractType<?>> types)
     {
-        StringBuilder sb = new StringBuilder();
-        sb.append('(').append(StringUtils.join(types, ",")).append(')');
-        return sb.toString();
+        return stringifyTypeParameters(types, false);
     }
 
-    public static String stringifyCollectionsParameters(Map<ByteBuffer, CollectionType> collections)
+    /**
+     * Helper function to ease the writing of AbstractType.toString() methods.
+     */
+    public static String stringifyTypeParameters(List<AbstractType<?>> types, boolean ignoreFreezing)
+    {
+        StringBuilder sb = new StringBuilder("(");
+        for (int i = 0; i < types.size(); i++)
+        {
+            if (i > 0)
+                sb.append(",");
+            sb.append(types.get(i).toString(ignoreFreezing));
+        }
+        return sb.append(')').toString();
+    }
+
+    public static String stringifyCollectionsParameters(Map<ByteBuffer, ? extends CollectionType> collections)
     {
         StringBuilder sb = new StringBuilder();
         sb.append('(');
         boolean first = true;
-        for (Map.Entry<ByteBuffer, CollectionType> entry : collections.entrySet())
+        for (Map.Entry<ByteBuffer, ? extends CollectionType> entry : collections.entrySet())
         {
             if (!first)
-            {
                 sb.append(',');
-            }
+
             first = false;
             sb.append(ByteBufferUtil.bytesToHex(entry.getKey())).append(":");
-            entry.getValue().appendToStringBuilder(sb);
+            sb.append(entry.getValue());
         }
         sb.append(')');
         return sb.toString();
@@ -572,7 +584,9 @@ public class TypeParser
         {
             sb.append(',');
             sb.append(ByteBufferUtil.bytesToHex(columnNames.get(i))).append(":");
-            sb.append(columnTypes.get(i).toString());
+
+            // omit FrozenType(...) from fields because it is currently implicit
+            sb.append(columnTypes.get(i).toString(true));
         }
         sb.append(')');
         return sb.toString();

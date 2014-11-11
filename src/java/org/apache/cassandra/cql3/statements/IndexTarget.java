@@ -24,37 +24,46 @@ public class IndexTarget
 {
     public final ColumnIdentifier column;
     public final boolean isCollectionKeys;
+    public final boolean isFullCollection;
 
-    private IndexTarget(ColumnIdentifier column, boolean isCollectionKeys)
+    private IndexTarget(ColumnIdentifier column, boolean isCollectionKeys, boolean isFullCollection)
     {
         this.column = column;
         this.isCollectionKeys = isCollectionKeys;
+        this.isFullCollection = isFullCollection;
     }
 
     public static class Raw
     {
         private final ColumnIdentifier.Raw column;
-        public final boolean isCollectionKeys;
+        private final boolean isCollectionKeys;
+        private final boolean isFullCollection;
 
-        private Raw(ColumnIdentifier.Raw column, boolean isCollectionKeys)
+        private Raw(ColumnIdentifier.Raw column, boolean isCollectionKeys, boolean isFullCollection)
         {
             this.column = column;
             this.isCollectionKeys = isCollectionKeys;
+            this.isFullCollection = isFullCollection;
         }
 
-        public static Raw of(ColumnIdentifier.Raw c)
+        public static Raw valuesOf(ColumnIdentifier.Raw c)
         {
-            return new Raw(c, false);
+            return new Raw(c, false, false);
         }
 
         public static Raw keysOf(ColumnIdentifier.Raw c)
         {
-            return new Raw(c, true);
+            return new Raw(c, true, false);
+        }
+
+        public static Raw fullCollection(ColumnIdentifier.Raw c)
+        {
+            return new Raw(c, false, true);
         }
 
         public IndexTarget prepare(CFMetaData cfm)
         {
-            return new IndexTarget(column.prepare(cfm), isCollectionKeys);
+            return new IndexTarget(column.prepare(cfm), isCollectionKeys, isFullCollection);
         }
     }
 }

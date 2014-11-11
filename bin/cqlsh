@@ -486,6 +486,24 @@ def auto_format_udts():
     cassandra.cqltypes.UserType.make_udt_class = classmethod(new_make_udt_class)
 
 
+class FrozenType(cassandra.cqltypes._ParameterizedType):
+    """
+    Needed until the bundled python driver adds FrozenType.
+    """
+    typename = "frozen"
+    num_subtypes = 1
+
+    @classmethod
+    def deserialize_safe(cls, byts, protocol_version):
+        subtype, = cls.subtypes
+        return subtype.from_binary(byts)
+
+    @classmethod
+    def serialize_safe(cls, val, protocol_version):
+        subtype, = cls.subtypes
+        return subtype.to_binary(val, protocol_version)
+
+
 class Shell(cmd.Cmd):
     custom_prompt = os.getenv('CQLSH_PROMPT', '')
     if custom_prompt is not '':

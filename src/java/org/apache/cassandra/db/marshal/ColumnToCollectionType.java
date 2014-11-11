@@ -33,7 +33,7 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 public class ColumnToCollectionType extends AbstractType<ByteBuffer>
 {
     // interning instances
-    private static final Map<Map<ByteBuffer, CollectionType>, ColumnToCollectionType> instances = new HashMap<Map<ByteBuffer, CollectionType>, ColumnToCollectionType>();
+    private static final Map<Map<ByteBuffer, CollectionType>, ColumnToCollectionType> instances = new HashMap<>();
 
     public final Map<ByteBuffer, CollectionType> defined;
 

@@ -40,9 +40,7 @@ import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.IndexExpression;
 import org.apache.cassandra.db.composites.CellName;
 import org.apache.cassandra.db.composites.Composite;
-import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.db.marshal.CollectionType;
-import org.apache.cassandra.db.marshal.CompositeType;
+import org.apache.cassandra.db.marshal.*;
 
 /**
  * Extends a column filter (IFilter) to include a number of IndexExpression.
@@ -324,7 +322,7 @@ public abstract class ExtendedFilter
                 }
                 else
                 {
-                    if (def.type.isCollection())
+                    if (def.type.isCollection() && def.type.isMultiCell())
                     {
                         if (!collectionSatisfies(def, data, prefix, expression, collectionElement))
                             return false;
@@ -338,16 +336,49 @@ public abstract class ExtendedFilter
                 if (dataValue == null)
                     return false;
 
-                int v = validator.compare(dataValue, expression.value);
-                if (!satisfies(v, expression.operator))
-                    return false;
+                if (expression.operator == Operator.CONTAINS)
+                {
+                    assert def != null && def.type.isCollection() && !def.type.isMultiCell();
+                    CollectionType type = (CollectionType)def.type;
+                    switch (type.kind)
+                    {
+                        case LIST:
+                            ListType<?> listType = (ListType)def.type;
+                            if (!listType.getSerializer().deserialize(dataValue).contains(listType.getElementsType().getSerializer().deserialize(expression.value)))
+                                return false;
+                            break;
+                        case SET:
+                            SetType<?> setType = (SetType)def.type;
+                            if (!setType.getSerializer().deserialize(dataValue).contains(setType.getElementsType().getSerializer().deserialize(expression.value)))
+                                return false;
+                            break;
+                        case MAP:
+                            MapType<?,?> mapType = (MapType)def.type;
+                            if (!mapType.getSerializer().deserialize(dataValue).containsValue(mapType.getValuesType().getSerializer().deserialize(expression.value)))
+                                return false;
+                            break;
+                    }
+                }
+                else if (expression.operator == Operator.CONTAINS_KEY)
+                {
+                    assert def != null && def.type.isCollection() && !def.type.isMultiCell() && def.type instanceof MapType;
+                    MapType<?,?> mapType = (MapType)def.type;
+                    if (mapType.getSerializer().getSerializedValue(dataValue, expression.value, mapType.getKeysType()) == null)
+                        return false;
+                }
+                else
+                {
+                    int v = validator.compare(dataValue, expression.value);
+                    if (!satisfies(v, expression.operator))
+                        return false;
+                }
             }
             return true;
         }
 
         private static boolean collectionSatisfies(ColumnDefinition def, ColumnFamily data, Composite prefix, IndexExpression expr, ByteBuffer collectionElement)
         {
-            assert def.type.isCollection();
+            assert def.type.isCollection() && def.type.isMultiCell();
             CollectionType type = (CollectionType)def.type;
 
             if (expr.isContains())

@@ -64,7 +64,7 @@ public class CFRowAdder
     public CFRowAdder resetCollection(String cql3ColumnName)
     {
         ColumnDefinition def = getDefinition(cql3ColumnName);
-        assert def.type.isCollection();
+        assert def.type.isCollection() && def.type.isMultiCell();
         Composite name = cf.getComparator().create(prefix, def);
         cf.addAtom(new RangeTombstone(name.start(), name.end(), timestamp - 1, ldt));
         return this;
@@ -75,7 +75,7 @@ public class CFRowAdder
         ColumnDefinition def = getDefinition(cql3ColumnName);
         assert def.type instanceof MapType;
         MapType mt = (MapType)def.type;
-        CellName name = cf.getComparator().create(prefix, def, mt.keys.decompose(key));
+        CellName name = cf.getComparator().create(prefix, def, mt.getKeysType().decompose(key));
         return add(name, def, value);
     }
 

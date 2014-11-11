@@ -19,8 +19,10 @@
 package org.apache.cassandra.serializers;
 
 import java.nio.ByteBuffer;
+import java.util.Collection;
 import java.util.List;
 
+import org.apache.cassandra.transport.Server;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 public abstract class CollectionSerializer<T> implements TypeSerializer<T>
@@ -35,17 +37,17 @@ public abstract class CollectionSerializer<T> implements TypeSerializer<T>
     {
         List<ByteBuffer> values = serializeValues(value);
         // See deserialize() for why using the protocol v3 variant is the right thing to do.
-        return pack(values, getElementCount(value), 3);
+        return pack(values, getElementCount(value), Server.VERSION_3);
     }
 
     public T deserialize(ByteBuffer bytes)
     {
         // The only cases we serialize/deserialize collections internally (i.e. not for the protocol sake),
         // is:
-        //  1) when collections are in UDT values
+        //  1) when collections are frozen
         //  2) for internal calls.
         // In both case, using the protocol 3 version variant is the right thing to do.
-        return deserializeForNativeProtocol(bytes, 3);
+        return deserializeForNativeProtocol(bytes, Server.VERSION_3);
     }
 
     public ByteBuffer reserializeToV3(ByteBuffer bytes)
@@ -55,11 +57,11 @@ public abstract class CollectionSerializer<T> implements TypeSerializer<T>
 
     public void validate(ByteBuffer bytes) throws MarshalException
     {
-        // Same thing than above
-        validateForNativeProtocol(bytes, 3);
+        // Same thing as above
+        validateForNativeProtocol(bytes, Server.VERSION_3);
     }
 
-    public static ByteBuffer pack(List<ByteBuffer> buffers, int elements, int version)
+    public static ByteBuffer pack(Collection<ByteBuffer> buffers, int elements, int version)
     {
         int size = 0;
         for (ByteBuffer bb : buffers)
@@ -74,7 +76,7 @@ public abstract class CollectionSerializer<T> implements TypeSerializer<T>
 
     protected static void writeCollectionSize(ByteBuffer output, int elements, int version)
     {
-        if (version >= 3)
+        if (version >= Server.VERSION_3)
             output.putInt(elements);
         else
             output.putShort((short)elements);
@@ -82,12 +84,12 @@ public abstract class CollectionSerializer<T> implements TypeSerializer<T>
 
     public static int readCollectionSize(ByteBuffer input, int version)
     {
-        return version >= 3 ? input.getInt() : ByteBufferUtil.readShortLength(input);
+        return version >= Server.VERSION_3 ? input.getInt() : ByteBufferUtil.readShortLength(input);
     }
 
     protected static int sizeOfCollectionSize(int elements, int version)
     {
-        return version >= 3 ? 4 : 2;
+        return version >= Server.VERSION_3 ? 4 : 2;
     }
 
     protected static void writeValue(ByteBuffer output, ByteBuffer value, int version)
@@ -113,7 +115,7 @@ public abstract class CollectionSerializer<T> implements TypeSerializer<T>
 
     public static ByteBuffer readValue(ByteBuffer input, int version)
     {
-        if (version >= 3)
+        if (version >= Server.VERSION_3)
         {
             int size = input.getInt();
             if (size < 0)
@@ -129,7 +131,7 @@ public abstract class CollectionSerializer<T> implements TypeSerializer<T>
 
     protected static int sizeOfValue(ByteBuffer value, int version)
     {
-        if (version >= 3)
+        if (version >= Server.VERSION_3)
         {
             return value == null ? 4 : 4 + value.remaining();
         }

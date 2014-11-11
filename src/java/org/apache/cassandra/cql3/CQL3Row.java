@@ -27,7 +27,7 @@ public interface CQL3Row
 {
     public ByteBuffer getClusteringColumn(int i);
     public Cell getColumn(ColumnIdentifier name);
-    public List<Cell> getCollection(ColumnIdentifier name);
+    public List<Cell> getMultiCellColumn(ColumnIdentifier name);
 
     public interface Builder
     {

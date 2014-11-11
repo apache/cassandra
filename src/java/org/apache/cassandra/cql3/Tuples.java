@@ -248,13 +248,13 @@ public class Tuples
                 // but the deserialization does the validation (so we're fine).
                 List<?> l = (List<?>)type.getSerializer().deserializeForNativeProtocol(value, options.getProtocolVersion());
 
-                assert type.elements instanceof TupleType;
-                TupleType tupleType = (TupleType) type.elements;
+                assert type.getElementsType() instanceof TupleType;
+                TupleType tupleType = (TupleType) type.getElementsType();
 
                 // type.split(bytes)
                 List<List<ByteBuffer>> elements = new ArrayList<>(l.size());
                 for (Object element : l)
-                    elements.add(Arrays.asList(tupleType.split(type.elements.decompose(element))));
+                    elements.add(Arrays.asList(tupleType.split(type.getElementsType().decompose(element))));
                 return new InValue(elements);
             }
             catch (MarshalException e)
@@ -337,15 +337,16 @@ public class Tuples
                 if (i < receivers.size() - 1)
                     inName.append(",");
 
-                if (receiver.type instanceof CollectionType)
-                    throw new InvalidRequestException("Collection columns do not support IN relations");
+                if (receiver.type.isCollection() && receiver.type.isMultiCell())
+                    throw new InvalidRequestException("Non-frozen collection columns do not support IN relations");
+
                 types.add(receiver.type);
             }
             inName.append(')');
 
             ColumnIdentifier identifier = new ColumnIdentifier(inName.toString(), true);
             TupleType type = new TupleType(types);
-            return new ColumnSpecification(receivers.get(0).ksName, receivers.get(0).cfName, identifier, ListType.getInstance(type));
+            return new ColumnSpecification(receivers.get(0).ksName, receivers.get(0).cfName, identifier, ListType.getInstance(type, false));
         }
 
         public AbstractMarker prepare(String keyspace, List<? extends ColumnSpecification> receivers) throws InvalidRequestException

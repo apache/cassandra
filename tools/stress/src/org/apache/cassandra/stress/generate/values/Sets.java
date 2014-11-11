@@ -32,7 +32,7 @@ public class Sets extends Generator<Set>
 
     public Sets(String name, Generator valueType, GeneratorConfig config)
     {
-        super(SetType.getInstance(valueType.type), config, name, Set.class);
+        super(SetType.getInstance(valueType.type, true), config, name, Set.class);
         this.valueType = valueType;
     }
 

@@ -97,6 +97,6 @@ public class UpdateParameters
             return Collections.emptyList();
 
         CQL3Row row = prefetchedLists.get(rowKey);
-        return row == null ? Collections.<Cell>emptyList() : row.getCollection(cql3ColumnName);
+        return row == null ? Collections.<Cell>emptyList() : row.getMultiCellColumn(cql3ColumnName);
     }
 }

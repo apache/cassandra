@@ -95,7 +95,7 @@ public interface CellNameType extends CType
     public boolean supportCollections();
 
     /**
-     * The type of the collections (or null if the type has not collections).
+     * The type of the collections (or null if the type does not have any non-frozen collections).
      */
     public ColumnToCollectionType collectionType();
 
