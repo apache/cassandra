@@ -343,6 +343,11 @@ public class ActiveRepairService
         return parentRepairSessions.get(parentSessionId);
     }
 
+    public ParentRepairSession removeParentRepairSession(UUID parentSessionId)
+    {
+        return parentRepairSessions.remove(parentSessionId);
+    }
+
     public List<Future<?>> doAntiCompaction(UUID parentRepairSession) throws InterruptedException, ExecutionException, IOException
     {
         assert parentRepairSession != null;
