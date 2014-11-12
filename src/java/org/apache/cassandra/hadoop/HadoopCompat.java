@@ -36,7 +36,6 @@ import org.apache.hadoop.mapreduce.StatusReporter;
 import org.apache.hadoop.mapreduce.TaskAttemptContext;
 import org.apache.hadoop.mapreduce.TaskAttemptID;
 import org.apache.hadoop.mapreduce.TaskInputOutputContext;
-import org.apache.cassandra.utils.JVMStabilityInspector;
 
 /*
  * This is based on ContextFactory.java from hadoop-2.0.x sources.
@@ -132,7 +131,6 @@ public class HadoopCompat {
                     get_counter = Class.forName(PACKAGE + ".TaskAttemptContext").getMethod("getCounter", String.class,
                             String.class);
                 } catch (Exception e) {
-                    JVMStabilityInspector.inspectThrowable(e);
                     get_counter = Class.forName(PACKAGE + ".TaskInputOutputContext").getMethod("getCounter",
                             String.class, String.class);
                 }
