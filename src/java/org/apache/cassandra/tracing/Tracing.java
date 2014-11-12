@@ -22,6 +22,7 @@ package org.apache.cassandra.tracing;
 import java.net.InetAddress;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
+import java.util.Date;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -34,7 +35,6 @@ import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.concurrent.StageManager;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.*;
-import org.apache.cassandra.db.composites.CellName;
 import org.apache.cassandra.db.marshal.TimeUUIDType;
 import org.apache.cassandra.exceptions.OverloadedException;
 import org.apache.cassandra.exceptions.UnavailableException;
@@ -42,11 +42,8 @@ import org.apache.cassandra.exceptions.WriteTimeoutException;
 import org.apache.cassandra.net.MessageIn;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.StorageProxy;
-import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.UUIDGen;
-
-import static org.apache.cassandra.utils.ByteBufferUtil.bytes;
 
 /**
  * A trace session context. Able to track and store trace sessions. A session is usually a user initiated query, and may
@@ -59,56 +56,15 @@ public class Tracing
     public static final String SESSIONS_CF = "sessions";
     public static final String TRACE_HEADER = "TraceSession";
 
-    private static final int TTL = 24 * 3600;
-
     private static final Logger logger = LoggerFactory.getLogger(Tracing.class);
 
     private final InetAddress localAddress = FBUtilities.getLocalAddress();
 
-    private final ThreadLocal<TraceState> state = new ThreadLocal<TraceState>();
+    private final ThreadLocal<TraceState> state = new ThreadLocal<>();
 
-    private final ConcurrentMap<UUID, TraceState> sessions = new ConcurrentHashMap<UUID, TraceState>();
+    private final ConcurrentMap<UUID, TraceState> sessions = new ConcurrentHashMap<>();
 
     public static final Tracing instance = new Tracing();
-
-    public static void addColumn(ColumnFamily cf, CellName name, InetAddress address)
-    {
-        addColumn(cf, name, ByteBufferUtil.bytes(address));
-    }
-
-    public static void addColumn(ColumnFamily cf, CellName name, int value)
-    {
-        addColumn(cf, name, ByteBufferUtil.bytes(value));
-    }
-
-    public static void addColumn(ColumnFamily cf, CellName name, long value)
-    {
-        addColumn(cf, name, ByteBufferUtil.bytes(value));
-    }
-
-    public static void addColumn(ColumnFamily cf, CellName name, String value)
-    {
-        addColumn(cf, name, ByteBufferUtil.bytes(value));
-    }
-
-    private static void addColumn(ColumnFamily cf, CellName name, ByteBuffer value)
-    {
-        cf.addColumn(new BufferExpiringCell(name, value, System.currentTimeMillis(), TTL));
-    }
-
-    public void addParameterColumns(ColumnFamily cf, Map<String, String> rawPayload)
-    {
-        for (Map.Entry<String, String> entry : rawPayload.entrySet())
-        {
-            cf.addColumn(new BufferExpiringCell(buildName(CFMetaData.TraceSessionsCf, "parameters", entry.getKey()),
-                                                bytes(entry.getValue()), System.currentTimeMillis(), TTL));
-        }
-    }
-
-    public static CellName buildName(CFMetaData meta, Object... args)
-    {
-        return meta.comparator.makeCellName(args);
-    }
 
     public UUID getSessionId()
     {
@@ -165,10 +121,13 @@ public class Tracing
             {
                 public void run()
                 {
-                    CFMetaData cfMeta = CFMetaData.TraceSessionsCf;
-                    ColumnFamily cf = ArrayBackedSortedColumns.factory.create(cfMeta);
-                    addColumn(cf, buildName(cfMeta, "duration"), elapsed);
-                    mutateWithCatch(new Mutation(TRACE_KS, sessionIdBytes, cf));
+                    Mutation mutation = new Mutation(TRACE_KS, sessionIdBytes);
+                    ColumnFamily cells = mutation.addOrGet(CFMetaData.TraceSessionsCf);
+
+                    CFRowAdder adder = new CFRowAdder(cells, cells.metadata().comparator.builder().build(), FBUtilities.timestampMicros());
+                    adder.add("duration", elapsed);
+
+                    mutateWithCatch(mutation);
                 }
             });
 
@@ -203,14 +162,17 @@ public class Tracing
         {
             public void run()
             {
-                CFMetaData cfMeta = CFMetaData.TraceSessionsCf;
-                ColumnFamily cf = ArrayBackedSortedColumns.factory.create(cfMeta);
-                addColumn(cf, buildName(cfMeta, "coordinator"), FBUtilities.getBroadcastAddress());
-                addParameterColumns(cf, parameters);
-                addColumn(cf, buildName(cfMeta, bytes("request")), request);
-                addColumn(cf, buildName(cfMeta, bytes("started_at")), started_at);
-                addParameterColumns(cf, parameters);
-                mutateWithCatch(new Mutation(TRACE_KS, sessionIdBytes, cf));
+                Mutation mutation = new Mutation(TRACE_KS, sessionIdBytes);
+                ColumnFamily cells = mutation.addOrGet(CFMetaData.TraceSessionsCf);
+
+                CFRowAdder adder = new CFRowAdder(cells, cells.metadata().comparator.builder().build(), FBUtilities.timestampMicros());
+                adder.add("coordinator", FBUtilities.getBroadcastAddress());
+                for (Map.Entry<String, String> entry : parameters.entrySet())
+                    adder.addMapEntry("parameters", entry.getKey(), entry.getValue());
+                adder.add("request", request);
+                adder.add("started_at", new Date(started_at));
+
+                mutateWithCatch(mutation);
             }
         });
     }
