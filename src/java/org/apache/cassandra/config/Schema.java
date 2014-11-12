@@ -23,7 +23,6 @@ import java.security.NoSuchAlgorithmException;
 import java.util.*;
 
 import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -53,10 +52,10 @@ public class Schema
     public static final int NAME_LENGTH = 48;
 
     /* metadata map for faster keyspace lookup */
-    private final Map<String, KSMetaData> keyspaces = new NonBlockingHashMap<String, KSMetaData>();
+    private final Map<String, KSMetaData> keyspaces = new NonBlockingHashMap<>();
 
     /* Keyspace objects, one per keyspace. Only one instance should ever exist for any given keyspace. */
-    private final Map<String, Keyspace> keyspaceInstances = new NonBlockingHashMap<String, Keyspace>();
+    private final Map<String, Keyspace> keyspaceInstances = new NonBlockingHashMap<>();
 
     /* metadata map for faster ColumnFamily lookup */
     private final ConcurrentBiMap<Pair<String, String>, UUID> cfIdMap = new ConcurrentBiMap<>();
@@ -65,7 +64,6 @@ public class Schema
 
     // 59adb24e-f3cd-3e02-97f0-5b395827453f
     public static final UUID emptyVersion;
-    public static final ImmutableSet<String> systemKeyspaceNames = ImmutableSet.of(Keyspace.SYSTEM_KS);
 
     static
     {
@@ -213,21 +211,6 @@ public class Schema
     }
 
     /**
-     * Get type of the ColumnFamily but it's keyspace/name
-     *
-     * @param ksName The keyspace name
-     * @param cfName The ColumnFamily name
-     *
-     * @return The type of the ColumnFamily
-     */
-    public ColumnFamilyType getColumnFamilyType(String ksName, String cfName)
-    {
-        assert ksName != null && cfName != null;
-        CFMetaData cfMetaData = getCFMetaData(ksName, cfName);
-        return (cfMetaData == null) ? null : cfMetaData.cfType;
-    }
-
-    /**
      * Get metadata about keyspace by its name
      *
      * @param keyspaceName The name of the keyspace
@@ -245,7 +228,7 @@ public class Schema
      */
     public List<String> getNonSystemKeyspaces()
     {
-        return ImmutableList.copyOf(Sets.difference(keyspaces.keySet(), systemKeyspaceNames));
+        return ImmutableList.copyOf(Sets.difference(keyspaces.keySet(), Collections.singleton(SystemKeyspace.NAME)));
     }
 
     /**
@@ -425,7 +408,7 @@ public class Schema
     {
         try
         {
-            return systemKeyspaceNames.contains(ByteBufferUtil.string(row.key.getKey()));
+            return ByteBufferUtil.string(row.key.getKey()).equals(SystemKeyspace.NAME);
         }
         catch (CharacterCodingException e)
         {

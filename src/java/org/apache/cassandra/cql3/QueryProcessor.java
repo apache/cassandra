@@ -22,7 +22,6 @@ import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import com.google.common.annotations.VisibleForTesting;
 import com.google.common.primitives.Ints;
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap;
 import com.googlecode.concurrentlinkedhashmap.EntryWeigher;
@@ -147,7 +146,7 @@ public class QueryProcessor implements QueryHandler
             ClientState state = ClientState.forInternalCalls();
             try
             {
-                state.setKeyspace(Keyspace.SYSTEM_KS);
+                state.setKeyspace(SystemKeyspace.NAME);
             }
             catch (InvalidRequestException e)
             {

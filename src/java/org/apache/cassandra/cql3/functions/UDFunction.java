@@ -26,7 +26,6 @@ import com.google.common.base.Objects;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.composites.Composite;
@@ -153,16 +152,16 @@ public abstract class UDFunction extends AbstractFunction implements ScalarFunct
 
     private static Mutation makeSchemaMutation(FunctionName name)
     {
-        CompositeType kv = (CompositeType)CFMetaData.SchemaFunctionsCf.getKeyValidator();
-        return new Mutation(Keyspace.SYSTEM_KS, kv.decompose(name.namespace, name.name));
+        CompositeType kv = (CompositeType)SystemKeyspace.SchemaFunctionsTable.getKeyValidator();
+        return new Mutation(SystemKeyspace.NAME, kv.decompose(name.namespace, name.name));
     }
 
     public Mutation toSchemaDrop(long timestamp)
     {
         Mutation mutation = makeSchemaMutation(name);
-        ColumnFamily cf = mutation.addOrGet(SystemKeyspace.SCHEMA_FUNCTIONS_CF);
+        ColumnFamily cf = mutation.addOrGet(SystemKeyspace.SCHEMA_FUNCTIONS_TABLE);
 
-        Composite prefix = CFMetaData.SchemaFunctionsCf.comparator.make(computeSignature(argTypes));
+        Composite prefix = SystemKeyspace.SchemaFunctionsTable.comparator.make(computeSignature(argTypes));
         int ldt = (int) (System.currentTimeMillis() / 1000);
         cf.addAtom(new RangeTombstone(prefix, prefix.end(), timestamp, ldt));
 
@@ -172,9 +171,9 @@ public abstract class UDFunction extends AbstractFunction implements ScalarFunct
     public Mutation toSchemaUpdate(long timestamp)
     {
         Mutation mutation = makeSchemaMutation(name);
-        ColumnFamily cf = mutation.addOrGet(SystemKeyspace.SCHEMA_FUNCTIONS_CF);
+        ColumnFamily cf = mutation.addOrGet(SystemKeyspace.SCHEMA_FUNCTIONS_TABLE);
 
-        Composite prefix = CFMetaData.SchemaFunctionsCf.comparator.make(computeSignature(argTypes));
+        Composite prefix = SystemKeyspace.SchemaFunctionsTable.comparator.make(computeSignature(argTypes));
         CFRowAdder adder = new CFRowAdder(cf, prefix, timestamp);
 
         adder.resetCollection("argument_names");
@@ -254,7 +253,7 @@ public abstract class UDFunction extends AbstractFunction implements ScalarFunct
 
     public static Map<ByteBuffer, UDFunction> fromSchema(Row row)
     {
-        UntypedResultSet results = QueryProcessor.resultify("SELECT * FROM system." + SystemKeyspace.SCHEMA_FUNCTIONS_CF, row);
+        UntypedResultSet results = QueryProcessor.resultify("SELECT * FROM system." + SystemKeyspace.SCHEMA_FUNCTIONS_TABLE, row);
         Map<ByteBuffer, UDFunction> udfs = new HashMap<>(results.size());
         for (UntypedResultSet.Row result : results)
             udfs.put(result.getBlob("signature"), fromSchema(result));

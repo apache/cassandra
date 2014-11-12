@@ -662,7 +662,7 @@ public class StorageProxy implements StorageProxyMBean
         AbstractWriteResponseHandler handler = new WriteResponseHandler(endpoints,
                                                                         Collections.<InetAddress>emptyList(),
                                                                         ConsistencyLevel.ONE,
-                                                                        Keyspace.open(Keyspace.SYSTEM_KS),
+                                                                        Keyspace.open(SystemKeyspace.NAME),
                                                                         null,
                                                                         WriteType.BATCH_LOG);
 
@@ -697,11 +697,11 @@ public class StorageProxy implements StorageProxyMBean
         AbstractWriteResponseHandler handler = new WriteResponseHandler(endpoints,
                                                                         Collections.<InetAddress>emptyList(),
                                                                         ConsistencyLevel.ANY,
-                                                                        Keyspace.open(Keyspace.SYSTEM_KS),
+                                                                        Keyspace.open(SystemKeyspace.NAME),
                                                                         null,
                                                                         WriteType.SIMPLE);
-        Mutation mutation = new Mutation(Keyspace.SYSTEM_KS, UUIDType.instance.decompose(uuid));
-        mutation.delete(SystemKeyspace.BATCHLOG_CF, FBUtilities.timestampMicros());
+        Mutation mutation = new Mutation(SystemKeyspace.NAME, UUIDType.instance.decompose(uuid));
+        mutation.delete(SystemKeyspace.BATCHLOG_TABLE, FBUtilities.timestampMicros());
         MessageOut<Mutation> message = mutation.createMessage();
         for (InetAddress target : endpoints)
         {
@@ -1146,7 +1146,7 @@ public class StorageProxy implements StorageProxyMBean
     private static boolean systemKeyspaceQuery(List<ReadCommand> cmds)
     {
         for (ReadCommand cmd : cmds)
-            if (!cmd.ksName.equals(Keyspace.SYSTEM_KS))
+            if (!cmd.ksName.equals(SystemKeyspace.NAME))
                 return false;
         return true;
     }

@@ -21,7 +21,7 @@ import org.apache.cassandra.auth.Permission;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.KSMetaData;
 import org.apache.cassandra.config.Schema;
-import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.exceptions.*;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.service.ClientState;
@@ -57,7 +57,7 @@ public class AlterKeyspaceStatement extends SchemaAlteringStatement
         KSMetaData ksm = Schema.instance.getKSMetaData(name);
         if (ksm == null)
             throw new InvalidRequestException("Unknown keyspace " + name);
-        if (ksm.name.equalsIgnoreCase(Keyspace.SYSTEM_KS))
+        if (ksm.name.equalsIgnoreCase(SystemKeyspace.NAME))
             throw new InvalidRequestException("Cannot alter system keyspace");
 
         attrs.validate();

@@ -61,7 +61,7 @@ public class RecoveryManager2Test
     public void testWithFlush() throws Exception
     {
         // Flush everything that may be in the commit log now to start fresh
-        FBUtilities.waitOnFutures(Keyspace.open(Keyspace.SYSTEM_KS).flush());
+        FBUtilities.waitOnFutures(Keyspace.open(SystemKeyspace.NAME).flush());
 
         CompactionManager.instance.disableAutoCompaction();
 

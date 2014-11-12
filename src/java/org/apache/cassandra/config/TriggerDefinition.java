@@ -60,7 +60,7 @@ public class TriggerDefinition
     public static List<TriggerDefinition> fromSchema(Row serializedTriggers)
     {
         List<TriggerDefinition> triggers = new ArrayList<>();
-        String query = String.format("SELECT * FROM %s.%s", Keyspace.SYSTEM_KS, SystemKeyspace.SCHEMA_TRIGGERS_CF);
+        String query = String.format("SELECT * FROM %s.%s", SystemKeyspace.NAME, SystemKeyspace.SCHEMA_TRIGGERS_TABLE);
         for (UntypedResultSet.Row row : QueryProcessor.resultify(query, serializedTriggers))
         {
             String name = row.getString(TRIGGER_NAME);
@@ -79,9 +79,9 @@ public class TriggerDefinition
      */
     public void toSchema(Mutation mutation, String cfName, long timestamp)
     {
-        ColumnFamily cf = mutation.addOrGet(SystemKeyspace.SCHEMA_TRIGGERS_CF);
+        ColumnFamily cf = mutation.addOrGet(SystemKeyspace.SCHEMA_TRIGGERS_TABLE);
 
-        CFMetaData cfm = CFMetaData.SchemaTriggersCf;
+        CFMetaData cfm = SystemKeyspace.SchemaTriggersTable;
         Composite prefix = cfm.comparator.make(cfName, name);
         CFRowAdder adder = new CFRowAdder(cf, prefix, timestamp);
 
@@ -97,10 +97,10 @@ public class TriggerDefinition
      */
     public void deleteFromSchema(Mutation mutation, String cfName, long timestamp)
     {
-        ColumnFamily cf = mutation.addOrGet(SystemKeyspace.SCHEMA_TRIGGERS_CF);
+        ColumnFamily cf = mutation.addOrGet(SystemKeyspace.SCHEMA_TRIGGERS_TABLE);
         int ldt = (int) (System.currentTimeMillis() / 1000);
 
-        Composite prefix = CFMetaData.SchemaTriggersCf.comparator.make(cfName, name);
+        Composite prefix = SystemKeyspace.SchemaTriggersTable.comparator.make(cfName, name);
         cf.addAtom(new RangeTombstone(prefix, prefix.end(), timestamp, ldt));
     }
 

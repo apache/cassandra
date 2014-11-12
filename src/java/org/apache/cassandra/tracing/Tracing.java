@@ -54,20 +54,15 @@ import static org.apache.cassandra.utils.ByteBufferUtil.bytes;
  */
 public class Tracing
 {
-    public static final String TRACE_KS = "system_traces";
-    public static final String EVENTS_CF = "events";
-    public static final String SESSIONS_CF = "sessions";
     public static final String TRACE_HEADER = "TraceSession";
-
-    private static final int TTL = 24 * 3600;
 
     private static final Logger logger = LoggerFactory.getLogger(Tracing.class);
 
     private final InetAddress localAddress = FBUtilities.getLocalAddress();
 
-    private final ThreadLocal<TraceState> state = new ThreadLocal<TraceState>();
+    private final ThreadLocal<TraceState> state = new ThreadLocal<>();
 
-    private final ConcurrentMap<UUID, TraceState> sessions = new ConcurrentHashMap<UUID, TraceState>();
+    private final ConcurrentMap<UUID, TraceState> sessions = new ConcurrentHashMap<>();
 
     public static final Tracing instance = new Tracing();
 
@@ -93,16 +88,15 @@ public class Tracing
 
     private static void addColumn(ColumnFamily cf, CellName name, ByteBuffer value)
     {
-        cf.addColumn(new BufferExpiringCell(name, value, System.currentTimeMillis(), TTL));
+        cf.addColumn(name, value, System.currentTimeMillis());
     }
 
     public void addParameterColumns(ColumnFamily cf, Map<String, String> rawPayload)
     {
         for (Map.Entry<String, String> entry : rawPayload.entrySet())
-        {
-            cf.addColumn(new BufferExpiringCell(buildName(CFMetaData.TraceSessionsCf, "parameters", entry.getKey()),
-                                                bytes(entry.getValue()), System.currentTimeMillis(), TTL));
-        }
+            cf.addColumn(buildName(TraceKeyspace.SessionsTable, "parameters", entry.getKey()),
+                         bytes(entry.getValue()),
+                         System.currentTimeMillis());
     }
 
     public static CellName buildName(CFMetaData meta, Object... args)
@@ -165,10 +159,10 @@ public class Tracing
             {
                 public void run()
                 {
-                    CFMetaData cfMeta = CFMetaData.TraceSessionsCf;
+                    CFMetaData cfMeta = TraceKeyspace.SessionsTable;
                     ColumnFamily cf = ArrayBackedSortedColumns.factory.create(cfMeta);
                     addColumn(cf, buildName(cfMeta, "duration"), elapsed);
-                    mutateWithCatch(new Mutation(TRACE_KS, sessionIdBytes, cf));
+                    mutateWithCatch(new Mutation(TraceKeyspace.NAME, sessionIdBytes, cf));
                 }
             });
 
@@ -203,14 +197,14 @@ public class Tracing
         {
             public void run()
             {
-                CFMetaData cfMeta = CFMetaData.TraceSessionsCf;
+                CFMetaData cfMeta = TraceKeyspace.SessionsTable;
                 ColumnFamily cf = ArrayBackedSortedColumns.factory.create(cfMeta);
                 addColumn(cf, buildName(cfMeta, "coordinator"), FBUtilities.getBroadcastAddress());
                 addParameterColumns(cf, parameters);
                 addColumn(cf, buildName(cfMeta, bytes("request")), request);
                 addColumn(cf, buildName(cfMeta, bytes("started_at")), started_at);
                 addParameterColumns(cf, parameters);
-                mutateWithCatch(new Mutation(TRACE_KS, sessionIdBytes, cf));
+                mutateWithCatch(new Mutation(TraceKeyspace.NAME, sessionIdBytes, cf));
             }
         });
     }

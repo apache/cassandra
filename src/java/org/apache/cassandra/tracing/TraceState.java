@@ -98,14 +98,14 @@ public class TraceState
         {
             public void runMayThrow()
             {
-                CFMetaData cfMeta = CFMetaData.TraceEventsCf;
+                CFMetaData cfMeta = TraceKeyspace.EventsTable;
                 ColumnFamily cf = ArrayBackedSortedColumns.factory.create(cfMeta);
                 Tracing.addColumn(cf, Tracing.buildName(cfMeta, eventId, ByteBufferUtil.bytes("activity")), message);
                 Tracing.addColumn(cf, Tracing.buildName(cfMeta, eventId, ByteBufferUtil.bytes("source")), FBUtilities.getBroadcastAddress());
                 if (elapsed >= 0)
                     Tracing.addColumn(cf, Tracing.buildName(cfMeta, eventId, ByteBufferUtil.bytes("source_elapsed")), elapsed);
                 Tracing.addColumn(cf, Tracing.buildName(cfMeta, eventId, ByteBufferUtil.bytes("thread")), threadName);
-                Tracing.mutateWithCatch(new Mutation(Tracing.TRACE_KS, sessionIdBytes, cf));
+                Tracing.mutateWithCatch(new Mutation(TraceKeyspace.NAME, sessionIdBytes, cf));
             }
         });
     }

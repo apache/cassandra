@@ -357,7 +357,7 @@ public class MigrationManager
     // Include the serialized keyspace for when a target node missed the CREATE KEYSPACE migration (see #5631).
     private static Mutation addSerializedKeyspace(Mutation migration, String ksName)
     {
-        migration.add(SystemKeyspace.readSchemaRow(SystemKeyspace.SCHEMA_KEYSPACES_CF, ksName).cf);
+        migration.add(SystemKeyspace.readSchemaRow(SystemKeyspace.SCHEMA_KEYSPACES_TABLE, ksName).cf);
         return migration;
     }
 
@@ -464,7 +464,7 @@ public class MigrationManager
         logger.debug("Truncating schema tables...");
 
         // truncate schema tables
-        for (String cf : SystemKeyspace.allSchemaCfs)
+        for (String cf : SystemKeyspace.ALL_SCHEMA_TABLES)
             SystemKeyspace.schemaCFS(cf).truncateBlocking();
 
         logger.debug("Clearing local schema keyspace definitions...");

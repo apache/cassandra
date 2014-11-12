@@ -32,7 +32,6 @@ import org.apache.thrift.transport.TTransport;
 
 import org.apache.cassandra.auth.IAuthenticator;
 import org.apache.cassandra.config.*;
-import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.dht.Range;
@@ -309,9 +308,9 @@ public class BulkLoader
                     }
 
                     String cfQuery = String.format("SELECT * FROM %s.%s WHERE keyspace_name = '%s'",
-                                                 Keyspace.SYSTEM_KS,
-                                                 SystemKeyspace.SCHEMA_COLUMNFAMILIES_CF,
-                                                 keyspace);
+                                                   SystemKeyspace.NAME,
+                                                   SystemKeyspace.SCHEMA_COLUMNFAMILIES_TABLE,
+                                                   keyspace);
                     CqlResult cfRes = client.execute_cql3_query(ByteBufferUtil.bytes(cfQuery), Compression.NONE, ConsistencyLevel.ONE);
 
 
@@ -319,8 +318,8 @@ public class BulkLoader
                     {
                         String columnFamily = UTF8Type.instance.getString(row.columns.get(1).bufferForName());
                         String columnsQuery = String.format("SELECT * FROM %s.%s WHERE keyspace_name = '%s' AND columnfamily_name = '%s'",
-                                                            Keyspace.SYSTEM_KS,
-                                                            SystemKeyspace.SCHEMA_COLUMNS_CF,
+                                                            SystemKeyspace.NAME,
+                                                            SystemKeyspace.SCHEMA_COLUMNS_TABLE,
                                                             keyspace,
                                                             columnFamily);
                         CqlResult columnsRes = client.execute_cql3_query(ByteBufferUtil.bytes(columnsQuery), Compression.NONE, ConsistencyLevel.ONE);

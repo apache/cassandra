@@ -75,7 +75,7 @@ public final class UTMetaData
 
     public static Map<ByteBuffer, UserType> fromSchema(Row row)
     {
-        UntypedResultSet results = QueryProcessor.resultify("SELECT * FROM system." + SystemKeyspace.SCHEMA_USER_TYPES_CF, row);
+        UntypedResultSet results = QueryProcessor.resultify("SELECT * FROM system." + SystemKeyspace.SCHEMA_USER_TYPES_TABLE, row);
         Map<ByteBuffer, UserType> types = new HashMap<>(results.size());
         for (UntypedResultSet.Row result : results)
         {
@@ -87,14 +87,14 @@ public final class UTMetaData
 
     public static Mutation toSchema(UserType newType, long timestamp)
     {
-        return toSchema(new Mutation(Keyspace.SYSTEM_KS, SystemKeyspace.getSchemaKSKey(newType.keyspace)), newType, timestamp);
+        return toSchema(new Mutation(SystemKeyspace.NAME, SystemKeyspace.getSchemaKSKey(newType.keyspace)), newType, timestamp);
     }
 
     public static Mutation toSchema(Mutation mutation, UserType newType, long timestamp)
     {
-        ColumnFamily cf = mutation.addOrGet(SystemKeyspace.SCHEMA_USER_TYPES_CF);
+        ColumnFamily cf = mutation.addOrGet(SystemKeyspace.SCHEMA_USER_TYPES_TABLE);
 
-        Composite prefix = CFMetaData.SchemaUserTypesCf.comparator.make(newType.name);
+        Composite prefix = SystemKeyspace.SchemaUserTypesTable.comparator.make(newType.name);
         CFRowAdder adder = new CFRowAdder(cf, prefix, timestamp);
 
         adder.resetCollection("field_names");
@@ -117,11 +117,11 @@ public final class UTMetaData
 
     public static Mutation dropFromSchema(UserType droppedType, long timestamp)
     {
-        Mutation mutation = new Mutation(Keyspace.SYSTEM_KS, SystemKeyspace.getSchemaKSKey(droppedType.keyspace));
-        ColumnFamily cf = mutation.addOrGet(SystemKeyspace.SCHEMA_USER_TYPES_CF);
+        Mutation mutation = new Mutation(SystemKeyspace.NAME, SystemKeyspace.getSchemaKSKey(droppedType.keyspace));
+        ColumnFamily cf = mutation.addOrGet(SystemKeyspace.SCHEMA_USER_TYPES_TABLE);
         int ldt = (int) (System.currentTimeMillis() / 1000);
 
-        Composite prefix = CFMetaData.SchemaUserTypesCf.comparator.make(droppedType.name);
+        Composite prefix = SystemKeyspace.SchemaUserTypesTable.comparator.make(droppedType.name);
         cf.addAtom(new RangeTombstone(prefix, prefix.end(), timestamp, ldt));
 
         return mutation;

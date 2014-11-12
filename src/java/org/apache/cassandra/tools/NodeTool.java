@@ -40,14 +40,12 @@ import io.airlift.command.*;
 import org.apache.commons.lang3.StringUtils;
 
 import org.apache.cassandra.concurrent.JMXEnabledThreadPoolExecutorMBean;
-import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.ColumnFamilyStoreMBean;
-import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.db.compaction.CompactionManagerMBean;
 import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.locator.EndpointSnitchInfoMBean;
-import org.apache.cassandra.locator.LocalStrategy;
 import org.apache.cassandra.net.MessagingServiceMBean;
 import org.apache.cassandra.repair.messages.RepairOption;
 import org.apache.cassandra.service.CacheServiceMBean;
@@ -977,7 +975,7 @@ public class NodeTool
 
             for (String keyspace : keyspaces)
             {
-                if (Keyspace.SYSTEM_KS.equals(keyspace))
+                if (SystemKeyspace.NAME.equals(keyspace))
                     continue;
 
                 try
