@@ -59,15 +59,13 @@ public class Tracing
     public static final String SESSIONS_CF = "sessions";
     public static final String TRACE_HEADER = "TraceSession";
 
-    private static final int TTL = 24 * 3600;
-
     private static final Logger logger = LoggerFactory.getLogger(Tracing.class);
 
     private final InetAddress localAddress = FBUtilities.getLocalAddress();
 
-    private final ThreadLocal<TraceState> state = new ThreadLocal<TraceState>();
+    private final ThreadLocal<TraceState> state = new ThreadLocal<>();
 
-    private final ConcurrentMap<UUID, TraceState> sessions = new ConcurrentHashMap<UUID, TraceState>();
+    private final ConcurrentMap<UUID, TraceState> sessions = new ConcurrentHashMap<>();
 
     public static final Tracing instance = new Tracing();
 
@@ -93,16 +91,7 @@ public class Tracing
 
     private static void addColumn(ColumnFamily cf, ByteBuffer name, ByteBuffer value)
     {
-        cf.addColumn(new ExpiringColumn(name, value, System.currentTimeMillis(), TTL));
-    }
-
-    public void addParameterColumns(ColumnFamily cf, Map<String, String> rawPayload)
-    {
-        for (Map.Entry<String, String> entry : rawPayload.entrySet())
-        {
-            cf.addColumn(new ExpiringColumn(buildName(cf.metadata(), bytes("parameters"), bytes(entry.getKey())),
-                                            bytes(entry.getValue()), System.currentTimeMillis(), TTL));
-        }
+        cf.addColumn(name, value, FBUtilities.timestampMicros());
     }
 
     public static ByteBuffer buildName(CFMetaData meta, ByteBuffer... args)
@@ -208,10 +197,10 @@ public class Tracing
                 CFMetaData cfMeta = CFMetaData.TraceSessionsCf;
                 ColumnFamily cf = TreeMapBackedSortedColumns.factory.create(cfMeta);
                 addColumn(cf, buildName(cfMeta, bytes("coordinator")), FBUtilities.getBroadcastAddress());
-                addParameterColumns(cf, parameters);
+                for (Map.Entry<String, String> entry : parameters.entrySet())
+                    addColumn(cf, buildName(cf.metadata(), bytes("parameters"), bytes(entry.getKey())), entry.getValue());
                 addColumn(cf, buildName(cfMeta, bytes("request")), request);
                 addColumn(cf, buildName(cfMeta, bytes("started_at")), started_at);
-                addParameterColumns(cf, parameters);
                 mutateWithCatch(new RowMutation(TRACE_KS, sessionIdBytes, cf));
             }
         });
