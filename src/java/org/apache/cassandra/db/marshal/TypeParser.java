@@ -22,12 +22,11 @@ import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-
-import org.apache.commons.lang3.StringUtils;
 
 import org.apache.cassandra.exceptions.*;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -121,14 +120,13 @@ public class TypeParser
 
     public Map<String, String> getKeyValueParameters() throws SyntaxException
     {
-        Map<String, String> map = new HashMap<String, String>();
-
         if (isEOS())
-            return map;
+            return Collections.emptyMap();
 
         if (str.charAt(idx) != '(')
             throw new IllegalStateException();
 
+        Map<String, String> map = new HashMap<String, String>();
         ++idx; // skipping '('
 
         while (skipBlankAndComma())

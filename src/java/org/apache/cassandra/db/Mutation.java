@@ -305,7 +305,7 @@ public class Mutation implements IMutation
             }
             else
             {
-                modifications = new HashMap<UUID, ColumnFamily>();
+                modifications = new HashMap<UUID, ColumnFamily>(size);
                 for (int i = 0; i < size; ++i)
                 {
                     ColumnFamily cf = deserializeOneCf(in, version, flag);

@@ -262,7 +262,7 @@ public abstract class AbstractCassandraStorage extends LoadFunc implements Store
     public static Map<String, String> getQueryMap(String query) throws UnsupportedEncodingException 
     {
         String[] params = query.split("&");
-        Map<String, String> map = new HashMap<String, String>();
+        Map<String, String> map = new HashMap<String, String>(params.length);
         for (String param : params)
         {
             String[] keyValue = param.split("=");

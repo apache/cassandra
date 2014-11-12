@@ -165,8 +165,8 @@ implements org.apache.hadoop.mapred.RecordWriter<K, V>
 
         public void init(String keyspace)
         {
-            Set<InetAddress> hosts = new HashSet<InetAddress>();
             String[] nodes = hostlist.split(",");
+            Set<InetAddress> hosts = new HashSet<InetAddress>(nodes.length);
             for (String node : nodes)
             {
                 try

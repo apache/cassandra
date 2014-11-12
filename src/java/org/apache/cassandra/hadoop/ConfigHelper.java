@@ -503,7 +503,7 @@ public class ConfigHelper
         if (getOutputCompressionClass(conf) == null)
             return new CompressionParameters(null);
 
-        Map<String, String> options = new HashMap<String, String>();
+        Map<String, String> options = new HashMap<String, String>(2);
         options.put(CompressionParameters.SSTABLE_COMPRESSION, getOutputCompressionClass(conf));
         options.put(CompressionParameters.CHUNK_LENGTH_KB, getOutputCompressionChunkLength(conf));
 

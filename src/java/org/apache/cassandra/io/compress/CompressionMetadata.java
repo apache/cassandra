@@ -104,7 +104,7 @@ public class CompressionMetadata
         {
             String compressorName = stream.readUTF();
             int optionCount = stream.readInt();
-            Map<String, String> options = new HashMap<>();
+            Map<String, String> options = new HashMap<>(optionCount);
             for (int i = 0; i < optionCount; ++i)
             {
                 String key = stream.readUTF();

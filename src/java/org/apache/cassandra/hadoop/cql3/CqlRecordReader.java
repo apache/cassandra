@@ -272,7 +272,7 @@ public class CqlRecordReader extends RecordReader<Long, Row>
                 return endOfData();
 
             Row row = rows.next();
-            Map<String, ByteBuffer> keyColumns = new HashMap<String, ByteBuffer>(); 
+            Map<String, ByteBuffer> keyColumns = new HashMap<String, ByteBuffer>(partitionBoundColumns.size()); 
             for (String column : partitionBoundColumns.keySet())
                 keyColumns.put(column, row.getBytesUnsafe(column));
 

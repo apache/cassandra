@@ -1522,7 +1522,7 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
         private void updateRestrictionsForRelation(SelectStatement stmt, List<ColumnDefinition> defs, MultiColumnRelation relation, VariableSpecifications boundNames) throws InvalidRequestException
         {
             List<ColumnDefinition> restrictedColumns = new ArrayList<>();
-            Set<ColumnDefinition> seen = new HashSet<>();
+            Set<ColumnDefinition> seen = new HashSet<>(defs.size());
 
             int previousPosition = -1;
             for (ColumnDefinition def : defs)

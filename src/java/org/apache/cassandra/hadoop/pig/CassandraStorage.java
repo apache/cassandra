@@ -225,7 +225,7 @@ public class CassandraStorage extends AbstractCassandraStorage
             Tuple tuple = keyToTuple(key, cfDef, parseType(cfDef.getKey_validation_class()));
             DefaultDataBag bag = new DefaultDataBag();
             // we must add all the indexed columns first to match the schema
-            Map<ByteBuffer, Boolean> added = new HashMap<ByteBuffer, Boolean>();
+            Map<ByteBuffer, Boolean> added = new HashMap<ByteBuffer, Boolean>(cfDef.column_metadata.size());
             // take care to iterate these in the same order as the schema does
             for (ColumnDef cdef : cfDef.column_metadata)
             {

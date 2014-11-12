@@ -287,8 +287,8 @@ public final class KSMetaData
         if (row.cf == null)
             return Collections.emptyMap();
 
-        Map<String, CFMetaData> cfms = new HashMap<>();
         UntypedResultSet results = QueryProcessor.resultify("SELECT * FROM system.schema_columnfamilies", row);
+        Map<String, CFMetaData> cfms = new HashMap<>(results.size());
         for (UntypedResultSet.Row result : results)
         {
             CFMetaData cfm = CFMetaData.fromSchema(result);

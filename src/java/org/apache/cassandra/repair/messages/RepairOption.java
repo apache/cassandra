@@ -157,8 +157,8 @@ public class RepairOption
             {
                 dataCenters.add(tokenizer.nextToken().trim());
             }
+            option.getDataCenters().addAll(dataCenters);
         }
-        option.getDataCenters().addAll(dataCenters);
 
         // hosts
         String hostsStr = options.get(HOSTS_KEY);
@@ -170,21 +170,21 @@ public class RepairOption
             {
                 hosts.add(tokenizer.nextToken().trim());
             }
+            option.getHosts().addAll(hosts);
         }
-        option.getHosts().addAll(hosts);
 
         // columnfamilies
         String cfStr = options.get(COLUMNFAMILIES_KEY);
-        Collection<String> columnFamilies = new HashSet<>();
         if (cfStr != null)
         {
+            Collection<String> columnFamilies = new HashSet<>();
             StringTokenizer tokenizer = new StringTokenizer(cfStr, ",");
             while (tokenizer.hasMoreTokens())
             {
                 columnFamilies.add(tokenizer.nextToken().trim());
             }
+            option.getColumnFamilies().addAll(columnFamilies);
         }
-        option.getColumnFamilies().addAll(columnFamilies);
 
         // validate options
         if (jobThreads > MAX_JOB_THREADS)
