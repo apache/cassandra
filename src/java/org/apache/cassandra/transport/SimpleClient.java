@@ -253,6 +253,7 @@ public class SimpleClient
             SSLEngine sslEngine = sslContext.createSSLEngine();
             sslEngine.setUseClientMode(true);
             sslEngine.setEnabledCipherSuites(encryptionOptions.cipher_suites);
+            sslEngine.setEnabledProtocols(new String[] {"SSLv2Hello", "TLSv1", "TLSv1.1", "TLSv1.2"});
             channel.pipeline().addFirst("ssl", new SslHandler(sslEngine));
         }
     }
