@@ -131,6 +131,10 @@ public class RepairMessageVerbHandler implements IVerbHandler<RepairMessage>
                 {
                     throw new RuntimeException(e);
                 }
+                finally
+                {
+                    ActiveRepairService.instance.removeParentRepairSession(anticompactionRequest.parentRepairSession);
+                }
 
                 break;
 
