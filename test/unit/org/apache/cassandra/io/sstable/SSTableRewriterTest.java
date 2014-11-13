@@ -94,14 +94,16 @@ public class SSTableRewriterTest extends SchemaLoader
         Set<SSTableReader> sstables = new HashSet<>(cfs.getSSTables());
         assertEquals(1, sstables.size());
         SSTableRewriter writer = new SSTableRewriter(cfs, sstables, 1000, false);
-        AbstractCompactionStrategy.ScannerList scanners = cfs.getCompactionStrategy().getScanners(sstables);
-        ICompactionScanner scanner = scanners.scanners.get(0);
-        CompactionController controller = new CompactionController(cfs, sstables, cfs.gcBefore(System.currentTimeMillis()));
-        writer.switchWriter(getWriter(cfs, sstables.iterator().next().descriptor.directory));
-        while(scanner.hasNext())
+        try (AbstractCompactionStrategy.ScannerList scanners = cfs.getCompactionStrategy().getScanners(sstables);)
         {
-            AbstractCompactedRow row = new LazilyCompactedRow(controller, Arrays.asList(scanner.next()));
-            writer.append(row);
+            ICompactionScanner scanner = scanners.scanners.get(0);
+            CompactionController controller = new CompactionController(cfs, sstables, cfs.gcBefore(System.currentTimeMillis()));
+            writer.switchWriter(getWriter(cfs, sstables.iterator().next().descriptor.directory));
+            while(scanner.hasNext())
+            {
+                AbstractCompactedRow row = new LazilyCompactedRow(controller, Arrays.asList(scanner.next()));
+                writer.append(row);
+            }
         }
         cfs.getDataTracker().markCompactedSSTablesReplaced(sstables, writer.finish(), OperationType.COMPACTION);
 
@@ -168,7 +170,7 @@ public class SSTableRewriterTest extends SchemaLoader
 
 
     @Test
-    public void testNumberOfFilesAndSizes() throws InterruptedException
+    public void testNumberOfFilesAndSizes() throws Exception
     {
         Keyspace keyspace = Keyspace.open(KEYSPACE);
         ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(CF);
@@ -182,20 +184,22 @@ public class SSTableRewriterTest extends SchemaLoader
         SSTableRewriter rewriter = new SSTableRewriter(cfs, compacting, 1000, false);
         rewriter.switchWriter(getWriter(cfs, s.descriptor.directory));
 
-        ICompactionScanner scanner = s.getScanner();
-        CompactionController controller = new CompactionController(cfs, compacting, 0);
         int files = 1;
-        while(scanner.hasNext())
+        try (ICompactionScanner scanner = s.getScanner();
+             CompactionController controller = new CompactionController(cfs, compacting, 0))
         {
-            rewriter.append(new LazilyCompactedRow(controller, Arrays.asList(scanner.next())));
-            if (rewriter.currentWriter().getOnDiskFilePointer() > 25000000)
+            while(scanner.hasNext())
             {
-                rewriter.switchWriter(getWriter(cfs, s.descriptor.directory));
-                files++;
-                assertEquals(cfs.getSSTables().size(), files); // we have one original file plus the ones we have switched out.
-                assertEquals(s.bytesOnDisk(), cfs.metric.liveDiskSpaceUsed.count());
-                assertEquals(s.bytesOnDisk(), cfs.metric.totalDiskSpaceUsed.count());
+                rewriter.append(new LazilyCompactedRow(controller, Arrays.asList(scanner.next())));
+                if (rewriter.currentWriter().getOnDiskFilePointer() > 25000000)
+                {
+                    rewriter.switchWriter(getWriter(cfs, s.descriptor.directory));
+                    files++;
+                    assertEquals(cfs.getSSTables().size(), files); // we have one original file plus the ones we have switched out.
+                    assertEquals(s.bytesOnDisk(), cfs.metric.liveDiskSpaceUsed.count());
+                    assertEquals(s.bytesOnDisk(), cfs.metric.totalDiskSpaceUsed.count());
 
+                }
             }
         }
         List<SSTableReader> sstables = rewriter.finish();
@@ -215,7 +219,7 @@ public class SSTableRewriterTest extends SchemaLoader
     }
 
     @Test
-    public void testNumberOfFiles_dont_clean_readers() throws InterruptedException
+    public void testNumberOfFiles_dont_clean_readers() throws Exception
     {
         Keyspace keyspace = Keyspace.open(KEYSPACE);
         ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(CF);
@@ -229,17 +233,19 @@ public class SSTableRewriterTest extends SchemaLoader
         SSTableRewriter rewriter = new SSTableRewriter(cfs, compacting, 1000, false);
         rewriter.switchWriter(getWriter(cfs, s.descriptor.directory));
 
-        ICompactionScanner scanner = s.getScanner();
-        CompactionController controller = new CompactionController(cfs, compacting, 0);
         int files = 1;
-        while(scanner.hasNext())
+        try (ICompactionScanner scanner = s.getScanner();
+             CompactionController controller = new CompactionController(cfs, compacting, 0))
         {
-            rewriter.append(new LazilyCompactedRow(controller, Arrays.asList(scanner.next())));
-            if (rewriter.currentWriter().getOnDiskFilePointer() > 25000000)
+            while(scanner.hasNext())
             {
-                rewriter.switchWriter(getWriter(cfs, s.descriptor.directory));
-                files++;
-                assertEquals(cfs.getSSTables().size(), files); // we have one original file plus the ones we have switched out.
+                rewriter.append(new LazilyCompactedRow(controller, Arrays.asList(scanner.next())));
+                if (rewriter.currentWriter().getOnDiskFilePointer() > 25000000)
+                {
+                    rewriter.switchWriter(getWriter(cfs, s.descriptor.directory));
+                    files++;
+                    assertEquals(cfs.getSSTables().size(), files); // we have one original file plus the ones we have switched out.
+                }
             }
         }
         List<SSTableReader> sstables = rewriter.finish();
@@ -254,7 +260,7 @@ public class SSTableRewriterTest extends SchemaLoader
 
 
     @Test
-    public void testNumberOfFiles_abort() throws InterruptedException
+    public void testNumberOfFiles_abort() throws Exception
     {
         Keyspace keyspace = Keyspace.open(KEYSPACE);
         ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(CF);
@@ -270,17 +276,19 @@ public class SSTableRewriterTest extends SchemaLoader
         SSTableRewriter rewriter = new SSTableRewriter(cfs, compacting, 1000, false);
         rewriter.switchWriter(getWriter(cfs, s.descriptor.directory));
 
-        ICompactionScanner scanner = s.getScanner();
-        CompactionController controller = new CompactionController(cfs, compacting, 0);
         int files = 1;
-        while(scanner.hasNext())
+        try (ICompactionScanner scanner = s.getScanner();
+             CompactionController controller = new CompactionController(cfs, compacting, 0))
         {
-            rewriter.append(new LazilyCompactedRow(controller, Arrays.asList(scanner.next())));
-            if (rewriter.currentWriter().getOnDiskFilePointer() > 25000000)
+            while(scanner.hasNext())
             {
-                rewriter.switchWriter(getWriter(cfs, s.descriptor.directory));
-                files++;
-                assertEquals(cfs.getSSTables().size(), files); // we have one original file plus the ones we have switched out.
+                rewriter.append(new LazilyCompactedRow(controller, Arrays.asList(scanner.next())));
+                if (rewriter.currentWriter().getOnDiskFilePointer() > 25000000)
+                {
+                    rewriter.switchWriter(getWriter(cfs, s.descriptor.directory));
+                    files++;
+                    assertEquals(cfs.getSSTables().size(), files); // we have one original file plus the ones we have switched out.
+                }
             }
         }
         rewriter.abort();
@@ -295,7 +303,7 @@ public class SSTableRewriterTest extends SchemaLoader
     }
 
     @Test
-    public void testNumberOfFiles_abort2() throws InterruptedException
+    public void testNumberOfFiles_abort2() throws Exception
     {
         Keyspace keyspace = Keyspace.open(KEYSPACE);
         ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(CF);
@@ -311,23 +319,25 @@ public class SSTableRewriterTest extends SchemaLoader
         SSTableRewriter rewriter = new SSTableRewriter(cfs, compacting, 1000, false);
         rewriter.switchWriter(getWriter(cfs, s.descriptor.directory));
 
-        ICompactionScanner scanner = s.getScanner();
-        CompactionController controller = new CompactionController(cfs, compacting, 0);
         int files = 1;
-        while(scanner.hasNext())
+        try (ICompactionScanner scanner = s.getScanner();
+             CompactionController controller = new CompactionController(cfs, compacting, 0))
         {
-            rewriter.append(new LazilyCompactedRow(controller, Arrays.asList(scanner.next())));
-            if (rewriter.currentWriter().getOnDiskFilePointer() > 25000000)
+            while(scanner.hasNext())
             {
-                rewriter.switchWriter(getWriter(cfs, s.descriptor.directory));
-                files++;
-                assertEquals(cfs.getSSTables().size(), files); // we have one original file plus the ones we have switched out.
-            }
-            if (files == 3)
-            {
-                //testing to abort when we have nothing written in the new file
-                rewriter.abort();
-                break;
+                rewriter.append(new LazilyCompactedRow(controller, Arrays.asList(scanner.next())));
+                if (rewriter.currentWriter().getOnDiskFilePointer() > 25000000)
+                {
+                    rewriter.switchWriter(getWriter(cfs, s.descriptor.directory));
+                    files++;
+                    assertEquals(cfs.getSSTables().size(), files); // we have one original file plus the ones we have switched out.
+                }
+                if (files == 3)
+                {
+                    //testing to abort when we have nothing written in the new file
+                    rewriter.abort();
+                    break;
+                }
             }
         }
         Thread.sleep(1000);
@@ -340,7 +350,7 @@ public class SSTableRewriterTest extends SchemaLoader
     }
 
     @Test
-    public void testNumberOfFiles_finish_empty_new_writer() throws InterruptedException
+    public void testNumberOfFiles_finish_empty_new_writer() throws Exception
     {
         Keyspace keyspace = Keyspace.open(KEYSPACE);
         ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(CF);
@@ -354,24 +364,26 @@ public class SSTableRewriterTest extends SchemaLoader
         SSTableRewriter rewriter = new SSTableRewriter(cfs, compacting, 1000, false);
         rewriter.switchWriter(getWriter(cfs, s.descriptor.directory));
 
-        ICompactionScanner scanner = s.getScanner();
-        CompactionController controller = new CompactionController(cfs, compacting, 0);
         int files = 1;
-        while(scanner.hasNext())
+        try (ICompactionScanner scanner = s.getScanner();
+             CompactionController controller = new CompactionController(cfs, compacting, 0))
         {
-            rewriter.append(new LazilyCompactedRow(controller, Arrays.asList(scanner.next())));
-            if (rewriter.currentWriter().getOnDiskFilePointer() > 25000000)
+            while(scanner.hasNext())
             {
-                rewriter.switchWriter(getWriter(cfs, s.descriptor.directory));
-                files++;
-                assertEquals(cfs.getSSTables().size(), files); // we have one original file plus the ones we have switched out.
-            }
-            if (files == 3)
-            {
-                //testing to finish when we have nothing written in the new file
-                List<SSTableReader> sstables = rewriter.finish();
-                cfs.getDataTracker().markCompactedSSTablesReplaced(compacting, sstables, OperationType.COMPACTION);
-                break;
+                rewriter.append(new LazilyCompactedRow(controller, Arrays.asList(scanner.next())));
+                if (rewriter.currentWriter().getOnDiskFilePointer() > 25000000)
+                {
+                    rewriter.switchWriter(getWriter(cfs, s.descriptor.directory));
+                    files++;
+                    assertEquals(cfs.getSSTables().size(), files); // we have one original file plus the ones we have switched out.
+                }
+                if (files == 3)
+                {
+                    //testing to finish when we have nothing written in the new file
+                    List<SSTableReader> sstables = rewriter.finish();
+                    cfs.getDataTracker().markCompactedSSTablesReplaced(compacting, sstables, OperationType.COMPACTION);
+                    break;
+                }
             }
         }
         Thread.sleep(1000);
@@ -381,7 +393,7 @@ public class SSTableRewriterTest extends SchemaLoader
     }
 
     @Test
-    public void testNumberOfFiles_truncate() throws InterruptedException
+    public void testNumberOfFiles_truncate() throws Exception
     {
         Keyspace keyspace = Keyspace.open(KEYSPACE);
         ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(CF);
@@ -395,17 +407,19 @@ public class SSTableRewriterTest extends SchemaLoader
         SSTableRewriter rewriter = new SSTableRewriter(cfs, compacting, 1000, false);
         rewriter.switchWriter(getWriter(cfs, s.descriptor.directory));
 
-        ICompactionScanner scanner = s.getScanner();
-        CompactionController controller = new CompactionController(cfs, compacting, 0);
         int files = 1;
-        while(scanner.hasNext())
+        try (ICompactionScanner scanner = s.getScanner();
+             CompactionController controller = new CompactionController(cfs, compacting, 0))
         {
-            rewriter.append(new LazilyCompactedRow(controller, Arrays.asList(scanner.next())));
-            if (rewriter.currentWriter().getOnDiskFilePointer() > 25000000)
+            while(scanner.hasNext())
             {
-                rewriter.switchWriter(getWriter(cfs, s.descriptor.directory));
-                files++;
-                assertEquals(cfs.getSSTables().size(), files); // we have one original file plus the ones we have switched out.
+                rewriter.append(new LazilyCompactedRow(controller, Arrays.asList(scanner.next())));
+                if (rewriter.currentWriter().getOnDiskFilePointer() > 25000000)
+                {
+                    rewriter.switchWriter(getWriter(cfs, s.descriptor.directory));
+                    files++;
+                    assertEquals(cfs.getSSTables().size(), files); // we have one original file plus the ones we have switched out.
+                }
             }
         }
         List<SSTableReader> sstables = rewriter.finish();
@@ -417,7 +431,7 @@ public class SSTableRewriterTest extends SchemaLoader
     }
 
     @Test
-    public void testSmallFiles() throws InterruptedException
+    public void testSmallFiles() throws Exception
     {
         Keyspace keyspace = Keyspace.open(KEYSPACE);
         ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(CF);
@@ -432,18 +446,20 @@ public class SSTableRewriterTest extends SchemaLoader
         SSTableRewriter rewriter = new SSTableRewriter(cfs, compacting, 1000, false);
         rewriter.switchWriter(getWriter(cfs, s.descriptor.directory));
 
-        ICompactionScanner scanner = s.getScanner();
-        CompactionController controller = new CompactionController(cfs, compacting, 0);
         int files = 1;
-        while(scanner.hasNext())
+        try (ICompactionScanner scanner = s.getScanner();
+             CompactionController controller = new CompactionController(cfs, compacting, 0))
         {
-            rewriter.append(new LazilyCompactedRow(controller, Arrays.asList(scanner.next())));
-            if (rewriter.currentWriter().getOnDiskFilePointer() > 2500000)
+            while(scanner.hasNext())
             {
-                assertEquals(1, cfs.getSSTables().size()); // we dont open small files early ...
-                assertEquals(origFirst, cfs.getSSTables().iterator().next().first); // ... and the first key should stay the same
-                rewriter.switchWriter(getWriter(cfs, s.descriptor.directory));
-                files++;
+                rewriter.append(new LazilyCompactedRow(controller, Arrays.asList(scanner.next())));
+                if (rewriter.currentWriter().getOnDiskFilePointer() > 2500000)
+                {
+                    assertEquals(1, cfs.getSSTables().size()); // we dont open small files early ...
+                    assertEquals(origFirst, cfs.getSSTables().iterator().next().first); // ... and the first key should stay the same
+                    rewriter.switchWriter(getWriter(cfs, s.descriptor.directory));
+                    files++;
+                }
             }
         }
         List<SSTableReader> sstables = rewriter.finish();
