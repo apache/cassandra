@@ -35,6 +35,7 @@
  * Fix overflow on histogram computation (CASSANDRA-8028)
  * Have paxos reuse the timestamp generation of normal queries (CASSANDRA-7801)
 Merged from 2.0:
+ * Disable SSLv3 for POODLE (CASSANDRA-8265)
  * Fix millisecond timestamps in Tracing (CASSANDRA-8297)
  * Include keyspace name in error message when there are insufficient
    live nodes to stream from (CASSANDRA-8221)
