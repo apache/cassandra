@@ -306,13 +306,14 @@ public class AutoSavingCache<K extends CacheKey, V> extends InstrumentingCache<K
             File[] files = savedCachesDir.listFiles();
             if (files != null)
             {
+                String cacheNameFormat = String.format("%s-%s.db", cacheType.toString(), CURRENT_VERSION);
                 for (File file : files)
                 {
                     if (!file.isFile())
                         continue; // someone's been messing with our directory.  naughty!
 
-                    if (file.getName().endsWith(cacheType.toString())
-                            || file.getName().endsWith(String.format("%s-%s.db", cacheType.toString(), CURRENT_VERSION)))
+                    if (file.getName().endsWith(cacheNameFormat) 
+                     || file.getName().endsWith(cacheType.toString()))
                     {
                         if (!file.delete())
                             logger.warn("Failed to delete {}", file.getAbsolutePath());
