@@ -58,6 +58,11 @@ public class ResultSet
         return rows.size();
     }
 
+    public boolean isEmpty()
+    {
+        return size() == 0;
+    }
+
     public void addRow(List<ByteBuffer> row)
     {
         assert row.size() == metadata.valueCount();

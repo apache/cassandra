@@ -349,6 +349,24 @@ public abstract class CQLTester
         Assert.assertTrue(String.format("Got %s rows than expected. Expected %d but got %d", rows.length>i ? "less" : "more", rows.length, i), i == rows.length);
     }
 
+    protected void assertColumnNames(UntypedResultSet result, String... expectedColumnNames)
+    {
+        if (result == null)
+        {
+            Assert.fail("No rows returned by query.");
+            return;
+        }
+
+        List<ColumnSpecification> metadata = result.metadata();
+        Assert.assertEquals("Got less columns than expected.", expectedColumnNames.length, metadata.size());
+
+        for (int i = 0, m = metadata.size(); i < m; i++)
+        {
+            ColumnSpecification columnSpec = metadata.get(i);
+            Assert.assertEquals(expectedColumnNames[i], columnSpec.name.toString());
+        }
+    }
+
     protected void assertAllRows(Object[]... rows) throws Throwable
     {
         assertRows(execute("SELECT * FROM %s"), rows);

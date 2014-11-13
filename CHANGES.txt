@@ -1,4 +1,6 @@
 3.0
+ * Fix aggregate fn results on empty selection, result column name,
+   and cqlsh parsing (CASSANDRA-8229)
  * Mark sstables as repaired after full repair (CASSANDRA-7586) 
  * Extend Descriptor to include a format value and refactor reader/writer apis (CASSANDRA-7443)
  * Integrate JMH for microbenchmarks (CASSANDRA-8151)

@@ -21,6 +21,7 @@ import java.nio.ByteBuffer;
 
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.cql3.AssignmentTestable;
+import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.ColumnSpecification;
 import org.apache.cassandra.cql3.selection.Selection.ResultSetBuilder;
 import org.apache.cassandra.db.marshal.AbstractType;
@@ -46,7 +47,13 @@ public abstract class Selector implements AssignmentTestable
          * @param cfm the column family meta data
          * @return a column specification
          */
-        public abstract ColumnSpecification getColumnSpecification(CFMetaData cfm);
+        public final ColumnSpecification getColumnSpecification(CFMetaData cfm)
+        {
+            return new ColumnSpecification(cfm.ksName,
+                                           cfm.cfName,
+                                           new ColumnIdentifier(getColumnName(), true),
+                                           getReturnType());
+        }
 
         /**
          * Creates a new <code>Selector</code> instance.
@@ -87,6 +94,22 @@ public abstract class Selector implements AssignmentTestable
         {
             return false;
         }
+
+        /**
+         * Returns the name of the column corresponding to the output value of the selector instances created by
+         * this factory.
+         *
+         * @return a column name
+         */
+        protected abstract String getColumnName();
+
+        /**
+         * Returns the type of the values returned by the selector instances created by this factory.
+         *
+         * @return the selector output type
+         */
+        protected abstract AbstractType<?> getReturnType();
+
     }
 
     /**

@@ -237,6 +237,11 @@ public abstract class Selection
                 selectors.reset();
                 current = null;
             }
+
+            if (resultSet.isEmpty() && selectors.isAggregate())
+            {
+                resultSet.addRow(selectors.getOutputRow());
+            }
             return resultSet;
         }
 

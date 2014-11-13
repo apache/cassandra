@@ -19,9 +19,6 @@ package org.apache.cassandra.cql3.selection;
 
 import java.nio.ByteBuffer;
 
-import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.cql3.ColumnIdentifier;
-import org.apache.cassandra.cql3.ColumnSpecification;
 import org.apache.cassandra.cql3.selection.Selection.ResultSetBuilder;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.exceptions.InvalidRequestException;
@@ -37,12 +34,14 @@ public final class SimpleSelector extends Selector
     {
         return new Factory()
         {
-            public ColumnSpecification getColumnSpecification(CFMetaData cfm)
+            protected String getColumnName()
             {
-                return new ColumnSpecification(cfm.ksName,
-                                               cfm.cfName,
-                                               new ColumnIdentifier(columnName, true),
-                                               type);
+                return columnName;
+            }
+
+            protected AbstractType<?> getReturnType()
+            {
+                return type;
             }
 
             public Selector newInstance()

@@ -21,6 +21,9 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 
+import com.google.common.base.Function;
+import com.google.common.collect.Lists;
+
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.cql3.selection.Selector.Factory;
@@ -147,5 +150,22 @@ final class SelectorFactories implements Iterable<Selector.Factory>
     public Iterator<Factory> iterator()
     {
         return factories.iterator();
+    }
+
+    /**
+     * Returns the names of the columns corresponding to the output values of the selector instances created by
+     * these factories.
+     *
+     * @return a list of column names
+     */
+    public List<String> getColumnNames()
+    {
+        return Lists.transform(factories, new Function<Selector.Factory, String>()
+        {
+            public String apply(Selector.Factory factory)
+            {
+                return factory.getColumnName();
+            }
+        });
     }
 }

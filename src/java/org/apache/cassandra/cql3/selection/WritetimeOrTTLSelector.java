@@ -19,9 +19,6 @@ package org.apache.cassandra.cql3.selection;
 
 import java.nio.ByteBuffer;
 
-import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.cql3.ColumnIdentifier;
-import org.apache.cassandra.cql3.ColumnSpecification;
 import org.apache.cassandra.cql3.selection.Selection.ResultSetBuilder;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.Int32Type;
@@ -39,13 +36,14 @@ final class WritetimeOrTTLSelector extends Selector
     {
         return new Factory()
         {
-            public ColumnSpecification getColumnSpecification(CFMetaData cfm)
+            protected String getColumnName()
             {
-                String text = String.format("%s(%s)", isWritetime ? "writetime" : "ttl", columnName);
-                return new ColumnSpecification(cfm.ksName,
-                                               cfm.cfName,
-                                               new ColumnIdentifier(text, true),
-                                               isWritetime ? LongType.instance : Int32Type.instance);
+                return String.format("%s(%s)", isWritetime ? "writetime" : "ttl", columnName);
+            }
+
+            protected AbstractType<?> getReturnType()
+            {
+                return isWritetime ? LongType.instance : Int32Type.instance;
             }
 
             public Selector newInstance()

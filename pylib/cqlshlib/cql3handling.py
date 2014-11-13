@@ -39,7 +39,7 @@ NONALTERBALE_KEYSPACES = ('system')
 class Cql3ParsingRuleSet(CqlParsingRuleSet):
     keywords = set((
         'select', 'from', 'where', 'and', 'key', 'insert', 'update', 'with',
-        'limit', 'using', 'use', 'count', 'set',
+        'limit', 'using', 'use', 'set',
         'begin', 'apply', 'batch', 'truncate', 'delete', 'in', 'create',
         'function', 'keyspace', 'schema', 'columnfamily', 'table', 'index', 'on', 'drop',
         'primary', 'into', 'values', 'timestamp', 'ttl', 'alter', 'add', 'type',
@@ -292,7 +292,6 @@ JUNK ::= /([ \t\r\f\v]+|(--|[/][/])[^\n\r]*([\n\r]|$)|[/][*].*?[*][/])/ ;
 <unreservedKeyword> ::= nocomplete=
                         ( <K_KEY>
                         | <K_CLUSTERING>
-                        # | <K_COUNT>  -- to get count(*) completion, treat count as reserved
                         | <K_TTL>
                         | <K_COMPACT>
                         | <K_STORAGE>
@@ -620,7 +619,6 @@ syntax_rules += r'''
              ;
 <selectClause> ::= "DISTINCT"? <selector> ("AS" <cident>)? ("," <selector> ("AS" <cident>)?)*
                  | "*"
-                 | "COUNT" "(" star=( "*" | "1" ) ")" ("AS" <cident>)?
                  ;
 <udtSubfieldSelection> ::= <identifier> "." <identifier>
                          ;
@@ -628,6 +626,7 @@ syntax_rules += r'''
              | <udtSubfieldSelection>
              | "WRITETIME" "(" [colname]=<cident> ")"
              | "TTL" "(" [colname]=<cident> ")"
+             | "COUNT" "(" star=( "*" | "1" ) ")"
              | <functionName> <selectionFunctionArguments>
              ;
 <selectionFunctionArguments> ::= "(" ( <selector> ( "," <selector> )* )? ")"
@@ -678,10 +677,6 @@ def select_relation_lhs_completer(ctxt, cass):
         if cd.index:
             filterable.add(cd.name)
     return map(maybe_escape_name, filterable)
-
-@completer_for('selectClause', 'star')
-def select_count_star_completer(ctxt, cass):
-    return ['*']
 
 explain_completion('selector', 'colname')
 

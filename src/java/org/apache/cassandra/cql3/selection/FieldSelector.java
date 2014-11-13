@@ -19,9 +19,6 @@ package org.apache.cassandra.cql3.selection;
 
 import java.nio.ByteBuffer;
 
-import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.cql3.ColumnIdentifier;
-import org.apache.cassandra.cql3.ColumnSpecification;
 import org.apache.cassandra.cql3.selection.Selection.ResultSetBuilder;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.UTF8Type;
@@ -38,14 +35,16 @@ final class FieldSelector extends Selector
     {
         return new Factory()
         {
-            public ColumnSpecification getColumnSpecification(CFMetaData cfm)
+            protected String getColumnName()
             {
-                ColumnIdentifier identifier =
-                        new ColumnIdentifier(String.format("%s.%s",
-                                                           factory.getColumnSpecification(cfm).name,
-                                                           UTF8Type.instance.getString(type.fieldName(field))), true);
+                return String.format("%s.%s",
+                                     factory.getColumnName(),
+                                     UTF8Type.instance.getString(type.fieldName(field)));
+            }
 
-                return new ColumnSpecification(cfm.ksName, cfm.cfName, identifier, type.fieldType(field));
+            protected AbstractType<?> getReturnType()
+            {
+                return type.fieldType(field);
             }
 
             public Selector newInstance()

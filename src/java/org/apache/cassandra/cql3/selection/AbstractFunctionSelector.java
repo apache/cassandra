@@ -21,13 +21,11 @@ import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.List;
 
-import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.cql3.ColumnIdentifier;
-import org.apache.cassandra.cql3.ColumnSpecification;
+import org.apache.commons.lang3.text.StrBuilder;
+
 import org.apache.cassandra.cql3.functions.Function;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.exceptions.InvalidRequestException;
-import org.apache.commons.lang3.text.StrBuilder;
 
 abstract class AbstractFunctionSelector<T extends Function> extends Selector
 {
@@ -56,12 +54,17 @@ abstract class AbstractFunctionSelector<T extends Function> extends Selector
 
         return new Factory()
         {
-            public ColumnSpecification getColumnSpecification(CFMetaData cfm)
+            protected String getColumnName()
             {
-                return new ColumnSpecification(cfm.ksName,
-                                               cfm.cfName,
-                                               new ColumnIdentifier(fun.toString(), true),
-                                               fun.returnType());
+                return new StrBuilder(fun.name().toString()).append('(')
+                                                            .appendWithSeparators(factories.getColumnNames(), ", ")
+                                                            .append(')')
+                                                            .toString();
+            }
+
+            protected AbstractType<?> getReturnType()
+            {
+                return fun.returnType();
             }
 
             public Selector newInstance()
