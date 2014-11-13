@@ -2173,16 +2173,18 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     private void writeSnapshotManifest(final JSONArray filesJSONArr, final String snapshotName)
     {
         final File manifestFile = directories.getSnapshotManifestFile(snapshotName);
-        final JSONObject manifestJSON = new JSONObject();
-        manifestJSON.put("files", filesJSONArr);
 
         try
         {
             if (!manifestFile.getParentFile().exists())
                 manifestFile.getParentFile().mkdirs();
-            PrintStream out = new PrintStream(manifestFile);
-            out.println(manifestJSON.toJSONString());
-            out.close();
+            
+            try (PrintStream out = new PrintStream(manifestFile))
+            {
+                final JSONObject manifestJSON = new JSONObject();
+                manifestJSON.put("files", filesJSONArr);
+                out.println(manifestJSON.toJSONString());
+            }
         }
         catch (IOException e)
         {
