@@ -63,6 +63,7 @@ public class SSTableScanner implements ICompactionScanner
     SSTableScanner(SSTableReader sstable, DataRange dataRange, RateLimiter limiter)
     {
         assert sstable != null;
+        sstable.acquireReference();
 
         this.dfile = limiter == null ? sstable.openDataReader() : sstable.openDataReader(limiter);
         this.ifile = sstable.openIndexReader();
@@ -92,6 +93,7 @@ public class SSTableScanner implements ICompactionScanner
     SSTableScanner(SSTableReader sstable, Collection<Range<Token>> tokenRanges, RateLimiter limiter)
     {
         assert sstable != null;
+        sstable.acquireReference();
 
         this.dfile = limiter == null ? sstable.openDataReader() : sstable.openDataReader(limiter);
         this.ifile = sstable.openIndexReader();
@@ -159,6 +161,7 @@ public class SSTableScanner implements ICompactionScanner
     public void close() throws IOException
     {
         FileUtils.close(dfile, ifile);
+        sstable.releaseReference();
     }
 
     public long getLengthInBytes()
