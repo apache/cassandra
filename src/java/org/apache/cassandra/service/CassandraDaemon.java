@@ -24,6 +24,7 @@ import java.lang.management.MemoryPoolMXBean;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.Arrays;
+import java.util.Date;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
@@ -74,6 +75,13 @@ public class CassandraDaemon
 
     private static final CassandraDaemon instance = new CassandraDaemon();
 
+    /**
+     * The earliest legit timestamp a casandra instance could have ever launched.
+     * Date roughly taken from http://perspectives.mvdirona.com/2008/07/12/FacebookReleasesCassandraAsOpenSource.aspx
+     * We use this to ensure the system clock is at least somewhat correct at startup.
+     */
+    private static final long EARLIEST_LAUNCH_DATE = 1215820800000L;
+
     public Server thriftServer;
     public Server nativeServer;
 
@@ -102,6 +110,15 @@ public class CassandraDaemon
         {
             logger.info("Could not resolve local host");
         }
+
+        long now = System.currentTimeMillis();
+        if (now < EARLIEST_LAUNCH_DATE)
+        {
+            String msg = String.format("current machine time is %s, but that is seemingly incorrect. exiting now.", new Date(now).toString());
+            logger.error(msg);
+            throw new IllegalStateException(msg);
+        }
+
         // log warnings for different kinds of sub-optimal JVMs.  tldr use 64-bit Oracle >= 1.6u32
         if (!DatabaseDescriptor.hasLargeAddressSpace())
             logger.info("32bit JVM detected.  It is recommended to run Cassandra on a 64bit JVM for better performance.");

@@ -33,6 +33,7 @@
  * improve concurrency of repair (CASSANDRA-6455, 8208)
 
 2.1.3
+ * add check of the system wall clock time at startup (CASSANDRA-8305)
  * Support for frozen collections (CASSANDRA-7859)
  * Fix overflow on histogram computation (CASSANDRA-8028)
  * Have paxos reuse the timestamp generation of normal queries (CASSANDRA-7801)
