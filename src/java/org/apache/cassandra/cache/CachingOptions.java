@@ -130,11 +130,7 @@ public class CachingOptions
         return result;
     }
 
-    public static boolean isLegacy(String CachingOptions)
-    {
-        return legacyOptions.contains(CachingOptions.toUpperCase());
-    }
-
+    // FIXME: move to ThriftConversion
     public static CachingOptions fromThrift(String caching, String cellsPerRow) throws ConfigurationException
     {
 
@@ -153,6 +149,7 @@ public class CachingOptions
         return new CachingOptions(kc, rc);
     }
 
+    // FIXME: move to ThriftConversion
     public String toThriftCaching()
     {
         if (rowCache.isEnabled() && keyCache.isEnabled())
@@ -164,13 +161,13 @@ public class CachingOptions
         return "NONE";
     }
 
+    // FIXME: move to ThriftConversion
     public String toThriftCellsPerRow()
     {
         if (rowCache.cacheFullPartitions())
             return "ALL";
         return String.valueOf(rowCache.rowsToCache);
     }
-
 
     public static class KeyCache
     {

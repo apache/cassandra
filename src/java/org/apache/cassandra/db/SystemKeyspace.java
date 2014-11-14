@@ -33,7 +33,6 @@ import com.google.common.collect.Sets;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.cache.CachingOptions;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.KSMetaData;
@@ -119,7 +118,6 @@ public final class SystemKeyspace
                 + "bloom_filter_fp_chance double,"
                 + "caching text,"
                 + "cf_id uuid," // post-2.1 UUID cfid
-                + "column_aliases text,"
                 + "comment text,"
                 + "compaction_strategy_class text,"
                 + "compaction_strategy_options text,"
@@ -129,9 +127,7 @@ public final class SystemKeyspace
                 + "default_validator text,"
                 + "dropped_columns map<text, bigint>,"
                 + "gc_grace_seconds int,"
-                + "index_interval int,"
                 + "is_dense boolean,"
-                + "key_aliases text,"
                 + "key_validator text,"
                 + "local_read_repair_chance double,"
                 + "max_compaction_threshold int,"
@@ -143,7 +139,6 @@ public final class SystemKeyspace
                 + "speculative_retry text,"
                 + "subcomparator text,"
                 + "type text,"
-                + "value_alias text,"
                 + "PRIMARY KEY ((keyspace_name), columnfamily_name))")
                 .gcGraceSeconds(WEEK);
 
@@ -370,16 +365,11 @@ public final class SystemKeyspace
     {
         setupVersion();
 
-        migrateIndexInterval();
-        migrateCachingOption();
         // add entries to system schema columnfamilies for the hardcoded system definitions
         KSMetaData ksmd = Schema.instance.getKSMetaData(NAME);
 
         // delete old, possibly obsolete entries in schema tables
-        // FIXME: once schema_functions moves from 'namespace' to 'keyspace_name', fix this
-        List<String> schemaTables = new ArrayList<>(ALL_SCHEMA_TABLES);
-        schemaTables.remove(SCHEMA_FUNCTIONS_TABLE);
-        for (String table : schemaTables)
+        for (String table : ALL_SCHEMA_TABLES)
             executeOnceInternal(String.format("DELETE FROM system.%s WHERE keyspace_name = ?", table), ksmd.name);
 
         // (+1 to timestamp to make sure we don't get shadowed by the tombstones we just added)
@@ -399,56 +389,6 @@ public final class SystemKeyspace
                             snitch.getDatacenter(FBUtilities.getBroadcastAddress()),
                             snitch.getRack(FBUtilities.getBroadcastAddress()),
                             DatabaseDescriptor.getPartitioner().getClass().getName());
-    }
-
-    // TODO: In 3.0, remove this and the index_interval column from system.schema_columnfamilies
-    /** Migrates index_interval values to min_index_interval and sets index_interval to null */
-    private static void migrateIndexInterval()
-    {
-        for (UntypedResultSet.Row row : executeOnceInternal(String.format("SELECT * FROM system.%s", SCHEMA_COLUMNFAMILIES_TABLE)))
-        {
-            if (!row.has("index_interval"))
-                continue;
-
-            logger.debug("Migrating index_interval to min_index_interval");
-
-            CFMetaData table = CFMetaData.fromSchema(row);
-            String query = String.format("SELECT writetime(type) FROM system.%s WHERE keyspace_name = ? AND columnfamily_name = ?", SCHEMA_COLUMNFAMILIES_TABLE);
-            long timestamp = executeOnceInternal(query, table.ksName, table.cfName).one().getLong("writetime(type)");
-            try
-            {
-                table.toSchema(timestamp).apply();
-            }
-            catch (ConfigurationException e)
-            {
-                // shouldn't happen
-            }
-        }
-    }
-
-    private static void migrateCachingOption()
-    {
-        for (UntypedResultSet.Row row : executeOnceInternal(String.format("SELECT * FROM system.%s", SCHEMA_COLUMNFAMILIES_TABLE)))
-        {
-            if (!row.has("caching"))
-                continue;
-
-            if (!CachingOptions.isLegacy(row.getString("caching")))
-                continue;
-            try
-            {
-                CachingOptions caching = CachingOptions.fromString(row.getString("caching"));
-                CFMetaData table = CFMetaData.fromSchema(row);
-                logger.info("Migrating caching option {} to {} for {}.{}", row.getString("caching"), caching.toString(), table.ksName, table.cfName);
-                String query = String.format("SELECT writetime(type) FROM system.%s WHERE keyspace_name = ? AND columnfamily_name = ?", SCHEMA_COLUMNFAMILIES_TABLE);
-                long timestamp = executeOnceInternal(query, table.ksName, table.cfName).one().getLong("writetime(type)");
-                table.toSchema(timestamp).apply();
-            }
-            catch (ConfigurationException e)
-            {
-                // shouldn't happen
-            }
-        }
     }
 
     /**

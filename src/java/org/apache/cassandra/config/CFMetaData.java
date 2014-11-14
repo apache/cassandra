@@ -54,7 +54,6 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.UUIDGen;
 
-import static org.apache.cassandra.utils.FBUtilities.fromJsonList;
 import static org.apache.cassandra.utils.FBUtilities.fromJsonMap;
 import static org.apache.cassandra.utils.FBUtilities.json;
 
@@ -1251,7 +1250,6 @@ public final class CFMetaData
         adder.add("min_compaction_threshold", minCompactionThreshold);
         adder.add("max_compaction_threshold", maxCompactionThreshold);
         adder.add("bloom_filter_fp_chance", getBloomFilterFpChance());
-
         adder.add("memtable_flush_period_in_ms", memtableFlushPeriod);
         adder.add("caching", caching.toString());
         adder.add("default_time_to_live", defaultTimeToLive);
@@ -1260,18 +1258,12 @@ public final class CFMetaData
         adder.add("compaction_strategy_options", json(compactionStrategyOptions));
         adder.add("min_index_interval", minIndexInterval);
         adder.add("max_index_interval", maxIndexInterval);
-        adder.add("index_interval", null);
         adder.add("speculative_retry", speculativeRetry.toString());
 
         for (Map.Entry<ColumnIdentifier, Long> entry : droppedColumns.entrySet())
             adder.addMapEntry("dropped_columns", entry.getKey().toString(), entry.getValue());
 
         adder.add("is_dense", isDense);
-
-        // Save the CQL3 metadata "the old way" for compatibility sake
-        adder.add("key_aliases", aliasesToJson(partitionKeyColumns));
-        adder.add("column_aliases", aliasesToJson(clusteringColumns));
-        adder.add("value_alias", compactValueColumn == null ? null : compactValueColumn.name.toString());
     }
 
     @VisibleForTesting
@@ -1328,11 +1320,9 @@ public final class CFMetaData
             cfm.compressionParameters(CompressionParameters.create(fromJsonMap(result.getString("compression_parameters"))));
             cfm.compactionStrategyOptions(fromJsonMap(result.getString("compaction_strategy_options")));
 
-            // migrate old index_interval values to min_index_interval, if present
             if (result.has("min_index_interval"))
                 cfm.minIndexInterval(result.getInt("min_index_interval"));
-            else if (result.has("index_interval"))
-                cfm.minIndexInterval(result.getInt("index_interval"));
+
             if (result.has("max_index_interval"))
                 cfm.maxIndexInterval(result.getInt("max_index_interval"));
 
@@ -1340,20 +1330,6 @@ public final class CFMetaData
                 cfm.bloomFilterFpChance(result.getDouble("bloom_filter_fp_chance"));
             else
                 cfm.bloomFilterFpChance(cfm.getBloomFilterFpChance());
-
-            /*
-             * The info previously hold by key_aliases, column_aliases and value_alias is now stored in columnMetadata (because 1) this
-             * make more sense and 2) this allow to store indexing information).
-             * However, for upgrade sake we need to still be able to read those old values. Moreover, we cannot easily
-             * remove those old columns once "converted" to columnMetadata because that would screw up nodes that may
-             * not have upgraded. So for now we keep the both info and in sync, even though its redundant.
-             */
-            if (result.has("key_aliases"))
-                cfm.addColumnMetadataFromAliases(aliasesFromStrings(fromJsonList(result.getString("key_aliases"))), cfm.keyValidator, ColumnDefinition.Kind.PARTITION_KEY);
-            if (result.has("column_aliases"))
-                cfm.addColumnMetadataFromAliases(aliasesFromStrings(fromJsonList(result.getString("column_aliases"))), cfm.comparator.asAbstractType(), ColumnDefinition.Kind.CLUSTERING_COLUMN);
-            if (result.has("value_alias"))
-                cfm.addColumnMetadataFromAliases(Collections.singletonList(result.getBytes("value_alias")), cfm.defaultValidator, ColumnDefinition.Kind.COMPACT_VALUE);
 
             if (result.has("dropped_columns"))
                 cfm.droppedColumns(convertDroppedColumns(result.getMap("dropped_columns", UTF8Type.instance, LongType.instance)));
@@ -1413,25 +1389,6 @@ public final class CFMetaData
     {
         UntypedResultSet.Row result = QueryProcessor.resultify("SELECT * FROM system.schema_columnfamilies", row).one();
         return fromSchema(result);
-    }
-
-    private String aliasesToJson(List<ColumnDefinition> rawAliases)
-    {
-        if (rawAliases == null)
-            return null;
-
-        List<String> aliases = new ArrayList<>(rawAliases.size());
-        for (ColumnDefinition rawAlias : rawAliases)
-            aliases.add(rawAlias.name.toString());
-        return json(aliases);
-    }
-
-    private static List<ByteBuffer> aliasesFromStrings(List<String> aliases)
-    {
-        List<ByteBuffer> rawAliases = new ArrayList<>(aliases.size());
-        for (String alias : aliases)
-            rawAliases.add(UTF8Type.instance.decompose(alias));
-        return rawAliases;
     }
 
     private static Map<ColumnIdentifier, Long> convertDroppedColumns(Map<String, Long> raw)
