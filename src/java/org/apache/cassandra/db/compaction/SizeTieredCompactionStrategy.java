@@ -155,7 +155,12 @@ public class SizeTieredCompactionStrategy extends AbstractCompactionStrategy
         int cutoffIndex = 0;
         while (cutoffIndex < sstables.size())
         {
-            double reads = sstables.get(cutoffIndex).readMeter.twoHourRate();
+            SSTableReader sstable = sstables.get(cutoffIndex);
+            if (sstable.readMeter == null)
+            {
+                throw new AssertionError("If you're seeing this exception, please attach your logs to CASSANDRA-8238 to help us debug. "+sstable);
+            }
+            double reads = sstable.readMeter.twoHourRate();
             if (totalColdReads + reads > maxColdReads)
                 break;
 
