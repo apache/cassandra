@@ -61,4 +61,9 @@ public abstract class ParsedStatement
             this(statement, Collections.<ColumnSpecification>emptyList());
         }
     }
+
+    public boolean usesFunction(String ksName, String functionName)
+    {
+        return false;
+    }
 }

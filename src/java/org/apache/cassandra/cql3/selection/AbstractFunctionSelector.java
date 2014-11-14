@@ -49,7 +49,7 @@ abstract class AbstractFunctionSelector<T extends Function> extends Selector
         {
             if (factories.doesAggregation() && !factories.containsOnlyAggregateFunctions())
                 throw new InvalidRequestException(String.format("the %s function arguments must be either all aggregates or all none aggregates",
-                                                                fun.name().name));
+                                                                fun.name()));
         }
 
         return new Factory()
@@ -65,6 +65,11 @@ abstract class AbstractFunctionSelector<T extends Function> extends Selector
             protected AbstractType<?> getReturnType()
             {
                 return fun.returnType();
+            }
+
+            public boolean usesFunction(String ksName, String functionName)
+            {
+                return fun.name().keyspace.equals(ksName) && fun.name().name.equals(functionName);
             }
 
             public Selector newInstance()

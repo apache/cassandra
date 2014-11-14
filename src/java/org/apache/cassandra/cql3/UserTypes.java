@@ -148,6 +148,15 @@ public abstract class UserTypes
             this.values = values;
         }
 
+        public boolean usesFunction(String ksName, String functionName)
+        {
+            if (values != null)
+                for (Term value : values)
+                    if (value != null && value.usesFunction(ksName, functionName))
+                        return true;
+            return false;
+        }
+
         public boolean containsBindMarker()
         {
             for (Term t : values)

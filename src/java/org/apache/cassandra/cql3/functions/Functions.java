@@ -37,7 +37,7 @@ public abstract class Functions
     // We special case the token function because that's the only function whose argument types actually
     // depend on the table on which the function is called. Because it's the sole exception, it's easier
     // to handle it as a special case.
-    private static final FunctionName TOKEN_FUNCTION_NAME = new FunctionName("token");
+    private static final FunctionName TOKEN_FUNCTION_NAME = FunctionName.nativeFunction("token");
 
     private static final String SELECT_UDFS = "SELECT * FROM " + SystemKeyspace.NAME + '.' + SystemKeyspace.SCHEMA_FUNCTIONS_TABLE;
 
@@ -108,6 +108,11 @@ public abstract class Functions
                                        fun.argTypes().get(i));
     }
 
+    public static int getOverloadCount(FunctionName name)
+    {
+        return declared.get(name).size();
+    }
+
     public static Function get(String keyspace,
                                FunctionName name,
                                List<? extends AssignmentTestable> providedArgs,
@@ -115,10 +120,25 @@ public abstract class Functions
                                String receiverCf)
     throws InvalidRequestException
     {
-        if (name.equals(TOKEN_FUNCTION_NAME))
+        if (name.hasKeyspace()
+            ? name.equals(TOKEN_FUNCTION_NAME)
+            : name.name.equals(TOKEN_FUNCTION_NAME.name))
             return new TokenFct(Schema.instance.getCFMetaData(receiverKs, receiverCf));
 
-        List<Function> candidates = declared.get(name);
+        List<Function> candidates;
+        if (!name.hasKeyspace())
+        {
+            // function name not fully qualified
+            candidates = new ArrayList<>();
+            // add 'SYSTEM' (native) candidates
+            candidates.addAll(declared.get(name.asNativeFunction()));
+            // add 'current keyspace' candidates
+            candidates.addAll(declared.get(new FunctionName(keyspace, name.name)));
+        }
+        else
+            // function name is fully qualified (keyspace + name)
+            candidates = declared.get(name);
+
         if (candidates.isEmpty())
             return null;
 
@@ -165,6 +185,7 @@ public abstract class Functions
 
     public static Function find(FunctionName name, List<AbstractType<?>> argTypes)
     {
+        assert name.hasKeyspace() : "function name not fully qualified";
         for (Function f : declared.get(name))
         {
             if (f.argTypes().equals(argTypes))

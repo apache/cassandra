@@ -26,7 +26,7 @@ public class PgStringTest extends CQLTester
     @Test
     public void testPgSyleFunction() throws Throwable
     {
-        execute("create or replace function pg::pgfun1 ( input double ) returns text language java\n" +
+        execute("create or replace function "+KEYSPACE+".pgfun1 ( input double ) returns text language java\n" +
                 "AS $$return \"foobar\";$$");
     }
 
@@ -70,7 +70,7 @@ public class PgStringTest extends CQLTester
     public void testMarkerPgFail() throws Throwable
     {
         // must throw SyntaxException - not StringIndexOutOfBoundsException or similar
-        execute("create function foo::pgfun1 ( input double ) returns text language java\n" +
+        execute("create function "+KEYSPACE+".pgfun1 ( input double ) returns text language java\n" +
                 "AS $javasrc$return 0L;$javasrc$;");
     }
 }

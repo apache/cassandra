@@ -37,6 +37,7 @@ import org.apache.cassandra.cql3.functions.Functions;
 import org.apache.cassandra.cql3.functions.UDFunction;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.compaction.CompactionManager;
+import org.apache.cassandra.db.composites.Composite;
 import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.db.marshal.AsciiType;
 import org.apache.cassandra.db.marshal.UserType;
@@ -303,7 +304,7 @@ public class DefsTables
 
         MapDifference<DecoratedKey, ColumnFamily> diff = Maps.difference(before, after);
 
-        // New namespace with functions
+        // New keyspace with functions
         for (Map.Entry<DecoratedKey, ColumnFamily> entry : diff.entriesOnlyOnRight().entrySet())
             if (entry.getValue().hasColumns())
                 created.addAll(UDFunction.fromSchema(new Row(entry.getKey(), entry.getValue())).values());
@@ -315,7 +316,7 @@ public class DefsTables
 
             if (pre.hasColumns() && post.hasColumns())
             {
-                MapDifference<ByteBuffer, UDFunction> delta =
+                MapDifference<Composite, UDFunction> delta =
                         Maps.difference(UDFunction.fromSchema(new Row(entry.getKey(), pre)),
                                         UDFunction.fromSchema(new Row(entry.getKey(), post)));
 

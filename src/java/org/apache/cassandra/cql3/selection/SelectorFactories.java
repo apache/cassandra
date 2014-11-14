@@ -89,6 +89,14 @@ final class SelectorFactories implements Iterable<Selector.Factory>
         }
     }
 
+    public boolean usesFunction(String ksName, String functionName)
+    {
+        for (Factory factory : factories)
+            if (factory != null && factory.usesFunction(ksName, functionName))
+                return true;
+        return false;
+    }
+
     /**
      * Checks if this <code>SelectorFactories</code> contains only factories for aggregates.
      *

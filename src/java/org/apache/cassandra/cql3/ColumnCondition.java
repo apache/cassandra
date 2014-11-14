@@ -34,15 +34,12 @@ import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.transport.Server;
 import org.apache.cassandra.utils.ByteBufferUtil;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /**
  * A CQL3 condition on the value of a column or collection element.  For example, "UPDATE .. IF a = 0".
  */
 public class ColumnCondition
 {
-    private static final Logger logger = LoggerFactory.getLogger(ColumnCondition.class);
 
     public final ColumnDefinition column;
 
@@ -94,6 +91,19 @@ public class ColumnCondition
     public static ColumnCondition inCondition(ColumnDefinition column, Term collectionElement, Term inMarker)
     {
         return new ColumnCondition(column, collectionElement, inMarker, null, Operator.IN);
+    }
+
+    public boolean usesFunction(String ksName, String functionName)
+    {
+        if (collectionElement != null && collectionElement.usesFunction(ksName, functionName))
+            return true;
+        if (value != null && value.usesFunction(ksName, functionName))
+            return true;
+        if (inValues != null)
+            for (Term value : inValues)
+                if (value != null && value.usesFunction(ksName, functionName))
+                    return true;
+        return false;
     }
 
     /**

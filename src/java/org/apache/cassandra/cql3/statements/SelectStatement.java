@@ -56,8 +56,6 @@ import org.apache.cassandra.thrift.ThriftValidation;
 import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /**
  * Encapsulates a completely parsed SELECT query, including the target
@@ -66,8 +64,6 @@ import org.slf4j.LoggerFactory;
  */
 public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
 {
-    private static final Logger logger = LoggerFactory.getLogger(SelectStatement.class);
-
     private static final int DEFAULT_COUNT_PAGE_SIZE = 10000;
 
     private final int boundTerms;
@@ -123,6 +119,24 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
 
         // Now gather a few info on whether we should bother with static columns or not for this statement
         initStaticColumnsInfo();
+    }
+
+    public boolean usesFunction(String ksName, String functionName)
+    {
+        if (selection.usesFunction(ksName, functionName))
+            return true;
+        if (limit != null && limit.usesFunction(ksName, functionName))
+            return true;
+        for (Restriction restriction : metadataRestrictions.values())
+            if (restriction != null && restriction.usesFunction(ksName, functionName))
+                return true;
+        for (Restriction restriction : keyRestrictions)
+            if (restriction != null && restriction.usesFunction(ksName, functionName))
+                return true;
+        for (Restriction restriction : columnRestrictions)
+            if (restriction != null && restriction.usesFunction(ksName, functionName))
+                return true;
+        return false;
     }
 
     private void initStaticColumnsInfo()

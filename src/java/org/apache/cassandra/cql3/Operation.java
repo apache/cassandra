@@ -19,7 +19,6 @@ package org.apache.cassandra.cql3;
 
 import java.nio.ByteBuffer;
 
-import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.composites.Composite;
@@ -54,6 +53,11 @@ public abstract class Operation
         assert column != null;
         this.column = column;
         this.t = t;
+    }
+
+    public boolean usesFunction(String ksName, String functionName)
+    {
+        return t != null && t.usesFunction(ksName, functionName);
     }
 
     /**

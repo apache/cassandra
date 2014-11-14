@@ -22,6 +22,7 @@ import java.util.HashSet;
 import java.util.List;
 
 import org.apache.cassandra.auth.Permission;
+import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.cql3.CQL3Type;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.functions.*;
@@ -31,6 +32,7 @@ import org.apache.cassandra.exceptions.RequestValidationException;
 import org.apache.cassandra.exceptions.UnauthorizedException;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.MigrationManager;
+import org.apache.cassandra.thrift.ThriftValidation;
 import org.apache.cassandra.transport.Event;
 
 /**
@@ -40,7 +42,7 @@ public final class CreateFunctionStatement extends SchemaAlteringStatement
 {
     private final boolean orReplace;
     private final boolean ifNotExists;
-    private final FunctionName functionName;
+    private FunctionName functionName;
     private final String language;
     private final String body;
     private final boolean deterministic;
@@ -70,17 +72,31 @@ public final class CreateFunctionStatement extends SchemaAlteringStatement
         this.ifNotExists = ifNotExists;
     }
 
-    public void checkAccess(ClientState state) throws UnauthorizedException
+    public void prepareKeyspace(ClientState state) throws InvalidRequestException
+    {
+        if (!functionName.hasKeyspace() && state.getRawKeyspace() != null)
+            functionName = new FunctionName(state.getKeyspace(), functionName.name);
+
+        if (!functionName.hasKeyspace())
+            throw new InvalidRequestException("You need to be logged in a keyspace or use a fully qualified function name");
+
+        ThriftValidation.validateKeyspaceNotSystem(functionName.keyspace);
+    }
+
+    public void checkAccess(ClientState state) throws UnauthorizedException, InvalidRequestException
     {
         // TODO CASSANDRA-7557 (function DDL permission)
 
-        state.hasAllKeyspacesAccess(Permission.CREATE);
+        state.hasKeyspaceAccess(functionName.keyspace, Permission.CREATE);
     }
 
     public void validate(ClientState state) throws InvalidRequestException
     {
         if (ifNotExists && orReplace)
             throw new InvalidRequestException("Cannot use both 'OR REPLACE' and 'IF NOT EXISTS' directives");
+
+        if (Schema.instance.getKSMetaData(functionName.keyspace) == null)
+            throw new InvalidRequestException(String.format("Cannot add function '%s' to non existing keyspace '%s'.", functionName.name, functionName.keyspace));
     }
 
     public Event.SchemaChange changeEvent()
@@ -98,7 +114,7 @@ public final class CreateFunctionStatement extends SchemaAlteringStatement
         for (CQL3Type.Raw rawType : argRawTypes)
             // We have no proper keyspace to give, which means that this will break (NPE currently)
             // for UDT: #7791 is open to fix this
-            argTypes.add(rawType.prepare(null).getType());
+            argTypes.add(rawType.prepare(functionName.keyspace).getType());
 
         AbstractType<?> returnType = rawReturnType.prepare(null).getType();
 
@@ -110,10 +126,6 @@ public final class CreateFunctionStatement extends SchemaAlteringStatement
             if (!orReplace)
                 throw new InvalidRequestException(String.format("Function %s already exists", old));
 
-            // Means we're replacing the function. We still need to validate that 1) it's not a native function and 2) that the return type
-            // matches (or that could break existing code badly)
-            if (old.isNative())
-                throw new InvalidRequestException(String.format("Cannot replace native function %s", old));
             if (!old.returnType().isValueCompatibleWith(returnType))
                 throw new InvalidRequestException(String.format("Cannot replace function %s, the new return type %s is not compatible with the return type %s of existing function",
                                                                 functionName, returnType.asCQL3Type(), old.returnType().asCQL3Type()));

@@ -22,7 +22,6 @@ import java.util.*;
 
 import com.google.common.base.Function;
 import com.google.common.collect.Iterables;
-import org.apache.cassandra.db.marshal.AbstractType;
 import org.github.jamm.MemoryMeter;
 
 import org.apache.cassandra.auth.Permission;
@@ -86,6 +85,25 @@ public abstract class ModificationStatement implements CQLStatement, MeasurableF
         this.boundTerms = boundTerms;
         this.cfm = cfm;
         this.attrs = attrs;
+    }
+
+    public boolean usesFunction(String ksName, String functionName)
+    {
+        if (attrs.usesFunction(ksName, functionName))
+            return true;
+        for (Restriction restriction : processedKeys.values())
+            if (restriction != null && restriction.usesFunction(ksName, functionName))
+                return true;
+        for (Operation operation : columnOperations)
+            if (operation != null && operation.usesFunction(ksName, functionName))
+                return true;
+        for (ColumnCondition condition : columnConditions)
+            if (condition != null && condition.usesFunction(ksName, functionName))
+                return true;
+        for (ColumnCondition condition : staticConditions)
+            if (condition != null && condition.usesFunction(ksName, functionName))
+                return true;
+        return false;
     }
 
     public long measureForPreparedCache(MemoryMeter meter)

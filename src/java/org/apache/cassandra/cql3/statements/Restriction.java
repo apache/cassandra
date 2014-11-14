@@ -49,6 +49,8 @@ public interface Restriction
     // Not supported by Slice, but it's convenient to have here
     public List<ByteBuffer> values(QueryOptions options) throws InvalidRequestException;
 
+    boolean usesFunction(String ksName, String functionName);
+
     public static interface EQ extends Restriction {}
 
     public static interface IN extends Restriction

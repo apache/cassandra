@@ -37,7 +37,7 @@ public class AggregationTest extends CQLTester
         assertColumnNames(execute("SELECT COUNT(*) FROM %s"), "count");
         assertRows(execute("SELECT COUNT(*) FROM %s"), row(0L));
         assertColumnNames(execute("SELECT max(b), min(b), sum(b), avg(b) , max(c), sum(c), avg(c), sum(d), avg(d) FROM %s"),
-                          "max(b)", "min(b)", "sum(b)", "avg(b)" , "max(c)", "sum(c)", "avg(c)", "sum(d)", "avg(d)");
+                          "system.max(b)", "system.min(b)", "system.sum(b)", "system.avg(b)" , "system.max(c)", "system.sum(c)", "system.avg(c)", "system.sum(d)", "system.avg(d)");
         assertRows(execute("SELECT max(b), min(b), sum(b), avg(b) , max(c), sum(c), avg(c), sum(d), avg(d) FROM %s"),
                    row(null, null, 0, 0, null, 0.0, 0.0, new BigDecimal("0"), new BigDecimal("0")));
 
@@ -94,15 +94,15 @@ public class AggregationTest extends CQLTester
     {
         createTable("CREATE TABLE %s (a int primary key, b timeuuid, c double, d double)");
 
-        execute("CREATE OR REPLACE FUNCTION copySign(magnitude double, sign double) RETURNS double LANGUAGE JAVA\n" +
+        execute("CREATE OR REPLACE FUNCTION "+KEYSPACE+".copySign(magnitude double, sign double) RETURNS double LANGUAGE JAVA\n" +
                 "AS 'return Double.valueOf(Math.copySign(magnitude.doubleValue(), sign.doubleValue()));';");
 
-        assertColumnNames(execute("SELECT max(a), max(unixTimestampOf(b)) FROM %s"), "max(a)", "max(unixtimestampof(b))");
+        assertColumnNames(execute("SELECT max(a), max(unixTimestampOf(b)) FROM %s"), "system.max(a)", "system.max(system.unixtimestampof(b))");
         assertRows(execute("SELECT max(a), max(unixTimestampOf(b)) FROM %s"), row(null, null));
-        assertColumnNames(execute("SELECT max(a), unixTimestampOf(max(b)) FROM %s"), "max(a)", "unixtimestampof(max(b))");
+        assertColumnNames(execute("SELECT max(a), unixTimestampOf(max(b)) FROM %s"), "system.max(a)", "system.unixtimestampof(system.max(b))");
         assertRows(execute("SELECT max(a), unixTimestampOf(max(b)) FROM %s"), row(null, null));
 
-        assertColumnNames(execute("SELECT max(copySign(c, d)) FROM %s"), "max(copysign(c, d))");
+        assertColumnNames(execute("SELECT max(copySign(c, d)) FROM %s"), "system.max("+KEYSPACE+".copysign(c, d))");
         assertRows(execute("SELECT max(copySign(c, d)) FROM %s"), row((Object) null));
 
         execute("INSERT INTO %s (a, b, c, d) VALUES (1, maxTimeuuid('2011-02-03 04:05:00+0000'), -1.2, 2.1)");

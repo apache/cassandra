@@ -77,6 +77,16 @@ public class BatchStatement implements CQLStatement, MeasurableForPreparedCache
         this.hasConditions = hasConditions;
     }
 
+    public boolean usesFunction(String ksName, String functionName)
+    {
+        if (attrs.usesFunction(ksName, functionName))
+            return true;
+        for (ModificationStatement statement : statements)
+            if (statement.usesFunction(ksName, functionName))
+                return true;
+        return false;
+    }
+
     public long measureForPreparedCache(MemoryMeter meter)
     {
         long size = meter.measure(this)

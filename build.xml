@@ -212,6 +212,8 @@
          <arg value="${build.src.java}/org/apache/cassandra/cql3/Cql.g" />
          <arg value="-fo" />
          <arg value="${build.src.gen-java}/org/apache/cassandra/cql3/" />
+         <arg value="-Xmaxinlinedfastates"/>
+         <arg value="10"/> <!-- default is 60 -->
       </java>
     </target>
 

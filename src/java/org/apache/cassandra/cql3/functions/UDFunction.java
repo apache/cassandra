@@ -30,7 +30,6 @@ import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.composites.Composite;
 import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.db.marshal.CompositeType;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.db.marshal.TypeParser;
 import org.apache.cassandra.exceptions.*;
@@ -152,8 +151,8 @@ public abstract class UDFunction extends AbstractFunction implements ScalarFunct
 
     private static Mutation makeSchemaMutation(FunctionName name)
     {
-        CompositeType kv = (CompositeType)SystemKeyspace.SchemaFunctionsTable.getKeyValidator();
-        return new Mutation(SystemKeyspace.NAME, kv.decompose(name.namespace, name.name));
+        UTF8Type kv = (UTF8Type)SystemKeyspace.SchemaFunctionsTable.getKeyValidator();
+        return new Mutation(SystemKeyspace.NAME, kv.decompose(name.keyspace));
     }
 
     public Mutation toSchemaDrop(long timestamp)
@@ -161,7 +160,7 @@ public abstract class UDFunction extends AbstractFunction implements ScalarFunct
         Mutation mutation = makeSchemaMutation(name);
         ColumnFamily cf = mutation.addOrGet(SystemKeyspace.SCHEMA_FUNCTIONS_TABLE);
 
-        Composite prefix = SystemKeyspace.SchemaFunctionsTable.comparator.make(computeSignature(argTypes));
+        Composite prefix = SystemKeyspace.SchemaFunctionsTable.comparator.make(name.name, computeSignature(argTypes));
         int ldt = (int) (System.currentTimeMillis() / 1000);
         cf.addAtom(new RangeTombstone(prefix, prefix.end(), timestamp, ldt));
 
@@ -173,7 +172,7 @@ public abstract class UDFunction extends AbstractFunction implements ScalarFunct
         Mutation mutation = makeSchemaMutation(name);
         ColumnFamily cf = mutation.addOrGet(SystemKeyspace.SCHEMA_FUNCTIONS_TABLE);
 
-        Composite prefix = SystemKeyspace.SchemaFunctionsTable.comparator.make(computeSignature(argTypes));
+        Composite prefix = SystemKeyspace.SchemaFunctionsTable.comparator.make(name.name, computeSignature(argTypes));
         CFRowAdder adder = new CFRowAdder(cf, prefix, timestamp);
 
         adder.resetCollection("argument_names");
@@ -194,9 +193,9 @@ public abstract class UDFunction extends AbstractFunction implements ScalarFunct
 
     public static UDFunction fromSchema(UntypedResultSet.Row row)
     {
-        String namespace = row.getString("namespace");
-        String fname = row.getString("name");
-        FunctionName name = new FunctionName(namespace, fname);
+        String ksName = row.getString("keyspace_name");
+        String functionName = row.getString("function_name");
+        FunctionName name = new FunctionName(ksName, functionName);
 
         List<String> names = row.getList("argument_names", UTF8Type.instance);
         List<String> types = row.getList("argument_types", UTF8Type.instance);
@@ -251,12 +250,12 @@ public abstract class UDFunction extends AbstractFunction implements ScalarFunct
         }
     }
 
-    public static Map<ByteBuffer, UDFunction> fromSchema(Row row)
+    public static Map<Composite, UDFunction> fromSchema(Row row)
     {
         UntypedResultSet results = QueryProcessor.resultify("SELECT * FROM system." + SystemKeyspace.SCHEMA_FUNCTIONS_TABLE, row);
-        Map<ByteBuffer, UDFunction> udfs = new HashMap<>(results.size());
+        Map<Composite, UDFunction> udfs = new HashMap<>(results.size());
         for (UntypedResultSet.Row result : results)
-            udfs.put(result.getBlob("signature"), fromSchema(result));
+            udfs.put(SystemKeyspace.SchemaFunctionsTable.comparator.make(result.getString("function_name"), result.getBlob("signature")), fromSchema(result));
         return udfs;
     }
 

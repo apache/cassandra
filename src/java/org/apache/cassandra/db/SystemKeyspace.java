@@ -182,11 +182,12 @@ public final class SystemKeyspace
                 + "PRIMARY KEY ((keyspace_name), type_name))")
                 .gcGraceSeconds(WEEK);
 
+
     public static final CFMetaData SchemaFunctionsTable =
         compile(SCHEMA_FUNCTIONS_TABLE, "user defined function definitions",
                 "CREATE TABLE %s ("
-                + "namespace text,"
-                + "name text,"
+                + "keyspace_name text,"
+                + "function_name text,"
                 + "signature blob,"
                 + "argument_names list<text>,"
                 + "argument_types list<text>,"
@@ -194,7 +195,7 @@ public final class SystemKeyspace
                 + "deterministic boolean,"
                 + "language text,"
                 + "return_type text,"
-                + "PRIMARY KEY ((namespace, name), signature))")
+                + "PRIMARY KEY ((keyspace_name), function_name, signature))")
                 .gcGraceSeconds(WEEK);
 
     public static final CFMetaData BuiltIndexesTable =

@@ -337,7 +337,7 @@ public class Auth implements AuthMBean
         {
         }
 
-        public void onDropFunction(String namespace, String functionName)
+        public void onDropFunction(String ksName, String functionName)
         {
         }
 
@@ -353,7 +353,7 @@ public class Auth implements AuthMBean
         {
         }
 
-        public void onCreateFunction(String namespace, String functionName)
+        public void onCreateFunction(String ksName, String functionName)
         {
         }
 
@@ -369,7 +369,7 @@ public class Auth implements AuthMBean
         {
         }
 
-        public void onUpdateFunction(String namespace, String functionName)
+        public void onUpdateFunction(String ksName, String functionName)
         {
         }
     }

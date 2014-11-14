@@ -41,6 +41,11 @@ public class FunctionCall extends Term.NonTerminal
         this.terms = terms;
     }
 
+    public boolean usesFunction(String ksName, String functionName)
+    {
+        return fun.name().keyspace.equals(ksName) && fun.name().name.equals(functionName);
+    }
+
     public void collectMarkerSpecification(VariableSpecifications boundNames)
     {
         for (Term t : terms)
@@ -54,7 +59,7 @@ public class FunctionCall extends Term.NonTerminal
 
     public ByteBuffer bindAndGet(QueryOptions options) throws InvalidRequestException
     {
-        List<ByteBuffer> buffers = new ArrayList<ByteBuffer>(terms.size());
+        List<ByteBuffer> buffers = new ArrayList<>(terms.size());
         for (Term t : terms)
         {
             // For now, we don't allow nulls as argument as no existing function needs it and it
@@ -110,7 +115,7 @@ public class FunctionCall extends Term.NonTerminal
 
     public static class Raw implements Term.Raw
     {
-        private final FunctionName name;
+        private FunctionName name;
         private final List<Term.Raw> terms;
 
         public Raw(FunctionName name, List<Term.Raw> terms)
@@ -140,7 +145,7 @@ public class FunctionCall extends Term.NonTerminal
                 throw new InvalidRequestException(String.format("Incorrect number of arguments specified for function %s (expected %d, found %d)",
                                                                 fun.name(), fun.argTypes().size(), terms.size()));
 
-            List<Term> parameters = new ArrayList<Term>(terms.size());
+            List<Term> parameters = new ArrayList<>(terms.size());
             boolean allTerminal = true;
             for (int i = 0; i < terms.size(); i++)
             {
@@ -160,7 +165,7 @@ public class FunctionCall extends Term.NonTerminal
         // All parameters must be terminal
         private static ByteBuffer execute(ScalarFunction fun, List<Term> parameters) throws InvalidRequestException
         {
-            List<ByteBuffer> buffers = new ArrayList<ByteBuffer>(parameters.size());
+            List<ByteBuffer> buffers = new ArrayList<>(parameters.size());
             for (Term t : parameters)
             {
                 assert t instanceof Term.Terminal;

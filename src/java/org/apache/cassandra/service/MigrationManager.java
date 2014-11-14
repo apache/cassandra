@@ -38,8 +38,11 @@ import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.KSMetaData;
 import org.apache.cassandra.config.UTMetaData;
 import org.apache.cassandra.config.Schema;
+import org.apache.cassandra.cql3.functions.AggregateFunction;
+import org.apache.cassandra.cql3.functions.ScalarFunction;
 import org.apache.cassandra.cql3.functions.UDFunction;
 import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.UserType;
 import org.apache.cassandra.exceptions.AlreadyExistsException;
 import org.apache.cassandra.exceptions.ConfigurationException;
@@ -177,19 +180,36 @@ public class MigrationManager
     public void notifyCreateFunction(UDFunction udf)
     {
         for (IMigrationListener listener : listeners)
-            listener.onCreateFunction(udf.name().namespace, udf.name().name);
+            listener.onCreateFunction(udf.name().keyspace, udf.name().name);
     }
 
     public void notifyUpdateFunction(UDFunction udf)
     {
         for (IMigrationListener listener : listeners)
-            listener.onUpdateFunction(udf.name().namespace, udf.name().name);
+            listener.onUpdateFunction(udf.name().keyspace, udf.name().name);
     }
 
     public void notifyDropFunction(UDFunction udf)
     {
         for (IMigrationListener listener : listeners)
-            listener.onDropFunction(udf.name().namespace, udf.name().name);
+            listener.onDropFunction(udf.name().keyspace, udf.name().name);
+    }
+
+    private List<String> asString(List<AbstractType<?>> abstractTypes)
+    {
+        List<String> r = new ArrayList<>(abstractTypes.size());
+        for (AbstractType<?> abstractType : abstractTypes)
+            r.add(abstractType.asCQL3Type().toString());
+        return r;
+    }
+
+    private String udType(UDFunction udf)
+    {
+        if (udf instanceof ScalarFunction)
+            return "scalar";
+        if (udf instanceof AggregateFunction)
+            return "aggregate";
+        return "";
     }
 
     public void notifyUpdateKeyspace(KSMetaData ksm)

@@ -22,16 +22,16 @@ public interface IMigrationListener
     public void onCreateKeyspace(String ksName);
     public void onCreateColumnFamily(String ksName, String cfName);
     public void onCreateUserType(String ksName, String typeName);
-    public void onCreateFunction(String namespace, String functionName);
+    public void onCreateFunction(String ksName, String functionName);
 
     public void onUpdateKeyspace(String ksName);
     public void onUpdateColumnFamily(String ksName, String cfName);
     public void onUpdateUserType(String ksName, String typeName);
-    public void onUpdateFunction(String namespace, String functionName);
+    public void onUpdateFunction(String ksName, String functionName);
 
     public void onDropKeyspace(String ksName);
     public void onDropColumnFamily(String ksName, String cfName);
     public void onDropUserType(String ksName, String typeName);
-    public void onDropFunction(String namespace, String functionName);
+    public void onDropFunction(String ksName, String functionName);
 
 }

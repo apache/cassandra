@@ -208,15 +208,15 @@ public abstract class Event
 
         public final Change change;
         public final Target target;
-        public final String keyOrNamespace;
+        public final String keyspace;
         public final String tableOrTypeOrFunction;
 
-        public SchemaChange(Change change, Target target, String keyOrNamespace, String tableOrTypeOrFunction)
+        public SchemaChange(Change change, Target target, String keyspace, String tableOrTypeOrFunction)
         {
             super(Type.SCHEMA_CHANGE);
             this.change = change;
             this.target = target;
-            this.keyOrNamespace = keyOrNamespace;
+            this.keyspace = keyspace;
             this.tableOrTypeOrFunction = tableOrTypeOrFunction;
             if (target != Target.KEYSPACE)
                 assert this.tableOrTypeOrFunction != null : "Table or type should be set for non-keyspace schema change events";
@@ -252,7 +252,7 @@ public abstract class Event
             {
                 CBUtil.writeEnumValue(change, dest);
                 CBUtil.writeEnumValue(target, dest);
-                CBUtil.writeString(keyOrNamespace, dest);
+                CBUtil.writeString(keyspace, dest);
                 if (target != Target.KEYSPACE)
                     CBUtil.writeString(tableOrTypeOrFunction, dest);
             }
@@ -263,13 +263,13 @@ public abstract class Event
                     // For the v1/v2 protocol, we have no way to represent type changes, so we simply say the keyspace
                     // was updated.  See CASSANDRA-7617.
                     CBUtil.writeEnumValue(Change.UPDATED, dest);
-                    CBUtil.writeString(keyOrNamespace, dest);
+                    CBUtil.writeString(keyspace, dest);
                     CBUtil.writeString("", dest);
                 }
                 else
                 {
                     CBUtil.writeEnumValue(change, dest);
-                    CBUtil.writeString(keyOrNamespace, dest);
+                    CBUtil.writeString(keyspace, dest);
                     CBUtil.writeString(target == Target.KEYSPACE ? "" : tableOrTypeOrFunction, dest);
                 }
             }
@@ -281,7 +281,7 @@ public abstract class Event
             {
                 int size = CBUtil.sizeOfEnumValue(change)
                          + CBUtil.sizeOfEnumValue(target)
-                         + CBUtil.sizeOfString(keyOrNamespace);
+                         + CBUtil.sizeOfString(keyspace);
 
                 if (target != Target.KEYSPACE)
                     size += CBUtil.sizeOfString(tableOrTypeOrFunction);
@@ -293,11 +293,11 @@ public abstract class Event
                 if (target == Target.TYPE)
                 {
                     return CBUtil.sizeOfEnumValue(Change.UPDATED)
-                         + CBUtil.sizeOfString(keyOrNamespace)
+                         + CBUtil.sizeOfString(keyspace)
                          + CBUtil.sizeOfString("");
                 }
                 return CBUtil.sizeOfEnumValue(change)
-                     + CBUtil.sizeOfString(keyOrNamespace)
+                     + CBUtil.sizeOfString(keyspace)
                      + CBUtil.sizeOfString(target == Target.KEYSPACE ? "" : tableOrTypeOrFunction);
             }
         }
@@ -305,13 +305,13 @@ public abstract class Event
         @Override
         public String toString()
         {
-            return change + " " + target + " " + keyOrNamespace + (tableOrTypeOrFunction == null ? "" : "." + tableOrTypeOrFunction);
+            return change + " " + target + " " + keyspace + (tableOrTypeOrFunction == null ? "" : "." + tableOrTypeOrFunction);
         }
 
         @Override
         public int hashCode()
         {
-            return Objects.hashCode(change, target, keyOrNamespace, tableOrTypeOrFunction);
+            return Objects.hashCode(change, target, keyspace, tableOrTypeOrFunction);
         }
 
         @Override
@@ -323,7 +323,7 @@ public abstract class Event
             SchemaChange scc = (SchemaChange)other;
             return Objects.equal(change, scc.change)
                 && Objects.equal(target, scc.target)
-                && Objects.equal(keyOrNamespace, scc.keyOrNamespace)
+                && Objects.equal(keyspace, scc.keyspace)
                 && Objects.equal(tableOrTypeOrFunction, scc.tableOrTypeOrFunction);
         }
     }

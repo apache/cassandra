@@ -40,6 +40,11 @@ public abstract class Selector implements AssignmentTestable
      */
     public static abstract class Factory
     {
+        public boolean usesFunction(String ksName, String functionName)
+        {
+            return false;
+        }
+
         /**
          * Returns the column specification corresponding to the output value of the selector instances created by
          * this factory.

@@ -310,7 +310,7 @@ selectionFunctionArgs returns [List<Selectable.Raw> a]
 
 selectCountClause returns [List<RawSelector> expr]
     @init{ ColumnIdentifier alias = new ColumnIdentifier("count", false); }
-    : K_COUNT '(' countArgument ')' (K_AS c=ident { alias = c; })? { $expr = new ArrayList<RawSelector>(); $expr.add( new RawSelector(new Selectable.WithFunction.Raw(new FunctionName("countRows"), Collections.<Selectable.Raw>emptyList()), alias));}
+    : K_COUNT '(' countArgument ')' (K_AS c=ident { alias = c; })? { $expr = new ArrayList<RawSelector>(); $expr.add( new RawSelector(new Selectable.WithFunction.Raw(FunctionName.nativeFunction("countRows"), Collections.<Selectable.Raw>emptyList()), alias));}
     ;
 
 countArgument
@@ -977,12 +977,12 @@ intValue returns [Term.Raw value]
     ;
 
 functionName returns [FunctionName s]
-    : f=allowedFunctionName                            { $s = new FunctionName(f); }
-    | b=allowedFunctionName '::' f=allowedFunctionName { $s = new FunctionName(b, f); }
+    : (ks=keyspaceName '.')? f=allowedFunctionName   { $s = new FunctionName(ks, f); }
     ;
 
 allowedFunctionName returns [String s]
-    : f=IDENT                       { $s = $f.text; }
+    : f=IDENT                       { $s = $f.text.toLowerCase(); }
+    | f=QUOTED_NAME                 { $s = $f.text; }
     | u=unreserved_function_keyword { $s = u; }
     | K_TOKEN                       { $s = "token"; }
     | K_COUNT                       { $s = "count"; }
