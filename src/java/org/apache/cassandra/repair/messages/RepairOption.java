@@ -211,15 +211,7 @@ public class RepairOption
 
     public RepairOption(boolean sequential, boolean primaryRange, boolean incremental, int jobThreads, Collection<Range<Token>> ranges)
     {
-        if (!FBUtilities.isUnix() && sequential)
-        {
-            logger.warn("Snapshot-based repair is not yet supported on Windows.  Reverting to parallel repair.");
-            this.sequential = false;
-        }
-        else
-        {
-            this.sequential = sequential;
-        }
+        this.sequential = sequential;
         this.primaryRange = primaryRange;
         this.incremental = incremental;
         this.jobThreads = jobThreads;
