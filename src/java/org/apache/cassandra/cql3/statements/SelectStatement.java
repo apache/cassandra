@@ -1422,7 +1422,7 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
                         hasQueriableIndex |= queriable[0];
                         hasQueriableClusteringColumnIndex |= queriable[1];
                         names.add(def);
-                        hasMultiColumnRelations |= ColumnDefinition.Kind.CLUSTERING_COLUMN.equals(def.kind);
+                        hasMultiColumnRelations |= ColumnDefinition.Kind.CLUSTERING_COLUMN == def.kind;
                     }
                     updateRestrictionsForRelation(stmt, names, rel, boundNames);
                 }
@@ -1434,7 +1434,7 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
                     boolean[] queriable = processRelationEntity(stmt, indexManager, relation, entity, def);
                     hasQueriableIndex |= queriable[0];
                     hasQueriableClusteringColumnIndex |= queriable[1];
-                    hasSingleColumnRelations |= ColumnDefinition.Kind.CLUSTERING_COLUMN.equals(def.kind);
+                    hasSingleColumnRelations |= ColumnDefinition.Kind.CLUSTERING_COLUMN == def.kind;
                     updateRestrictionsForRelation(stmt, def, rel, boundNames);
                 }
             }

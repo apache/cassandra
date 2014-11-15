@@ -152,17 +152,17 @@ public class DataResource implements IResource
 
     public boolean isRootLevel()
     {
-        return level.equals(Level.ROOT);
+        return level == Level.ROOT;
     }
 
     public boolean isKeyspaceLevel()
     {
-        return level.equals(Level.KEYSPACE);
+        return level == Level.KEYSPACE;
     }
 
     public boolean isColumnFamilyLevel()
     {
-        return level.equals(Level.COLUMN_FAMILY);
+        return level == Level.COLUMN_FAMILY;
     }
     /**
      * @return keyspace of the resource. Throws IllegalStateException if it's the root-level resource.
@@ -187,14 +187,16 @@ public class DataResource implements IResource
     /**
      * @return Whether or not the resource has a parent in the hierarchy.
      */
+    @Override
     public boolean hasParent()
     {
-        return !level.equals(Level.ROOT);
+        return level != Level.ROOT;
     }
 
     /**
      * @return Whether or not the resource exists in Cassandra.
      */
+    @Override
     public boolean exists()
     {
         switch (level)

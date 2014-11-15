@@ -235,10 +235,10 @@ public class ClientState
             return;
         validateLogin();
         preventSystemKSSchemaModification(keyspace, resource, perm);
-        if (perm.equals(Permission.SELECT) && READABLE_SYSTEM_RESOURCES.contains(resource))
+        if ((perm == Permission.SELECT) && READABLE_SYSTEM_RESOURCES.contains(resource))
             return;
         if (PROTECTED_AUTH_RESOURCES.contains(resource))
-            if (perm.equals(Permission.CREATE) || perm.equals(Permission.ALTER) || perm.equals(Permission.DROP))
+            if ((perm == Permission.CREATE) || (perm == Permission.ALTER) || (perm == Permission.DROP))
                 throw new UnauthorizedException(String.format("%s schema is protected", resource));
         ensureHasPermission(perm, resource);
     }
@@ -258,7 +258,7 @@ public class ClientState
     private void preventSystemKSSchemaModification(String keyspace, DataResource resource, Permission perm) throws UnauthorizedException
     {
         // we only care about schema modification.
-        if (!(perm.equals(Permission.ALTER) || perm.equals(Permission.DROP) || perm.equals(Permission.CREATE)))
+        if (!((perm == Permission.ALTER) || (perm == Permission.DROP) || (perm == Permission.CREATE)))
             return;
 
         // prevent system keyspace modification
@@ -267,7 +267,7 @@ public class ClientState
 
         // we want to allow altering AUTH_KS and TRACING_KS.
         Set<String> allowAlter = Sets.newHashSet(Auth.AUTH_KS, TraceKeyspace.NAME);
-        if (allowAlter.contains(keyspace.toLowerCase()) && !(resource.isKeyspaceLevel() && perm.equals(Permission.ALTER)))
+        if (allowAlter.contains(keyspace.toLowerCase()) && !(resource.isKeyspaceLevel() && (perm == Permission.ALTER)))
             throw new UnauthorizedException(String.format("Cannot %s %s", perm, resource));
     }
 

@@ -59,7 +59,7 @@ public class ColumnCondition
         this.inValues = inValues;
         this.operator = op;
 
-        if (!operator.equals(Operator.IN))
+        if (operator != Operator.IN)
             assert this.inValues == null;
     }
 
@@ -117,7 +117,7 @@ public class ColumnCondition
         if (collectionElement != null)
             collectionElement.collectMarkerSpecification(boundNames);
 
-        if (operator.equals(Operator.IN) && inValues != null)
+        if ((operator == Operator.IN) && inValues != null)
         {
             for (Term value : inValues)
                 value.collectMarkerSpecification(boundNames);
@@ -130,7 +130,7 @@ public class ColumnCondition
 
     public ColumnCondition.Bound bind(QueryOptions options) throws InvalidRequestException
     {
-        boolean isInCondition = operator.equals(Operator.IN);
+        boolean isInCondition = operator == Operator.IN;
         if (column.type instanceof CollectionType)
         {
             if (collectionElement == null)
@@ -186,7 +186,7 @@ public class ColumnCondition
             else if (otherValue == null)
             {
                 // the condition value is not null, so only NEQ can return true
-                return operator.equals(Operator.NEQ);
+                return operator == Operator.NEQ;
             }
             int comparison = type.compare(otherValue, value);
             switch (operator)
@@ -236,7 +236,7 @@ public class ColumnCondition
         {
             super(condition.column, condition.operator);
             assert !(column.type instanceof CollectionType) && condition.collectionElement == null;
-            assert !condition.operator.equals(Operator.IN);
+            assert condition.operator != Operator.IN;
             this.value = condition.value.bindAndGet(options);
         }
 
@@ -258,7 +258,7 @@ public class ColumnCondition
         {
             super(condition.column, condition.operator);
             assert !(column.type instanceof CollectionType) && condition.collectionElement == null;
-            assert condition.operator.equals(Operator.IN);
+            assert condition.operator == Operator.IN;
             if (condition.inValues == null)
                 this.inValues = ((Lists.Marker) condition.value).bind(options).getElements();
             else
@@ -291,7 +291,7 @@ public class ColumnCondition
         {
             super(condition.column, condition.operator);
             assert column.type instanceof CollectionType && condition.collectionElement != null;
-            assert !condition.operator.equals(Operator.IN);
+            assert condition.operator != Operator.IN;
             this.collectionElement = condition.collectionElement.bindAndGet(options);
             this.value = condition.value.bindAndGet(options);
         }
@@ -468,7 +468,7 @@ public class ColumnCondition
         {
             super(condition.column, condition.operator);
             assert column.type.isCollection() && condition.collectionElement == null;
-            assert !condition.operator.equals(Operator.IN);
+            assert condition.operator != Operator.IN;
             this.value = condition.value.bind(options);
         }
 
@@ -481,9 +481,9 @@ public class ColumnCondition
                 Iterator<Cell> iter = collectionColumns(current.metadata().comparator.create(rowPrefix, column), current, now);
                 if (value == null)
                 {
-                    if (operator.equals(Operator.EQ))
+                    if (operator == Operator.EQ)
                         return !iter.hasNext();
-                    else if (operator.equals(Operator.NEQ))
+                    else if (operator == Operator.NEQ)
                         return iter.hasNext();
                     else
                         throw new InvalidRequestException(String.format("Invalid comparison with null for operator \"%s\"", operator));
@@ -535,7 +535,7 @@ public class ColumnCondition
             while(iter.hasNext())
             {
                 if (!conditionIter.hasNext())
-                    return operator.equals(Operator.GT) || operator.equals(Operator.GTE) || operator.equals(Operator.NEQ);
+                    return (operator == Operator.GT) || (operator == Operator.GTE) || (operator == Operator.NEQ);
 
                 // for lists we use the cell value; for sets we use the cell name
                 ByteBuffer cellValue = isSet? iter.next().name().collectionElement() : iter.next().value();
@@ -545,7 +545,7 @@ public class ColumnCondition
             }
 
             if (conditionIter.hasNext())
-                return operator.equals(Operator.LT) || operator.equals(Operator.LTE) || operator.equals(Operator.NEQ);
+                return (operator == Operator.LT) || (operator == Operator.LTE) || (operator == Operator.NEQ);
 
             // they're equal
             return operator == Operator.EQ || operator == Operator.LTE || operator == Operator.GTE;
@@ -590,7 +590,7 @@ public class ColumnCondition
             while(iter.hasNext())
             {
                 if (!conditionIter.hasNext())
-                    return operator.equals(Operator.GT) || operator.equals(Operator.GTE) || operator.equals(Operator.NEQ);
+                    return (operator == Operator.GT) || (operator == Operator.GTE) || (operator == Operator.NEQ);
 
                 Map.Entry<ByteBuffer, ByteBuffer> conditionEntry = conditionIter.next();
                 Cell c = iter.next();
@@ -607,7 +607,7 @@ public class ColumnCondition
             }
 
             if (conditionIter.hasNext())
-                return operator.equals(Operator.LT) || operator.equals(Operator.LTE) || operator.equals(Operator.NEQ);
+                return (operator == Operator.LT) || (operator == Operator.LTE) || (operator == Operator.NEQ);
 
             // they're equal
             return operator == Operator.EQ || operator == Operator.LTE || operator == Operator.GTE;
@@ -622,7 +622,7 @@ public class ColumnCondition
         {
             super(condition.column, condition.operator);
             assert column.type instanceof CollectionType && condition.collectionElement == null;
-            assert condition.operator.equals(Operator.IN);
+            assert condition.operator == Operator.IN;
             inValues = new ArrayList<>();
             if (condition.inValues == null)
             {
@@ -768,7 +768,7 @@ public class ColumnCondition
 
             if (collectionElement == null)
             {
-                if (operator.equals(Operator.IN))
+                if (operator == Operator.IN)
                 {
                     if (inValues == null)
                         return ColumnCondition.inCondition(receiver, inMarker.prepare(keyspace, receiver));
@@ -802,7 +802,7 @@ public class ColumnCondition
                 default:
                     throw new AssertionError();
             }
-            if (operator.equals(Operator.IN))
+            if (operator == Operator.IN)
             {
                 if (inValues == null)
                     return ColumnCondition.inCondition(receiver, collectionElement.prepare(keyspace, elementSpec), inMarker.prepare(keyspace, valueSpec));

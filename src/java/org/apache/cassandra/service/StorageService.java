@@ -1335,7 +1335,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
      */
     public void onChange(InetAddress endpoint, ApplicationState state, VersionedValue value)
     {
-        if (state.equals(ApplicationState.STATUS))
+        if (state == ApplicationState.STATUS)
         {
             String apStateValue = value.value;
             String[] pieces = apStateValue.split(VersionedValue.DELIMITER_STR, -1);
@@ -2194,7 +2194,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
      */
     public void takeSnapshot(String tag, String... keyspaceNames) throws IOException
     {
-        if (operationMode.equals(Mode.JOINING))
+        if (operationMode == Mode.JOINING)
             throw new IOException("Cannot snapshot until bootstrap completes");
         if (tag == null || tag.equals(""))
             throw new IOException("You must supply a snapshot name.");
@@ -2233,7 +2233,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     {
         if (keyspaceName == null)
             throw new IOException("You must supply a keyspace name");
-        if (operationMode.equals(Mode.JOINING))
+        if (operationMode == Mode.JOINING)
             throw new IOException("Cannot snapshot until bootstrap completes");
 
         if (columnFamilyName == null)
