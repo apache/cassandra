@@ -53,6 +53,7 @@ public final class DropFunctionStatement extends SchemaAlteringStatement
         this.ifExists = ifExists;
     }
 
+    @Override
     public void prepareKeyspace(ClientState state) throws InvalidRequestException
     {
         if (!functionName.hasKeyspace() && state.getRawKeyspace() != null)
@@ -64,6 +65,7 @@ public final class DropFunctionStatement extends SchemaAlteringStatement
         ThriftValidation.validateKeyspaceNotSystem(functionName.keyspace);
     }
 
+    @Override
     public void checkAccess(ClientState state) throws UnauthorizedException, InvalidRequestException
     {
         // TODO CASSANDRA-7557 (function DDL permission)
@@ -75,18 +77,19 @@ public final class DropFunctionStatement extends SchemaAlteringStatement
      * The <code>CqlParser</code> only goes as far as extracting the keyword arguments
      * from these statements, so this method is responsible for processing and
      * validating.
-     *
-     * @throws org.apache.cassandra.exceptions.InvalidRequestException if arguments are missing or unacceptable
      */
-    public void validate(ClientState state) throws RequestValidationException
+    @Override
+    public void validate(ClientState state)
     {
     }
 
+    @Override
     public Event.SchemaChange changeEvent()
     {
         return null;
     }
 
+    @Override
     public boolean announceMigration(boolean isLocalOnly) throws RequestValidationException
     {
         List<Function> olds = Functions.find(functionName);
