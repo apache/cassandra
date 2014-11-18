@@ -698,9 +698,9 @@ public class UFTest extends CQLTester
 
         // declared rtype = decimal , return type = int
         execute("CREATE OR REPLACE FUNCTION "+KEYSPACE+".js(val double) RETURNS decimal LANGUAGE javascript\n" +
-                "AS '100;';");
+                "AS 'parseInt(\"100\");';");
         assertRows(execute("SELECT key, val, js(val) FROM %s"),
-                   row(1, 1d, BigDecimal.valueOf(100L)));
+                   row(1, 1d, BigDecimal.valueOf(100d)));
         execute("DROP FUNCTION "+KEYSPACE+".js(double)");
 
         // declared rtype = decimal , return type = double
