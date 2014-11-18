@@ -17,23 +17,16 @@
  */
 package org.apache.cassandra.io.util;
 
-import java.io.File;
-
 import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.utils.WrappedRunnable;
 
 public abstract class DiskAwareRunnable extends WrappedRunnable
 {
-    /**
-     * Run this task after selecting the optimal disk for it
-     */
-    protected void runMayThrow() throws Exception
+    protected Directories.DataDirectory getWriteDirectory(long writeSize)
     {
-        long writeSize;
         Directories.DataDirectory directory;
         while (true)
         {
-            writeSize = getExpectedWriteSize();
             directory = getDirectories().getWriteableLocation();
             if (directory != null || !reduceScopeForLimitedSpace())
                 break;
@@ -43,15 +36,13 @@ public abstract class DiskAwareRunnable extends WrappedRunnable
 
         directory.currentTasks.incrementAndGet();
         directory.estimatedWorkingSize.addAndGet(writeSize);
-        try
-        {
-            runWith(getDirectories().getLocationForDisk(directory));
-        }
-        finally
-        {
-            directory.estimatedWorkingSize.addAndGet(-1 * writeSize);
-            directory.currentTasks.decrementAndGet();
-        }
+        return directory;
+    }
+
+    protected void returnWriteDirectory(Directories.DataDirectory directory, long writeSize)
+    {
+        directory.estimatedWorkingSize.addAndGet(-1 * writeSize);
+        directory.currentTasks.decrementAndGet();
     }
 
     /**
@@ -59,18 +50,6 @@ public abstract class DiskAwareRunnable extends WrappedRunnable
      * @return Directories instance for the CF.
      */
     protected abstract Directories getDirectories();
-
-    /**
-     * Executes this task on given {@code sstableDirectory}.
-     * @param sstableDirectory sstable directory to work on
-     */
-    protected abstract void runWith(File sstableDirectory) throws Exception;
-
-    /**
-     * Get expected write size to determine which disk to use for this task.
-     * @return expected size in bytes this task will write to disk.
-     */
-    public abstract long getExpectedWriteSize();
 
     /**
      * Called if no disk is available with free space for the full write size.

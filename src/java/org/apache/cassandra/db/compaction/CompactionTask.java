@@ -87,11 +87,11 @@ public class CompactionTask extends AbstractCompactionTask
      * which are properly serialized.
      * Caller is in charge of marking/unmarking the sstables as compacting.
      */
-    protected void runWith(File sstableDirectory) throws Exception
+    protected void runMayThrow() throws Exception
     {
         // The collection of sstables passed may be empty (but not null); even if
         // it is not empty, it may compact down to nothing if all rows are deleted.
-        assert sstables != null && sstableDirectory != null;
+        assert sstables != null;
 
         // Note that the current compaction strategy, is not necessarily the one this task was created under.
         // This should be harmless; see comments to CFS.maybeReloadCompactionStrategy.
@@ -149,44 +149,59 @@ public class CompactionTask extends AbstractCompactionTask
                 return;
             }
 
-            SSTableWriter writer = createCompactionWriter(sstableDirectory, keysPerSSTable);
+            long writeSize = getExpectedWriteSize() / estimatedSSTables;
+            Directories.DataDirectory dataDirectory = getWriteDirectory(writeSize);
+            SSTableWriter writer = createCompactionWriter(cfs.directories.getLocationForDisk(dataDirectory), keysPerSSTable);
             writers.add(writer);
-            while (iter.hasNext())
+            try
             {
-                if (ci.isStopRequested())
-                    throw new CompactionInterruptedException(ci.getCompactionInfo());
-
-                AbstractCompactedRow row = iter.next();
-                RowIndexEntry indexEntry = writer.append(row);
-                if (indexEntry == null)
+                while (iter.hasNext())
                 {
-                    controller.invalidateCachedRow(row.key);
-                    row.close();
-                    continue;
-                }
+                    if (ci.isStopRequested())
+                        throw new CompactionInterruptedException(ci.getCompactionInfo());
 
-                totalkeysWritten++;
-
-                if (DatabaseDescriptor.getPreheatKeyCache())
-                {
-                    for (SSTableReader sstable : actuallyCompact)
+                    AbstractCompactedRow row = iter.next();
+                    RowIndexEntry indexEntry = writer.append(row);
+                    if (indexEntry == null)
                     {
-                        if (sstable.getCachedPosition(row.key, false) != null)
+                        controller.invalidateCachedRow(row.key);
+                        row.close();
+                        continue;
+                    }
+
+                    totalkeysWritten++;
+
+                    if (DatabaseDescriptor.getPreheatKeyCache())
+                    {
+                        for (SSTableReader sstable : actuallyCompact)
                         {
-                            cachedKeys.put(row.key, indexEntry);
-                            break;
+                            if (sstable.getCachedPosition(row.key, false) != null)
+                            {
+                                cachedKeys.put(row.key, indexEntry);
+                                break;
+                            }
                         }
                     }
-                }
 
-                if (newSSTableSegmentThresholdReached(writer))
-                {
-                    // tmp = false because later we want to query it with descriptor from SSTableReader
-                    cachedKeyMap.put(writer.descriptor.asTemporary(false), cachedKeys);
-                    writer = createCompactionWriter(sstableDirectory, keysPerSSTable);
-                    writers.add(writer);
-                    cachedKeys = new HashMap<DecoratedKey, RowIndexEntry>();
+                    if (newSSTableSegmentThresholdReached(writer))
+                    {
+                        // tmp = false because later we want to query it with descriptor from SSTableReader
+                        cachedKeyMap.put(writer.descriptor.asTemporary(false), cachedKeys);
+                        returnWriteDirectory(dataDirectory, writeSize);
+                        // make sure we don't try to call returnWriteDirectory in finally {..} if we throw exception in getWriteDirectory() below:
+                        dataDirectory = null;
+                        writeSize = getExpectedWriteSize() / estimatedSSTables;
+                        dataDirectory = getWriteDirectory(writeSize);
+                        writer = createCompactionWriter(cfs.directories.getLocationForDisk(dataDirectory), keysPerSSTable);
+                        writers.add(writer);
+                        cachedKeys = new HashMap<DecoratedKey, RowIndexEntry>();
+                    }
                 }
+            }
+            finally
+            {
+                if (dataDirectory != null)
+                    returnWriteDirectory(dataDirectory, writeSize);
             }
 
             if (writer.getFilePointer() > 0)
@@ -291,6 +306,7 @@ public class CompactionTask extends AbstractCompactionTask
 
     private SSTableWriter createCompactionWriter(File sstableDirectory, long keysPerSSTable)
     {
+        assert sstableDirectory != null;
         return new SSTableWriter(cfs.getTempSSTablePath(sstableDirectory),
                                  keysPerSSTable,
                                  cfs.metadata,

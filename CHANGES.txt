@@ -1,4 +1,5 @@
 2.0.12:
+ * Make LCS split compaction results over all data directories (CASSANDRA-8329)
  * Fix some failing queries that use multi-column relations
    on COMPACT STORAGE tables (CASSANDRA-8264)
  * Fix InvalidRequestException with ORDER BY (CASSANDRA-8286)
