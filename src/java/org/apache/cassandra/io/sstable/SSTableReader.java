@@ -59,6 +59,7 @@ import org.apache.cassandra.cache.CachingOptions;
 import org.apache.cassandra.cache.InstrumentingCache;
 import org.apache.cassandra.cache.KeyCacheKey;
 import org.apache.cassandra.concurrent.DebuggableThreadPoolExecutor;
+import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.config.Config;
@@ -635,7 +636,7 @@ public class SSTableReader extends SSTable
         else
             barrier = null;
 
-        StorageService.tasks.execute(new Runnable()
+        ScheduledExecutors.nonPeriodicTasks.execute(new Runnable()
         {
             public void run()
             {
