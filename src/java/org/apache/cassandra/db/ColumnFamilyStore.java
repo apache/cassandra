@@ -2240,11 +2240,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return directories.getSnapshotDetails();
     }
 
-    public boolean hasUnreclaimedSpace()
-    {
-        return getLiveDiskSpaceUsed() < getTotalDiskSpaceUsed();
-    }
-
     public long getTotalDiskSpaceUsed()
     {
         return metric.totalDiskSpaceUsed.count();

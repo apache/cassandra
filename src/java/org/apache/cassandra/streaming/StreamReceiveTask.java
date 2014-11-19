@@ -17,6 +17,9 @@
  */
 package org.apache.cassandra.streaming;
 
+import java.io.File;
+import java.io.IOError;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
@@ -113,7 +116,10 @@ public class StreamReceiveTask extends StreamTask
             }
             ColumnFamilyStore cfs = Keyspace.open(kscf.left).getColumnFamilyStore(kscf.right);
 
-            StreamLockfile lockfile = new StreamLockfile(cfs.directories.getWriteableLocationAsFile(), UUID.randomUUID());
+            File lockfiledir = cfs.directories.getWriteableLocationAsFile(task.sstables.size() * 256);
+            if (lockfiledir == null)
+                throw new IOError(new IOException("All disks full"));
+            StreamLockfile lockfile = new StreamLockfile(lockfiledir, UUID.randomUUID());
             lockfile.create(task.sstables);
             List<SSTableReader> readers = new ArrayList<>();
             for (SSTableWriter writer : task.sstables)
