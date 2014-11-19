@@ -44,6 +44,7 @@
  * Fix overflow on histogram computation (CASSANDRA-8028)
  * Have paxos reuse the timestamp generation of normal queries (CASSANDRA-7801)
  * Fix incremental repair not remove parent session on remote (CASSANDRA-8291)
+ * Improve JBOD disk utilization (CASSANDRA-7386)
 Merged from 2.0:
  * Fix some failing queries that use multi-column relations
    on COMPACT STORAGE tables (CASSANDRA-8264)
