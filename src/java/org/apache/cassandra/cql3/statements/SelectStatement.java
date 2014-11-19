@@ -1101,13 +1101,24 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
         return value;
     }
 
+    private CellName makeExclusiveSliceBound(Bound bound, CellNameType type, QueryOptions options) throws InvalidRequestException
+    {
+        if (sliceRestriction.isInclusive(bound))
+            return null;
+
+        if (sliceRestriction.isMultiColumn())
+            return type.makeCellName(((MultiColumnRestriction.Slice) sliceRestriction).componentBounds(bound, options).toArray());
+        else
+            return type.makeCellName(sliceRestriction.bound(bound, options));
+    }
+
     private Iterator<Cell> applySliceRestriction(final Iterator<Cell> cells, final QueryOptions options) throws InvalidRequestException
     {
         assert sliceRestriction != null;
 
         final CellNameType type = cfm.comparator;
-        final CellName excludedStart = sliceRestriction.isInclusive(Bound.START) ? null : type.makeCellName(sliceRestriction.bound(Bound.START, options));
-        final CellName excludedEnd = sliceRestriction.isInclusive(Bound.END) ? null : type.makeCellName(sliceRestriction.bound(Bound.END, options));
+        final CellName excludedStart = makeExclusiveSliceBound(Bound.START, type, options);
+        final CellName excludedEnd = makeExclusiveSliceBound(Bound.END, type, options);
 
         return new AbstractIterator<Cell>()
         {
