@@ -263,6 +263,13 @@ public abstract class CQLTester
         }
     }
 
+    protected void dropIndex(String query) throws Throwable
+    {
+        String fullQuery = String.format(query, KEYSPACE);
+        logger.info(fullQuery);
+        schemaChange(fullQuery);
+    }
+
     private static void schemaChange(String query)
     {
         try

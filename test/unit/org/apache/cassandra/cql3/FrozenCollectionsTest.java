@@ -615,10 +615,10 @@ public class FrozenCollectionsTest extends CQLTester
                              "SELECT * FROM %s WHERE c CONTAINS KEY ?", 1);
 
         // normal indexes on frozen collections don't support CONTAINS or CONTAINS KEY
-        assertInvalidMessage("No secondary indexes on the restricted columns support the provided operator",
+        assertInvalidMessage("Cannot restrict column \"b\" by a CONTAINS relation without a secondary index",
                              "SELECT * FROM %s WHERE b CONTAINS ?", 1);
 
-        assertInvalidMessage("No secondary indexes on the restricted columns support the provided operator",
+        assertInvalidMessage("Cannot restrict column \"b\" by a CONTAINS relation without a secondary index",
                              "SELECT * FROM %s WHERE b CONTAINS ? ALLOW FILTERING", 1);
 
         assertInvalidMessage("No secondary indexes on the restricted columns support the provided operator",
@@ -627,7 +627,7 @@ public class FrozenCollectionsTest extends CQLTester
         assertInvalidMessage("No secondary indexes on the restricted columns support the provided operator",
                              "SELECT * FROM %s WHERE d CONTAINS KEY ? ALLOW FILTERING", 1);
 
-        assertInvalidMessage("No secondary indexes on the restricted columns support the provided operator",
+        assertInvalidMessage("Cannot restrict column \"b\" by a CONTAINS relation without a secondary index",
                              "SELECT * FROM %s WHERE b CONTAINS ? AND d CONTAINS KEY ? ALLOW FILTERING", 1, 1);
 
         // index lookup on b
@@ -740,6 +740,56 @@ public class FrozenCollectionsTest extends CQLTester
         execute("DELETE d FROM %s WHERE a=? AND b=?", 0, list(1, 2, 3));
         assertRows(execute("SELECT * FROM %s WHERE d=?", map(1, "a")),
             row(0, list(4, 5, 6), set(1, 2, 3), map(1, "a"))
+        );
+    }
+
+    /** Test for CASSANDRA-8302 */
+    @Test
+    public void testClusteringColumnFiltering() throws Throwable
+    {
+        createTable("CREATE TABLE %s (a int, b frozen<map<int, int>>, c int, d int, PRIMARY KEY (a, b, c))");
+        createIndex("CREATE INDEX c_index ON %s (c)");
+        createIndex("CREATE INDEX d_index ON %s (d)");
+
+        execute("INSERT INTO %s (a, b, c, d) VALUES (?, ?, ?, ?)", 0, map(0, 0, 1, 1), 0, 0);
+        execute("INSERT INTO %s (a, b, c, d) VALUES (?, ?, ?, ?)", 0, map(1, 1, 2, 2), 0, 0);
+        execute("INSERT INTO %s (a, b, c, d) VALUES (?, ?, ?, ?)", 1, map(0, 0, 1, 1), 0, 0);
+        execute("INSERT INTO %s (a, b, c, d) VALUES (?, ?, ?, ?)", 1, map(1, 1, 2, 2), 0, 0);
+
+        assertRows(execute("SELECT * FROM %s WHERE d=? AND b CONTAINS ? ALLOW FILTERING", 0, 0),
+                row(0, map(0, 0, 1, 1), 0, 0),
+                row(1, map(0, 0, 1, 1), 0, 0)
+        );
+
+        assertRows(execute("SELECT * FROM %s WHERE d=? AND b CONTAINS KEY ? ALLOW FILTERING", 0, 0),
+                row(0, map(0, 0, 1, 1), 0, 0),
+                row(1, map(0, 0, 1, 1), 0, 0)
+        );
+
+        assertRows(execute("SELECT * FROM %s WHERE a=? AND d=? AND b CONTAINS ? ALLOW FILTERING", 0, 0, 0),
+                row(0, map(0, 0, 1, 1), 0, 0)
+        );
+        assertRows(execute("SELECT * FROM %s WHERE a=? AND d=? AND b CONTAINS KEY ? ALLOW FILTERING", 0, 0, 0),
+                row(0, map(0, 0, 1, 1), 0, 0)
+        );
+
+        dropIndex("DROP INDEX %s.d_index");
+
+        assertRows(execute("SELECT * FROM %s WHERE c=? AND b CONTAINS ? ALLOW FILTERING", 0, 0),
+                row(0, map(0, 0, 1, 1), 0, 0),
+                row(1, map(0, 0, 1, 1), 0, 0)
+        );
+
+        assertRows(execute("SELECT * FROM %s WHERE c=? AND b CONTAINS KEY ? ALLOW FILTERING", 0, 0),
+                row(0, map(0, 0, 1, 1), 0, 0),
+                row(1, map(0, 0, 1, 1), 0, 0)
+        );
+
+        assertRows(execute("SELECT * FROM %s WHERE a=? AND c=? AND b CONTAINS ? ALLOW FILTERING", 0, 0, 0),
+                row(0, map(0, 0, 1, 1), 0, 0)
+        );
+        assertRows(execute("SELECT * FROM %s WHERE a=? AND c=? AND b CONTAINS KEY ? ALLOW FILTERING", 0, 0, 0),
+                row(0, map(0, 0, 1, 1), 0, 0)
         );
     }
 
