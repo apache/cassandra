@@ -1981,12 +1981,12 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
                     else if (stmt.selectACollection())
                         throw new InvalidRequestException(String.format("Cannot restrict column \"%s\" by IN relation as a collection is selected by the query", cdef.name));
                 }
-                /*
-                else if (restriction.isContains() && !hasQueriableIndex)
+                else if (restriction.isContains())
                 {
-                    throw new InvalidRequestException(String.format("Cannot restrict column \"%s\" by a CONTAINS relation without a secondary index", cdef.name));
+                    if (!hasQueriableIndex)
+                        throw new InvalidRequestException(String.format("Cannot restrict column \"%s\" by a CONTAINS relation without a secondary index", cdef.name));
+                    stmt.usesSecondaryIndexing = true;
                 }
-                */
 
                 previous = cdef;
             }

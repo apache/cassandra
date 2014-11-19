@@ -1,4 +1,7 @@
 2.1.3
+ * Fix filtering for CONTAINS (KEY) relations on frozen collection
+   clustering columns when the query is restricted to a single
+   partition (CASSANDRA-8203)
  * Do more aggressive entire-sstable TTL expiry checks (CASSANDRA-8243)
  * Add more log info if readMeter is null (CASSANDRA-8238)
  * add check of the system wall clock time at startup (CASSANDRA-8305)
