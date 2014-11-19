@@ -69,7 +69,7 @@ public class BatchlogManager implements BatchlogManagerMBean
     private final AtomicLong totalBatchesReplayed = new AtomicLong();
 
     // Single-thread executor service for scheduling and serializing log replay.
-    public static final ScheduledExecutorService batchlogTasks = new DebuggableScheduledThreadPoolExecutor("BatchlogTasks");
+    private static final ScheduledExecutorService batchlogTasks = new DebuggableScheduledThreadPoolExecutor("BatchlogTasks");
 
     public void start()
     {
@@ -92,6 +92,12 @@ public class BatchlogManager implements BatchlogManagerMBean
         };
 
         batchlogTasks.scheduleWithFixedDelay(runnable, StorageService.RING_DELAY, REPLAY_INTERVAL, TimeUnit.MILLISECONDS);
+    }
+
+    public static void shutdown() throws InterruptedException
+    {
+        batchlogTasks.shutdown();
+        batchlogTasks.awaitTermination(60, TimeUnit.SECONDS);
     }
 
     public int countAllBatches()

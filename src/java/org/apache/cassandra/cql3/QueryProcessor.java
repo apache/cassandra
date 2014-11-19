@@ -31,6 +31,8 @@ import org.antlr.runtime.*;
 import org.github.jamm.MemoryMeter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.cql3.functions.*;
 import org.apache.cassandra.cql3.statements.*;
 import org.apache.cassandra.db.*;
@@ -88,7 +90,6 @@ public class QueryProcessor implements QueryHandler
     public static final CQLMetrics metrics = new CQLMetrics();
 
     private static final AtomicInteger lastMinuteEvictionsCount = new AtomicInteger(0);
-    private static final ScheduledExecutorService evictionCheckTimer = Executors.newScheduledThreadPool(1);
 
     static
     {
@@ -117,7 +118,7 @@ public class QueryProcessor implements QueryHandler
                                    })
                                    .build();
 
-        evictionCheckTimer.scheduleAtFixedRate(new Runnable()
+        ScheduledExecutors.scheduledTasks.scheduleAtFixedRate(new Runnable()
         {
             public void run()
             {

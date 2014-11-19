@@ -27,6 +27,7 @@ import org.cliffc.high_scale_lib.NonBlockingHashSet;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.Schema;
@@ -39,7 +40,6 @@ import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.io.util.*;
 import org.apache.cassandra.service.CacheService;
-import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.Pair;
 
@@ -115,10 +115,10 @@ public class AutoSavingCache<K extends CacheKey, V> extends InstrumentingCache<K
                     submitWrite(keysToSave);
                 }
             };
-            saveTask = StorageService.optionalTasks.scheduleWithFixedDelay(runnable,
-                                                                           savePeriodInSeconds,
-                                                                           savePeriodInSeconds,
-                                                                           TimeUnit.SECONDS);
+            saveTask = ScheduledExecutors.optionalTasks.scheduleWithFixedDelay(runnable,
+                                                                               savePeriodInSeconds,
+                                                                               savePeriodInSeconds,
+                                                                               TimeUnit.SECONDS);
         }
     }
 

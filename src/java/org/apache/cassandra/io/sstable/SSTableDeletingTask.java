@@ -28,9 +28,9 @@ import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.db.DataTracker;
 import org.apache.cassandra.db.SystemKeyspace;
-import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
 
 public class SSTableDeletingTask implements Runnable
@@ -70,7 +70,7 @@ public class SSTableDeletingTask implements Runnable
 
     public void schedule()
     {
-        StorageService.tasks.submit(this);
+        ScheduledExecutors.nonPeriodicTasks.submit(this);
     }
 
     public void run()
@@ -120,7 +120,7 @@ public class SSTableDeletingTask implements Runnable
             }
         };
 
-        FBUtilities.waitOnFuture(StorageService.tasks.schedule(runnable, 0, TimeUnit.MILLISECONDS));
+        FBUtilities.waitOnFuture(ScheduledExecutors.nonPeriodicTasks.schedule(runnable, 0, TimeUnit.MILLISECONDS));
     }
 }
 

@@ -29,6 +29,7 @@ import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.KSMetaData;
@@ -189,15 +190,13 @@ public class Auth implements AuthMBean
         // the delay is here to give the node some time to see its peers - to reduce
         // "Skipped default superuser setup: some nodes were not ready" log spam.
         // It's the only reason for the delay.
-        StorageService.tasks.schedule(new Runnable()
-                                      {
-                                          public void run()
-                                          {
-                                              setupDefaultSuperuser();
-                                          }
-                                      },
-                                      SUPERUSER_SETUP_DELAY,
-                                      TimeUnit.MILLISECONDS);
+        ScheduledExecutors.nonPeriodicTasks.schedule(new Runnable()
+        {
+            public void run()
+            {
+                setupDefaultSuperuser();
+            }
+        }, SUPERUSER_SETUP_DELAY, TimeUnit.MILLISECONDS);
 
         try
         {

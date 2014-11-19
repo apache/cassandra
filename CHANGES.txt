@@ -33,6 +33,7 @@
  * improve concurrency of repair (CASSANDRA-6455, 8208)
 
 2.1.3
+ * Centralize shared executors (CASSANDRA-8055)
  * Fix filtering for CONTAINS (KEY) relations on frozen collection
    clustering columns when the query is restricted to a single
    partition (CASSANDRA-8203)
