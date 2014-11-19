@@ -1,4 +1,6 @@
 2.0.12:
+ * Fix some failing queries that use multi-column relations
+   on COMPACT STORAGE tables (CASSANDRA-8264)
  * Fix InvalidRequestException with ORDER BY (CASSANDRA-8286)
  * Disable SSLv3 for POODLE (CASSANDRA-8265)
  * Fix millisecond timestamps in Tracing (CASSANDRA-8297)

@@ -713,9 +713,9 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
             CFDefinition.Name name = idIter.next();
             assert r != null && !r.isSlice();
 
-            List<ByteBuffer> values = r.values(variables);
-            if (values.size() == 1)
+            if (r.isEQ())
             {
+                List<ByteBuffer> values = r.values(variables);
                 ByteBuffer val = values.get(0);
                 if (val == null)
                     throw new InvalidRequestException(String.format("Invalid null value for clustering key part %s", name.name));
@@ -723,26 +723,56 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
             }
             else
             {
-                // We have a IN, which we only support for the last column.
-                // If compact, just add all values and we're done. Otherwise,
-                // for each value of the IN, creates all the columns corresponding to the selection.
-                if (values.isEmpty())
-                    return null;
-                SortedSet<ByteBuffer> columns = new TreeSet<ByteBuffer>(cfDef.cfm.comparator);
-                Iterator<ByteBuffer> iter = values.iterator();
-                while (iter.hasNext())
+                if (!r.isMultiColumn())
                 {
-                    ByteBuffer val = iter.next();
-                    ColumnNameBuilder b = iter.hasNext() ? builder.copy() : builder;
-                    if (val == null)
-                        throw new InvalidRequestException(String.format("Invalid null value for clustering key part %s", name.name));
-                    b.add(val);
-                    if (cfDef.isCompact)
-                        columns.add(b.build());
-                    else
-                        columns.addAll(addSelectedColumns(b));
+                    // We have a IN, which we only support for the last column.
+                    // If compact, just add all values and we're done. Otherwise,
+                    // for each value of the IN, creates all the columns corresponding to the selection.
+                    List<ByteBuffer> values = r.values(variables);
+                    if (values.isEmpty())
+                        return null;
+                    SortedSet<ByteBuffer> columns = new TreeSet<ByteBuffer>(cfDef.cfm.comparator);
+                    Iterator<ByteBuffer> iter = values.iterator();
+                    while (iter.hasNext())
+                    {
+                        ByteBuffer val = iter.next();
+                        ColumnNameBuilder b = iter.hasNext() ? builder.copy() : builder;
+                        if (val == null)
+                            throw new InvalidRequestException(String.format("Invalid null value for clustering key part %s", name.name));
+                        b.add(val);
+                        if (cfDef.isCompact)
+                            columns.add(b.build());
+                        else
+                            columns.addAll(addSelectedColumns(b));
+                    }
+                    return columns;
                 }
-                return columns;
+                else
+                {
+                    // we have a multi-column IN restriction
+                    List<List<ByteBuffer>> values = ((MultiColumnRestriction.IN) r).splitValues(variables);
+                    if (values.isEmpty())
+                        return null;
+                    TreeSet<ByteBuffer> inValues = new TreeSet<>(cfDef.cfm.comparator);
+                    for (List<ByteBuffer> components : values)
+                    {
+                        ColumnNameBuilder b = builder.copy();
+                        for (int i = 0; i < components.size(); i++)
+                        {
+                            if (components.get(i) == null)
+                            {
+                                List<CFDefinition.Name> clusteringCols = new ArrayList<>(cfDef.clusteringColumns());
+                                throw new InvalidRequestException("Invalid null value in condition for clustering column " + clusteringCols.get(i + name.position));
+                            }
+                            b.add(components.get(i));
+                        }
+                        if (cfDef.isCompact)
+                            inValues.add(b.build());
+                        else
+                            inValues.addAll(addSelectedColumns(b));
+                    }
+                    return inValues;
+                }
             }
         }
 
@@ -1127,10 +1157,27 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
                 {
                     Comparator<ByteBuffer> comp = cfDef.cfm.comparator;
                     // For dynamic CF, the column could be out of the requested bounds, filter here
-                    if (!sliceRestriction.isInclusive(Bound.START) && comp.compare(c.name(), sliceRestriction.bound(Bound.START, variables)) == 0)
-                        continue;
-                    if (!sliceRestriction.isInclusive(Bound.END) && comp.compare(c.name(), sliceRestriction.bound(Bound.END, variables)) == 0)
-                        continue;
+
+                    if (!sliceRestriction.isInclusive(Bound.START))
+                    {
+                        // even though it's a multi-column restriction, we know it can only contain a bound for one
+                        // column because we've already checked that the comparator is not composite
+                        ByteBuffer bounds = sliceRestriction.isMultiColumn()
+                                            ? ((MultiColumnRestriction.Slice) sliceRestriction).componentBounds(Bound.START, variables).get(0)
+                                            : sliceRestriction.bound(Bound.START, variables);
+                        if (comp.compare(c.name(), bounds) == 0)
+                            continue;
+                    }
+
+                    if (!sliceRestriction.isInclusive(Bound.END))
+                    {
+                        // see the above comment on using the first bound from the multi-column restriction
+                        ByteBuffer bounds = sliceRestriction.isMultiColumn()
+                                            ? ((MultiColumnRestriction.Slice) sliceRestriction).componentBounds(Bound.END, variables).get(0)
+                                            : sliceRestriction.bound(Bound.END, variables);
+                        if (comp.compare(c.name(), bounds) == 0)
+                            continue;
+                    }
                 }
 
                 result.newRow();
