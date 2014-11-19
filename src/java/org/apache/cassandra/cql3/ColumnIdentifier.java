@@ -141,6 +141,11 @@ public class ColumnIdentifier implements Selectable, IMeasurableMemory
             return new ColumnIdentifier(comparator.fromString(rawText), text);
         }
 
+        public boolean processesSelection()
+        {
+            return false;
+        }
+
         @Override
         public final int hashCode()
         {
