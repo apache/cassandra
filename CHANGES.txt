@@ -1,4 +1,5 @@
 2.0.12:
+ * Fix InvalidRequestException with ORDER BY (CASSANDRA-8286)
  * Disable SSLv3 for POODLE (CASSANDRA-8265)
  * Fix millisecond timestamps in Tracing (CASSANDRA-8297)
  * Include keyspace name in error message when there are insufficient

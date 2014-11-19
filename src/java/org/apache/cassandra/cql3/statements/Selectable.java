@@ -30,6 +30,11 @@ public interface Selectable
     public static interface Raw
     {
         public Selectable prepare(CFMetaData cfm);
+
+        /**
+         * Returns true if any processing is performed on the selected column.
+         **/
+        public boolean processesSelection();
     }
 
     public static class WritetimeOrTTL implements Selectable
@@ -63,6 +68,11 @@ public interface Selectable
             public WritetimeOrTTL prepare(CFMetaData cfm)
             {
                 return new WritetimeOrTTL(id.prepare(cfm), isWritetime);
+            }
+
+            public boolean processesSelection()
+            {
+                return true;
             }
         }
     }
@@ -108,6 +118,11 @@ public interface Selectable
                 for (Selectable.Raw arg : args)
                     preparedArgs.add(arg.prepare(cfm));
                 return new WithFunction(functionName, preparedArgs);
+            }
+
+            public boolean processesSelection()
+            {
+                return true;
             }
         }
     }

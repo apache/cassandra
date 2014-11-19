@@ -30,4 +30,9 @@ public class RawSelector
         this.selectable = selectable;
         this.alias = alias;
     }
+
+    public boolean processesSelection()
+    {
+        return selectable.processesSelection();
+    }
 }

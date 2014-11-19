@@ -109,6 +109,11 @@ public class ColumnIdentifier implements Selectable
             return new ColumnIdentifier(cfm.comparator.fromString(rawText), text);
         }
 
+        public boolean processesSelection()
+        {
+            return false;
+        }
+
         @Override
         public final int hashCode()
         {

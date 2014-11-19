@@ -1957,10 +1957,11 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
                     else
                     {
                         boolean hasColumn = false;
-                        for (int i = 0; i < selectClause.size(); i++)
+                        List<Name> selectedColumns = stmt.selection.getColumns();
+                        for (int i = 0; i < selectedColumns.size(); i++)
                         {
-                            RawSelector selector = selectClause.get(i);
-                            if (name.name.equals(selector.selectable))
+                            Name selected = selectedColumns.get(i);
+                            if (name.equals(selected))
                             {
                                 stmt.orderingIndexes.put(name, i);
                                 hasColumn = true;
@@ -1969,7 +1970,7 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
                         }
 
                         if (!hasColumn)
-                            throw new InvalidRequestException("ORDER BY could not be used on columns missing in select clause.");
+                            throw new InvalidRequestException(String.format("ORDER BY can only be performed on columns in the select clause (got %s)", name.name));
                     }
                 }
             }
