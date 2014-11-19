@@ -153,6 +153,11 @@ public class ColumnIdentifier extends org.apache.cassandra.cql3.selection.Select
             return new ColumnIdentifier(comparator.fromString(rawText), text);
         }
 
+        public boolean processesSelection()
+        {
+            return false;
+        }
+
         @Override
         public final int hashCode()
         {

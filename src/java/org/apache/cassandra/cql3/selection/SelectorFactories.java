@@ -98,6 +98,16 @@ final class SelectorFactories implements Iterable<Selector.Factory>
     }
 
     /**
+     * Adds a new <code>Selector.Factory</code> for a column that is needed only for ORDER BY purposes.
+     * @param def the column that is needed for ordering
+     * @param index the index of the column definition in the Selection's list of columns
+     */
+    public void addSelectorForOrdering(ColumnDefinition def, int index)
+    {
+        factories.add(SimpleSelector.newFactory(def.name.toString(), index, def.type));
+    }
+
+    /**
      * Checks if this <code>SelectorFactories</code> contains only factories for aggregates.
      *
      * @return <code>true</code> if this <code>SelectorFactories</code> contains only factories for aggregates,

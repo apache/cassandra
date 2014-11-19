@@ -53,4 +53,9 @@ public class RawSelector
             }
         });
     }
+
+    public boolean processesSelection()
+    {
+        return selectable.processesSelection();
+    }
 }

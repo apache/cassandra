@@ -634,7 +634,7 @@ public abstract class ModificationStatement implements CQLStatement, MeasurableF
             }
             for (ColumnDefinition def : columnsWithConditions)
                 defs.add(def);
-            selection = Selection.forColumns(defs);
+            selection = Selection.forColumns(new ArrayList<>(defs));
         }
 
         long now = System.currentTimeMillis();
