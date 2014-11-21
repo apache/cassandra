@@ -23,7 +23,6 @@ import java.util.*;
 import com.google.common.base.Function;
 import com.google.common.collect.*;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.github.jamm.MemoryMeter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -41,7 +40,7 @@ import org.apache.cassandra.transport.messages.ResultMessage;
  * A <code>BATCH</code> statement parsed from a CQL query.
  *
  */
-public class BatchStatement implements CQLStatement, MeasurableForPreparedCache
+public class BatchStatement implements CQLStatement
 {
     public static enum Type
     {
@@ -74,17 +73,6 @@ public class BatchStatement implements CQLStatement, MeasurableForPreparedCache
         this.statements = statements;
         this.attrs = attrs;
         this.hasConditions = hasConditions;
-    }
-
-    public long measureForPreparedCache(MemoryMeter meter)
-    {
-        long size = meter.measure(this)
-                  + meter.measureDeep(type)
-                  + meter.measure(statements)
-                  + meter.measureDeep(attrs);
-        for (ModificationStatement stmt : statements)
-            size += stmt.measureForPreparedCache(meter);
-        return size;
     }
 
     public int getBoundTerms()

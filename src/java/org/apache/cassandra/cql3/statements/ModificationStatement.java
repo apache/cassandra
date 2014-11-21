@@ -22,8 +22,6 @@ import java.util.*;
 
 import com.google.common.base.Function;
 import com.google.common.collect.Iterables;
-import org.apache.cassandra.db.marshal.AbstractType;
-import org.github.jamm.MemoryMeter;
 
 import org.apache.cassandra.auth.Permission;
 import org.apache.cassandra.config.CFMetaData;
@@ -46,7 +44,7 @@ import org.apache.cassandra.utils.Pair;
 /*
  * Abstract parent class of individual modifications, i.e. INSERT, UPDATE and DELETE.
  */
-public abstract class ModificationStatement implements CQLStatement, MeasurableForPreparedCache
+public abstract class ModificationStatement implements CQLStatement
 {
     private static final ColumnIdentifier CAS_RESULT_COLUMN = new ColumnIdentifier("[applied]", false);
 
@@ -85,16 +83,6 @@ public abstract class ModificationStatement implements CQLStatement, MeasurableF
         this.boundTerms = boundTerms;
         this.cfm = cfm;
         this.attrs = attrs;
-    }
-
-    public long measureForPreparedCache(MemoryMeter meter)
-    {
-        return meter.measure(this)
-             + meter.measureDeep(attrs)
-             + meter.measureDeep(processedKeys)
-             + meter.measureDeep(columnOperations)
-             + (columnConditions == null ? 0 : meter.measureDeep(columnConditions))
-             + (staticConditions == null ? 0 : meter.measureDeep(staticConditions));
     }
 
     public abstract boolean requireFullClusteringKey();
