@@ -27,8 +27,6 @@ import com.google.common.collect.AbstractIterator;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Iterators;
 
-import org.github.jamm.MemoryMeter;
-
 import org.apache.cassandra.auth.Permission;
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.cql3.statements.SingleColumnRestriction.Contains;
@@ -62,7 +60,7 @@ import org.apache.cassandra.utils.FBUtilities;
  * column family, expression, result count, and ordering clause.
  *
  */
-public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
+public class SelectStatement implements CQLStatement
 {
     private static final int DEFAULT_COUNT_PAGE_SIZE = 10000;
 
@@ -175,20 +173,6 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
     public ResultSet.Metadata getResultMetadata()
     {
         return selection.getResultMetadata();
-    }
-
-    public long measureForPreparedCache(MemoryMeter meter)
-    {
-        return meter.measure(this)
-             + meter.measureDeep(parameters)
-             + meter.measureDeep(selection)
-             + (limit == null ? 0 : meter.measureDeep(limit))
-             + meter.measureDeep(keyRestrictions)
-             + meter.measureDeep(columnRestrictions)
-             + meter.measureDeep(metadataRestrictions)
-             + meter.measureDeep(restrictedColumns)
-             + (sliceRestriction == null ? 0 : meter.measureDeep(sliceRestriction))
-             + (orderingIndexes == null ? 0 : meter.measureDeep(orderingIndexes));
     }
 
     public int getBoundTerms()
