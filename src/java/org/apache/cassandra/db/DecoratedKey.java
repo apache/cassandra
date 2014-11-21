@@ -22,7 +22,7 @@ import java.util.Comparator;
 
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.dht.Token.KeyBound;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 /**
@@ -95,15 +95,20 @@ public abstract class DecoratedKey implements RowPosition
         return cmp == 0 ? ByteBufferUtil.compareUnsigned(key, otherKey.getKey()) : cmp;
     }
 
-    public boolean isMinimum(IPartitioner partitioner)
+    public IPartitioner getPartitioner()
     {
-        // A DecoratedKey can never be the minimum position on the ring
-        return false;
+        return getToken().getPartitioner();
+    }
+
+    public KeyBound minValue()
+    {
+        return getPartitioner().getMinimumToken().minKeyBound();
     }
 
     public boolean isMinimum()
     {
-        return isMinimum(StorageService.getPartitioner());
+        // A DecoratedKey can never be the minimum position on the ring
+        return false;
     }
 
     public RowPosition.Kind kind()

@@ -424,7 +424,7 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
             RowPosition startKey = RowPosition.ForKey.get(startKeyBytes, p);
             RowPosition finishKey = RowPosition.ForKey.get(finishKeyBytes, p);
 
-            if (startKey.compareTo(finishKey) > 0 && !finishKey.isMinimum(p))
+            if (startKey.compareTo(finishKey) > 0 && !finishKey.isMinimum())
                 return null;
 
             if (includeKeyBound(Bound.START))

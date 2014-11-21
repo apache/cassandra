@@ -21,7 +21,6 @@ import java.util.Collections;
 import java.util.List;
 
 import org.apache.cassandra.db.RowPosition;
-import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.Pair;
 
 /**
@@ -31,14 +30,9 @@ public class Bounds<T extends RingPosition<T>> extends AbstractBounds<T>
 {
     public Bounds(T left, T right)
     {
-        this(left, right, StorageService.getPartitioner());
-    }
-
-    public Bounds(T left, T right, IPartitioner partitioner)
-    {
-        super(left, right, partitioner);
+        super(left, right);
         // unlike a Range, a Bounds may not wrap
-        assert left.compareTo(right) <= 0 || right.isMinimum(partitioner) : "[" + left + "," + right + "]";
+        assert left.compareTo(right) <= 0 || right.isMinimum() : "[" + left + "," + right + "]";
     }
 
     public boolean contains(T position)
@@ -46,7 +40,7 @@ public class Bounds<T extends RingPosition<T>> extends AbstractBounds<T>
         // Range.contains doesnt work correctly if left == right (unless both
         // are minimum) because for Range that means a wrapping range that select
         // the whole ring. So we must explicitely handle this case
-        return left.equals(position) || ((right.isMinimum(partitioner) || !left.equals(right)) && Range.contains(left, right, position));
+        return left.equals(position) || ((right.isMinimum() || !left.equals(right)) && Range.contains(left, right, position));
     }
 
     public Pair<AbstractBounds<T>, AbstractBounds<T>> split(T position)
@@ -56,8 +50,8 @@ public class Bounds<T extends RingPosition<T>> extends AbstractBounds<T>
         if (position.equals(right))
             return null;
 
-        AbstractBounds<T> lb = new Bounds<T>(left, position, partitioner);
-        AbstractBounds<T> rb = new Range<T>(position, right, partitioner);
+        AbstractBounds<T> lb = new Bounds<T>(left, position);
+        AbstractBounds<T> rb = new Range<T>(position, right);
         return Pair.create(lb, rb);
     }
 
@@ -101,21 +95,21 @@ public class Bounds<T extends RingPosition<T>> extends AbstractBounds<T>
     /**
      * Compute a bounds of keys corresponding to a given bounds of token.
      */
-    public static Bounds<RowPosition> makeRowBounds(Token left, Token right, IPartitioner partitioner)
+    public static Bounds<RowPosition> makeRowBounds(Token left, Token right)
     {
-        return new Bounds<RowPosition>(left.minKeyBound(partitioner), right.maxKeyBound(partitioner), partitioner);
+        return new Bounds<RowPosition>(left.minKeyBound(), right.maxKeyBound());
     }
 
     @SuppressWarnings("unchecked")
     public AbstractBounds<RowPosition> toRowBounds()
     {
-        return (left instanceof Token) ? makeRowBounds((Token)left, (Token)right, partitioner) : (Bounds<RowPosition>)this;
+        return (left instanceof Token) ? makeRowBounds((Token)left, (Token)right) : (Bounds<RowPosition>)this;
     }
 
     @SuppressWarnings("unchecked")
     public AbstractBounds<Token> toTokenBounds()
     {
-        return (left instanceof RowPosition) ? new Bounds<Token>(((RowPosition)left).getToken(), ((RowPosition)right).getToken(), partitioner) : (Bounds<Token>)this;
+        return (left instanceof RowPosition) ? new Bounds<Token>(((RowPosition)left).getToken(), ((RowPosition)right).getToken()) : (Bounds<Token>)this;
     }
 
     public AbstractBounds<T> withNewRight(T newRight)

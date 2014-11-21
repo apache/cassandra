@@ -72,6 +72,8 @@ public abstract class Token implements RingPosition<Token>, Serializable
         }
     }
 
+    abstract public IPartitioner getPartitioner();
+    abstract public long getHeapSize();
     abstract public Object getTokenValue();
 
     public Token getToken()
@@ -79,14 +81,14 @@ public abstract class Token implements RingPosition<Token>, Serializable
         return this;
     }
 
-    public boolean isMinimum(IPartitioner partitioner)
+    public Token minValue()
     {
-        return this.equals(partitioner.getMinimumToken());
+        return getPartitioner().getMinimumToken();
     }
 
     public boolean isMinimum()
     {
-        return isMinimum(StorageService.getPartitioner());
+        return this.equals(minValue());
     }
 
     /*
@@ -103,17 +105,12 @@ public abstract class Token implements RingPosition<Token>, Serializable
      * Note that those are "fake" keys and should only be used for comparison
      * of other keys, for selection of keys when only a token is known.
      */
-    public KeyBound minKeyBound(IPartitioner partitioner)
+    public KeyBound minKeyBound()
     {
         return new KeyBound(this, true);
     }
 
-    public KeyBound minKeyBound()
-    {
-        return minKeyBound(null);
-    }
-
-    public KeyBound maxKeyBound(IPartitioner partitioner)
+    public KeyBound maxKeyBound()
     {
         /*
          * For each token, we needs both minKeyBound and maxKeyBound
@@ -122,14 +119,9 @@ public abstract class Token implements RingPosition<Token>, Serializable
          * simpler to associate the same value for minKeyBound and
          * maxKeyBound for the minimun token.
          */
-        if (isMinimum(partitioner))
+        if (isMinimum())
             return minKeyBound();
         return new KeyBound(this, false);
-    }
-
-    public KeyBound maxKeyBound()
-    {
-        return maxKeyBound(StorageService.getPartitioner());
     }
 
     @SuppressWarnings("unchecked")
@@ -172,14 +164,19 @@ public abstract class Token implements RingPosition<Token>, Serializable
                 return ((pos instanceof KeyBound) && !((KeyBound)pos).isMinimumBound) ? 0 : 1;
         }
 
-        public boolean isMinimum(IPartitioner partitioner)
+        public IPartitioner getPartitioner()
         {
-            return getToken().isMinimum(partitioner);
+            return getToken().getPartitioner();
+        }
+
+        public KeyBound minValue()
+        {
+            return getPartitioner().getMinimumToken().minKeyBound();
         }
 
         public boolean isMinimum()
         {
-            return isMinimum(StorageService.getPartitioner());
+            return getToken().isMinimum();
         }
 
         public RowPosition.Kind kind()

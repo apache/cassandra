@@ -22,6 +22,8 @@ import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.util.*;
 
+import com.google.common.annotations.VisibleForTesting;
+
 import org.apache.cassandra.db.BufferDecoratedKey;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.db.DecoratedKey;
@@ -36,13 +38,15 @@ import org.apache.cassandra.utils.Pair;
 /**
  * This class generates a BigIntegerToken using MD5 hash.
  */
-public class RandomPartitioner extends AbstractPartitioner
+public class RandomPartitioner implements IPartitioner
 {
     public static final BigInteger ZERO = new BigInteger("0");
     public static final BigIntegerToken MINIMUM = new BigIntegerToken("-1");
     public static final BigInteger MAXIMUM = new BigInteger("2").pow(127);
 
-    private static final int EMPTY_SIZE = (int) ObjectSizes.measureDeep(new BigIntegerToken(FBUtilities.hashToBigInteger(ByteBuffer.allocate(1))));
+    private static final int HEAP_SIZE = (int) ObjectSizes.measureDeep(new BigIntegerToken(FBUtilities.hashToBigInteger(ByteBuffer.allocate(1))));
+
+    public static final RandomPartitioner instance = new RandomPartitioner();
 
     public DecoratedKey decorateKey(ByteBuffer key)
     {
@@ -122,16 +126,39 @@ public class RandomPartitioner extends AbstractPartitioner
         return false;
     }
 
+    public static class BigIntegerToken extends ComparableObjectToken<BigInteger>
+    {
+        static final long serialVersionUID = -5833589141319293006L;
+
+        public BigIntegerToken(BigInteger token)
+        {
+            super(token);
+        }
+
+        // convenience method for testing
+        @VisibleForTesting
+        public BigIntegerToken(String token) {
+            this(new BigInteger(token));
+        }
+
+        @Override
+        public IPartitioner getPartitioner()
+        {
+            return instance;
+        }
+
+        @Override
+        public long getHeapSize()
+        {
+            return HEAP_SIZE;
+        }
+    }
+
     public BigIntegerToken getToken(ByteBuffer key)
     {
         if (key.remaining() == 0)
             return MINIMUM;
         return new BigIntegerToken(FBUtilities.hashToBigInteger(key));
-    }
-
-    public long getHeapSizeOf(Token token)
-    {
-        return EMPTY_SIZE;
     }
 
     public Map<Token, Float> describeOwnership(List<Token> sortedTokens)

@@ -522,7 +522,7 @@ public class ThriftValidation
         {
             Token startToken = p.getToken(range.start_key);
             Token endToken = p.getToken(range.end_key);
-            if (startToken.compareTo(endToken) > 0 && !endToken.isMinimum(p))
+            if (startToken.compareTo(endToken) > 0 && !endToken.isMinimum())
             {
                 if (p.preservesOrder())
                     throw new org.apache.cassandra.exceptions.InvalidRequestException("start key must sort before (or equal to) finish key in your partitioner!");
@@ -533,7 +533,7 @@ public class ThriftValidation
         else if (range.start_key != null && range.end_token != null)
         {
             // start_token/end_token can wrap, but key/token should not
-            RowPosition stop = p.getTokenFactory().fromString(range.end_token).maxKeyBound(p);
+            RowPosition stop = p.getTokenFactory().fromString(range.end_token).maxKeyBound();
             if (RowPosition.ForKey.get(range.start_key, p).compareTo(stop) > 0 && !stop.isMinimum())
                 throw new org.apache.cassandra.exceptions.InvalidRequestException("Start key's token sorts after end token");
         }

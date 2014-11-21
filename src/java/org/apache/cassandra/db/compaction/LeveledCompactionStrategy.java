@@ -316,7 +316,7 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy
             ArrayList<SSTableReader> filtered = new ArrayList<>();
             for (SSTableReader sstable : sstables)
             {
-                Range<Token> sstableRange = new Range<>(sstable.first.getToken(), sstable.last.getToken(), sstable.partitioner);
+                Range<Token> sstableRange = new Range<>(sstable.first.getToken(), sstable.last.getToken());
                 if (range == null || sstableRange.intersects(range))
                     filtered.add(sstable);
             }

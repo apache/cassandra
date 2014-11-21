@@ -44,13 +44,11 @@ public abstract class AbstractBounds<T extends RingPosition<T>> implements Seria
     public final T left;
     public final T right;
 
-    protected transient final IPartitioner partitioner;
-
-    public AbstractBounds(T left, T right, IPartitioner partitioner)
+    public AbstractBounds(T left, T right)
     {
+        assert left.getPartitioner() == right.getPartitioner();
         this.left = left;
         this.right = right;
-        this.partitioner = partitioner;
     }
 
     /**

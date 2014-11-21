@@ -412,7 +412,7 @@ public class CompactionManager implements CompactionManagerMBean
             SSTableReader sstable = sstableIterator.next();
             for (Range<Token> r : Range.normalize(ranges))
             {
-                Range<Token> sstableRange = new Range<>(sstable.first.getToken(), sstable.last.getToken(), sstable.partitioner);
+                Range<Token> sstableRange = new Range<>(sstable.first.getToken(), sstable.last.getToken());
                 if (r.contains(sstableRange))
                 {
                     logger.info("SSTable {} fully contained in range {}, mutating repairedAt instead of anticompacting", sstable, r);

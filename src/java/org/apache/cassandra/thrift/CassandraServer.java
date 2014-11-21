@@ -1167,12 +1167,12 @@ public class CassandraServer implements Cassandra.Iface
                 Token.TokenFactory tokenFactory = p.getTokenFactory();
                 Token left = tokenFactory.fromString(range.start_token);
                 Token right = tokenFactory.fromString(range.end_token);
-                bounds = Range.makeRowRange(left, right, p);
+                bounds = Range.makeRowRange(left, right);
             }
             else
             {
                 RowPosition end = range.end_key == null
-                                ? p.getTokenFactory().fromString(range.end_token).maxKeyBound(p)
+                                ? p.getTokenFactory().fromString(range.end_token).maxKeyBound()
                                 : RowPosition.ForKey.get(range.end_key, p);
                 bounds = new Bounds<RowPosition>(RowPosition.ForKey.get(range.start_key, p), end);
             }
@@ -1255,12 +1255,12 @@ public class CassandraServer implements Cassandra.Iface
                 Token.TokenFactory tokenFactory = p.getTokenFactory();
                 Token left = tokenFactory.fromString(range.start_token);
                 Token right = tokenFactory.fromString(range.end_token);
-                bounds = Range.makeRowRange(left, right, p);
+                bounds = Range.makeRowRange(left, right);
             }
             else
             {
                 RowPosition end = range.end_key == null
-                                ? p.getTokenFactory().fromString(range.end_token).maxKeyBound(p)
+                                ? p.getTokenFactory().fromString(range.end_token).maxKeyBound()
                                 : RowPosition.ForKey.get(range.end_key, p);
                 bounds = new Bounds<RowPosition>(RowPosition.ForKey.get(range.start_key, p), end);
             }

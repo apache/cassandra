@@ -233,7 +233,7 @@ public class CompositesSearcher extends SecondaryIndexSearcher
                         {
                             // Either we're not yet in the range cause the range is start excluding, or we're
                             // past it.
-                            if (!range.right.isMinimum(baseCfs.partitioner) && range.right.compareTo(dk) < 0)
+                            if (!range.right.isMinimum() && range.right.compareTo(dk) < 0)
                             {
                                 logger.trace("Reached end of assigned scan range");
                                 return endOfData();

@@ -75,7 +75,7 @@ public class RingCache
             {
                 Token left = partitioner.getTokenFactory().fromString(range.start_token);
                 Token right = partitioner.getTokenFactory().fromString(range.end_token);
-                Range<Token> r = new Range<Token>(left, right, partitioner);
+                Range<Token> r = new Range<Token>(left, right);
                 for (String host : range.endpoints)
                 {
                     try

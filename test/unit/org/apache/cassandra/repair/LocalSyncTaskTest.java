@@ -42,7 +42,7 @@ import static org.junit.Assert.assertEquals;
 
 public class LocalSyncTaskTest extends SchemaLoader
 {
-    private static final IPartitioner partirioner = new Murmur3Partitioner();
+    private static final IPartitioner partirioner = Murmur3Partitioner.instance;
     public static final String KEYSPACE1 = "DifferencerTest";
     public static final String CF_STANDARD = "Standard1";
 

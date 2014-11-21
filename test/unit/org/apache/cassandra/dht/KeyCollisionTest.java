@@ -22,6 +22,7 @@ import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.util.*;
 
+import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
 import org.apache.cassandra.SchemaLoader;
@@ -48,13 +49,15 @@ import static org.apache.cassandra.Util.dk;
  */
 public class KeyCollisionTest
 {
-    IPartitioner oldPartitioner;
+    static IPartitioner oldPartitioner;
     private static final String KEYSPACE1 = "KeyCollisionTest1";
     private static final String CF = "Standard1";
 
     @BeforeClass
     public static void defineSchema() throws ConfigurationException
     {
+        oldPartitioner = DatabaseDescriptor.getPartitioner();
+        DatabaseDescriptor.setPartitioner(LengthPartitioner.instance);
         SchemaLoader.prepareServer();
         SchemaLoader.createKeyspace(KEYSPACE1,
                                     SimpleStrategy.class,
@@ -62,13 +65,8 @@ public class KeyCollisionTest
                                     SchemaLoader.standardCFMD(KEYSPACE1, CF));
     }
 
-    protected void setUp()
-    {
-        oldPartitioner = DatabaseDescriptor.getPartitioner();
-        DatabaseDescriptor.setPartitioner(new LengthPartitioner());
-    }
-
-    protected void tearDown()
+    @AfterClass
+    public static void tearDown()
     {
         DatabaseDescriptor.setPartitioner(oldPartitioner);
     }
@@ -80,14 +78,14 @@ public class KeyCollisionTest
         ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(CF);
         cfs.clearUnsafe();
 
-        insert("k1", "k2", "k3");       // token = 2
+        insert("k1", "k2", "kq");       // token = 2, kq ordered after row below lexicographically
         insert("key1", "key2", "key3"); // token = 4
         insert("longKey1", "longKey2"); // token = 8
 
         List<Row> rows = cfs.getRangeSlice(new Bounds<RowPosition>(dk("k2"), dk("key2")), null, new IdentityQueryFilter(), 10000);
         assert rows.size() == 4 : "Expecting 4 keys, got " + rows.size();
         assert rows.get(0).key.getKey().equals(ByteBufferUtil.bytes("k2"));
-        assert rows.get(1).key.getKey().equals(ByteBufferUtil.bytes("k3"));
+        assert rows.get(1).key.getKey().equals(ByteBufferUtil.bytes("kq"));
         assert rows.get(2).key.getKey().equals(ByteBufferUtil.bytes("key1"));
         assert rows.get(3).key.getKey().equals(ByteBufferUtil.bytes("key2"));
     }
@@ -106,10 +104,39 @@ public class KeyCollisionTest
         rm.applyUnsafe();
     }
 
-    public static class LengthPartitioner extends AbstractPartitioner
+    static class BigIntegerToken extends ComparableObjectToken<BigInteger>
+    {
+        private static final long serialVersionUID = 1L;
+
+        public BigIntegerToken(BigInteger token)
+        {
+            super(token);
+        }
+
+        // convenience method for testing
+        public BigIntegerToken(String token) {
+            this(new BigInteger(token));
+        }
+
+        @Override
+        public IPartitioner getPartitioner()
+        {
+            return LengthPartitioner.instance;
+        }
+
+        @Override
+        public long getHeapSize()
+        {
+            return 0;
+        }
+    }
+
+    public static class LengthPartitioner implements IPartitioner
     {
         public static final BigInteger ZERO = new BigInteger("0");
         public static final BigIntegerToken MINIMUM = new BigIntegerToken("-1");
+
+        public static LengthPartitioner instance = new LengthPartitioner();
 
         public DecoratedKey decorateKey(ByteBuffer key)
         {
@@ -177,12 +204,6 @@ public class KeyCollisionTest
             if (key.remaining() == 0)
                 return MINIMUM;
             return new BigIntegerToken(BigInteger.valueOf(key.remaining()));
-        }
-
-        @Override
-        public long getHeapSizeOf(Token token)
-        {
-            return 0;
         }
 
         public Map<Token, Float> describeOwnership(List<Token> sortedTokens)

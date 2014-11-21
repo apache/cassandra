@@ -108,7 +108,7 @@ public class MerkleTree implements Serializable
             // full range
             Token left = Token.serializer.deserialize(in);
             Token right = Token.serializer.deserialize(in);
-            Range<Token> fullRange = new Range<>(left, right, partitioner);
+            Range<Token> fullRange = new Range<>(left, right);
 
             MerkleTree mt = new MerkleTree(partitioner, fullRange, hashdepth, maxsize);
             mt.size = size;

@@ -49,8 +49,8 @@ public class RepairSessionTest
         // Set up RepairSession
         UUID parentSessionId = UUIDGen.getTimeUUID();
         UUID sessionId = UUID.randomUUID();
-        IPartitioner p = new Murmur3Partitioner();
-        Range<Token> repairRange = new Range<>(p.getToken(ByteBufferUtil.bytes(0)), p.getToken(ByteBufferUtil.bytes(100)), p);
+        IPartitioner p = Murmur3Partitioner.instance;
+        Range<Token> repairRange = new Range<>(p.getToken(ByteBufferUtil.bytes(0)), p.getToken(ByteBufferUtil.bytes(100)));
         Set<InetAddress> endpoints = Sets.newHashSet(remote);
         RepairSession session = new RepairSession(parentSessionId, sessionId, repairRange, "Keyspace1", true, endpoints, ActiveRepairService.UNREPAIRED_SSTABLE, "Standard1");
 

@@ -24,6 +24,6 @@ public class RandomPartitionerTest extends PartitionerTestCase
 {
     public void initPartitioner()
     {
-        partitioner = new RandomPartitioner();
+        partitioner = RandomPartitioner.instance;
     }
 }

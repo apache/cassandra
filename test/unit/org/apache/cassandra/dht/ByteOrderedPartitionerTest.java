@@ -22,6 +22,6 @@ public class ByteOrderedPartitionerTest extends PartitionerTestCase
 {
     public void initPartitioner()
     {
-        partitioner = new ByteOrderedPartitioner();
+        partitioner = ByteOrderedPartitioner.instance;
     }
 }

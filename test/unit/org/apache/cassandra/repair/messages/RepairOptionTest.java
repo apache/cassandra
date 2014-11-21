@@ -37,7 +37,7 @@ public class RepairOptionTest
     @Test
     public void testParseOptions()
     {
-        IPartitioner partitioner = new Murmur3Partitioner();
+        IPartitioner partitioner = Murmur3Partitioner.instance;
         Token.TokenFactory tokenFactory = partitioner.getTokenFactory();
 
         // parse with empty options

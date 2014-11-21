@@ -150,14 +150,12 @@ public abstract class AbstractColumnFamilyInputFormat<K, Y> extends InputFormat<
                     if (jobKeyRange.end_token != null)
                         throw new IllegalArgumentException("only start_key supported");
                     jobRange = new Range<>(partitioner.getToken(jobKeyRange.start_key),
-                                           partitioner.getToken(jobKeyRange.end_key),
-                                           partitioner);
+                                           partitioner.getToken(jobKeyRange.end_key));
                 }
                 else if (jobKeyRange.start_token != null)
                 {
                     jobRange = new Range<>(partitioner.getTokenFactory().fromString(jobKeyRange.start_token),
-                                           partitioner.getTokenFactory().fromString(jobKeyRange.end_token),
-                                           partitioner);
+                                           partitioner.getTokenFactory().fromString(jobKeyRange.end_token));
                 }
                 else
                 {
@@ -175,8 +173,7 @@ public abstract class AbstractColumnFamilyInputFormat<K, Y> extends InputFormat<
                 else
                 {
                     Range<Token> dhtRange = new Range<Token>(partitioner.getTokenFactory().fromString(range.start_token),
-                                                             partitioner.getTokenFactory().fromString(range.end_token),
-                                                             partitioner);
+                                                             partitioner.getTokenFactory().fromString(range.end_token));
 
                     if (dhtRange.intersects(jobRange))
                     {
@@ -252,7 +249,7 @@ public abstract class AbstractColumnFamilyInputFormat<K, Y> extends InputFormat<
             {
                 Token left = factory.fromString(subSplit.getStart_token());
                 Token right = factory.fromString(subSplit.getEnd_token());
-                Range<Token> range = new Range<Token>(left, right, partitioner);
+                Range<Token> range = new Range<Token>(left, right);
                 List<Range<Token>> ranges = range.isWrapAround() ? range.unwrap() : ImmutableList.of(range);
                 for (Range<Token> subrange : ranges)
                 {

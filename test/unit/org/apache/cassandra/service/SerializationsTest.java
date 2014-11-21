@@ -93,7 +93,7 @@ public class SerializationsTest extends AbstractSerializationsTester
 
     private void testValidationCompleteWrite() throws IOException
     {
-        IPartitioner p = new RandomPartitioner();
+        IPartitioner p = RandomPartitioner.instance;
         // empty validation
         MerkleTree mt = new MerkleTree(p, FULL_RANGE, MerkleTree.RECOMMENDED_DEPTH, (int) Math.pow(2, 15));
         Validator v0 = new Validator(DESC, FBUtilities.getBroadcastAddress(),  -1);

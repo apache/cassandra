@@ -28,11 +28,11 @@ import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.ObjectSizes;
 
-public class LocalPartitioner extends AbstractPartitioner
+public class LocalPartitioner implements IPartitioner
 {
-    private static final long EMPTY_SIZE = ObjectSizes.measure(new LocalToken(null, null));
+    private static final long EMPTY_SIZE = ObjectSizes.measure(new LocalPartitioner(null).new LocalToken(null));
 
-    private final AbstractType<?> comparator;
+    final AbstractType<?> comparator;   // package-private to avoid access workarounds in embedded LocalToken.
 
     public LocalPartitioner(AbstractType<?> comparator)
     {
@@ -51,17 +51,12 @@ public class LocalPartitioner extends AbstractPartitioner
 
     public LocalToken getMinimumToken()
     {
-        return new LocalToken(comparator, ByteBufferUtil.EMPTY_BYTE_BUFFER);
+        return new LocalToken(ByteBufferUtil.EMPTY_BYTE_BUFFER);
     }
 
     public LocalToken getToken(ByteBuffer key)
     {
-        return new LocalToken(comparator, key);
-    }
-
-    public long getHeapSizeOf(Token token)
-    {
-        return EMPTY_SIZE + ObjectSizes.sizeOnHeapOf(((LocalToken) token).token);
+        return new LocalToken(key);
     }
 
     public LocalToken getRandomToken()
@@ -87,5 +82,58 @@ public class LocalPartitioner extends AbstractPartitioner
     public AbstractType<?> getTokenValidator()
     {
         return comparator;
+    }
+
+    public class LocalToken extends ComparableObjectToken<ByteBuffer>
+    {
+        static final long serialVersionUID = 8437543776403014875L;
+
+        public LocalToken(ByteBuffer token)
+        {
+            super(token);
+        }
+
+        @Override
+        public String toString()
+        {
+            return comparator.getString(token);
+        }
+
+        @Override
+        public int compareTo(Token o)
+        {
+            assert getPartitioner() == o.getPartitioner();
+            return comparator.compare(token, ((LocalToken) o).token);
+        }
+
+        @Override
+        public int hashCode()
+        {
+            final int prime = 31;
+            return prime + token.hashCode();
+        }
+
+        @Override
+        public boolean equals(Object obj)
+        {
+            if (this == obj)
+                return true;
+            if (!(obj instanceof LocalToken))
+                return false;
+            LocalToken other = (LocalToken) obj;
+            return token.equals(other.token);
+        }
+
+        @Override
+        public IPartitioner getPartitioner()
+        {
+            return LocalPartitioner.this;
+        }
+
+        @Override
+        public long getHeapSize()
+        {
+            return EMPTY_SIZE + ObjectSizes.sizeOnHeapOf(token);
+        }
     }
 }

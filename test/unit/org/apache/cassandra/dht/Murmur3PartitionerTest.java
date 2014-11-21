@@ -24,7 +24,7 @@ public class Murmur3PartitionerTest extends PartitionerTestCase
 {
     public void initPartitioner()
     {
-        partitioner = new Murmur3Partitioner();
+        partitioner = Murmur3Partitioner.instance;
     }
 
     @Override
