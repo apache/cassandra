@@ -136,13 +136,17 @@ public class UpdateStatement extends ModificationStatement
 
             for (int i = 0; i < columnNames.size(); i++)
             {
-                ColumnDefinition def = cfm.getColumnDefinition(columnNames.get(i).prepare(cfm));
+                ColumnIdentifier id = columnNames.get(i).prepare(cfm);
+                ColumnDefinition def = cfm.getColumnDefinition(id);
                 if (def == null)
-                    throw new InvalidRequestException(String.format("Unknown identifier %s", columnNames.get(i)));
+                    throw new InvalidRequestException(String.format("Unknown identifier %s", id));
 
                 for (int j = 0; j < i; j++)
-                    if (def.name.equals(columnNames.get(j)))
-                        throw new InvalidRequestException(String.format("Multiple definitions found for column %s", def.name));
+                {
+                    ColumnIdentifier otherId = columnNames.get(j).prepare(cfm);
+                    if (id.equals(otherId))
+                        throw new InvalidRequestException(String.format("Multiple definitions found for column %s", id));
+                }
 
                 Term.Raw value = columnValues.get(i);
 
