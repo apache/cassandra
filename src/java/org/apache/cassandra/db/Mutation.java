@@ -75,8 +75,22 @@ public class Mutation implements IMutation
 
     public Mutation copy()
     {
-        Mutation copy = new Mutation(keyspaceName, key, new HashMap<>(modifications));
+        return new Mutation(keyspaceName, key, new HashMap<>(modifications));
+    }
+
+    public Mutation without(Set<UUID> cfIds)
+    {
+        if (cfIds.isEmpty())
+            return this;
+
+        Mutation copy = copy();
+        copy.modifications.keySet().removeAll(cfIds);
         return copy;
+    }
+
+    public Mutation without(UUID cfId)
+    {
+        return without(Collections.singleton(cfId));
     }
 
     public String getKeyspaceName()
@@ -207,6 +221,14 @@ public class Mutation implements IMutation
         return DatabaseDescriptor.getWriteRpcTimeout();
     }
 
+    public int smallestGCGS()
+    {
+        int gcgs = Integer.MAX_VALUE;
+        for (PartitionUpdate update : getPartitionUpdates())
+            gcgs = Math.min(gcgs, update.metadata().params.gcGraceSeconds);
+        return gcgs;
+    }
+
     public String toString()
     {
         return toString(false);
@@ -233,15 +255,6 @@ public class Mutation implements IMutation
             buff.append("\n  ").append(StringUtils.join(modifications.values(), "\n  ")).append("\n");
         }
         return buff.append("])").toString();
-    }
-
-    public Mutation without(UUID cfId)
-    {
-        Mutation mutation = new Mutation(keyspaceName, key);
-        for (Map.Entry<UUID, PartitionUpdate> entry : modifications.entrySet())
-            if (!entry.getKey().equals(cfId))
-                mutation.add(entry.getValue());
-        return mutation;
     }
 
     public static class MutationSerializer implements IVersionedSerializer<Mutation>

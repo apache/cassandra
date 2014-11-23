@@ -1,0 +1,89 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+package org.apache.cassandra.hints;
+
+import java.net.InetAddress;
+import java.util.UUID;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import org.apache.cassandra.db.partitions.PartitionUpdate;
+import org.apache.cassandra.net.IVerbHandler;
+import org.apache.cassandra.net.MessageIn;
+import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.serializers.MarshalException;
+import org.apache.cassandra.service.StorageService;
+
+/**
+ * Verb handler used both for hint dispatch and streaming.
+ *
+ * With the non-sstable format, we cannot just stream hint sstables on node decommission. So sometimes, at decommission
+ * time, we might have to stream hints to a non-owning host (say, if the owning host B is down during decommission of host A).
+ * In that case the handler just stores the received hint in its local hint store.
+ */
+public final class HintVerbHandler implements IVerbHandler<HintMessage>
+{
+    private static final Logger logger = LoggerFactory.getLogger(HintVerbHandler.class);
+
+    public void doVerb(MessageIn<HintMessage> message, int id)
+    {
+        UUID hostId = message.payload.hostId;
+        Hint hint = message.payload.hint;
+
+        // If we see an unknown table id, it means the table, or one of the tables in the mutation, had been dropped.
+        // In that case there is nothing we can really do, or should do, other than log it go on.
+        // This will *not* happen due to a not-yet-seen table, because we don't transfer hints unless there
+        // is schema agreement between the sender and the receiver.
+        if (hint == null)
+        {
+            logger.debug("Failed to decode and apply a hint for {} - table with id {} is unknown",
+                         hostId,
+                         message.payload.unknownTableID);
+            reply(id, message.from);
+            return;
+        }
+
+        // We must perform validation before applying the hint, and there is no other place to do it other than here.
+        try
+        {
+            hint.mutation.getPartitionUpdates().forEach(PartitionUpdate::validate);
+        }
+        catch (MarshalException e)
+        {
+            logger.warn("Failed to validate a hint for {} (table id {}) - skipped", hostId);
+            reply(id, message.from);
+            return;
+        }
+
+        // Apply the hint if this node is the destination, store for future dispatch if this node isn't (must have gotten
+        // it from a decommissioned node that had streamed it before going out).
+        if (hostId.equals(StorageService.instance.getLocalHostUUID()))
+            hint.apply();
+        else
+            HintsService.instance.write(hostId, hint);
+
+        reply(id, message.from);
+    }
+
+    private static void reply(int id, InetAddress to)
+    {
+        MessagingService.instance().sendReply(HintResponse.message, id, to);
+    }
+}

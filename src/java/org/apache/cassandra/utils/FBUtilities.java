@@ -26,10 +26,10 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.*;
 import java.util.concurrent.*;
+import java.util.zip.CRC32;
 import java.util.zip.Checksum;
 
 import com.google.common.base.Joiner;
-import org.apache.cassandra.utils.AbstractIterator;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -332,7 +332,7 @@ public class FBUtilities
 
     public static int nowInSeconds()
     {
-        return (int)(System.currentTimeMillis() / 1000);
+        return (int) (System.currentTimeMillis() / 1000);
     }
 
     public static void waitOnFutures(Iterable<Future<?>> futures)
@@ -593,6 +593,34 @@ public class FBUtilities
         checksum.update((v >>> 16) & 0xFF);
         checksum.update((v >>> 8) & 0xFF);
         checksum.update((v >>> 0) & 0xFF);
+    }
+
+    /**
+      * Updates checksum with the provided ByteBuffer at the given offset + length.
+      * Resets position and limit back to their original values on return.
+      * This method is *NOT* thread-safe.
+      */
+    public static void updateChecksum(CRC32 checksum, ByteBuffer buffer, int offset, int length)
+    {
+        int position = buffer.position();
+        int limit = buffer.limit();
+
+        buffer.position(offset).limit(offset + length);
+        checksum.update(buffer);
+
+        buffer.position(position).limit(limit);
+    }
+
+    /**
+     * Updates checksum with the provided ByteBuffer.
+     * Resets position back to its original values on return.
+     * This method is *NOT* thread-safe.
+     */
+    public static void updateChecksum(CRC32 checksum, ByteBuffer buffer)
+    {
+        int position = buffer.position();
+        checksum.update(buffer);
+        buffer.position(position);
     }
 
     private static final ThreadLocal<byte[]> threadLocalScratchBuffer = new ThreadLocal<byte[]>()

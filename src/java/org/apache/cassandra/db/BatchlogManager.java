@@ -41,18 +41,20 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.WriteFailureException;
 import org.apache.cassandra.exceptions.WriteTimeoutException;
 import org.apache.cassandra.gms.FailureDetector;
+import org.apache.cassandra.hints.Hint;
+import org.apache.cassandra.hints.HintsService;
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.net.MessageIn;
 import org.apache.cassandra.net.MessageOut;
 import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.WriteResponseHandler;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.UUIDGen;
 
+import static com.google.common.collect.Iterables.transform;
 import static org.apache.cassandra.cql3.QueryProcessor.executeInternal;
 import static org.apache.cassandra.cql3.QueryProcessor.executeInternalWithPaging;
 
@@ -210,6 +212,9 @@ public class BatchlogManager implements BatchlogManagerMBean
         int positionInPage = 0;
         ArrayList<Batch> unfinishedBatches = new ArrayList<>(pageSize);
 
+        Set<InetAddress> hintedNodes = new HashSet<>();
+        Set<UUID> replayedBatches = new HashSet<>();
+
         // Sending out batches for replay without waiting for them, so that one stuck batch doesn't affect others
         for (UntypedResultSet.Row row : batches)
         {
@@ -218,7 +223,7 @@ public class BatchlogManager implements BatchlogManagerMBean
             Batch batch = new Batch(id, row.getBytes("data"), version);
             try
             {
-                if (batch.replay(rateLimiter) > 0)
+                if (batch.replay(rateLimiter, hintedNodes) > 0)
                 {
                     unfinishedBatches.add(batch);
                 }
@@ -238,21 +243,29 @@ public class BatchlogManager implements BatchlogManagerMBean
             {
                 // We have reached the end of a batch. To avoid keeping more than a page of mutations in memory,
                 // finish processing the page before requesting the next row.
-                finishAndClearBatches(unfinishedBatches);
+                finishAndClearBatches(unfinishedBatches, hintedNodes, replayedBatches);
                 positionInPage = 0;
             }
         }
-        finishAndClearBatches(unfinishedBatches);
+
+        finishAndClearBatches(unfinishedBatches, hintedNodes, replayedBatches);
+
+        // to preserve batch guarantees, we must ensure that hints (if any) have made it to disk, before deleting the batches
+        HintsService.instance.flushAndFsyncBlockingly(transform(hintedNodes, StorageService.instance::getHostIdForEndpoint));
+
+        // once all generated hints are fsynced, actually delete the batches
+        replayedBatches.forEach(BatchlogManager::deleteBatch);
     }
 
-    private void finishAndClearBatches(ArrayList<Batch> batches)
+    private void finishAndClearBatches(ArrayList<Batch> batches, Set<InetAddress> hintedNodes, Set<UUID> replayedBatches)
     {
         // schedule hints for timed out deliveries
         for (Batch batch : batches)
         {
-            batch.finish();
-            deleteBatch(batch.id);
+            batch.finish(hintedNodes);
+            replayedBatches.add(batch.id);
         }
+
         totalBatchesReplayed += batches.size();
         batches.clear();
     }
@@ -279,7 +292,7 @@ public class BatchlogManager implements BatchlogManagerMBean
             this.version = version;
         }
 
-        public int replay(RateLimiter rateLimiter) throws IOException
+        public int replay(RateLimiter rateLimiter, Set<InetAddress> hintedNodes) throws IOException
         {
             logger.debug("Replaying batch {}", id);
 
@@ -288,18 +301,18 @@ public class BatchlogManager implements BatchlogManagerMBean
             if (mutations.isEmpty())
                 return 0;
 
-            int ttl = calculateHintTTL(mutations);
-            if (ttl <= 0)
+            int gcgs = gcgs(mutations);
+            if (TimeUnit.MILLISECONDS.toSeconds(writtenAt) + gcgs <= FBUtilities.nowInSeconds())
                 return 0;
 
-            replayHandlers = sendReplays(mutations, writtenAt, ttl);
+            replayHandlers = sendReplays(mutations, writtenAt, hintedNodes);
 
             rateLimiter.acquire(data.remaining()); // acquire afterwards, to not mess up ttl calculation.
 
             return replayHandlers.size();
         }
 
-        public void finish()
+        public void finish(Set<InetAddress> hintedNodes)
         {
             for (int i = 0; i < replayHandlers.size(); i++)
             {
@@ -313,7 +326,7 @@ public class BatchlogManager implements BatchlogManagerMBean
                     logger.debug("Failed replaying a batched mutation to a node, will write a hint");
                     logger.debug("Failure was : {}", e.getMessage());
                     // writing hints for the rest to hints, starting from i
-                    writeHintsForUndeliveredEndpoints(i);
+                    writeHintsForUndeliveredEndpoints(i, hintedNodes);
                     return;
                 }
             }
@@ -341,7 +354,7 @@ public class BatchlogManager implements BatchlogManagerMBean
             return mutations;
         }
 
-        private void writeHintsForUndeliveredEndpoints(int startFrom)
+        private void writeHintsForUndeliveredEndpoints(int startFrom, Set<InetAddress> hintedNodes)
         {
             try
             {
@@ -353,12 +366,15 @@ public class BatchlogManager implements BatchlogManagerMBean
                 for (int i = startFrom; i < replayHandlers.size(); i++)
                 {
                     Mutation undeliveredMutation = replayingMutations.get(i);
-                    int ttl = calculateHintTTL(replayingMutations);
+                    int gcgs = gcgs(replayingMutations);
                     ReplayWriteResponseHandler<Mutation> handler = replayHandlers.get(i);
 
-                    if (ttl > 0 && handler != null)
-                        for (InetAddress endpoint : handler.undelivered)
-                            StorageProxy.writeHintForMutation(undeliveredMutation, writtenAt, ttl, endpoint);
+                    if (TimeUnit.MILLISECONDS.toSeconds(writtenAt) + gcgs > FBUtilities.nowInSeconds() && handler != null)
+                    {
+                        hintedNodes.addAll(handler.undelivered);
+                        HintsService.instance.write(transform(handler.undelivered, StorageService.instance::getHostIdForEndpoint),
+                                                    Hint.create(undeliveredMutation, writtenAt));
+                    }
                 }
             }
             catch (IOException e)
@@ -367,12 +383,14 @@ public class BatchlogManager implements BatchlogManagerMBean
             }
         }
 
-        private static List<ReplayWriteResponseHandler<Mutation>> sendReplays(List<Mutation> mutations, long writtenAt, int ttl)
+        private static List<ReplayWriteResponseHandler<Mutation>> sendReplays(List<Mutation> mutations,
+                                                                              long writtenAt,
+                                                                              Set<InetAddress> hintedNodes)
         {
             List<ReplayWriteResponseHandler<Mutation>> handlers = new ArrayList<>(mutations.size());
             for (Mutation mutation : mutations)
             {
-                ReplayWriteResponseHandler<Mutation> handler = sendSingleReplayMutation(mutation, writtenAt, ttl);
+                ReplayWriteResponseHandler<Mutation> handler = sendSingleReplayMutation(mutation, writtenAt, hintedNodes);
                 if (handler != null)
                     handlers.add(handler);
             }
@@ -385,7 +403,9 @@ public class BatchlogManager implements BatchlogManagerMBean
          *
          * @return direct delivery handler to wait on or null, if no live nodes found
          */
-        private static ReplayWriteResponseHandler<Mutation> sendSingleReplayMutation(final Mutation mutation, long writtenAt, int ttl)
+        private static ReplayWriteResponseHandler<Mutation> sendSingleReplayMutation(final Mutation mutation,
+                                                                                     long writtenAt,
+                                                                                     Set<InetAddress> hintedNodes)
         {
             Set<InetAddress> liveEndpoints = new HashSet<>();
             String ks = mutation.getKeyspaceName();
@@ -395,11 +415,19 @@ public class BatchlogManager implements BatchlogManagerMBean
                                                          StorageService.instance.getTokenMetadata().pendingEndpointsFor(tk, ks)))
             {
                 if (endpoint.equals(FBUtilities.getBroadcastAddress()))
+                {
                     mutation.apply();
+                }
                 else if (FailureDetector.instance.isAlive(endpoint))
+                {
                     liveEndpoints.add(endpoint); // will try delivering directly instead of writing a hint.
+                }
                 else
-                    StorageProxy.writeHintForMutation(mutation, writtenAt, ttl, endpoint);
+                {
+                    hintedNodes.add(endpoint);
+                    HintsService.instance.write(StorageService.instance.getHostIdForEndpoint(endpoint),
+                                                Hint.create(mutation, writtenAt));
+                }
             }
 
             if (liveEndpoints.isEmpty())
@@ -412,16 +440,12 @@ public class BatchlogManager implements BatchlogManagerMBean
             return handler;
         }
 
-        /*
-         * Calculate ttl for the mutations' hints (and reduce ttl by the time the mutations spent in the batchlog).
-         * This ensures that deletes aren't "undone" by an old batch replay.
-         */
-        private int calculateHintTTL(Collection<Mutation> mutations)
+        private static int gcgs(Collection<Mutation> mutations)
         {
-            int unadjustedTTL = Integer.MAX_VALUE;
+            int gcgs = Integer.MAX_VALUE;
             for (Mutation mutation : mutations)
-                unadjustedTTL = Math.min(unadjustedTTL, HintedHandOffManager.calculateHintTTL(mutation));
-            return unadjustedTTL - (int) TimeUnit.MILLISECONDS.toSeconds(System.currentTimeMillis() - writtenAt);
+                gcgs = Math.min(gcgs, mutation.smallestGCGS());
+            return gcgs;
         }
 
         /**

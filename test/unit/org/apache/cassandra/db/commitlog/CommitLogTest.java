@@ -250,7 +250,7 @@ public class CommitLogTest
         // Adding new mutation on another CF, large enough (including CL entry overhead) that a new segment is created
         Mutation rm2 = new RowUpdateBuilder(cfs2.metadata, 0, "k")
                        .clustering("bytes")
-                       .add("val", ByteBuffer.allocate((DatabaseDescriptor.getCommitLogSegmentSize()/2) - 200))
+                       .add("val", ByteBuffer.allocate(DatabaseDescriptor.getMaxMutationSize() - 200))
                        .build();
         CommitLog.instance.add(rm2);
         // also forces a new segment, since each entry-with-overhead is just under half the CL size
@@ -280,7 +280,7 @@ public class CommitLogTest
                       .clustering(colName)
                       .add("val", ByteBuffer.allocate(allocSize)).build();
 
-        int max = (DatabaseDescriptor.getCommitLogSegmentSize() / 2);
+        int max = DatabaseDescriptor.getMaxMutationSize();
         max -= CommitLogSegment.ENTRY_OVERHEAD_SIZE; // log entry overhead
 
         // Note that the size of the value if vint encoded. So we first compute the ovehead of the mutation without the value and it's size

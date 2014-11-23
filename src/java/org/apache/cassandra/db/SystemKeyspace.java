@@ -88,7 +88,6 @@ public final class SystemKeyspace
 
     public static final String NAME = "system";
 
-    public static final String HINTS = "hints";
     public static final String BATCHES = "batches";
     public static final String PAXOS = "paxos";
     public static final String BUILT_INDEXES = "IndexInfo";
@@ -103,6 +102,7 @@ public final class SystemKeyspace
     public static final String MATERIALIZED_VIEWS_BUILDS_IN_PROGRESS = "materialized_views_builds_in_progress";
     public static final String BUILT_MATERIALIZED_VIEWS = "built_materialized_views";
 
+    @Deprecated public static final String LEGACY_HINTS = "hints";
     @Deprecated public static final String LEGACY_BATCHLOG = "batchlog";
     @Deprecated public static final String LEGACY_KEYSPACES = "schema_keyspaces";
     @Deprecated public static final String LEGACY_COLUMNFAMILIES = "schema_columnfamilies";
@@ -111,19 +111,6 @@ public final class SystemKeyspace
     @Deprecated public static final String LEGACY_USERTYPES = "schema_usertypes";
     @Deprecated public static final String LEGACY_FUNCTIONS = "schema_functions";
     @Deprecated public static final String LEGACY_AGGREGATES = "schema_aggregates";
-
-    public static final CFMetaData Hints =
-        compile(HINTS,
-                "hints awaiting delivery",
-                "CREATE TABLE %s ("
-                + "target_id uuid,"
-                + "hint_id timeuuid,"
-                + "message_version int,"
-                + "mutation blob,"
-                + "PRIMARY KEY ((target_id), hint_id, message_version)) "
-                + "WITH COMPACT STORAGE")
-                .compaction(CompactionParams.scts(singletonMap("enabled", "false")))
-                .gcGraceSeconds(0);
 
     public static final CFMetaData Batches =
         compile(BATCHES,
@@ -282,6 +269,20 @@ public final class SystemKeyspace
                 + "PRIMARY KEY ((keyspace_name), view_name))");
 
     @Deprecated
+    public static final CFMetaData LegacyHints =
+        compile(LEGACY_HINTS,
+                "*DEPRECATED* hints awaiting delivery",
+                "CREATE TABLE %s ("
+                + "target_id uuid,"
+                + "hint_id timeuuid,"
+                + "message_version int,"
+                + "mutation blob,"
+                + "PRIMARY KEY ((target_id), hint_id, message_version)) "
+                + "WITH COMPACT STORAGE")
+                .compaction(CompactionParams.scts(singletonMap("enabled", "false")))
+                .gcGraceSeconds(0);
+
+    @Deprecated
     public static final CFMetaData LegacyBatchlog =
         compile(LEGACY_BATCHLOG,
                 "*DEPRECATED* batchlog entries",
@@ -423,7 +424,6 @@ public final class SystemKeyspace
     private static Tables tables()
     {
         return Tables.of(BuiltIndexes,
-                         Hints,
                          Batches,
                          Paxos,
                          Local,
@@ -436,6 +436,7 @@ public final class SystemKeyspace
                          AvailableRanges,
                          MaterializedViewsBuildsInProgress,
                          BuiltMaterializedViews,
+                         LegacyHints,
                          LegacyBatchlog,
                          LegacyKeyspaces,
                          LegacyColumnfamilies,
