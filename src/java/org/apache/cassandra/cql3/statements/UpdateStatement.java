@@ -25,7 +25,7 @@ import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.composites.Composite;
-import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.index.SecondaryIndexManager;
 import org.apache.cassandra.exceptions.*;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.Pair;
@@ -96,6 +96,21 @@ public class UpdateStatement extends ModificationStatement
         {
             for (Operation update : updates)
                 update.execute(key, cf, prefix, params);
+        }
+
+        SecondaryIndexManager indexManager = Keyspace.open(cfm.ksName).getColumnFamilyStore(cfm.cfId).indexManager;
+        if (indexManager.hasIndexes())
+        {
+            for (Cell cell : cf)
+            {
+                // Indexed values must be validated by any applicable index. See CASSANDRA-3057/4240/8081 for more details
+                if (!indexManager.validate(cell))
+                    throw new InvalidRequestException(String.format("Can't index column value of size %d for index %s on %s.%s",
+                                                                    cell.value().remaining(),
+                                                                    cfm.getColumnDefinition(cell.name()).getIndexName(),
+                                                                    cfm.ksName,
+                                                                    cfm.cfName));
+            }
         }
     }
 
