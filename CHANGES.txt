@@ -46,6 +46,7 @@
  * Fix incremental repair not remove parent session on remote (CASSANDRA-8291)
  * Improve JBOD disk utilization (CASSANDRA-7386)
 Merged from 2.0:
+ * Make LCS split compaction results over all data directories (CASSANDRA-8329)
  * Fix some failing queries that use multi-column relations
    on COMPACT STORAGE tables (CASSANDRA-8264)
  * Fix InvalidRequestException with ORDER BY (CASSANDRA-8286)
