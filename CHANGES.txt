@@ -30,7 +30,8 @@
  * Use unsafe mutations for most unit tests (CASSANDRA-6969)
  * Fix race condition during calculation of pending ranges (CASSANDRA-7390)
  * Fail on very large batch sizes (CASSANDRA-8011)
- * improve concurrency of repair (CASSANDRA-6455, 8208)
+ * Improve concurrency of repair (CASSANDRA-6455, 8208)
+
 
 2.1.3
  * Centralize shared executors (CASSANDRA-8055)
@@ -46,6 +47,7 @@
  * Fix incremental repair not remove parent session on remote (CASSANDRA-8291)
  * Improve JBOD disk utilization (CASSANDRA-7386)
 Merged from 2.0:
+ * Ignore Paxos commits for truncated tables (CASSANDRA-7538)
  * Validate size of indexed column values (CASSANDRA-8280)
  * Make LCS split compaction results over all data directories (CASSANDRA-8329)
  * Fix some failing queries that use multi-column relations

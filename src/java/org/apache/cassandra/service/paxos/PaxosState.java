@@ -29,6 +29,7 @@ import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.tracing.Tracing;
+import org.apache.cassandra.utils.UUIDGen;
 
 public class PaxosState
 {
@@ -131,10 +132,18 @@ public class PaxosState
             // Committing it is however always safe due to column timestamps, so always do it. However,
             // if our current in-progress ballot is strictly greater than the proposal one, we shouldn't
             // erase the in-progress update.
-            Tracing.trace("Committing proposal {}", proposal);
-            Mutation mutation = proposal.makeMutation();
-            Keyspace.open(mutation.getKeyspaceName()).apply(mutation, true);
-
+            // The table may have been truncated since the proposal was initiated. In that case, we
+            // don't want to perform the mutation and potentially resurrect truncated data
+            if (UUIDGen.unixTimestamp(proposal.ballot) >= SystemKeyspace.getTruncatedAt(proposal.update.metadata().cfId))
+            {
+                Tracing.trace("Committing proposal {}", proposal);
+                Mutation mutation = proposal.makeMutation();
+                Keyspace.open(mutation.getKeyspaceName()).apply(mutation, true);
+            }
+            else
+            {
+                Tracing.trace("Not committing proposal {} as ballot timestamp predates last truncation time", proposal);
+            }
             // We don't need to lock, we're just blindly updating
             SystemKeyspace.savePaxosCommit(proposal);
         }
