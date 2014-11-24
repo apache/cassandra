@@ -48,6 +48,7 @@ import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.locator.EndpointSnitchInfoMBean;
 import org.apache.cassandra.net.MessagingServiceMBean;
 import org.apache.cassandra.repair.messages.RepairOption;
+import org.apache.cassandra.repair.RepairParallelism;
 import org.apache.cassandra.service.CacheServiceMBean;
 import org.apache.cassandra.streaming.ProgressInfo;
 import org.apache.cassandra.streaming.SessionInfo;
@@ -1684,6 +1685,9 @@ public class NodeTool
         @Option(title = "seqential", name = {"-seq", "--sequential"}, description = "Use -seq to carry out a sequential repair")
         private boolean sequential = false;
 
+        @Option(title = "dc parallel", name = {"-dcpar", "--dc-parallel"}, description = "Use -dcpar to repair data centers in parallel.")
+        private boolean dcParallel = false;
+
         @Option(title = "local_dc", name = {"-local", "--in-local-dc"}, description = "Use -local to only repair against nodes in the same datacenter")
         private boolean localDC = false;
 
@@ -1722,7 +1726,12 @@ public class NodeTool
             for (String keyspace : keyspaces)
             {
                 Map<String, String> options = new HashMap<>();
-                options.put(RepairOption.SEQUENTIAL_KEY, Boolean.toString(sequential));
+                RepairParallelism parallelismDegree = RepairParallelism.PARALLEL;
+                if (sequential)
+                    parallelismDegree = RepairParallelism.SEQUENTIAL;
+                else if (dcParallel)
+                    parallelismDegree = RepairParallelism.DATACENTER_AWARE;
+                options.put(RepairOption.PARALLELISM_KEY, parallelismDegree.getName());
                 options.put(RepairOption.PRIMARY_RANGE_KEY, Boolean.toString(primaryRange));
                 options.put(RepairOption.INCREMENTAL_KEY, Boolean.toString(!fullRepair));
                 options.put(RepairOption.JOB_THREADS_KEY, Integer.toString(numJobThreads));

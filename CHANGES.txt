@@ -60,6 +60,7 @@ Merged from 2.0:
  * Avoid overlap in L1 when L0 contains many nonoverlapping
    sstables (CASSANDRA-8211)
  * Improve PropertyFileSnitch logging (CASSANDRA-8183)
+ * Add DC-aware sequential repair (CASSANDRA-8193)
 
 
 2.1.2

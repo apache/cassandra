@@ -22,13 +22,13 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
-import com.google.common.collect.Iterables;
 import org.junit.Test;
 
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.repair.RepairParallelism;
 
 import static org.junit.Assert.*;
 
@@ -42,13 +42,13 @@ public class RepairOptionTest
 
         // parse with empty options
         RepairOption option = RepairOption.parse(new HashMap<String, String>(), partitioner);
-        assertTrue(option.isSequential());
+        assertTrue(option.getParallelism() == RepairParallelism.SEQUENTIAL);
         assertFalse(option.isPrimaryRange());
         assertFalse(option.isIncremental());
 
         // parse everything
         Map<String, String> options = new HashMap<>();
-        options.put(RepairOption.SEQUENTIAL_KEY, "false");
+        options.put(RepairOption.PARALLELISM_KEY, "parallel");
         options.put(RepairOption.PRIMARY_RANGE_KEY, "false");
         options.put(RepairOption.INCREMENTAL_KEY, "true");
         options.put(RepairOption.RANGES_KEY, "0:10,11:20,21:30");
@@ -57,7 +57,7 @@ public class RepairOptionTest
         options.put(RepairOption.HOSTS_KEY, "127.0.0.1,127.0.0.2,127.0.0.3");
 
         option = RepairOption.parse(options, partitioner);
-        assertFalse(option.isSequential());
+        assertTrue(option.getParallelism() == RepairParallelism.PARALLEL);
         assertFalse(option.isPrimaryRange());
         assertTrue(option.isIncremental());
 

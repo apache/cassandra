@@ -49,6 +49,7 @@ import org.apache.cassandra.net.MessageIn;
 import org.apache.cassandra.net.MessageOut;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.repair.RepairJobDesc;
+import org.apache.cassandra.repair.RepairParallelism;
 import org.apache.cassandra.repair.RepairSession;
 import org.apache.cassandra.repair.messages.*;
 import org.apache.cassandra.utils.FBUtilities;
@@ -105,7 +106,7 @@ public class ActiveRepairService
     public RepairSession submitRepairSession(UUID parentRepairSession,
                                              Range<Token> range,
                                              String keyspace,
-                                             boolean isSequential,
+                                             RepairParallelism parallelismDegree,
                                              Set<InetAddress> endpoints,
                                              long repairedAt,
                                              ListeningExecutorService executor,
@@ -114,7 +115,7 @@ public class ActiveRepairService
         if (endpoints.isEmpty())
             return null;
 
-        final RepairSession session = new RepairSession(parentRepairSession, UUIDGen.getTimeUUID(), range, keyspace, isSequential, endpoints, repairedAt, cfnames);
+        final RepairSession session = new RepairSession(parentRepairSession, UUIDGen.getTimeUUID(), range, keyspace, parallelismDegree, endpoints, repairedAt, cfnames);
 
         sessions.put(session.getId(), session);
         // register listeners

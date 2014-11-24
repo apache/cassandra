@@ -78,6 +78,7 @@ import org.apache.cassandra.repair.RepairMessageVerbHandler;
 import org.apache.cassandra.repair.RepairSessionResult;
 import org.apache.cassandra.repair.messages.RepairOption;
 import org.apache.cassandra.repair.RepairSession;
+import org.apache.cassandra.repair.RepairParallelism;
 import org.apache.cassandra.service.paxos.CommitVerbHandler;
 import org.apache.cassandra.service.paxos.PrepareVerbHandler;
 import org.apache.cassandra.service.paxos.ProposeVerbHandler;
@@ -2442,6 +2443,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         return forceRepairAsync(keyspace, option);
     }
 
+    @Deprecated
     public int forceRepairAsync(String keyspace,
                                 boolean isSequential,
                                 Collection<String> dataCenters,
@@ -2450,13 +2452,25 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                                 boolean fullRepair,
                                 String... columnFamilies)
     {
-        if (!FBUtilities.isUnix() && isSequential)
+        return forceRepairAsync(keyspace, isSequential ? RepairParallelism.SEQUENTIAL : RepairParallelism.PARALLEL, dataCenters, hosts, primaryRange, fullRepair, columnFamilies);
+    }
+
+    @Deprecated
+    public int forceRepairAsync(String keyspace,
+                                RepairParallelism parallelismDegree,
+                                Collection<String> dataCenters,
+                                Collection<String> hosts,
+                                boolean primaryRange,
+                                boolean fullRepair,
+                                String... columnFamilies)
+    {
+        if (!FBUtilities.isUnix() && parallelismDegree != RepairParallelism.PARALLEL)
         {
             logger.warn("Snapshot-based repair is not yet supported on Windows.  Reverting to parallel repair.");
-            isSequential = false;
+            parallelismDegree = RepairParallelism.PARALLEL;
         }
 
-        RepairOption options = new RepairOption(isSequential, primaryRange, !fullRepair, 1, Collections.<Range<Token>>emptyList());
+        RepairOption options = new RepairOption(parallelismDegree, primaryRange, !fullRepair, 1, Collections.<Range<Token>>emptyList());
         if (dataCenters != null)
         {
             options.getDataCenters().addAll(dataCenters);
@@ -2499,14 +2513,26 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                                      boolean fullRepair,
                                      String... columnFamilies)
     {
-        if (!FBUtilities.isUnix() && isSequential)
+        return forceRepairRangeAsync(beginToken, endToken, keyspaceName, isSequential ? RepairParallelism.SEQUENTIAL : RepairParallelism.PARALLEL, dataCenters, hosts, fullRepair, columnFamilies);
+    }
+
+    public int forceRepairRangeAsync(String beginToken,
+                                     String endToken,
+                                     String keyspaceName,
+                                     RepairParallelism parallelismDegree,
+                                     Collection<String> dataCenters,
+                                     Collection<String> hosts,
+                                     boolean fullRepair,
+                                     String... columnFamilies)
+    {
+        if (!FBUtilities.isUnix() && parallelismDegree != RepairParallelism.PARALLEL)
         {
             logger.warn("Snapshot-based repair is not yet supported on Windows.  Reverting to parallel repair.");
-            isSequential = false;
+            parallelismDegree = RepairParallelism.PARALLEL;
         }
         Collection<Range<Token>> repairingRange = createRepairRangeFrom(beginToken, endToken);
 
-        RepairOption options = new RepairOption(isSequential, false, !fullRepair, 1, repairingRange);
+        RepairOption options = new RepairOption(parallelismDegree, false, !fullRepair, 1, repairingRange);
         options.getDataCenters().addAll(dataCenters);
         if (hosts != null)
         {
@@ -2521,7 +2547,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         }
 
         logger.info("starting user-requested repair of range {} for keyspace {} and column families {}",
-                           repairingRange, keyspaceName, columnFamilies);
+                    repairingRange, keyspaceName, columnFamilies);
         return forceRepairAsync(keyspaceName, options);
     }
 
@@ -2669,7 +2695,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                     final RepairSession session = ActiveRepairService.instance.submitRepairSession(parentSession,
                                                                       range,
                                                                       keyspace,
-                                                                      options.isSequential(),
+                                                                      options.getParallelism(),
                                                                       rangeToNeighbors.get(range),
                                                                       repairedAt,
                                                                       executor,

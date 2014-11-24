@@ -85,7 +85,7 @@ public class RepairSession extends AbstractFuture<RepairSessionResult> implement
     private final UUID id;
     public final String keyspace;
     private final String[] cfnames;
-    public final boolean isSequential;
+    public final RepairParallelism parallelismDegree;
     /** Range to repair */
     public final Range<Token> range;
     public final Set<InetAddress> endpoints;
@@ -110,7 +110,7 @@ public class RepairSession extends AbstractFuture<RepairSessionResult> implement
      * @param id this sessions id
      * @param range range to repair
      * @param keyspace name of keyspace
-     * @param isSequential true if performing repair on snapshots sequentially
+     * @param parallelismDegree specifies the degree of parallelism when calculating the merkle trees
      * @param endpoints the data centers that should be part of the repair; null for all DCs
      * @param repairedAt when the repair occurred (millis)
      * @param cfnames names of columnfamilies
@@ -119,7 +119,7 @@ public class RepairSession extends AbstractFuture<RepairSessionResult> implement
                          UUID id,
                          Range<Token> range,
                          String keyspace,
-                         boolean isSequential,
+                         RepairParallelism parallelismDegree,
                          Set<InetAddress> endpoints,
                          long repairedAt,
                          String... cfnames)
@@ -128,7 +128,7 @@ public class RepairSession extends AbstractFuture<RepairSessionResult> implement
 
         this.parentRepairSession = parentRepairSession;
         this.id = id;
-        this.isSequential = isSequential;
+        this.parallelismDegree = parallelismDegree;
         this.keyspace = keyspace;
         this.cfnames = cfnames;
         this.range = range;
@@ -243,7 +243,7 @@ public class RepairSession extends AbstractFuture<RepairSessionResult> implement
         List<ListenableFuture<RepairResult>> jobs = new ArrayList<>(cfnames.length);
         for (String cfname : cfnames)
         {
-            RepairJob job = new RepairJob(this, cfname, isSequential, repairedAt, taskExecutor);
+            RepairJob job = new RepairJob(this, cfname, parallelismDegree, repairedAt, taskExecutor);
             executor.execute(job);
             jobs.add(job);
         }

@@ -18,14 +18,13 @@
 package org.apache.cassandra.repair;
 
 import java.net.InetAddress;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.List;
+import java.util.*;
 
 import com.google.common.util.concurrent.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.gms.FailureDetector;
 import org.apache.cassandra.utils.FBUtilities;
@@ -40,7 +39,7 @@ public class RepairJob extends AbstractFuture<RepairResult> implements Runnable
 
     private final RepairSession session;
     private final RepairJobDesc desc;
-    private final boolean isSequential;
+    private final RepairParallelism parallelismDegree;
     private final long repairedAt;
     private final ListeningExecutorService taskExecutor;
 
@@ -49,21 +48,21 @@ public class RepairJob extends AbstractFuture<RepairResult> implements Runnable
      *
      * @param session RepairSession that this RepairJob belongs
      * @param columnFamily name of the ColumnFamily to repair
-     * @param isSequential when true, validation runs sequentially among replica
+     * @param parallelismDegree how to run repair job in parallel
      * @param repairedAt when the repair occurred (millis)
      * @param taskExecutor Executor to run various repair tasks
      */
     public RepairJob(RepairSession session,
                      String columnFamily,
-                     boolean isSequential,
+                     RepairParallelism parallelismDegree,
                      long repairedAt,
                      ListeningExecutorService taskExecutor)
     {
         this.session = session;
         this.desc = new RepairJobDesc(session.parentRepairSession, session.getId(), session.keyspace, columnFamily, session.getRange());
-        this.isSequential = isSequential;
         this.repairedAt = repairedAt;
         this.taskExecutor = taskExecutor;
+        this.parallelismDegree = parallelismDegree;
     }
 
     /**
@@ -78,7 +77,8 @@ public class RepairJob extends AbstractFuture<RepairResult> implements Runnable
         allEndpoints.add(FBUtilities.getBroadcastAddress());
 
         ListenableFuture<List<TreeResponse>> validations;
-        if (isSequential)
+        // Create a snapshot at all nodes unless we're using pure parallel repairs
+        if (parallelismDegree != RepairParallelism.PARALLEL)
         {
             // Request snapshot to all replica
             List<ListenableFuture<InetAddress>> snapshotTasks = new ArrayList<>(allEndpoints.size());
@@ -94,12 +94,17 @@ public class RepairJob extends AbstractFuture<RepairResult> implements Runnable
             {
                 public ListenableFuture<List<TreeResponse>> apply(List<InetAddress> endpoints) throws Exception
                 {
-                    return sendValidationRequest(endpoints);
+                    logger.info(String.format("[repair #%s] requesting merkle trees for %s (to %s)", desc.sessionId, desc.columnFamily, endpoints));
+                    if (parallelismDegree == RepairParallelism.SEQUENTIAL)
+                        return sendSequentialValidationRequest(endpoints);
+                    else
+                        return sendDCAwareValidationRequest(endpoints);
                 }
             }, taskExecutor);
         }
         else
         {
+            logger.info(String.format("[repair #%s] requesting merkle trees for %s (to %s)", desc.sessionId, desc.columnFamily, allEndpoints));
             // If not sequential, just send validation request to all replica
             validations = sendValidationRequest(allEndpoints);
         }
@@ -168,15 +173,13 @@ public class RepairJob extends AbstractFuture<RepairResult> implements Runnable
     }
 
     /**
-     * Creates {@link ValidationTask} and submit them to task executor.
-     * If isSequential flag is true, wait previous ValidationTask to complete before submitting the next.
+     * Creates {@link ValidationTask} and submit them to task executor in parallel.
      *
      * @param endpoints Endpoint addresses to send validation request
      * @return Future that can get all {@link TreeResponse} from replica, if all validation succeed.
      */
     private ListenableFuture<List<TreeResponse>> sendValidationRequest(Collection<InetAddress> endpoints)
     {
-        logger.info(String.format("[repair #%s] requesting merkle trees for %s (to %s)", desc.sessionId, desc.columnFamily, endpoints));
         int gcBefore = Keyspace.open(desc.keyspace).getColumnFamilyStore(desc.columnFamily).gcBefore(System.currentTimeMillis());
         List<ListenableFuture<TreeResponse>> tasks = new ArrayList<>(endpoints.size());
         for (InetAddress endpoint : endpoints)
@@ -185,12 +188,100 @@ public class RepairJob extends AbstractFuture<RepairResult> implements Runnable
             tasks.add(task);
             session.waitForValidation(Pair.create(desc, endpoint), task);
             taskExecutor.execute(task);
-            if (isSequential)
+        }
+        return Futures.allAsList(tasks);
+    }
+
+    /**
+     * Creates {@link ValidationTask} and submit them to task executor so that tasks run sequentially.
+     */
+    private ListenableFuture<List<TreeResponse>> sendSequentialValidationRequest(Collection<InetAddress> endpoints)
+    {
+        int gcBefore = Keyspace.open(desc.keyspace).getColumnFamilyStore(desc.columnFamily).gcBefore(System.currentTimeMillis());
+        List<ListenableFuture<TreeResponse>> tasks = new ArrayList<>(endpoints.size());
+
+        Queue<InetAddress> requests = new LinkedList<>(endpoints);
+        InetAddress address = requests.poll();
+        ValidationTask firstTask = new ValidationTask(desc, address, gcBefore);
+        logger.info("Validating " + address);
+        session.waitForValidation(Pair.create(desc, address), firstTask);
+        tasks.add(firstTask);
+        ValidationTask currentTask = firstTask;
+        while (requests.size() > 0)
+        {
+            final InetAddress nextAddress = requests.poll();
+            final ValidationTask nextTask = new ValidationTask(desc, nextAddress, gcBefore);
+            tasks.add(nextTask);
+            Futures.addCallback(currentTask, new FutureCallback<TreeResponse>()
             {
-                // tasks are sequentially sent so wait until current validation is done.
-                // NOTE: Wait happens on taskExecutor thread
-                Futures.getUnchecked(task);
+                public void onSuccess(TreeResponse result)
+                {
+                    logger.info("Validating " + nextAddress);
+                    session.waitForValidation(Pair.create(desc, nextAddress), nextTask);
+                    taskExecutor.execute(nextTask);
+                }
+
+                // failure is handled at root of job chain
+                public void onFailure(Throwable t) {}
+            });
+            currentTask = nextTask;
+        }
+        // start running tasks
+        taskExecutor.execute(firstTask);
+        return Futures.allAsList(tasks);
+    }
+
+    /**
+     * Creates {@link ValidationTask} and submit them to task executor so that tasks run sequentially within each dc.
+     */
+    private ListenableFuture<List<TreeResponse>> sendDCAwareValidationRequest(Collection<InetAddress> endpoints)
+    {
+        int gcBefore = Keyspace.open(desc.keyspace).getColumnFamilyStore(desc.columnFamily).gcBefore(System.currentTimeMillis());
+        List<ListenableFuture<TreeResponse>> tasks = new ArrayList<>(endpoints.size());
+
+        Map<String, Queue<InetAddress>> requestsByDatacenter = new HashMap<>();
+        for (InetAddress endpoint : endpoints)
+        {
+            String dc = DatabaseDescriptor.getEndpointSnitch().getDatacenter(endpoint);
+            Queue<InetAddress> queue = requestsByDatacenter.get(dc);
+            if (queue == null)
+            {
+                queue = new LinkedList<>();
+                requestsByDatacenter.put(dc, queue);
             }
+            queue.add(endpoint);
+        }
+
+        for (Map.Entry<String, Queue<InetAddress>> entry : requestsByDatacenter.entrySet())
+        {
+            Queue<InetAddress> requests = entry.getValue();
+            InetAddress address = requests.poll();
+            ValidationTask firstTask = new ValidationTask(desc, address, gcBefore);
+            logger.info("Validating " + address);
+            session.waitForValidation(Pair.create(desc, address), firstTask);
+            tasks.add(firstTask);
+            ValidationTask currentTask = firstTask;
+            while (requests.size() > 0)
+            {
+                final InetAddress nextAddress = requests.poll();
+                final ValidationTask nextTask = new ValidationTask(desc, nextAddress, gcBefore);
+                tasks.add(nextTask);
+                Futures.addCallback(currentTask, new FutureCallback<TreeResponse>()
+                {
+                    public void onSuccess(TreeResponse result)
+                    {
+                        logger.info("Validating " + nextAddress);
+                        session.waitForValidation(Pair.create(desc, nextAddress), nextTask);
+                        taskExecutor.execute(nextTask);
+                    }
+
+                    // failure is handled at root of job chain
+                    public void onFailure(Throwable t) {}
+                });
+                currentTask = nextTask;
+            }
+            // start running tasks
+            taskExecutor.execute(firstTask);
         }
         return Futures.allAsList(tasks);
     }

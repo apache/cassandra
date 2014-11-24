@@ -25,14 +25,14 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.repair.RepairParallelism;
 
 /**
  * Repair options.
  */
 public class RepairOption
 {
-    public static final String SEQUENTIAL_KEY = "sequential";
+    public static final String PARALLELISM_KEY = "parallelism";
     public static final String PRIMARY_RANGE_KEY = "primaryRange";
     public static final String INCREMENTAL_KEY = "incremental";
     public static final String JOB_THREADS_KEY = "jobThreads";
@@ -61,9 +61,9 @@ public class RepairOption
      *     </thead>
      *     <tbody>
      *         <tr>
-     *             <td>sequential</td>
-     *             <td>"true" if perform sequential repair.</td>
-     *             <td>true</td>
+     *             <td>parallelism</td>
+     *             <td>"sequential", "parallel" or "dc_parallel"</td>
+     *             <td>"sequential"</td>
      *         </tr>
      *         <tr>
      *             <td>primaryRange</td>
@@ -113,7 +113,8 @@ public class RepairOption
      */
     public static RepairOption parse(Map<String, String> options, IPartitioner partitioner)
     {
-        boolean sequential = !options.containsKey(SEQUENTIAL_KEY) || Boolean.parseBoolean(options.get(SEQUENTIAL_KEY));
+        // if no parallel option is given, then this will be "sequential" by default.
+        RepairParallelism parallelism = RepairParallelism.fromName(options.get(PARALLELISM_KEY));
         boolean primaryRange = Boolean.parseBoolean(options.get(PRIMARY_RANGE_KEY));
         boolean incremental = Boolean.parseBoolean(options.get(INCREMENTAL_KEY));
 
@@ -145,7 +146,7 @@ public class RepairOption
             }
         }
 
-        RepairOption option = new RepairOption(sequential, primaryRange, incremental, jobThreads, ranges);
+        RepairOption option = new RepairOption(parallelism, primaryRange, incremental, jobThreads, ranges);
 
         // data centers
         String dataCentersStr = options.get(DATACENTERS_KEY);
@@ -199,7 +200,7 @@ public class RepairOption
         return option;
     }
 
-    private final boolean sequential;
+    private final RepairParallelism parallelism;
     private final boolean primaryRange;
     private final boolean incremental;
     private final int jobThreads;
@@ -209,18 +210,18 @@ public class RepairOption
     private final Collection<String> hosts = new HashSet<>();
     private final Collection<Range<Token>> ranges = new HashSet<>();
 
-    public RepairOption(boolean sequential, boolean primaryRange, boolean incremental, int jobThreads, Collection<Range<Token>> ranges)
+    public RepairOption(RepairParallelism parallelism, boolean primaryRange, boolean incremental, int jobThreads, Collection<Range<Token>> ranges)
     {
-        this.sequential = sequential;
+        this.parallelism = parallelism;
         this.primaryRange = primaryRange;
         this.incremental = incremental;
         this.jobThreads = jobThreads;
         this.ranges.addAll(ranges);
     }
 
-    public boolean isSequential()
+    public RepairParallelism getParallelism()
     {
-        return sequential;
+        return parallelism;
     }
 
     public boolean isPrimaryRange()
@@ -262,7 +263,7 @@ public class RepairOption
     public String toString()
     {
         return "repair options (" +
-                       "sequential: " + sequential +
+                       "parallelism: " + parallelism +
                        ", primary range: " + primaryRange +
                        ", incremental: " + incremental +
                        ", job threads: " + jobThreads +
