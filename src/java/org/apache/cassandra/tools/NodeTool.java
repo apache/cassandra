@@ -48,6 +48,7 @@ import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.locator.EndpointSnitchInfoMBean;
 import org.apache.cassandra.locator.LocalStrategy;
 import org.apache.cassandra.net.MessagingServiceMBean;
+import org.apache.cassandra.repair.RepairParallelism;
 import org.apache.cassandra.service.CacheServiceMBean;
 import org.apache.cassandra.streaming.ProgressInfo;
 import org.apache.cassandra.streaming.SessionInfo;
@@ -1675,6 +1676,9 @@ public class NodeTool
         @Option(title = "parallel", name = {"-par", "--parallel"}, description = "Use -par to carry out a parallel repair")
         private boolean parallel = false;
 
+        @Option(title = "dc parallel", name = {"-dcpar", "--dc-parallel"}, description = "Use -dcpar to repair data centers in parallel.")
+        private boolean dcParallel = false;
+
         @Option(title = "local_dc", name = {"-local", "--in-local-dc"}, description = "Use -local to only repair against nodes in the same datacenter")
         private boolean localDC = false;
 
@@ -1709,6 +1713,12 @@ public class NodeTool
             {
                 try
                 {
+                    RepairParallelism parallelismDegree = RepairParallelism.SEQUENTIAL;
+                    if (parallel)
+                        parallelismDegree = RepairParallelism.PARALLEL;
+                    else if (dcParallel)
+                        parallelismDegree = RepairParallelism.DATACENTER_AWARE;
+
                     Collection<String> dataCenters = null;
                     Collection<String> hosts = null;
                     if (!specificDataCenters.isEmpty())
@@ -1718,9 +1728,9 @@ public class NodeTool
                     else if(!specificHosts.isEmpty())
                         hosts = newArrayList(specificHosts);
                     if (!startToken.isEmpty() || !endToken.isEmpty())
-                        probe.forceRepairRangeAsync(System.out, keyspace, !parallel, dataCenters,hosts, startToken, endToken, !incrementalRepair);
+                        probe.forceRepairRangeAsync(System.out, keyspace, parallelismDegree, dataCenters,hosts, startToken, endToken, !incrementalRepair);
                     else
-                        probe.forceRepairAsync(System.out, keyspace, !parallel, dataCenters, hosts, primaryRange, !incrementalRepair, cfnames);
+                        probe.forceRepairAsync(System.out, keyspace, parallelismDegree, dataCenters, hosts, primaryRange, !incrementalRepair, cfnames);
                 } catch (Exception e)
                 {
                     throw new RuntimeException("Error occurred during repair", e);
