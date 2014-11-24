@@ -57,6 +57,7 @@ import org.apache.cassandra.io.util.SequentialWriter;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.FilterFactory;
 import org.apache.cassandra.utils.IFilter;
 import org.apache.cassandra.utils.Pair;
@@ -158,6 +159,14 @@ public class BigTableWriter extends SSTableWriter
 
     public void append(DecoratedKey decoratedKey, ColumnFamily cf)
     {
+        if (decoratedKey.getKey().remaining() > FBUtilities.MAX_UNSIGNED_SHORT)
+        {
+            logger.error("Key size {} exceeds maximum of {}, skipping row",
+                         decoratedKey.getKey().remaining(),
+                         FBUtilities.MAX_UNSIGNED_SHORT);
+            return;
+        }
+
         long startPosition = beforeAppend(decoratedKey);
         try
         {
