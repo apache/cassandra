@@ -155,6 +155,7 @@ commands:
     help: |
       Repair one or more column families
          Use -dc to repair specific datacenters (csv list).
+         Use -dcpar to repair datacenters in parallel.
          Use -et to specify a token at which repair range ends.
          Use -local to only repair against nodes in the same datacenter.
          Use -pr to repair only the first range returned by the partitioner.

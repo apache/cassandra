@@ -24,6 +24,7 @@
  * Allow concurrent writing of the same table in the same JVM using
    CQLSSTableWriter (CASSANDRA-7463)
  * Fix totalDiskSpaceUsed calculation (CASSANDRA-8205)
+ * Add DC-aware sequential repair (CASSANDRA-8193)
 
 
 2.0.11:

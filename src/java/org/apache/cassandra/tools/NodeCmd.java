@@ -47,6 +47,7 @@ import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.locator.EndpointSnitchInfoMBean;
 import org.apache.cassandra.net.MessagingServiceMBean;
+import org.apache.cassandra.repair.RepairParallelism;
 import org.apache.cassandra.service.CacheServiceMBean;
 import org.apache.cassandra.service.StorageProxyMBean;
 import org.apache.cassandra.streaming.StreamState;
@@ -70,6 +71,7 @@ public class NodeCmd
     private static final Pair<String, String> TOKENS_OPT = Pair.create("T", "tokens");
     private static final Pair<String, String> PRIMARY_RANGE_OPT = Pair.create("pr", "partitioner-range");
     private static final Pair<String, String> PARALLEL_REPAIR_OPT = Pair.create("par", "parallel");
+    private static final Pair<String, String> DCPARALLEL_REPAIR_OPT = Pair.create("dcpar", "dcparallel");
     private static final Pair<String, String> LOCAL_DC_REPAIR_OPT = Pair.create("local", "in-local-dc");
     private static final Pair<String, String> HOST_REPAIR_OPT = Pair.create("hosts", "in-host");
     private static final Pair<String, String> DC_REPAIR_OPT = Pair.create("dc", "in-dc");
@@ -100,6 +102,7 @@ public class NodeCmd
         options.addOption(TOKENS_OPT,   false, "display all tokens");
         options.addOption(PRIMARY_RANGE_OPT, false, "only repair the first range returned by the partitioner for the node");
         options.addOption(PARALLEL_REPAIR_OPT, false, "repair nodes in parallel.");
+        options.addOption(DCPARALLEL_REPAIR_OPT, false, "repair data centers in parallel.");
         options.addOption(LOCAL_DC_REPAIR_OPT, false, "only repair against nodes in the same datacenter");
         options.addOption(DC_REPAIR_OPT, true, "only repair against nodes in the specified datacenters (comma separated)");
         options.addOption(HOST_REPAIR_OPT, true, "only repair against specified nodes (comma separated)");
@@ -203,10 +206,10 @@ public class NodeCmd
         StringBuilder header = new StringBuilder(512);
         header.append("\nAvailable commands\n");
         final NodeToolHelp ntHelp = loadHelp();
-        Collections.sort(ntHelp.commands, new Comparator<NodeToolHelp.NodeToolCommand>() 
+        Collections.sort(ntHelp.commands, new Comparator<NodeToolHelp.NodeToolCommand>()
         {
             @Override
-            public int compare(NodeToolHelp.NodeToolCommand o1, NodeToolHelp.NodeToolCommand o2) 
+            public int compare(NodeToolHelp.NodeToolCommand o1, NodeToolHelp.NodeToolCommand o2)
             {
                 return o1.name.compareTo(o2.name);
             }
@@ -525,7 +528,7 @@ public class NodeCmd
         }
     }
 
-    private Map<String, SetHostStat> getOwnershipByDc(boolean resolveIp, Map<String, String> tokenToEndpoint, 
+    private Map<String, SetHostStat> getOwnershipByDc(boolean resolveIp, Map<String, String> tokenToEndpoint,
                                                       Map<InetAddress, Float> ownerships) throws UnknownHostException
     {
         Map<String, SetHostStat> ownershipByDc = Maps.newLinkedHashMap();
@@ -574,7 +577,7 @@ public class NodeCmd
         public final Float owns;
         public final String token;
 
-        public HostStat(String token, InetAddress endpoint, boolean resolveIp, Float owns) 
+        public HostStat(String token, InetAddress endpoint, boolean resolveIp, Float owns)
         {
             this.token = token;
             this.endpoint = endpoint;
@@ -1668,7 +1671,11 @@ public class NodeCmd
             switch (nc)
             {
                 case REPAIR  :
-                    boolean sequential = !cmd.hasOption(PARALLEL_REPAIR_OPT.left);
+                    RepairParallelism parallelismDegree = RepairParallelism.SEQUENTIAL;
+                    if (cmd.hasOption(PARALLEL_REPAIR_OPT.left))
+                        parallelismDegree = RepairParallelism.PARALLEL;
+                    else if (cmd.hasOption(DCPARALLEL_REPAIR_OPT.left))
+                        parallelismDegree = RepairParallelism.DATACENTER_AWARE;
                     boolean localDC = cmd.hasOption(LOCAL_DC_REPAIR_OPT.left);
                     boolean specificDC = cmd.hasOption(DC_REPAIR_OPT.left);
                     boolean specificHosts = cmd.hasOption(HOST_REPAIR_OPT.left);
@@ -1686,9 +1693,9 @@ public class NodeCmd
                     else if(specificHosts)
                         hosts  = Arrays.asList(cmd.getOptionValue(HOST_REPAIR_OPT.left).split(","));
                     if (cmd.hasOption(START_TOKEN_OPT.left) || cmd.hasOption(END_TOKEN_OPT.left))
-                        probe.forceRepairRangeAsync(System.out, keyspace, sequential, dataCenters, hosts, cmd.getOptionValue(START_TOKEN_OPT.left), cmd.getOptionValue(END_TOKEN_OPT.left), columnFamilies);
+                        probe.forceRepairRangeAsync(System.out, keyspace, parallelismDegree, dataCenters, hosts, cmd.getOptionValue(START_TOKEN_OPT.left), cmd.getOptionValue(END_TOKEN_OPT.left), columnFamilies);
                     else
-                        probe.forceRepairAsync(System.out, keyspace, sequential, dataCenters, hosts, primaryRange, columnFamilies);
+                        probe.forceRepairAsync(System.out, keyspace, parallelismDegree, dataCenters, hosts, primaryRange, columnFamilies);
                     break;
                 case FLUSH   :
                     try { probe.forceKeyspaceFlush(keyspace, columnFamilies); }

@@ -83,7 +83,7 @@ public class RepairSession extends WrappedRunnable implements IEndpointStateChan
     private final UUID id;
     public final String keyspace;
     private final String[] cfnames;
-    public final boolean isSequential;
+    public final RepairParallelism parallelismDegree;
     /** Range to repair */
     public final Range<Token> range;
     public final Set<InetAddress> endpoints;
@@ -110,19 +110,19 @@ public class RepairSession extends WrappedRunnable implements IEndpointStateChan
      *
      * @param range range to repair
      * @param keyspace name of keyspace
-     * @param isSequential true if performing repair on snapshots sequentially
+     * @param parallelismDegree specifies the degree of parallelism when calculating the merkle trees
      * @param dataCenters the data centers that should be part of the repair; null for all DCs
      * @param cfnames names of columnfamilies
      */
-    public RepairSession(Range<Token> range, String keyspace, boolean isSequential, Collection<String> dataCenters, Collection<String> hosts, String... cfnames)
+    public RepairSession(Range<Token> range, String keyspace, RepairParallelism parallelismDegree, Collection<String> dataCenters, Collection<String> hosts, String... cfnames)
     {
-        this(UUIDGen.getTimeUUID(), range, keyspace, isSequential, dataCenters, hosts, cfnames);
+        this(UUIDGen.getTimeUUID(), range, keyspace, parallelismDegree, dataCenters, hosts, cfnames);
     }
 
-    public RepairSession(UUID id, Range<Token> range, String keyspace, boolean isSequential, Collection<String> dataCenters, Collection<String> hosts, String[] cfnames)
+    public RepairSession(UUID id, Range<Token> range, String keyspace, RepairParallelism parallelismDegree, Collection<String> dataCenters, Collection<String> hosts, String[] cfnames)
     {
         this.id = id;
-        this.isSequential = isSequential;
+        this.parallelismDegree = parallelismDegree;
         this.keyspace = keyspace;
         this.cfnames = cfnames;
         assert cfnames.length > 0 : "Repairing no column families seems pointless, doesn't it";
@@ -270,7 +270,7 @@ public class RepairSession extends WrappedRunnable implements IEndpointStateChan
             // Create and queue a RepairJob for each column family
             for (String cfname : cfnames)
             {
-                RepairJob job = new RepairJob(this, id, keyspace, cfname, range, isSequential, taskExecutor);
+                RepairJob job = new RepairJob(this, id, keyspace, cfname, range, parallelismDegree, taskExecutor);
                 jobs.offer(job);
             }
 

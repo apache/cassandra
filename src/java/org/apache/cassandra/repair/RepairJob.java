@@ -43,9 +43,9 @@ public class RepairJob
     private static Logger logger = LoggerFactory.getLogger(RepairJob.class);
 
     public final RepairJobDesc desc;
-    private final boolean isSequential;
+    private final RepairParallelism parallelismDegree;
     // first we send tree requests. this tracks the endpoints remaining to hear from
-    private final RequestCoordinator<InetAddress> treeRequests;
+    private final IRequestCoordinator<InetAddress> treeRequests;
     // tree responses are then tracked here
     private final List<TreeResponse> trees = new ArrayList<>();
     // once all responses are received, each tree is compared with each other, and differencer tasks
@@ -68,21 +68,38 @@ public class RepairJob
                      String keyspace,
                      String columnFamily,
                      Range<Token> range,
-                     boolean isSequential,
+                     RepairParallelism parallelismDegree,
                      ListeningExecutorService taskExecutor)
     {
         this.listener = listener;
         this.desc = new RepairJobDesc(sessionId, keyspace, columnFamily, range);
-        this.isSequential = isSequential;
+        this.parallelismDegree = parallelismDegree;
         this.taskExecutor = taskExecutor;
-        this.treeRequests = new RequestCoordinator<InetAddress>(isSequential)
+
+        IRequestProcessor<InetAddress> processor = new IRequestProcessor<InetAddress>()
         {
-            public void send(InetAddress endpoint)
+            @Override
+            public void process(InetAddress endpoint)
             {
                 ValidationRequest request = new ValidationRequest(desc, gcBefore);
                 MessagingService.instance().sendOneWay(request.createMessage(), endpoint);
             }
         };
+
+        switch (parallelismDegree)
+        {
+            case SEQUENTIAL:
+                this.treeRequests = new SequentialRequestCoordinator<>(processor);
+                break;
+            case PARALLEL:
+                this.treeRequests = new ParallelRequestCoordinator<>(processor);
+                break;
+            case DATACENTER_AWARE:
+                this.treeRequests = new DatacenterAwareRequestCoordinator(processor);
+                break;
+            default:
+                throw new AssertionError("Unknown degree of parallelism specified");
+        }
     }
 
     /**
@@ -102,7 +119,8 @@ public class RepairJob
         List<InetAddress> allEndpoints = new ArrayList<>(endpoints);
         allEndpoints.add(FBUtilities.getBroadcastAddress());
 
-        if (isSequential)
+        // Create a snapshot at all nodes unless we're using pure parallel repairs
+        if (parallelismDegree != RepairParallelism.PARALLEL)
         {
             List<ListenableFuture<InetAddress>> snapshotTasks = new ArrayList<>(allEndpoints.size());
             for (InetAddress endpoint : allEndpoints)
