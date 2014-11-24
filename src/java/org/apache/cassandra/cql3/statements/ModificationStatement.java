@@ -22,8 +22,6 @@ import java.util.*;
 
 import com.google.common.base.Function;
 import com.google.common.collect.Iterables;
-import org.apache.cassandra.db.marshal.AbstractType;
-import org.github.jamm.MemoryMeter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -43,7 +41,9 @@ import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.thrift.ThriftValidation;
 import org.apache.cassandra.transport.messages.ResultMessage;
+import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
+import org.github.jamm.MemoryMeter;
 
 /*
  * Abstract parent class of individual modifications, i.e. INSERT, UPDATE and DELETE.
@@ -328,7 +328,7 @@ public abstract class ModificationStatement implements CQLStatement, MeasurableF
     throws InvalidRequestException
     {
         CFDefinition cfDef = cfm.getCfDef();
-        ColumnNameBuilder keyBuilder = cfDef.getKeyNameBuilder();
+        ColumnNameBuilder keyBuilderBase = cfDef.getKeyNameBuilder();
         List<ByteBuffer> keys = new ArrayList<ByteBuffer>();
         for (CFDefinition.Name name : cfDef.partitionKeys())
         {
@@ -337,14 +337,19 @@ public abstract class ModificationStatement implements CQLStatement, MeasurableF
                 throw new InvalidRequestException(String.format("Missing mandatory PRIMARY KEY part %s", name));
 
             List<ByteBuffer> values = r.values(variables);
-
-            if (keyBuilder.remainingCount() == 1)
+            if (keyBuilderBase.remainingCount() == 1)
             {
                 for (ByteBuffer val : values)
                 {
                     if (val == null)
                         throw new InvalidRequestException(String.format("Invalid null value for partition key part %s", name));
-                    ByteBuffer key = keyBuilder.copy().add(val).build();
+
+                    ColumnNameBuilder keyBuilder = keyBuilderBase.copy().add(val);
+                    if (keyBuilder.getLength() > FBUtilities.MAX_UNSIGNED_SHORT)
+                        throw new InvalidRequestException(String.format("Partition key size %s exceeds maximum %s",
+                                                                        keyBuilder.getLength(),
+                                                                        FBUtilities.MAX_UNSIGNED_SHORT));
+                    ByteBuffer key = keyBuilder.build();
                     ThriftValidation.validateKey(cfm, key);
                     keys.add(key);
                 }
@@ -356,7 +361,7 @@ public abstract class ModificationStatement implements CQLStatement, MeasurableF
                 ByteBuffer val = values.get(0);
                 if (val == null)
                     throw new InvalidRequestException(String.format("Invalid null value for partition key part %s", name));
-                keyBuilder.add(val);
+                keyBuilderBase.add(val);
             }
         }
         return keys;
@@ -727,7 +732,6 @@ public abstract class ModificationStatement implements CQLStatement, MeasurableF
         Collection<IMutation> mutations = new ArrayList<IMutation>();
         for (ByteBuffer key: keys)
         {
-            ThriftValidation.validateKey(cfm, key);
             ColumnFamily cf = UnsortedColumns.factory.create(cfm);
             addUpdateForKey(cf, key, clusteringPrefix, params);
             RowMutation rm = new RowMutation(cfm.ksName, key, cf);

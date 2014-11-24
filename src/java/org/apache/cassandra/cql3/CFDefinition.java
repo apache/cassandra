@@ -358,5 +358,10 @@ public class CFDefinition implements Iterable<CFDefinition.Name>
 
             return columnName;
         }
+
+        public int getLength()
+        {
+            return columnName == null ? 0 : columnName.remaining();
+        }
     }
 }

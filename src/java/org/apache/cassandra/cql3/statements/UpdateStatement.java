@@ -23,9 +23,10 @@ import java.util.*;
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.*;
-import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.index.SecondaryIndexManager;
 import org.apache.cassandra.exceptions.*;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
 
 /**
@@ -50,6 +51,11 @@ public class UpdateStatement extends ModificationStatement
     throws InvalidRequestException
     {
         CFDefinition cfDef = cfm.getCfDef();
+
+        if (builder.getLength() > FBUtilities.MAX_UNSIGNED_SHORT)
+            throw new InvalidRequestException(String.format("The sum of all clustering columns is too long (%s > %s)",
+                                                            builder.getLength(),
+                                                            FBUtilities.MAX_UNSIGNED_SHORT));
 
         // Inserting the CQL row marker (see #4361)
         // We always need to insert a marker for INSERT, because of the following situation:
@@ -98,6 +104,20 @@ public class UpdateStatement extends ModificationStatement
         {
             for (Operation update : updates)
                 update.execute(key, cf, builder.copy(), params);
+        }
+
+        SecondaryIndexManager indexManager = Keyspace.open(cfm.ksName).getColumnFamilyStore(cfm.cfId).indexManager;
+        if (indexManager.hasIndexes())
+        {
+            for (Column column : cf)
+            {
+                if (!indexManager.validate(column))
+                    throw new InvalidRequestException(String.format("Can't index column value of size %d for index %s on %s.%s",
+                                                                    column.value().remaining(),
+                                                                    cfm.getColumnDefinitionFromColumnName(column.name()).getIndexName(),
+                                                                    cfm.ksName,
+                                                                    cfm.cfName));
+            }
         }
     }
 

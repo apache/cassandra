@@ -574,8 +574,10 @@ public class SecondaryIndexManager
 
     public boolean validate(Column column)
     {
-        SecondaryIndex index = getIndexForColumn(column.name());
-        return index == null || index.validate(column);
+        for (SecondaryIndex index : indexFor(column.name()))
+            if (!index.validate(column))
+                return false;
+        return true;
     }
 
     public static interface Updater

@@ -78,4 +78,11 @@ public interface ColumnNameBuilder
      */
     public ByteBuffer getComponent(int i);
 
+    /**
+     * Returns the total length of the ByteBuffer that will
+     * be returned by build().
+     * @return the total length of the column name to be built
+     */
+    public int getLength();
+
 }

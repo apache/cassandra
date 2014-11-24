@@ -504,5 +504,14 @@ public class CompositeType extends AbstractCompositeType
 
             return components.get(i);
         }
+
+        public int getLength()
+        {
+            int length = 0;
+            for (ByteBuffer component : components)
+                length += component.remaining() + 3; // length + 2 bytes for length + EOC
+
+            return length;
+        }
     }
 }
