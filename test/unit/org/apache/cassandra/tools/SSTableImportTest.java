@@ -156,6 +156,7 @@ public class SSTableImportTest extends SchemaLoader
         // Import JSON to temp SSTable file
         String jsonUrl = resourcePath("SimpleCF.json");
         File tempSS = tempSSTableFile("Keyspace1", "AsciiKeys");
+        System.setProperty("skip.key.validator", "false");
         new SSTableImport(true).importJson(jsonUrl, "Keyspace1", "AsciiKeys", tempSS.getPath());
 
         // Verify results
