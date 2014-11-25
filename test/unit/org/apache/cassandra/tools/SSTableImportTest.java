@@ -188,6 +188,7 @@ public class SSTableImportTest
         // Import JSON to temp SSTable file
         String jsonUrl = resourcePath("SimpleCF.json");
         File tempSS = tempSSTableFile(KEYSPACE1, "AsciiKeys");
+        System.setProperty("skip.key.validator", "false");
         new SSTableImport(true).importJson(jsonUrl, KEYSPACE1, "AsciiKeys", tempSS.getPath());
 
         // Verify results
