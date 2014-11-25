@@ -247,6 +247,7 @@ public class ActiveRepairService
         registerParentRepairSession(parentRepairSession, columnFamilyStores, ranges);
         final CountDownLatch prepareLatch = new CountDownLatch(endpoints.size());
         final AtomicBoolean status = new AtomicBoolean(true);
+        final Set<String> failedNodes = Collections.synchronizedSet(new HashSet<String>());
         IAsyncCallbackWithFailure callback = new IAsyncCallbackWithFailure()
         {
             public void response(MessageIn msg)
@@ -262,6 +263,7 @@ public class ActiveRepairService
             public void onFailure(InetAddress from)
             {
                 status.set(false);
+                failedNodes.add(from.getHostAddress());
                 prepareLatch.countDown();
             }
         };
@@ -283,13 +285,13 @@ public class ActiveRepairService
         catch (InterruptedException e)
         {
             parentRepairSessions.remove(parentRepairSession);
-            throw new RuntimeException("Did not get replies from all endpoints.", e);
+            throw new RuntimeException("Did not get replies from all endpoints. List of failed endpoint(s): " + failedNodes.toString(), e);
         }
 
         if (!status.get())
         {
             parentRepairSessions.remove(parentRepairSession);
-            throw new RuntimeException("Did not get positive replies from all endpoints.");
+            throw new RuntimeException("Did not get positive replies from all endpoints. List of failed endpoint(s): " + failedNodes.toString());
         }
 
         return parentRepairSession;
