@@ -44,6 +44,27 @@ for jar in "$CASSANDRA_HOME"/lib/*.jar; do
     CLASSPATH="$CLASSPATH:$jar"
 done
 
+# JSR223 - collect all JSR223 engines' jars
+for jsr223jar in "$CASSANDRA_HOME"/lib/jsr223/*/*.jar; do
+    CLASSPATH="$CLASSPATH:$jsr223jar"
+done
+# JSR223/JRuby - set ruby lib directory
+if [ -d "$CASSANDRA_HOME"/lib/jsr223/jruby/ruby ] ; then
+    export JVM_OPTS="$JVM_OPTS -Djruby.lib=$CASSANDRA_HOME/lib/jsr223/jruby"
+fi
+# JSR223/JRuby - set ruby JNI libraries root directory
+if [ -d "$CASSANDRA_HOME"/lib/jsr223/jruby/jni ] ; then
+    export JVM_OPTS="$JVM_OPTS -Djffi.boot.library.path=$CASSANDRA_HOME/lib/jsr223/jruby/jni"
+fi
+# JSR223/Jython - set python.home system property
+if [ -f "$CASSANDRA_HOME"/lib/jsr223/jython/jython.jar ] ; then
+    export JVM_OPTS="$JVM_OPTS -Dpython.home=$CASSANDRA_HOME/lib/jsr223/jython"
+fi
+# JSR223/Scala - necessary system property
+if [ -f "$CASSANDRA_HOME"/lib/jsr223/scala/scala-compiler.jar ] ; then
+    export JVM_OPTS="$JVM_OPTS -Dscala.usejavacp=true"
+fi
+
 # set JVM javaagent opts to avoid warnings/errors
 if [ "$JVM_VENDOR" != "OpenJDK" -o "$JVM_VERSION" \> "1.6.0" ] \
       || [ "$JVM_VERSION" = "1.6.0" -a "$JVM_PATCH_VERSION" -ge 23 ]

@@ -49,5 +49,26 @@ set CASSANDRA_CLASSPATH=%CLASSPATH%;"%CASSANDRA_HOME%\build\classes\main";%CASSA
 REM Add the default storage location.  Can be overridden in conf\cassandra.yaml
 set CASSANDRA_PARAMS=%CASSANDRA_PARAMS% "-Dcassandra.storagedir=%CASSANDRA_HOME%\data"
 
+REM JSR223 - collect all JSR223 engines' jars
+for /r %%P in ("%CASSANDRA_HOME%\lib\jsr223\*.jar") do (
+    set CLASSPATH=%CLASSPATH%;%%~fP
+)
+REM JSR223/JRuby - set ruby lib directory
+if EXIST "%CASSANDRA_HOME%\lib\jsr223\jruby\ruby" (
+    set JAVA_OPTS=%JAVA_OPTS% "-Djruby.lib=%CASSANDRA_HOME%\lib\jsr223\jruby"
+)
+REM JSR223/JRuby - set ruby JNI libraries root directory
+if EXIST "%CASSANDRA_HOME%\lib\jsr223\jruby\jni" (
+    set JAVA_OPTS=%JAVA_OPTS% "-Djffi.boot.library.path=%CASSANDRA_HOME%\lib\jsr223\jruby\jni"
+)
+REM JSR223/Jython - set python.home system property
+if EXIST "%$CASSANDRA_HOME%\lib\jsr223\jython\jython.jar" (
+    set JAVA_OPTS=%JAVA_OPTS% "-Dpython.home=%CASSANDRA_HOME%\lib\jsr223\jython"
+)
+REM JSR223/Scala - necessary system property
+if EXIST "$CASSANDRA_HOME\lib\jsr223\scala\scala-compiler.jar" (
+    set JAVA_OPTS=%JAVA_OPTS% "-Dscala.usejavacp=true"
+)
+
 REM Add the sigar-bin path to the java.library.path CASSANDRA-7838
 set JAVA_OPTS=%JAVA_OPTS% -Djava.library.path=%CASSANDRA_HOME%\lib\sigar-bin"
