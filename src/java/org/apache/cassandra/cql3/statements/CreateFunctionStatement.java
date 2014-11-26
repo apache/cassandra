@@ -50,6 +50,7 @@ public final class CreateFunctionStatement extends SchemaAlteringStatement
     private final List<ColumnIdentifier> argNames;
     private final List<CQL3Type.Raw> argRawTypes;
     private final CQL3Type.Raw rawReturnType;
+    private String currentKeyspace;
 
     public CreateFunctionStatement(FunctionName functionName,
                                    String language,
@@ -74,8 +75,10 @@ public final class CreateFunctionStatement extends SchemaAlteringStatement
 
     public void prepareKeyspace(ClientState state) throws InvalidRequestException
     {
-        if (!functionName.hasKeyspace() && state.getRawKeyspace() != null)
-            functionName = new FunctionName(state.getKeyspace(), functionName.name);
+        currentKeyspace = state.getRawKeyspace();
+
+        if (!functionName.hasKeyspace() && currentKeyspace != null)
+            functionName = new FunctionName(currentKeyspace, functionName.name);
 
         if (!functionName.hasKeyspace())
             throw new InvalidRequestException("You need to be logged in a keyspace or use a fully qualified function name");
@@ -112,11 +115,9 @@ public final class CreateFunctionStatement extends SchemaAlteringStatement
 
         List<AbstractType<?>> argTypes = new ArrayList<>(argRawTypes.size());
         for (CQL3Type.Raw rawType : argRawTypes)
-            // We have no proper keyspace to give, which means that this will break (NPE currently)
-            // for UDT: #7791 is open to fix this
-            argTypes.add(rawType.prepare(functionName.keyspace).getType());
+            argTypes.add(rawType.prepare(typeKeyspace(rawType)).getType());
 
-        AbstractType<?> returnType = rawReturnType.prepare(null).getType();
+        AbstractType<?> returnType = rawReturnType.prepare(typeKeyspace(rawReturnType)).getType();
 
         Function old = Functions.find(functionName, argTypes);
         if (old != null)
@@ -126,12 +127,20 @@ public final class CreateFunctionStatement extends SchemaAlteringStatement
             if (!orReplace)
                 throw new InvalidRequestException(String.format("Function %s already exists", old));
 
-            if (!old.returnType().isValueCompatibleWith(returnType))
+            if (!Functions.typeEquals(old.returnType(), returnType))
                 throw new InvalidRequestException(String.format("Cannot replace function %s, the new return type %s is not compatible with the return type %s of existing function",
                                                                 functionName, returnType.asCQL3Type(), old.returnType().asCQL3Type()));
         }
 
         MigrationManager.announceNewFunction(UDFunction.create(functionName, argNames, argTypes, returnType, language, body, deterministic), isLocalOnly);
         return true;
+    }
+
+    private String typeKeyspace(CQL3Type.Raw rawType)
+    {
+        String ks = rawType.keyspace();
+        if (ks != null)
+            return ks;
+        return functionName.keyspace;
     }
 }

@@ -30,9 +30,10 @@ public interface ScalarFunction extends Function
     /**
      * Applies this function to the specified parameter.
      *
+     * @param protocolVersion protocol version used for parameters and return value
      * @param parameters the input parameters
      * @return the result of applying this function to the parameter
      * @throws InvalidRequestException if this function cannot not be applied to the parameter
      */
-    public ByteBuffer execute(List<ByteBuffer> parameters) throws InvalidRequestException;
+    public ByteBuffer execute(int protocolVersion, List<ByteBuffer> parameters) throws InvalidRequestException;
 }

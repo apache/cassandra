@@ -19,50 +19,51 @@ package org.apache.cassandra.cql3;
 
 import java.math.BigDecimal;
 import java.math.BigInteger;
-import java.util.Date;
+import java.util.*;
 
-import org.junit.After;
 import org.junit.Assert;
-import org.junit.Before;
 import org.junit.Test;
 
+import com.datastax.driver.core.*;
 import org.apache.cassandra.cql3.functions.FunctionName;
 import org.apache.cassandra.cql3.functions.Functions;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.service.ClientState;
+import org.apache.cassandra.transport.Server;
 import org.apache.cassandra.transport.messages.ResultMessage;
 
 public class UFTest extends CQLTester
 {
-    private static final String KS_FOO = "cqltest_foo";
 
-    @Before
-    public void createKsFoo() throws Throwable
+    public static FunctionName parseFunctionName(String qualifiedName)
     {
-        execute("CREATE KEYSPACE IF NOT EXISTS "+KS_FOO+" WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 3};");
-    }
-
-    @After
-    public void dropKsFoo() throws Throwable
-    {
-        execute("DROP KEYSPACE IF EXISTS "+KS_FOO+";");
+        int i = qualifiedName.indexOf('.');
+        return i == -1
+               ? FunctionName.nativeFunction(qualifiedName)
+               : new FunctionName(qualifiedName.substring(0, i).trim(), qualifiedName.substring(i+1).trim());
     }
 
     @Test
     public void testFunctionDropOnKeyspaceDrop() throws Throwable
     {
-        execute("CREATE FUNCTION " + KS_FOO + ".sin ( input double ) RETURNS double LANGUAGE java AS 'return Double.valueOf(Math.sin(input.doubleValue()));'");
+        String fSin = createFunction(KEYSPACE_PER_TEST, "double",
+                                     "CREATE FUNCTION %s ( input double ) " +
+                                     "RETURNS double " +
+                                     "LANGUAGE java " +
+                                     "AS 'return Double.valueOf(Math.sin(input.doubleValue()));'");
 
-        Assert.assertEquals(1, Functions.find(new FunctionName(KS_FOO, "sin")).size());
+        FunctionName fSinName = parseFunctionName(fSin);
 
-        assertRows(execute("SELECT function_name, language FROM system.schema_functions WHERE keyspace_name=?", KS_FOO),
-                   row("sin", "java"));
+        Assert.assertEquals(1, Functions.find(parseFunctionName(fSin)).size());
 
-        execute("DROP KEYSPACE "+KS_FOO+";");
+        assertRows(execute("SELECT function_name, language FROM system.schema_functions WHERE keyspace_name=?", KEYSPACE_PER_TEST),
+                   row(fSinName.name, "java"));
 
-        assertRows(execute("SELECT function_name, language FROM system.schema_functions WHERE keyspace_name=?", KS_FOO));
+        dropPerTestKeyspace();
 
-        Assert.assertEquals(0, Functions.find(new FunctionName(KS_FOO, "sin")).size());
+        assertRows(execute("SELECT function_name, language FROM system.schema_functions WHERE keyspace_name=?", KEYSPACE_PER_TEST));
+
+        Assert.assertEquals(0, Functions.find(fSinName).size());
     }
 
     @Test
@@ -70,27 +71,40 @@ public class UFTest extends CQLTester
     {
         createTable("CREATE TABLE %s (key int PRIMARY KEY, d double)");
 
-        execute("CREATE FUNCTION " + KS_FOO + ".sin ( input double ) RETURNS double LANGUAGE java AS 'return Double.valueOf(Math.sin(input.doubleValue()));'");
+        String fSin = createFunction(KEYSPACE_PER_TEST, "double",
+                                     "CREATE FUNCTION %s ( input double ) " +
+                                     "RETURNS double " +
+                                     "LANGUAGE java " +
+                                     "AS 'return Double.valueOf(Math.sin(input.doubleValue()));'");
 
-        Assert.assertEquals(1, Functions.find(new FunctionName(KS_FOO, "sin")).size());
+        FunctionName fSinName = parseFunctionName(fSin);
 
-        ResultMessage.Prepared prepared = QueryProcessor.prepare("SELECT key, "+KS_FOO+".sin(d) FROM "+KEYSPACE+'.'+currentTable(), ClientState.forInternalCalls(), false);
+        Assert.assertEquals(1, Functions.find(parseFunctionName(fSin)).size());
+
+        ResultMessage.Prepared prepared = QueryProcessor.prepare(
+                                                    String.format("SELECT key, %s(d) FROM %s.%s", fSin, KEYSPACE, currentTable()),
+                                                    ClientState.forInternalCalls(), false);
         Assert.assertNotNull(QueryProcessor.instance.getPrepared(prepared.statementId));
 
-        execute("DROP FUNCTION " + KS_FOO + ".sin(double);");
+        execute("DROP FUNCTION " + fSin + "(double);");
 
         Assert.assertNull(QueryProcessor.instance.getPrepared(prepared.statementId));
 
         //
 
-        execute("CREATE FUNCTION " + KS_FOO + ".sin ( input double ) RETURNS double LANGUAGE java AS 'return Double.valueOf(Math.sin(input.doubleValue()));'");
+        execute("CREATE FUNCTION " + fSin + " ( input double ) " +
+                "RETURNS double " +
+                "LANGUAGE java " +
+                "AS 'return Double.valueOf(Math.sin(input.doubleValue()));'");
 
-        Assert.assertEquals(1, Functions.find(new FunctionName(KS_FOO, "sin")).size());
+        Assert.assertEquals(1, Functions.find(fSinName).size());
 
-        prepared = QueryProcessor.prepare("SELECT key, "+KS_FOO+".sin(d) FROM "+KEYSPACE+'.'+currentTable(), ClientState.forInternalCalls(), false);
+        prepared = QueryProcessor.prepare(
+                                         String.format("SELECT key, %s(d) FROM %s.%s", fSin, KEYSPACE, currentTable()),
+                                         ClientState.forInternalCalls(), false);
         Assert.assertNotNull(QueryProcessor.instance.getPrepared(prepared.statementId));
 
-        execute("DROP KEYSPACE " + KS_FOO + ";");
+        dropPerTestKeyspace();
 
         Assert.assertNull(QueryProcessor.instance.getPrepared(prepared.statementId));
     }
@@ -105,47 +119,55 @@ public class UFTest extends CQLTester
         execute("INSERT INTO %s(key, d) VALUES (?, ?)", 3, 3d);
 
         // simple creation
-        execute("CREATE FUNCTION "+KS_FOO+".sin ( input double ) RETURNS double LANGUAGE java AS 'return Double.valueOf(Math.sin(input.doubleValue()));'");
+        String fSin = createFunction(KEYSPACE_PER_TEST, "double",
+                                     "CREATE FUNCTION %s ( input double ) " +
+                                     "RETURNS double " +
+                                     "LANGUAGE java " +
+                                     "AS 'return Double.valueOf(Math.sin(input.doubleValue()));'");
         // check we can't recreate the same function
-        assertInvalid("CREATE FUNCTION "+KS_FOO+".sin ( input double ) RETURNS double LANGUAGE java AS 'return Double.valueOf(Math.sin(input.doubleValue()));'");
-        // but that it doesn't complay with "IF NOT EXISTS"
-        execute("CREATE FUNCTION IF NOT EXISTS "+KS_FOO+".sin ( input double ) RETURNS double LANGUAGE java AS 'return Double.valueOf(Math.sin(input.doubleValue()));'");
+        assertInvalid("CREATE FUNCTION " + fSin + " ( input double ) RETURNS double LANGUAGE java AS 'return Double.valueOf(Math.sin(input.doubleValue()));'");
+        // but that it doesn't comply with "IF NOT EXISTS"
+        execute("CREATE FUNCTION IF NOT EXISTS " + fSin + " ( input double ) RETURNS double LANGUAGE java AS 'return Double.valueOf(Math.sin(input.doubleValue()));'");
 
         // Validate that it works as expected
-        assertRows(execute("SELECT key, "+KS_FOO+".sin(d) FROM %s"),
+        assertRows(execute("SELECT key, " + fSin + "(d) FROM %s"),
             row(1, Math.sin(1d)),
             row(2, Math.sin(2d)),
             row(3, Math.sin(3d))
         );
 
         // Replace the method with incompatible return type
-        assertInvalid("CREATE OR REPLACE FUNCTION " + KS_FOO + ".sin ( input double ) RETURNS text LANGUAGE java AS 'return Double.valueOf(42d);'");
+        assertInvalid("CREATE OR REPLACE FUNCTION " + fSin + " ( input double ) RETURNS text LANGUAGE java AS 'return Double.valueOf(42d);'");
         // proper replacement
-        execute("CREATE OR REPLACE FUNCTION "+KS_FOO+".sin ( input double ) RETURNS double LANGUAGE java AS 'return Double.valueOf(42d);'");
+        execute("CREATE OR REPLACE FUNCTION " + fSin + " ( input double ) RETURNS double LANGUAGE java AS 'return Double.valueOf(42d);'");
 
         // Validate the method as been replaced
-        assertRows(execute("SELECT key, "+KS_FOO+".sin(d) FROM %s"),
+        assertRows(execute("SELECT key, " + fSin + "(d) FROM %s"),
             row(1, 42.0),
             row(2, 42.0),
             row(3, 42.0)
         );
 
-        // same function but without namespace
-        execute("CREATE FUNCTION "+KEYSPACE+".sin ( input double ) RETURNS double LANGUAGE java AS 'return Double.valueOf(Math.sin(input.doubleValue()));'");
-        assertRows(execute("SELECT key, "+KEYSPACE+".sin(d) FROM %s"),
+        // same function but other keyspace
+        String fSin2 = createFunction(KEYSPACE, "double",
+                                      "CREATE FUNCTION %s ( input double ) " +
+                                      "RETURNS double " +
+                                      "LANGUAGE java " +
+                                      "AS 'return Double.valueOf(Math.sin(input.doubleValue()));'");
+        assertRows(execute("SELECT key, " + fSin2 + "(d) FROM %s"),
             row(1, Math.sin(1d)),
             row(2, Math.sin(2d)),
             row(3, Math.sin(3d))
         );
 
-        // Drop with and without keyspace
-        execute("DROP FUNCTION "+KS_FOO+".sin");
-        execute("DROP FUNCTION "+KEYSPACE+".sin");
+        // Drop
+        execute("DROP FUNCTION " + fSin);
+        execute("DROP FUNCTION " + fSin2);
 
         // Drop unexisting function
-        assertInvalid("DROP FUNCTION "+KS_FOO+".sin");
+        assertInvalid("DROP FUNCTION " + fSin);
         // but don't complain with "IF EXISTS"
-        execute("DROP FUNCTION IF EXISTS "+KS_FOO+".sin");
+        execute("DROP FUNCTION IF EXISTS " + fSin);
 
         // can't drop native functions
         assertInvalid("DROP FUNCTION dateof");
@@ -162,13 +184,17 @@ public class UFTest extends CQLTester
 
         execute("INSERT INTO %s(v) VALUES (?)", "aaa");
 
-        execute("CREATE FUNCTION "+KEYSPACE+".repeat (v text, n int) RETURNS text LANGUAGE java AS 'StringBuilder sb = new StringBuilder();\n" +
-                "        for (int i = 0; i < n.intValue(); i++)\n" +
-                "            sb.append(v);\n" +
-                "        return sb.toString();'");
+        String fRepeat = createFunction(KEYSPACE_PER_TEST, "text,int",
+                                        "CREATE FUNCTION %s(v text, n int) " +
+                                        "RETURNS text " +
+                                        "LANGUAGE java " +
+                                        "AS 'StringBuilder sb = new StringBuilder();\n" +
+                                        "    for (int i = 0; i < n.intValue(); i++)\n" +
+                                        "        sb.append(v);\n" +
+                                        "    return sb.toString();'");
 
-        assertRows(execute("SELECT v FROM %s WHERE v="+KEYSPACE+".repeat(?, ?)", "a", 3), row("aaa"));
-        assertEmpty(execute("SELECT v FROM %s WHERE v="+KEYSPACE+".repeat(?, ?)", "a", 2));
+        assertRows(execute("SELECT v FROM %s WHERE v=" + fRepeat + "(?, ?)", "a", 3), row("aaa"));
+        assertEmpty(execute("SELECT v FROM %s WHERE v=" + fRepeat + "(?, ?)", "a", 2));
     }
 
     @Test
@@ -178,46 +204,56 @@ public class UFTest extends CQLTester
 
         execute("INSERT INTO %s(k, v) VALUES (?, ?)", "f2", 1);
 
-        execute("CREATE FUNCTION "+KEYSPACE+".overloaded(v varchar) RETURNS text LANGUAGE java AS 'return \"f1\";'");
-        execute("CREATE OR REPLACE FUNCTION "+KEYSPACE+".overloaded(i int) RETURNS text LANGUAGE java AS 'return \"f2\";'");
-        execute("CREATE OR REPLACE FUNCTION "+KEYSPACE+".overloaded(v1 text, v2 text) RETURNS text LANGUAGE java AS 'return \"f3\";'");
-        execute("CREATE OR REPLACE FUNCTION "+KEYSPACE+".overloaded(v ascii) RETURNS text LANGUAGE java AS 'return \"f1\";'");
+        String fOverload = createFunction(KEYSPACE_PER_TEST, "varchar",
+                                          "CREATE FUNCTION %s ( input varchar ) " +
+                                          "RETURNS text " +
+                                          "LANGUAGE java " +
+                                          "AS 'return \"f1\";'");
+        createFunctionOverload(fOverload,
+                               "int",
+                               "CREATE OR REPLACE FUNCTION %s(i int) RETURNS text LANGUAGE java AS 'return \"f2\";'");
+        createFunctionOverload(fOverload,
+                               "text,text",
+                               "CREATE OR REPLACE FUNCTION %s(v1 text, v2 text) RETURNS text LANGUAGE java AS 'return \"f3\";'");
+        createFunctionOverload(fOverload,
+                               "ascii",
+                               "CREATE OR REPLACE FUNCTION %s(v ascii) RETURNS text LANGUAGE java AS 'return \"f1\";'");
 
         // text == varchar, so this should be considered as a duplicate
-        assertInvalid("CREATE FUNCTION "+KEYSPACE+".overloaded(v varchar) RETURNS text LANGUAGE java AS 'return \"f1\";'");
+        assertInvalid("CREATE FUNCTION " + fOverload + "(v varchar) RETURNS text LANGUAGE java AS 'return \"f1\";'");
 
-        assertRows(execute("SELECT "+KEYSPACE+".overloaded(k), "+KEYSPACE+".overloaded(v), "+KEYSPACE+".overloaded(k, k) FROM %s"),
+        assertRows(execute("SELECT " + fOverload + "(k), " + fOverload + "(v), " + fOverload + "(k, k) FROM %s"),
             row("f1", "f2", "f3")
         );
 
         forcePreparedValues();
         // This shouldn't work if we use preparation since there no way to know which overload to use
-        assertInvalid("SELECT v FROM %s WHERE k = "+KEYSPACE+".overloaded(?)", "foo");
+        assertInvalid("SELECT v FROM %s WHERE k = " + fOverload + "(?)", "foo");
         stopForcingPreparedValues();
 
         // but those should since we specifically cast
-        assertEmpty(execute("SELECT v FROM %s WHERE k = "+KEYSPACE+".overloaded((text)?)", "foo"));
-        assertRows(execute("SELECT v FROM %s WHERE k = "+KEYSPACE+".overloaded((int)?)", 3), row(1));
-        assertEmpty(execute("SELECT v FROM %s WHERE k = "+KEYSPACE+".overloaded((ascii)?)", "foo"));
+        assertEmpty(execute("SELECT v FROM %s WHERE k = " + fOverload + "((text)?)", "foo"));
+        assertRows(execute("SELECT v FROM %s WHERE k = " + fOverload + "((int)?)", 3), row(1));
+        assertEmpty(execute("SELECT v FROM %s WHERE k = " + fOverload + "((ascii)?)", "foo"));
         // And since varchar == text, this should work too
-        assertEmpty(execute("SELECT v FROM %s WHERE k = "+KEYSPACE+".overloaded((varchar)?)", "foo"));
+        assertEmpty(execute("SELECT v FROM %s WHERE k = " + fOverload + "((varchar)?)", "foo"));
 
         // no such functions exist...
-        assertInvalid("DROP FUNCTION "+KEYSPACE+".overloaded(boolean)");
-        assertInvalid("DROP FUNCTION "+KEYSPACE+".overloaded(bigint)");
+        assertInvalid("DROP FUNCTION " + fOverload + "(boolean)");
+        assertInvalid("DROP FUNCTION " + fOverload + "(bigint)");
 
         // 'overloaded' has multiple overloads - so it has to fail (CASSANDRA-7812)
-        assertInvalid("DROP FUNCTION "+KEYSPACE+".overloaded");
-        execute("DROP FUNCTION " + KEYSPACE + ".overloaded(varchar)");
-        assertInvalid("SELECT v FROM %s WHERE k = " + KEYSPACE + ".overloaded((text)?)", "foo");
-        execute("DROP FUNCTION " + KEYSPACE + ".overloaded(text, text)");
-        assertInvalid("SELECT v FROM %s WHERE k = " + KEYSPACE + ".overloaded((text)?,(text)?)", "foo", "bar");
-        execute("DROP FUNCTION " + KEYSPACE + ".overloaded(ascii)");
-        assertInvalid("SELECT v FROM %s WHERE k = "+KEYSPACE+".overloaded((ascii)?)", "foo");
+        assertInvalid("DROP FUNCTION " + fOverload);
+        execute("DROP FUNCTION " + fOverload + "(varchar)");
+        assertInvalid("SELECT v FROM %s WHERE k = " + fOverload + "((text)?)", "foo");
+        execute("DROP FUNCTION " + fOverload + "(text, text)");
+        assertInvalid("SELECT v FROM %s WHERE k = " + fOverload + "((text)?,(text)?)", "foo", "bar");
+        execute("DROP FUNCTION " + fOverload + "(ascii)");
+        assertInvalid("SELECT v FROM %s WHERE k = " + fOverload + "((ascii)?)", "foo");
         // single-int-overload must still work
-        assertRows(execute("SELECT v FROM %s WHERE k = " + KEYSPACE + ".overloaded((int)?)", 3), row(1));
+        assertRows(execute("SELECT v FROM %s WHERE k = " + fOverload + "((int)?)", 3), row(1));
         // overloaded has just one overload now - so the following DROP FUNCTION is not ambigious (CASSANDRA-7812)
-        execute("DROP FUNCTION "+KEYSPACE+".overloaded");
+        execute("DROP FUNCTION " + fOverload + "");
     }
 
     @Test
@@ -228,7 +264,9 @@ public class UFTest extends CQLTester
         execute("INSERT INTO %s (key, val) VALUES (?, ?)", 2, 2d);
         execute("INSERT INTO %s (key, val) VALUES (?, ?)", 3, 3d);
 
-        execute("create function "+KS_FOO+".corjf ( input double ) returns double language java\n" +
+        String fName = createFunction(KEYSPACE_PER_TEST, "double",
+                "CREATE FUNCTION %s( input double ) " +
+                "RETURNS double LANGUAGE java\n" +
                 "AS '\n" +
                 "  // parameter val is of type java.lang.Double\n" +
                 "  /* return type is of type java.lang.Double */\n" +
@@ -240,19 +278,20 @@ public class UFTest extends CQLTester
                 "';");
 
         // just check created function
-        assertRows(execute("SELECT key, val, "+KS_FOO+".corjf(val) FROM %s"),
+        assertRows(execute("SELECT key, val, " + fName + "(val) FROM %s"),
                    row(1, 1d, Math.sin(1d)),
                    row(2, 2d, Math.sin(2d)),
                    row(3, 3d, Math.sin(3d))
         );
 
-        execute("create or replace function "+KS_FOO+".corjf ( input double ) returns double language java\n" +
+        execute("CREATE OR REPLACE FUNCTION " + fName + "( input double ) " +
+                "RETURNS double LANGUAGE java\n" +
                 "AS '\n" +
                 "  return input;\n" +
                 "';");
 
         // check if replaced function returns correct result
-        assertRows(execute("SELECT key, val, "+KS_FOO+".corjf(val) FROM %s"),
+        assertRows(execute("SELECT key, val, " + fName + "(val) FROM %s"),
                    row(1, 1d, 1d),
                    row(2, 2d, 2d),
                    row(3, 3d, 3d)
@@ -266,18 +305,18 @@ public class UFTest extends CQLTester
 
         String functionBody = "\n  return Long.valueOf(1L);\n";
 
-        String cql = String.format("CREATE OR REPLACE FUNCTION %s.jfnpt() RETURNS bigint LANGUAGE JAVA\n" +
-                     "AS '%s';", KEYSPACE, functionBody);
+        String fName = createFunction(KEYSPACE, "",
+                                      "CREATE OR REPLACE FUNCTION %s() RETURNS bigint LANGUAGE JAVA\n" +
+                                      "AS '" +functionBody + "';");
 
-        execute(cql);
-
-        assertRows(execute("SELECT language, body FROM system.schema_functions WHERE keyspace_name=? AND function_name='jfnpt'", KEYSPACE),
+        assertRows(execute("SELECT language, body FROM system.schema_functions WHERE keyspace_name=? AND function_name=?",
+                           KEYSPACE, parseFunctionName(fName).name),
                    row("java", functionBody));
 
         execute("INSERT INTO %s (key, val) VALUES (?, ?)", 1, 1d);
         execute("INSERT INTO %s (key, val) VALUES (?, ?)", 2, 2d);
         execute("INSERT INTO %s (key, val) VALUES (?, ?)", 3, 3d);
-        assertRows(execute("SELECT key, val, "+KEYSPACE+".jfnpt() FROM %s"),
+        assertRows(execute("SELECT key, val, " + fName + "() FROM %s"),
                    row(1, 1d, 1L),
                    row(2, 2d, 1L),
                    row(3, 3d, 1L)
@@ -289,7 +328,7 @@ public class UFTest extends CQLTester
     {
         try
         {
-            execute("CREATE OR REPLACE FUNCTION "+KEYSPACE+".jfinv() RETURNS bigint LANGUAGE JAVA\n" +
+            execute("CREATE OR REPLACE FUNCTION " + KEYSPACE + ".jfinv() RETURNS bigint LANGUAGE JAVA\n" +
                     "AS '\n" +
                     "foobarbaz" +
                     "\n';");
@@ -303,7 +342,7 @@ public class UFTest extends CQLTester
 
         try
         {
-            execute("CREATE OR REPLACE FUNCTION "+KEYSPACE+".jfinv() RETURNS bigint LANGUAGE JAVA\n" +
+            execute("CREATE OR REPLACE FUNCTION " + KEYSPACE + ".jfinv() RETURNS bigint LANGUAGE JAVA\n" +
                     "AS '\n" +
                     "foobarbaz;" +
                     "\n';");
@@ -319,13 +358,8 @@ public class UFTest extends CQLTester
     @Test
     public void testJavaFunctionInvalidReturn() throws Throwable
     {
-        String functionBody = "\n" +
-                              "  return Long.valueOf(1L);\n";
-
-        String cql = "CREATE OR REPLACE FUNCTION jfir(val double) RETURNS double LANGUAGE JAVA\n" +
-                     "AS '" + functionBody + "';";
-
-        assertInvalid(cql);
+        assertInvalid("CREATE OR REPLACE FUNCTION jfir(val double) RETURNS double LANGUAGE JAVA\n" +
+                      "AS 'return Long.valueOf(1L);';");
     }
 
     @Test
@@ -333,18 +367,15 @@ public class UFTest extends CQLTester
     {
         createTable("CREATE TABLE %s (key int primary key, val bigint)");
 
-        String functionBody = "\n" +
-                              "  return val;\n";
-
-        String cql = "CREATE OR REPLACE FUNCTION "+KEYSPACE+".jft(val double) RETURNS double LANGUAGE JAVA\n" +
-                     "AS '" + functionBody + "';";
-
-        execute(cql);
+        String fName = createFunction(KEYSPACE, "double",
+                                      "CREATE OR REPLACE FUNCTION " + KEYSPACE + ".jft(val double)" +
+                                      "RETURNS double LANGUAGE JAVA " +
+                                      "AS 'return val;';");
 
         execute("INSERT INTO %s (key, val) VALUES (?, ?)", 1, 1L);
         execute("INSERT INTO %s (key, val) VALUES (?, ?)", 2, 2L);
         execute("INSERT INTO %s (key, val) VALUES (?, ?)", 3, 3L);
-        assertInvalid("SELECT key, val, "+KEYSPACE+".jft(val) FROM %s");
+        assertInvalid("SELECT key, val, " + fName + "(val) FROM %s");
     }
 
     @Test
@@ -361,18 +392,22 @@ public class UFTest extends CQLTester
                               "  double v = Math.sin( val.doubleValue() );\n" +
                               "  return Double.valueOf(v);\n";
 
-        String cql = String.format("CREATE OR REPLACE FUNCTION %s.jft(val double) RETURNS double LANGUAGE JAVA\n" +
-                     "AS '%s';", KEYSPACE, functionBody);
+        String fName = createFunction(KEYSPACE, "double",
+                                      "CREATE OR REPLACE FUNCTION %s(val double) " +
+                                      "RETURNS double " +
+                                      "LANGUAGE JAVA " +
+                                      "AS '" + functionBody + "';");
 
-        execute(cql);
+        FunctionName fNameName = parseFunctionName(fName);
 
-        assertRows(execute("SELECT language, body FROM system.schema_functions WHERE keyspace_name=? AND function_name='jft'", KEYSPACE),
+        assertRows(execute("SELECT language, body FROM system.schema_functions WHERE keyspace_name=? AND function_name=?",
+                           fNameName.keyspace, fNameName.name),
                    row("java", functionBody));
 
         execute("INSERT INTO %s (key, val) VALUES (?, ?)", 1, 1d);
         execute("INSERT INTO %s (key, val) VALUES (?, ?)", 2, 2d);
         execute("INSERT INTO %s (key, val) VALUES (?, ?)", 3, 3d);
-        assertRows(execute("SELECT key, val, " + KEYSPACE + ".jft(val) FROM %s"),
+        assertRows(execute("SELECT key, val, " + fName + "(val) FROM %s"),
                    row(1, 1d, Math.sin(1d)),
                    row(2, 2d, Math.sin(2d)),
                    row(3, 3d, Math.sin(3d))
@@ -384,25 +419,21 @@ public class UFTest extends CQLTester
     {
         createTable("CREATE TABLE %s (key int primary key, val double)");
 
-        execute("CREATE TABLE "+KS_FOO+".second_tab (key int primary key, val double)");
+        execute("CREATE TABLE " + KEYSPACE_PER_TEST + ".second_tab (key int primary key, val double)");
 
-        String functionBody = "\n" +
-                              "  return val;\n";
-
-        String cql = "CREATE OR REPLACE FUNCTION "+KS_FOO+".jfitks(val double) RETURNS double LANGUAGE JAVA\n" +
-                     "AS '" + functionBody + "';";
-
-        execute(cql);
+        String fName = createFunction(KEYSPACE_PER_TEST, "double",
+                                      "CREATE OR REPLACE FUNCTION %s(val double) RETURNS double LANGUAGE JAVA " +
+                                      "AS 'return val;';");
 
         execute("INSERT INTO %s (key, val) VALUES (?, ?)", 1, 1d);
         execute("INSERT INTO %s (key, val) VALUES (?, ?)", 2, 2d);
         execute("INSERT INTO %s (key, val) VALUES (?, ?)", 3, 3d);
-        assertInvalid("SELECT key, val, " + KEYSPACE + ".jfitks(val) FROM %s");
+        assertInvalid("SELECT key, val, " + parseFunctionName(fName).name + "(val) FROM %s");
 
-        execute("INSERT INTO "+KS_FOO+".second_tab (key, val) VALUES (?, ?)", 1, 1d);
-        execute("INSERT INTO "+KS_FOO+".second_tab (key, val) VALUES (?, ?)", 2, 2d);
-        execute("INSERT INTO "+KS_FOO+".second_tab (key, val) VALUES (?, ?)", 3, 3d);
-        assertRows(execute("SELECT key, val, jfitks(val) FROM " + KS_FOO + ".second_tab"),
+        execute("INSERT INTO " + KEYSPACE_PER_TEST + ".second_tab (key, val) VALUES (?, ?)", 1, 1d);
+        execute("INSERT INTO " + KEYSPACE_PER_TEST + ".second_tab (key, val) VALUES (?, ?)", 2, 2d);
+        execute("INSERT INTO " + KEYSPACE_PER_TEST + ".second_tab (key, val) VALUES (?, ?)", 3, 3d);
+        assertRows(execute("SELECT key, val, " + fName + "(val) FROM " + KEYSPACE_PER_TEST + ".second_tab"),
                    row(1, 1d, 1d),
                    row(2, 2d, 2d),
                    row(3, 3d, 3d)
@@ -412,26 +443,25 @@ public class UFTest extends CQLTester
     @Test
     public void testFunctionWithReservedName() throws Throwable
     {
-        execute("CREATE TABLE " + KS_FOO + ".second_tab (key int primary key, val double)");
+        execute("CREATE TABLE " + KEYSPACE_PER_TEST + ".second_tab (key int primary key, val double)");
 
-        String cql = "CREATE OR REPLACE FUNCTION "+KS_FOO+".now() RETURNS timestamp LANGUAGE JAVA\n" +
-                     "AS 'return null;';";
+        String fName = createFunction(KEYSPACE_PER_TEST, "",
+                                      "CREATE OR REPLACE FUNCTION %s() RETURNS timestamp LANGUAGE JAVA " +
+                                      "AS 'return null;';");
 
-        execute(cql);
-
-        execute("INSERT INTO "+KS_FOO+".second_tab (key, val) VALUES (?, ?)", 1, 1d);
-        execute("INSERT INTO "+KS_FOO+".second_tab (key, val) VALUES (?, ?)", 2, 2d);
-        execute("INSERT INTO "+KS_FOO+".second_tab (key, val) VALUES (?, ?)", 3, 3d);
+        execute("INSERT INTO " + KEYSPACE_PER_TEST + ".second_tab (key, val) VALUES (?, ?)", 1, 1d);
+        execute("INSERT INTO " + KEYSPACE_PER_TEST + ".second_tab (key, val) VALUES (?, ?)", 2, 2d);
+        execute("INSERT INTO " + KEYSPACE_PER_TEST + ".second_tab (key, val) VALUES (?, ?)", 3, 3d);
 
         // ensure that system now() is executed
-        UntypedResultSet rows = execute("SELECT key, val, now() FROM " + KS_FOO + ".second_tab");
+        UntypedResultSet rows = execute("SELECT key, val, now() FROM " + KEYSPACE_PER_TEST + ".second_tab");
         Assert.assertEquals(3, rows.size());
         UntypedResultSet.Row row = rows.iterator().next();
         Date ts = row.getTimestamp(row.getColumns().get(2).name.toString());
         Assert.assertNotNull(ts);
 
-        // ensure that KS_FOO's now() is executed
-        rows = execute("SELECT key, val, "+KS_FOO+".now() FROM " + KS_FOO + ".second_tab");
+        // ensure that KEYSPACE_PER_TEST's now() is executed
+        rows = execute("SELECT key, val, " + fName + "() FROM " + KEYSPACE_PER_TEST + ".second_tab");
         Assert.assertEquals(3, rows.size());
         row = rows.iterator().next();
         Assert.assertFalse(row.has(row.getColumns().get(2).name.toString()));
@@ -460,19 +490,17 @@ public class UFTest extends CQLTester
     @Test
     public void testFunctionNonExistingKeyspace() throws Throwable
     {
-        String cql = "CREATE OR REPLACE FUNCTION this_ks_does_not_exist.jnft(val double) RETURNS double LANGUAGE JAVA\n" +
-                     "AS 'return null;';";
-        assertInvalid(cql);
+        assertInvalid("CREATE OR REPLACE FUNCTION this_ks_does_not_exist.jnft(val double) RETURNS double LANGUAGE JAVA\n" +
+                      "AS 'return null;';");
     }
 
     @Test
     public void testFunctionAfterOnDropKeyspace() throws Throwable
     {
-        dropKsFoo();
+        dropPerTestKeyspace();
 
-        String cql = "CREATE OR REPLACE FUNCTION "+KS_FOO+".jnft(val double) RETURNS double LANGUAGE JAVA\n" +
-                     "AS 'return null;';";
-        assertInvalid(cql);
+        assertInvalid("CREATE OR REPLACE FUNCTION " + KEYSPACE_PER_TEST + ".jnft(val double) RETURNS double LANGUAGE JAVA\n" +
+                      "AS 'return null;';");
     }
 
     @Test
@@ -489,18 +517,20 @@ public class UFTest extends CQLTester
                               "  double v = Math.sin( val.doubleValue() );\n" +
                               "  return Double.valueOf(v);\n";
 
-        String cql = "CREATE OR REPLACE FUNCTION "+KS_FOO+".jnft(val double) RETURNS double LANGUAGE JAVA\n" +
-                     "AS '" + functionBody + "';";
+        String fName = createFunction(KEYSPACE_PER_TEST, "double",
+                                     "CREATE OR REPLACE FUNCTION %s(val double) RETURNS double LANGUAGE JAVA " +
+                                     "AS '" + functionBody + "';");
 
-        execute(cql);
+        FunctionName fNameName = parseFunctionName(fName);
 
-        assertRows(execute("SELECT language, body FROM system.schema_functions WHERE keyspace_name='"+KS_FOO+"' AND function_name='jnft'"),
+        assertRows(execute("SELECT language, body FROM system.schema_functions WHERE keyspace_name=? AND function_name=?",
+                           fNameName.keyspace, fNameName.name),
                    row("java", functionBody));
 
         execute("INSERT INTO %s (key, val) VALUES (?, ?)", 1, 1d);
         execute("INSERT INTO %s (key, val) VALUES (?, ?)", 2, 2d);
         execute("INSERT INTO %s (key, val) VALUES (?, ?)", 3, 3d);
-        assertRows(execute("SELECT key, val, "+KS_FOO+".jnft(val) FROM %s"),
+        assertRows(execute("SELECT key, val, " + fName + "(val) FROM %s"),
                    row(1, 1d, Math.sin(1d)),
                    row(2, 2d, Math.sin(2d)),
                    row(3, 3d, Math.sin(3d))
@@ -515,12 +545,14 @@ public class UFTest extends CQLTester
         String functionBody = "\n" +
                               "  throw new RuntimeException(\"oh no!\");\n";
 
-        String cql = "CREATE OR REPLACE FUNCTION "+KS_FOO+".jrtef(val double) RETURNS double LANGUAGE JAVA\n" +
-                     "AS '" + functionBody + "';";
+        String fName = createFunction(KEYSPACE_PER_TEST, "double",
+                                      "CREATE OR REPLACE FUNCTION %s(val double) RETURNS double LANGUAGE JAVA\n" +
+                                      "AS '" + functionBody + "';");
 
-        execute(cql);
+        FunctionName fNameName = parseFunctionName(fName);
 
-        assertRows(execute("SELECT language, body FROM system.schema_functions WHERE keyspace_name='"+KS_FOO+"' AND function_name='jrtef'"),
+        assertRows(execute("SELECT language, body FROM system.schema_functions WHERE keyspace_name=? AND function_name=?",
+                           fNameName.keyspace, fNameName.name),
                    row("java", functionBody));
 
         execute("INSERT INTO %s (key, val) VALUES (?, ?)", 1, 1d);
@@ -528,7 +560,7 @@ public class UFTest extends CQLTester
         execute("INSERT INTO %s (key, val) VALUES (?, ?)", 3, 3d);
 
         // function throws a RuntimeException which is wrapped by InvalidRequestException
-        assertInvalid("SELECT key, val, "+KS_FOO+".jrtef(val) FROM %s");
+        assertInvalid("SELECT key, val, " + fName + "(val) FROM %s");
     }
 
     @Test
@@ -541,14 +573,822 @@ public class UFTest extends CQLTester
                               "    return null;\n" +
                               "  }\n" +
                               "  double v = Math.sin( input.doubleValue() );\n" +
-                              "  return \"'\"+Double.valueOf(v)+'\\\'';\n";
+                              "  return \"'\" + Double.valueOf(v)+'\\\'';\n";
 
-        execute("create function "+KS_FOO+".pgfun1 ( input double ) returns text language java\n" +
-                "AS $$" + functionBody + "$$;");
-        execute("CREATE FUNCTION "+KS_FOO+".pgsin ( input double ) RETURNS double LANGUAGE java AS $$return Double.valueOf(Math.sin(input.doubleValue()));$$");
+        String fName = createFunction(KEYSPACE_PER_TEST, "double",
+                                      "CREATE FUNCTION %s( input double ) " +
+                                      "RETURNS text " +
+                                      "LANGUAGE java\n" +
+                                      "AS $$" + functionBody + "$$;");
 
-        assertRows(execute("SELECT language, body FROM system.schema_functions WHERE keyspace_name='"+KS_FOO+"' AND function_name='pgfun1'"),
+        FunctionName fNameName = parseFunctionName(fName);
+
+        assertRows(execute("SELECT language, body FROM system.schema_functions WHERE keyspace_name=? AND function_name=?",
+                           fNameName.keyspace, fNameName.name),
                    row("java", functionBody));
+    }
+
+    @Test
+    public void testJavaSimpleCollections() throws Throwable
+    {
+        createTable("CREATE TABLE %s (key int primary key, lst list<double>, st set<text>, mp map<int, boolean>)");
+
+        String fList = createFunction(KEYSPACE_PER_TEST, "list<double>",
+                                     "CREATE FUNCTION %s( lst list<double> ) " +
+                                     "RETURNS list<double> LANGUAGE java\n" +
+                                     "AS $$return lst;$$;");
+        String fSet = createFunction(KEYSPACE_PER_TEST, "set<text>",
+                                     "CREATE FUNCTION %s( st set<text> ) " +
+                                     "RETURNS set<text> LANGUAGE java\n" +
+                                     "AS $$return st;$$;");
+        String fMap = createFunction(KEYSPACE_PER_TEST, "map<int, boolean>",
+                                     "CREATE FUNCTION %s( mp map<int, boolean> ) " +
+                                     "RETURNS map<int, boolean> LANGUAGE java\n" +
+                                     "AS $$return mp;$$;");
+
+        List<Double> list = Arrays.asList(1d, 2d, 3d);
+        Set<String> set = new TreeSet<>(Arrays.asList("one", "three", "two"));
+        Map<Integer, Boolean> map = new TreeMap<>();
+        map.put(1, true);
+        map.put(2, false);
+        map.put(3, true);
+
+        execute("INSERT INTO %s (key, lst, st, mp) VALUES (1, ?, ?, ?)", list, set, map);
+
+        assertRows(execute("SELECT " + fList + "(lst), " + fSet + "(st), " + fMap + "(mp) FROM %s WHERE key = 1"),
+                   row(list, set, map));
+
+        // same test - but via native protocol
+        for (int version = Server.VERSION_2; version <= Server.CURRENT_VERSION; version++)
+            assertRowsNet(version,
+                          executeNet(version, "SELECT " + fList + "(lst), " + fSet + "(st), " + fMap + "(mp) FROM %s WHERE key = 1"),
+                          row(list, set, map));
+    }
+
+    @Test
+    public void testComplexNullValues() throws Throwable
+    {
+        String type = KEYSPACE + "." + createType("CREATE TYPE %s (txt text, i int)");
+
+        createTable("CREATE TABLE %s (key int primary key, lst list<double>, st set<text>, mp map<int, boolean>," +
+                    "tup frozen<tuple<double, text, int, boolean>>, udt frozen<" + type + ">)");
+
+        String fList = createFunction(KEYSPACE, "list<double>",
+                                      "CREATE FUNCTION %s( coll list<double> ) " +
+                                      "RETURNS list<double> " +
+                                      "LANGUAGE java\n" +
+                                      "AS $$return coll;$$;");
+        String fSet = createFunction(KEYSPACE, "set<text>",
+                                     "CREATE FUNCTION %s( coll set<text> ) " +
+                                     "RETURNS set<text> " +
+                                     "LANGUAGE java\n" +
+                                     "AS $$return coll;$$;");
+        String fMap = createFunction(KEYSPACE, "map<int, boolean>",
+                                     "CREATE FUNCTION %s( coll map<int, boolean> ) " +
+                                     "RETURNS map<int, boolean> " +
+                                     "LANGUAGE java\n" +
+                                     "AS $$return coll;$$;");
+        String fTup = createFunction(KEYSPACE, "frozen<tuple<double, text, int, boolean>>",
+                                     "CREATE FUNCTION %s( val frozen<tuple<double, text, int, boolean>> ) " +
+                                     "RETURNS frozen<tuple<double, text, int, boolean>> " +
+                                     "LANGUAGE java\n" +
+                                     "AS $$return val;$$;");
+        String fUdt = createFunction(KEYSPACE, "frozen<" + type+'>',
+                                     "CREATE FUNCTION %s( val frozen<" + type + "> ) " +
+                                     "RETURNS frozen<" + type + "> " +
+                                     "LANGUAGE java\n" +
+                                     "AS $$return val;$$;");
+        List<Double> list = Arrays.asList(1d, 2d, 3d);
+        Set<String> set = new TreeSet<>(Arrays.asList("one", "three", "two"));
+        Map<Integer, Boolean> map = new TreeMap<>();
+        map.put(1, true);
+        map.put(2, false);
+        map.put(3, true);
+        Object t = tuple(1d, "one", 42, false);
+
+        execute("INSERT INTO %s (key, lst, st, mp, tup, udt) VALUES (1, ?, ?, ?, ?, {txt: 'one', i:1})", list, set, map, t);
+        execute("INSERT INTO %s (key, lst, st, mp, tup, udt) VALUES (2, ?, ?, ?, ?, null)", null, null, null, null);
+
+        execute("SELECT " +
+                fList + "(lst), " +
+                fSet + "(st), " +
+                fMap + "(mp), " +
+                fTup + "(tup), " +
+                fUdt + "(udt) FROM %s WHERE key = 1");
+        UntypedResultSet.Row row = execute("SELECT " +
+                                           fList + "(lst) as l, " +
+                                           fSet + "(st) as s, " +
+                                           fMap + "(mp) as m, " +
+                                           fTup + "(tup) as t, " +
+                                           fUdt + "(udt) as u " +
+                                           "FROM %s WHERE key = 1").one();
+        Assert.assertNotNull(row.getBytes("l"));
+        Assert.assertNotNull(row.getBytes("s"));
+        Assert.assertNotNull(row.getBytes("m"));
+        Assert.assertNotNull(row.getBytes("t"));
+        Assert.assertNotNull(row.getBytes("u"));
+        row = execute("SELECT " +
+                      fList + "(lst) as l, " +
+                      fSet + "(st) as s, " +
+                      fMap + "(mp) as m, " +
+                      fTup + "(tup) as t, " +
+                      fUdt + "(udt) as u " +
+                      "FROM %s WHERE key = 2").one();
+        Assert.assertNull(row.getBytes("l"));
+        Assert.assertNull(row.getBytes("s"));
+        Assert.assertNull(row.getBytes("m"));
+        Assert.assertNull(row.getBytes("t"));
+        Assert.assertNull(row.getBytes("u"));
+
+        for (int version = Server.VERSION_2; version <= Server.CURRENT_VERSION; version++)
+        {
+            Row r = executeNet(version, "SELECT " +
+                                        fList + "(lst) as l, " +
+                                        fSet + "(st) as s, " +
+                                        fMap + "(mp) as m, " +
+                                        fTup + "(tup) as t, " +
+                                        fUdt + "(udt) as u " +
+                                        "FROM %s WHERE key = 1").one();
+            Assert.assertNotNull(r.getBytesUnsafe("l"));
+            Assert.assertNotNull(r.getBytesUnsafe("s"));
+            Assert.assertNotNull(r.getBytesUnsafe("m"));
+            Assert.assertNotNull(r.getBytesUnsafe("t"));
+            Assert.assertNotNull(r.getBytesUnsafe("u"));
+            r = executeNet(version, "SELECT " +
+                                    fList + "(lst) as l, " +
+                                    fSet + "(st) as s, " +
+                                    fMap + "(mp) as m, " +
+                                    fTup + "(tup) as t, " +
+                                    fUdt + "(udt) as u " +
+                                    "FROM %s WHERE key = 2").one();
+            Assert.assertNull(r.getBytesUnsafe("l"));
+            Assert.assertNull(r.getBytesUnsafe("s"));
+            Assert.assertNull(r.getBytesUnsafe("m"));
+            Assert.assertNull(r.getBytesUnsafe("t"));
+            Assert.assertNull(r.getBytesUnsafe("u"));
+        }
+    }
+
+    @Test
+    public void testJavaTupleType() throws Throwable
+    {
+        createTable("CREATE TABLE %s (key int primary key, tup frozen<tuple<double, text, int, boolean>>)");
+
+        String fName = createFunction(KEYSPACE, "frozen<tuple<double, text, int, boolean>>",
+                                     "CREATE FUNCTION %s( tup frozen<tuple<double, text, int, boolean>> ) " +
+                                     "RETURNS frozen<tuple<double, text, int, boolean>> " +
+                                     "LANGUAGE java\n" +
+                                     "AS $$return tup;$$;");
+
+        Object t = tuple(1d, "foo", 2, true);
+
+        execute("INSERT INTO %s (key, tup) VALUES (1, ?)", t);
+
+        assertRows(execute("SELECT tup FROM %s WHERE key = 1"),
+                   row(t));
+
+        assertRows(execute("SELECT " + fName + "(tup) FROM %s WHERE key = 1"),
+                   row(t));
+    }
+
+    @Test
+    public void testJavaTupleTypeCollection() throws Throwable
+    {
+        String tupleTypeDef = "frozen<tuple<double, list<double>, set<text>, map<int, boolean>>>";
+
+        createTable("CREATE TABLE %s (key int primary key, tup " + tupleTypeDef + ")");
+
+        String fTup0 = createFunction(KEYSPACE_PER_TEST, tupleTypeDef,
+                "CREATE FUNCTION %s( tup " + tupleTypeDef + " ) " +
+                "RETURNS " + tupleTypeDef + " " +
+                "LANGUAGE java\n" +
+                "AS $$return " +
+                "       tup;$$;");
+        String fTup1 = createFunction(KEYSPACE_PER_TEST, tupleTypeDef,
+                "CREATE FUNCTION %s( tup " + tupleTypeDef + " ) " +
+                "RETURNS double " +
+                "LANGUAGE java\n" +
+                "AS $$return " +
+                "       Double.valueOf(tup.getDouble(0));$$;");
+        String fTup2 = createFunction(KEYSPACE_PER_TEST, tupleTypeDef,
+                "CREATE FUNCTION %s( tup " + tupleTypeDef + " ) " +
+                "RETURNS list<double> " +
+                "LANGUAGE java\n" +
+                "AS $$return " +
+                "       tup.getList(1, Double.class);$$;");
+        String fTup3 = createFunction(KEYSPACE_PER_TEST, tupleTypeDef,
+                "CREATE FUNCTION %s( tup " + tupleTypeDef + " ) " +
+                "RETURNS set<text> " +
+                "LANGUAGE java\n" +
+                "AS $$return " +
+                "       tup.getSet(2, String.class);$$;");
+        String fTup4 = createFunction(KEYSPACE_PER_TEST, tupleTypeDef,
+                "CREATE FUNCTION %s( tup " + tupleTypeDef + " ) " +
+                "RETURNS map<int, boolean> " +
+                "LANGUAGE java\n" +
+                "AS $$return " +
+                "       tup.getMap(3, Integer.class, Boolean.class);$$;");
+
+        List<Double> list = Arrays.asList(1d, 2d, 3d);
+        Set<String> set = new TreeSet<>(Arrays.asList("one", "three", "two"));
+        Map<Integer, Boolean> map = new TreeMap<>();
+        map.put(1, true);
+        map.put(2, false);
+        map.put(3, true);
+
+        Object t = tuple(1d, list, set, map);
+
+        execute("INSERT INTO %s (key, tup) VALUES (1, ?)", t);
+
+        assertRows(execute("SELECT " + fTup0 + "(tup) FROM %s WHERE key = 1"),
+                   row(t));
+        assertRows(execute("SELECT " + fTup1 + "(tup) FROM %s WHERE key = 1"),
+                   row(1d));
+        assertRows(execute("SELECT " + fTup2 + "(tup) FROM %s WHERE key = 1"),
+                   row(list));
+        assertRows(execute("SELECT " + fTup3 + "(tup) FROM %s WHERE key = 1"),
+                   row(set));
+        assertRows(execute("SELECT " + fTup4 + "(tup) FROM %s WHERE key = 1"),
+                   row(map));
+
+        TupleType tType = TupleType.of(DataType.cdouble(),
+                                       DataType.list(DataType.cdouble()),
+                                       DataType.set(DataType.text()),
+                                       DataType.map(DataType.cint(), DataType.cboolean()));
+        TupleValue tup = tType.newValue(1d, list, set, map);
+        for (int version = Server.VERSION_2; version <= Server.CURRENT_VERSION; version++)
+        {
+            assertRowsNet(version,
+                          executeNet(version, "SELECT " + fTup0 + "(tup) FROM %s WHERE key = 1"),
+                          row(tup));
+            assertRowsNet(version,
+                          executeNet(version, "SELECT " + fTup1 + "(tup) FROM %s WHERE key = 1"),
+                          row(1d));
+            assertRowsNet(version,
+                          executeNet(version, "SELECT " + fTup2 + "(tup) FROM %s WHERE key = 1"),
+                          row(list));
+            assertRowsNet(version,
+                          executeNet(version, "SELECT " + fTup3 + "(tup) FROM %s WHERE key = 1"),
+                          row(set));
+            assertRowsNet(version,
+                          executeNet(version, "SELECT " + fTup4 + "(tup) FROM %s WHERE key = 1"),
+                          row(map));
+        }
+    }
+
+    @Test
+    public void testJavaUserTypeWithUse() throws Throwable
+    {
+        String type = createType("CREATE TYPE %s (txt text, i int)");
+        createTable("CREATE TABLE %s (key int primary key, udt frozen<" + KEYSPACE + "." + type + ">)");
+        execute("INSERT INTO %s (key, udt) VALUES (1, {txt: 'one', i:1})");
+
+        for (int version = Server.VERSION_2; version <= Server.CURRENT_VERSION; version++)
+        {
+            executeNet(version, "USE " + KEYSPACE);
+
+            executeNet(version,
+                       "CREATE FUNCTION f_use1( udt frozen<" + type + "> ) " +
+                       "RETURNS frozen<" + type + "> " +
+                       "LANGUAGE java " +
+                       "AS $$return " +
+                       "     udt;$$;");
+            try
+            {
+                List<Row> rowsNet = executeNet(version, "SELECT f_use1(udt) FROM %s WHERE key = 1").all();
+                Assert.assertEquals(1, rowsNet.size());
+                UDTValue udtVal = rowsNet.get(0).getUDTValue(0);
+                Assert.assertEquals("one", udtVal.getString("txt"));
+                Assert.assertEquals(1, udtVal.getInt("i"));
+            }
+            finally
+            {
+                executeNet(version, "DROP FUNCTION f_use1");
+            }
+        }
+    }
+
+    @Test
+    public void testJavaUserTypeOtherKeyspace() throws Throwable
+    {
+        String type = KEYSPACE + "." + createType("CREATE TYPE %s (txt text, i int)");
+
+        String fName = createFunction(KEYSPACE_PER_TEST, "frozen<" + type + ">",
+                                      "CREATE FUNCTION %s( udt frozen<" + type + "> ) " +
+                                      "RETURNS frozen<" + type + "> " +
+                                      "LANGUAGE java " +
+                                      "AS $$return " +
+                                      "     udt;$$;");
+
+        execute("DROP FUNCTION " + fName);
+    }
+
+    @Test
+    public void testJavaUserType() throws Throwable
+    {
+        String type = KEYSPACE + "." + createType("CREATE TYPE %s (txt text, i int)");
+
+        createTable("CREATE TABLE %s (key int primary key, udt frozen<" + type + ">)");
+
+        String fUdt0 = createFunction(KEYSPACE, "frozen<" + type + ">",
+                                      "CREATE FUNCTION %s( udt frozen<" + type + "> ) " +
+                                      "RETURNS frozen<" + type + "> " +
+                                      "LANGUAGE java " +
+                                      "AS $$return " +
+                                      "     udt;$$;");
+        String fUdt1 = createFunction(KEYSPACE, "frozen<" + type + ">",
+                                      "CREATE FUNCTION %s( udt frozen<" + type + "> ) " +
+                                      "RETURNS text " +
+                                      "LANGUAGE java " +
+                                      "AS $$return " +
+                                      "     udt.getString(\"txt\");$$;");
+        String fUdt2 = createFunction(KEYSPACE, "frozen<" + type + ">",
+                                      "CREATE FUNCTION %s( udt frozen<" + type + "> ) " +
+                                      "RETURNS int " +
+                                      "LANGUAGE java " +
+                                      "AS $$return " +
+                                      "     Integer.valueOf(udt.getInt(\"i\"));$$;");
+
+        execute("INSERT INTO %s (key, udt) VALUES (1, {txt: 'one', i:1})");
+
+        UntypedResultSet rows = execute("SELECT " + fUdt0 + "(udt) FROM %s WHERE key = 1");
+        Assert.assertEquals(1, rows.size());
+        assertRows(execute("SELECT " + fUdt1 + "(udt) FROM %s WHERE key = 1"),
+                   row("one"));
+        assertRows(execute("SELECT " + fUdt2 + "(udt) FROM %s WHERE key = 1"),
+                   row(1));
+
+        for (int version = Server.VERSION_2; version <= Server.CURRENT_VERSION; version++)
+        {
+            List<Row> rowsNet = executeNet(version, "SELECT " + fUdt0 + "(udt) FROM %s WHERE key = 1").all();
+            Assert.assertEquals(1, rowsNet.size());
+            UDTValue udtVal = rowsNet.get(0).getUDTValue(0);
+            Assert.assertEquals("one", udtVal.getString("txt"));
+            Assert.assertEquals(1, udtVal.getInt("i"));
+            assertRowsNet(version,
+                          executeNet(version, "SELECT " + fUdt1 + "(udt) FROM %s WHERE key = 1"),
+                          row("one"));
+            assertRowsNet(version,
+                          executeNet(version, "SELECT " + fUdt2 + "(udt) FROM %s WHERE key = 1"),
+                          row(1));
+        }
+    }
+
+    @Test
+    public void testUserTypeDrop() throws Throwable
+    {
+        String type = KEYSPACE + "." + createType("CREATE TYPE %s (txt text, i int)");
+
+        createTable("CREATE TABLE %s (key int primary key, udt frozen<" + type + ">)");
+
+        String fName = createFunction(KEYSPACE, "frozen<" + type + ">",
+                                      "CREATE FUNCTION %s( udt frozen<" + type + "> ) " +
+                                      "RETURNS int " +
+                                      "LANGUAGE java " +
+                                      "AS $$return " +
+                                      "     Integer.valueOf(udt.getInt(\"i\"));$$;");
+
+        FunctionName fNameName = parseFunctionName(fName);
+
+        Assert.assertEquals(1, Functions.find(fNameName).size());
+
+        ResultMessage.Prepared prepared = QueryProcessor.prepare(String.format("SELECT key, %s(udt) FROM %s.%s", fName, KEYSPACE, currentTable()),
+                                                                 ClientState.forInternalCalls(), false);
+        Assert.assertNotNull(QueryProcessor.instance.getPrepared(prepared.statementId));
+
+        // UT still referenced by table
+        assertInvalid("DROP TYPE " + type);
+
+        execute("DROP TABLE %s");
+
+        // UT still referenced by UDF
+        assertInvalid("DROP TYPE " + type);
+
+        Assert.assertNull(QueryProcessor.instance.getPrepared(prepared.statementId));
+
+        // function stays
+        Assert.assertEquals(1, Functions.find(fNameName).size());
+    }
+
+    @Test
+    public void testJavaUserTypeRenameField() throws Throwable
+    {
+        String type = KEYSPACE + "." + createType("CREATE TYPE %s (txt text, i int)");
+
+        createTable("CREATE TABLE %s (key int primary key, udt frozen<" + type + ">)");
+
+        String fName = createFunction(KEYSPACE, "frozen<" + type + ">",
+                                      "CREATE FUNCTION %s( udt frozen<" + type + "> ) " +
+                                      "RETURNS text LANGUAGE java\n" +
+                                      "AS $$return udt.getString(\"txt\");$$;");
+
+        execute("INSERT INTO %s (key, udt) VALUES (1, {txt: 'one', i:1})");
+
+        assertRows(execute("SELECT " + fName + "(udt) FROM %s WHERE key = 1"),
+                   row("one"));
+
+        execute("ALTER TYPE " + type + " RENAME txt TO str");
+
+        assertInvalid("SELECT " + fName + "(udt) FROM %s WHERE key = 1");
+
+        execute("ALTER TYPE " + type + " RENAME str TO txt");
+
+        assertRows(execute("SELECT " + fName + "(udt) FROM %s WHERE key = 1"),
+                   row("one"));
+    }
+
+    @Test
+    public void testJavaUserTypeAddFieldWithReplace() throws Throwable
+    {
+        String type = KEYSPACE + "." + createType("CREATE TYPE %s (txt text, i int)");
+
+        createTable("CREATE TABLE %s (key int primary key, udt frozen<" + type + ">)");
+
+        String fName1replace = createFunction(KEYSPACE, "frozen<" + type + ">",
+                                              "CREATE FUNCTION %s( udt frozen<" + type + "> ) " +
+                                              "RETURNS text LANGUAGE java\n" +
+                                              "AS $$return udt.getString(\"txt\");$$;");
+        String fName2replace = createFunction(KEYSPACE, "frozen<" + type + ">",
+                                              "CREATE FUNCTION %s( udt frozen<" + type + "> ) " +
+                                              "RETURNS int LANGUAGE java\n" +
+                                              "AS $$return Integer.valueOf(udt.getInt(\"i\"));$$;");
+        String fName3replace = createFunction(KEYSPACE, "frozen<" + type + ">",
+                                              "CREATE FUNCTION %s( udt frozen<" + type + "> ) " +
+                                              "RETURNS double LANGUAGE java\n" +
+                                              "AS $$return Double.valueOf(udt.getDouble(\"added\"));$$;");
+        String fName4replace = createFunction(KEYSPACE, "frozen<" + type + ">",
+                                              "CREATE FUNCTION %s( udt frozen<" + type + "> ) " +
+                                              "RETURNS frozen<" + type + "> LANGUAGE java\n" +
+                                              "AS $$return udt;$$;");
+
+        String fName1noReplace = createFunction(KEYSPACE, "frozen<" + type + ">",
+                                              "CREATE FUNCTION %s( udt frozen<" + type + "> ) " +
+                                              "RETURNS text LANGUAGE java\n" +
+                                              "AS $$return udt.getString(\"txt\");$$;");
+        String fName2noReplace = createFunction(KEYSPACE, "frozen<" + type + ">",
+                                              "CREATE FUNCTION %s( udt frozen<" + type + "> ) " +
+                                              "RETURNS int LANGUAGE java\n" +
+                                              "AS $$return Integer.valueOf(udt.getInt(\"i\"));$$;");
+        String fName3noReplace = createFunction(KEYSPACE, "frozen<" + type + ">",
+                                                "CREATE FUNCTION %s( udt frozen<" + type + "> ) " +
+                                                "RETURNS double LANGUAGE java\n" +
+                                                "AS $$return Double.valueOf(udt.getDouble(\"added\"));$$;");
+        String fName4noReplace = createFunction(KEYSPACE, "frozen<" + type + ">",
+                                                "CREATE FUNCTION %s( udt frozen<" + type + "> ) " +
+                                                "RETURNS frozen<" + type + "> LANGUAGE java\n" +
+                                                "AS $$return udt;$$;");
+
+        execute("INSERT INTO %s (key, udt) VALUES (1, {txt: 'one', i:1})");
+
+        assertRows(execute("SELECT " + fName1replace + "(udt) FROM %s WHERE key = 1"),
+                   row("one"));
+        assertRows(execute("SELECT " + fName2replace + "(udt) FROM %s WHERE key = 1"),
+                   row(1));
+
+        // add field
+
+        execute("ALTER TYPE " + type + " ADD added double");
+
+        execute("INSERT INTO %s (key, udt) VALUES (2, {txt: 'two', i:2, added: 2})");
+
+        // note: type references of functions remain at the state _before_ the type mutation
+        // means we need to recreate the functions
+
+        execute(String.format("CREATE OR REPLACE FUNCTION %s( udt frozen<%s> ) " +
+                              "RETURNS text LANGUAGE java\n" +
+                              "AS $$return " +
+                              "     udt.getString(\"txt\");$$;",
+                              fName1replace, type));
+        Assert.assertEquals(1, Functions.find(parseFunctionName(fName1replace)).size());
+        execute(String.format("CREATE OR REPLACE FUNCTION %s( udt frozen<%s> ) " +
+                              "RETURNS int LANGUAGE java\n" +
+                              "AS $$return " +
+                              "     Integer.valueOf(udt.getInt(\"i\"));$$;",
+                              fName2replace, type));
+        Assert.assertEquals(1, Functions.find(parseFunctionName(fName2replace)).size());
+        execute(String.format("CREATE OR REPLACE FUNCTION %s( udt frozen<%s> ) " +
+                              "RETURNS double LANGUAGE java\n" +
+                              "AS $$return " +
+                              "     Double.valueOf(udt.getDouble(\"added\"));$$;",
+                              fName3replace, type));
+        Assert.assertEquals(1, Functions.find(parseFunctionName(fName3replace)).size());
+        execute(String.format("CREATE OR REPLACE FUNCTION %s( udt frozen<%s> ) " +
+                              "RETURNS frozen<%s> LANGUAGE java\n" +
+                              "AS $$return " +
+                              "     udt;$$;",
+                              fName4replace, type, type));
+        Assert.assertEquals(1, Functions.find(parseFunctionName(fName4replace)).size());
+
+        assertRows(execute("SELECT " + fName1replace + "(udt) FROM %s WHERE key = 2"),
+                   row("two"));
+        assertRows(execute("SELECT " + fName2replace + "(udt) FROM %s WHERE key = 2"),
+                   row(2));
+        assertRows(execute("SELECT " + fName3replace + "(udt) FROM %s WHERE key = 2"),
+                   row(2d));
+        assertRows(execute("SELECT " + fName3replace + "(udt) FROM %s WHERE key = 1"),
+                   row(0d));
+
+        // un-replaced functions will work since the user type has changed
+        // and the UDF has exchanged the user type reference
+
+        assertRows(execute("SELECT " + fName1noReplace + "(udt) FROM %s WHERE key = 2"),
+                   row("two"));
+        assertRows(execute("SELECT " + fName2noReplace + "(udt) FROM %s WHERE key = 2"),
+                   row(2));
+        assertRows(execute("SELECT " + fName3noReplace + "(udt) FROM %s WHERE key = 2"),
+                   row(2d));
+        assertRows(execute("SELECT " + fName3noReplace + "(udt) FROM %s WHERE key = 1"),
+                   row(0d));
+
+        execute("DROP FUNCTION " + fName1replace);
+        execute("DROP FUNCTION " + fName2replace);
+        execute("DROP FUNCTION " + fName3replace);
+        execute("DROP FUNCTION " + fName4replace);
+        execute("DROP FUNCTION " + fName1noReplace);
+        execute("DROP FUNCTION " + fName2noReplace);
+        execute("DROP FUNCTION " + fName3noReplace);
+        execute("DROP FUNCTION " + fName4noReplace);
+    }
+
+    @Test
+    public void testJavaUTCollections() throws Throwable
+    {
+        String type = KEYSPACE + "." + createType("CREATE TYPE %s (txt text, i int)");
+
+        createTable(String.format("CREATE TABLE %%s " +
+                                  "(key int primary key, lst list<frozen<%s>>, st set<frozen<%s>>, mp map<int, frozen<%s>>)",
+                                  type, type, type));
+
+        String fName1 = createFunction(KEYSPACE, "list<frozen<" + type + ">>",
+                              "CREATE FUNCTION %s( lst list<frozen<" + type + ">> ) " +
+                              "RETURNS text LANGUAGE java\n" +
+                              "AS $$" +
+                              "     com.datastax.driver.core.UDTValue udtVal = (com.datastax.driver.core.UDTValue)lst.get(1);" +
+                              "     return udtVal.getString(\"txt\");$$;");
+        String fName2 = createFunction(KEYSPACE, "set<frozen<" + type + ">>",
+                              "CREATE FUNCTION %s( st set<frozen<" + type + ">> ) " +
+                              "RETURNS text LANGUAGE java\n" +
+                              "AS $$" +
+                              "     com.datastax.driver.core.UDTValue udtVal = (com.datastax.driver.core.UDTValue)st.iterator().next();" +
+                              "     return udtVal.getString(\"txt\");$$;");
+        String fName3 = createFunction(KEYSPACE, "map<int, frozen<" + type + ">>",
+                              "CREATE FUNCTION %s( mp map<int, frozen<" + type + ">> ) " +
+                              "RETURNS text LANGUAGE java\n" +
+                              "AS $$" +
+                              "     com.datastax.driver.core.UDTValue udtVal = (com.datastax.driver.core.UDTValue)mp.get(Integer.valueOf(3));" +
+                              "     return udtVal.getString(\"txt\");$$;");
+
+        execute("INSERT INTO %s (key, lst, st, mp) values (1, " +
+                "[ {txt: 'one', i:1}, {txt: 'three', i:1}, {txt: 'one', i:1} ] , " +
+                "{ {txt: 'one', i:1}, {txt: 'three', i:3}, {txt: 'two', i:2} }, " +
+                "{ 1: {txt: 'one', i:1}, 2: {txt: 'one', i:3}, 3: {txt: 'two', i:2} })");
+
+        assertRows(execute("SELECT " + fName1 + "(lst), " + fName2 + "(st), " + fName3 + "(mp) FROM %s WHERE key = 1"),
+                   row("three", "one", "two"));
+
+        for (int version = Server.VERSION_2; version <= Server.CURRENT_VERSION; version++)
+            assertRowsNet(version,
+                          executeNet(version, "SELECT " + fName1 + "(lst), " + fName2 + "(st), " + fName3 + "(mp) FROM %s WHERE key = 1"),
+                          row("three", "one", "two"));
+    }
+
+    @Test
+    public void testJavascriptSimpleCollections() throws Throwable
+    {
+        createTable("CREATE TABLE %s (key int primary key, lst list<double>, st set<text>, mp map<int, boolean>)");
+
+        String fName1 = createFunction(KEYSPACE_PER_TEST, "list<double>",
+                "CREATE FUNCTION %s( lst list<double> ) " +
+                "RETURNS list<double> " +
+                "LANGUAGE javascript\n" +
+                "AS 'lst;';");
+        String fName2 = createFunction(KEYSPACE_PER_TEST, "set<text>",
+                "CREATE FUNCTION %s( st set<text> ) " +
+                "RETURNS set<text> " +
+                "LANGUAGE javascript\n" +
+                "AS 'st;';");
+        String fName3 = createFunction(KEYSPACE_PER_TEST, "map<int, boolean>",
+                "CREATE FUNCTION %s( mp map<int, boolean> ) " +
+                "RETURNS map<int, boolean> " +
+                "LANGUAGE javascript\n" +
+                "AS 'mp;';");
+
+        List<Double> list = Arrays.asList(1d, 2d, 3d);
+        Set<String> set = new TreeSet<>(Arrays.asList("one", "three", "two"));
+        Map<Integer, Boolean> map = new TreeMap<>();
+        map.put(1, true);
+        map.put(2, false);
+        map.put(3, true);
+
+        execute("INSERT INTO %s (key, lst, st, mp) VALUES (1, ?, ?, ?)", list, set, map);
+
+        assertRows(execute("SELECT lst, st, mp FROM %s WHERE key = 1"),
+                   row(list, set, map));
+
+        assertRows(execute("SELECT " + fName1 + "(lst), " + fName2 + "(st), " + fName3 + "(mp) FROM %s WHERE key = 1"),
+                   row(list, set, map));
+
+        for (int version = Server.VERSION_2; version <= Server.CURRENT_VERSION; version++)
+            assertRowsNet(version,
+                          executeNet(version, "SELECT " + fName1 + "(lst), " + fName2 + "(st), " + fName3 + "(mp) FROM %s WHERE key = 1"),
+                          row(list, set, map));
+    }
+
+    @Test
+    public void testJavascriptTupleType() throws Throwable
+    {
+        createTable("CREATE TABLE %s (key int primary key, tup frozen<tuple<double, text, int, boolean>>)");
+
+        String fName = createFunction(KEYSPACE_PER_TEST, "frozen<tuple<double, text, int, boolean>>",
+                "CREATE FUNCTION %s( tup frozen<tuple<double, text, int, boolean>> ) " +
+                "RETURNS frozen<tuple<double, text, int, boolean>> " +
+                "LANGUAGE javascript\n" +
+                "AS $$tup;$$;");
+
+        Object t = tuple(1d, "foo", 2, true);
+
+        execute("INSERT INTO %s (key, tup) VALUES (1, ?)", t);
+
+        assertRows(execute("SELECT tup FROM %s WHERE key = 1"),
+                   row(t));
+
+        assertRows(execute("SELECT " + fName + "(tup) FROM %s WHERE key = 1"),
+                   row(t));
+    }
+
+    @Test
+    public void testJavascriptTupleTypeCollection() throws Throwable
+    {
+        String tupleTypeDef = "frozen<tuple<double, list<double>, set<text>, map<int, boolean>>>";
+        createTable("CREATE TABLE %s (key int primary key, tup " + tupleTypeDef + ")");
+
+        String fTup1 = createFunction(KEYSPACE_PER_TEST, tupleTypeDef,
+                "CREATE FUNCTION %s( tup " + tupleTypeDef + " ) " +
+                "RETURNS frozen<tuple<double, list<double>, set<text>, map<int, boolean>>> " +
+                "LANGUAGE javascript\n" +
+                "AS $$" +
+                "       tup;$$;");
+        String fTup2 = createFunction(KEYSPACE_PER_TEST, tupleTypeDef,
+                "CREATE FUNCTION %s( tup " + tupleTypeDef + " ) " +
+                "RETURNS double LANGUAGE " +
+                "javascript\n" +
+                "AS $$" +
+                "       tup.getDouble(0);$$;");
+        String fTup3 = createFunction(KEYSPACE_PER_TEST, tupleTypeDef,
+                "CREATE FUNCTION %s( tup " + tupleTypeDef + " ) " +
+                "RETURNS list<double> " +
+                "LANGUAGE javascript\n" +
+                "AS $$" +
+                "       tup.getList(1, java.lang.Class.forName(\"java.lang.Double\"));$$;");
+        String fTup4 = createFunction(KEYSPACE_PER_TEST, tupleTypeDef,
+                "CREATE FUNCTION %s( tup " + tupleTypeDef + " ) " +
+                "RETURNS set<text> " +
+                "LANGUAGE javascript\n" +
+                "AS $$" +
+                "       tup.getSet(2, java.lang.Class.forName(\"java.lang.String\"));$$;");
+        String fTup5 = createFunction(KEYSPACE_PER_TEST, tupleTypeDef,
+                "CREATE FUNCTION %s( tup " + tupleTypeDef + " ) " +
+                "RETURNS map<int, boolean> " +
+                "LANGUAGE javascript\n" +
+                "AS $$" +
+                "       tup.getMap(3, java.lang.Class.forName(\"java.lang.Integer\"), java.lang.Class.forName(\"java.lang.Boolean\"));$$;");
+
+        List<Double> list = Arrays.asList(1d, 2d, 3d);
+        Set<String> set = new TreeSet<>(Arrays.asList("one", "three", "two"));
+        Map<Integer, Boolean> map = new TreeMap<>();
+        map.put(1, true);
+        map.put(2, false);
+        map.put(3, true);
+
+        Object t = tuple(1d, list, set, map);
+
+        execute("INSERT INTO %s (key, tup) VALUES (1, ?)", t);
+
+        assertRows(execute("SELECT " + fTup1 + "(tup) FROM %s WHERE key = 1"),
+                   row(t));
+        assertRows(execute("SELECT " + fTup2 + "(tup) FROM %s WHERE key = 1"),
+                   row(1d));
+        assertRows(execute("SELECT " + fTup3 + "(tup) FROM %s WHERE key = 1"),
+                   row(list));
+        assertRows(execute("SELECT " + fTup4 + "(tup) FROM %s WHERE key = 1"),
+                   row(set));
+        assertRows(execute("SELECT " + fTup5 + "(tup) FROM %s WHERE key = 1"),
+                   row(map));
+
+        // same test - but via native protocol
+        TupleType tType = TupleType.of(DataType.cdouble(),
+                                       DataType.list(DataType.cdouble()),
+                                       DataType.set(DataType.text()),
+                                       DataType.map(DataType.cint(), DataType.cboolean()));
+        TupleValue tup = tType.newValue(1d, list, set, map);
+        for (int version = Server.VERSION_2; version <= Server.CURRENT_VERSION; version++)
+        {
+            assertRowsNet(version,
+                          executeNet(version, "SELECT " + fTup1 + "(tup) FROM %s WHERE key = 1"),
+                          row(tup));
+            assertRowsNet(version,
+                          executeNet(version, "SELECT " + fTup2 + "(tup) FROM %s WHERE key = 1"),
+                          row(1d));
+            assertRowsNet(version,
+                          executeNet(version, "SELECT " + fTup3 + "(tup) FROM %s WHERE key = 1"),
+                          row(list));
+            assertRowsNet(version,
+                          executeNet(version, "SELECT " + fTup4 + "(tup) FROM %s WHERE key = 1"),
+                          row(set));
+            assertRowsNet(version,
+                          executeNet(version, "SELECT " + fTup5 + "(tup) FROM %s WHERE key = 1"),
+                          row(map));
+        }
+    }
+
+    @Test
+    public void testJavascriptUserType() throws Throwable
+    {
+        String type = createType("CREATE TYPE %s (txt text, i int)");
+
+        createTable("CREATE TABLE %s (key int primary key, udt frozen<" + type + ">)");
+
+        String fUdt1 = createFunction(KEYSPACE, "frozen<" + type + ">",
+                              "CREATE FUNCTION %s( udt frozen<" + type + "> ) " +
+                              "RETURNS frozen<" + type + "> " +
+                              "LANGUAGE javascript\n" +
+                              "AS $$" +
+                              "     udt;$$;");
+        String fUdt2 = createFunction(KEYSPACE, "frozen<" + type + ">",
+                              "CREATE FUNCTION %s( udt frozen<" + type + "> ) " +
+                              "RETURNS text " +
+                              "LANGUAGE javascript\n" +
+                              "AS $$" +
+                              "     udt.getString(\"txt\");$$;");
+        String fUdt3 = createFunction(KEYSPACE, "frozen<" + type + ">",
+                              "CREATE FUNCTION %s( udt frozen<" + type + "> ) " +
+                              "RETURNS int " +
+                              "LANGUAGE javascript\n" +
+                              "AS $$" +
+                              "     udt.getInt(\"i\");$$;");
+
+        execute("INSERT INTO %s (key, udt) VALUES (1, {txt: 'one', i:1})");
+
+        UntypedResultSet rows = execute("SELECT " + fUdt1 + "(udt) FROM %s WHERE key = 1");
+        Assert.assertEquals(1, rows.size());
+        assertRows(execute("SELECT " + fUdt2 + "(udt) FROM %s WHERE key = 1"),
+                   row("one"));
+        assertRows(execute("SELECT " + fUdt3 + "(udt) FROM %s WHERE key = 1"),
+                   row(1));
+    }
+
+    @Test
+    public void testJavascriptUTCollections() throws Throwable
+    {
+        String type = createType("CREATE TYPE %s (txt text, i int)");
+
+        createTable(String.format("CREATE TABLE %%s " +
+                                  "(key int primary key, lst list<frozen<%s>>, st set<frozen<%s>>, mp map<int, frozen<%s>>)",
+                                  type, type, type));
+
+        String fName = createFunction(KEYSPACE, "list<frozen<" + type + ">>",
+                       "CREATE FUNCTION %s( lst list<frozen<" + type + ">> ) " +
+                       "RETURNS text " +
+                       "LANGUAGE javascript\n" +
+                       "AS $$" +
+                       "        lst.get(1).getString(\"txt\");$$;");
+        createFunctionOverload(fName, "set<frozen<" + type + ">>",
+                               "CREATE FUNCTION %s( st set<frozen<" + type + ">> ) " +
+                               "RETURNS text " +
+                               "LANGUAGE javascript\n" +
+                               "AS $$" +
+                               "        st.iterator().next().getString(\"txt\");$$;");
+        createFunctionOverload(fName, "map<int, frozen<" + type + ">>",
+                       "CREATE FUNCTION %s( mp map<int, frozen<" + type + ">> ) " +
+                       "RETURNS text " +
+                       "LANGUAGE javascript\n" +
+                       "AS $$" +
+                       "        mp.get(java.lang.Integer.valueOf(3)).getString(\"txt\");$$;");
+
+        execute("INSERT INTO %s (key, lst, st, mp) values (1, " +
+                // list<frozen<UDT>>
+                "[ {txt: 'one', i:1}, {txt: 'three', i:1}, {txt: 'one', i:1} ] , " +
+                // set<frozen<UDT>>
+                "{ {txt: 'one', i:1}, {txt: 'three', i:3}, {txt: 'two', i:2} }, " +
+                // map<int, frozen<UDT>>
+                "{ 1: {txt: 'one', i:1}, 2: {txt: 'one', i:3}, 3: {txt: 'two', i:2} })");
+
+        assertRows(execute("SELECT " + fName + "(lst) FROM %s WHERE key = 1"),
+                   row("three"));
+        assertRows(execute("SELECT " + fName + "(st) FROM %s WHERE key = 1"),
+                   row("one"));
+        assertRows(execute("SELECT " + fName + "(mp) FROM %s WHERE key = 1"),
+                   row("two"));
+
+        String cqlSelect = "SELECT " + fName + "(lst), " + fName + "(st), " + fName + "(mp) FROM %s WHERE key = 1";
+        assertRows(execute(cqlSelect),
+                   row("three", "one", "two"));
+
+        // same test - but via native protocol
+        for (int version = Server.VERSION_2; version <= Server.CURRENT_VERSION; version++)
+            assertRowsNet(version,
+                          executeNet(version, cqlSelect),
+                          row("three", "one", "two"));
     }
 
     @Test
@@ -559,18 +1399,21 @@ public class UFTest extends CQLTester
         String functionBody = "\n" +
                               "  Math.sin(val);\n";
 
-        String cql = "CREATE OR REPLACE FUNCTION "+KEYSPACE+".jsft(val double) RETURNS double LANGUAGE javascript\n" +
-                     "AS '" + functionBody + "';";
+        String fName = createFunction(KEYSPACE, "double",
+                                      "CREATE OR REPLACE FUNCTION %s(val double) " +
+                                      "RETURNS double LANGUAGE javascript\n" +
+                                      "AS '" + functionBody + "';");
 
-        execute(cql);
+        FunctionName fNameName = parseFunctionName(fName);
 
-        assertRows(execute("SELECT language, body FROM system.schema_functions WHERE keyspace_name='"+KEYSPACE+"' AND function_name='jsft'"),
+        assertRows(execute("SELECT language, body FROM system.schema_functions WHERE keyspace_name=? AND function_name=?",
+                           fNameName.keyspace, fNameName.name),
                    row("javascript", functionBody));
 
         execute("INSERT INTO %s (key, val) VALUES (?, ?)", 1, 1d);
         execute("INSERT INTO %s (key, val) VALUES (?, ?)", 2, 2d);
         execute("INSERT INTO %s (key, val) VALUES (?, ?)", 3, 3d);
-        assertRows(execute("SELECT key, val, jsft(val) FROM %s"),
+        assertRows(execute("SELECT key, val, " + fName + "(val) FROM %s"),
                    row(1, 1d, Math.sin(1d)),
                    row(2, 2d, Math.sin(2d)),
                    row(3, 3d, Math.sin(3d))
@@ -582,12 +1425,15 @@ public class UFTest extends CQLTester
     {
         createTable("CREATE TABLE %s (key int primary key, val double)");
 
-        execute("CREATE OR REPLACE FUNCTION "+KEYSPACE+".jsft(val double) RETURNS double LANGUAGE javascript\n" +
-                "AS '\"string\";';");
+        String fName = createFunction(KEYSPACE, "double",
+                                      "CREATE OR REPLACE FUNCTION %s(val double) " +
+                                      "RETURNS double " +
+                                      "LANGUAGE javascript\n" +
+                                      "AS '\"string\";';");
 
         execute("INSERT INTO %s (key, val) VALUES (?, ?)", 1, 1d);
         // throws IRE with ClassCastException
-        assertInvalid("SELECT key, val, jsft(val) FROM %s");
+        assertInvalid("SELECT key, val, " + fName + "(val) FROM %s");
     }
 
     @Test
@@ -595,32 +1441,38 @@ public class UFTest extends CQLTester
     {
         createTable("CREATE TABLE %s (key int primary key, val double)");
 
-        execute("CREATE OR REPLACE FUNCTION "+KEYSPACE+".jsft(val double) RETURNS double LANGUAGE javascript\n" +
-                "AS 'throw \"fool\";';");
+        String fName = createFunction(KEYSPACE, "double",
+                       "CREATE OR REPLACE FUNCTION %s(val double) " +
+                       "RETURNS double " +
+                       "LANGUAGE javascript\n" +
+                       "AS 'throw \"fool\";';");
 
         execute("INSERT INTO %s (key, val) VALUES (?, ?)", 1, 1d);
         // throws IRE with ScriptException
-        assertInvalid("SELECT key, val, jsft(val) FROM %s");
+        assertInvalid("SELECT key, val, " + fName + "(val) FROM %s");
     }
 
     @Test
     public void testDuplicateArgNames() throws Throwable
     {
-        assertInvalid("CREATE OR REPLACE FUNCTION "+KEYSPACE+".scrinv(val double, val text) RETURNS text LANGUAGE javascript\n" +
+        assertInvalid("CREATE OR REPLACE FUNCTION " + KEYSPACE + ".scrinv(val double, val text) " +
+                      "RETURNS text LANGUAGE javascript\n" +
                       "AS '\"foo bar\";';");
     }
 
     @Test
     public void testJavascriptCompileFailure() throws Throwable
     {
-        assertInvalid("CREATE OR REPLACE FUNCTION "+KEYSPACE+".scrinv(val double) RETURNS double LANGUAGE javascript\n" +
+        assertInvalid("CREATE OR REPLACE FUNCTION " + KEYSPACE + ".scrinv(val double) " +
+                      "RETURNS double LANGUAGE javascript\n" +
                       "AS 'foo bar';");
     }
 
     @Test
     public void testScriptInvalidLanguage() throws Throwable
     {
-        assertInvalid("CREATE OR REPLACE FUNCTION "+KEYSPACE+".scrinv(val double) RETURNS double LANGUAGE artificial_intelligence\n" +
+        assertInvalid("CREATE OR REPLACE FUNCTION " + KEYSPACE + ".scrinv(val double) " +
+                      "RETURNS double LANGUAGE artificial_intelligence\n" +
                       "AS 'question for 42?';");
     }
 
@@ -630,85 +1482,36 @@ public class UFTest extends CQLTester
         createTable("CREATE TABLE %s (key int primary key, val double)");
         execute("INSERT INTO %s (key, val) VALUES (?, ?)", 1, 1d);
 
-        execute("CREATE OR REPLACE FUNCTION "+KEYSPACE+".js(val double) RETURNS boolean LANGUAGE javascript\n" +
-                "AS 'true;';");
-        assertRows(execute("SELECT key, val, js(val) FROM %s"),
-                   row(1, 1d, true));
-        execute("CREATE OR REPLACE FUNCTION "+KEYSPACE+".js(val double) RETURNS boolean LANGUAGE javascript\n" +
-                "AS 'false;';");
-        assertRows(execute("SELECT key, val, js(val) FROM %s"),
-                   row(1, 1d, false));
-        execute("DROP FUNCTION "+KEYSPACE+".js(double)");
+        Object[][] variations = new Object[][]
+                                {
+                                new Object[]    {   "true",     "boolean",  true    },
+                                new Object[]    {   "false",    "boolean",  false   },
+                                new Object[]    {   "100",      "int",      100     },
+                                new Object[]    {   "100.",     "int",      100     },
+                                new Object[]    {   "100",      "double",   100d    },
+                                new Object[]    {   "100.",     "double",   100d    },
+                                new Object[]    {   "100",      "bigint",   100L    },
+                                new Object[]    {   "100.",     "bigint",   100L    },
+                                new Object[]    {   "100",      "varint",   BigInteger.valueOf(100L)    },
+                                new Object[]    {   "100.",     "varint",   BigInteger.valueOf(100L)    },
+                                new Object[]    {   "parseInt(\"100\");", "decimal",  BigDecimal.valueOf(100d)    },
+                                new Object[]    {   "100.",     "decimal",  BigDecimal.valueOf(100d)    },
+                                };
 
-        // declared rtype = int , return type = int
-        execute("CREATE OR REPLACE FUNCTION "+KEYSPACE+".js(val double) RETURNS int LANGUAGE javascript\n" +
-                "AS '100;';");
-        assertRows(execute("SELECT key, val, js(val) FROM %s"),
-                   row(1, 1d, 100));
-        execute("DROP FUNCTION "+KEYSPACE+".js(double)");
+        for (Object[] variation : variations)
+        {
+            Object functionBody = variation[0];
+            Object returnType = variation[1];
+            Object expectedResult = variation[2];
 
-        // declared rtype = int , return type = double
-        execute("CREATE OR REPLACE FUNCTION "+KEYSPACE+".js(val double) RETURNS int LANGUAGE javascript\n" +
-                "AS '100.;';");
-        assertRows(execute("SELECT key, val, js(val) FROM %s"),
-                   row(1, 1d, 100));
-        execute("DROP FUNCTION "+KEYSPACE+".js(double)");
-
-        // declared rtype = double , return type = int
-        execute("CREATE OR REPLACE FUNCTION "+KEYSPACE+".js(val double) RETURNS double LANGUAGE javascript\n" +
-                "AS '100;';");
-        assertRows(execute("SELECT key, val, js(val) FROM %s"),
-                   row(1, 1d, 100d));
-        execute("DROP FUNCTION "+KEYSPACE+".js(double)");
-
-        // declared rtype = double , return type = double
-        execute("CREATE OR REPLACE FUNCTION "+KEYSPACE+".js(val double) RETURNS double LANGUAGE javascript\n" +
-                "AS '100.;';");
-        assertRows(execute("SELECT key, val, js(val) FROM %s"),
-                   row(1, 1d, 100d));
-        execute("DROP FUNCTION "+KEYSPACE+".js(double)");
-
-        // declared rtype = bigint , return type = int
-        execute("CREATE OR REPLACE FUNCTION "+KEYSPACE+".js(val double) RETURNS bigint LANGUAGE javascript\n" +
-                "AS '100;';");
-        assertRows(execute("SELECT key, val, js(val) FROM %s"),
-                   row(1, 1d, 100L));
-        execute("DROP FUNCTION "+KEYSPACE+".js(double)");
-
-        // declared rtype = bigint , return type = double
-        execute("CREATE OR REPLACE FUNCTION "+KEYSPACE+".js(val double) RETURNS bigint LANGUAGE javascript\n" +
-                "AS '100.;';");
-        assertRows(execute("SELECT key, val, js(val) FROM %s"),
-                   row(1, 1d, 100L));
-        execute("DROP FUNCTION "+KEYSPACE+".js(double)");
-
-        // declared rtype = varint , return type = int
-        execute("CREATE OR REPLACE FUNCTION "+KEYSPACE+".js(val double) RETURNS varint LANGUAGE javascript\n" +
-                "AS '100;';");
-        assertRows(execute("SELECT key, val, js(val) FROM %s"),
-                   row(1, 1d, BigInteger.valueOf(100L)));
-        execute("DROP FUNCTION "+KEYSPACE+".js(double)");
-
-        // declared rtype = varint , return type = double
-        execute("CREATE OR REPLACE FUNCTION "+KEYSPACE+".js(val double) RETURNS varint LANGUAGE javascript\n" +
-                "AS '100.;';");
-        assertRows(execute("SELECT key, val, js(val) FROM %s"),
-                   row(1, 1d, BigInteger.valueOf(100L)));
-        execute("DROP FUNCTION "+KEYSPACE+".js(double)");
-
-        // declared rtype = decimal , return type = int
-        execute("CREATE OR REPLACE FUNCTION "+KEYSPACE+".js(val double) RETURNS decimal LANGUAGE javascript\n" +
-                "AS 'parseInt(\"100\");';");
-        assertRows(execute("SELECT key, val, js(val) FROM %s"),
-                   row(1, 1d, BigDecimal.valueOf(100d)));
-        execute("DROP FUNCTION "+KEYSPACE+".js(double)");
-
-        // declared rtype = decimal , return type = double
-        execute("CREATE OR REPLACE FUNCTION "+KEYSPACE+".js(val double) RETURNS decimal LANGUAGE javascript\n" +
-                "AS '100.;';");
-        assertRows(execute("SELECT key, val, js(val) FROM %s"),
-                   row(1, 1d, BigDecimal.valueOf(100d)));
-        execute("DROP FUNCTION "+KEYSPACE+".js(double)");
+            String fName = createFunction(KEYSPACE, "double",
+                                          "CREATE OR REPLACE FUNCTION %s(val double) " +
+                                          "RETURNS " +returnType + " " +
+                                          "LANGUAGE javascript " +
+                                          "AS '" + functionBody + ";';");
+            assertRows(execute("SELECT key, val, " + fName + "(val) FROM %s"),
+                       row(1, 1d, expectedResult));
+        }
     }
 
     @Test
@@ -718,46 +1521,29 @@ public class UFTest extends CQLTester
         execute("INSERT INTO %s (key, ival, lval, fval, dval, vval, ddval) VALUES (?, ?, ?, ?, ?, ?, ?)", 1,
                 1, 1L, 1f, 1d, BigInteger.valueOf(1L), BigDecimal.valueOf(1d));
 
-        // type = int
-        execute("CREATE OR REPLACE FUNCTION "+KEYSPACE+".jsint(val int) RETURNS int LANGUAGE javascript\n" +
-                "AS 'val+1;';");
-        assertRows(execute("SELECT key, ival, jsint(ival) FROM %s"),
-                   row(1, 1, 2));
-        execute("DROP FUNCTION "+KEYSPACE+".jsint(int)");
+        Object[][] variations = new Object[][]
+                                {
+                                new Object[] {  "int",      "ival",     1,                      2  },
+                                new Object[] {  "bigint",   "lval",     1L,                     2L  },
+                                new Object[] {  "float",    "fval",     1f,                     2f  },
+                                new Object[] {  "double",   "dval",     1d,                     2d  },
+                                new Object[] {  "varint",   "vval",     BigInteger.valueOf(1L), BigInteger.valueOf(2L)  },
+                                new Object[] {  "decimal",  "ddval",    BigDecimal.valueOf(1d), BigDecimal.valueOf(2d)  },
+                                };
 
-        // bigint
-        execute("CREATE OR REPLACE FUNCTION "+KEYSPACE+".jsbigint(val bigint) RETURNS bigint LANGUAGE javascript\n" +
-                "AS 'val+1;';");
-        assertRows(execute("SELECT key, lval, jsbigint(lval) FROM %s"),
-                   row(1, 1L, 2L));
-        execute("DROP FUNCTION "+KEYSPACE+".jsbigint(bigint)");
-
-        // float
-        execute("CREATE OR REPLACE FUNCTION "+KEYSPACE+".jsfloat(val float) RETURNS float LANGUAGE javascript\n" +
-                "AS 'val+1;';");
-        assertRows(execute("SELECT key, fval, jsfloat(fval) FROM %s"),
-                   row(1, 1f, 2f));
-        execute("DROP FUNCTION "+KEYSPACE+".jsfloat(float)");
-
-        // double
-        execute("CREATE OR REPLACE FUNCTION "+KEYSPACE+".jsdouble(val double) RETURNS double LANGUAGE javascript\n" +
-                "AS 'val+1;';");
-        assertRows(execute("SELECT key, dval, jsdouble(dval) FROM %s"),
-                   row(1, 1d, 2d));
-        execute("DROP FUNCTION "+KEYSPACE+".jsdouble(double)");
-
-        // varint
-        execute("CREATE OR REPLACE FUNCTION "+KEYSPACE+".jsvarint(val varint) RETURNS varint LANGUAGE javascript\n" +
-                "AS 'val+1;';");
-        assertRows(execute("SELECT key, vval, jsvarint(vval) FROM %s"),
-                   row(1, BigInteger.valueOf(1L), BigInteger.valueOf(2L)));
-        execute("DROP FUNCTION "+KEYSPACE+".jsvarint(varint)");
-
-        // decimal
-        execute("CREATE OR REPLACE FUNCTION "+KEYSPACE+".jsdecimal(val decimal) RETURNS decimal LANGUAGE javascript\n" +
-                "AS 'val+1;';");
-        assertRows(execute("SELECT key, ddval, jsdecimal(ddval) FROM %s"),
-                   row(1, BigDecimal.valueOf(1d), BigDecimal.valueOf(2d)));
-        execute("DROP FUNCTION "+KEYSPACE+".jsdecimal(decimal)");
+        for (Object[] variation : variations)
+        {
+            Object type = variation[0];
+            Object col = variation[1];
+            Object expected1 = variation[2];
+            Object expected2 = variation[3];
+            String fName = createFunction(KEYSPACE, type.toString(),
+                           "CREATE OR REPLACE FUNCTION %s(val " + type + ") " +
+                           "RETURNS " + type + " " +
+                           "LANGUAGE javascript " +
+                           "AS 'val+1;';");
+            assertRows(execute("SELECT key, " + col + ", " + fName + "(" + col + ") FROM %s"),
+                       row(1, expected1, expected2));
+        }
     }
 }

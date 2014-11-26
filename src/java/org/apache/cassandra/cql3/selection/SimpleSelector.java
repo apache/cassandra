@@ -21,6 +21,7 @@ import java.nio.ByteBuffer;
 
 import org.apache.cassandra.cql3.selection.Selection.ResultSetBuilder;
 import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.exceptions.InvalidRequestException;
 
 public final class SimpleSelector extends Selector
 {
@@ -54,13 +55,13 @@ public final class SimpleSelector extends Selector
     }
 
     @Override
-    public void addInput(ResultSetBuilder rs)
+    public void addInput(int protocolVersion, ResultSetBuilder rs) throws InvalidRequestException
     {
         current = rs.current.get(idx);
     }
 
     @Override
-    public ByteBuffer getOutput()
+    public ByteBuffer getOutput(int protocolVersion) throws InvalidRequestException
     {
         return current;
     }

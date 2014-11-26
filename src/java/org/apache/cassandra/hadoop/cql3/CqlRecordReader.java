@@ -236,7 +236,7 @@ public class CqlRecordReader extends RecordReader<Long, Row>
 
     public Long createKey()
     {
-        return new Long(0L);
+        return Long.valueOf(0L);
     }
 
     public Row createValue()

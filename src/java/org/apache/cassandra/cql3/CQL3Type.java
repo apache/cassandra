@@ -315,6 +315,11 @@ public interface CQL3Type
             return false;
         }
 
+        public String keyspace()
+        {
+            return null;
+        }
+
         public void freeze() throws InvalidRequestException
         {
             String message = String.format("frozen<> is only allowed on collections, tuples, and user-defined types (got %s)", this);
@@ -474,6 +479,11 @@ public interface CQL3Type
                 this.name = name;
             }
 
+            public String keyspace()
+            {
+                return name.getKeyspace();
+            }
+
             public void freeze()
             {
                 frozen = true;
@@ -485,7 +495,7 @@ public interface CQL3Type
                 {
                     // The provided keyspace is the one of the current statement this is part of. If it's different from the keyspace of
                     // the UTName, we reject since we want to limit user types to their own keyspace (see #6643)
-                    if (!keyspace.equals(name.getKeyspace()))
+                    if (keyspace != null && !keyspace.equals(name.getKeyspace()))
                         throw new InvalidRequestException(String.format("Statement on keyspace %s cannot refer to a user type in keyspace %s; "
                                                                         + "user types can only be used in the keyspace they are defined in",
                                                                         keyspace, name.getKeyspace()));

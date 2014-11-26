@@ -17,6 +17,9 @@
  */
 package org.apache.cassandra.cql3.functions;
 
+import java.lang.invoke.MethodHandle;
+import java.lang.invoke.MethodHandles;
+import java.lang.reflect.Method;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -26,6 +29,11 @@ import com.google.common.base.Objects;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.datastax.driver.core.DataType;
+import com.datastax.driver.core.ProtocolVersion;
+import com.datastax.driver.core.UserType;
+import org.apache.cassandra.config.KSMetaData;
+import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.composites.Composite;
@@ -33,6 +41,8 @@ import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.db.marshal.TypeParser;
 import org.apache.cassandra.exceptions.*;
+import org.apache.cassandra.service.MigrationManager;
+import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 
 /**
@@ -42,11 +52,83 @@ public abstract class UDFunction extends AbstractFunction implements ScalarFunct
 {
     protected static final Logger logger = LoggerFactory.getLogger(UDFunction.class);
 
+    // TODO make these c'tors and methods public in Java-Driver - see https://datastax-oss.atlassian.net/browse/JAVA-502
+    static final MethodHandle methodParseOne;
+    static
+    {
+        try
+        {
+            Class<?> cls = Class.forName("com.datastax.driver.core.CassandraTypeParser");
+            Method m = cls.getDeclaredMethod("parseOne", String.class);
+            m.setAccessible(true);
+            methodParseOne = MethodHandles.lookup().unreflect(m);
+        }
+        catch (Exception e)
+        {
+            throw new RuntimeException(e);
+        }
+    }
+
+    /**
+     * Construct an array containing the Java classes for the given Java Driver {@link com.datastax.driver.core.DataType}s.
+     *
+     * @param dataTypes array with UDF argument types
+     * @return array of same size with UDF arguments
+     */
+    public static Class<?>[] javaTypes(DataType[] dataTypes)
+    {
+        Class<?> paramTypes[] = new Class[dataTypes.length];
+        for (int i = 0; i < paramTypes.length; i++)
+            paramTypes[i] = dataTypes[i].asJavaClass();
+        return paramTypes;
+    }
+
+    /**
+     * Construct an array containing the Java Driver {@link com.datastax.driver.core.DataType}s for the
+     * C* internal types.
+     *
+     * @param abstractTypes list with UDF argument types
+     * @return array with argument types as {@link com.datastax.driver.core.DataType}
+     */
+    public static DataType[] driverTypes(List<AbstractType<?>> abstractTypes)
+    {
+        DataType[] argDataTypes = new DataType[abstractTypes.size()];
+        for (int i = 0; i < argDataTypes.length; i++)
+            argDataTypes[i] = driverType(abstractTypes.get(i));
+        return argDataTypes;
+    }
+
+    /**
+     * Returns the Java Driver {@link com.datastax.driver.core.DataType} for the C* internal type.
+     */
+    public static DataType driverType(AbstractType abstractType)
+    {
+        CQL3Type cqlType = abstractType.asCQL3Type();
+        try
+        {
+            return (DataType) methodParseOne.invoke(cqlType.getType().toString());
+        }
+        catch (RuntimeException | Error e)
+        {
+            // immediately rethrow these...
+            throw e;
+        }
+        catch (Throwable e)
+        {
+            throw new RuntimeException("cannot parse driver type " + cqlType.getType().toString(), e);
+        }
+    }
+
+    // instance vars
+
     protected final List<ColumnIdentifier> argNames;
 
     protected final String language;
     protected final String body;
-    private final boolean deterministic;
+    protected final boolean deterministic;
+
+    protected final DataType[] argDataTypes;
+    protected final DataType returnDataType;
 
     protected UDFunction(FunctionName name,
                          List<ColumnIdentifier> argNames,
@@ -56,12 +138,53 @@ public abstract class UDFunction extends AbstractFunction implements ScalarFunct
                          String body,
                          boolean deterministic)
     {
+        this(name, argNames, argTypes, driverTypes(argTypes), returnType,
+             driverType(returnType), language, body, deterministic);
+    }
+
+    protected UDFunction(FunctionName name,
+                         List<ColumnIdentifier> argNames,
+                         List<AbstractType<?>> argTypes,
+                         DataType[] argDataTypes,
+                         AbstractType<?> returnType,
+                         DataType returnDataType,
+                         String language,
+                         String body,
+                         boolean deterministic)
+        {
         super(name, argTypes, returnType);
         assert new HashSet<>(argNames).size() == argNames.size() : "duplicate argument names";
         this.argNames = argNames;
         this.language = language;
         this.body = body;
         this.deterministic = deterministic;
+        this.argDataTypes = argDataTypes;
+        this.returnDataType = returnDataType;
+    }
+
+    /**
+     * Used by UDF implementations (both Java code generated by {@link org.apache.cassandra.cql3.functions.JavaSourceUDFFactory}
+     * and script executor {@link org.apache.cassandra.cql3.functions.ScriptBasedUDF}) to convert the C*
+     * serialized representation to the Java object representation.
+     *
+     * @param protocolVersion the native protocol version used for serialization
+     * @param argIndex        index of the UDF input argument
+     */
+    protected Object compose(int protocolVersion, int argIndex, ByteBuffer value)
+    {
+        return value == null ? null : argDataTypes[argIndex].deserialize(value, ProtocolVersion.fromInt(protocolVersion));
+    }
+
+    /**
+     * Used by UDF implementations (both Java code generated by {@link org.apache.cassandra.cql3.functions.JavaSourceUDFFactory}
+     * and script executor {@link org.apache.cassandra.cql3.functions.ScriptBasedUDF}) to convert the Java
+     * object representation for the return value to the C* serialized representation.
+     *
+     * @param protocolVersion the native protocol version used for serialization
+     */
+    protected ByteBuffer decompose(int protocolVersion, Object value)
+    {
+        return value == null ? null : returnDataType.serialize(value, ProtocolVersion.fromInt(protocolVersion));
     }
 
     public boolean isAggregate()
@@ -85,19 +208,6 @@ public abstract class UDFunction extends AbstractFunction implements ScalarFunct
         }
     }
 
-    static Class<?>[] javaParamTypes(List<AbstractType<?>> argTypes)
-    {
-        Class<?> paramTypes[] = new Class[argTypes.size()];
-        for (int i = 0; i < paramTypes.length; i++)
-            paramTypes[i] = javaType(argTypes.get(i));
-        return paramTypes;
-    }
-
-    static Class<?> javaType(AbstractType<?> type)
-    {
-        return type.getSerializer().getType();
-    }
-
     /**
      * It can happen that a function has been declared (is listed in the scheam) but cannot
      * be loaded (maybe only on some nodes). This is the case for instance if the class defining
@@ -117,7 +227,7 @@ public abstract class UDFunction extends AbstractFunction implements ScalarFunct
     {
         return new UDFunction(name, argNames, argTypes, returnType, language, body, true)
         {
-            public ByteBuffer execute(List<ByteBuffer> parameters) throws InvalidRequestException
+            public ByteBuffer execute(int protocolVersion, List<ByteBuffer> parameters) throws InvalidRequestException
             {
                 throw new InvalidRequestException(String.format("Function '%s' exists but hasn't been loaded successfully for the following reason: %s. "
                                                               + "Please see the server log for more details", this, reason.getMessage()));
@@ -135,7 +245,7 @@ public abstract class UDFunction extends AbstractFunction implements ScalarFunct
     {
         MessageDigest digest = FBUtilities.newMessageDigest("SHA-1");
         for (AbstractType<?> type : argTypes)
-            digest.update(type.toString().getBytes(StandardCharsets.UTF_8));
+            digest.update(type.asCQL3Type().toString().getBytes(StandardCharsets.UTF_8));
         return ByteBuffer.wrap(digest.digest());
     }
 
@@ -268,8 +378,8 @@ public abstract class UDFunction extends AbstractFunction implements ScalarFunct
         UDFunction that = (UDFunction)o;
         return Objects.equal(this.name, that.name)
             && Objects.equal(this.argNames, that.argNames)
-            && Objects.equal(this.argTypes, that.argTypes)
-            && Objects.equal(this.returnType, that.returnType)
+            && Functions.typeEquals(this.argTypes, that.argTypes)
+            && Functions.typeEquals(this.returnType, that.returnType)
             && Objects.equal(this.language, that.language)
             && Objects.equal(this.body, that.body)
             && Objects.equal(this.deterministic, that.deterministic);
@@ -279,5 +389,36 @@ public abstract class UDFunction extends AbstractFunction implements ScalarFunct
     public int hashCode()
     {
         return Objects.hashCode(name, argNames, argTypes, returnType, language, body, deterministic);
+    }
+
+    public void userTypeUpdated(String ksName, String typeName)
+    {
+        boolean updated = false;
+
+        for (int i = 0; i < argDataTypes.length; i++)
+        {
+            DataType dataType = argDataTypes[i];
+            if (dataType instanceof UserType)
+            {
+                UserType userType = (UserType) dataType;
+                if (userType.getKeyspace().equals(ksName) && userType.getTypeName().equals(typeName))
+                {
+                    KSMetaData ksm = Schema.instance.getKSMetaData(ksName);
+                    assert ksm != null;
+
+                    org.apache.cassandra.db.marshal.UserType ut = ksm.userTypes.getType(ByteBufferUtil.bytes(typeName));
+
+                    DataType newUserType = driverType(ut);
+                    argDataTypes[i] = newUserType;
+
+                    argTypes.set(i, ut);
+
+                    updated = true;
+                }
+            }
+        }
+
+        if (updated)
+            MigrationManager.announceNewFunction(this, true);
     }
 }

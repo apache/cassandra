@@ -1,4 +1,6 @@
 3.0
+ * Support UDTs, tuples, and collections in user-defined
+   functions (CASSANDRA-7563)
  * Fix aggregate fn results on empty selection, result column name,
    and cqlsh parsing (CASSANDRA-8229)
  * Mark sstables as repaired after full repair (CASSANDRA-7586)

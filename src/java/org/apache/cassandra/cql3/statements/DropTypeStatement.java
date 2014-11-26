@@ -20,6 +20,8 @@ package org.apache.cassandra.cql3.statements;
 import org.apache.cassandra.auth.Permission;
 import org.apache.cassandra.config.*;
 import org.apache.cassandra.cql3.*;
+import org.apache.cassandra.cql3.functions.Function;
+import org.apache.cassandra.cql3.functions.Functions;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.exceptions.*;
 import org.apache.cassandra.service.ClientState;
@@ -71,6 +73,15 @@ public class DropTypeStatement extends SchemaAlteringStatement
         // We have two places to check: 1) other user type that can nest the one
         // we drop and 2) existing tables referencing the type (maybe in a nested
         // way).
+
+        for (Function function : Functions.all())
+        {
+            if (isUsedBy(function.returnType()))
+                throw new InvalidRequestException(String.format("Cannot drop user type %s as it is still used by function %s", name, function));
+            for (AbstractType<?> argType : function.argTypes())
+                if (isUsedBy(argType))
+                    throw new InvalidRequestException(String.format("Cannot drop user type %s as it is still used by function %s", name, function));
+        }
 
         for (KSMetaData ksm2 : Schema.instance.getKeyspaceDefinitions())
         {

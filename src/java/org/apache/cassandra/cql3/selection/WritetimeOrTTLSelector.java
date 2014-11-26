@@ -63,7 +63,7 @@ final class WritetimeOrTTLSelector extends Selector
         };
     }
 
-    public void addInput(ResultSetBuilder rs)
+    public void addInput(int protocolVersion, ResultSetBuilder rs)
     {
         if (isWritetime)
         {
@@ -77,7 +77,7 @@ final class WritetimeOrTTLSelector extends Selector
         }
     }
 
-    public ByteBuffer getOutput()
+    public ByteBuffer getOutput(int protocolVersion)
     {
         return current;
     }

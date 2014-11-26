@@ -18,6 +18,7 @@
 package org.apache.cassandra.cql3.functions;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 
 import com.google.common.collect.ArrayListMultimap;
@@ -29,6 +30,8 @@ import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.service.IMigrationListener;
+import org.apache.cassandra.service.MigrationManager;
 
 public abstract class Functions
 {
@@ -83,6 +86,8 @@ public abstract class Functions
         declare(AggregateFcts.avgFunctionForDouble);
         declare(AggregateFcts.avgFunctionForVarint);
         declare(AggregateFcts.avgFunctionForDecimal);
+
+        MigrationManager.instance.register(new FunctionsMigrationListener());
     }
 
     private static void declare(Function fun)
@@ -188,7 +193,7 @@ public abstract class Functions
         assert name.hasKeyspace() : "function name not fully qualified";
         for (Function f : declared.get(name))
         {
-            if (f.argTypes().equals(argTypes))
+            if (typeEquals(f.argTypes(), argTypes))
                 return f;
         }
         return null;
@@ -283,5 +288,48 @@ public abstract class Functions
     {
         removeFunction(fun.name(), fun.argTypes());
         addFunction(fun);
+    }
+
+    public static Collection<Function> all()
+    {
+        return declared.values();
+    }
+
+    public static boolean typeEquals(AbstractType<?> t1, AbstractType<?> t2)
+    {
+        return t1.asCQL3Type().toString().equals(t2.asCQL3Type().toString());
+    }
+
+    public static boolean typeEquals(List<AbstractType<?>> t1, List<AbstractType<?>> t2)
+    {
+        if (t1.size() != t2.size())
+            return false;
+        for (int i = 0; i < t1.size(); i ++)
+            if (!typeEquals(t1.get(i), t2.get(i)))
+                return false;
+        return true;
+    }
+
+    private static class FunctionsMigrationListener implements IMigrationListener
+    {
+        public void onCreateKeyspace(String ksName) { }
+        public void onCreateColumnFamily(String ksName, String cfName) { }
+        public void onCreateUserType(String ksName, String typeName) { }
+        public void onCreateFunction(String ksName, String functionName) { }
+
+        public void onUpdateKeyspace(String ksName) { }
+        public void onUpdateColumnFamily(String ksName, String cfName) { }
+        public void onUpdateUserType(String ksName, String typeName) {
+            for (Function function : all())
+                if (function instanceof UDFunction)
+                    ((UDFunction)function).userTypeUpdated(ksName, typeName);
+        }
+        public void onUpdateFunction(String ksName, String functionName) { }
+
+        public void onDropKeyspace(String ksName) { }
+        public void onDropColumnFamily(String ksName, String cfName) { }
+        public void onDropUserType(String ksName, String typeName) { }
+        public void onDropFunction(String ksName, String functionName) { }
+
     }
 }

@@ -219,33 +219,33 @@ public abstract class Selection
             return c == null || !c.isLive(now);
         }
 
-        public void newRow() throws InvalidRequestException
+        public void newRow(int protocolVersion) throws InvalidRequestException
         {
             if (current != null)
             {
-                selectors.addInputRow(this);
+                selectors.addInputRow(protocolVersion, this);
                 if (!selectors.isAggregate())
                 {
-                    resultSet.addRow(selectors.getOutputRow());
+                    resultSet.addRow(selectors.getOutputRow(protocolVersion));
                     selectors.reset();
                 }
             }
             current = new ArrayList<ByteBuffer>(columns.size());
         }
 
-        public ResultSet build() throws InvalidRequestException
+        public ResultSet build(int protocolVersion) throws InvalidRequestException
         {
             if (current != null)
             {
-                selectors.addInputRow(this);
-                resultSet.addRow(selectors.getOutputRow());
+                selectors.addInputRow(protocolVersion, this);
+                resultSet.addRow(selectors.getOutputRow(protocolVersion));
                 selectors.reset();
                 current = null;
             }
 
             if (resultSet.isEmpty() && selectors.isAggregate())
             {
-                resultSet.addRow(selectors.getOutputRow());
+                resultSet.addRow(selectors.getOutputRow(protocolVersion));
             }
             return resultSet;
         }
@@ -268,9 +268,9 @@ public abstract class Selection
          * @param rs the <code>ResultSetBuilder</code>
          * @throws InvalidRequestException
          */
-        public void addInputRow(ResultSetBuilder rs) throws InvalidRequestException;
+        public void addInputRow(int protocolVersion, ResultSetBuilder rs) throws InvalidRequestException;
 
-        public List<ByteBuffer> getOutputRow() throws InvalidRequestException;
+        public List<ByteBuffer> getOutputRow(int protocolVersion) throws InvalidRequestException;
 
         public void reset();
     }
@@ -318,12 +318,12 @@ public abstract class Selection
                     current = null;
                 }
 
-                public List<ByteBuffer> getOutputRow()
+                public List<ByteBuffer> getOutputRow(int protocolVersion)
                 {
                     return current;
                 }
 
-                public void addInputRow(ResultSetBuilder rs) throws InvalidRequestException
+                public void addInputRow(int protocolVersion, ResultSetBuilder rs) throws InvalidRequestException
                 {
                     current = rs.current;
                 }
@@ -388,22 +388,22 @@ public abstract class Selection
                     return factories.containsOnlyAggregateFunctions();
                 }
 
-                public List<ByteBuffer> getOutputRow() throws InvalidRequestException
+                public List<ByteBuffer> getOutputRow(int protocolVersion) throws InvalidRequestException
                 {
                     List<ByteBuffer> outputRow = new ArrayList<>(selectors.size());
 
                     for (int i = 0, m = selectors.size(); i < m; i++)
                     {
-                        outputRow.add(selectors.get(i).getOutput());
+                        outputRow.add(selectors.get(i).getOutput(protocolVersion));
                     }
                     return outputRow;
                 }
 
-                public void addInputRow(ResultSetBuilder rs) throws InvalidRequestException
+                public void addInputRow(int protocolVersion, ResultSetBuilder rs) throws InvalidRequestException
                 {
                     for (int i = 0, m = selectors.size(); i < m; i++)
                     {
-                        selectors.get(i).addInput(rs);
+                        selectors.get(i).addInput(protocolVersion, rs);
                     }
                 }
             };

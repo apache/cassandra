@@ -20,13 +20,13 @@ package org.apache.cassandra.cql3.functions;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Modifier;
-import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.datastax.driver.core.DataType;
 import javassist.CannotCompileException;
 import javassist.ClassPool;
 import javassist.CtClass;
@@ -56,8 +56,14 @@ public final class JavaSourceUDFFactory
                                boolean deterministic)
     throws InvalidRequestException
     {
-        Class<?> javaReturnType = UDFunction.javaType(returnType);
-        Class<?>[] javaParamTypes = UDFunction.javaParamTypes(argTypes);
+        // argDataTypes is just the C* internal argTypes converted to the Java Driver DataType
+        DataType[] argDataTypes = UDFunction.driverTypes(argTypes);
+        // returnDataType is just the C* internal returnType converted to the Java Driver DataType
+        DataType returnDataType = UDFunction.driverType(returnType);
+        // javaParamTypes is just the Java representation for argTypes resp. argDataTypes
+        Class<?>[] javaParamTypes = UDFunction.javaTypes(argDataTypes);
+        // javaReturnType is just the Java representation for returnType resp. returnDataType
+        Class<?> javaReturnType = returnDataType.asJavaClass();
 
         String clsName = generateClassName(name);
 
@@ -92,9 +98,13 @@ public final class JavaSourceUDFFactory
 
             Constructor ctor =
                 cc.toClass().getDeclaredConstructor(
-                   FunctionName.class, List.class, List.class,
-                   AbstractType.class, String.class, boolean.class);
-            return (UDFunction) ctor.newInstance(name, argNames, argTypes, returnType, body, deterministic);
+                   FunctionName.class, List.class, List.class, DataType[].class,
+                   AbstractType.class, DataType.class,
+                   String.class, boolean.class);
+            return (UDFunction) ctor.newInstance(
+                   name, argNames, argTypes, argDataTypes,
+                   returnType, returnDataType,
+                   body, deterministic);
         }
         catch (NotFoundException | CannotCompileException | NoSuchMethodException | LinkageError | InstantiationException | IllegalAccessException e)
         {
@@ -133,10 +143,12 @@ public final class JavaSourceUDFFactory
                "(org.apache.cassandra.cql3.functions.FunctionName name, " +
                "java.util.List argNames, " +
                "java.util.List argTypes, " +
+               "com.datastax.driver.core.DataType[] argDataTypes, " +
                "org.apache.cassandra.db.marshal.AbstractType returnType, " +
+               "com.datastax.driver.core.DataType returnDataType, " +
                "String body," +
                "boolean deterministic)\n{" +
-               "  super(name, argNames, argTypes, returnType, \"java\", body, deterministic);\n" +
+               "  super(name, argNames, argTypes, argDataTypes, returnType, returnDataType, \"java\", body, deterministic);\n" +
                "}";
     }
 
@@ -177,15 +189,17 @@ public final class JavaSourceUDFFactory
      * Generated looks like this:
      * <code><pre>
      *
-     * public java.nio.ByteBuffer execute(java.util.List params)
+     * public java.nio.ByteBuffer execute(int protocolVersion, java.util.List params)
      * throws org.apache.cassandra.exceptions.InvalidRequestException
      * {
      *     try
      *     {
      *         Object result = executeInternal(
-     *             (<cast to JAVA_ARG_TYPE>)org.apache.cassandra.cql3.functions.JavaSourceUDFFactory.compose(argTypes, params, 0)
+     *             (<cast to JAVA_ARG_TYPE>)compose(protocolVersion, 0, (java.nio.ByteBuffer)params.get(0)),
+     *             (<cast to JAVA_ARG_TYPE>)compose(protocolVersion, 1, (java.nio.ByteBuffer)params.get(1)),
+     *             ...
      *         );
-     *         return result != null ? returnType.decompose(result) : null;
+     *         return decompose(protocolVersion, result);
      *     }
      *     catch (Throwable t)
      *     {
@@ -202,7 +216,7 @@ public final class JavaSourceUDFFactory
         // usual methods are 700-800 chars long (prevent temp object allocations)
         StringBuilder code = new StringBuilder(1024);
         // overrides org.apache.cassandra.cql3.functions.Function.execute(java.util.List)
-        code.append("public java.nio.ByteBuffer execute(java.util.List params)\n" +
+        code.append("public java.nio.ByteBuffer execute(int protocolVersion, java.util.List params)\n" +
                     "throws org.apache.cassandra.exceptions.InvalidRequestException\n" +
                     "{\n" +
                     "  try\n" +
@@ -219,13 +233,13 @@ public final class JavaSourceUDFFactory
             code.
                  // cast to Java type
                  append("\n      (").append(paramTypes[i].getName()).append(")").
-                 // generate object representation of input parameter
-                 append("org.apache.cassandra.cql3.functions.JavaSourceUDFFactory.compose(argTypes, params, ").append(i).append(')');
+                 // generate object representation of input parameter (call UDFunction.compose)
+                 append("compose(protocolVersion, ").append(i).append(", (java.nio.ByteBuffer)params.get(").append(i).append("))");
         }
 
         code.append("\n    );\n" +
-                    // generate serialized return value (returnType is a field in AbstractFunction class)
-                    "    return result != null ? returnType.decompose(result) : null;\n" +
+                    // generate serialized return value (returnType is a field in AbstractFunction class), (call UDFunction.decompose)
+                    "    return decompose(protocolVersion, result);\n" +
                     //
                     // error handling ...
                     "  }\n" +
@@ -240,13 +254,6 @@ public final class JavaSourceUDFFactory
                     "}");
 
         return code.toString();
-    }
-
-    // Used by execute() implementations of generated java source UDFs.
-    public static Object compose(List<AbstractType<?>> argTypes, List<ByteBuffer> parameters, int param)
-    {
-        ByteBuffer bb = parameters.get(param);
-        return bb == null ? null : argTypes.get(param).compose(bb);
     }
 
 }

@@ -64,14 +64,14 @@ final class FieldSelector extends Selector
         return false;
     }
 
-    public void addInput(ResultSetBuilder rs) throws InvalidRequestException
+    public void addInput(int protocolVersion, ResultSetBuilder rs) throws InvalidRequestException
     {
-        selected.addInput(rs);
+        selected.addInput(protocolVersion, rs);
     }
 
-    public ByteBuffer getOutput() throws InvalidRequestException
+    public ByteBuffer getOutput(int protocolVersion) throws InvalidRequestException
     {
-        ByteBuffer value = selected.getOutput();
+        ByteBuffer value = selected.getOutput(protocolVersion);
         if (value == null)
             return null;
         ByteBuffer[] buffers = type.split(value);

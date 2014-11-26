@@ -36,12 +36,12 @@ final class ScalarFunctionSelector extends AbstractFunctionSelector<ScalarFuncti
         return argSelectors.get(0).isAggregate();
     }
 
-    public void addInput(ResultSetBuilder rs) throws InvalidRequestException
+    public void addInput(int protocolVersion, ResultSetBuilder rs) throws InvalidRequestException
     {
         for (int i = 0, m = argSelectors.size(); i < m; i++)
         {
             Selector s = argSelectors.get(i);
-            s.addInput(rs);
+            s.addInput(protocolVersion, rs);
         }
     }
 
@@ -49,15 +49,15 @@ final class ScalarFunctionSelector extends AbstractFunctionSelector<ScalarFuncti
     {
     }
 
-    public ByteBuffer getOutput() throws InvalidRequestException
+    public ByteBuffer getOutput(int protocolVersion) throws InvalidRequestException
     {
         for (int i = 0, m = argSelectors.size(); i < m; i++)
         {
             Selector s = argSelectors.get(i);
-            args.set(i, s.getOutput());
+            args.set(i, s.getOutput(protocolVersion));
             s.reset();
         }
-        return fun.execute(args);
+        return fun.execute(protocolVersion, args);
     }
 
     ScalarFunctionSelector(Function fun, List<Selector> argSelectors)

@@ -280,7 +280,7 @@ public class SelectStatement implements CQLStatement
                 processColumnFamily(row.key.getKey(), row.cf, options, now, result);
             }
         }
-        return new ResultMessage.Rows(result.build());
+        return new ResultMessage.Rows(result.build(options.getProtocolVersion()));
     }
 
     public ResultMessage.Rows processResults(List<Row> rows, QueryOptions options, int limit, long now) throws RequestValidationException
@@ -1149,7 +1149,7 @@ public class SelectStatement implements CQLStatement
             processColumnFamily(row.key.getKey(), row.cf, options, now, result);
         }
 
-        ResultSet cqlRows = result.build();
+        ResultSet cqlRows = result.build(options.getProtocolVersion());
 
         orderResults(cqlRows);
 
@@ -1189,7 +1189,7 @@ public class SelectStatement implements CQLStatement
         CQL3Row staticRow = iter.getStaticRow();
         if (staticRow != null && !iter.hasNext() && !usesSecondaryIndexing && hasNoClusteringColumnsRestriction())
         {
-            result.newRow();
+            result.newRow(options.getProtocolVersion());
             for (ColumnDefinition def : selection.getColumns())
             {
                 switch (def.kind)
@@ -1212,7 +1212,7 @@ public class SelectStatement implements CQLStatement
             CQL3Row cql3Row = iter.next();
 
             // Respect requested order
-            result.newRow();
+            result.newRow(options.getProtocolVersion());
             // Respect selection order
             for (ColumnDefinition def : selection.getColumns())
             {

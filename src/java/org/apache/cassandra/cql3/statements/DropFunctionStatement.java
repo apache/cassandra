@@ -103,7 +103,7 @@ public final class DropFunctionStatement extends SchemaAlteringStatement
 
         List<AbstractType<?>> argTypes = new ArrayList<>(argRawTypes.size());
         for (CQL3Type.Raw rawType : argRawTypes)
-            argTypes.add(rawType.prepare(functionName.keyspace).getType());
+            argTypes.add(rawType.prepare(typeKeyspace(rawType)).getType());
 
         Function old;
         if (argsPresent)
@@ -138,5 +138,13 @@ public final class DropFunctionStatement extends SchemaAlteringStatement
 
         MigrationManager.announceFunctionDrop((UDFunction)old, isLocalOnly);
         return true;
+    }
+
+    private String typeKeyspace(CQL3Type.Raw rawType)
+    {
+        String ks = rawType.keyspace();
+        if (ks != null)
+            return ks;
+        return functionName.keyspace;
     }
 }
