@@ -154,6 +154,7 @@ public abstract class SSTableReader extends SSTable
     protected Object replaceLock = new Object();
     protected SSTableReader replacedBy;
     private SSTableReader replaces;
+    private SSTableReader sharesBfWith;
     private SSTableDeletingTask deletingTask;
     private Runnable runOnClose;
 
@@ -529,6 +530,14 @@ public abstract class SSTableReader extends SSTable
                 deleteFiles &= !dfile.path.equals(replaces.dfile.path);
             }
 
+            if (sharesBfWith != null)
+            {
+                closeBf &= sharesBfWith.bf != bf;
+                closeSummary &= sharesBfWith.indexSummary != indexSummary;
+                closeFiles &= sharesBfWith.dfile != dfile;
+                deleteFiles &= !dfile.path.equals(sharesBfWith.dfile.path);
+            }
+
             boolean deleteAll = false;
             if (release && isCompacted.get())
             {
@@ -863,6 +872,19 @@ public abstract class SSTableReader extends SSTable
             replacement.replaces = this;
             replacement.replaceLock = replaceLock;
         }
+    }
+
+    /**
+     * this is used to avoid closing the bloom filter multiple times when finishing an SSTableRewriter
+     *
+     * note that the reason we don't use replacedBy is that we are not yet actually replaced
+     *
+     * @param newReader
+     */
+    public void sharesBfWith(SSTableReader newReader)
+    {
+        assert openReason.equals(OpenReason.EARLY);
+        this.sharesBfWith = newReader;
     }
 
     public SSTableReader cloneWithNewStart(DecoratedKey newStart, final Runnable runOnClose)
