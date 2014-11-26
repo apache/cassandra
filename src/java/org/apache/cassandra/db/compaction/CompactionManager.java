@@ -555,8 +555,7 @@ public class CompactionManager implements CompactionManagerMBean
                 logger.debug("Expected bloom filter size : " + expectedBloomFilterSize);
 
             logger.info("Cleaning up " + sstable);
-
-            File compactionFileLocation = cfs.directories.getDirectoryForNewSSTables();
+            File compactionFileLocation = cfs.directories.getWriteableLocationAsFile(cfs.getExpectedCompactedFileSize(sstables, OperationType.CLEANUP));
             if (compactionFileLocation == null)
                 throw new IOException("disk full");
 

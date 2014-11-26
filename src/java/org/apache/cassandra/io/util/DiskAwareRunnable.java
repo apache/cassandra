@@ -27,22 +27,14 @@ public abstract class DiskAwareRunnable extends WrappedRunnable
         Directories.DataDirectory directory;
         while (true)
         {
-            directory = getDirectories().getWriteableLocation();
+            directory = getDirectories().getWriteableLocation(writeSize);
             if (directory != null || !reduceScopeForLimitedSpace())
                 break;
         }
         if (directory == null)
             throw new RuntimeException("Insufficient disk space to write " + writeSize + " bytes");
 
-        directory.currentTasks.incrementAndGet();
-        directory.estimatedWorkingSize.addAndGet(writeSize);
         return directory;
-    }
-
-    protected void returnWriteDirectory(Directories.DataDirectory directory, long writeSize)
-    {
-        directory.estimatedWorkingSize.addAndGet(-1 * writeSize);
-        directory.currentTasks.decrementAndGet();
     }
 
     /**

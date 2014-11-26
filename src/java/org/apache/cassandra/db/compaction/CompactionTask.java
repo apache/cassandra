@@ -153,55 +153,44 @@ public class CompactionTask extends AbstractCompactionTask
             Directories.DataDirectory dataDirectory = getWriteDirectory(writeSize);
             SSTableWriter writer = createCompactionWriter(cfs.directories.getLocationForDisk(dataDirectory), keysPerSSTable);
             writers.add(writer);
-            try
+            while (iter.hasNext())
             {
-                while (iter.hasNext())
+                if (ci.isStopRequested())
+                    throw new CompactionInterruptedException(ci.getCompactionInfo());
+
+                AbstractCompactedRow row = iter.next();
+                RowIndexEntry indexEntry = writer.append(row);
+                if (indexEntry == null)
                 {
-                    if (ci.isStopRequested())
-                        throw new CompactionInterruptedException(ci.getCompactionInfo());
+                    controller.invalidateCachedRow(row.key);
+                    row.close();
+                    continue;
+                }
 
-                    AbstractCompactedRow row = iter.next();
-                    RowIndexEntry indexEntry = writer.append(row);
-                    if (indexEntry == null)
+                totalkeysWritten++;
+
+                if (DatabaseDescriptor.getPreheatKeyCache())
+                {
+                    for (SSTableReader sstable : actuallyCompact)
                     {
-                        controller.invalidateCachedRow(row.key);
-                        row.close();
-                        continue;
-                    }
-
-                    totalkeysWritten++;
-
-                    if (DatabaseDescriptor.getPreheatKeyCache())
-                    {
-                        for (SSTableReader sstable : actuallyCompact)
+                        if (sstable.getCachedPosition(row.key, false) != null)
                         {
-                            if (sstable.getCachedPosition(row.key, false) != null)
-                            {
-                                cachedKeys.put(row.key, indexEntry);
-                                break;
-                            }
+                            cachedKeys.put(row.key, indexEntry);
+                            break;
                         }
                     }
-
-                    if (newSSTableSegmentThresholdReached(writer))
-                    {
-                        // tmp = false because later we want to query it with descriptor from SSTableReader
-                        cachedKeyMap.put(writer.descriptor.asTemporary(false), cachedKeys);
-                        returnWriteDirectory(dataDirectory, writeSize);
-                        // make sure we don't try to call returnWriteDirectory in finally {..} if we throw exception in getWriteDirectory() below:
-                        dataDirectory = null;
-                        writeSize = getExpectedWriteSize() / estimatedSSTables;
-                        dataDirectory = getWriteDirectory(writeSize);
-                        writer = createCompactionWriter(cfs.directories.getLocationForDisk(dataDirectory), keysPerSSTable);
-                        writers.add(writer);
-                        cachedKeys = new HashMap<DecoratedKey, RowIndexEntry>();
-                    }
                 }
-            }
-            finally
-            {
-                if (dataDirectory != null)
-                    returnWriteDirectory(dataDirectory, writeSize);
+
+                if (newSSTableSegmentThresholdReached(writer))
+                {
+                    // tmp = false because later we want to query it with descriptor from SSTableReader
+                    cachedKeyMap.put(writer.descriptor.asTemporary(false), cachedKeys);
+                    writeSize = getExpectedWriteSize() / estimatedSSTables;
+                    dataDirectory = getWriteDirectory(writeSize);
+                    writer = createCompactionWriter(cfs.directories.getLocationForDisk(dataDirectory), keysPerSSTable);
+                    writers.add(writer);
+                    cachedKeys = new HashMap<>();
+                }
             }
 
             if (writer.getFilePointer() > 0)

@@ -235,7 +235,7 @@ public class CommitLogTest extends SchemaLoader
         String newCLName = "CommitLog-" + CommitLogDescriptor.current_version + "-1340512736956320000.log";
         Assert.assertEquals(MessagingService.current_version, CommitLogDescriptor.fromFileName(newCLName).getMessagingVersion());
     }
-
+/*
     @Test
     public void testCommitFailurePolicy_stop()
     {
@@ -262,7 +262,7 @@ public class CommitLogTest extends SchemaLoader
             commitDir.setWritable(true);
         }
     }
-
+*/
     @Test
     public void testTruncateWithoutSnapshot()  throws ExecutionException, InterruptedException
     {

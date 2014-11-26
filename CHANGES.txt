@@ -25,6 +25,7 @@
    CQLSSTableWriter (CASSANDRA-7463)
  * Fix totalDiskSpaceUsed calculation (CASSANDRA-8205)
  * Add DC-aware sequential repair (CASSANDRA-8193)
+ * Improve JBOD disk utilization (CASSANDRA-7386)
 
 
 2.0.11:

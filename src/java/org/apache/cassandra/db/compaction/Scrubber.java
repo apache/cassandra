@@ -76,12 +76,13 @@ public class Scrubber implements Closeable
         this.outputHandler = outputHandler;
         this.skipCorrupted = skipCorrupted;
 
+        List<SSTableReader> toScrub = Collections.singletonList(sstable);
+
         // Calculate the expected compacted filesize
-        this.destination = cfs.directories.getDirectoryForNewSSTables();
+        this.destination = cfs.directories.getWriteableLocationAsFile(cfs.getExpectedCompactedFileSize(toScrub, OperationType.SCRUB));
         if (destination == null)
             throw new IOException("disk full");
 
-        List<SSTableReader> toScrub = Collections.singletonList(sstable);
         // If we run scrub offline, we should never purge tombstone, as we cannot know if other sstable have data that the tombstone deletes.
         this.controller = isOffline
                         ? new ScrubController(cfs)

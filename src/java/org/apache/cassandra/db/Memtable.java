@@ -342,17 +342,9 @@ public class Memtable
             Directories.DataDirectory dataDirectory = getWriteDirectory(writeSize);
             File sstableDirectory = cfs.directories.getLocationForDisk(dataDirectory);
             assert sstableDirectory != null : "Flush task is not bound to any disk";
-            try
-            {
-                SSTableReader sstable = writeSortedContents(context, sstableDirectory);
-                cfs.replaceFlushed(Memtable.this, sstable);
-                latch.countDown();
-            }
-            finally
-            {
-                if (dataDirectory != null)
-                    returnWriteDirectory(dataDirectory, writeSize);
-            }
+            SSTableReader sstable = writeSortedContents(context, sstableDirectory);
+            cfs.replaceFlushed(Memtable.this, sstable);
+            latch.countDown();
         }
 
         protected Directories getDirectories()

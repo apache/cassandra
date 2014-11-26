@@ -22,8 +22,7 @@ import java.io.FileFilter;
 import java.io.IOError;
 import java.io.IOException;
 import java.util.*;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicLong;
 
 import com.google.common.collect.ImmutableMap;
@@ -200,73 +199,113 @@ public class Directories
      */
     public File getLocationForDisk(DataDirectory dataDirectory)
     {
+        if (dataDirectory != null)
+            for (File dir : sstableDirectories)
+                if (dir.getAbsolutePath().startsWith(dataDirectory.location.getAbsolutePath()))
+                    return dir;
+        return null;
+    }
+
+    public Descriptor find(String filename)
+    {
         for (File dir : sstableDirectories)
         {
-            if (dir.getAbsolutePath().startsWith(dataDirectory.location.getAbsolutePath()))
-                return dir;
+            if (new File(dir, filename).exists())
+                return Descriptor.fromFilename(dir, filename).left;
         }
         return null;
     }
 
-    public File getDirectoryForNewSSTables()
-    {
-        File path = getWriteableLocationAsFile();
-
-        // Requesting GC has a chance to free space only if we're using mmap and a non SUN jvm
-        if (path == null
-            && (DatabaseDescriptor.getDiskAccessMode() == Config.DiskAccessMode.mmap || DatabaseDescriptor.getIndexAccessMode() == Config.DiskAccessMode.mmap)
-            && !FileUtils.isCleanerAvailable())
-        {
-            logger.info("Forcing GC to free up disk space.  Upgrade to the Oracle JVM to avoid this");
-            StorageService.instance.requestGC();
-            // retry after GCing has forced unmap of compacted SSTables so they can be deleted
-            // Note: GCInspector will do this already, but only sun JVM supports GCInspector so far
-            SSTableDeletingTask.rescheduleFailedTasks();
-            Uninterruptibles.sleepUninterruptibly(10, TimeUnit.SECONDS);
-            path = getWriteableLocationAsFile();
-        }
-
-        return path;
-    }
-
-    public File getWriteableLocationAsFile()
-    {
-        return getLocationForDisk(getWriteableLocation());
-    }
-
     /**
-     * @return a non-blacklisted directory with the most free space and least current tasks.
+     * Basically the same as calling {@link #getWriteableLocationAsFile(long)} with an unknown size ({@code -1L}),
+     * which may return any non-blacklisted directory - even a data directory that has no usable space.
+     * Do not use this method in production code.
      *
      * @throws IOError if all directories are blacklisted.
      */
-    public DataDirectory getWriteableLocation()
+    public File getDirectoryForNewSSTables()
     {
-        List<DataDirectory> candidates = new ArrayList<DataDirectory>();
+        return getWriteableLocationAsFile(-1L);
+    }
+
+    /**
+     * Returns a non-blacklisted data directory that _currently_ has {@code writeSize} bytes as usable space.
+     *
+     * @throws IOError if all directories are blacklisted.
+     */
+    public File getWriteableLocationAsFile(long writeSize)
+    {
+        return getLocationForDisk(getWriteableLocation(writeSize));
+    }
+
+    /**
+     * Returns a non-blacklisted data directory that _currently_ has {@code writeSize} bytes as usable space.
+     *
+     * @throws IOError if all directories are blacklisted.
+     */
+    public DataDirectory getWriteableLocation(long writeSize)
+    {
+        List<DataDirectoryCandidate> candidates = new ArrayList<>();
+
+        long totalAvailable = 0L;
 
         // pick directories with enough space and so that resulting sstable dirs aren't blacklisted for writes.
+        boolean tooBig = false;
         for (DataDirectory dataDir : dataFileLocations)
         {
             if (BlacklistedDirectories.isUnwritable(getLocationForDisk(dataDir)))
                 continue;
-            candidates.add(dataDir);
+            DataDirectoryCandidate candidate = new DataDirectoryCandidate(dataDir);
+            // exclude directory if its total writeSize does not fit to data directory
+            if (candidate.availableSpace < writeSize)
+            {
+                tooBig = true;
+                continue;
+            }
+            candidates.add(candidate);
+            totalAvailable += candidate.availableSpace;
         }
 
         if (candidates.isEmpty())
-            throw new IOError(new IOException("All configured data directories have been blacklisted as unwritable for erroring out"));
+            if (tooBig)
+                return null;
+            else
+                throw new IOError(new IOException("All configured data directories have been blacklisted as unwritable for erroring out"));
 
-        // sort directories by free space, in _descending_ order.
-        Collections.sort(candidates);
+        // shortcut for single data directory systems
+        if (candidates.size() == 1)
+            return candidates.get(0).dataDirectory;
 
-        // sort directories by load, in _ascending_ order.
-        Collections.sort(candidates, new Comparator<DataDirectory>()
+        sortWriteableCandidates(candidates, totalAvailable);
+
+        return pickWriteableDirectory(candidates);
+    }
+
+    // separated for unit testing
+    static DataDirectory pickWriteableDirectory(List<DataDirectoryCandidate> candidates)
+    {
+        // weighted random
+        double rnd = ThreadLocalRandom.current().nextDouble();
+        for (DataDirectoryCandidate candidate : candidates)
         {
-            public int compare(DataDirectory a, DataDirectory b)
-            {
-                return a.currentTasks.get() - b.currentTasks.get();
-            }
-        });
+            rnd -= candidate.perc;
+            if (rnd <= 0)
+                return candidate.dataDirectory;
+        }
 
-        return candidates.get(0);
+        // last resort
+        return candidates.get(0).dataDirectory;
+    }
+
+    // separated for unit testing
+    static void sortWriteableCandidates(List<DataDirectoryCandidate> candidates, long totalAvailable)
+    {
+        // calculate free-space-percentage
+        for (DataDirectoryCandidate candidate : candidates)
+            candidate.calcFreePerc(totalAvailable);
+
+        // sort directories by perc
+        Collections.sort(candidates);
     }
 
 
@@ -285,31 +324,50 @@ public class Directories
         return new SSTableLister();
     }
 
-    public static class DataDirectory implements Comparable<DataDirectory>
+    public static class DataDirectory
     {
         public final File location;
-        public final AtomicInteger currentTasks = new AtomicInteger();
-        public final AtomicLong estimatedWorkingSize = new AtomicLong();
 
         public DataDirectory(File location)
         {
             this.location = location;
         }
 
-        /**
-         * @return estimated available disk space for bounded directory,
-         * excluding the expected size written by tasks in the queue.
-         */
-        public long getEstimatedAvailableSpace()
+        public long getAvailableSpace()
         {
-            // Load factor of 0.9 we do not want to use the entire disk that is too risky.
-            return location.getUsableSpace() - estimatedWorkingSize.get();
+            return location.getUsableSpace();
+        }
+    }
+
+    static final class DataDirectoryCandidate implements Comparable<DataDirectoryCandidate>
+    {
+        final DataDirectory dataDirectory;
+        final long availableSpace;
+        double perc;
+
+        public DataDirectoryCandidate(DataDirectory dataDirectory)
+        {
+            this.dataDirectory = dataDirectory;
+            this.availableSpace = dataDirectory.getAvailableSpace();
         }
 
-        public int compareTo(DataDirectory o)
+        void calcFreePerc(long totalAvailableSpace)
         {
-            // we want to sort by free space in descending order
-            return -1 * Longs.compare(getEstimatedAvailableSpace(), o.getEstimatedAvailableSpace());
+            double w = availableSpace;
+            w /= totalAvailableSpace;
+            perc = w;
+        }
+
+        public int compareTo(DataDirectoryCandidate o)
+        {
+            if (this == o)
+                return 0;
+
+            int r = Double.compare(perc, o.perc);
+            if (r != 0)
+                return -r;
+            // last resort
+            return System.identityHashCode(this) - System.identityHashCode(o);
         }
     }
 

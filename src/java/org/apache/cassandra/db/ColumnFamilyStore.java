@@ -1879,11 +1879,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         Directories.clearSnapshot(snapshotName, snapshotDirs);
     }
 
-    public boolean hasUnreclaimedSpace()
-    {
-        return getLiveDiskSpaceUsed() < getTotalDiskSpaceUsed();
-    }
-
     public long getTotalDiskSpaceUsed()
     {
         return metric.totalDiskSpaceUsed.count();
