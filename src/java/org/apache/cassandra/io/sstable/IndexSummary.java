@@ -108,6 +108,15 @@ public class IndexSummary implements Closeable
         return summary_size;
     }
 
+    /**
+     * Returns the amount of memory in bytes used off heap.
+     * @return the amount of memory in bytes used off heap
+     */
+    public long offHeapSize()
+    {
+        return bytes.size();
+    }
+
     public static class IndexSummarySerializer
     {
         public void serialize(IndexSummary t, DataOutputStream out) throws IOException

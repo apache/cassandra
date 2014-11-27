@@ -126,6 +126,15 @@ public class CompressionMetadata
     }
 
     /**
+     * Returns the amount of memory in bytes used off heap.
+     * @return the amount of memory in bytes used off heap
+     */
+    public long offHeapSize()
+    {
+        return chunkOffsets.size();
+    }
+
+    /**
      * Read offsets of the individual chunks from the given input.
      *
      * @param input Source of the data.

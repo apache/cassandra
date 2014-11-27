@@ -104,6 +104,12 @@ public class OpenBitSet implements IBitSet
   /** Returns the current capacity in bits (1 greater than the index of the last bit) */
   public long capacity() { return ((long)wlen) << 6; }
 
+  @Override
+  public long offHeapSize()
+  {
+      return 0;
+  }
+
  /**
   * Returns the current capacity of this set.  Included for
   * compatibility.  This is *not* equal to {@link #cardinality}

@@ -230,6 +230,24 @@ public interface ColumnFamilyStoreMBean
     public long getBloomFilterDiskSpaceUsed();
 
     /**
+     * @see org.apache.cassandra.metrics.ColumnFamilyMetrics#bloomFilterOffHeapMemoryUsed
+     */
+    @Deprecated
+    public long getBloomFilterOffHeapMemoryUsed();
+
+    /**
+     * @see org.apache.cassandra.metrics.ColumnFamilyMetrics#indexSummaryOffHeapMemoryUsed
+     */
+    @Deprecated
+    public long getIndexSummaryOffHeapMemoryUsed();
+
+    /**
+     * @see org.apache.cassandra.metrics.ColumnFamilyMetrics#compressionMetadataOffHeapMemoryUsed
+     */
+    @Deprecated
+    public long getCompressionMetadataOffHeapMemoryUsed();
+
+    /**
      * Gets the minimum number of sstables in queue before compaction kicks off
      */
     public int getMinimumCompactionThreshold();

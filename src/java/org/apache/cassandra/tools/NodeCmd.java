@@ -635,41 +635,44 @@ public class NodeCmd
         // If there is just 1 token, print it now like we always have, otherwise,
         // require that -T/--tokens be passed (that output is potentially verbose).
         if (toks.size() == 1)
-            outs.printf("%-17s: %s%n", "Token", toks.get(0));
+            outs.printf("%-23s: %s%n", "Token", toks.get(0));
         else if (!cmd.hasOption(TOKENS_OPT.left))
-            outs.printf("%-17s: (invoke with -T/--tokens to see all %d tokens)%n", "Token", toks.size());
+            outs.printf("%-23s: (invoke with -T/--tokens to see all %d tokens)%n", "Token", toks.size());
 
-        outs.printf("%-17s: %s%n", "ID", probe.getLocalHostId());
-        outs.printf("%-17s: %s%n", "Gossip active", gossipInitialized);
-        outs.printf("%-17s: %s%n", "Thrift active", probe.isThriftServerRunning());
-        outs.printf("%-17s: %s%n", "Native Transport active", probe.isNativeTransportRunning());
-        outs.printf("%-17s: %s%n", "Load", probe.getLoadString());
+        outs.printf("%-23s: %s%n", "ID", probe.getLocalHostId());
+        outs.printf("%-23s: %s%n", "Gossip active", gossipInitialized);
+        outs.printf("%-23s: %s%n", "Thrift active", probe.isThriftServerRunning());
+        outs.printf("%-23s: %s%n", "Native Transport active", probe.isNativeTransportRunning());
+        outs.printf("%-23s: %s%n", "Load", probe.getLoadString());
         if (gossipInitialized)
-            outs.printf("%-17s: %s%n", "Generation No", probe.getCurrentGenerationNumber());
+            outs.printf("%-23s: %s%n", "Generation No", probe.getCurrentGenerationNumber());
         else
-            outs.printf("%-17s: %s%n", "Generation No", 0);
+            outs.printf("%-23s: %s%n", "Generation No", 0);
 
         // Uptime
         long secondsUp = probe.getUptime() / 1000;
-        outs.printf("%-17s: %d%n", "Uptime (seconds)", secondsUp);
+        outs.printf("%-23s: %d%n", "Uptime (seconds)", secondsUp);
 
         // Memory usage
         MemoryUsage heapUsage = probe.getHeapMemoryUsage();
         double memUsed = (double)heapUsage.getUsed() / (1024 * 1024);
         double memMax = (double)heapUsage.getMax() / (1024 * 1024);
-        outs.printf("%-17s: %.2f / %.2f%n", "Heap Memory (MB)", memUsed, memMax);
+        outs.printf("%-23s: %.2f / %.2f%n", "Heap Memory (MB)", memUsed, memMax);
+
+        // Off heap memory usage
+        outs.printf("%-23s: %.2f%n", "Off Heap Memory (MB)", getOffHeapMemoryUsed());
 
         // Data Center/Rack
-        outs.printf("%-17s: %s%n", "Data Center", probe.getDataCenter());
-        outs.printf("%-17s: %s%n", "Rack", probe.getRack());
+        outs.printf("%-23s: %s%n", "Data Center", probe.getDataCenter());
+        outs.printf("%-23s: %s%n", "Rack", probe.getRack());
 
         // Exceptions
-        outs.printf("%-17s: %s%n", "Exceptions", probe.getExceptionCount());
+        outs.printf("%-23s: %s%n", "Exceptions", probe.getExceptionCount());
 
         CacheServiceMBean cacheService = probe.getCacheServiceMBean();
 
         // Key Cache: Hits, Requests, RecentHitRate, SavePeriodInSeconds
-        outs.printf("%-17s: size %d (bytes), capacity %d (bytes), %d hits, %d requests, %.3f recent hit rate, %d save period in seconds%n",
+        outs.printf("%-23s: size %d (bytes), capacity %d (bytes), %d hits, %d requests, %.3f recent hit rate, %d save period in seconds%n",
                     "Key Cache",
                     cacheService.getKeyCacheSize(),
                     cacheService.getKeyCacheCapacityInBytes(),
@@ -679,7 +682,7 @@ public class NodeCmd
                     cacheService.getKeyCacheSavePeriodInSeconds());
 
         // Row Cache: Hits, Requests, RecentHitRate, SavePeriodInSeconds
-        outs.printf("%-17s: size %d (bytes), capacity %d (bytes), %d hits, %d requests, %.3f recent hit rate, %d save period in seconds%n",
+        outs.printf("%-23s: size %d (bytes), capacity %d (bytes), %d hits, %d requests, %.3f recent hit rate, %d save period in seconds%n",
                     "Row Cache",
                     cacheService.getRowCacheSize(),
                     cacheService.getRowCacheCapacityInBytes(),
@@ -691,8 +694,30 @@ public class NodeCmd
         if (toks.size() > 1 && cmd.hasOption(TOKENS_OPT.left))
         {
             for (String tok : toks)
-                outs.printf("%-17s: %s%n", "Token", tok);
+                outs.printf("%-23s: %s%n", "Token", tok);
         }
+    }
+
+    /**
+     * Returns the total off heap memory used in MB.
+     * @return the total off heap memory used in MB.
+     */
+    private double getOffHeapMemoryUsed()
+    {
+        long offHeapMemUsedInBytes = 0;
+        // get a list of column family stores
+        Iterator<Map.Entry<String, ColumnFamilyStoreMBean>> cfamilies = probe.getColumnFamilyStoreMBeanProxies();
+
+        while (cfamilies.hasNext())
+        {
+            Entry<String, ColumnFamilyStoreMBean> entry = cfamilies.next();
+            ColumnFamilyStoreMBean cfsProxy = entry.getValue();
+            offHeapMemUsedInBytes += cfsProxy.getBloomFilterOffHeapMemoryUsed();
+            offHeapMemUsedInBytes += cfsProxy.getIndexSummaryOffHeapMemoryUsed();
+            offHeapMemUsedInBytes += cfsProxy.getCompressionMetadataOffHeapMemoryUsed();
+        }
+
+        return offHeapMemUsedInBytes / (1024d * 1024);
     }
 
     public void printReleaseVersion(PrintStream outs)
@@ -948,8 +973,16 @@ public class NodeCmd
                             outs.println("]");
                     }
                 }
+
+                long bloomFilterOffHeapSize = cfstore.getBloomFilterOffHeapMemoryUsed();
+                long indexSummaryOffHeapSize = cfstore.getIndexSummaryOffHeapMemoryUsed();
+                long compressionMetadataOffHeapSize = cfstore.getCompressionMetadataOffHeapMemoryUsed();
+
+                long offHeapSize = bloomFilterOffHeapSize + indexSummaryOffHeapSize + compressionMetadataOffHeapSize;
+
                 outs.println("\t\tSpace used (live), bytes: " + cfstore.getLiveDiskSpaceUsed());
                 outs.println("\t\tSpace used (total), bytes: " + cfstore.getTotalDiskSpaceUsed());
+                outs.println("\t\tOff heap memory used (total), bytes: " + offHeapSize);
                 outs.println("\t\tSSTable Compression Ratio: " + cfstore.getCompressionRatio());
                 outs.println("\t\tNumber of keys (estimate): " + cfstore.estimateKeys());
                 outs.println("\t\tMemtable cell count: " + cfstore.getMemtableColumnsCount());
@@ -963,6 +996,9 @@ public class NodeCmd
                 outs.println("\t\tBloom filter false positives: " + cfstore.getBloomFilterFalsePositives());
                 outs.println("\t\tBloom filter false ratio: " + String.format("%01.5f", cfstore.getRecentBloomFilterFalseRatio()));
                 outs.println("\t\tBloom filter space used, bytes: " + cfstore.getBloomFilterDiskSpaceUsed());
+                outs.println("\t\tBloom filter off heap memory used, bytes: " + bloomFilterOffHeapSize);
+                outs.println("\t\tIndex summary off heap memory used, bytes: " + indexSummaryOffHeapSize);
+                outs.println("\t\tCompression metadata off heap memory used, bytes: " + compressionMetadataOffHeapSize);
                 outs.println("\t\tCompacted partition minimum bytes: " + cfstore.getMinRowSize());
                 outs.println("\t\tCompacted partition maximum bytes: " + cfstore.getMaxRowSize());
                 outs.println("\t\tCompacted partition mean bytes: " + cfstore.getMeanRowSize());

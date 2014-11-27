@@ -49,4 +49,10 @@ public interface IBitSet extends Closeable
     public long serializedSize(TypeSizes type);
 
     public void clear();
+
+    /**
+     * Returns the amount of memory in bytes used off heap.
+     * @return the amount of memory in bytes used off heap
+     */
+    public long offHeapSize();
 }
