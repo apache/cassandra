@@ -391,6 +391,8 @@ public class CompactionManager implements CompactionManagerMBean
     /**
      * Make sure the {validatedForRepair} are marked for compaction before calling this.
      *
+     * Caller must reference the validatedForRepair sstables (via ParentRepairSession.getAndReferenceSSTables(..)).
+     *
      * @param cfs
      * @param ranges Ranges that the repair was carried out on
      * @param validatedForRepair SSTables containing the repaired ranges. Should be referenced before passing them.
@@ -407,40 +409,48 @@ public class CompactionManager implements CompactionManagerMBean
         Set<SSTableReader> mutatedRepairStatuses = new HashSet<>();
         Set<SSTableReader> nonAnticompacting = new HashSet<>();
         Iterator<SSTableReader> sstableIterator = sstables.iterator();
-        while (sstableIterator.hasNext())
+        try
         {
-            SSTableReader sstable = sstableIterator.next();
-            for (Range<Token> r : Range.normalize(ranges))
+            while (sstableIterator.hasNext())
             {
-                Range<Token> sstableRange = new Range<>(sstable.first.getToken(), sstable.last.getToken(), sstable.partitioner);
-                if (r.contains(sstableRange))
+                SSTableReader sstable = sstableIterator.next();
+                for (Range<Token> r : Range.normalize(ranges))
                 {
-                    logger.info("SSTable {} fully contained in range {}, mutating repairedAt instead of anticompacting", sstable, r);
-                    sstable.descriptor.getMetadataSerializer().mutateRepairedAt(sstable.descriptor, repairedAt);
-                    sstable.reloadSSTableMetadata();
-                    mutatedRepairStatuses.add(sstable);
-                    sstableIterator.remove();
-                    break;
-                }
-                else if (!sstableRange.intersects(r))
-                {
-                    logger.info("SSTable {} ({}) does not intersect repaired range {}, not touching repairedAt.", sstable, sstableRange, r);
-                    nonAnticompacting.add(sstable);
-                    sstableIterator.remove();
-                    break;
-                }
-                else
-                {
-                    logger.info("SSTable {} ({}) will be anticompacted on range {}", sstable, sstableRange, r);
+                    Range<Token> sstableRange = new Range<>(sstable.first.getToken(), sstable.last.getToken(), sstable.partitioner);
+                    if (r.contains(sstableRange))
+                    {
+                        logger.info("SSTable {} fully contained in range {}, mutating repairedAt instead of anticompacting", sstable, r);
+                        sstable.descriptor.getMetadataSerializer().mutateRepairedAt(sstable.descriptor, repairedAt);
+                        sstable.reloadSSTableMetadata();
+                        mutatedRepairStatuses.add(sstable);
+                        sstableIterator.remove();
+                        break;
+                    }
+                    else if (!sstableRange.intersects(r))
+                    {
+                        logger.info("SSTable {} ({}) does not intersect repaired range {}, not touching repairedAt.", sstable, sstableRange, r);
+                        nonAnticompacting.add(sstable);
+                        sstableIterator.remove();
+                        break;
+                    }
+                    else
+                    {
+                        logger.info("SSTable {} ({}) will be anticompacted on range {}", sstable, sstableRange, r);
+                    }
                 }
             }
+            cfs.getDataTracker().notifySSTableRepairedStatusChanged(mutatedRepairStatuses);
+            cfs.getDataTracker().unmarkCompacting(Sets.union(nonAnticompacting, mutatedRepairStatuses));
+            SSTableReader.releaseReferences(Sets.union(nonAnticompacting, mutatedRepairStatuses));
+            if (!sstables.isEmpty())
+                doAntiCompaction(cfs, ranges, sstables, repairedAt);
         }
-        cfs.getDataTracker().notifySSTableRepairedStatusChanged(mutatedRepairStatuses);
-        cfs.getDataTracker().unmarkCompacting(Sets.union(nonAnticompacting, mutatedRepairStatuses));
-        if (!sstables.isEmpty())
-            doAntiCompaction(cfs, ranges, sstables, repairedAt);
-        SSTableReader.releaseReferences(sstables);
-        cfs.getDataTracker().unmarkCompacting(sstables);
+        finally
+        {
+            SSTableReader.releaseReferences(sstables);
+            cfs.getDataTracker().unmarkCompacting(sstables);
+        }
+
         logger.info(String.format("Completed anticompaction successfully"));
     }
 

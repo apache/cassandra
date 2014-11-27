@@ -1645,7 +1645,7 @@ public class SSTableReader extends SSTable
     }
 
     @VisibleForTesting
-    int referenceCount()
+    public int referenceCount()
     {
         return references.get();
     }

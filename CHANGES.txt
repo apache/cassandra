@@ -1,4 +1,5 @@
 2.1.3
+ * Release sstable references after anticompaction (CASSANDRA-8386)
  * Handle abort() in SSTableRewriter properly (CASSANDRA-8320)
  * Fix high size calculations for prepared statements (CASSANDRA-8231)
  * Centralize shared executors (CASSANDRA-8055)
