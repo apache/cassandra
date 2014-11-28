@@ -58,6 +58,12 @@ public class KeyspaceMetrics
     public final Gauge<Long> totalDiskSpaceUsed;
     /** Disk space used by bloom filter */
     public final Gauge<Long> bloomFilterDiskSpaceUsed;
+    /** Off heap memory used by bloom filter */
+    public final Gauge<Long> bloomFilterOffHeapMemoryUsed;
+    /** Off heap memory used by index summary */
+    public final Gauge<Long> indexSummaryOffHeapMemoryUsed;
+    /** Off heap memory used by compression meta data*/
+    public final Gauge<Long> compressionMetadataOffHeapMemoryUsed;
     /** (Local) read metrics */
     public final LatencyMetrics readLatency;
     /** (Local) range slice metrics */
@@ -183,6 +189,27 @@ public class KeyspaceMetrics
             public Long getValue(ColumnFamilyMetrics metric)
             {
                 return metric.bloomFilterDiskSpaceUsed.value();
+            }
+        });
+        bloomFilterOffHeapMemoryUsed = createKeyspaceGauge("BloomFilterOffHeapMemoryUsed", new MetricValue()
+        {
+            public Long getValue(ColumnFamilyMetrics metric)
+            {
+                return metric.bloomFilterOffHeapMemoryUsed.value();
+            }
+        });
+        indexSummaryOffHeapMemoryUsed = createKeyspaceGauge("IndexSummaryOffHeapMemoryUsed", new MetricValue()
+        {
+            public Long getValue(ColumnFamilyMetrics metric)
+            {
+                return metric.indexSummaryOffHeapMemoryUsed.value();
+            }
+        });
+        compressionMetadataOffHeapMemoryUsed = createKeyspaceGauge("CompressionMetadataOffHeapMemoryUsed", new MetricValue()
+        {
+            public Long getValue(ColumnFamilyMetrics metric)
+            {
+                return metric.compressionMetadataOffHeapMemoryUsed.value();
             }
         });
         // latency metrics for ColumnFamilyMetrics to update

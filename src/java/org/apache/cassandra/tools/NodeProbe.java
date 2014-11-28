@@ -995,6 +995,9 @@ public class NodeProbe implements AutoCloseable
                 case "BloomFilterDiskSpaceUsed":
                 case "BloomFilterFalsePositives":
                 case "BloomFilterFalseRatio":
+                case "BloomFilterOffHeapMemoryUsed":
+                case "IndexSummaryOffHeapMemoryUsed":
+                case "CompressionMetadataOffHeapMemoryUsed":
                 case "CompressionRatio":
                 case "EstimatedColumnCountHistogram":
                 case "EstimatedRowSizeHistogram":
@@ -1004,6 +1007,7 @@ public class NodeProbe implements AutoCloseable
                 case "MeanRowSize":
                 case "MemtableColumnsCount":
                 case "MemtableLiveDataSize":
+                case "MemtableOffHeapSize":
                 case "MinRowSize":
                 case "RecentBloomFilterFalsePositives":
                 case "RecentBloomFilterFalseRatio":

@@ -2573,6 +2573,21 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return metric.bloomFilterDiskSpaceUsed.value();
     }
 
+    public long getBloomFilterOffHeapMemoryUsed()
+    {
+        return metric.bloomFilterOffHeapMemoryUsed.value();
+    }
+
+    public long getIndexSummaryOffHeapMemoryUsed()
+    {
+        return metric.indexSummaryOffHeapMemoryUsed.value();
+    }
+
+    public long getCompressionMetadataOffHeapMemoryUsed()
+    {
+        return metric.compressionMetadataOffHeapMemoryUsed.value();
+    }
+
     @Override
     public String toString()
     {

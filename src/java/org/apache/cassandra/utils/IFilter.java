@@ -31,4 +31,10 @@ public interface IFilter extends Closeable
     long serializedSize();
 
     void close();
+
+    /**
+     * Returns the amount of memory in bytes used off heap.
+     * @return the amount of memory in bytes used off heap
+     */
+    long offHeapSize();
 }

@@ -33,4 +33,10 @@ public class AlwaysPresentFilter implements IFilter
     public void close() { }
 
     public long serializedSize() { return 0; }
+
+    @Override
+    public long offHeapSize()
+    {
+        return 0;
+    }
 }
