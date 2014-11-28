@@ -32,7 +32,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import com.google.common.base.Objects;
 import com.google.common.collect.ImmutableSet;
-import org.apache.cassandra.utils.ByteBufferUtil;
 import org.junit.AfterClass;
 import org.junit.After;
 import org.junit.Assert;
@@ -276,7 +275,7 @@ public abstract class CQLTester
 
     protected String createType(String query)
     {
-        String typeName = callerName() + "_type_" + seqNumber.getAndIncrement();
+        String typeName = "type_" + seqNumber.getAndIncrement();
         String fullQuery = String.format(query, KEYSPACE + "." + typeName);
         currentTypes.add(typeName);
         logger.info(fullQuery);
@@ -286,7 +285,7 @@ public abstract class CQLTester
 
     protected String createFunction(String keyspace, String argTypes, String query) throws Throwable
     {
-        String functionName = keyspace + "." + callerName() + "_function_" + seqNumber.getAndIncrement();
+        String functionName = keyspace + ".function_" + seqNumber.getAndIncrement();
         createFunctionOverload(functionName, argTypes, query);
         return functionName;
     }
@@ -301,7 +300,7 @@ public abstract class CQLTester
 
     protected String createAggregate(String keyspace, String argTypes, String query) throws Throwable
     {
-        String aggregateName = keyspace + "." + callerName() + "_aggregate_" + seqNumber.getAndIncrement();
+        String aggregateName = keyspace + "." + "aggregate_" + seqNumber.getAndIncrement();
         createAggregateOverload(aggregateName, argTypes, query);
         return aggregateName;
     }
@@ -316,7 +315,7 @@ public abstract class CQLTester
 
     protected void createTable(String query)
     {
-        currentTable = callerName() + "_table_" + seqNumber.getAndIncrement();
+        currentTable = "table_" + seqNumber.getAndIncrement();
         String fullQuery = formatQuery(query);
         logger.info(fullQuery);
         schemaChange(fullQuery);
@@ -324,7 +323,7 @@ public abstract class CQLTester
 
     protected void createTableMayThrow(String query) throws Throwable
     {
-        currentTable = callerName() + "_table_" + seqNumber.getAndIncrement();
+        currentTable = "table_" + seqNumber.getAndIncrement();
         String fullQuery = formatQuery(query);
         logger.info(fullQuery);
         try
@@ -391,11 +390,6 @@ public abstract class CQLTester
         String fullQuery = String.format(query, KEYSPACE);
         logger.info(fullQuery);
         schemaChange(fullQuery);
-    }
-
-    private static String callerName()
-    {
-        return new Exception().getStackTrace()[2].getMethodName().toLowerCase();
     }
 
     private static void schemaChange(String query)
