@@ -1168,6 +1168,18 @@ public class SSTableReader extends SSTable
     }
 
     /**
+     * Returns the amount of memory in bytes used off heap by the compression meta-data.
+     * @return the amount of memory in bytes used off heap by the compression meta-data
+     */
+    public long getCompressionMetadataOffHeapSize()
+    {
+        if (!compression)
+            return 0;
+
+        return getCompressionMetadata().offHeapSize();
+    }
+
+    /**
      * For testing purposes only.
      */
     public void forceFilterFailures()
@@ -1183,6 +1195,15 @@ public class SSTableReader extends SSTable
     public long getBloomFilterSerializedSize()
     {
         return bf.serializedSize();
+    }
+
+    /**
+     * Returns the amount of memory in bytes used off heap by the bloom filter.
+     * @return the amount of memory in bytes used off heap by the bloom filter
+     */
+    public long getBloomFilterOffHeapSize()
+    {
+        return bf.offHeapSize();
     }
 
     /**
