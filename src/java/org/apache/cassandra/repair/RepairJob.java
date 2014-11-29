@@ -203,7 +203,7 @@ public class RepairJob extends AbstractFuture<RepairResult> implements Runnable
         Queue<InetAddress> requests = new LinkedList<>(endpoints);
         InetAddress address = requests.poll();
         ValidationTask firstTask = new ValidationTask(desc, address, gcBefore);
-        logger.info("Validating " + address);
+        logger.info("Validating {}", address);
         session.waitForValidation(Pair.create(desc, address), firstTask);
         tasks.add(firstTask);
         ValidationTask currentTask = firstTask;
@@ -216,7 +216,7 @@ public class RepairJob extends AbstractFuture<RepairResult> implements Runnable
             {
                 public void onSuccess(TreeResponse result)
                 {
-                    logger.info("Validating " + nextAddress);
+                    logger.info("Validating {}", nextAddress);
                     session.waitForValidation(Pair.create(desc, nextAddress), nextTask);
                     taskExecutor.execute(nextTask);
                 }
@@ -257,7 +257,7 @@ public class RepairJob extends AbstractFuture<RepairResult> implements Runnable
             Queue<InetAddress> requests = entry.getValue();
             InetAddress address = requests.poll();
             ValidationTask firstTask = new ValidationTask(desc, address, gcBefore);
-            logger.info("Validating " + address);
+            logger.info("Validating {}", address);
             session.waitForValidation(Pair.create(desc, address), firstTask);
             tasks.add(firstTask);
             ValidationTask currentTask = firstTask;
@@ -270,7 +270,7 @@ public class RepairJob extends AbstractFuture<RepairResult> implements Runnable
                 {
                     public void onSuccess(TreeResponse result)
                     {
-                        logger.info("Validating " + nextAddress);
+                        logger.info("Validating {}", nextAddress);
                         session.waitForValidation(Pair.create(desc, nextAddress), nextTask);
                         taskExecutor.execute(nextTask);
                     }
