@@ -58,7 +58,7 @@ public class SSTableRepairedAtSetter
         {
             out.println("This command should be run with Cassandra stopped, otherwise you will get very strange behavior");
             out.println("Verify that Cassandra is not running and then execute the command like this:");
-            out.println("Usage: sstablelevelreset --really-set [--is-repaired | --is-unrepaired] [-f <sstable-list> | <sstables>]");
+            out.println("Usage: sstablerepairedset --really-set [--is-repaired | --is-unrepaired] [-f <sstable-list> | <sstables>]");
             System.exit(1);
         }
 
