@@ -64,42 +64,42 @@ public class SSTableSimpleWriterTest
         assert dir.exists();
 
         IPartitioner partitioner = StorageService.getPartitioner();
-        SSTableSimpleUnsortedWriter writer = new SSTableSimpleUnsortedWriter(dir, partitioner, keyspaceName, cfname, IntegerType.instance, null, 16);
-
-        int k = 0;
-
-        // Adding a few rows first
-        for (; k < 10; ++k)
+        try (SSTableSimpleUnsortedWriter writer = new SSTableSimpleUnsortedWriter(dir, partitioner, keyspaceName, cfname, IntegerType.instance, null, 16))
         {
-            writer.newRow(bytes("Key" + k));
-            writer.addColumn(bytes(1), bytes("v"), 0);
-            writer.addColumn(bytes(2), bytes("v"), 0);
-            writer.addColumn(bytes(3), bytes("v"), 0);
-        }
 
-
-        // Testing multiple opening of the same row
-        // We'll write column 0, 5, 10, .., on the first row, then 1, 6, 11, ... on the second one, etc.
-        for (int i = 0; i < INC; ++i)
-        {
-            writer.newRow(bytes("Key" + k));
-            for (int j = 0; j < NBCOL; ++j)
+            int k = 0;
+    
+            // Adding a few rows first
+            for (; k < 10; ++k)
             {
-                writer.addColumn(bytes(i + INC * j), bytes("v"), 1);
+                writer.newRow(bytes("Key" + k));
+                writer.addColumn(bytes(1), bytes("v"), 0);
+                writer.addColumn(bytes(2), bytes("v"), 0);
+                writer.addColumn(bytes(3), bytes("v"), 0);
+            }
+    
+    
+            // Testing multiple opening of the same row
+            // We'll write column 0, 5, 10, .., on the first row, then 1, 6, 11, ... on the second one, etc.
+            for (int i = 0; i < INC; ++i)
+            {
+                writer.newRow(bytes("Key" + k));
+                for (int j = 0; j < NBCOL; ++j)
+                {
+                    writer.addColumn(bytes(i + INC * j), bytes("v"), 1);
+                }
+            }
+            k++;
+    
+            // Adding a few more rows
+            for (; k < 20; ++k)
+            {
+                writer.newRow(bytes("Key" + k));
+                writer.addColumn(bytes(1), bytes("v"), 0);
+                writer.addColumn(bytes(2), bytes("v"), 0);
+                writer.addColumn(bytes(3), bytes("v"), 0);
             }
         }
-        k++;
-
-        // Adding a few more rows
-        for (; k < 20; ++k)
-        {
-            writer.newRow(bytes("Key" + k));
-            writer.addColumn(bytes(1), bytes("v"), 0);
-            writer.addColumn(bytes(2), bytes("v"), 0);
-            writer.addColumn(bytes(3), bytes("v"), 0);
-        }
-
-        writer.close();
 
         // Now add that newly created files to the column family
         ColumnFamilyStore cfs = t.getColumnFamilyStore(cfname);

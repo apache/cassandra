@@ -70,14 +70,16 @@ public class SSTableLoaderTest
         File dataDir = new File(tempdir.getAbsolutePath() + File.separator + KEYSPACE1 + File.separator + CF_STANDARD);
         assert dataDir.mkdirs();
         CFMetaData cfmeta = Schema.instance.getCFMetaData(KEYSPACE1, CF_STANDARD);
-        SSTableSimpleUnsortedWriter writer = new SSTableSimpleUnsortedWriter(dataDir,
+        DecoratedKey key = Util.dk("key1");
+        
+        try (SSTableSimpleUnsortedWriter writer = new SSTableSimpleUnsortedWriter(dataDir,
                                                                              cfmeta,
                                                                              StorageService.getPartitioner(),
-                                                                             1);
-        DecoratedKey key = Util.dk("key1");
-        writer.newRow(key.getKey());
-        writer.addColumn(ByteBufferUtil.bytes("col1"), ByteBufferUtil.bytes(100), 1);
-        writer.close();
+                                                                             1))
+        {
+            writer.newRow(key.getKey());
+            writer.addColumn(ByteBufferUtil.bytes("col1"), ByteBufferUtil.bytes(100), 1);
+        }
 
         SSTableLoader loader = new SSTableLoader(dataDir, new SSTableLoader.Client()
         {
