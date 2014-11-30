@@ -124,7 +124,7 @@ public class SSTableSimpleUnsortedWriter extends AbstractSSTableSimpleWriter
             sync();
     }
 
-    protected ColumnFamily getColumnFamily() throws IOException
+    protected ColumnFamily getColumnFamily()
     {
         ColumnFamily previous = buffer.get(currentKey);
         // If the CF already exist in memory, we'll just continue adding to it
@@ -142,7 +142,7 @@ public class SSTableSimpleUnsortedWriter extends AbstractSSTableSimpleWriter
         return previous;
     }
 
-    protected ColumnFamily createColumnFamily() throws IOException
+    protected ColumnFamily createColumnFamily()
     {
         return ArrayBackedSortedColumns.factory.create(metadata);
     }
