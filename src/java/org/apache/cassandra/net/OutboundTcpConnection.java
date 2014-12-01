@@ -55,7 +55,7 @@ public class OutboundTcpConnection extends Thread
     private volatile boolean isStopped = false;
 
     private static final int OPEN_RETRY_DELAY = 100; // ms between retries
-    private static final int WAIT_FOR_VERSION_MAX_TIME = 5000;
+    public static final int WAIT_FOR_VERSION_MAX_TIME = 5000;
     private static final int NO_VERSION = Integer.MIN_VALUE;
 
     // sending thread reads from "active" (one of queue1, queue2) until it is empty.

@@ -1,4 +1,5 @@
 2.0.12:
+ * don't block SocketThread for MessagingService (CASSANDRA-8188)
  * Increase quarantine delay on replacement (CASSANDRA-8260)
  * Expose off-heap memory usage stats (CASSANDRA-7897)
  * Ignore Paxos commits for truncated tables (CASSANDRA-7538)
