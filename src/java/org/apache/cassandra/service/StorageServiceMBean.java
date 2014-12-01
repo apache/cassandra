@@ -365,6 +365,9 @@ public interface StorageServiceMBean extends NotificationEmitter
     /** get the operational mode (leaving, joining, normal, decommissioned, client) **/
     public String getOperationMode();
 
+    /** Returns whether the storage service is starting or not */
+    public boolean isStarting();
+
     /** get the progress of a drain operation */
     public String getDrainProgress();
 

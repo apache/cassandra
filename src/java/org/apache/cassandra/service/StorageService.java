@@ -3567,6 +3567,11 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         return operationMode.toString();
     }
 
+    public boolean isStarting()
+    {
+        return operationMode == Mode.STARTING;
+    }
+
     public String getDrainProgress()
     {
         return String.format("Drained %s/%s ColumnFamilies", remainingCFs, totalCFs);
