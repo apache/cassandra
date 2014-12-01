@@ -247,9 +247,11 @@ cqlsh_extra_syntax_rules = r'''
                      | "THREE"
                      | "QUORUM"
                      | "ALL"
-                     | "LOCAL_ONE"
                      | "LOCAL_QUORUM"
                      | "EACH_QUORUM"
+                     | "SERIAL"
+                     | "LOCAL_SERIAL"
+                     | "LOCAL_ONE"
                      ;
 
 <showCommand> ::= "SHOW" what=( "VERSION" | "HOST" | "SESSION" sessionid=<uuid> )
