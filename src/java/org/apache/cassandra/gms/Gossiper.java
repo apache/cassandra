@@ -385,7 +385,29 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
      */
     private void quarantineEndpoint(InetAddress endpoint)
     {
-        justRemovedEndpoints.put(endpoint, System.currentTimeMillis());
+        quarantineEndpoint(endpoint, System.currentTimeMillis());
+    }
+
+    /**
+     * Quarantines the endpoint until quarantineExpiration + QUARANTINE_DELAY
+     *
+     * @param endpoint
+     * @param quarantineExpiration
+     */
+    private void quarantineEndpoint(InetAddress endpoint, long quarantineExpiration)
+    {
+        justRemovedEndpoints.put(endpoint, quarantineExpiration);
+    }
+
+    /**
+     * Quarantine endpoint specifically for replacement purposes.
+     * @param endpoint
+     */
+    public void replacementQuarantine(InetAddress endpoint)
+    {
+        // remember, quarantineEndpoint will effectively already add QUARANTINE_DELAY, so this is 2x
+        logger.debug("");
+        quarantineEndpoint(endpoint, System.currentTimeMillis() + QUARANTINE_DELAY);
     }
 
     /**
@@ -398,6 +420,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
     {
         removeEndpoint(endpoint);
         evictFromMembership(endpoint);
+        replacementQuarantine(endpoint);
     }
 
     /**
