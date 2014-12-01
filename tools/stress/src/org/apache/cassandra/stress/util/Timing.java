@@ -80,7 +80,7 @@ public class Timing
 
         // TODO fail gracefully after timeout if a thread is stuck
         if (!ready.await(5L, TimeUnit.MINUTES))
-            throw new RuntimeException("Timed out waiting for a timer thread - seems one got stuck");
+            throw new RuntimeException("Timed out waiting for a timer thread - seems one got stuck. Check GC/Heap size");
 
         boolean done = true;
         // reports have been filled in by timer threadCount, so merge
