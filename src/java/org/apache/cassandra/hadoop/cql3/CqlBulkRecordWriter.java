@@ -39,6 +39,7 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.mapreduce.TaskAttemptContext;
 import org.apache.hadoop.util.Progressable;
 
+
 /**
  * The <code>CqlBulkRecordWriter</code> maps the output &lt;key, value&gt;
  * pairs to a Cassandra column family. In particular, it applies the binded variables
@@ -85,6 +86,12 @@ public class CqlBulkRecordWriter extends AbstractBulkRecordWriter<Object, List<B
         // if anything is missing, exceptions will be thrown here, instead of on write()
         keyspace = ConfigHelper.getOutputKeyspace(conf);
         columnFamily = ConfigHelper.getOutputColumnFamily(conf);
+        
+        // check if columnFamily is aliased
+        String aliasedCf = CqlBulkOutputFormat.getColumnFamilyForAlias(conf, columnFamily);
+        if (aliasedCf != null)
+            columnFamily = aliasedCf;
+        
         schema = CqlBulkOutputFormat.getColumnFamilySchema(conf, columnFamily);
         insertStatement = CqlBulkOutputFormat.getColumnFamilyInsertStatement(conf, columnFamily);
         outputDir = getColumnFamilyDirectory();

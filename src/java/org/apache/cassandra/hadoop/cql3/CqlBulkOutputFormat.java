@@ -54,6 +54,7 @@ public class CqlBulkOutputFormat extends AbstractBulkOutputFormat<Object, List<B
     private static final String OUTPUT_CQL_SCHEMA_PREFIX = "cassandra.columnfamily.schema.";
     private static final String OUTPUT_CQL_INSERT_PREFIX = "cassandra.columnfamily.insert.";
     private static final String DELETE_SOURCE = "cassandra.output.delete.source";
+    private static final String COLUMNFAMILY_ALIAS_PREFIX = "cqlbulkoutputformat.columnfamily.alias.";
   
     /** Fills the deprecated OutputFormat interface for streaming. */
     @Deprecated
@@ -113,5 +114,15 @@ public class CqlBulkOutputFormat extends AbstractBulkOutputFormat<Object, List<B
     public static boolean getDeleteSourceOnSuccess(Configuration conf)
     {
         return conf.getBoolean(DELETE_SOURCE, false);
+    }
+    
+    public static void setColumnFamilyAlias(Configuration conf, String alias, String columnFamily)
+    {
+        conf.set(COLUMNFAMILY_ALIAS_PREFIX + alias, columnFamily);
+    }
+    
+    public static String getColumnFamilyForAlias(Configuration conf, String alias)
+    {
+        return conf.get(COLUMNFAMILY_ALIAS_PREFIX + alias);
     }
 }
