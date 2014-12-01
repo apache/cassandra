@@ -602,6 +602,11 @@ public class NodeProbe
         return ssProxy.getOperationMode();
     }
 
+    public boolean isStarting()
+    {
+        return ssProxy.isStarting();
+    }
+
     public void truncate(String keyspaceName, String cfName)
     {
         try

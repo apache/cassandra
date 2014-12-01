@@ -762,32 +762,35 @@ public class NodeCmd
             }
         }
 
-        outs.printf("Read Repair Statistics:%nAttempted: %d%nMismatch (Blocking): %d%nMismatch (Background): %d%n", probe.getReadRepairAttempted(), probe.getReadRepairRepairedBlocking(), probe.getReadRepairRepairedBackground());
+        if (!probe.isStarting())
+        {
+	        outs.printf("Read Repair Statistics:%nAttempted: %d%nMismatch (Blocking): %d%nMismatch (Background): %d%n", probe.getReadRepairAttempted(), probe.getReadRepairRepairedBlocking(), probe.getReadRepairRepairedBackground());
 
-        MessagingServiceMBean ms = probe.msProxy;
-        outs.printf("%-25s", "Pool Name");
-        outs.printf("%10s", "Active");
-        outs.printf("%10s", "Pending");
-        outs.printf("%15s%n", "Completed");
+	        MessagingServiceMBean ms = probe.msProxy;
+	        outs.printf("%-25s", "Pool Name");
+	        outs.printf("%10s", "Active");
+	        outs.printf("%10s", "Pending");
+	        outs.printf("%15s%n", "Completed");
 
-        int pending;
-        long completed;
+	        int pending;
+	        long completed;
 
-        pending = 0;
-        for (int n : ms.getCommandPendingTasks().values())
-            pending += n;
-        completed = 0;
-        for (long n : ms.getCommandCompletedTasks().values())
-            completed += n;
-        outs.printf("%-25s%10s%10s%15s%n", "Commands", "n/a", pending, completed);
+	        pending = 0;
+	        for (int n : ms.getCommandPendingTasks().values())
+	            pending += n;
+	        completed = 0;
+	        for (long n : ms.getCommandCompletedTasks().values())
+	            completed += n;
+	        outs.printf("%-25s%10s%10s%15s%n", "Commands", "n/a", pending, completed);
 
-        pending = 0;
-        for (int n : ms.getResponsePendingTasks().values())
-            pending += n;
-        completed = 0;
-        for (long n : ms.getResponseCompletedTasks().values())
-            completed += n;
-        outs.printf("%-25s%10s%10s%15s%n", "Responses", "n/a", pending, completed);
+	        pending = 0;
+	        for (int n : ms.getResponsePendingTasks().values())
+	            pending += n;
+	        completed = 0;
+	        for (long n : ms.getResponseCompletedTasks().values())
+	            completed += n;
+	        outs.printf("%-25s%10s%10s%15s%n", "Responses", "n/a", pending, completed);
+        }
     }
 
     public void printCompactionStats(PrintStream outs)
