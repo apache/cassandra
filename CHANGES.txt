@@ -1,4 +1,5 @@
 2.0.12:
+ * cancel latency-sampling task when CF is dropped (CASSANDRA-8401)
  * don't block SocketThread for MessagingService (CASSANDRA-8188)
  * Increase quarantine delay on replacement (CASSANDRA-8260)
  * Expose off-heap memory usage stats (CASSANDRA-7897)
