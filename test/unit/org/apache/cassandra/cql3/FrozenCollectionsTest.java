@@ -75,8 +75,8 @@ public class FrozenCollectionsTest extends CQLTester
         );
 
         assertRows(execute("SELECT * FROM %s WHERE k IN ?", list(set(4, 5, 6), set())),
-                row(set(4, 5, 6), 0),
-                row(set(), 0)
+                   row(set(), 0),
+                   row(set(4, 5, 6), 0)
         );
 
         assertRows(execute("SELECT * FROM %s WHERE token(k) >= token(?)", set(4, 5, 6)),
@@ -144,9 +144,9 @@ public class FrozenCollectionsTest extends CQLTester
         );
 
         assertRows(execute("SELECT * FROM %s WHERE k IN ?", list(map(set(4, 5, 6), list(1, 2, 3)), map(), map(set(), list(1, 2, 3)))),
-            row(map(set(4, 5, 6), list(1, 2, 3)), 0),
-            row(map(), 0),
-            row(map(set(), list(1, 2, 3)), 0)
+                   row(map(), 0),
+                   row(map(set(), list(1, 2, 3)), 0),
+                   row(map(set(4, 5, 6), list(1, 2, 3)), 0)
         );
 
         assertRows(execute("SELECT * FROM %s WHERE token(k) >= token(?)", map(set(4, 5, 6), list(1, 2, 3))),
@@ -615,10 +615,10 @@ public class FrozenCollectionsTest extends CQLTester
                              "SELECT * FROM %s WHERE c CONTAINS KEY ?", 1);
 
         // normal indexes on frozen collections don't support CONTAINS or CONTAINS KEY
-        assertInvalidMessage("Cannot restrict column \"b\" by a CONTAINS relation without a secondary index",
+        assertInvalidMessage("Cannot restrict clustering columns by a CONTAINS relation without a secondary index",
                              "SELECT * FROM %s WHERE b CONTAINS ?", 1);
 
-        assertInvalidMessage("Cannot restrict column \"b\" by a CONTAINS relation without a secondary index",
+        assertInvalidMessage("Cannot restrict clustering columns by a CONTAINS relation without a secondary index",
                              "SELECT * FROM %s WHERE b CONTAINS ? ALLOW FILTERING", 1);
 
         assertInvalidMessage("No secondary indexes on the restricted columns support the provided operator",
@@ -627,7 +627,7 @@ public class FrozenCollectionsTest extends CQLTester
         assertInvalidMessage("No secondary indexes on the restricted columns support the provided operator",
                              "SELECT * FROM %s WHERE d CONTAINS KEY ? ALLOW FILTERING", 1);
 
-        assertInvalidMessage("Cannot restrict column \"b\" by a CONTAINS relation without a secondary index",
+        assertInvalidMessage("Cannot restrict clustering columns by a CONTAINS relation without a secondary index",
                              "SELECT * FROM %s WHERE b CONTAINS ? AND d CONTAINS KEY ? ALLOW FILTERING", 1, 1);
 
         // index lookup on b

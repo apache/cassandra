@@ -21,7 +21,9 @@ import java.nio.ByteBuffer;
 import java.util.*;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Function;
 import com.google.common.base.Objects;
+import com.google.common.collect.Lists;
 
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.db.*;
@@ -171,9 +173,29 @@ public class ColumnDefinition extends ColumnSpecification
         return componentIndex == null;
     }
 
+    public boolean isPartitionKey()
+    {
+        return kind == Kind.PARTITION_KEY;
+    }
+
+    public boolean isClusteringColumn()
+    {
+        return kind == Kind.CLUSTERING_COLUMN;
+    }
+
     public boolean isStatic()
     {
         return kind == Kind.STATIC;
+    }
+
+    public boolean isRegular()
+    {
+        return kind == Kind.REGULAR;
+    }
+
+    public boolean isCompactValue()
+    {
+        return kind == Kind.COMPACT_VALUE;
     }
 
     // The componentIndex. This never return null however for convenience sake:
@@ -424,5 +446,23 @@ public class ColumnDefinition extends ColumnSpecification
     public boolean hasIndexOption(String name)
     {
         return indexOptions.containsKey(name);
+    }
+
+    /**
+     * Converts the specified column definitions into column identifiers.
+     *
+     * @param definitions the column definitions to convert.
+     * @return the column identifiers corresponding to the specified definitions
+     */
+    public static List<ColumnIdentifier> toIdentifiers(List<ColumnDefinition> definitions)
+    {
+        return Lists.transform(definitions, new Function<ColumnDefinition, ColumnIdentifier>()
+        {
+            @Override
+            public ColumnIdentifier apply(ColumnDefinition columnDef)
+            {
+                return columnDef.name;
+            }
+        });
     }
 }

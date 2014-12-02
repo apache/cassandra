@@ -1,4 +1,6 @@
 3.0
+ * Refactor SelectStatement, return IN results in natural order instead
+   of IN value list order (CASSANDRA-7981)
  * Support UDTs, tuples, and collections in user-defined
    functions (CASSANDRA-7563)
  * Fix aggregate fn results on empty selection, result column name,

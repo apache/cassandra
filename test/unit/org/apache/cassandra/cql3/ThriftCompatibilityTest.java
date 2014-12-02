@@ -33,7 +33,7 @@ public class ThriftCompatibilityTest extends SchemaLoader
     @BeforeClass
     public static void defineSchema() throws Exception
     {
-        SchemaLoader.prepareServer();
+        // The before class annotation of SchemaLoader will prepare the service so no need to do it here
         SchemaLoader.createKeyspace("thriftcompat",
                                     SimpleStrategy.class,
                                     KSMetaData.optsWithRF(1),

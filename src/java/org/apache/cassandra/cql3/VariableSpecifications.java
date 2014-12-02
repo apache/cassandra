@@ -18,6 +18,7 @@
 package org.apache.cassandra.cql3;
 
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 
 public class VariableSpecifications
@@ -29,6 +30,15 @@ public class VariableSpecifications
     {
         this.variableNames = variableNames;
         this.specs = new ColumnSpecification[variableNames.size()];
+    }
+
+    /**
+     * Returns an empty instance of <code>VariableSpecifications</code>.
+     * @return an empty instance of <code>VariableSpecifications</code>
+     */
+    public static VariableSpecifications empty()
+    {
+        return new VariableSpecifications(Collections.<ColumnIdentifier> emptyList());
     }
 
     public int size()

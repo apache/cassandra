@@ -26,6 +26,11 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.cql3.CQL3Type;
+import org.apache.cassandra.cql3.ColumnSpecification;
+import org.apache.cassandra.cql3.Lists;
+import org.apache.cassandra.cql3.Maps;
+import org.apache.cassandra.cql3.Sets;
+
 import org.apache.cassandra.serializers.CollectionSerializer;
 import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -43,7 +48,29 @@ public abstract class CollectionType<T> extends AbstractType<T>
 
     public enum Kind
     {
-        MAP, SET, LIST
+        MAP
+        {
+            public ColumnSpecification makeCollectionReceiver(ColumnSpecification collection, boolean isKey)
+            {
+                return isKey ? Maps.keySpecOf(collection) : Maps.valueSpecOf(collection);
+            }
+        },
+        SET
+        {
+            public ColumnSpecification makeCollectionReceiver(ColumnSpecification collection, boolean isKey)
+            {
+                return Sets.valueSpecOf(collection);
+            }
+        },
+        LIST
+        {
+            public ColumnSpecification makeCollectionReceiver(ColumnSpecification collection, boolean isKey)
+            {
+                return Lists.valueSpecOf(collection);
+            }
+        };
+
+        public abstract ColumnSpecification makeCollectionReceiver(ColumnSpecification collection, boolean isKey);
     }
 
     public final Kind kind;
@@ -58,6 +85,11 @@ public abstract class CollectionType<T> extends AbstractType<T>
 
     @Override
     public abstract CollectionSerializer<T> getSerializer();
+
+    public ColumnSpecification makeCollectionReceiver(ColumnSpecification collection, boolean isKey)
+    {
+        return kind.makeCollectionReceiver(collection, isKey);
+    }
 
     public String getString(ByteBuffer bytes)
     {

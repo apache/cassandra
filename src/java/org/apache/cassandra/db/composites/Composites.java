@@ -22,14 +22,34 @@ import java.util.List;
 
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.filter.ColumnSlice;
-import org.apache.cassandra.utils.memory.AbstractAllocator;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.memory.AbstractAllocator;
+
+import com.google.common.base.Function;
+import com.google.common.collect.Lists;
 
 public abstract class Composites
 {
     private Composites() {}
 
     public static final Composite EMPTY = new EmptyComposite();
+
+    /**
+     * Converts the specified <code>Composites</code> into <code>ByteBuffer</code>s.
+     *
+     * @param composites the composites to convert.
+     * @return the <code>ByteBuffer</code>s corresponding to the specified <code>Composites</code>.
+     */
+    public static List<ByteBuffer> toByteBuffers(List<Composite> composites)
+    {
+        return Lists.transform(composites, new Function<Composite, ByteBuffer>()
+        {
+            public ByteBuffer apply(Composite composite)
+            {
+                return composite.toByteBuffer();
+            }
+        });
+    }
 
     static final CBuilder EMPTY_BUILDER = new CBuilder()
     {

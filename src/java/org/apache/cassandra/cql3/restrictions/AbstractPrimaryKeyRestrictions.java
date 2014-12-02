@@ -15,31 +15,22 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.cql3.statements;
+package org.apache.cassandra.cql3.restrictions;
 
-public enum Bound
+/**
+ * Base class for <code>PrimaryKeyRestrictions</code>.
+ */
+abstract class AbstractPrimaryKeyRestrictions extends AbstractRestriction implements PrimaryKeyRestrictions
 {
-    START(0), END(1);
-
-    public final int idx;
-
-    Bound(int idx)
+    @Override
+    public final boolean isEmpty()
     {
-        this.idx = idx;
+        return getColumnDefs().isEmpty();
     }
 
-    public Bound reverse()
+    @Override
+    public final int size()
     {
-        return isStart() ? END : START;
-    }
-
-    public boolean isStart()
-    {
-        return this == START;
-    }
-
-    public boolean isEnd()
-    {
-        return this == END;
+        return getColumnDefs().size();
     }
 }

@@ -15,31 +15,26 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.cql3.statements;
+package org.apache.cassandra.cql3.restrictions;
 
-public enum Bound
+import java.util.List;
+
+import org.apache.cassandra.cql3.QueryOptions;
+import org.apache.cassandra.cql3.statements.Bound;
+import org.apache.cassandra.db.composites.Composite;
+import org.apache.cassandra.exceptions.InvalidRequestException;
+
+/**
+ * A set of restrictions on a primary key part (partition key or clustering key).
+ *
+ */
+interface PrimaryKeyRestrictions extends Restriction, Restrictions
 {
-    START(0), END(1);
 
-    public final int idx;
+    @Override
+    public PrimaryKeyRestrictions mergeWith(Restriction restriction) throws InvalidRequestException;
 
-    Bound(int idx)
-    {
-        this.idx = idx;
-    }
+    public List<Composite> valuesAsComposites(QueryOptions options) throws InvalidRequestException;
 
-    public Bound reverse()
-    {
-        return isStart() ? END : START;
-    }
-
-    public boolean isStart()
-    {
-        return this == START;
-    }
-
-    public boolean isEnd()
-    {
-        return this == END;
-    }
+    public List<Composite> boundsAsComposites(Bound bound, QueryOptions options) throws InvalidRequestException;
 }

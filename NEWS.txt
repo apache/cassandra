@@ -33,6 +33,9 @@ Upgrading
      in 2.0.0). Please switch to CQL3 if you haven't already done so.
    - Very large batches will now be rejected (defaults to 50kb). This
      can be customized by modifying batch_size_fail_threshold_in_kb.
+   - The results of CQL3 queries containing an IN restriction will be ordered
+     in the normal order and not anymore in the order in which the column values were
+     specified in the IN restriction.
 
 2.1.2
 =====

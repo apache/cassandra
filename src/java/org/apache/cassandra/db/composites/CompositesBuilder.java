@@ -20,6 +20,7 @@ package org.apache.cassandra.db.composites;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.TreeSet;
@@ -240,8 +241,8 @@ public final class CompositesBuilder
         if (elementsList.isEmpty())
             return singletonList(builder.build().withEOC(eoc));
 
-        // Use a TreeSet to sort and eliminate duplicates
-        Set<Composite> set = new TreeSet<Composite>(comparator);
+        // Use a Set to sort if needed and eliminate duplicates
+        Set<Composite> set = newSet();
 
         for (int i = 0, m = elementsList.size(); i < m; i++)
         {
@@ -250,6 +251,16 @@ public final class CompositesBuilder
         }
 
         return new ArrayList<>(set);
+    }
+
+    /**
+     * Returns a new <code>Set</code> instance that will be used to eliminate duplicates and sort the results.
+     *
+     * @return a new <code>Set</code> instance.
+     */
+    private Set<Composite> newSet()
+    {
+        return comparator == null ? new LinkedHashSet<Composite>() : new TreeSet<Composite>(comparator);
     }
 
     private void checkUpdateable()

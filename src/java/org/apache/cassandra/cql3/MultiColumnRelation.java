@@ -17,7 +17,21 @@
  */
 package org.apache.cassandra.cql3;
 
+import java.util.ArrayList;
 import java.util.List;
+
+import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.config.ColumnDefinition;
+import org.apache.cassandra.cql3.Term.MultiColumnRaw;
+import org.apache.cassandra.cql3.Term.Raw;
+import org.apache.cassandra.cql3.restrictions.MultiColumnRestriction;
+import org.apache.cassandra.cql3.restrictions.Restriction;
+import org.apache.cassandra.cql3.statements.Bound;
+import org.apache.cassandra.exceptions.InvalidRequestException;
+
+import static org.apache.cassandra.cql3.statements.RequestValidations.checkFalse;
+import static org.apache.cassandra.cql3.statements.RequestValidations.checkTrue;
+import static org.apache.cassandra.cql3.statements.RequestValidations.invalidRequest;
 
 /**
  * A relation using the tuple notation, which typically affects multiple columns.
@@ -55,6 +69,7 @@ public class MultiColumnRelation extends Relation
      * @param entities the columns on the LHS of the relation
      * @param relationType the relation operator
      * @param valuesOrMarker a Tuples.Literal instance or a Tuples.Raw marker
+     * @return a new <code>MultiColumnRelation</code> instance
      */
     public static MultiColumnRelation createNonInRelation(List<ColumnIdentifier.Raw> entities, Operator relationType, Term.MultiColumnRaw valuesOrMarker)
     {
@@ -67,6 +82,7 @@ public class MultiColumnRelation extends Relation
      * For example: "SELECT ... WHERE (a, b) IN ((0, 1), (2, 3))"
      * @param entities the columns on the LHS of the relation
      * @param inValues a list of Tuples.Literal instances or a Tuples.Raw markers
+     * @return a new <code>MultiColumnRelation</code> instance
      */
     public static MultiColumnRelation createInRelation(List<ColumnIdentifier.Raw> entities, List<? extends Term.MultiColumnRaw> inValues)
     {
@@ -78,6 +94,7 @@ public class MultiColumnRelation extends Relation
      * For example: "SELECT ... WHERE (a, b) IN ?"
      * @param entities the columns on the LHS of the relation
      * @param inMarker a single IN marker
+     * @return a new <code>MultiColumnRelation</code> instance
      */
     public static MultiColumnRelation createSingleMarkerInRelation(List<ColumnIdentifier.Raw> entities, Tuples.INRaw inMarker)
     {
@@ -91,54 +108,109 @@ public class MultiColumnRelation extends Relation
 
     /**
      * For non-IN relations, returns the Tuples.Literal or Tuples.Raw marker for a single tuple.
+     * @return a Tuples.Literal for non-IN relations or Tuples.Raw marker for a single tuple.
      */
-    public Term.MultiColumnRaw getValue()
+    private Term.MultiColumnRaw getValue()
     {
-        assert relationType != Operator.IN;
-        return valuesOrMarker;
+        return relationType == Operator.IN ? inMarker : valuesOrMarker;
     }
 
-    /**
-     * For IN relations, returns the list of Tuples.Literal instances or Tuples.Raw markers.
-     * If a single IN marker was used, this will return null;
-     */
-    public List<? extends Term.MultiColumnRaw> getInValues()
-    {
-
-        return inValues;
-    }
-
-    /**
-     * For IN relations, returns the single marker for the IN values if there is one, otherwise null.
-     */
-    public Tuples.INRaw getInMarker()
-    {
-        return inMarker;
-    }
-
+    @Override
     public boolean isMultiColumn()
     {
         return true;
     }
 
     @Override
+    protected Restriction newEQRestriction(CFMetaData cfm,
+                                           VariableSpecifications boundNames) throws InvalidRequestException
+    {
+        List<ColumnDefinition> receivers = receivers(cfm);
+        Term term = toTerm(receivers, getValue(), cfm.ksName, boundNames);
+        return new MultiColumnRestriction.EQ(cfm.comparator, receivers, term);
+    }
+
+    @Override
+    protected Restriction newINRestriction(CFMetaData cfm,
+                                           VariableSpecifications boundNames) throws InvalidRequestException
+    {
+        List<ColumnDefinition> receivers = receivers(cfm);
+        List<Term> terms = toTerms(receivers, inValues, cfm.ksName, boundNames);
+        if (terms == null)
+        {
+            Term term = toTerm(receivers, getValue(), cfm.ksName, boundNames);
+            return new MultiColumnRestriction.InWithMarker(cfm.comparator, receivers, (AbstractMarker) term);
+        }
+        return new MultiColumnRestriction.InWithValues(cfm.comparator, receivers, terms);
+    }
+
+    @Override
+    protected Restriction newSliceRestriction(CFMetaData cfm,
+                                              VariableSpecifications boundNames,
+                                              Bound bound,
+                                              boolean inclusive) throws InvalidRequestException
+    {
+        List<ColumnDefinition> receivers = receivers(cfm);
+        Term term = toTerm(receivers(cfm), getValue(), cfm.ksName, boundNames);
+        return new MultiColumnRestriction.Slice(cfm.comparator, receivers, bound, inclusive, term);
+    }
+
+    @Override
+    protected Restriction newContainsRestriction(CFMetaData cfm,
+                                                 VariableSpecifications boundNames,
+                                                 boolean isKey) throws InvalidRequestException
+    {
+        throw invalidRequest("%s cannot be used for Multi-column relations", operator());
+    }
+
+    @Override
+    protected Term toTerm(List<? extends ColumnSpecification> receivers,
+                          Raw raw,
+                          String keyspace,
+                          VariableSpecifications boundNames) throws InvalidRequestException
+    {
+        Term term = ((MultiColumnRaw) raw).prepare(keyspace, receivers);
+        term.collectMarkerSpecification(boundNames);
+        return term;
+    }
+
+    protected List<ColumnDefinition> receivers(CFMetaData cfm) throws InvalidRequestException
+    {
+        List<ColumnDefinition> names = new ArrayList<>(getEntities().size());
+        int previousPosition = -1;
+        for (ColumnIdentifier.Raw raw : getEntities())
+        {
+            ColumnDefinition def = toColumnDefinition(cfm, raw);
+            checkTrue(def.isClusteringColumn(), "Multi-column relations can only be applied to clustering columns but was applied to: %s", def.name);
+            checkFalse(names.contains(def), "Column \"%s\" appeared twice in a relation: %s", def.name, this);
+
+            // check that no clustering columns were skipped
+            if (def.position() != previousPosition + 1)
+            {
+                checkFalse(previousPosition == -1, "Clustering columns may not be skipped in multi-column relations. " +
+                                                   "They should appear in the PRIMARY KEY order. Got %s", this);
+                throw invalidRequest("Clustering columns must appear in the PRIMARY KEY order in multi-column relations: %s", this);
+            }
+            names.add(def);
+            previousPosition = def.position();
+        }
+        return names;
+    }
+
+    @Override
     public String toString()
     {
-        if (relationType == Operator.IN)
+        StringBuilder builder = new StringBuilder(Tuples.tupleToString(entities));
+        if (isIN())
         {
-            StringBuilder sb = new StringBuilder(Tuples.tupleToString(entities));
-            sb.append(" IN ");
-            sb.append(inMarker != null ? '?' : Tuples.tupleToString(inValues));
-            return sb.toString();
+            return builder.append(" IN ")
+                          .append(inMarker != null ? '?' : Tuples.tupleToString(inValues))
+                          .toString();
         }
-        else
-        {
-            StringBuilder sb = new StringBuilder(Tuples.tupleToString(entities));
-            sb.append(" ");
-            sb.append(relationType);
-            sb.append(" ");
-            sb.append(valuesOrMarker);
-            return sb.toString();
-        }
+        return builder.append(" ")
+                      .append(relationType)
+                      .append(" ")
+                      .append(valuesOrMarker)
+                      .toString();
     }
 }

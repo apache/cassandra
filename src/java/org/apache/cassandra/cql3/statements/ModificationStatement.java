@@ -27,6 +27,8 @@ import org.apache.cassandra.auth.Permission;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.cql3.*;
+import org.apache.cassandra.cql3.restrictions.Restriction;
+import org.apache.cassandra.cql3.restrictions.SingleColumnRestriction;
 import org.apache.cassandra.cql3.selection.Selection;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.composites.CBuilder;
@@ -237,7 +239,7 @@ public abstract class ModificationStatement implements CQLStatement
 
     public void addKeyValue(ColumnDefinition def, Term value) throws InvalidRequestException
     {
-        addKeyValues(def, new SingleColumnRestriction.EQ(value, false));
+        addKeyValues(def, new SingleColumnRestriction.EQ(def, value));
     }
 
     public void processWhereClause(List<Relation> whereClause, VariableSpecifications names) throws InvalidRequestException
@@ -251,7 +253,7 @@ public abstract class ModificationStatement implements CQLStatement
             }
             SingleColumnRelation rel = (SingleColumnRelation) relation;
 
-            if (rel.onToken)
+            if (rel.onToken())
                 throw new InvalidRequestException(String.format("The token function cannot be used in WHERE clauses for UPDATE and DELETE statements: %s", relation));
 
             ColumnIdentifier id = rel.getEntity().prepare(cfm);
@@ -265,31 +267,9 @@ public abstract class ModificationStatement implements CQLStatement
                 case CLUSTERING_COLUMN:
                     Restriction restriction;
 
-                    if (rel.operator() == Operator.EQ)
+                    if (rel.isEQ() || (def.isPartitionKey() && rel.isIN()))
                     {
-                        Term t = rel.getValue().prepare(keyspace(), def);
-                        t.collectMarkerSpecification(names);
-                        restriction = new SingleColumnRestriction.EQ(t, false);
-                    }
-                    else if (def.kind == ColumnDefinition.Kind.PARTITION_KEY && rel.operator() == Operator.IN)
-                    {
-                        if (rel.getValue() != null)
-                        {
-                            Term t = rel.getValue().prepare(keyspace(), def);
-                            t.collectMarkerSpecification(names);
-                            restriction = new SingleColumnRestriction.InWithMarker((Lists.Marker)t);
-                        }
-                        else
-                        {
-                            List<Term> values = new ArrayList<Term>(rel.getInValues().size());
-                            for (Term.Raw raw : rel.getInValues())
-                            {
-                                Term t = raw.prepare(keyspace(), def);
-                                t.collectMarkerSpecification(names);
-                                values.add(t);
-                            }
-                            restriction = new SingleColumnRestriction.InWithValues(values);
-                        }
+                        restriction = rel.toRestriction(cfm, names);
                     }
                     else
                     {
@@ -623,7 +603,8 @@ public abstract class ModificationStatement implements CQLStatement
             }
             for (ColumnDefinition def : columnsWithConditions)
                 defs.add(def);
-            selection = Selection.forColumns(new ArrayList<>(defs));
+            selection = Selection.forColumns(cfm, new ArrayList<>(defs));
+
         }
 
         long now = System.currentTimeMillis();

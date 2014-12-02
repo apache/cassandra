@@ -23,7 +23,92 @@ import java.io.IOException;
 
 public enum Operator
 {
-    EQ(0), LT(4), LTE(3), GTE(1), GT(2), IN(7), CONTAINS(5), CONTAINS_KEY(6), NEQ(8);
+    EQ(0)
+    {
+        @Override
+        public String toString()
+        {
+            return "=";
+        }
+    },
+    LT(4)
+    {
+        @Override
+        public String toString()
+        {
+            return "<";
+        }
+
+        @Override
+        public Operator reverse()
+        {
+            return GT;
+        }
+    },
+    LTE(3)
+    {
+        @Override
+        public String toString()
+        {
+            return "<=";
+        }
+
+        @Override
+        public Operator reverse()
+        {
+            return GTE;
+        }
+    },
+    GTE(1)
+    {
+        @Override
+        public String toString()
+        {
+            return ">=";
+        }
+
+        @Override
+        public Operator reverse()
+        {
+            return LTE;
+        }
+    },
+    GT(2)
+    {
+        @Override
+        public String toString()
+        {
+            return ">";
+        }
+
+        @Override
+        public Operator reverse()
+        {
+            return LT;
+        }
+    },
+    IN(7)
+    {
+    },
+    CONTAINS(5)
+    {
+    },
+    CONTAINS_KEY(6)
+    {
+        @Override
+        public String toString()
+        {
+            return "CONTAINS KEY";
+        }
+    },
+    NEQ(8)
+    {
+        @Override
+        public String toString()
+        {
+            return "!=";
+        }
+    };
 
     /**
      * The binary representation of this <code>Enum</code> value.
@@ -70,24 +155,16 @@ public enum Operator
     @Override
     public String toString()
     {
-        switch (this)
-        {
-            case EQ:
-                return "=";
-            case LT:
-                return "<";
-            case LTE:
-                return "<=";
-            case GT:
-                return ">";
-            case GTE:
-                return ">=";
-            case NEQ:
-                return "!=";
-            case CONTAINS_KEY:
-                return "CONTAINS KEY";
-            default:
-                return this.name();
-        }
+         return this.name();
+    }
+
+    /**
+     * Returns the reverse operator if this one.
+     *
+     * @return the reverse operator of this one.
+     */
+    public Operator reverse()
+    {
+        return this;
     }
 }
