@@ -135,6 +135,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     public final ColumnFamilyMetrics metric;
     public volatile long sampleLatencyNanos;
+    private final ScheduledFuture<?> latencyCalculator;
 
     public static void shutdownPostFlushExecutor() throws InterruptedException
     {
@@ -318,7 +319,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             throw new RuntimeException(e);
         }
         logger.debug("retryPolicy for {} is {}", name, this.metadata.getSpeculativeRetry());
-        ScheduledExecutors.optionalTasks.scheduleWithFixedDelay(new Runnable()
+        latencyCalculator = ScheduledExecutors.optionalTasks.scheduleWithFixedDelay(new Runnable()
         {
             public void run()
             {
@@ -358,8 +359,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             logger.warn("Failed unregistering mbean: {}", mbeanName, e);
         }
 
+        latencyCalculator.cancel(false);
         compactionStrategyWrapper.shutdown();
-
         SystemKeyspace.removeTruncationRecord(metadata.cfId);
         data.unreferenceSSTables();
         indexManager.invalidate();
