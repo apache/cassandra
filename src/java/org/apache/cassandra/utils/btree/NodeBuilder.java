@@ -133,7 +133,7 @@ final class NodeBuilder
 
         int i = copyFromKeyPosition;
         boolean found; // exact key match?
-        boolean owns = true; // true iff this node (or a child) should contain the key
+        boolean owns = true; // true if this node (or a child) should contain the key
         if (i == copyFromKeyEnd)
         {
             found = false;
@@ -185,7 +185,7 @@ final class NodeBuilder
                 }
                 else
                 {
-                    // if not found, we need to apply updateFunction still
+                    // if not found, we still need to apply the update function
                     key = updateFunction.apply(key);
                     addNewKey(key); // handles splitting parent if necessary via ensureRoom
                 }
@@ -319,7 +319,7 @@ final class NodeBuilder
     void addNewKey(Object key)
     {
         ensureRoom(buildKeyPosition + 1);
-        buildKeys[buildKeyPosition++] = updateFunction.apply(key);
+        buildKeys[buildKeyPosition++] = key;
     }
 
     // copies children from copyf to the builder, up to the provided index in copyf (exclusive)
