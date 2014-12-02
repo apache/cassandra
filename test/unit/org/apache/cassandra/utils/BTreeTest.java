@@ -17,22 +17,21 @@
  */
 package org.apache.cassandra.utils;
 
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.List;
-import java.util.Random;
+import java.util.*;
 import java.util.concurrent.ThreadLocalRandom;
 
 import org.junit.Test;
 
-import junit.framework.Assert;
 import org.apache.cassandra.utils.btree.BTree;
 import org.apache.cassandra.utils.btree.BTreeSet;
 import org.apache.cassandra.utils.btree.UpdateFunction;
 
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertArrayEquals;
+import static org.junit.Assert.assertTrue;
+
 public class BTreeTest
 {
-
     static Integer[] ints = new Integer[20];
     static
     {
@@ -114,13 +113,78 @@ public class BTreeTest
         }
     }
 
+    /**
+     * Tests that the apply method of the <code>UpdateFunction</code> is only called once with each key update.
+     * (see CASSANDRA-8018).
+     */
+    @Test
+    public void testUpdate_UpdateFunctionCallBack()
+    {
+        Object[] btree = new Object[0];
+        CallsMonitor monitor = new CallsMonitor();
+
+        btree = BTree.update(btree, CMP, Arrays.asList(1), true, monitor);
+        assertArrayEquals(new Object[] {1, null}, btree);
+        assertEquals(1, monitor.getNumberOfCalls(1));
+
+        monitor.clear();
+        btree = BTree.update(btree, CMP, Arrays.asList(2), true, monitor);
+        assertArrayEquals(new Object[] {1, 2}, btree);
+        assertEquals(1, monitor.getNumberOfCalls(2));
+
+        // with existing value
+        monitor.clear();
+        btree = BTree.update(btree, CMP, Arrays.asList(1), true, monitor);
+        assertArrayEquals(new Object[] {1, 2}, btree);
+        assertEquals(1, monitor.getNumberOfCalls(1));
+
+        // with two non-existing values
+        monitor.clear();
+        btree = BTree.update(btree, CMP, Arrays.asList(3, 4), true, monitor);
+        assertArrayEquals(new Object[] {1, 2, 3, 4}, btree);
+        assertEquals(1, monitor.getNumberOfCalls(3));
+        assertEquals(1, monitor.getNumberOfCalls(4));
+
+        // with one existing value and one non existing value in disorder
+        monitor.clear();
+        btree = BTree.update(btree, CMP, Arrays.asList(5, 2), false, monitor);
+        assertArrayEquals(new Object[] {3, new Object[]{1, 2}, new Object[]{4, 5}}, btree);
+        assertEquals(1, monitor.getNumberOfCalls(2));
+        assertEquals(1, monitor.getNumberOfCalls(5));
+    }
+
+    /**
+     * Tests that the apply method of the <code>UpdateFunction</code> is only called once per value with each build call.
+     */
+    @Test
+    public void testBuilding_UpdateFunctionCallBack()
+    {
+        CallsMonitor monitor = new CallsMonitor();
+        Object[] btree = BTree.build(Arrays.asList(1), CMP, true, monitor);
+        assertArrayEquals(new Object[] {1, null}, btree);
+        assertEquals(1, monitor.getNumberOfCalls(1));
+
+        monitor.clear();
+        btree = BTree.build(Arrays.asList(1, 2), CMP, true, monitor);
+        assertArrayEquals(new Object[] {1, 2}, btree);
+        assertEquals(1, monitor.getNumberOfCalls(1));
+        assertEquals(1, monitor.getNumberOfCalls(2));
+
+        monitor.clear();
+        btree = BTree.build(Arrays.asList(3, 1, 2), CMP, false, monitor);
+        assertArrayEquals(new Object[] {1, 2, 3, null}, btree);
+        assertEquals(1, monitor.getNumberOfCalls(1));
+        assertEquals(1, monitor.getNumberOfCalls(2));
+        assertEquals(1, monitor.getNumberOfCalls(3));
+    }
+
     private static void checkResult(int count, Object[] btree)
     {
         BTreeSet<Integer> vs = new BTreeSet<>(btree, CMP);
         assert vs.size() == count;
         int i = 0;
         for (Integer j : vs)
-            Assert.assertEquals(j, ints[i++]);
+            assertEquals(j, ints[i++]);
     }
 
     @Test
@@ -137,7 +201,7 @@ public class BTreeTest
         Object[] btree = BTree.build(ranges(range(0, 8)), cmp, true, UpdateFunction.NoOp.<String>instance());
         BTree.update(btree, cmp, ranges(range(0, 94)), false, new AbortAfterX(90));
         btree = BTree.update(btree, cmp, ranges(range(0, 94)), false, UpdateFunction.NoOp.<String>instance());
-        Assert.assertTrue(BTree.isWellFormed(btree, cmp));
+        assertTrue(BTree.isWellFormed(btree, cmp));
     }
 
     private static final class AbortAfterX implements UpdateFunction<String>
@@ -181,4 +245,44 @@ public class BTreeTest
         }
         return r;
     }
+
+    /**
+     * <code>UpdateFunction</code> that count the number of call made to apply for each value.
+     */
+    public static final class CallsMonitor implements UpdateFunction<Integer>
+    {
+        private int[] numberOfCalls = new int[20];
+
+        public Integer apply(Integer replacing, Integer update)
+        {
+            numberOfCalls[update] = numberOfCalls[update] + 1;
+            return update;
+        }
+
+        public boolean abortEarly()
+        {
+            return false;
+        }
+
+        public void allocated(long heapSize)
+        {
+
+        }
+
+        public Integer apply(Integer integer)
+        {
+            numberOfCalls[integer] = numberOfCalls[integer] + 1;
+            return integer;
+        }
+
+        public int getNumberOfCalls(Integer key)
+        {
+            return numberOfCalls[key];
+        }
+
+        public void clear()
+        {
+            Arrays.fill(numberOfCalls, 0);
+        }
+    };
 }

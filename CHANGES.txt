@@ -36,6 +36,7 @@
 
 
 2.1.3
+ * BTree updates may call provided update function twice (CASSANDRA-8018)
  * Release sstable references after anticompaction (CASSANDRA-8386)
  * Handle abort() in SSTableRewriter properly (CASSANDRA-8320)
  * Centralize shared executors (CASSANDRA-8055)

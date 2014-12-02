@@ -108,7 +108,7 @@ final class Builder
 
         current.reset(EMPTY_LEAF, POSITIVE_INFINITY, updateF, null);
         for (V key : source)
-            current.addNewKey(key);
+            current.addNewKey(updateF.apply(key));
 
         current = current.ascendToRoot();
 
