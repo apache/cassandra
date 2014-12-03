@@ -21,6 +21,7 @@ import java.io.File;
 import java.io.IOException;
 import java.lang.management.ManagementFactory;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
@@ -369,15 +370,32 @@ public class CompactionManager implements CompactionManagerMBean
 
     public Future<?> submitAntiCompaction(final ColumnFamilyStore cfs,
                                           final Collection<Range<Token>> ranges,
-                                          final Collection<SSTableReader> validatedForRepair,
+                                          final Collection<SSTableReader> sstables,
                                           final long repairedAt)
     {
         Runnable runnable = new WrappedRunnable() {
-
             @Override
             public void runMayThrow() throws Exception
             {
-                performAnticompaction(cfs, ranges, validatedForRepair, repairedAt);
+                boolean success = false;
+                while (!success)
+                {
+                    for (SSTableReader compactingSSTable : cfs.getDataTracker().getCompacting())
+                    {
+                        if (sstables.remove(compactingSSTable))
+                            SSTableReader.releaseReferences(Arrays.asList(compactingSSTable));
+                    }
+                    Set<SSTableReader> compactedSSTables = new HashSet<>();
+                    for (SSTableReader sstable : sstables)
+                    {
+                        if (sstable.isMarkedCompacted())
+                            compactedSSTables.add(sstable);
+                    }
+                    sstables.removeAll(compactedSSTables);
+                    SSTableReader.releaseReferences(compactedSSTables);
+                    success = sstables.isEmpty() || cfs.getDataTracker().markCompacting(sstables);
+                }
+                performAnticompaction(cfs, ranges, sstables, repairedAt);
             }
         };
         return executor.submit(runnable);
@@ -398,7 +416,7 @@ public class CompactionManager implements CompactionManagerMBean
                                       Collection<SSTableReader> validatedForRepair,
                                       long repairedAt) throws InterruptedException, ExecutionException, IOException
     {
-        logger.info("Starting anticompaction");
+        logger.info("Starting anticompaction for {}.{} on {}/{} sstables", cfs.keyspace.getName(), cfs.getColumnFamilyName(), validatedForRepair.size(), cfs.getSSTables().size());
         logger.debug("Starting anticompaction for ranges {}", ranges);
         Set<SSTableReader> sstables = new HashSet<>(validatedForRepair);
         Set<SSTableReader> mutatedRepairStatuses = new HashSet<>();

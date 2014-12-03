@@ -139,7 +139,7 @@ public class ActiveRepairService
         sessions.remove(session.getId());
     }
 
-    public void terminateSessions()
+    public synchronized void terminateSessions()
     {
         for (RepairSession session : sessions.values())
         {
@@ -241,7 +241,7 @@ public class ActiveRepairService
         return neighbors;
     }
 
-    public UUID prepareForRepair(Set<InetAddress> endpoints, Collection<Range<Token>> ranges, List<ColumnFamilyStore> columnFamilyStores)
+    public synchronized UUID prepareForRepair(Set<InetAddress> endpoints, Collection<Range<Token>> ranges, List<ColumnFamilyStore> columnFamilyStores)
     {
         UUID parentRepairSession = UUIDGen.getTimeUUID();
         registerParentRepairSession(parentRepairSession, columnFamilyStores, ranges);
@@ -297,18 +297,24 @@ public class ActiveRepairService
         return parentRepairSession;
     }
 
-    public void registerParentRepairSession(UUID parentRepairSession, List<ColumnFamilyStore> columnFamilyStores, Collection<Range<Token>> ranges)
+    public synchronized void registerParentRepairSession(UUID parentRepairSession, List<ColumnFamilyStore> columnFamilyStores, Collection<Range<Token>> ranges)
     {
         Map<UUID, Set<SSTableReader>> sstablesToRepair = new HashMap<>();
         for (ColumnFamilyStore cfs : columnFamilyStores)
         {
             Set<SSTableReader> sstables = new HashSet<>();
+            Set<SSTableReader> currentlyRepairing = currentlyRepairing(cfs.metadata.cfId);
             for (SSTableReader sstable : cfs.getSSTables())
             {
                 if (new Bounds<>(sstable.first.getToken(), sstable.last.getToken()).intersects(ranges))
                 {
                     if (!sstable.isRepaired())
                     {
+                        if (currentlyRepairing.contains(sstable))
+                        {
+                            logger.error("Already repairing "+sstable+", can not continue.");
+                            throw new RuntimeException("Already repairing "+sstable+", can not continue.");
+                        }
                         sstables.add(sstable);
                     }
                 }
@@ -318,7 +324,19 @@ public class ActiveRepairService
         parentRepairSessions.put(parentRepairSession, new ParentRepairSession(columnFamilyStores, ranges, sstablesToRepair, System.currentTimeMillis()));
     }
 
-    public void finishParentSession(UUID parentSession, Set<InetAddress> neighbors, boolean doAntiCompaction) throws InterruptedException, ExecutionException, IOException
+    private Set<SSTableReader> currentlyRepairing(UUID cfId)
+    {
+        Set<SSTableReader> repairing = new HashSet<>();
+        for (Map.Entry<UUID, ParentRepairSession> entry : parentRepairSessions.entrySet())
+        {
+            Collection<SSTableReader> sstables = entry.getValue().sstableMap.get(cfId);
+            if (sstables != null)
+                repairing.addAll(sstables);
+        }
+        return repairing;
+    }
+
+    public synchronized void finishParentSession(UUID parentSession, Set<InetAddress> neighbors, boolean doAntiCompaction) throws InterruptedException, ExecutionException, IOException
     {
         try
         {
@@ -345,7 +363,7 @@ public class ActiveRepairService
         return parentRepairSessions.get(parentSessionId);
     }
 
-    public ParentRepairSession removeParentRepairSession(UUID parentSessionId)
+    public synchronized ParentRepairSession removeParentRepairSession(UUID parentSessionId)
     {
         return parentRepairSessions.remove(parentSessionId);
     }
@@ -358,20 +376,8 @@ public class ActiveRepairService
         List<Future<?>> futures = new ArrayList<>();
         for (Map.Entry<UUID, ColumnFamilyStore> columnFamilyStoreEntry : prs.columnFamilyStores.entrySet())
         {
-
             Collection<SSTableReader> sstables = new HashSet<>(prs.getAndReferenceSSTables(columnFamilyStoreEntry.getKey()));
             ColumnFamilyStore cfs = columnFamilyStoreEntry.getValue();
-            boolean success = false;
-            while (!success)
-            {
-                for (SSTableReader compactingSSTable : cfs.getDataTracker().getCompacting())
-                {
-                    if (sstables.remove(compactingSSTable))
-                        SSTableReader.releaseReferences(Arrays.asList(compactingSSTable));
-                }
-                success = sstables.isEmpty() || cfs.getDataTracker().markCompacting(sstables);
-            }
-
             futures.add(CompactionManager.instance.submitAntiCompaction(cfs, prs.ranges, sstables, prs.repairedAt));
         }
 
@@ -434,6 +440,17 @@ public class ActiveRepairService
                 }
             }
             return sstables;
+        }
+
+        @Override
+        public String toString()
+        {
+            return "ParentRepairSession{" +
+                    "columnFamilyStores=" + columnFamilyStores +
+                    ", ranges=" + ranges +
+                    ", sstableMap=" + sstableMap +
+                    ", repairedAt=" + repairedAt +
+                    '}';
         }
     }
 }

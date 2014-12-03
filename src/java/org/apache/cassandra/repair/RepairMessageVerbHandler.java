@@ -57,78 +57,88 @@ public class RepairMessageVerbHandler implements IVerbHandler<RepairMessage>
     {
         // TODO add cancel/interrupt message
         RepairJobDesc desc = message.payload.desc;
-        switch (message.payload.messageType)
+        try
         {
-            case PREPARE_MESSAGE:
-                PrepareMessage prepareMessage = (PrepareMessage) message.payload;
-                List<ColumnFamilyStore> columnFamilyStores = new ArrayList<>(prepareMessage.cfIds.size());
-                for (UUID cfId : prepareMessage.cfIds)
-                {
-                    Pair<String, String> kscf = Schema.instance.getCF(cfId);
-                    ColumnFamilyStore columnFamilyStore = Keyspace.open(kscf.left).getColumnFamilyStore(kscf.right);
-                    columnFamilyStores.add(columnFamilyStore);
-                }
-                ActiveRepairService.instance.registerParentRepairSession(prepareMessage.parentRepairSession,
-                                                                         columnFamilyStores,
-                                                                         prepareMessage.ranges);
-                MessagingService.instance().sendReply(new MessageOut(MessagingService.Verb.INTERNAL_RESPONSE), id, message.from);
-                break;
-
-            case SNAPSHOT:
-                ColumnFamilyStore cfs = Keyspace.open(desc.keyspace).getColumnFamilyStore(desc.columnFamily);
-                final Range<Token> repairingRange = desc.range;
-                cfs.snapshot(desc.sessionId.toString(), new Predicate<SSTableReader>()
-                {
-                    public boolean apply(SSTableReader sstable)
+            switch (message.payload.messageType)
+            {
+                case PREPARE_MESSAGE:
+                    PrepareMessage prepareMessage = (PrepareMessage) message.payload;
+                    List<ColumnFamilyStore> columnFamilyStores = new ArrayList<>(prepareMessage.cfIds.size());
+                    for (UUID cfId : prepareMessage.cfIds)
                     {
-                        return sstable != null &&
-                               !(sstable.partitioner instanceof LocalPartitioner) && // exclude SSTables from 2i
-                               new Bounds<>(sstable.first.getToken(), sstable.last.getToken()).intersects(Collections.singleton(repairingRange));
+                        Pair<String, String> kscf = Schema.instance.getCF(cfId);
+                        ColumnFamilyStore columnFamilyStore = Keyspace.open(kscf.left).getColumnFamilyStore(kscf.right);
+                        columnFamilyStores.add(columnFamilyStore);
                     }
-                });
+                    ActiveRepairService.instance.registerParentRepairSession(prepareMessage.parentRepairSession,
+                            columnFamilyStores,
+                            prepareMessage.ranges);
+                    MessagingService.instance().sendReply(new MessageOut(MessagingService.Verb.INTERNAL_RESPONSE), id, message.from);
+                    break;
 
-                logger.debug("Enqueuing response to snapshot request {} to {}", desc.sessionId, message.from);
-                MessagingService.instance().sendReply(new MessageOut(MessagingService.Verb.INTERNAL_RESPONSE), id, message.from);
-                break;
+                case SNAPSHOT:
+                    ColumnFamilyStore cfs = Keyspace.open(desc.keyspace).getColumnFamilyStore(desc.columnFamily);
+                    final Range<Token> repairingRange = desc.range;
+                    cfs.snapshot(desc.sessionId.toString(), new Predicate<SSTableReader>()
+                    {
+                        public boolean apply(SSTableReader sstable)
+                        {
+                            return sstable != null &&
+                                    !(sstable.partitioner instanceof LocalPartitioner) && // exclude SSTables from 2i
+                                    new Bounds<>(sstable.first.getToken(), sstable.last.getToken()).intersects(Collections.singleton(repairingRange));
+                        }
+                    });
 
-            case VALIDATION_REQUEST:
-                ValidationRequest validationRequest = (ValidationRequest) message.payload;
-                // trigger read-only compaction
-                ColumnFamilyStore store = Keyspace.open(desc.keyspace).getColumnFamilyStore(desc.columnFamily);
+                    logger.debug("Enqueuing response to snapshot request {} to {}", desc.sessionId, message.from);
+                    MessagingService.instance().sendReply(new MessageOut(MessagingService.Verb.INTERNAL_RESPONSE), id, message.from);
+                    break;
 
-                Validator validator = new Validator(desc, message.from, validationRequest.gcBefore);
-                CompactionManager.instance.submitValidation(store, validator);
-                break;
+                case VALIDATION_REQUEST:
+                    ValidationRequest validationRequest = (ValidationRequest) message.payload;
+                    // trigger read-only compaction
+                    ColumnFamilyStore store = Keyspace.open(desc.keyspace).getColumnFamilyStore(desc.columnFamily);
 
-            case SYNC_REQUEST:
-                // forwarded sync request
-                SyncRequest request = (SyncRequest) message.payload;
-                StreamingRepairTask task = new StreamingRepairTask(desc, request);
-                task.run();
-                break;
+                    Validator validator = new Validator(desc, message.from, validationRequest.gcBefore);
+                    CompactionManager.instance.submitValidation(store, validator);
+                    break;
 
-            case ANTICOMPACTION_REQUEST:
-                logger.debug("Got anticompaction request");
-                AnticompactionRequest anticompactionRequest = (AnticompactionRequest) message.payload;
-                try
-                {
-                    List<Future<?>> futures = ActiveRepairService.instance.doAntiCompaction(anticompactionRequest.parentRepairSession);
-                    FBUtilities.waitOnFutures(futures);
-                }
-                catch (Exception e)
-                {
-                    throw new RuntimeException(e);
-                }
-                finally
-                {
-                    ActiveRepairService.instance.removeParentRepairSession(anticompactionRequest.parentRepairSession);
-                }
+                case SYNC_REQUEST:
+                    // forwarded sync request
+                    SyncRequest request = (SyncRequest) message.payload;
+                    StreamingRepairTask task = new StreamingRepairTask(desc, request);
+                    task.run();
+                    break;
 
-                break;
+                case ANTICOMPACTION_REQUEST:
+                    logger.debug("Got anticompaction request");
+                    AnticompactionRequest anticompactionRequest = (AnticompactionRequest) message.payload;
+                    try
+                    {
+                        List<Future<?>> futures = ActiveRepairService.instance.doAntiCompaction(anticompactionRequest.parentRepairSession);
+                        FBUtilities.waitOnFutures(futures);
+                    }
+                    catch (Exception e)
+                    {
+                        throw new RuntimeException(e);
+                    }
+                    finally
+                    {
+                        ActiveRepairService.instance.removeParentRepairSession(anticompactionRequest.parentRepairSession);
+                    }
 
-            default:
-                ActiveRepairService.instance.handleMessage(message.from, message.payload);
-                break;
+                    break;
+
+                default:
+                    ActiveRepairService.instance.handleMessage(message.from, message.payload);
+                    break;
+            }
+        }
+        catch (Exception e)
+        {
+            logger.error("Got error, removing parent repair session");
+            if (desc!=null && desc.parentSessionId != null)
+                ActiveRepairService.instance.removeParentRepairSession(desc.parentSessionId);
+            throw new RuntimeException(e);
         }
     }
 }
