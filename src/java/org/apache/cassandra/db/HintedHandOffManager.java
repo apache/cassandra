@@ -251,7 +251,7 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
     }
 
     @VisibleForTesting
-    protected void compact()
+    protected synchronized void compact()
     {
         ArrayList<Descriptor> descriptors = new ArrayList<>();
         for (SSTable sstable : hintStore.getDataTracker().getUncompactingSSTables())
