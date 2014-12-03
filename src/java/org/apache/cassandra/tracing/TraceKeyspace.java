@@ -39,8 +39,8 @@ public final class TraceKeyspace
 {
     public static final String NAME = "system_traces";
 
-    private static final String SESSIONS_TABLE = "sessions";
-    private static final String EVENTS_TABLE = "events";
+    public static final String SESSIONS_TABLE = "sessions";
+    public static final String EVENTS_TABLE = "events";
 
     private static final int DAY = (int) TimeUnit.DAYS.toSeconds(1);
 
@@ -48,6 +48,7 @@ public final class TraceKeyspace
         compile(SESSIONS_TABLE, "tracing sessions",
                 "CREATE TABLE %s ("
                 + "session_id uuid,"
+                + "command text,"
                 + "coordinator inet,"
                 + "duration int,"
                 + "parameters map<text, text>,"
@@ -79,38 +80,42 @@ public final class TraceKeyspace
         return new KSMetaData(NAME, SimpleStrategy.class, ImmutableMap.of("replication_factor", "2"), true, tables);
     }
 
-    static Mutation toStopSessionMutation(ByteBuffer sessionId, int elapsed)
+    static Mutation toStopSessionMutation(ByteBuffer sessionId, int elapsed, int ttl)
     {
         Mutation mutation = new Mutation(NAME, sessionId);
         ColumnFamily cells = mutation.addOrGet(SessionsTable);
 
-        CFRowAdder adder = new CFRowAdder(cells, cells.metadata().comparator.builder().build(), FBUtilities.timestampMicros());
+        ttl = ttl == DAY ? 0 : ttl;
+        CFRowAdder adder = new CFRowAdder(cells, cells.metadata().comparator.builder().build(), FBUtilities.timestampMicros(), ttl);
         adder.add("duration", elapsed);
 
         return mutation;
     }
 
-    static Mutation toStartSessionMutation(ByteBuffer sessionId, Map<String, String> parameters, String request, long startedAt)
+    static Mutation toStartSessionMutation(ByteBuffer sessionId, Map<String, String> parameters, String request, long startedAt, String command, int ttl)
     {
         Mutation mutation = new Mutation(NAME, sessionId);
         ColumnFamily cells = mutation.addOrGet(TraceKeyspace.SessionsTable);
 
-        CFRowAdder adder = new CFRowAdder(cells, cells.metadata().comparator.builder().build(), FBUtilities.timestampMicros());
+        ttl = ttl == DAY ? 0 : ttl;
+        CFRowAdder adder = new CFRowAdder(cells, cells.metadata().comparator.builder().build(), FBUtilities.timestampMicros(), ttl);
         adder.add("coordinator", FBUtilities.getBroadcastAddress());
         for (Map.Entry<String, String> entry : parameters.entrySet())
             adder.addMapEntry("parameters", entry.getKey(), entry.getValue());
         adder.add("request", request);
         adder.add("started_at", new Date(startedAt));
+        adder.add("command", command);
 
         return mutation;
     }
 
-    static Mutation toEventMutation(ByteBuffer sessionId, String message, int elapsed, String threadName)
+    static Mutation toEventMutation(ByteBuffer sessionId, String message, int elapsed, String threadName, int ttl)
     {
         Mutation mutation = new Mutation(NAME, sessionId);
         ColumnFamily cells = mutation.addOrGet(EventsTable);
 
-        CFRowAdder adder = new CFRowAdder(cells, cells.metadata().comparator.make(UUIDGen.getTimeUUID()), FBUtilities.timestampMicros());
+        ttl = ttl == DAY ? 0 : ttl;
+        CFRowAdder adder = new CFRowAdder(cells, cells.metadata().comparator.make(UUIDGen.getTimeUUID()), FBUtilities.timestampMicros(), ttl);
         adder.add("activity", message);
         adder.add("source", FBUtilities.getBroadcastAddress());
         if (elapsed >= 0)

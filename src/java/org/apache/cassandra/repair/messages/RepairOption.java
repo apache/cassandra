@@ -40,6 +40,7 @@ public class RepairOption
     public static final String COLUMNFAMILIES_KEY = "columnFamilies";
     public static final String DATACENTERS_KEY = "dataCenters";
     public static final String HOSTS_KEY = "hosts";
+    public static final String TRACE_KEY = "trace";
 
     // we don't want to push nodes too much for repair
     public static final int MAX_JOB_THREADS = 4;
@@ -73,6 +74,11 @@ public class RepairOption
      *         <tr>
      *             <td>incremental</td>
      *             <td>"true" if perform incremental repair.</td>
+     *             <td>false</td>
+     *         </tr>
+     *         <tr>
+     *             <td>trace</td>
+     *             <td>"true" if repair is traced.</td>
      *             <td>false</td>
      *         </tr>
      *         <tr>
@@ -117,6 +123,7 @@ public class RepairOption
         RepairParallelism parallelism = RepairParallelism.fromName(options.get(PARALLELISM_KEY));
         boolean primaryRange = Boolean.parseBoolean(options.get(PRIMARY_RANGE_KEY));
         boolean incremental = Boolean.parseBoolean(options.get(INCREMENTAL_KEY));
+        boolean trace = Boolean.parseBoolean(options.get(TRACE_KEY));
 
         int jobThreads = 1;
         if (options.containsKey(JOB_THREADS_KEY))
@@ -146,7 +153,7 @@ public class RepairOption
             }
         }
 
-        RepairOption option = new RepairOption(parallelism, primaryRange, incremental, jobThreads, ranges);
+        RepairOption option = new RepairOption(parallelism, primaryRange, incremental, trace, jobThreads, ranges);
 
         // data centers
         String dataCentersStr = options.get(DATACENTERS_KEY);
@@ -203,6 +210,7 @@ public class RepairOption
     private final RepairParallelism parallelism;
     private final boolean primaryRange;
     private final boolean incremental;
+    private final boolean trace;
     private final int jobThreads;
 
     private final Collection<String> columnFamilies = new HashSet<>();
@@ -210,11 +218,12 @@ public class RepairOption
     private final Collection<String> hosts = new HashSet<>();
     private final Collection<Range<Token>> ranges = new HashSet<>();
 
-    public RepairOption(RepairParallelism parallelism, boolean primaryRange, boolean incremental, int jobThreads, Collection<Range<Token>> ranges)
+    public RepairOption(RepairParallelism parallelism, boolean primaryRange, boolean incremental, boolean trace, int jobThreads, Collection<Range<Token>> ranges)
     {
         this.parallelism = parallelism;
         this.primaryRange = primaryRange;
         this.incremental = incremental;
+        this.trace = trace;
         this.jobThreads = jobThreads;
         this.ranges.addAll(ranges);
     }
@@ -232,6 +241,11 @@ public class RepairOption
     public boolean isIncremental()
     {
         return incremental;
+    }
+
+    public boolean isTraced()
+    {
+        return trace;
     }
 
     public int getJobThreads()

@@ -26,6 +26,7 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.MerkleTree;
 
 /**
@@ -65,12 +66,14 @@ public abstract class SyncTask extends AbstractFuture<SyncStat> implements Runna
         if (differences.isEmpty())
         {
             logger.info(String.format(format, "are consistent"));
+            Tracing.traceRepair("Endpoint {} is consistent with {} for {}", r1.endpoint, r2.endpoint, desc.columnFamily);
             set(stat);
             return;
         }
 
         // non-0 difference: perform streaming repair
         logger.info(String.format(format, "have " + differences.size() + " range(s) out of sync"));
+        Tracing.traceRepair("Endpoint {} has {} range(s) out of sync with {} for {}", r1.endpoint, differences.size(), r2.endpoint, desc.columnFamily);
         startSync(differences);
     }
 

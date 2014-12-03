@@ -41,13 +41,20 @@ public class CFRowAdder
     public final ColumnFamily cf;
     public final Composite prefix;
     public final long timestamp;
+    public final int ttl;
     private final int ldt;
 
     public CFRowAdder(ColumnFamily cf, Composite prefix, long timestamp)
     {
+        this(cf, prefix, timestamp, 0);
+    }
+
+    public CFRowAdder(ColumnFamily cf, Composite prefix, long timestamp, int ttl)
+    {
         this.cf = cf;
         this.prefix = prefix;
         this.timestamp = timestamp;
+        this.ttl = ttl;
         this.ldt = (int) (System.currentTimeMillis() / 1000);
 
         // If a CQL3 table, add the row marker
@@ -103,7 +110,11 @@ public class CFRowAdder
             AbstractType valueType = def.type.isCollection()
                                    ? ((CollectionType) def.type).valueComparator()
                                    : def.type;
-            cf.addColumn(new BufferCell(name, value instanceof ByteBuffer ? (ByteBuffer)value : valueType.decompose(value), timestamp));
+            ByteBuffer valueBytes = value instanceof ByteBuffer ? (ByteBuffer)value : valueType.decompose(value);
+            if (ttl == 0)
+                cf.addColumn(new BufferCell(name, valueBytes, timestamp));
+            else
+                cf.addColumn(new BufferExpiringCell(name, valueBytes, timestamp, ttl));
         }
         return this;
     }

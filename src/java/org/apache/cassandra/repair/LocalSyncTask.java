@@ -26,10 +26,13 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.streaming.ProgressInfo;
 import org.apache.cassandra.streaming.StreamEvent;
 import org.apache.cassandra.streaming.StreamEventHandler;
 import org.apache.cassandra.streaming.StreamPlan;
 import org.apache.cassandra.streaming.StreamState;
+import org.apache.cassandra.tracing.TraceState;
+import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.FBUtilities;
 
 /**
@@ -37,6 +40,8 @@ import org.apache.cassandra.utils.FBUtilities;
  */
 public class LocalSyncTask extends SyncTask implements StreamEventHandler
 {
+    private final TraceState state = Tracing.instance.get();
+
     private static final Logger logger = LoggerFactory.getLogger(LocalSyncTask.class);
 
     private final long repairedAt;
@@ -58,7 +63,9 @@ public class LocalSyncTask extends SyncTask implements StreamEventHandler
         InetAddress dst = r2.endpoint.equals(local) ? r1.endpoint : r2.endpoint;
         InetAddress preferred = SystemKeyspace.getPreferredIP(dst);
 
-        logger.info(String.format("[repair #%s] Performing streaming repair of %d ranges with %s", desc.sessionId, differences.size(), dst));
+        String message = String.format("Performing streaming repair of %d ranges with %s", differences.size(), dst);
+        logger.info("[repair #{}] {}", desc.sessionId, message);
+        Tracing.traceRepair(message);
         new StreamPlan("Repair", repairedAt, 1, false).listeners(this)
                                             .flushBeforeTransfer(true)
                                             // request ranges from the remote node
@@ -68,11 +75,37 @@ public class LocalSyncTask extends SyncTask implements StreamEventHandler
                                             .execute();
     }
 
-    public void handleStreamEvent(StreamEvent event) { /* noop */ }
+    public void handleStreamEvent(StreamEvent event)
+    {
+        if (state == null)
+            return;
+        switch (event.eventType)
+        {
+            case STREAM_PREPARED:
+                StreamEvent.SessionPreparedEvent spe = (StreamEvent.SessionPreparedEvent) event;
+                state.trace("Streaming session with {} prepared", spe.session.peer);
+                break;
+            case STREAM_COMPLETE:
+                StreamEvent.SessionCompleteEvent sce = (StreamEvent.SessionCompleteEvent) event;
+                state.trace("Streaming session with {} {}", sce.peer, sce.success ? "completed successfully" : "failed");
+                break;
+            case FILE_PROGRESS:
+                ProgressInfo pi = ((StreamEvent.ProgressEvent) event).progress;
+                state.trace("{}/{} bytes ({}%) {} idx:{}{}",
+                            new Object[] { pi.currentBytes,
+                                           pi.totalBytes,
+                                           pi.currentBytes * 100 / pi.totalBytes,
+                                           pi.direction == ProgressInfo.Direction.OUT ? "sent to" : "received from",
+                                           pi.sessionIndex,
+                                           pi.peer });
+        }
+    }
 
     public void onSuccess(StreamState result)
     {
-        logger.info(String.format("[repair #%s] Sync complete between %s and %s on %s", desc.sessionId, r1.endpoint, r2.endpoint, desc.columnFamily));
+        String message = String.format("Sync complete between %s and %s on %s", desc.sessionId, r1.endpoint, r2.endpoint, desc.columnFamily);
+        logger.info("[repair #{}] {}", desc.sessionId, message);
+        Tracing.traceRepair(message);
         set(stat);
     }
 

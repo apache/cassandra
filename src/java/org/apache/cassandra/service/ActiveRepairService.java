@@ -79,7 +79,7 @@ public class ActiveRepairService
 
     public static enum Status
     {
-        STARTED, SESSION_SUCCESS, SESSION_FAILED, FINISHED
+        STARTED, SESSION_SUCCESS, SESSION_FAILED, FINISHED, RUNNING
     }
 
     /**

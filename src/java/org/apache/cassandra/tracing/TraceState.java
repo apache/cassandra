@@ -28,6 +28,7 @@ import org.slf4j.helpers.MessageFormatter;
 
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.concurrent.StageManager;
+import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.WrappedRunnable;
 
@@ -41,6 +42,20 @@ public class TraceState
     public final InetAddress coordinator;
     public final Stopwatch watch;
     public final ByteBuffer sessionIdBytes;
+    public final Tracing.TraceType traceType;
+    public final int ttl;
+
+    private boolean notify;
+    private Object notificationHandle;
+
+    public enum Status
+    {
+        IDLE,
+        ACTIVE,
+        STOPPED;
+    }
+
+    private Status status;
 
     // Multiple requests can use the same TraceState at a time, so we need to reference count.
     // See CASSANDRA-7626 for more details.
@@ -48,19 +63,79 @@ public class TraceState
 
     public TraceState(InetAddress coordinator, UUID sessionId)
     {
+        this(coordinator, sessionId, Tracing.TraceType.QUERY);
+    }
+
+    public TraceState(InetAddress coordinator, UUID sessionId, Tracing.TraceType traceType)
+    {
         assert coordinator != null;
         assert sessionId != null;
 
         this.coordinator = coordinator;
         this.sessionId = sessionId;
         sessionIdBytes = ByteBufferUtil.bytes(sessionId);
+        this.traceType = traceType;
+        this.ttl = traceType.getTTL();
         watch = Stopwatch.createStarted();
+        this.status = Status.IDLE;
+    }
+
+    public void enableActivityNotification()
+    {
+        assert traceType == Tracing.TraceType.REPAIR;
+        notify = true;
+    }
+
+    public void setNotificationHandle(Object handle)
+    {
+        assert traceType == Tracing.TraceType.REPAIR;
+        notificationHandle = handle;
     }
 
     public int elapsed()
     {
         long elapsed = watch.elapsed(TimeUnit.MICROSECONDS);
         return elapsed < Integer.MAX_VALUE ? (int) elapsed : Integer.MAX_VALUE;
+    }
+
+    public synchronized void stop()
+    {
+        status = Status.STOPPED;
+        notifyAll();
+    }
+
+    /*
+     * Returns immediately if there has been trace activity since the last
+     * call, otherwise waits until there is trace activity, or until the
+     * timeout expires.
+     * @param timeout timeout in milliseconds
+     * @return activity status
+     */
+    public synchronized Status waitActivity(long timeout)
+    {
+        if (status == Status.IDLE)
+        {
+            try
+            {
+                wait(timeout);
+            }
+            catch (InterruptedException e)
+            {
+                throw new RuntimeException();
+            }
+        }
+        if (status == Status.ACTIVE)
+        {
+            status = Status.IDLE;
+            return Status.ACTIVE;
+        }
+        return status;
+    }
+
+    private synchronized void notifyActivity()
+    {
+        status = Status.ACTIVE;
+        notifyAll();
     }
 
     public void trace(String format, Object arg)
@@ -80,18 +155,24 @@ public class TraceState
 
     public void trace(String message)
     {
-        TraceState.trace(sessionIdBytes, message, elapsed());
+        if (notify)
+            notifyActivity();
+
+        TraceState.trace(sessionIdBytes, message, elapsed(), ttl, notificationHandle);
     }
 
-    public static void trace(final ByteBuffer sessionId, final String message, final int elapsed)
+    public static void trace(final ByteBuffer sessionId, final String message, final int elapsed, final int ttl, final Object notificationHandle)
     {
         final String threadName = Thread.currentThread().getName();
+
+        if (notificationHandle != null)
+            StorageService.instance.sendNotification("repair", message, notificationHandle);
 
         StageManager.getStage(Stage.TRACING).execute(new WrappedRunnable()
         {
             public void runMayThrow()
             {
-                Tracing.mutateWithCatch(TraceKeyspace.toEventMutation(sessionId, message, elapsed, threadName));
+                Tracing.mutateWithCatch(TraceKeyspace.toEventMutation(sessionId, message, elapsed, threadName, ttl));
             }
         });
     }

@@ -737,6 +737,11 @@ public class NodeProbe implements AutoCloseable
         return ssProxy.getKeyspaces();
     }
 
+    public List<String> getNonSystemKeyspaces()
+    {
+        return ssProxy.getNonSystemKeyspaces();
+    }
+
     public String getClusterName()
     {
         return ssProxy.getClusterName();
