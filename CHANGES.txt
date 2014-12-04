@@ -73,6 +73,7 @@ Merged from 2.0:
    sstables (CASSANDRA-8211)
  * Improve PropertyFileSnitch logging (CASSANDRA-8183)
  * Add DC-aware sequential repair (CASSANDRA-8193)
+ * Use live sstables in snapshot repair if possible (CASSANDRA-8312)
 
 
 2.1.2

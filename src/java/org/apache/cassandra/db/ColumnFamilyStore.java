@@ -2200,10 +2200,40 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     public List<SSTableReader> getSnapshotSSTableReader(String tag) throws IOException
     {
+        Map<Integer, SSTableReader> active = new HashMap<>();
+        for (SSTableReader sstable : data.getView().sstables)
+            active.put(sstable.descriptor.generation, sstable);
         Map<Descriptor, Set<Component>> snapshots = directories.sstableLister().snapshots(tag).list();
         List<SSTableReader> readers = new ArrayList<>(snapshots.size());
-        for (Map.Entry<Descriptor, Set<Component>> entries : snapshots.entrySet())
-            readers.add(SSTableReader.open(entries.getKey(), entries.getValue(), metadata, partitioner));
+        try
+        {
+            for (Map.Entry<Descriptor, Set<Component>> entries : snapshots.entrySet())
+            {
+                // Try acquire reference to an active sstable instead of snapshot if it exists,
+                // to avoid opening new sstables. If it fails, use the snapshot reference instead.
+                SSTableReader sstable = active.get(entries.getKey().generation);
+                if (sstable == null || !sstable.acquireReference())
+                {
+                    if (logger.isDebugEnabled())
+                        logger.debug("using snapshot sstable " + entries.getKey());
+                    sstable = SSTableReader.open(entries.getKey(), entries.getValue(), metadata, partitioner);
+                    // This is technically not necessary since it's a snapshot but makes things easier
+                    sstable.acquireReference();
+                }
+                else if (logger.isDebugEnabled())
+                {
+                    logger.debug("using active sstable " + entries.getKey());
+                }
+                readers.add(sstable);
+            }
+        }
+        catch (IOException | RuntimeException e)
+        {
+            // In case one of the snapshot sstables fails to open,
+            // we must release the references to the ones we opened so far
+            SSTableReader.releaseReferences(readers);
+            throw e;
+        }
         return readers;
     }
 
