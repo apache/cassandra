@@ -30,6 +30,7 @@
  * Fix totalDiskSpaceUsed calculation (CASSANDRA-8205)
  * Add DC-aware sequential repair (CASSANDRA-8193)
  * Improve JBOD disk utilization (CASSANDRA-7386)
+ * Use live sstables in snapshot repair if possible (CASSANDRA-8312)
 
 
 2.0.11:
