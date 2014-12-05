@@ -269,6 +269,7 @@ $env:JAVA_BIN
 WARNING! Failed to write pidfile to $pidfile.  stop-server.bat and
     startup protection will not be available.
 "@
+            echo $_.Exception.Message
             exit 1
         }
 
@@ -292,8 +293,8 @@ Function VerifyPortsAreAvailable
     $toMatch = @("storage_port:","ssl_storage_port:","native_transport_port:","rpc_port")
     $yaml = Get-Content "$env:CASSANDRA_CONF\cassandra.yaml"
 
-    $listenAddress = "unknown"
-    $rpcAddress = "unknown"
+    $listenAddress = ""
+    $rpcAddress = ""
     foreach ($line in $yaml)
     {
         if ($line -match "^listen_address:")
@@ -307,14 +308,14 @@ Function VerifyPortsAreAvailable
             $rpcAddress = $args[1] -replace " ", ""
         }
     }
-    if ($listenAddress -eq "unknown")
+    if ([string]::IsNullOrEmpty($listenAddress))
     {
-        echo "Failed to parse listen_address from cassandra.yaml to check open ports.  Aborting startup."
+        Write-Error "Failed to parse listen_address from cassandra.yaml to check open ports.  Aborting startup."
         Exit
     }
-    if ($rpcAddress -eq "unknown")
+    if ([string]::IsNullOrEmpty($rpcAddress))
     {
-        echo "Failed to parse rpc_address from cassandra.yaml to check open ports.  Aborting startup."
+        Write-Error "Failed to parse rpc_address from cassandra.yaml to check open ports.  Aborting startup."
         Exit
     }
 
@@ -334,6 +335,11 @@ Function VerifyPortsAreAvailable
                 }
             }
         }
+    }
+    if ([string]::IsNullOrEmpty($env:JMX_PORT))
+    {
+        Write-Error "No JMX_PORT is set in environment.  Aborting startup."
+        Exit
     }
     CheckPort $listenAddress "jmx_port: $env:JMX_PORT"
 }
