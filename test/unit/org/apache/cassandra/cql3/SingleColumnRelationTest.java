@@ -363,4 +363,20 @@ public class SingleColumnRelationTest extends CQLTester
                              "SELECT * FROM %s WHERE setid = 0 AND row < 1;");
         assertRows(execute("SELECT * FROM %s WHERE setid = 0 AND row < 1 ALLOW FILTERING;"), row(0, 0, 0));
     }
+
+    @Test
+    public void testEmptyIN() throws Throwable
+    {
+        for (String compactOption : new String[] { "", " WITH COMPACT STORAGE" })
+        {
+            createTable("CREATE TABLE %s (k1 int, k2 int, v int, PRIMARY KEY (k1, k2))" + compactOption);
+
+            for (int i = 0; i <= 2; i++)
+                for (int j = 0; j <= 2; j++)
+                    execute("INSERT INTO %s (k1, k2, v) VALUES (?, ?, ?)", i, j, i + j);
+
+            assertEmpty(execute("SELECT v FROM %s WHERE k1 IN ()"));
+            assertEmpty(execute("SELECT v FROM %s WHERE k1 = 0 AND k2 IN ()"));
+        }
+    }
 }

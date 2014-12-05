@@ -441,10 +441,14 @@ public class MultiColumnRelationTest extends CQLTester
                     row(0, 0, 1, 1)
             );
 
+            assertEmpty(execute("SELECT * FROM %s WHERE a = ? and (b) IN ()", 0));
+
             assertRows(execute("SELECT * FROM %s WHERE a = ? AND (b, c) IN ((?, ?)) ORDER BY b DESC, c DESC, d DESC", 0, 0, 1),
                     row(0, 0, 1, 1),
                     row(0, 0, 1, 0)
             );
+
+            assertEmpty(execute("SELECT * FROM %s WHERE a = ? AND (b, c) IN () ORDER BY b DESC, c DESC, d DESC", 0));
 
             // IN on both partition key and clustering key
             execute("INSERT INTO %s (a, b, c, d) VALUES (?, ?, ?, ?)", 1, 0, 0, 0);

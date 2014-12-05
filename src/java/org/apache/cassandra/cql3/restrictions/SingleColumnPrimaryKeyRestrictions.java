@@ -186,7 +186,7 @@ final class SingleColumnPrimaryKeyRestrictions extends AbstractPrimaryKeyRestric
             List<ByteBuffer> values = r.values(options);
 
             if (values.isEmpty())
-                return null;
+                return Collections.emptyList();
 
             builder.addEachElementToAll(values);
             checkFalse(builder.containsNull(), "Invalid null value for column %s", def.name);
@@ -236,7 +236,12 @@ final class SingleColumnPrimaryKeyRestrictions extends AbstractPrimaryKeyRestric
                 return compositeBuilder.buildWithEOC(eoc);
             }
 
-            compositeBuilder.addEachElementToAll(r.values(options));
+            List<ByteBuffer> values = r.values(options);
+
+            if (values.isEmpty())
+                return Collections.emptyList();
+
+            compositeBuilder.addEachElementToAll(values);
 
             checkFalse(compositeBuilder.containsNull(), "Invalid null clustering key part %s", def.name);
             keyPosition++;
