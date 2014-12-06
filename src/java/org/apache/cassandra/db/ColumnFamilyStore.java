@@ -2202,14 +2202,14 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                 if (sstable == null || !sstable.acquireReference())
                 {
                     if (logger.isDebugEnabled())
-                        logger.debug("using snapshot sstable " + entries.getKey());
+                        logger.debug("using snapshot sstable {}", entries.getKey());
                     sstable = SSTableReader.open(entries.getKey(), entries.getValue(), metadata, partitioner);
                     // This is technically not necessary since it's a snapshot but makes things easier
                     sstable.acquireReference();
                 }
                 else if (logger.isDebugEnabled())
                 {
-                    logger.debug("using active sstable " + entries.getKey());
+                    logger.debug("using active sstable {}", entries.getKey());
                 }
                 readers.add(sstable);
             }
