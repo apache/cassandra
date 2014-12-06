@@ -79,7 +79,7 @@ public class StorageProxy implements StorageProxyMBean
 
     public static final StorageProxy instance = new StorageProxy();
 
-    private static volatile int maxHintsInProgress = 1024 * FBUtilities.getAvailableProcessors();
+    private static volatile int maxHintsInProgress = 128 * FBUtilities.getAvailableProcessors();
     private static final CacheLoader<InetAddress, AtomicInteger> hintsInProgress = new CacheLoader<InetAddress, AtomicInteger>()
     {
         public AtomicInteger load(InetAddress inetAddress)
