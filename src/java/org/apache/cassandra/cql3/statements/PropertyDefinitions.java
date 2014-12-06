@@ -106,7 +106,7 @@ public class PropertyDefinitions
         {
             try
             {
-                return Double.valueOf(value);
+                return Double.parseDouble(value);
             }
             catch (NumberFormatException e)
             {
