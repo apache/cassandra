@@ -1,4 +1,5 @@
 2.1.3
+ * Make sstablescrub check leveled manifest again (CASSANDRA-8432)
  * Check first/last keys in sstable when giving out positions (CASSANDRA-8458)
  * Disable mmap on Windows (CASSANDRA-6993)
  * Add missing ConsistencyLevels to cassandra-stress (CASSANDRA-8253)
