@@ -64,7 +64,7 @@ public class StreamTransferTaskTest
         String cf = "Standard1";
 
         InetAddress peer = FBUtilities.getBroadcastAddress();
-        StreamSession session = new StreamSession(peer, peer, null, 0, true);
+        StreamSession session = new StreamSession(peer, peer, null, 0, true, false);
         ColumnFamilyStore cfs = Keyspace.open(ks).getColumnFamilyStore(cf);
 
         // create two sstables

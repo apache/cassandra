@@ -26,6 +26,7 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.streaming.ProgressInfo;
 import org.apache.cassandra.streaming.StreamEvent;
 import org.apache.cassandra.streaming.StreamEventHandler;
@@ -65,8 +66,14 @@ public class LocalSyncTask extends SyncTask implements StreamEventHandler
 
         String message = String.format("Performing streaming repair of %d ranges with %s", differences.size(), dst);
         logger.info("[repair #{}] {}", desc.sessionId, message);
+        boolean isIncremental = false;
+        if (desc.parentSessionId != null)
+        {
+            ActiveRepairService.ParentRepairSession prs = ActiveRepairService.instance.getParentRepairSession(desc.parentSessionId);
+            isIncremental = prs.isIncremental;
+        }
         Tracing.traceRepair(message);
-        new StreamPlan("Repair", repairedAt, 1, false).listeners(this)
+        new StreamPlan("Repair", repairedAt, 1, false, isIncremental).listeners(this)
                                             .flushBeforeTransfer(true)
                                             // request ranges from the remote node
                                             .requestRanges(dst, preferred, desc.keyspace, differences, desc.columnFamily)

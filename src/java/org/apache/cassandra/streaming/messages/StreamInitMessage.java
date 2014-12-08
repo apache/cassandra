@@ -48,8 +48,9 @@ public class StreamInitMessage
     // true if this init message is to connect for outgoing message on receiving side
     public final boolean isForOutgoing;
     public final boolean keepSSTableLevel;
+    public final boolean isIncremental;
 
-    public StreamInitMessage(InetAddress from, int sessionIndex, UUID planId, String description, boolean isForOutgoing, boolean keepSSTableLevel)
+    public StreamInitMessage(InetAddress from, int sessionIndex, UUID planId, String description, boolean isForOutgoing, boolean keepSSTableLevel, boolean isIncremental)
     {
         this.from = from;
         this.sessionIndex = sessionIndex;
@@ -57,6 +58,7 @@ public class StreamInitMessage
         this.description = description;
         this.isForOutgoing = isForOutgoing;
         this.keepSSTableLevel = keepSSTableLevel;
+        this.isIncremental = isIncremental;
     }
 
     /**
@@ -109,6 +111,7 @@ public class StreamInitMessage
             out.writeUTF(message.description);
             out.writeBoolean(message.isForOutgoing);
             out.writeBoolean(message.keepSSTableLevel);
+            out.writeBoolean(message.isIncremental);
         }
 
         public StreamInitMessage deserialize(DataInput in, int version) throws IOException
@@ -119,7 +122,8 @@ public class StreamInitMessage
             String description = in.readUTF();
             boolean sentByInitiator = in.readBoolean();
             boolean keepSSTableLevel = in.readBoolean();
-            return new StreamInitMessage(from, sessionIndex, planId, description, sentByInitiator, keepSSTableLevel);
+            boolean isIncremental = in.readBoolean();
+            return new StreamInitMessage(from, sessionIndex, planId, description, sentByInitiator, keepSSTableLevel, isIncremental);
         }
 
         public long serializedSize(StreamInitMessage message, int version)
@@ -130,6 +134,7 @@ public class StreamInitMessage
             size += TypeSizes.NATIVE.sizeof(message.description);
             size += TypeSizes.NATIVE.sizeof(message.isForOutgoing);
             size += TypeSizes.NATIVE.sizeof(message.keepSSTableLevel);
+            size += TypeSizes.NATIVE.sizeof(message.isIncremental);
             return size;
         }
     }

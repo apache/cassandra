@@ -145,6 +145,7 @@ public class StreamSession implements IEndpointStateChangeSubscriber
 
     private AtomicBoolean isAborted = new AtomicBoolean(false);
     private final boolean keepSSTableLevel;
+    private final boolean isIncremental;
 
     public static enum State
     {
@@ -166,7 +167,7 @@ public class StreamSession implements IEndpointStateChangeSubscriber
      * @param connecting Actual connecting address
      * @param factory is used for establishing connection
      */
-    public StreamSession(InetAddress peer, InetAddress connecting, StreamConnectionFactory factory, int index, boolean keepSSTableLevel)
+    public StreamSession(InetAddress peer, InetAddress connecting, StreamConnectionFactory factory, int index, boolean keepSSTableLevel, boolean isIncremental)
     {
         this.peer = peer;
         this.connecting = connecting;
@@ -175,6 +176,7 @@ public class StreamSession implements IEndpointStateChangeSubscriber
         this.handler = new ConnectionHandler(this);
         this.metrics = StreamingMetrics.get(connecting);
         this.keepSSTableLevel = keepSSTableLevel;
+        this.isIncremental = isIncremental;
     }
 
     public UUID planId()
@@ -196,6 +198,12 @@ public class StreamSession implements IEndpointStateChangeSubscriber
     {
         return keepSSTableLevel;
     }
+
+    public boolean isIncremental()
+    {
+        return isIncremental;
+    }
+
 
     /**
      * Bind this session to report to specific {@link StreamResultFuture} and
@@ -306,7 +314,7 @@ public class StreamSession implements IEndpointStateChangeSubscriber
                 List<AbstractBounds<RowPosition>> rowBoundsList = new ArrayList<>(ranges.size());
                 for (Range<Token> range : ranges)
                     rowBoundsList.add(Range.makeRowRange(range));
-                refs.addAll(cfStore.selectAndReference(cfStore.viewFilter(rowBoundsList)).refs);
+                refs.addAll(cfStore.selectAndReference(cfStore.viewFilter(rowBoundsList, !isIncremental)).refs);
             }
 
             List<SSTableStreamingSections> sections = new ArrayList<>(refs.size());

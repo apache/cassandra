@@ -183,7 +183,8 @@ public class ConnectionHandler
                     session.planId(),
                     session.description(),
                     isForOutgoing,
-                    session.keepSSTableLevel());
+                    session.keepSSTableLevel(),
+                    session.isIncremental());
             ByteBuffer messageBuf = message.createMessage(false, protocolVersion);
             DataOutputStreamPlus out = getWriteChannel(socket);
             out.write(messageBuf);
