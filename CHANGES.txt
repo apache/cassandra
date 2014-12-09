@@ -1,4 +1,6 @@
 2.0.12:
+ * Throw correct exception when trying to bind a keyspace or table
+   name (CASSANDRA-6952)
  * Make HHOM.compact synchronized (CASSANDRA-8416)
  * cancel latency-sampling task when CF is dropped (CASSANDRA-8401)
  * don't block SocketThread for MessagingService (CASSANDRA-8188)
