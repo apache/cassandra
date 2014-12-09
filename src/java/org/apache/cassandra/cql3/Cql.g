@@ -909,6 +909,7 @@ cfOrKsName[CFName name, boolean isKs]
     : t=IDENT              { if (isKs) $name.setKeyspace($t.text, false); else $name.setColumnFamily($t.text, false); }
     | t=QUOTED_NAME        { if (isKs) $name.setKeyspace($t.text, true); else $name.setColumnFamily($t.text, true); }
     | k=unreserved_keyword { if (isKs) $name.setKeyspace(k, false); else $name.setColumnFamily(k, false); }
+    | QMARK {addRecognitionError("Bind variables cannot be used for keyspace or table names");}
     ;
 
 constant returns [Constants.Literal constant]
