@@ -192,9 +192,15 @@ public class SSTableRewriter
 
         for (Pair<SSTableWriter, SSTableReader> w : finishedWriters)
         {
-        // we should close the bloom filter if we have not opened an sstable reader from this
-        // writer (it will get closed when we release the sstable reference below):
+            // we should close the bloom filter if we have not opened an sstable reader from this
+            // writer (it will get closed when we release the sstable reference below):
             w.left.abort(w.right == null);
+            if (isOffline && w.right != null)
+            {
+                // the pairs get removed from finishedWriters when they are closedAndOpened in finish(), the ones left need to be removed here:
+                w.right.markObsolete();
+                w.right.releaseReference();
+            }
         }
 
         // also remove already completed SSTables
@@ -346,7 +352,15 @@ public class SSTableRewriter
                 finished.add(newReader);
 
                 if (w.right != null)
+                {
                     w.right.sharesBfWith(newReader);
+                    if (isOffline)
+                    {
+                        // remove the tmplink files if we are offline - no one is using them
+                        w.right.markObsolete();
+                        w.right.releaseReference();
+                    }
+                }
                 // w.right is the tmplink-reader we added when switching writer, replace with the real sstable.
                 toReplace.add(Pair.create(w.right, newReader));
             }
@@ -358,11 +372,10 @@ public class SSTableRewriter
             it.remove();
         }
 
-        for (Pair<SSTableReader, SSTableReader> replace : toReplace)
-            replaceEarlyOpenedFile(replace.left, replace.right);
-
         if (!isOffline)
         {
+            for (Pair<SSTableReader, SSTableReader> replace : toReplace)
+                replaceEarlyOpenedFile(replace.left, replace.right);
             dataTracker.unmarkCompacting(finished);
         }
         return finished;
@@ -384,8 +397,16 @@ public class SSTableRewriter
             {
                 SSTableReader newReader = w.left.closeAndOpenReader(maxAge);
                 finished.add(newReader);
+
                 if (w.right != null)
+                {
                     w.right.sharesBfWith(newReader);
+                    if (isOffline)
+                    {
+                        w.right.markObsolete();
+                        w.right.releaseReference();
+                    }
+                }
                 // w.right is the tmplink-reader we added when switching writer, replace with the real sstable.
                 toReplace.add(Pair.create(w.right, newReader));
             }

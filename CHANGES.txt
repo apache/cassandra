@@ -39,6 +39,7 @@
 
 
 2.1.3
+ * Remove tmplink files for offline compactions (CASSANDRA-8321)
  * Reduce maxHintsInProgress (CASSANDRA-8415)
  * BTree updates may call provided update function twice (CASSANDRA-8018)
  * Release sstable references after anticompaction (CASSANDRA-8386)

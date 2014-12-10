@@ -48,6 +48,7 @@ import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.SSTableWriter;
 import org.apache.cassandra.locator.SimpleStrategy;
+import org.apache.cassandra.db.compaction.SSTableSplitter;
 import org.apache.cassandra.metrics.StorageMetrics;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -480,61 +481,59 @@ public class SSTableRewriterTest extends SchemaLoader
         validateCFS(cfs);
     }
     @Test
-    public void testAbort() throws Exception
+    public void testSSTableSplit() throws InterruptedException
     {
         Keyspace keyspace = Keyspace.open(KEYSPACE);
         ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(CF);
         cfs.truncateBlocking();
+        cfs.disableAutoCompaction();
         SSTableReader s = writeFile(cfs, 1000);
-        cfs.addSSTable(s);
-        Set<SSTableReader> compacting = Sets.newHashSet(s);
-        SSTableRewriter.overrideOpenInterval(10000000);
-        SSTableRewriter rewriter = new SSTableRewriter(cfs, compacting, 1000, false);
-        SSTableWriter w = getWriter(cfs, s.descriptor.directory);
-        rewriter.switchWriter(w);
-        try (ICompactionScanner scanner = compacting.iterator().next().getScanner();
-             CompactionController controller = new CompactionController(cfs, compacting, 0))
+        cfs.getDataTracker().markCompacting(Arrays.asList(s));
+        SSTableSplitter splitter = new SSTableSplitter(cfs, s, 10);
+        splitter.split();
+        Thread.sleep(1000);
+        assertFileCounts(s.descriptor.directory.list(), 0, 0);
+        for (File f : s.descriptor.directory.listFiles())
         {
-            while (scanner.hasNext())
-            {
-                rewriter.append(new LazilyCompactedRow(controller, Arrays.asList(scanner.next())));
-                if (rewriter.currentWriter().getOnDiskFilePointer() > 25000000)
-                {
-                    rewriter.switchWriter(getWriter(cfs, s.descriptor.directory));
-                }
-            }
-            try
-            {
-                rewriter.finishAndThrow(false);
-            }
-            catch (Throwable t)
-            {
-                rewriter.abort();
-            }
+            // we need to clear out the data dir, otherwise tests running after this breaks
+            f.delete();
         }
-        Thread.sleep(1000);
-        int filecount = assertFileCounts(s.descriptor.directory.list(), 0, 0);
-        assertEquals(filecount, 1);
-        assertEquals(1, cfs.getSSTables().size());
-        validateCFS(cfs);
-        cfs.truncateBlocking();
-        Thread.sleep(1000);
-        filecount = assertFileCounts(s.descriptor.directory.list(), 0, 0);
-        assertEquals(0, filecount);
+    }
 
+    @Test
+    public void testOfflineAbort() throws Exception
+    {
+        testAbortHelper(true, true);
+    }
+    @Test
+    public void testOfflineAbort2() throws Exception
+    {
+        testAbortHelper(false, true);
+    }
+
+    @Test
+    public void testAbort() throws Exception
+    {
+        testAbortHelper(false, false);
     }
 
     @Test
     public void testAbort2() throws Exception
     {
+        testAbortHelper(true, false);
+    }
+
+    private void testAbortHelper(boolean earlyException, boolean offline) throws Exception
+    {
         Keyspace keyspace = Keyspace.open(KEYSPACE);
         ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(CF);
         cfs.truncateBlocking();
         SSTableReader s = writeFile(cfs, 1000);
-        cfs.addSSTable(s);
+        if (!offline)
+            cfs.addSSTable(s);
         Set<SSTableReader> compacting = Sets.newHashSet(s);
         SSTableRewriter.overrideOpenInterval(10000000);
-        SSTableRewriter rewriter = new SSTableRewriter(cfs, compacting, 1000, false);
+        SSTableRewriter rewriter = new SSTableRewriter(cfs, compacting, 1000, offline);
         SSTableWriter w = getWriter(cfs, s.descriptor.directory);
         rewriter.switchWriter(w);
         try (ICompactionScanner scanner = compacting.iterator().next().getScanner();
@@ -550,7 +549,7 @@ public class SSTableRewriterTest extends SchemaLoader
             }
             try
             {
-                rewriter.finishAndThrow(true);
+                rewriter.finishAndThrow(earlyException);
             }
             catch (Throwable t)
             {
@@ -560,11 +559,25 @@ public class SSTableRewriterTest extends SchemaLoader
         Thread.sleep(1000);
         int filecount = assertFileCounts(s.descriptor.directory.list(), 0, 0);
         assertEquals(filecount, 1);
-        assertEquals(1, cfs.getSSTables().size());
-        validateCFS(cfs);
+        if (!offline)
+        {
+            assertEquals(1, cfs.getSSTables().size());
+            validateCFS(cfs);
+        }
         cfs.truncateBlocking();
         Thread.sleep(1000);
         filecount = assertFileCounts(s.descriptor.directory.list(), 0, 0);
+        if (offline)
+        {
+            // the file is not added to the CFS, therefor not truncated away above
+            assertEquals(1, filecount);
+            for (File f : s.descriptor.directory.listFiles())
+            {
+                f.delete();
+            }
+            filecount = assertFileCounts(s.descriptor.directory.list(), 0, 0);
+        }
+
         assertEquals(0, filecount);
 
     }
