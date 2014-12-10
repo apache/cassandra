@@ -26,7 +26,7 @@ public final class DateTieredCompactionStrategyOptions
 {
     protected static final TimeUnit DEFAULT_TIMESTAMP_RESOLUTION = TimeUnit.MICROSECONDS;
     protected static final long DEFAULT_MAX_SSTABLE_AGE_DAYS = 365;
-    protected static final long DEFAULT_BASE_TIME_SECONDS = 60 * 60;
+    protected static final long DEFAULT_BASE_TIME_SECONDS = 60;
     protected static final String TIMESTAMP_RESOLUTION_KEY = "timestamp_resolution";
     protected static final String MAX_SSTABLE_AGE_KEY = "max_sstable_age_days";
     protected static final String BASE_TIME_KEY = "base_time_seconds";
