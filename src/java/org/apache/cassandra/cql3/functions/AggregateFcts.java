@@ -53,12 +53,12 @@ public abstract class AggregateFcts
                             count = 0;
                         }
 
-                        public ByteBuffer compute()
+                        public ByteBuffer compute(int protocolVersion)
                         {
                             return ((LongType) returnType()).decompose(Long.valueOf(count));
                         }
 
-                        public void addInput(List<ByteBuffer> values)
+                        public void addInput(int protocolVersion, List<ByteBuffer> values)
                         {
                             count++;
                         }
@@ -84,12 +84,12 @@ public abstract class AggregateFcts
                             sum = BigDecimal.ZERO;
                         }
 
-                        public ByteBuffer compute()
+                        public ByteBuffer compute(int protocolVersion)
                         {
                             return ((DecimalType) returnType()).decompose(sum);
                         }
 
-                        public void addInput(List<ByteBuffer> values)
+                        public void addInput(int protocolVersion, List<ByteBuffer> values)
                         {
                             ByteBuffer value = values.get(0);
 
@@ -123,7 +123,7 @@ public abstract class AggregateFcts
                             sum = BigDecimal.ZERO;
                         }
 
-                        public ByteBuffer compute()
+                        public ByteBuffer compute(int protocolVersion)
                         {
                             if (count == 0)
                                 return ((DecimalType) returnType()).decompose(BigDecimal.ZERO);
@@ -131,7 +131,7 @@ public abstract class AggregateFcts
                             return ((DecimalType) returnType()).decompose(sum.divide(BigDecimal.valueOf(count)));
                         }
 
-                        public void addInput(List<ByteBuffer> values)
+                        public void addInput(int protocolVersion, List<ByteBuffer> values)
                         {
                             ByteBuffer value = values.get(0);
 
@@ -163,12 +163,12 @@ public abstract class AggregateFcts
                             sum = BigInteger.ZERO;
                         }
 
-                        public ByteBuffer compute()
+                        public ByteBuffer compute(int protocolVersion)
                         {
                             return ((IntegerType) returnType()).decompose(sum);
                         }
 
-                        public void addInput(List<ByteBuffer> values)
+                        public void addInput(int protocolVersion, List<ByteBuffer> values)
                         {
                             ByteBuffer value = values.get(0);
 
@@ -202,7 +202,7 @@ public abstract class AggregateFcts
                             sum = BigInteger.ZERO;
                         }
 
-                        public ByteBuffer compute()
+                        public ByteBuffer compute(int protocolVersion)
                         {
                             if (count == 0)
                                 return ((IntegerType) returnType()).decompose(BigInteger.ZERO);
@@ -210,7 +210,7 @@ public abstract class AggregateFcts
                             return ((IntegerType) returnType()).decompose(sum.divide(BigInteger.valueOf(count)));
                         }
 
-                        public void addInput(List<ByteBuffer> values)
+                        public void addInput(int protocolVersion, List<ByteBuffer> values)
                         {
                             ByteBuffer value = values.get(0);
 
@@ -242,12 +242,12 @@ public abstract class AggregateFcts
                             sum = 0;
                         }
 
-                        public ByteBuffer compute()
+                        public ByteBuffer compute(int protocolVersion)
                         {
                             return ((Int32Type) returnType()).decompose(sum);
                         }
 
-                        public void addInput(List<ByteBuffer> values)
+                        public void addInput(int protocolVersion, List<ByteBuffer> values)
                         {
                             ByteBuffer value = values.get(0);
 
@@ -281,14 +281,14 @@ public abstract class AggregateFcts
                             sum = 0;
                         }
 
-                        public ByteBuffer compute()
+                        public ByteBuffer compute(int protocolVersion)
                         {
                             int avg = count == 0 ? 0 : sum / count;
 
                             return ((Int32Type) returnType()).decompose(avg);
                         }
 
-                        public void addInput(List<ByteBuffer> values)
+                        public void addInput(int protocolVersion, List<ByteBuffer> values)
                         {
                             ByteBuffer value = values.get(0);
 
@@ -320,12 +320,12 @@ public abstract class AggregateFcts
                             sum = 0;
                         }
 
-                        public ByteBuffer compute()
+                        public ByteBuffer compute(int protocolVersion)
                         {
                             return ((LongType) returnType()).decompose(sum);
                         }
 
-                        public void addInput(List<ByteBuffer> values)
+                        public void addInput(int protocolVersion, List<ByteBuffer> values)
                         {
                             ByteBuffer value = values.get(0);
 
@@ -359,14 +359,14 @@ public abstract class AggregateFcts
                             sum = 0;
                         }
 
-                        public ByteBuffer compute()
+                        public ByteBuffer compute(int protocolVersion)
                         {
                             long avg = count == 0 ? 0 : sum / count;
 
                             return ((LongType) returnType()).decompose(avg);
                         }
 
-                        public void addInput(List<ByteBuffer> values)
+                        public void addInput(int protocolVersion, List<ByteBuffer> values)
                         {
                             ByteBuffer value = values.get(0);
 
@@ -398,12 +398,12 @@ public abstract class AggregateFcts
                             sum = 0;
                         }
 
-                        public ByteBuffer compute()
+                        public ByteBuffer compute(int protocolVersion)
                         {
                             return ((FloatType) returnType()).decompose(sum);
                         }
 
-                        public void addInput(List<ByteBuffer> values)
+                        public void addInput(int protocolVersion, List<ByteBuffer> values)
                         {
                             ByteBuffer value = values.get(0);
 
@@ -437,14 +437,14 @@ public abstract class AggregateFcts
                             sum = 0;
                         }
 
-                        public ByteBuffer compute()
+                        public ByteBuffer compute(int protocolVersion)
                         {
                             float avg = count == 0 ? 0 : sum / count;
 
                             return ((FloatType) returnType()).decompose(avg);
                         }
 
-                        public void addInput(List<ByteBuffer> values)
+                        public void addInput(int protocolVersion, List<ByteBuffer> values)
                         {
                             ByteBuffer value = values.get(0);
 
@@ -476,12 +476,12 @@ public abstract class AggregateFcts
                             sum = 0;
                         }
 
-                        public ByteBuffer compute()
+                        public ByteBuffer compute(int protocolVersion)
                         {
                             return ((DoubleType) returnType()).decompose(sum);
                         }
 
-                        public void addInput(List<ByteBuffer> values)
+                        public void addInput(int protocolVersion, List<ByteBuffer> values)
                         {
                             ByteBuffer value = values.get(0);
 
@@ -515,14 +515,14 @@ public abstract class AggregateFcts
                             sum = 0;
                         }
 
-                        public ByteBuffer compute()
+                        public ByteBuffer compute(int protocolVersion)
                         {
                             double avg = count == 0 ? 0 : sum / count;
 
                             return ((DoubleType) returnType()).decompose(avg);
                         }
 
-                        public void addInput(List<ByteBuffer> values)
+                        public void addInput(int protocolVersion, List<ByteBuffer> values)
                         {
                             ByteBuffer value = values.get(0);
 
@@ -558,12 +558,12 @@ public abstract class AggregateFcts
                         max = null;
                     }
 
-                    public ByteBuffer compute()
+                    public ByteBuffer compute(int protocolVersion)
                     {
                         return max;
                     }
 
-                    public void addInput(List<ByteBuffer> values)
+                    public void addInput(int protocolVersion, List<ByteBuffer> values)
                     {
                         ByteBuffer value = values.get(0);
 
@@ -599,12 +599,12 @@ public abstract class AggregateFcts
                         min = null;
                     }
 
-                    public ByteBuffer compute()
+                    public ByteBuffer compute(int protocolVersion)
                     {
                         return min;
                     }
 
-                    public void addInput(List<ByteBuffer> values)
+                    public void addInput(int protocolVersion, List<ByteBuffer> values)
                     {
                         ByteBuffer value = values.get(0);
 
@@ -640,12 +640,12 @@ public abstract class AggregateFcts
                         count = 0;
                     }
 
-                    public ByteBuffer compute()
+                    public ByteBuffer compute(int protocolVersion)
                     {
                         return ((LongType) returnType()).decompose(count);
                     }
 
-                    public void addInput(List<ByteBuffer> values)
+                    public void addInput(int protocolVersion, List<ByteBuffer> values)
                     {
                         ByteBuffer value = values.get(0);
 

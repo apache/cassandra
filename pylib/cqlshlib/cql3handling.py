@@ -41,7 +41,7 @@ class Cql3ParsingRuleSet(CqlParsingRuleSet):
         'select', 'from', 'where', 'and', 'key', 'insert', 'update', 'with',
         'limit', 'using', 'use', 'set',
         'begin', 'apply', 'batch', 'truncate', 'delete', 'in', 'create',
-        'function', 'keyspace', 'schema', 'columnfamily', 'table', 'index', 'on', 'drop',
+        'function', 'aggregate', 'keyspace', 'schema', 'columnfamily', 'table', 'index', 'on', 'drop',
         'primary', 'into', 'values', 'timestamp', 'ttl', 'alter', 'add', 'type',
         'compact', 'storage', 'order', 'by', 'asc', 'desc', 'clustering',
         'token', 'writetime', 'map', 'list', 'to', 'custom', 'if', 'not'
@@ -209,7 +209,10 @@ JUNK ::= /([ \t\r\f\v]+|(--|[/][/])[^\n\r]*([\n\r]|$)|[/][*].*?[*][/])/ ;
 <mapLiteral> ::= "{" <term> ":" <term> ( "," <term> ":" <term> )* "}"
                ;
 
-<functionName> ::= <identifier> ( "." <identifier> )?
+<userFunctionName> ::= <identifier> ( "." <identifier> )?
+               ;
+
+<functionName> ::= <userFunctionName>
                  | "TOKEN"
                  ;
 
@@ -233,12 +236,14 @@ JUNK ::= /([ \t\r\f\v]+|(--|[/][/])[^\n\r]*([\n\r]|$)|[/][*].*?[*][/])/ ;
                           | <createIndexStatement>
                           | <createUserTypeStatement>
                           | <createFunctionStatement>
+                          | <createAggregateStatement>
                           | <createTriggerStatement>
                           | <dropKeyspaceStatement>
                           | <dropColumnFamilyStatement>
                           | <dropIndexStatement>
                           | <dropUserTypeStatement>
                           | <dropFunctionStatement>
+                          | <dropAggregateStatement>
                           | <dropTriggerStatement>
                           | <alterTableStatement>
                           | <alterKeyspaceStatement>
@@ -1010,12 +1015,24 @@ syntax_rules += r'''
 <createFunctionStatement> ::= "CREATE" ("OR" "REPLACE")? "FUNCTION"
                             ("IF" "NOT" "EXISTS")?
                             ("NON"? "DETERMINISTIC")?
-                            <functionName>
+                            <userFunctionName>
                             ( "(" ( newcol=<cident> <storageType>
                               ( "," [newcolname]=<cident> <storageType> )* )?
                             ")" )?
                             "RETURNS" <storageType>
                             "LANGUAGE" <cident> "AS" <stringLiteral>
+                         ;
+
+<createAggregateStatement> ::= "CREATE" ("OR" "REPLACE")? "AGGREGATE"
+                            ("IF" "NOT" "EXISTS")?
+                            <userFunctionName>
+                            ( "("
+                                 ( <storageType> ( "," <storageType> )* )?
+                              ")" )?
+                            "SFUNC" <identifier>
+                            "STYPE" <storageType>
+                            ( "FINALFUNC" <identifier> )?
+                            ( "INITCOND" <term> )?
                          ;
 
 '''
@@ -1049,7 +1066,10 @@ syntax_rules += r'''
 <dropUserTypeStatement> ::= "DROP" "TYPE" ut=<userTypeName>
                           ;
 
-<dropFunctionStatement> ::= "DROP" "FUNCTION" ( "IF" "EXISTS" )? <functionName>
+<dropFunctionStatement> ::= "DROP" "FUNCTION" ( "IF" "EXISTS" )? <userFunctionName>
+                          ;
+
+<dropAggregateStatement> ::= "DROP" "AGGREGATE" ( "IF" "EXISTS" )? <userFunctionName>
                           ;
 
 '''

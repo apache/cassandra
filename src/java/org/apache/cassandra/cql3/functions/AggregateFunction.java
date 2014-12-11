@@ -20,6 +20,8 @@ package org.apache.cassandra.cql3.functions;
 import java.nio.ByteBuffer;
 import java.util.List;
 
+import org.apache.cassandra.exceptions.InvalidRequestException;
+
 /**
  * Performs a calculation on a set of values and return a single value.
  */
@@ -30,7 +32,7 @@ public interface AggregateFunction extends Function
      *
      * @return a new <code>Aggregate</code> instance.
      */
-    public Aggregate newAggregate();
+    public Aggregate newAggregate() throws InvalidRequestException;
 
     /**
      * An aggregation operation.
@@ -40,16 +42,18 @@ public interface AggregateFunction extends Function
         /**
          * Adds the specified input to this aggregate.
          *
+         * @param protocolVersion native protocol version
          * @param values the values to add to the aggregate.
          */
-        public void addInput(List<ByteBuffer> values);
+        public void addInput(int protocolVersion, List<ByteBuffer> values) throws InvalidRequestException;
 
         /**
          * Computes and returns the aggregate current value.
          *
+         * @param protocolVersion native protocol version
          * @return the aggregate current value.
          */
-        public ByteBuffer compute();
+        public ByteBuffer compute(int protocolVersion) throws InvalidRequestException;
 
         /**
          * Reset this aggregate.

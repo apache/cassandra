@@ -35,14 +35,6 @@ import org.apache.cassandra.transport.messages.ResultMessage;
 public class UFTest extends CQLTester
 {
 
-    public static FunctionName parseFunctionName(String qualifiedName)
-    {
-        int i = qualifiedName.indexOf('.');
-        return i == -1
-               ? FunctionName.nativeFunction(qualifiedName)
-               : new FunctionName(qualifiedName.substring(0, i).trim(), qualifiedName.substring(i+1).trim());
-    }
-
     @Test
     public void testFunctionDropOnKeyspaceDrop() throws Throwable
     {

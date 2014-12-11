@@ -65,7 +65,7 @@ public abstract class Selector implements AssignmentTestable
          *
          * @return a new <code>Selector</code> instance
          */
-        public abstract Selector newInstance();
+        public abstract Selector newInstance() throws InvalidRequestException;
 
         /**
          * Checks if this factory creates selectors instances that creates aggregates.

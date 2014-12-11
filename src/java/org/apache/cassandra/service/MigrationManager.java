@@ -39,11 +39,9 @@ import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.KSMetaData;
 import org.apache.cassandra.config.UTMetaData;
 import org.apache.cassandra.config.Schema;
-import org.apache.cassandra.cql3.functions.AggregateFunction;
-import org.apache.cassandra.cql3.functions.ScalarFunction;
+import org.apache.cassandra.cql3.functions.UDAggregate;
 import org.apache.cassandra.cql3.functions.UDFunction;
 import org.apache.cassandra.db.*;
-import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.UserType;
 import org.apache.cassandra.exceptions.AlreadyExistsException;
 import org.apache.cassandra.exceptions.ConfigurationException;
@@ -196,21 +194,22 @@ public class MigrationManager
             listener.onDropFunction(udf.name().keyspace, udf.name().name);
     }
 
-    private List<String> asString(List<AbstractType<?>> abstractTypes)
+    public void notifyCreateAggregate(UDAggregate udf)
     {
-        List<String> r = new ArrayList<>(abstractTypes.size());
-        for (AbstractType<?> abstractType : abstractTypes)
-            r.add(abstractType.asCQL3Type().toString());
-        return r;
+        for (IMigrationListener listener : listeners)
+            listener.onCreateAggregate(udf.name().keyspace, udf.name().name);
     }
 
-    private String udType(UDFunction udf)
+    public void notifyUpdateAggregate(UDAggregate udf)
     {
-        if (udf instanceof ScalarFunction)
-            return "scalar";
-        if (udf instanceof AggregateFunction)
-            return "aggregate";
-        return "";
+        for (IMigrationListener listener : listeners)
+            listener.onUpdateAggregate(udf.name().keyspace, udf.name().name);
+    }
+
+    public void notifyDropAggregate(UDAggregate udf)
+    {
+        for (IMigrationListener listener : listeners)
+            listener.onDropAggregate(udf.name().keyspace, udf.name().name);
     }
 
     public void notifyUpdateKeyspace(KSMetaData ksm)
@@ -395,14 +394,28 @@ public class MigrationManager
     public static void announceFunctionDrop(UDFunction udf, boolean announceLocally)
     {
         Mutation mutation = udf.toSchemaDrop(FBUtilities.timestampMicros());
-        logger.info(String.format("Drop Function overload '%s' args '%s'", udf.name(), udf.argTypes()));
+        logger.info(String.format("Drop scalar function overload '%s' args '%s'", udf.name(), udf.argTypes()));
+        announce(mutation, announceLocally);
+    }
+
+    public static void announceAggregateDrop(UDAggregate udf, boolean announceLocally)
+    {
+        Mutation mutation = udf.toSchemaDrop(FBUtilities.timestampMicros());
+        logger.info(String.format("Drop aggregate function overload '%s' args '%s'", udf.name(), udf.argTypes()));
         announce(mutation, announceLocally);
     }
 
     public static void announceNewFunction(UDFunction udf, boolean announceLocally)
     {
         Mutation mutation = udf.toSchemaUpdate(FBUtilities.timestampMicros());
-        logger.info(String.format("Create Function '%s'", udf.name()));
+        logger.info(String.format("Create scalar function '%s'", udf.name()));
+        announce(mutation, announceLocally);
+    }
+
+    public static void announceNewAggregate(UDAggregate udf, boolean announceLocally)
+    {
+        Mutation mutation = udf.toSchemaUpdate(FBUtilities.timestampMicros());
+        logger.info(String.format("Create aggregate function '%s'", udf.name()));
         announce(mutation, announceLocally);
     }
 

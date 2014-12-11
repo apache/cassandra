@@ -42,7 +42,8 @@ public abstract class Functions
     // to handle it as a special case.
     private static final FunctionName TOKEN_FUNCTION_NAME = FunctionName.nativeFunction("token");
 
-    private static final String SELECT_UDFS = "SELECT * FROM " + SystemKeyspace.NAME + '.' + SystemKeyspace.SCHEMA_FUNCTIONS_TABLE;
+    private static final String SELECT_UD_FUNCTION = "SELECT * FROM " + SystemKeyspace.NAME + '.' + SystemKeyspace.SCHEMA_FUNCTIONS_TABLE;
+    private static final String SELECT_UD_AGGREGATE = "SELECT * FROM " + SystemKeyspace.NAME + '.' + SystemKeyspace.SCHEMA_AGGREGATES_TABLE;
 
     private Functions() {}
 
@@ -101,8 +102,10 @@ public abstract class Functions
     public static void loadUDFFromSchema()
     {
         logger.debug("Loading UDFs");
-        for (UntypedResultSet.Row row : QueryProcessor.executeOnceInternal(SELECT_UDFS))
+        for (UntypedResultSet.Row row : QueryProcessor.executeOnceInternal(SELECT_UD_FUNCTION))
             addFunction(UDFunction.fromSchema(row));
+        for (UntypedResultSet.Row row : QueryProcessor.executeOnceInternal(SELECT_UD_AGGREGATE))
+            addFunction(UDAggregate.fromSchema(row));
     }
 
     public static ColumnSpecification makeArgSpec(String receiverKs, String receiverCf, Function fun, int i)
@@ -268,7 +271,7 @@ public abstract class Functions
     }
 
     // This is *not* thread safe but is only called in DefsTables that is synchronized.
-    public static void addFunction(UDFunction fun)
+    public static void addFunction(AbstractFunction fun)
     {
         // We shouldn't get there unless that function don't exist
         assert find(fun.name(), fun.argTypes()) == null;
@@ -284,10 +287,19 @@ public abstract class Functions
     }
 
     // Same remarks than for addFunction
-    public static void replaceFunction(UDFunction fun)
+    public static void replaceFunction(AbstractFunction fun)
     {
         removeFunction(fun.name(), fun.argTypes());
         addFunction(fun);
+    }
+
+    public static List<Function> getReferencesTo(Function old)
+    {
+        List<Function> references = new ArrayList<>();
+        for (Function function : declared.values())
+            if (function.hasReferenceTo(old))
+                references.add(function);
+        return references;
     }
 
     public static Collection<Function> all()
@@ -316,6 +328,7 @@ public abstract class Functions
         public void onCreateColumnFamily(String ksName, String cfName) { }
         public void onCreateUserType(String ksName, String typeName) { }
         public void onCreateFunction(String ksName, String functionName) { }
+        public void onCreateAggregate(String ksName, String aggregateName) { }
 
         public void onUpdateKeyspace(String ksName) { }
         public void onUpdateColumnFamily(String ksName, String cfName) { }
@@ -325,11 +338,12 @@ public abstract class Functions
                     ((UDFunction)function).userTypeUpdated(ksName, typeName);
         }
         public void onUpdateFunction(String ksName, String functionName) { }
+        public void onUpdateAggregate(String ksName, String aggregateName) { }
 
         public void onDropKeyspace(String ksName) { }
         public void onDropColumnFamily(String ksName, String cfName) { }
         public void onDropUserType(String ksName, String typeName) { }
         public void onDropFunction(String ksName, String functionName) { }
-
+        public void onDropAggregate(String ksName, String aggregateName) { }
     }
 }

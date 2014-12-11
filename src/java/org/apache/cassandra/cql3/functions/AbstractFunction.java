@@ -66,6 +66,16 @@ public abstract class AbstractFunction implements Function
             && Objects.equal(this.returnType, that.returnType);
     }
 
+    public boolean usesFunction(String ksName, String functionName)
+    {
+        return name.keyspace.equals(ksName) && name.name.equals(functionName);
+    }
+
+    public boolean hasReferenceTo(Function function)
+    {
+        return false;
+    }
+
     @Override
     public int hashCode()
     {

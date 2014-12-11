@@ -69,10 +69,10 @@ abstract class AbstractFunctionSelector<T extends Function> extends Selector
 
             public boolean usesFunction(String ksName, String functionName)
             {
-                return fun.name().keyspace.equals(ksName) && fun.name().name.equals(functionName);
+                return fun.usesFunction(ksName, functionName);
             }
 
-            public Selector newInstance()
+            public Selector newInstance() throws InvalidRequestException
             {
                 return fun.isAggregate() ? new AggregateFunctionSelector(fun, factories.newInstances())
                                          : new ScalarFunctionSelector(fun, factories.newInstances());

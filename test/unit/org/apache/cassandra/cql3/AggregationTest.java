@@ -24,7 +24,11 @@ import java.util.Date;
 import java.util.TimeZone;
 
 import org.apache.commons.lang3.time.DateUtils;
+import org.junit.Assert;
 import org.junit.Test;
+
+import org.apache.cassandra.service.ClientState;
+import org.apache.cassandra.transport.messages.ResultMessage;
 
 public class AggregationTest extends CQLTester
 {
@@ -94,16 +98,20 @@ public class AggregationTest extends CQLTester
     {
         createTable("CREATE TABLE %s (a int primary key, b timeuuid, c double, d double)");
 
-        execute("CREATE OR REPLACE FUNCTION "+KEYSPACE+".copySign(magnitude double, sign double) RETURNS double LANGUAGE JAVA\n" +
-                "AS 'return Double.valueOf(Math.copySign(magnitude.doubleValue(), sign.doubleValue()));';");
+        String copySign = createFunction(KEYSPACE,
+                                         "double, double",
+                                         "CREATE OR REPLACE FUNCTION %s(magnitude double, sign double) " +
+                                         "RETURNS double " +
+                                         "LANGUAGE JAVA " +
+                                         "AS 'return Double.valueOf(Math.copySign(magnitude.doubleValue(), sign.doubleValue()));';");
 
         assertColumnNames(execute("SELECT max(a), max(unixTimestampOf(b)) FROM %s"), "system.max(a)", "system.max(system.unixtimestampof(b))");
         assertRows(execute("SELECT max(a), max(unixTimestampOf(b)) FROM %s"), row(null, null));
         assertColumnNames(execute("SELECT max(a), unixTimestampOf(max(b)) FROM %s"), "system.max(a)", "system.unixtimestampof(system.max(b))");
         assertRows(execute("SELECT max(a), unixTimestampOf(max(b)) FROM %s"), row(null, null));
 
-        assertColumnNames(execute("SELECT max(copySign(c, d)) FROM %s"), "system.max("+KEYSPACE+".copysign(c, d))");
-        assertRows(execute("SELECT max(copySign(c, d)) FROM %s"), row((Object) null));
+        assertColumnNames(execute("SELECT max(" + copySign + "(c, d)) FROM %s"), "system.max(" + copySign + "(c, d))");
+        assertRows(execute("SELECT max(" + copySign + "(c, d)) FROM %s"), row((Object) null));
 
         execute("INSERT INTO %s (a, b, c, d) VALUES (1, maxTimeuuid('2011-02-03 04:05:00+0000'), -1.2, 2.1)");
         execute("INSERT INTO %s (a, b, c, d) VALUES (2, maxTimeuuid('2011-02-03 04:06:00+0000'), 1.3, -3.4)");
@@ -117,10 +125,624 @@ public class AggregationTest extends CQLTester
         assertRows(execute("SELECT max(a), max(unixTimestampOf(b)) FROM %s"), row(3, date.getTime()));
         assertRows(execute("SELECT max(a), unixTimestampOf(max(b)) FROM %s"), row(3, date.getTime()));
 
-        assertRows(execute("SELECT copySign(max(c), min(c)) FROM %s"), row(-1.4));
-        assertRows(execute("SELECT copySign(c, d) FROM %s"), row(1.2), row(-1.3), row(1.4));
-        assertRows(execute("SELECT max(copySign(c, d)) FROM %s"), row(1.4));
-        assertInvalid("SELECT copySign(c, max(c)) FROM %s");
-        assertInvalid("SELECT copySign(max(c), c) FROM %s");
+        assertRows(execute("SELECT " + copySign + "(max(c), min(c)) FROM %s"), row(-1.4));
+        assertRows(execute("SELECT " + copySign + "(c, d) FROM %s"), row(1.2), row(-1.3), row(1.4));
+        assertRows(execute("SELECT max(" + copySign + "(c, d)) FROM %s"), row(1.4));
+        assertInvalid("SELECT " + copySign + "(c, max(c)) FROM %s");
+        assertInvalid("SELECT " + copySign + "(max(c), c) FROM %s");
+    }
+
+    @Test
+    public void testDropStatements() throws Throwable
+    {
+        String f = createFunction(KEYSPACE,
+                                  "double, double",
+                                  "CREATE OR REPLACE FUNCTION %s(state double, val double) " +
+                                  "RETURNS double " +
+                                  "LANGUAGE javascript " +
+                                  "AS '\"string\";';");
+        createFunctionOverload(f,
+                                  "double, double",
+                                  "CREATE OR REPLACE FUNCTION %s(state int, val int) " +
+                                  "RETURNS int " +
+                                  "LANGUAGE javascript " +
+                                  "AS '\"string\";';");
+
+        // DROP AGGREGATE must not succeed against a scalar
+        assertInvalid("DROP AGGREGATE " + f);
+        assertInvalid("DROP AGGREGATE " + f + "(double, double)");
+
+        String a = createAggregate(KEYSPACE,
+                                   "double",
+                                   "CREATE OR REPLACE AGGREGATE %s(double) " +
+                                   "SFUNC " + shortFunctionName(f) + " " +
+                                   "STYPE double");
+        createAggregateOverload(a,
+                                "int",
+                                "CREATE OR REPLACE AGGREGATE %s(int) " +
+                                "SFUNC " + shortFunctionName(f) + " " +
+                                "STYPE int");
+
+        // DROP FUNCTION must not succeed against an aggregate
+        assertInvalid("DROP FUNCTION " + a);
+        assertInvalid("DROP FUNCTION " + a + "(double)");
+
+        // ambigious
+        assertInvalid("DROP AGGREGATE " + a);
+        assertInvalid("DROP AGGREGATE IF EXISTS " + a);
+
+        execute("DROP AGGREGATE IF EXISTS " + KEYSPACE + ".non_existing");
+        execute("DROP AGGREGATE IF EXISTS " + a + "(int, text)");
+
+        execute("DROP AGGREGATE " + a + "(double)");
+
+        execute("DROP AGGREGATE IF EXISTS " + a + "(double)");
+    }
+
+    @Test
+    public void testDropReferenced() throws Throwable
+    {
+        String f = createFunction(KEYSPACE,
+                                  "double, double",
+                                  "CREATE OR REPLACE FUNCTION %s(state double, val double) " +
+                                  "RETURNS double " +
+                                  "LANGUAGE javascript " +
+                                  "AS '\"string\";';");
+
+        String a = createAggregate(KEYSPACE,
+                                   "double",
+                                   "CREATE OR REPLACE AGGREGATE %s(double) " +
+                                   "SFUNC " + shortFunctionName(f) + " " +
+                                   "STYPE double");
+
+        // DROP FUNCTION must not succeed because the function is still referenced by the aggregate
+        assertInvalid("DROP FUNCTION " + f);
+
+        execute("DROP AGGREGATE " + a + "(double)");
+    }
+
+    @Test
+    public void testJavaAggregateNoInit() throws Throwable
+    {
+        createTable("CREATE TABLE %s (a int primary key, b int)");
+        execute("INSERT INTO %s (a, b) VALUES (1, 1)");
+        execute("INSERT INTO %s (a, b) VALUES (2, 2)");
+        execute("INSERT INTO %s (a, b) VALUES (3, 3)");
+
+        String fState = createFunction(KEYSPACE,
+                                       "int, int",
+                                       "CREATE FUNCTION %s(a int, b int) " +
+                                       "RETURNS int " +
+                                       "LANGUAGE java " +
+                                       "AS 'return Integer.valueOf((a!=null?a.intValue():0) + b.intValue());'");
+
+        String fFinal = createFunction(KEYSPACE,
+                                       "int",
+                                       "CREATE FUNCTION %s(a int) " +
+                                       "RETURNS text " +
+                                       "LANGUAGE java " +
+                                       "AS 'return a.toString();'");
+
+        String a = createAggregate(KEYSPACE,
+                                   "int",
+                                   "CREATE AGGREGATE %s(int) " +
+                                   "SFUNC " + shortFunctionName(fState) + " " +
+                                   "STYPE int " +
+                                   "FINALFUNC " + shortFunctionName(fFinal));
+
+        // 1 + 2 + 3 = 6
+        assertRows(execute("SELECT " + a + "(b) FROM %s"), row("6"));
+
+        execute("DROP AGGREGATE " + a + "(int)");
+
+        assertInvalid("SELECT " + a + "(b) FROM %s");
+    }
+
+    @Test
+    public void testJavaAggregateNullInitcond() throws Throwable
+    {
+        createTable("CREATE TABLE %s (a int primary key, b int)");
+        execute("INSERT INTO %s (a, b) VALUES (1, 1)");
+        execute("INSERT INTO %s (a, b) VALUES (2, 2)");
+        execute("INSERT INTO %s (a, b) VALUES (3, 3)");
+
+        String fState = createFunction(KEYSPACE,
+                                       "int, int",
+                                       "CREATE FUNCTION %s(a int, b int) " +
+                                       "RETURNS int " +
+                                       "LANGUAGE java " +
+                                       "AS 'return Integer.valueOf((a!=null?a.intValue():0) + b.intValue());'");
+
+        String fFinal = createFunction(KEYSPACE,
+                                       "int",
+                                       "CREATE FUNCTION %s(a int) " +
+                                       "RETURNS text " +
+                                       "LANGUAGE java " +
+                                       "AS 'return a.toString();'");
+
+        String a = createAggregate(KEYSPACE,
+                                   "int",
+                                   "CREATE AGGREGATE %s(int) " +
+                                   "SFUNC " + shortFunctionName(fState) + " " +
+                                   "STYPE int " +
+                                   "FINALFUNC " + shortFunctionName(fFinal) + " " +
+                                   "INITCOND null");
+
+        // 1 + 2 + 3 = 6
+        assertRows(execute("SELECT " + a + "(b) FROM %s"), row("6"));
+
+        execute("DROP AGGREGATE " + a + "(int)");
+
+        assertInvalid("SELECT " + a + "(b) FROM %s");
+    }
+
+    @Test
+    public void testJavaAggregateInvalidInitcond() throws Throwable
+    {
+        String fState = createFunction(KEYSPACE,
+                                       "int, int",
+                                       "CREATE FUNCTION %s(a int, b int) " +
+                                       "RETURNS int " +
+                                       "LANGUAGE java " +
+                                       "AS 'return Integer.valueOf((a!=null?a.intValue():0) + b.intValue());'");
+
+        String fFinal = createFunction(KEYSPACE,
+                                       "int",
+                                       "CREATE FUNCTION %s(a int) " +
+                                       "RETURNS text " +
+                                       "LANGUAGE java " +
+                                       "AS 'return a.toString();'");
+
+        assertInvalid("CREATE AGGREGATE " + KEYSPACE + ".aggrInvalid(int)" +
+                      "SFUNC " + shortFunctionName(fState) + " " +
+                      "STYPE int " +
+                      "FINALFUNC " + shortFunctionName(fFinal) + " " +
+                      "INITCOND 'foobar'");
+    }
+
+    @Test
+    public void testJavaAggregateIncompatibleTypes() throws Throwable
+    {
+        String fState = createFunction(KEYSPACE,
+                                       "int, int",
+                                       "CREATE FUNCTION %s(a int, b int) " +
+                                       "RETURNS int " +
+                                       "LANGUAGE java " +
+                                       "AS 'return Integer.valueOf((a!=null?a.intValue():0) + b.intValue());'");
+
+        String fFinal = createFunction(KEYSPACE,
+                                       "int",
+                                       "CREATE FUNCTION %s(a int) " +
+                                       "RETURNS text " +
+                                       "LANGUAGE java " +
+                                       "AS 'return a.toString();'");
+
+        String fState2 = createFunction(KEYSPACE,
+                                        "int, int",
+                                        "CREATE FUNCTION %s(a double, b double) " +
+                                        "RETURNS double " +
+                                        "LANGUAGE java " +
+                                        "AS 'return Double.valueOf((a!=null?a.doubleValue():0d) + b.doubleValue());'");
+
+        String fFinal2 = createFunction(KEYSPACE,
+                                        "int",
+                                        "CREATE FUNCTION %s(a double) " +
+                                        "RETURNS text " +
+                                        "LANGUAGE java " +
+                                        "AS 'return a.toString();'");
+
+        assertInvalid("CREATE AGGREGATE " + KEYSPACE + ".aggrInvalid(double)" +
+                      "SFUNC " + shortFunctionName(fState) + " " +
+                      "STYPE double " +
+                      "FINALFUNC " + shortFunctionName(fFinal));
+        assertInvalid("CREATE AGGREGATE " + KEYSPACE + ".aggrInvalid(int)" +
+                      "SFUNC " + shortFunctionName(fState) + " " +
+                      "STYPE double " +
+                      "FINALFUNC " + shortFunctionName(fFinal));
+        assertInvalid("CREATE AGGREGATE " + KEYSPACE + ".aggrInvalid(double)" +
+                      "SFUNC " + shortFunctionName(fState) + " " +
+                      "STYPE int " +
+                      "FINALFUNC " + shortFunctionName(fFinal));
+        assertInvalid("CREATE AGGREGATE " + KEYSPACE + ".aggrInvalid(double)" +
+                      "SFUNC " + shortFunctionName(fState) + " " +
+                      "STYPE int");
+        assertInvalid("CREATE AGGREGATE " + KEYSPACE + ".aggrInvalid(int)" +
+                      "SFUNC " + shortFunctionName(fState) + " " +
+                      "STYPE double");
+
+        assertInvalid("CREATE AGGREGATE " + KEYSPACE + ".aggrInvalid(double)" +
+                      "SFUNC " + shortFunctionName(fState2) + " " +
+                      "STYPE double " +
+                      "FINALFUNC " + shortFunctionName(fFinal));
+
+        assertInvalid("CREATE AGGREGATE " + KEYSPACE + ".aggrInvalid(double)" +
+                      "SFUNC " + shortFunctionName(fState) + " " +
+                      "STYPE double " +
+                      "FINALFUNC " + shortFunctionName(fFinal2));
+    }
+
+    @Test
+    public void testJavaAggregateNonExistingFuncs() throws Throwable
+    {
+        String fState = createFunction(KEYSPACE,
+                                       "int, int",
+                                       "CREATE FUNCTION %s(a int, b int) " +
+                                       "RETURNS int " +
+                                       "LANGUAGE java " +
+                                       "AS 'return Integer.valueOf((a!=null?a.intValue():0) + b.intValue());'");
+
+        String fFinal = createFunction(KEYSPACE,
+                                       "int",
+                                       "CREATE FUNCTION %s(a int) " +
+                                       "RETURNS text " +
+                                       "LANGUAGE java " +
+                                       "AS 'return a.toString();'");
+
+        assertInvalid("CREATE AGGREGATE " + KEYSPACE + ".aggrInvalid(int)" +
+                      "SFUNC " + shortFunctionName(fState) + "_not_there " +
+                      "STYPE int " +
+                      "FINALFUNC " + shortFunctionName(fFinal));
+
+        assertInvalid("CREATE AGGREGATE " + KEYSPACE + ".aggrInvalid(int)" +
+                      "SFUNC " + shortFunctionName(fState) + " " +
+                      "STYPE int " +
+                      "FINALFUNC " + shortFunctionName(fFinal) + "_not_there");
+
+        execute("CREATE AGGREGATE " + KEYSPACE + ".aggrInvalid(int)" +
+                "SFUNC " + shortFunctionName(fState) + " " +
+                "STYPE int " +
+                "FINALFUNC " + shortFunctionName(fFinal));
+        execute("DROP AGGREGATE " + KEYSPACE + ".aggrInvalid(int)");
+    }
+
+    @Test
+    public void testJavaAggregateFailingFuncs() throws Throwable
+    {
+        createTable("CREATE TABLE %s (a int primary key, b int)");
+        execute("INSERT INTO %s (a, b) VALUES (1, 1)");
+        execute("INSERT INTO %s (a, b) VALUES (2, 2)");
+        execute("INSERT INTO %s (a, b) VALUES (3, 3)");
+
+        String fState = createFunction(KEYSPACE,
+                                       "int, int",
+                                       "CREATE FUNCTION %s(a int, b int) " +
+                                       "RETURNS int " +
+                                       "LANGUAGE java " +
+                                       "AS 'throw new RuntimeException();'");
+
+        String fStateOK = createFunction(KEYSPACE,
+                                       "int, int",
+                                       "CREATE FUNCTION %s(a int, b int) " +
+                                       "RETURNS int " +
+                                       "LANGUAGE java " +
+                                       "AS 'return Integer.valueOf(42);'");
+
+        String fFinal = createFunction(KEYSPACE,
+                                       "int",
+                                       "CREATE FUNCTION %s(a int) " +
+                                       "RETURNS text " +
+                                       "LANGUAGE java " +
+                                       "AS 'throw new RuntimeException();'");
+
+        String fFinalOK = createFunction(KEYSPACE,
+                                       "int",
+                                       "CREATE FUNCTION %s(a int) " +
+                                       "RETURNS text " +
+                                       "LANGUAGE java " +
+                                       "AS 'return \"foobar\";'");
+
+        String a0 = createAggregate(KEYSPACE,
+                                    "int",
+                                    "CREATE AGGREGATE %s(int) " +
+                                    "SFUNC " + shortFunctionName(fState) + " " +
+                                    "STYPE int " +
+                                    "FINALFUNC " + shortFunctionName(fFinal) + " " +
+                                    "INITCOND null");
+        String a1 = createAggregate(KEYSPACE,
+                                    "int",
+                                    "CREATE AGGREGATE %s(int) " +
+                                    "SFUNC " + shortFunctionName(fStateOK) + " " +
+                                    "STYPE int " +
+                                    "FINALFUNC " + shortFunctionName(fFinal) + " " +
+                                    "INITCOND null");
+        String a2 = createAggregate(KEYSPACE,
+                                    "int",
+                                    "CREATE AGGREGATE %s(int) " +
+                                    "SFUNC " + shortFunctionName(fStateOK) + " " +
+                                    "STYPE int " +
+                                    "FINALFUNC " + shortFunctionName(fFinalOK) + " " +
+                                    "INITCOND null");
+
+        assertInvalid("SELECT " + a0 + "(b) FROM %s");
+        assertInvalid("SELECT " + a1 + "(b) FROM %s");
+        assertRows(execute("SELECT " + a2 + "(b) FROM %s"), row("foobar"));
+    }
+
+    @Test
+    public void testJavaAggregateWithoutStateOrFinal() throws Throwable
+    {
+        assertInvalid("CREATE AGGREGATE " + KEYSPACE + ".jSumFooNE1(int) " +
+                      "SFUNC jSumFooNEstate " +
+                      "STYPE int");
+
+        String f = createFunction(KEYSPACE,
+                                  "int, int",
+                                  "CREATE FUNCTION %s(a int, b int) " +
+                                  "RETURNS int " +
+                                  "LANGUAGE java " +
+                                  "AS 'return Integer.valueOf((a!=null?a.intValue():0) + b.intValue());'");
+
+        assertInvalid("CREATE AGGREGATE " + KEYSPACE + ".jSumFooNE2(int) " +
+                      "SFUNC " + shortFunctionName(f) + " " +
+                      "STYPE int " +
+                      "FINALFUNC jSumFooNEfinal");
+
+        execute("DROP FUNCTION " + f + "(int, int)");
+    }
+
+    @Test
+    public void testJavaAggregate() throws Throwable
+    {
+        createTable("CREATE TABLE %s (a int primary key, b int)");
+        execute("INSERT INTO %s (a, b) VALUES (1, 1)");
+        execute("INSERT INTO %s (a, b) VALUES (2, 2)");
+        execute("INSERT INTO %s (a, b) VALUES (3, 3)");
+
+        String fState = createFunction(KEYSPACE,
+                                       "int, int",
+                                       "CREATE FUNCTION %s(a int, b int) " +
+                                       "RETURNS int " +
+                                       "LANGUAGE java " +
+                                       "AS 'return Integer.valueOf((a!=null?a.intValue():0) + b.intValue());'");
+
+        String fFinal = createFunction(KEYSPACE,
+                                       "int",
+                                       "CREATE FUNCTION %s(a int) " +
+                                       "RETURNS text " +
+                                       "LANGUAGE java " +
+                                       "AS 'return a.toString();'");
+
+        String a = createAggregate(KEYSPACE,
+                                   "int",
+                                   "CREATE AGGREGATE %s(int) " +
+                                   "SFUNC " + shortFunctionName(fState) + " " +
+                                   "STYPE int " +
+                                   "FINALFUNC " + shortFunctionName(fFinal) + " " +
+                                   "INITCOND 42");
+
+        // 42 + 1 + 2 + 3 = 48
+        assertRows(execute("SELECT " + a + "(b) FROM %s"), row("48"));
+
+        execute("DROP AGGREGATE " + a + "(int)");
+
+        execute("DROP FUNCTION " + fFinal + "(int)");
+        execute("DROP FUNCTION " + fState + "(int, int)");
+
+        assertInvalid("SELECT " + a + "(b) FROM %s");
+    }
+
+    @Test
+    public void testJavaAggregateSimple() throws Throwable
+    {
+        createTable("CREATE TABLE %s (a int primary key, b int)");
+        execute("INSERT INTO %s (a, b) VALUES (1, 1)");
+        execute("INSERT INTO %s (a, b) VALUES (2, 2)");
+        execute("INSERT INTO %s (a, b) VALUES (3, 3)");
+
+        String fState = createFunction(KEYSPACE,
+                                       "int, int",
+                                       "CREATE FUNCTION %s(a int, b int) " +
+                                       "RETURNS int " +
+                                       "LANGUAGE java " +
+                                       "AS 'return Integer.valueOf((a!=null?a.intValue():0) + b.intValue());'");
+
+        String a = createAggregate(KEYSPACE,
+                                   "int, int",
+                                   "CREATE AGGREGATE %s(int) " +
+                                   "SFUNC " + shortFunctionName(fState) + " " +
+                                   "STYPE int");
+
+        // 1 + 2 + 3 = 6
+        assertRows(execute("SELECT " + a + "(b) FROM %s"), row(6));
+
+        execute("DROP AGGREGATE " + a + "(int)");
+
+        execute("DROP FUNCTION " + fState + "(int, int)");
+
+        assertInvalid("SELECT " + a + "(b) FROM %s");
+    }
+
+    @Test
+    public void testJavaAggregateComplex() throws Throwable
+    {
+        createTable("CREATE TABLE %s (a int primary key, b int)");
+        execute("INSERT INTO %s (a, b) VALUES (1, 1)");
+        execute("INSERT INTO %s (a, b) VALUES (2, 2)");
+        execute("INSERT INTO %s (a, b) VALUES (3, 3)");
+
+        // build an average aggregation function using
+        // tuple<bigint,int> as state
+        // double as finaltype
+
+        String fState = createFunction(KEYSPACE,
+                                       "frozen<tuple<bigint, int>>, int",
+                                       "CREATE FUNCTION %s(a frozen<tuple<bigint, int>>, b int) " +
+                                       "RETURNS frozen<tuple<bigint, int>> " +
+                                       "LANGUAGE java " +
+                                       "AS '" +
+                                       "a.setLong(0, a.getLong(0) + b.intValue());" +
+                                       "a.setInt(1, a.getInt(1) + 1);" +
+                                       "return a;" +
+                                       "'");
+
+        String fFinal = createFunction(KEYSPACE,
+                                       "frozen<tuple<bigint, int>>",
+                                       "CREATE FUNCTION %s(a frozen<tuple<bigint, int>>) " +
+                                       "RETURNS double " +
+                                       "LANGUAGE java " +
+                                       "AS '" +
+                                       "double r = a.getLong(0);" +
+                                       "r /= a.getInt(1);" +
+                                       "return Double.valueOf(r);" +
+                                       "'");
+
+        String a = createAggregate(KEYSPACE,
+                                   "int",
+                                   "CREATE AGGREGATE %s(int) " +
+                                   "SFUNC " + shortFunctionName(fState) + " " +
+                                   "STYPE frozen<tuple<bigint, int>> "+
+                                   "FINALFUNC " + shortFunctionName(fFinal) + " " +
+                                   "INITCOND (0, 0)");
+
+        // 1 + 2 + 3 = 6 / 3 = 2
+        assertRows(execute("SELECT " + a + "(b) FROM %s"), row(2d));
+
+    }
+
+    @Test
+    public void testJavascriptAggregate() throws Throwable
+    {
+        createTable("CREATE TABLE %s (a int primary key, b int)");
+        execute("INSERT INTO %s (a, b) VALUES (1, 1)");
+        execute("INSERT INTO %s (a, b) VALUES (2, 2)");
+        execute("INSERT INTO %s (a, b) VALUES (3, 3)");
+
+        String fState = createFunction(KEYSPACE,
+                                       "int, int",
+                                       "CREATE FUNCTION %s(a int, b int) " +
+                                       "RETURNS int " +
+                                       "LANGUAGE javascript " +
+                                       "AS 'a + b;'");
+
+        String fFinal = createFunction(KEYSPACE,
+                                       "int",
+                                       "CREATE FUNCTION %s(a int) " +
+                                       "RETURNS text " +
+                                       "LANGUAGE javascript " +
+                                       "AS '\"\"+a'");
+
+        String a = createFunction(KEYSPACE,
+                                  "int",
+                                  "CREATE AGGREGATE %s(int) " +
+                                  "SFUNC " + shortFunctionName(fState) + " " +
+                                  "STYPE int " +
+                                  "FINALFUNC " + shortFunctionName(fFinal) + " " +
+                                  "INITCOND 42");
+
+        // 42 + 1 + 2 + 3 = 48
+        assertRows(execute("SELECT " + a + "(b) FROM %s"), row("48"));
+
+        execute("DROP AGGREGATE " + a + "(int)");
+
+        execute("DROP FUNCTION " + fFinal + "(int)");
+        execute("DROP FUNCTION " + fState + "(int, int)");
+
+        assertInvalid("SELECT " + a + "(b) FROM %s");
+    }
+
+    @Test
+    public void testJavascriptAggregateSimple() throws Throwable
+    {
+        createTable("CREATE TABLE %s (a int primary key, b int)");
+        execute("INSERT INTO %s (a, b) VALUES (1, 1)");
+        execute("INSERT INTO %s (a, b) VALUES (2, 2)");
+        execute("INSERT INTO %s (a, b) VALUES (3, 3)");
+
+        String fState = createFunction(KEYSPACE,
+                                       "int, int",
+                                       "CREATE FUNCTION %s(a int, b int) " +
+                                       "RETURNS int " +
+                                       "LANGUAGE javascript " +
+                                       "AS 'a + b;'");
+
+        String a = createAggregate(KEYSPACE,
+                                   "int, int",
+                                   "CREATE AGGREGATE %s(int) " +
+                                   "SFUNC " + shortFunctionName(fState) + " " +
+                                   "STYPE int ");
+
+        // 1 + 2 + 3 = 6
+        assertRows(execute("SELECT " + a + "(b) FROM %s"), row(6));
+
+        execute("DROP AGGREGATE " + a + "(int)");
+
+        execute("DROP FUNCTION " + fState + "(int, int)");
+
+        assertInvalid("SELECT " + a + "(b) FROM %s");
+    }
+
+    @Test
+    public void testFunctionDropPreparedStatement() throws Throwable
+    {
+        String otherKS = "cqltest_foo";
+
+        execute("CREATE KEYSPACE IF NOT EXISTS " + otherKS + " WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 3};");
+        try
+        {
+            execute("CREATE TABLE " + otherKS + ".jsdp (a int primary key, b int)");
+
+            String fState = createFunction(otherKS,
+                                           "int, int",
+                                           "CREATE FUNCTION %s(a int, b int) " +
+                                           "RETURNS int " +
+                                           "LANGUAGE javascript " +
+                                           "AS 'a + b;'");
+
+            String a = createAggregate(otherKS,
+                                       "int",
+                                       "CREATE AGGREGATE %s(int) " +
+                                       "SFUNC " + shortFunctionName(fState) + " " +
+                                       "STYPE int");
+
+            ResultMessage.Prepared prepared = QueryProcessor.prepare("SELECT " + a + "(b) FROM " + otherKS + ".jsdp", ClientState.forInternalCalls(), false);
+            Assert.assertNotNull(QueryProcessor.instance.getPrepared(prepared.statementId));
+
+            execute("DROP AGGREGATE " + a + "(int)");
+            Assert.assertNull(QueryProcessor.instance.getPrepared(prepared.statementId));
+
+            //
+
+            execute("CREATE AGGREGATE " + a + "(int) " +
+                    "SFUNC " + shortFunctionName(fState) + " " +
+                    "STYPE int");
+
+            prepared = QueryProcessor.prepare("SELECT " + a + "(b) FROM " + otherKS + ".jsdp", ClientState.forInternalCalls(), false);
+            Assert.assertNotNull(QueryProcessor.instance.getPrepared(prepared.statementId));
+
+            execute("DROP KEYSPACE " + otherKS + ";");
+
+            Assert.assertNull(QueryProcessor.instance.getPrepared(prepared.statementId));
+        }
+        finally
+        {
+            execute("DROP KEYSPACE IF EXISTS " + otherKS + ";");
+        }
+    }
+
+    @Test
+    public void testAggregatesReferencedInAggregates() throws Throwable
+    {
+
+        String fState = createFunction(KEYSPACE,
+                                       "int, int",
+                                       "CREATE FUNCTION %s(a int, b int) " +
+                                       "RETURNS int " +
+                                       "LANGUAGE javascript " +
+                                       "AS 'a + b;'");
+
+        String a = createAggregate(KEYSPACE,
+                                   "int, int",
+                                   "CREATE AGGREGATE %s(int) " +
+                                   "SFUNC " + shortFunctionName(fState) + " " +
+                                   "STYPE int ");
+
+        assertInvalid("CREATE AGGREGATE " + KEYSPACE + ".aggInv(int) " +
+                      "SFUNC " + shortFunctionName(a) + " " +
+                      "STYPE int ");
+
+        assertInvalid("CREATE AGGREGATE " + KEYSPACE + ".aggInv(int) " +
+                      "SFUNC " + shortFunctionName(fState) + " " +
+                      "STYPE int " +
+                      "FINALFUNC " + shortFunctionName(a));
     }
 }

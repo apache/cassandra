@@ -51,4 +51,8 @@ public interface Function
      * @return <code>true</code> if the function is an aggregate function, <code>false</code> otherwise.
      */
     public boolean isAggregate();
+
+    boolean usesFunction(String ksName, String functionName);
+
+    boolean hasReferenceTo(Function function);
 }

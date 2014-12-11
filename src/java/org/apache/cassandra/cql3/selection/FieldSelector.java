@@ -47,7 +47,7 @@ final class FieldSelector extends Selector
                 return type.fieldType(field);
             }
 
-            public Selector newInstance()
+            public Selector newInstance() throws InvalidRequestException
             {
                 return new FieldSelector(type, field, factory.newInstance());
             }

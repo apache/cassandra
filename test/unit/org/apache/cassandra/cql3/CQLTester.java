@@ -46,6 +46,7 @@ import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.Schema;
+import org.apache.cassandra.cql3.functions.FunctionName;
 import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.SystemKeyspace;
@@ -241,6 +242,19 @@ public abstract class CQLTester
     public boolean usePrepared()
     {
         return USE_PREPARED_VALUES;
+    }
+
+    public static FunctionName parseFunctionName(String qualifiedName)
+    {
+        int i = qualifiedName.indexOf('.');
+        return i == -1
+               ? FunctionName.nativeFunction(qualifiedName)
+               : new FunctionName(qualifiedName.substring(0, i).trim(), qualifiedName.substring(i+1).trim());
+    }
+
+    public static String shortFunctionName(String f)
+    {
+        return parseFunctionName(f).name;
     }
 
     private static void removeAllSSTables(String ks, String table)

@@ -186,6 +186,7 @@ public final class KSMetaData
         mutation.delete(SystemKeyspace.SCHEMA_TRIGGERS_TABLE, timestamp);
         mutation.delete(SystemKeyspace.SCHEMA_USER_TYPES_TABLE, timestamp);
         mutation.delete(SystemKeyspace.SCHEMA_FUNCTIONS_TABLE, timestamp);
+        mutation.delete(SystemKeyspace.SCHEMA_AGGREGATES_TABLE, timestamp);
         mutation.delete(SystemKeyspace.BUILT_INDEXES_TABLE, timestamp);
 
         return mutation;

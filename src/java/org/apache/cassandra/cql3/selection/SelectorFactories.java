@@ -155,7 +155,7 @@ final class SelectorFactories implements Iterable<Selector.Factory>
      * Creates a list of new <code>Selector</code> instances.
      * @return a list of new <code>Selector</code> instances.
      */
-    public List<Selector> newInstances()
+    public List<Selector> newInstances() throws InvalidRequestException
     {
         List<Selector> selectors = new ArrayList<>(factories.size());
         for (Selector.Factory factory : factories)

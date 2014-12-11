@@ -340,6 +340,10 @@ public class Auth implements AuthMBean
         {
         }
 
+        public void onDropAggregate(String ksName, String aggregateName)
+        {
+        }
+
         public void onCreateKeyspace(String ksName)
         {
         }
@@ -356,6 +360,10 @@ public class Auth implements AuthMBean
         {
         }
 
+        public void onCreateAggregate(String ksName, String aggregateName)
+        {
+        }
+
         public void onUpdateKeyspace(String ksName)
         {
         }
@@ -369,6 +377,10 @@ public class Auth implements AuthMBean
         }
 
         public void onUpdateFunction(String ksName, String functionName)
+        {
+        }
+
+        public void onUpdateAggregate(String ksName, String aggregateName)
         {
         }
     }

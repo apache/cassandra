@@ -44,12 +44,12 @@ final class AggregateFunctionSelector extends AbstractFunctionSelector<Aggregate
             args.set(i, s.getOutput(protocolVersion));
             s.reset();
         }
-        this.aggregate.addInput(args);
+        this.aggregate.addInput(protocolVersion, args);
     }
 
     public ByteBuffer getOutput(int protocolVersion) throws InvalidRequestException
     {
-        return aggregate.compute();
+        return aggregate.compute(protocolVersion);
     }
 
     public void reset()
@@ -57,7 +57,7 @@ final class AggregateFunctionSelector extends AbstractFunctionSelector<Aggregate
         aggregate.reset();
     }
 
-    AggregateFunctionSelector(Function fun, List<Selector> argSelectors)
+    AggregateFunctionSelector(Function fun, List<Selector> argSelectors) throws InvalidRequestException
     {
         super((AggregateFunction) fun, argSelectors);
 

@@ -57,11 +57,11 @@ public final class JavaSourceUDFFactory
     throws InvalidRequestException
     {
         // argDataTypes is just the C* internal argTypes converted to the Java Driver DataType
-        DataType[] argDataTypes = UDFunction.driverTypes(argTypes);
+        DataType[] argDataTypes = UDHelper.driverTypes(argTypes);
         // returnDataType is just the C* internal returnType converted to the Java Driver DataType
-        DataType returnDataType = UDFunction.driverType(returnType);
+        DataType returnDataType = UDHelper.driverType(returnType);
         // javaParamTypes is just the Java representation for argTypes resp. argDataTypes
-        Class<?>[] javaParamTypes = UDFunction.javaTypes(argDataTypes);
+        Class<?>[] javaParamTypes = UDHelper.javaTypes(argDataTypes);
         // javaReturnType is just the Java representation for returnType resp. returnDataType
         Class<?> javaReturnType = returnDataType.asJavaClass();
 

@@ -44,7 +44,7 @@ public class FunctionCall extends Term.NonTerminal
 
     public boolean usesFunction(String ksName, String functionName)
     {
-        return fun.name().keyspace.equals(ksName) && fun.name().name.equals(functionName);
+        return fun.usesFunction(ksName, functionName);
     }
 
     public void collectMarkerSpecification(VariableSpecifications boundNames)

@@ -245,6 +245,8 @@ cqlStatement returns [ParsedStatement stmt]
     | st27=dropTypeStatement           { $stmt = st27; }
     | st28=createFunctionStatement     { $stmt = st28; }
     | st29=dropFunctionStatement       { $stmt = st29; }
+    | st30=createAggregateStatement    { $stmt = st30; }
+    | st31=dropAggregateStatement      { $stmt = st31; }
     ;
 
 /*
@@ -486,6 +488,55 @@ batchStatementObjective returns [ModificationStatement.Parsed statement]
     : i=insertStatement  { $statement = i; }
     | u=updateStatement  { $statement = u; }
     | d=deleteStatement  { $statement = d; }
+    ;
+
+createAggregateStatement returns [CreateAggregateStatement expr]
+    @init {
+        boolean orReplace = false;
+        boolean ifNotExists = false;
+
+        List<CQL3Type.Raw> argsTypes = new ArrayList<>();
+    }
+    : K_CREATE (K_OR K_REPLACE { orReplace = true; })?
+      K_AGGREGATE
+      (K_IF K_NOT K_EXISTS { ifNotExists = true; })?
+      fn=functionName
+      '('
+        (
+          v=comparatorType { argsTypes.add(v); }
+          ( ',' v=comparatorType { argsTypes.add(v); } )*
+        )?
+      ')'
+      K_SFUNC sfunc = allowedFunctionName
+      K_STYPE stype = comparatorType
+      (
+        K_FINALFUNC ffunc = allowedFunctionName
+      )?
+      (
+        K_INITCOND ival = term
+      )?
+      { $expr = new CreateAggregateStatement(fn, argsTypes, sfunc, stype, ffunc, ival, orReplace, ifNotExists); }
+    ;
+
+dropAggregateStatement returns [DropAggregateStatement expr]
+    @init {
+        boolean ifExists = false;
+        List<CQL3Type.Raw> argsTypes = new ArrayList<>();
+        boolean argsPresent = false;
+    }
+    : K_DROP K_AGGREGATE
+      (K_IF K_EXISTS { ifExists = true; } )?
+      fn=functionName
+      (
+        '('
+          (
+            v=comparatorType { argsTypes.add(v); }
+            ( ',' v=comparatorType { argsTypes.add(v); } )*
+          )?
+        ')'
+        { argsPresent = true; }
+      )?
+      { $expr = new DropAggregateStatement(fn, argsTypes, argsPresent, ifExists); }
     ;
 
 createFunctionStatement returns [CreateFunctionStatement expr]
@@ -1271,6 +1322,11 @@ basic_unreserved_keyword returns [String str]
         | K_CONTAINS
         | K_STATIC
         | K_FUNCTION
+        | K_AGGREGATE
+        | K_SFUNC
+        | K_STYPE
+        | K_FINALFUNC
+        | K_INITCOND
         | K_RETURNS
         | K_LANGUAGE
         | K_NON
@@ -1384,6 +1440,11 @@ K_STATIC:      S T A T I C;
 K_FROZEN:      F R O Z E N;
 
 K_FUNCTION:    F U N C T I O N;
+K_AGGREGATE:   A G G R E G A T E;
+K_SFUNC:       S F U N C;
+K_STYPE:       S T Y P E;
+K_FINALFUNC:   F I N A L F U N C;
+K_INITCOND:    I N I T C O N D;
 K_RETURNS:     R E T U R N S;
 K_LANGUAGE:    L A N G U A G E;
 K_NON:         N O N;

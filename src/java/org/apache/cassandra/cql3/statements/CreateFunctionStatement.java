@@ -50,7 +50,6 @@ public final class CreateFunctionStatement extends SchemaAlteringStatement
     private final List<ColumnIdentifier> argNames;
     private final List<CQL3Type.Raw> argRawTypes;
     private final CQL3Type.Raw rawReturnType;
-    private String currentKeyspace;
 
     public CreateFunctionStatement(FunctionName functionName,
                                    String language,
@@ -75,13 +74,11 @@ public final class CreateFunctionStatement extends SchemaAlteringStatement
 
     public void prepareKeyspace(ClientState state) throws InvalidRequestException
     {
-        currentKeyspace = state.getRawKeyspace();
-
-        if (!functionName.hasKeyspace() && currentKeyspace != null)
-            functionName = new FunctionName(currentKeyspace, functionName.name);
+        if (!functionName.hasKeyspace() && state.getRawKeyspace() != null)
+            functionName = new FunctionName(state.getRawKeyspace(), functionName.name);
 
         if (!functionName.hasKeyspace())
-            throw new InvalidRequestException("You need to be logged in a keyspace or use a fully qualified function name");
+            throw new InvalidRequestException("Functions must be fully qualified with a keyspace name if a keyspace is not set for the session");
 
         ThriftValidation.validateKeyspaceNotSystem(functionName.keyspace);
     }
@@ -126,6 +123,8 @@ public final class CreateFunctionStatement extends SchemaAlteringStatement
                 return false;
             if (!orReplace)
                 throw new InvalidRequestException(String.format("Function %s already exists", old));
+            if (!(old instanceof ScalarFunction))
+                throw new InvalidRequestException(String.format("Function %s can only replace a function", old));
 
             if (!Functions.typeEquals(old.returnType(), returnType))
                 throw new InvalidRequestException(String.format("Cannot replace function %s, the new return type %s is not compatible with the return type %s of existing function",

@@ -33,19 +33,19 @@ import org.apache.cassandra.thrift.ThriftValidation;
 import org.apache.cassandra.transport.Event;
 
 /**
- * A <code>DROP FUNCTION</code> statement parsed from a CQL query.
+ * A <code>DROP AGGREGATE</code> statement parsed from a CQL query.
  */
-public final class DropFunctionStatement extends SchemaAlteringStatement
+public final class DropAggregateStatement extends SchemaAlteringStatement
 {
     private FunctionName functionName;
     private final boolean ifExists;
     private final List<CQL3Type.Raw> argRawTypes;
     private final boolean argsPresent;
 
-    public DropFunctionStatement(FunctionName functionName,
-                                 List<CQL3Type.Raw> argRawTypes,
-                                 boolean argsPresent,
-                                 boolean ifExists)
+    public DropAggregateStatement(FunctionName functionName,
+                                  List<CQL3Type.Raw> argRawTypes,
+                                  boolean argsPresent,
+                                  boolean ifExists)
     {
         this.functionName = functionName;
         this.argRawTypes = argRawTypes;
@@ -53,7 +53,6 @@ public final class DropFunctionStatement extends SchemaAlteringStatement
         this.ifExists = ifExists;
     }
 
-    @Override
     public void prepareKeyspace(ClientState state) throws InvalidRequestException
     {
         if (!functionName.hasKeyspace() && state.getRawKeyspace() != null)
@@ -65,7 +64,6 @@ public final class DropFunctionStatement extends SchemaAlteringStatement
         ThriftValidation.validateKeyspaceNotSystem(functionName.keyspace);
     }
 
-    @Override
     public void checkAccess(ClientState state) throws UnauthorizedException, InvalidRequestException
     {
         // TODO CASSANDRA-7557 (function DDL permission)
@@ -73,38 +71,35 @@ public final class DropFunctionStatement extends SchemaAlteringStatement
         state.hasKeyspaceAccess(functionName.keyspace, Permission.DROP);
     }
 
-    @Override
-    public void validate(ClientState state)
+    public void validate(ClientState state) throws RequestValidationException
     {
     }
 
-    @Override
     public Event.SchemaChange changeEvent()
     {
         return null;
     }
 
-    @Override
     public boolean announceMigration(boolean isLocalOnly) throws RequestValidationException
     {
         List<Function> olds = Functions.find(functionName);
 
         if (!argsPresent && olds != null && olds.size() > 1)
-            throw new InvalidRequestException(String.format("'DROP FUNCTION %s' matches multiple function definitions; " +
+            throw new InvalidRequestException(String.format("'DROP AGGREGATE %s' matches multiple function definitions; " +
                                                             "specify the argument types by issuing a statement like " +
-                                                            "'DROP FUNCTION %s (type, type, ...)'. Hint: use cqlsh " +
-                                                            "'DESCRIBE FUNCTION %s' command to find all overloads",
+                                                            "'DROP AGGREGATE %s (type, type, ...)'. Hint: use cqlsh " +
+                                                            "'DESCRIBE AGGREGATE %s' command to find all overloads",
                                                             functionName, functionName, functionName));
 
         List<AbstractType<?>> argTypes = new ArrayList<>(argRawTypes.size());
         for (CQL3Type.Raw rawType : argRawTypes)
-            argTypes.add(rawType.prepare(typeKeyspace(rawType)).getType());
+            argTypes.add(rawType.prepare(functionName.keyspace).getType());
 
         Function old;
         if (argsPresent)
         {
             old = Functions.find(functionName, argTypes);
-            if (old == null || !(old instanceof ScalarFunction))
+            if (old == null || !(old instanceof AggregateFunction))
             {
                 if (ifExists)
                     return false;
@@ -116,34 +111,26 @@ public final class DropFunctionStatement extends SchemaAlteringStatement
                         sb.append(", ");
                     sb.append(rawType);
                 }
-                throw new InvalidRequestException(String.format("Cannot drop non existing function '%s(%s)'",
+                throw new InvalidRequestException(String.format("Cannot drop non existing aggregate '%s(%s)'",
                                                                 functionName, sb));
             }
         }
         else
         {
-            if (olds == null || olds.isEmpty() || !(olds.get(0) instanceof ScalarFunction))
+            if (olds == null || olds.isEmpty() || !(olds.get(0) instanceof AggregateFunction))
             {
                 if (ifExists)
                     return false;
-                throw new InvalidRequestException(String.format("Cannot drop non existing function '%s'", functionName));
+                throw new InvalidRequestException(String.format("Cannot drop non existing aggregate '%s'", functionName));
             }
             old = olds.get(0);
         }
 
-        List<Function> references = Functions.getReferencesTo(old);
-        if (!references.isEmpty())
-            throw new InvalidRequestException(String.format("Function '%s' still referenced by %s", functionName, references));
+        if (old.isNative())
+            throw new InvalidRequestException(String.format("Cannot drop aggregate '%s' because it is a " +
+                                                            "native (built-in) function", functionName));
 
-        MigrationManager.announceFunctionDrop((UDFunction) old, isLocalOnly);
+        MigrationManager.announceAggregateDrop((UDAggregate)old, isLocalOnly);
         return true;
-    }
-
-    private String typeKeyspace(CQL3Type.Raw rawType)
-    {
-        String ks = rawType.keyspace();
-        if (ks != null)
-            return ks;
-        return functionName.keyspace;
     }
 }

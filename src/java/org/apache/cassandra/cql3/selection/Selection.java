@@ -213,7 +213,7 @@ public abstract class Selection
         return metadata;
     }
 
-    protected abstract Selectors newSelectors();
+    protected abstract Selectors newSelectors() throws InvalidRequestException;
 
     /**
      * @return the list of CQL3 columns value this SelectionClause needs.
@@ -223,7 +223,7 @@ public abstract class Selection
         return columns;
     }
 
-    public ResultSetBuilder resultSetBuilder(long now)
+    public ResultSetBuilder resultSetBuilder(long now) throws InvalidRequestException
     {
         return new ResultSetBuilder(now);
     }
@@ -273,7 +273,7 @@ public abstract class Selection
         final int[] ttls;
         final long now;
 
-        private ResultSetBuilder(long now)
+        private ResultSetBuilder(long now) throws InvalidRequestException
         {
             this.resultSet = new ResultSet(getResultMetadata().copy(), new ArrayList<List<ByteBuffer>>());
             this.selectors = newSelectors();
@@ -468,7 +468,7 @@ public abstract class Selection
             return factories.containsOnlyAggregateFunctions();
         }
 
-        protected Selectors newSelectors()
+        protected Selectors newSelectors() throws InvalidRequestException
         {
             return new Selectors()
             {
