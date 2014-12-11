@@ -1368,6 +1368,17 @@ public class StorageProxy implements StorageProxyMBean
                     {
                         throw new AssertionError(e); // full data requested from each node here, no digests should be sent
                     }
+                    catch (ReadTimeoutException e)
+                    {
+                        if (Tracing.isTracing())
+                            Tracing.trace("Timed out waiting on digest mismatch repair requests");
+                        else
+                            logger.debug("Timed out waiting on digest mismatch repair requests");
+                        // the caught exception here will have CL.ALL from the repair command,
+                        // not whatever CL the initial command was at (CASSANDRA-7947)
+                        int blockFor = consistencyLevel.blockFor(Keyspace.open(command.getKeyspace()));
+                        throw new ReadTimeoutException(consistencyLevel, blockFor-1, blockFor, true);
+                    }
 
                     RowDataResolver resolver = (RowDataResolver)handler.resolver;
                     try
@@ -1378,7 +1389,10 @@ public class StorageProxy implements StorageProxyMBean
                     }
                     catch (TimeoutException e)
                     {
-                        Tracing.trace("Timed out on digest mismatch retries");
+                        if (Tracing.isTracing())
+                            Tracing.trace("Timed out waiting on digest mismatch repair acknowledgements");
+                        else
+                            logger.debug("Timed out waiting on digest mismatch repair acknowledgements");
                         int blockFor = consistencyLevel.blockFor(Keyspace.open(command.getKeyspace()));
                         throw new ReadTimeoutException(consistencyLevel, blockFor-1, blockFor, true);
                     }

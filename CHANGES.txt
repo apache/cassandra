@@ -1,4 +1,5 @@
 2.0.12:
+ * Fix error message on read repair timeouts (CASSANDRA-7947)
  * Default DTCS base_time_seconds changed to 60 (CASSANDRA-8417)
  * Refuse Paxos operation with more than one pending endpoint (CASSANDRA-8346)
  * Throw correct exception when trying to bind a keyspace or table
