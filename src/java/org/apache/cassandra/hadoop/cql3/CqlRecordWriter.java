@@ -335,7 +335,7 @@ class CqlRecordWriter extends AbstractColumnFamilyRecordWriter<Map<String, ByteB
     private void retrievePartitionKeyValidator(Cassandra.Client client) throws Exception
     {
         String keyspace = ConfigHelper.getOutputKeyspace(conf);
-        String cfName = ConfigHelper.getOutputColumnFamily(conf);
+        String cfName = ConfigHelper.getOutputColumnFamily(conf).replaceAll("\"", "");
         String query = "SELECT key_validator," +
         		       "       key_aliases," +
         		       "       column_aliases " +
