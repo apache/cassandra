@@ -186,11 +186,8 @@ public abstract class Selection
             {
                 Selector selector = makeSelector(cfDef, rawSelector, names, metadata);
                 selectors.add(selector);
-                if (selector instanceof WritetimeOrTTLSelector)
-                {
-                    collectTimestamps |= ((WritetimeOrTTLSelector)selector).isWritetime;
-                    collectTTLs |= !((WritetimeOrTTLSelector)selector).isWritetime;
-                }
+                collectTimestamps |= selector.usesTimestamps();
+                collectTTLs |= selector.usesTTLs();
             }
             return new SelectionWithProcessing(names, metadata, selectors, collectTimestamps, collectTTLs);
         }
@@ -374,6 +371,12 @@ public abstract class Selection
     private interface Selector extends AssignementTestable
     {
         public ByteBuffer compute(ResultSetBuilder rs) throws InvalidRequestException;
+
+        /** Returns true if the selector acts on a column's timestamp, false otherwise. */
+        public boolean usesTimestamps();
+
+        /** Returns true if the selector acts on a column's TTL, false otherwise. */
+        public boolean usesTTLs();
     }
 
     private static class SimpleSelector implements Selector
@@ -397,6 +400,16 @@ public abstract class Selection
         public boolean isAssignableTo(ColumnSpecification receiver)
         {
             return receiver.type.isValueCompatibleWith(type);
+        }
+
+        public boolean usesTimestamps()
+        {
+            return false;
+        }
+
+        public boolean usesTTLs()
+        {
+            return false;
         }
 
         @Override
@@ -429,6 +442,22 @@ public abstract class Selection
         public boolean isAssignableTo(ColumnSpecification receiver)
         {
             return receiver.type.isValueCompatibleWith(fun.returnType());
+        }
+
+        public boolean usesTimestamps()
+        {
+            for (Selector s : argSelectors)
+                if (s.usesTimestamps())
+                    return true;
+            return false;
+        }
+
+        public boolean usesTTLs()
+        {
+            for (Selector s : argSelectors)
+                if (s.usesTTLs())
+                    return true;
+            return false;
         }
 
         @Override
@@ -474,6 +503,17 @@ public abstract class Selection
         public boolean isAssignableTo(ColumnSpecification receiver)
         {
             return receiver.type.isValueCompatibleWith(isWritetime ? LongType.instance : Int32Type.instance);
+        }
+
+
+        public boolean usesTimestamps()
+        {
+            return isWritetime;
+        }
+
+        public boolean usesTTLs()
+        {
+            return !isWritetime;
         }
 
         @Override
