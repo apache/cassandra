@@ -21,6 +21,9 @@ import java.util.Arrays;
 
 import org.junit.Test;
 
+import java.util.ArrayList;
+import java.util.List;
+
 public class SingleColumnRelationTest extends CQLTester
 {
     @Test
@@ -378,5 +381,18 @@ public class SingleColumnRelationTest extends CQLTester
             assertEmpty(execute("SELECT v FROM %s WHERE k1 IN ()"));
             assertEmpty(execute("SELECT v FROM %s WHERE k1 = 0 AND k2 IN ()"));
         }
+    }
+
+    @Test
+    public void testLargeClusteringINValues() throws Throwable
+    {
+        createTable("CREATE TABLE %s (k int, c int, v int, PRIMARY KEY (k, c))");
+        execute("INSERT INTO %s (k, c, v) VALUES (0, 0, 0)");
+        List<Integer> inValues = new ArrayList<>(10000);
+        for (int i = 0; i < 10000; i++)
+            inValues.add(i);
+        assertRows(execute("SELECT * FROM %s WHERE k=? AND c IN ?", 0, inValues),
+                row(0, 0, 0)
+        );
     }
 }
