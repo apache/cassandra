@@ -1,4 +1,6 @@
 2.1.3
+ * Fix ArrayIndexOutOfBoundsException when generating error message
+   for some CQL syntax errors (CASSANDRA-8455)
  * Scale memtable slab allocation logarithmically (CASSANDRA-7882)
  * cassandra-stress simultaneous inserts over same seed (CASSANDRA-7964)
  * Reduce cassandra-stress sampling memory requirements (CASSANDRA-7926)
