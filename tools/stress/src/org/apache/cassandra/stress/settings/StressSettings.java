@@ -46,6 +46,7 @@ public class StressSettings implements Serializable
     public final SettingsPopulation generate;
     public final SettingsInsert insert;
     public final SettingsColumn columns;
+    public final SettingsSamples samples;
     public final SettingsErrors errors;
     public final SettingsLog log;
     public final SettingsMode mode;
@@ -55,13 +56,14 @@ public class StressSettings implements Serializable
     public final SettingsPort port;
     public final String sendToDaemon;
 
-    public StressSettings(SettingsCommand command, SettingsRate rate, SettingsPopulation generate, SettingsInsert insert, SettingsColumn columns, SettingsErrors errors, SettingsLog log, SettingsMode mode, SettingsNode node, SettingsSchema schema, SettingsTransport transport, SettingsPort port, String sendToDaemon)
+    public StressSettings(SettingsCommand command, SettingsRate rate, SettingsPopulation generate, SettingsInsert insert, SettingsColumn columns, SettingsSamples samples, SettingsErrors errors, SettingsLog log, SettingsMode mode, SettingsNode node, SettingsSchema schema, SettingsTransport transport, SettingsPort port, String sendToDaemon)
     {
         this.command = command;
         this.rate = rate;
         this.insert = insert;
         this.generate = generate;
         this.columns = columns;
+        this.samples = samples;
         this.errors = errors;
         this.log = log;
         this.mode = mode;
@@ -232,6 +234,7 @@ public class StressSettings implements Serializable
         SettingsPopulation generate = SettingsPopulation.get(clArgs, command);
         SettingsInsert insert = SettingsInsert.get(clArgs);
         SettingsColumn columns = SettingsColumn.get(clArgs);
+        SettingsSamples samples = SettingsSamples.get(clArgs);
         SettingsErrors errors = SettingsErrors.get(clArgs);
         SettingsLog log = SettingsLog.get(clArgs);
         SettingsMode mode = SettingsMode.get(clArgs);
@@ -254,7 +257,7 @@ public class StressSettings implements Serializable
             }
             System.exit(1);
         }
-        return new StressSettings(command, rate, generate, insert, columns, errors, log, mode, node, schema, transport, port, sendToDaemon);
+        return new StressSettings(command, rate, generate, insert, columns, samples, errors, log, mode, node, schema, transport, port, sendToDaemon);
     }
 
     private static Map<String, String[]> parseMap(String[] args)

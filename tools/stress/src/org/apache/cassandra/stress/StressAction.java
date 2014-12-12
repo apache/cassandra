@@ -189,7 +189,10 @@ public class StressAction implements Runnable
         final CountDownLatch done = new CountDownLatch(threadCount);
         final Consumer[] consumers = new Consumer[threadCount];
         for (int i = 0; i < threadCount; i++)
-            consumers[i] = new Consumer(operations, done, workManager, metrics, rateLimiter);
+        {
+            Timer timer = metrics.getTiming().newTimer(settings.samples.liveCount / threadCount);
+            consumers[i] = new Consumer(operations, done, workManager, timer, metrics, rateLimiter);
+        }
 
         // starting worker threadCount
         for (int i = 0; i < threadCount; i++)
@@ -246,19 +249,19 @@ public class StressAction implements Runnable
         private final WorkManager workManager;
         private final CountDownLatch done;
 
-        public Consumer(OpDistributionFactory operations, CountDownLatch done, WorkManager workManager, StressMetrics metrics, RateLimiter rateLimiter)
+        public Consumer(OpDistributionFactory operations, CountDownLatch done, WorkManager workManager, Timer timer, StressMetrics metrics, RateLimiter rateLimiter)
         {
             this.done = done;
             this.rateLimiter = rateLimiter;
             this.workManager = workManager;
             this.metrics = metrics;
-            this.timer = metrics.getTiming().newTimer();
+            this.timer = timer;
             this.operations = operations.get(timer);
         }
 
         public void run()
         {
-
+            timer.init();
             try
             {
 

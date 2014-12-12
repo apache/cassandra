@@ -63,7 +63,7 @@ public abstract class SettingsCommand implements Serializable
         this.noWarmup = options.noWarmup.setByUser();
         if (count != null)
         {
-            this.count = Long.parseLong(count.count.value());
+            this.count = OptionDistribution.parseLong(count.count.value());
             this.duration = 0;
             this.durationUnits = null;
             this.targetUncertainty = -1;
@@ -113,7 +113,7 @@ public abstract class SettingsCommand implements Serializable
 
     static class Count extends Options
     {
-        final OptionSimple count = new OptionSimple("n=", "[0-9]+", null, "Number of operations to perform", true);
+        final OptionSimple count = new OptionSimple("n=", "[0-9]+[bmk]?", null, "Number of operations to perform", true);
         @Override
         public List<? extends Option> options()
         {

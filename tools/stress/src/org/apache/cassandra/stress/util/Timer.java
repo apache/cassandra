@@ -25,21 +25,18 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Random;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ThreadLocalRandom;
 
 // a timer - this timer must be used by a single thread, and co-ordinates with other timers by
 public final class Timer
 {
-
-    private static final int SAMPLE_SIZE_SHIFT = 14;
-    private static final int SAMPLE_SIZE_MASK = (1 << SAMPLE_SIZE_SHIFT) - 1;
-
-    private final Random rnd = new Random();
+    private ThreadLocalRandom rnd;
 
     // in progress snap start
     private long sampleStartNanos;
 
     // each entry is present with probability 1/p(opCount) or 1/(p(opCount)-1)
-    private final long[] sample = new long[1 << SAMPLE_SIZE_SHIFT];
+    private final long[] sample;
     private int opCount;
 
     // aggregate info
@@ -56,14 +53,25 @@ public final class Timer
     volatile TimingInterval report;
     private volatile TimingInterval finalReport;
 
+    public Timer(int sampleCount)
+    {
+        int powerOf2 = 32 - Integer.numberOfLeadingZeros(sampleCount - 1);
+        this.sample = new long[1 << powerOf2];
+    }
+
+    public void init()
+    {
+        rnd = ThreadLocalRandom.current();
+    }
+
     public void start(){
         // decide if we're logging this event
         sampleStartNanos = System.nanoTime();
     }
 
-    private static int p(int index)
+    private int p(int index)
     {
-        return 1 + (index >>> SAMPLE_SIZE_SHIFT);
+        return 1 + (index / sample.length);
     }
 
     public boolean running()
@@ -90,9 +98,9 @@ public final class Timer
         upToDateAsOf = now;
     }
 
-    private static int index(int count)
+    private int index(int count)
     {
-        return count & SAMPLE_SIZE_MASK;
+        return count & (sample.length - 1);
     }
 
     private TimingInterval buildReport()
