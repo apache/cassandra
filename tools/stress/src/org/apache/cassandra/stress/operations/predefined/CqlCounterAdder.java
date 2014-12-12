@@ -28,6 +28,7 @@ import java.util.List;
 import org.apache.cassandra.stress.generate.Distribution;
 import org.apache.cassandra.stress.generate.DistributionFactory;
 import org.apache.cassandra.stress.generate.PartitionGenerator;
+import org.apache.cassandra.stress.generate.SeedManager;
 import org.apache.cassandra.stress.settings.Command;
 import org.apache.cassandra.stress.settings.StressSettings;
 import org.apache.cassandra.stress.util.Timer;
@@ -36,9 +37,9 @@ public class CqlCounterAdder extends CqlOperation<Integer>
 {
 
     final Distribution counteradd;
-    public CqlCounterAdder(DistributionFactory counteradd, Timer timer, PartitionGenerator generator, StressSettings settings)
+    public CqlCounterAdder(DistributionFactory counteradd, Timer timer, PartitionGenerator generator, SeedManager seedManager, StressSettings settings)
     {
-        super(Command.COUNTER_WRITE, timer, generator, settings);
+        super(Command.COUNTER_WRITE, timer, generator, seedManager, settings);
         this.counteradd = counteradd.get();
     }
 

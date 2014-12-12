@@ -30,11 +30,7 @@ import com.datastax.driver.core.BoundStatement;
 import com.datastax.driver.core.PreparedStatement;
 import com.datastax.driver.core.Statement;
 import org.apache.cassandra.db.ConsistencyLevel;
-import org.apache.cassandra.stress.generate.Distribution;
-import org.apache.cassandra.stress.generate.Partition;
-import org.apache.cassandra.stress.generate.PartitionGenerator;
-import org.apache.cassandra.stress.generate.RatioDistribution;
-import org.apache.cassandra.stress.generate.Row;
+import org.apache.cassandra.stress.generate.*;
 import org.apache.cassandra.stress.settings.StressSettings;
 import org.apache.cassandra.stress.settings.ValidationType;
 import org.apache.cassandra.stress.util.JavaDriverClient;
@@ -45,13 +41,16 @@ public class SchemaInsert extends SchemaStatement
 {
 
     private final BatchStatement.Type batchType;
-    private final RatioDistribution selectChance;
 
-    public SchemaInsert(Timer timer, PartitionGenerator generator, StressSettings settings, Distribution batchSize, RatioDistribution selectChance, Integer thriftId, PreparedStatement statement, ConsistencyLevel cl, BatchStatement.Type batchType)
+    public SchemaInsert(Timer timer, StressSettings settings, PartitionGenerator generator, SeedManager seedManager, Distribution batchSize, RatioDistribution useRatio, Integer thriftId, PreparedStatement statement, ConsistencyLevel cl, BatchStatement.Type batchType)
     {
-        super(timer, generator, settings, batchSize, statement, thriftId, cl, ValidationType.NOT_FAIL);
+        super(timer, settings, spec(generator, seedManager, batchSize, useRatio), statement, thriftId, cl, ValidationType.NOT_FAIL);
         this.batchType = batchType;
-        this.selectChance = selectChance;
+    }
+
+    private static DataSpec spec(PartitionGenerator generator, SeedManager seedManager, Distribution partitionCount, RatioDistribution useRatio)
+    {
+        return new DataSpec(generator, seedManager, partitionCount, useRatio);
     }
 
     private class JavaDriverRun extends Runner
@@ -65,20 +64,13 @@ public class SchemaInsert extends SchemaStatement
 
         public boolean run() throws Exception
         {
-            Partition.RowIterator[] iterators = new Partition.RowIterator[partitions.size()];
-            for (int i = 0 ; i < iterators.length ; i++)
-                iterators[i] = partitions.get(i).iterator(selectChance.next(), true);
             List<BoundStatement> stmts = new ArrayList<>();
             partitionCount = partitions.size();
 
-            for (Partition.RowIterator iterator : iterators)
-            {
-                if (iterator.done())
-                    continue;
+            for (PartitionIterator iterator : partitions)
+                while (iterator.hasNext())
+                    stmts.add(bindRow(iterator.next()));
 
-                for (Row row : iterator.next())
-                    stmts.add(bindRow(row));
-            }
             rowCount += stmts.size();
 
             // 65535 is max number of stmts per batch, so if we have more, we need to manually batch them
@@ -107,10 +99,6 @@ public class SchemaInsert extends SchemaStatement
                     e.printStackTrace();
                 }
             }
-
-            for (Partition.RowIterator iterator : iterators)
-                iterator.markWriteFinished();
-
             return true;
         }
     }
@@ -126,26 +114,14 @@ public class SchemaInsert extends SchemaStatement
 
         public boolean run() throws Exception
         {
-            Partition.RowIterator[] iterators = new Partition.RowIterator[partitions.size()];
-            for (int i = 0 ; i < iterators.length ; i++)
-                iterators[i] = partitions.get(i).iterator(selectChance.next(), true);
-            partitionCount = partitions.size();
-
-            for (Partition.RowIterator iterator : iterators)
+            for (PartitionIterator iterator : partitions)
             {
-                if (iterator.done())
-                    continue;
-
-                for (Row row : iterator.next())
+                while (iterator.hasNext())
                 {
-                    validate(client.execute_prepared_cql3_query(thriftId, iterator.partition().getToken(), thriftRowArgs(row), settings.command.consistencyLevel));
+                    validate(client.execute_prepared_cql3_query(thriftId, iterator.getToken(), thriftRowArgs(iterator.next()), settings.command.consistencyLevel));
                     rowCount += 1;
                 }
             }
-
-            for (Partition.RowIterator iterator : iterators)
-                iterator.markWriteFinished();
-
             return true;
         }
     }

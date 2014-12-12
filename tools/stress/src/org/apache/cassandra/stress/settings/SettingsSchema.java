@@ -25,7 +25,6 @@ import java.nio.ByteBuffer;
 import java.util.*;
 
 import org.apache.cassandra.thrift.*;
-import org.apache.cassandra.thrift.ConsistencyLevel;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 public class SettingsSchema implements Serializable

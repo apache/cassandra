@@ -37,7 +37,6 @@ import org.apache.cassandra.stress.operations.FixedOpDistribution;
 import org.apache.cassandra.stress.operations.OpDistribution;
 import org.apache.cassandra.stress.operations.OpDistributionFactory;
 import org.apache.cassandra.stress.operations.predefined.PredefinedOperation;
-import org.apache.cassandra.stress.settings.SettingsCommandPreDefinedMixed.Options;
 import org.apache.cassandra.stress.util.Timer;
 
 // Settings unique to the mixed command type
@@ -54,7 +53,7 @@ public class SettingsCommandPreDefined extends SettingsCommand
         {
             public OpDistribution get(Timer timer)
             {
-                return new FixedOpDistribution(PredefinedOperation.operation(type, timer, newGenerator(settings, seeds), settings, add));
+                return new FixedOpDistribution(PredefinedOperation.operation(type, timer, newGenerator(settings), seeds, settings, add));
             }
 
             public String desc()
@@ -69,7 +68,7 @@ public class SettingsCommandPreDefined extends SettingsCommand
         };
     }
 
-    PartitionGenerator newGenerator(StressSettings settings, SeedManager seeds)
+    PartitionGenerator newGenerator(StressSettings settings)
     {
         List<String> names = settings.columns.namestrs;
         List<Generator> partitionKey = Collections.<Generator>singletonList(new HexBytes("key",
@@ -79,7 +78,7 @@ public class SettingsCommandPreDefined extends SettingsCommand
         List<Generator> columns = new ArrayList<>();
         for (int i = 0 ; i < settings.columns.maxColumnsPerKey ; i++)
             columns.add(new Bytes(names.get(i), new GeneratorConfig("randomstr" + names.get(i), null, settings.columns.sizeDistribution, null)));
-        return new PartitionGenerator(partitionKey, Collections.<Generator>emptyList(), columns, PartitionGenerator.Order.ARBITRARY, seeds);
+        return new PartitionGenerator(partitionKey, Collections.<Generator>emptyList(), columns, PartitionGenerator.Order.ARBITRARY);
     }
 
     public SettingsCommandPreDefined(Command type, Options options)

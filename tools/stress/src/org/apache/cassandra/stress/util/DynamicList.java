@@ -41,7 +41,7 @@ public class DynamicList<E>
         private final int[] size;
         // TODO: alternate links to save space
         private final Node<E>[] links;
-        private final E value;
+        private E value;
 
         private Node(int height, E value)
         {
@@ -96,7 +96,7 @@ public class DynamicList<E>
 
     public DynamicList(int maxExpectedSize)
     {
-        this.maxHeight = 3 + (int) Math.ceil(Math.log(maxExpectedSize) / Math.log(2));
+        this.maxHeight = 3 + Math.max(0, (int) Math.ceil(Math.log(maxExpectedSize) / Math.log(2)));
         head = new Node<>(maxHeight, null);
     }
 
@@ -105,15 +105,22 @@ public class DynamicList<E>
         return 1 + Integer.bitCount(ThreadLocalRandom.current().nextInt() & ((1 << (maxHeight - 1)) - 1));
     }
 
+    public Node<E> append(E value)
+    {
+        return append(value, Integer.MAX_VALUE);
+    }
+
     // add the value to the end of the list, and return the associated Node that permits efficient removal
     // regardless of its future position in the list from other modifications
-    public Node<E> append(E value)
+    public Node<E> append(E value, int maxSize)
     {
         Node<E> newTail = new Node<>(randomLevel(), value);
 
         lock.writeLock().lock();
         try
         {
+            if (size >= maxSize)
+                return null;
             size++;
 
             Node<E> tail = head;
@@ -146,6 +153,8 @@ public class DynamicList<E>
     public void remove(Node<E> node)
     {
         lock.writeLock().lock();
+        assert node.value != null;
+        node.value = null;
         try
         {
             size--;

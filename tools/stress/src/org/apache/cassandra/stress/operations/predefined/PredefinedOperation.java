@@ -20,26 +20,17 @@ package org.apache.cassandra.stress.operations.predefined;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
-import java.util.EnumMap;
 import java.util.List;
 import java.util.concurrent.ThreadLocalRandom;
 
 import org.apache.cassandra.stress.Operation;
-import org.apache.cassandra.stress.StressMetrics;
-import org.apache.cassandra.stress.generate.Distribution;
-import org.apache.cassandra.stress.generate.DistributionFactory;
-import org.apache.cassandra.stress.generate.DistributionFixed;
-import org.apache.cassandra.stress.generate.PartitionGenerator;
-import org.apache.cassandra.stress.generate.Row;
+import org.apache.cassandra.stress.generate.*;
 import org.apache.cassandra.stress.settings.Command;
 import org.apache.cassandra.stress.settings.CqlVersion;
 import org.apache.cassandra.stress.settings.StressSettings;
 import org.apache.cassandra.stress.util.Timer;
-import org.apache.cassandra.thrift.ColumnParent;
 import org.apache.cassandra.thrift.SlicePredicate;
 import org.apache.cassandra.thrift.SliceRange;
-import org.apache.cassandra.utils.ByteBufferUtil;
 
 public abstract class PredefinedOperation extends Operation
 {
@@ -47,11 +38,16 @@ public abstract class PredefinedOperation extends Operation
     private final Distribution columnCount;
     private Object cqlCache;
 
-    public PredefinedOperation(Command type, Timer timer, PartitionGenerator generator, StressSettings settings)
+    public PredefinedOperation(Command type, Timer timer, PartitionGenerator generator, SeedManager seedManager, StressSettings settings)
     {
-        super(timer, generator, settings, new DistributionFixed(1));
+        super(timer, settings, spec(generator, seedManager));
         this.type = type;
         this.columnCount = settings.columns.countDistribution.get();
+    }
+
+    private static DataSpec spec(PartitionGenerator generator, SeedManager seedManager)
+    {
+        return new DataSpec(generator, seedManager, new DistributionFixed(1), 1);
     }
 
     public boolean isCql3()
@@ -170,7 +166,7 @@ public abstract class PredefinedOperation extends Operation
 
     protected List<ByteBuffer> getColumnValues(ColumnSelection columns)
     {
-        Row row = partitions.get(0).iterator(1, false).next().iterator().next();
+        Row row = partitions.get(0).next();
         ByteBuffer[] r = new ByteBuffer[columns.count()];
         int c = 0;
         if (columns.indices != null)
@@ -182,7 +178,7 @@ public abstract class PredefinedOperation extends Operation
         return Arrays.asList(r);
     }
 
-    public static Operation operation(Command type, Timer timer, PartitionGenerator generator, StressSettings settings, DistributionFactory counteradd)
+    public static Operation operation(Command type, Timer timer, PartitionGenerator generator, SeedManager seedManager, StressSettings settings, DistributionFactory counteradd)
     {
         switch (type)
         {
@@ -190,10 +186,10 @@ public abstract class PredefinedOperation extends Operation
                 switch(settings.mode.style)
                 {
                     case THRIFT:
-                        return new ThriftReader(timer, generator, settings);
+                        return new ThriftReader(timer, generator, seedManager, settings);
                     case CQL:
                     case CQL_PREPARED:
-                        return new CqlReader(timer, generator, settings);
+                        return new CqlReader(timer, generator, seedManager, settings);
                     default:
                         throw new UnsupportedOperationException();
                 }
@@ -203,10 +199,10 @@ public abstract class PredefinedOperation extends Operation
                 switch(settings.mode.style)
                 {
                     case THRIFT:
-                        return new ThriftCounterGetter(timer, generator, settings);
+                        return new ThriftCounterGetter(timer, generator, seedManager, settings);
                     case CQL:
                     case CQL_PREPARED:
-                        return new CqlCounterGetter(timer, generator, settings);
+                        return new CqlCounterGetter(timer, generator, seedManager, settings);
                     default:
                         throw new UnsupportedOperationException();
                 }
@@ -216,10 +212,10 @@ public abstract class PredefinedOperation extends Operation
                 switch(settings.mode.style)
                 {
                     case THRIFT:
-                        return new ThriftInserter(timer, generator, settings);
+                        return new ThriftInserter(timer, generator, seedManager, settings);
                     case CQL:
                     case CQL_PREPARED:
-                        return new CqlInserter(timer, generator, settings);
+                        return new CqlInserter(timer, generator, seedManager, settings);
                     default:
                         throw new UnsupportedOperationException();
                 }
@@ -228,10 +224,10 @@ public abstract class PredefinedOperation extends Operation
                 switch(settings.mode.style)
                 {
                     case THRIFT:
-                        return new ThriftCounterAdder(counteradd, timer, generator, settings);
+                        return new ThriftCounterAdder(counteradd, timer, generator, seedManager, settings);
                     case CQL:
                     case CQL_PREPARED:
-                        return new CqlCounterAdder(counteradd, timer, generator, settings);
+                        return new CqlCounterAdder(counteradd, timer, generator, seedManager, settings);
                     default:
                         throw new UnsupportedOperationException();
                 }

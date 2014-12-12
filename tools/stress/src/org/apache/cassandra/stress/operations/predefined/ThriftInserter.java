@@ -24,22 +24,23 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
-import org.apache.cassandra.db.marshal.TimeUUIDType;
 import org.apache.cassandra.stress.generate.PartitionGenerator;
+import org.apache.cassandra.stress.generate.SeedManager;
 import org.apache.cassandra.stress.settings.Command;
 import org.apache.cassandra.stress.settings.StressSettings;
 import org.apache.cassandra.stress.util.ThriftClient;
 import org.apache.cassandra.stress.util.Timer;
-import org.apache.cassandra.thrift.*;
+import org.apache.cassandra.thrift.Column;
+import org.apache.cassandra.thrift.ColumnOrSuperColumn;
+import org.apache.cassandra.thrift.Mutation;
 import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.utils.UUIDGen;
 
 public final class ThriftInserter extends PredefinedOperation
 {
 
-    public ThriftInserter(Timer timer, PartitionGenerator generator, StressSettings settings)
+    public ThriftInserter(Timer timer, PartitionGenerator generator, SeedManager seedManager, StressSettings settings)
     {
-        super(Command.WRITE, timer, generator, settings);
+        super(Command.WRITE, timer, generator, seedManager, settings);
     }
 
     public boolean isWrite()

@@ -35,8 +35,6 @@ import org.apache.cassandra.stress.operations.SampledOpDistributionFactory;
 import org.apache.cassandra.stress.operations.predefined.PredefinedOperation;
 import org.apache.cassandra.stress.util.Timer;
 
-import org.apache.commons.math3.util.Pair;
-
 // Settings unique to the mixed command type
 public class SettingsCommandPreDefinedMixed extends SettingsCommandPreDefined
 {
@@ -62,12 +60,12 @@ public class SettingsCommandPreDefinedMixed extends SettingsCommandPreDefined
         {
             protected Operation get(Timer timer, PartitionGenerator generator, Command key)
             {
-                return PredefinedOperation.operation(key, timer, generator, settings, add);
+                return PredefinedOperation.operation(key, timer, generator, seeds, settings, add);
             }
 
             protected PartitionGenerator newGenerator()
             {
-                return SettingsCommandPreDefinedMixed.this.newGenerator(settings, seeds);
+                return SettingsCommandPreDefinedMixed.this.newGenerator(settings);
             }
         };
     }

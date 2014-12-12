@@ -22,23 +22,22 @@ package org.apache.cassandra.stress.operations.predefined;
 
 
 import java.nio.ByteBuffer;
-import java.nio.charset.CharacterCodingException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
 import org.apache.cassandra.stress.generate.PartitionGenerator;
+import org.apache.cassandra.stress.generate.SeedManager;
 import org.apache.cassandra.stress.settings.Command;
 import org.apache.cassandra.stress.settings.StressSettings;
 import org.apache.cassandra.stress.util.Timer;
-import org.apache.cassandra.utils.ByteBufferUtil;
 
 public class CqlReader extends CqlOperation<ByteBuffer[][]>
 {
 
-    public CqlReader(Timer timer, PartitionGenerator generator, StressSettings settings)
+    public CqlReader(Timer timer, PartitionGenerator generator, SeedManager seedManager, StressSettings settings)
     {
-        super(Command.READ, timer, generator, settings);
+        super(Command.READ, timer, generator, seedManager, settings);
     }
 
     @Override

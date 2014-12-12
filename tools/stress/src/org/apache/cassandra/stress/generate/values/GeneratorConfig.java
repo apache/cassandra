@@ -20,16 +20,13 @@
  */
 package org.apache.cassandra.stress.generate.values;
 
+import java.io.Serializable;
+import java.nio.ByteBuffer;
+
 import org.apache.cassandra.stress.generate.Distribution;
 import org.apache.cassandra.stress.generate.DistributionFactory;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.MurmurHash;
-
-
-import java.io.Serializable;
-import java.nio.ByteBuffer;
-import java.util.Collections;
-import java.util.Map;
 
 public class GeneratorConfig implements Serializable
 {

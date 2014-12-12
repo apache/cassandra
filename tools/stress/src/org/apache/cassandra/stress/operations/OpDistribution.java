@@ -27,6 +27,5 @@ public interface OpDistribution
 {
 
     Operation next();
-    public int maxBatchSize();
 
 }
