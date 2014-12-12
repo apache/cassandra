@@ -20,12 +20,11 @@
  */
 package org.apache.cassandra.stress.generate.values;
 
-import org.apache.cassandra.db.marshal.BytesType;
-import org.apache.cassandra.stress.generate.FasterRandom;
-
 import java.nio.ByteBuffer;
 import java.util.Arrays;
-import java.util.Random;
+
+import org.apache.cassandra.db.marshal.BytesType;
+import org.apache.cassandra.stress.generate.FasterRandom;
 
 public class Bytes extends Generator<ByteBuffer>
 {

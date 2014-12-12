@@ -29,9 +29,10 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import com.google.common.collect.Iterators;
+
 import com.datastax.driver.core.Host;
 import com.datastax.driver.core.Metadata;
-import com.google.common.collect.Iterators;
 import org.apache.cassandra.stress.settings.StressSettings;
 import org.apache.cassandra.thrift.*;
 import org.apache.cassandra.utils.ByteBufferUtil;

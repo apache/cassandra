@@ -22,6 +22,7 @@ import java.nio.ByteBuffer;
 import java.util.List;
 
 import org.apache.cassandra.stress.generate.PartitionGenerator;
+import org.apache.cassandra.stress.generate.SeedManager;
 import org.apache.cassandra.stress.settings.Command;
 import org.apache.cassandra.stress.settings.StressSettings;
 import org.apache.cassandra.stress.util.ThriftClient;
@@ -31,9 +32,9 @@ import org.apache.cassandra.thrift.SlicePredicate;
 
 public class ThriftCounterGetter extends PredefinedOperation
 {
-    public ThriftCounterGetter(Timer timer, PartitionGenerator generator, StressSettings settings)
+    public ThriftCounterGetter(Timer timer, PartitionGenerator generator, SeedManager seedManager, StressSettings settings)
     {
-        super(Command.COUNTER_READ, timer, generator, settings);
+        super(Command.COUNTER_READ, timer, generator, seedManager, settings);
     }
 
     public void run(final ThriftClient client) throws IOException

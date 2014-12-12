@@ -26,17 +26,17 @@ import java.util.ArrayList;
 import java.util.List;
 
 import org.apache.cassandra.stress.generate.PartitionGenerator;
+import org.apache.cassandra.stress.generate.SeedManager;
 import org.apache.cassandra.stress.settings.Command;
 import org.apache.cassandra.stress.settings.StressSettings;
 import org.apache.cassandra.stress.util.Timer;
-import org.apache.cassandra.utils.UUIDGen;
 
 public class CqlInserter extends CqlOperation<Integer>
 {
 
-    public CqlInserter(Timer timer, PartitionGenerator generator, StressSettings settings)
+    public CqlInserter(Timer timer, PartitionGenerator generator, SeedManager seedManager, StressSettings settings)
     {
-        super(Command.WRITE, timer, generator, settings);
+        super(Command.WRITE, timer, generator, seedManager, settings);
     }
 
     @Override

@@ -27,19 +27,22 @@ import java.util.Map;
 import org.apache.cassandra.stress.generate.Distribution;
 import org.apache.cassandra.stress.generate.DistributionFactory;
 import org.apache.cassandra.stress.generate.PartitionGenerator;
+import org.apache.cassandra.stress.generate.SeedManager;
 import org.apache.cassandra.stress.settings.Command;
 import org.apache.cassandra.stress.settings.StressSettings;
 import org.apache.cassandra.stress.util.ThriftClient;
 import org.apache.cassandra.stress.util.Timer;
-import org.apache.cassandra.thrift.*;
+import org.apache.cassandra.thrift.ColumnOrSuperColumn;
+import org.apache.cassandra.thrift.CounterColumn;
+import org.apache.cassandra.thrift.Mutation;
 
 public class ThriftCounterAdder extends PredefinedOperation
 {
 
     final Distribution counteradd;
-    public ThriftCounterAdder(DistributionFactory counteradd, Timer timer, PartitionGenerator generator, StressSettings settings)
+    public ThriftCounterAdder(DistributionFactory counteradd, Timer timer, PartitionGenerator generator, SeedManager seedManager, StressSettings settings)
     {
-        super(Command.COUNTER_WRITE, timer, generator, settings);
+        super(Command.COUNTER_WRITE, timer, generator, seedManager, settings);
         this.counteradd = counteradd.get();
     }
 

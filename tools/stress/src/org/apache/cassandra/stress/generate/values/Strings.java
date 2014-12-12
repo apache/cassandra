@@ -20,8 +20,6 @@
  */
 package org.apache.cassandra.stress.generate.values;
 
-import java.util.Random;
-
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.stress.generate.FasterRandom;
 

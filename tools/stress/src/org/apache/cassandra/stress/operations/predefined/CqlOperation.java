@@ -24,13 +24,13 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
+import com.google.common.base.Function;
+
 import com.datastax.driver.core.PreparedStatement;
 import com.datastax.driver.core.ResultSet;
 import com.datastax.driver.core.Row;
-import com.google.common.base.Function;
-import org.apache.cassandra.stress.Operation;
-import org.apache.cassandra.stress.StressMetrics;
 import org.apache.cassandra.stress.generate.PartitionGenerator;
+import org.apache.cassandra.stress.generate.SeedManager;
 import org.apache.cassandra.stress.settings.Command;
 import org.apache.cassandra.stress.settings.ConnectionStyle;
 import org.apache.cassandra.stress.settings.CqlVersion;
@@ -54,9 +54,9 @@ public abstract class CqlOperation<V> extends PredefinedOperation
     protected abstract String buildQuery();
     protected abstract CqlRunOp<V> buildRunOp(ClientWrapper client, String query, Object queryId, List<Object> params, ByteBuffer key);
 
-    public CqlOperation(Command type, Timer timer, PartitionGenerator generator, StressSettings settings)
+    public CqlOperation(Command type, Timer timer, PartitionGenerator generator, SeedManager seedManager, StressSettings settings)
     {
-        super(type, timer, generator, settings);
+        super(type, timer, generator, seedManager, settings);
         if (settings.columns.variableColumnCount)
             throw new IllegalStateException("Variable column counts are not implemented for CQL");
     }
@@ -165,28 +165,6 @@ public abstract class CqlOperation<V> extends PredefinedOperation
         public int rowCount()
         {
             return result;
-        }
-    }
-
-    // Requires a custom validate() method, but fetches and stores the keys from the result set for further processing
-    protected abstract class CqlRunOpFetchKeys extends CqlRunOp<byte[][]>
-    {
-
-        protected CqlRunOpFetchKeys(ClientWrapper client, String query, Object queryId, List<Object> params, ByteBuffer key)
-        {
-            super(client, query, queryId, KeysHandler.INSTANCE, params, key);
-        }
-
-        @Override
-        public int partitionCount()
-        {
-            return result.length;
-        }
-
-        @Override
-        public int rowCount()
-        {
-            return result.length;
         }
     }
 

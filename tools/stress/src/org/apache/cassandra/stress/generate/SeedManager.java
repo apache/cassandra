@@ -33,9 +33,12 @@ public class SeedManager
     final Distribution visits;
     final Generator writes;
     final Generator reads;
-    final ConcurrentHashMap<Seed, Seed> managing = new ConcurrentHashMap<>();
+    final ConcurrentHashMap<Long, Seed> managing = new ConcurrentHashMap<>();
     final DynamicList<Seed> sampleFrom;
     final Distribution sample;
+    final long sampleOffset;
+    final int sampleSize;
+    final boolean updateSampleImmediately;
 
     public SeedManager(StressSettings settings)
     {
@@ -61,10 +64,15 @@ public class SeedManager
         this.visits = settings.insert.visits.get();
         this.writes = writes;
         this.reads = reads;
-        this.sample = DistributionInverted.invert(settings.insert.revisit.get());
-        if (sample.maxValue() > Integer.MAX_VALUE || sample.minValue() < 0)
-            throw new IllegalArgumentException();
-        this.sampleFrom = new DynamicList<>((int) sample.maxValue());
+        Distribution sample = settings.insert.revisit.get();
+        this.sampleOffset = Math.min(sample.minValue(), sample.maxValue());
+        long sampleSize = 1 + Math.max(sample.minValue(), sample.maxValue()) - sampleOffset;
+        if (sampleOffset < 0 || sampleSize > Integer.MAX_VALUE)
+            throw new IllegalArgumentException("sample range is invalid");
+        this.sampleFrom = new DynamicList<>((int) sampleSize);
+        this.sample = DistributionInverted.invert(sample);
+        this.sampleSize = (int) sampleSize;
+        this.updateSampleImmediately = visits.average() > 1;
     }
 
     public Seed next(Operation op)
@@ -80,48 +88,38 @@ public class SeedManager
 
         while (true)
         {
-            int index = (int) sample.next();
+            int index = (int) (sample.next() - sampleOffset);
             Seed seed = sampleFrom.get(index);
-            if (seed != null && seed.take())
+            if (seed != null && seed.isSaved())
                 return seed;
 
             seed = writes.next((int) visits.next());
             if (seed == null)
                 return null;
-            // seeds are created HELD, so if we insert it successfully we have it exclusively for our write
-            if (managing.putIfAbsent(seed, seed) == null)
-                return seed;
+            if (managing.putIfAbsent(seed.seed, seed) == null)
+            {
+                if (!updateSampleImmediately || seed.save(sampleFrom, sampleSize))
+                    return seed;
+                managing.remove(seed.seed, seed);
+            }
         }
     }
 
-    public void markVisited(Seed seed, int[] position)
+    public void markLastWrite(Seed seed, boolean first)
     {
-        boolean first = seed.position == null;
-        seed.position = position;
-        finishedWriting(seed, first, false);
+        // we could have multiple iterators mark the last write simultaneously,
+        // so we ensure we remove conditionally, and only remove the exact seed we were operating over
+        // this is important because, to ensure correctness, we do not support calling remove multiple
+        // times on the same DynamicList.Node
+        if (managing.remove(seed.seed, seed) && !first)
+            seed.remove(sampleFrom);
     }
 
-    public void markFinished(Seed seed)
+    public void markFirstWrite(Seed seed, boolean last)
     {
-        finishedWriting(seed, seed.position == null, true);
-    }
-
-    void finishedWriting(Seed seed, boolean first, boolean completed)
-    {
-        if (!completed)
-        {
-            if (first)
-                seed.poolNode = sampleFrom.append(seed);
-            seed.yield();
-        }
-        else
-        {
-            if (!first)
-                sampleFrom.remove(seed.poolNode);
-            managing.remove(seed);
-        }
-        if (first)
-            writes.finishWrite(seed);
+        if (!last && !updateSampleImmediately)
+            seed.save(sampleFrom, Integer.MAX_VALUE);
+        writes.finishWrite(seed);
     }
 
     private abstract class Generator

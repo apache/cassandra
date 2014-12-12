@@ -24,7 +24,6 @@ package org.apache.cassandra.stress.util;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Random;
 import java.util.concurrent.ThreadLocalRandom;
 
 // represents measurements taken over an interval of time

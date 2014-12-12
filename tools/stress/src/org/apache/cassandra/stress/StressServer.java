@@ -24,8 +24,9 @@ import java.net.InetAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
 
-import org.apache.cassandra.stress.settings.StressSettings;
 import org.apache.commons.cli.*;
+
+import org.apache.cassandra.stress.settings.StressSettings;
 
 public class StressServer
 {
