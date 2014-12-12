@@ -40,6 +40,7 @@
 
 
 2.1.3
+ * Make read "defrag" async to reclaim memtables (CASSANDRA-8459)
  * Remove tmplink files for offline compactions (CASSANDRA-8321)
  * Reduce maxHintsInProgress (CASSANDRA-8415)
  * BTree updates may call provided update function twice (CASSANDRA-8018)
