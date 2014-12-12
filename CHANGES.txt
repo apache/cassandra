@@ -40,6 +40,7 @@
 
 
 2.1.3
+ * Reduce cassandra-stress sampling memory requirements (CASSANDRA-7926)
  * Ensure memtable flush cannot expire commit log entries from its future (CASSANDRA-8383)
  * Make read "defrag" async to reclaim memtables (CASSANDRA-8459)
  * Remove tmplink files for offline compactions (CASSANDRA-8321)

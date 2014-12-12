@@ -27,7 +27,6 @@ import java.util.List;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ThreadFactory;
-import java.util.concurrent.TimeUnit;
 
 import com.google.common.util.concurrent.Uninterruptibles;
 import org.apache.commons.lang3.time.DurationFormatUtils;
@@ -50,7 +49,7 @@ public class StressMetrics
     private volatile boolean cancelled = false;
     private final Uncertainty rowRateUncertainty = new Uncertainty();
     private final CountDownLatch stopped = new CountDownLatch(1);
-    private final Timing timing = new Timing();
+    private final Timing timing;
     private final Callable<JmxCollector.GcStats> gcStatsCollector;
     private volatile JmxCollector.GcStats totalGcStats;
 
@@ -80,6 +79,7 @@ public class StressMetrics
             };
         }
         this.gcStatsCollector = gcStatsCollector;
+        this.timing = new Timing(settings.samples.historyCount, settings.samples.reportCount);
 
         printHeader("", output);
         thread = tf.newThread(new Runnable()

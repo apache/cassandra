@@ -25,6 +25,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Random;
+import java.util.concurrent.ThreadLocalRandom;
 
 // represents measurements taken over an interval of time
 // used for both single timer results and merged timer results
@@ -68,8 +69,9 @@ public final class TimingInterval
     }
 
     // merge multiple timer intervals together
-    static TimingInterval merge(Random rnd, List<TimingInterval> intervals, int maxSamples, long start)
+    static TimingInterval merge(List<TimingInterval> intervals, int maxSamples, long start)
     {
+        ThreadLocalRandom rnd = ThreadLocalRandom.current();
         long operationCount = 0, partitionCount = 0, rowCount = 0;
         long maxLatency = 0, totalLatency = 0;
         List<SampleOfLongs> latencies = new ArrayList<>();
