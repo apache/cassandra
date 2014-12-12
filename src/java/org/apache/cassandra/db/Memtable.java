@@ -61,9 +61,16 @@ public class Memtable
     // the write barrier for directing writes to this memtable during a switch
     private volatile OpOrder.Barrier writeBarrier;
     // the last ReplayPosition owned by this Memtable; all ReplayPositions lower are owned by this or an earlier Memtable
-    private final AtomicReference<ReplayPosition> lastReplayPosition = new AtomicReference<>();
+    private volatile AtomicReference<ReplayPosition> lastReplayPosition;
     // the "first" ReplayPosition owned by this Memtable; this is inaccurate, and only used as a convenience to prevent CLSM flushing wantonly
     private final ReplayPosition minReplayPosition = CommitLog.instance.getContext();
+
+    public static final class LastReplayPosition extends ReplayPosition
+    {
+        public LastReplayPosition(ReplayPosition copy) {
+            super(copy.segment, copy.position);
+        }
+    }
 
     // We index the memtable by RowPosition only for the purpose of being able
     // to select key range using Token.KeyBound. However put() ensures that we
@@ -101,10 +108,10 @@ public class Memtable
         return currentOperations.get();
     }
 
-    void setDiscarding(OpOrder.Barrier writeBarrier, ReplayPosition minLastReplayPosition)
+    void setDiscarding(OpOrder.Barrier writeBarrier, AtomicReference<ReplayPosition> lastReplayPosition)
     {
         assert this.writeBarrier == null;
-        this.lastReplayPosition.set(minLastReplayPosition);
+        this.lastReplayPosition = lastReplayPosition;
         this.writeBarrier = writeBarrier;
         allocator.setDiscarding();
     }
@@ -114,10 +121,34 @@ public class Memtable
         allocator.setDiscarded();
     }
 
-    public boolean accepts(OpOrder.Group opGroup)
+    // decide if this memtable should take the write, or if it should go to the next memtable
+    public boolean accepts(OpOrder.Group opGroup, ReplayPosition replayPosition)
     {
+        // if the barrier hasn't been set yet, then this memtable is still taking ALL writes
         OpOrder.Barrier barrier = this.writeBarrier;
-        return barrier == null || barrier.isAfter(opGroup);
+        if (barrier == null)
+            return true;
+        // if the barrier has been set, but is in the past, we are definitely destined for a future memtable
+        if (!barrier.isAfter(opGroup))
+            return false;
+        // if we aren't durable we are directed only by the barrier
+        if (replayPosition == null)
+            return true;
+        while (true)
+        {
+            // otherwise we check if we are in the past/future wrt the CL boundary;
+            // if the boundary hasn't been finalised yet, we simply update it to the max of
+            // its current value and ours; if it HAS been finalised, we simply accept its judgement
+            // this permits us to coordinate a safe boundary, as the boundary choice is made
+            // atomically wrt our max() maintenance, so an operation cannot sneak into the past
+            ReplayPosition currentLast = lastReplayPosition.get();
+            if (currentLast instanceof LastReplayPosition)
+                return currentLast.compareTo(replayPosition) >= 0;
+            if (currentLast != null && currentLast.compareTo(replayPosition) >= 0)
+                return true;
+            if (lastReplayPosition.compareAndSet(currentLast, replayPosition))
+                return true;
+        }
     }
 
     public boolean isLive()
@@ -150,22 +181,8 @@ public class Memtable
      *
      * replayPosition should only be null if this is a secondary index, in which case it is *expected* to be null
      */
-    long put(DecoratedKey key, ColumnFamily cf, SecondaryIndexManager.Updater indexer, OpOrder.Group opGroup, ReplayPosition replayPosition)
+    long put(DecoratedKey key, ColumnFamily cf, SecondaryIndexManager.Updater indexer, OpOrder.Group opGroup)
     {
-        if (replayPosition != null && writeBarrier != null)
-        {
-            // if the writeBarrier is set, we want to maintain lastReplayPosition; this is an optimisation to avoid
-            // casing it for every write, but still ensure it is correct when writeBarrier.await() completes.
-            while (true)
-            {
-                ReplayPosition last = lastReplayPosition.get();
-                if (last.compareTo(replayPosition) >= 0)
-                    break;
-                if (lastReplayPosition.compareAndSet(last, replayPosition))
-                    break;
-            }
-        }
-
         AtomicBTreeColumns previous = rows.get(key);
 
         if (previous == null)
@@ -272,11 +289,6 @@ public class Memtable
     public long creationTime()
     {
         return creationTime;
-    }
-
-    public ReplayPosition getLastReplayPosition()
-    {
-        return lastReplayPosition.get();
     }
 
     class FlushRunnable extends DiskAwareRunnable
