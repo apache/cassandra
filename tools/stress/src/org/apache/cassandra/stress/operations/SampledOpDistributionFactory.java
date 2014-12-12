@@ -32,6 +32,7 @@ import org.apache.commons.math3.util.Pair;
 import org.apache.cassandra.stress.Operation;
 import org.apache.cassandra.stress.generate.DistributionFactory;
 import org.apache.cassandra.stress.generate.PartitionGenerator;
+import org.apache.cassandra.stress.generate.SeedManager;
 import org.apache.cassandra.stress.util.Timer;
 
 public abstract class SampledOpDistributionFactory<T> implements OpDistributionFactory
