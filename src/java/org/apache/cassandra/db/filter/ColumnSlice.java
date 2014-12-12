@@ -130,36 +130,36 @@ public class ColumnSlice
 
         protected Column computeNext()
         {
-            if (currentSlice == null)
+            while (currentSlice != null || idx < slices.length)
             {
-                if (idx >= slices.length)
-                    return endOfData();
-
-                ColumnSlice slice = slices[idx++];
-                // Note: we specialize the case of start == "" and finish = "" because it is slightly more efficient, but also they have a specific
-                // meaning (namely, they always extend to the beginning/end of the range).
-                if (slice.start.remaining() == 0)
+                if (currentSlice == null)
                 {
-                    if (slice.finish.remaining() == 0)
-                        currentSlice = map.values().iterator();
+                    ColumnSlice slice = slices[idx++];
+                    // Note: we specialize the case of start == "" and finish = "" because it is slightly more efficient, but also they have a specific
+                    // meaning (namely, they always extend to the beginning/end of the range).
+                    if (slice.start.remaining() == 0)
+                    {
+                        if (slice.finish.remaining() == 0)
+                            currentSlice = map.values().iterator();
+                        else
+                            currentSlice = map.headMap(slice.finish, true).values().iterator();
+                    }
+                    else if (slice.finish.remaining() == 0)
+                    {
+                        currentSlice = map.tailMap(slice.start, true).values().iterator();
+                    }
                     else
-                        currentSlice = map.headMap(slice.finish, true).values().iterator();
+                    {
+                        currentSlice = map.subMap(slice.start, true, slice.finish, true).values().iterator();
+                    }
                 }
-                else if (slice.finish.remaining() == 0)
-                {
-                    currentSlice = map.tailMap(slice.start, true).values().iterator();
-                }
-                else
-                {
-                    currentSlice = map.subMap(slice.start, true, slice.finish, true).values().iterator();
-                }
+
+                if (currentSlice.hasNext())
+                    return currentSlice.next();
+
+                currentSlice = null;
             }
-
-            if (currentSlice.hasNext())
-                return currentSlice.next();
-
-            currentSlice = null;
-            return computeNext();
+            return endOfData();
         }
     }
 }
