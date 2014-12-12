@@ -23,6 +23,7 @@ import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.regex.Pattern;
 import javax.management.*;
 
@@ -918,12 +919,13 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         final boolean flushSecondaryIndexes;
         final OpOrder.Barrier writeBarrier;
         final CountDownLatch latch = new CountDownLatch(1);
-        volatile ReplayPosition lastReplayPosition;
+        final ReplayPosition lastReplayPosition;
 
-        private PostFlush(boolean flushSecondaryIndexes, OpOrder.Barrier writeBarrier)
+        private PostFlush(boolean flushSecondaryIndexes, OpOrder.Barrier writeBarrier, ReplayPosition lastReplayPosition)
         {
             this.writeBarrier = writeBarrier;
             this.flushSecondaryIndexes = flushSecondaryIndexes;
+            this.lastReplayPosition = lastReplayPosition;
         }
 
         public void run()
@@ -1003,19 +1005,36 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             memtables = new ArrayList<>();
 
             // submit flushes for the memtable for any indexed sub-cfses, and our own
-            final ReplayPosition minReplayPosition = CommitLog.instance.getContext();
+            AtomicReference<ReplayPosition> lastReplayPositionHolder = new AtomicReference<>();
             for (ColumnFamilyStore cfs : concatWithIndexes())
             {
                 // switch all memtables, regardless of their dirty status, setting the barrier
                 // so that we can reach a coordinated decision about cleanliness once they
                 // are no longer possible to be modified
                 Memtable mt = cfs.data.switchMemtable(truncate);
-                mt.setDiscarding(writeBarrier, minReplayPosition);
+                mt.setDiscarding(writeBarrier, lastReplayPositionHolder);
                 memtables.add(mt);
             }
 
+            // we now attempt to define the lastReplayPosition; we do this by grabbing the current limit from the CL
+            // and attempting to set the holder to this value. at the same time all writes to the memtables are
+            // also maintaining this value, so if somebody sneaks ahead of us somehow (should be rare) we simply retry,
+            // so that we know all operations prior to the position have not reached it yet
+            ReplayPosition lastReplayPosition;
+            while (true)
+            {
+                lastReplayPosition = new Memtable.LastReplayPosition(CommitLog.instance.getContext());
+                ReplayPosition currentLast = lastReplayPositionHolder.get();
+                if ((currentLast == null || currentLast.compareTo(lastReplayPosition) <= 0)
+                    && lastReplayPositionHolder.compareAndSet(currentLast, lastReplayPosition))
+                    break;
+            }
+
+            // we then issue the barrier; this lets us wait for all operations started prior to the barrier to complete;
+            // since this happens after wiring up the lastReplayPosition, we also know all operations with earlier
+            // replay positions have also completed, i.e. the memtables are done and ready to flush
             writeBarrier.issue();
-            postFlush = new PostFlush(!truncate, writeBarrier);
+            postFlush = new PostFlush(!truncate, writeBarrier, lastReplayPosition);
         }
 
         public void run()
@@ -1067,7 +1086,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             }
 
             // signal the post-flush we've done our work
-            postFlush.lastReplayPosition = memtables.get(0).getLastReplayPosition();
             postFlush.latch.countDown();
         }
     }
@@ -1139,8 +1157,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     {
         long start = System.nanoTime();
 
-        Memtable mt = data.getMemtableFor(opGroup);
-        final long timeDelta = mt.put(key, columnFamily, indexer, opGroup, replayPosition);
+        Memtable mt = data.getMemtableFor(opGroup, replayPosition);
+        final long timeDelta = mt.put(key, columnFamily, indexer, opGroup);
         maybeUpdateRowCache(key);
         metric.writeLatency.addNano(System.nanoTime() - start);
         if(timeDelta < Long.MAX_VALUE)
