@@ -226,11 +226,8 @@ public abstract class Selection
             {
                 Selector selector = makeSelector(cfm, rawSelector, defs, metadata);
                 selectors.add(selector);
-                if (selector instanceof WritetimeOrTTLSelector)
-                {
-                    collectTimestamps |= ((WritetimeOrTTLSelector)selector).isWritetime;
-                    collectTTLs |= !((WritetimeOrTTLSelector)selector).isWritetime;
-                }
+                collectTimestamps |= selector.usesTimestamps();
+                collectTTLs |= selector.usesTTLs();
             }
             return new SelectionWithProcessing(defs, metadata, selectors, collectTimestamps, collectTTLs);
         }
@@ -385,6 +382,18 @@ public abstract class Selection
         {
             return receiver.type.isValueCompatibleWith(getType());
         }
+
+        /** Returns true if the selector acts on a column's timestamp, false otherwise. */
+        public boolean usesTimestamps()
+        {
+            return false;
+        }
+
+        /** Returns true if the selector acts on a column's TTL, false otherwise. */
+        public boolean usesTTLs()
+        {
+            return false;
+        }
     }
 
     private static class SimpleSelector extends Selector
@@ -469,6 +478,22 @@ public abstract class Selection
             return fun.returnType();
         }
 
+        public boolean usesTimestamps()
+        {
+            for (Selector s : argSelectors)
+                if (s.usesTimestamps())
+                    return true;
+            return false;
+        }
+
+        public boolean usesTTLs()
+        {
+            for (Selector s : argSelectors)
+                if (s.usesTTLs())
+                    return true;
+            return false;
+        }
+
         @Override
         public String toString()
         {
@@ -546,6 +571,17 @@ public abstract class Selection
         public AbstractType<?> getType()
         {
             return isWritetime ? LongType.instance : Int32Type.instance;
+        }
+
+
+        public boolean usesTimestamps()
+        {
+            return isWritetime;
+        }
+
+        public boolean usesTTLs()
+        {
+            return !isWritetime;
         }
 
         @Override
