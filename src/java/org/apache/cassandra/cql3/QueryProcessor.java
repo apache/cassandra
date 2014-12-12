@@ -543,6 +543,7 @@ public class QueryProcessor implements QueryHandler
         }
         catch (RuntimeException re)
         {
+            logger.error(String.format("The statement: [%s] could not be parsed.", queryStr), re);
             throw new SyntaxException(String.format("Failed parsing statement: [%s] reason: %s %s",
                                                     queryStr,
                                                     re.getClass().getSimpleName(),

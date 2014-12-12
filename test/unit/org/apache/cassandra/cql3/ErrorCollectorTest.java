@@ -131,6 +131,23 @@ public class ErrorCollectorTest
         assertEquals(expected, builder.toString());
     }
 
+    @Test
+    public void testAppendSnippetWithInvalidToToken()
+    {
+        String query = "CREATE TABLE test (a int PRIMARY KEY, b set<int>;";
+
+        ErrorCollector collector = new ErrorCollector(query);
+
+        StringBuilder builder = new StringBuilder();
+
+        Token from = new MockToken(1, 32, " ");
+        Token to = new MockToken(0, -1, "<no text>");
+        Token offending = new MockToken(1, 48, ";");
+
+        collector.appendSnippet(builder, from, to, offending);
+        assertEquals("", builder.toString());
+    }
+
     private final static class MockToken implements Token
     {
         /**
