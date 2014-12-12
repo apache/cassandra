@@ -1354,20 +1354,29 @@ public class SSTableReader extends SSTable
         List<Pair<Long,Long>> positions = new ArrayList<>();
         for (Range<Token> range : Range.normalize(ranges))
         {
-            AbstractBounds<RowPosition> keyRange = range.toRowBounds();
-            RowIndexEntry idxLeft = getPosition(keyRange.left, Operator.GT);
-            long left = idxLeft == null ? -1 : idxLeft.position;
-            if (left == -1)
-                // left is past the end of the file
+            assert !range.isWrapAround() || range.right.isMinimum();
+            // truncate the range so it at most covers the sstable
+            AbstractBounds<RowPosition> bounds = range.toRowBounds();
+            RowPosition leftBound = bounds.left.compareTo(first) > 0 ? bounds.left : first.getToken().minKeyBound();
+            RowPosition rightBound = bounds.right.isMinimum() ? last.getToken().maxKeyBound() : bounds.right;
+
+            if (leftBound.compareTo(last) > 0 || rightBound.compareTo(first) < 0)
                 continue;
-            RowIndexEntry idxRight = getPosition(keyRange.right, Operator.GT);
-            long right = idxRight == null ? -1 : idxRight.position;
-            if (right == -1 || Range.isWrapAround(range.left, range.right))
-                // right is past the end of the file, or it wraps
-                right = uncompressedLength();
+
+            long left = getPosition(leftBound, Operator.GT).position;
+            long right = (rightBound.compareTo(last) > 0)
+                         ? (openReason == OpenReason.EARLY
+                            // if opened early, we overlap with the old sstables by one key, so we know that the last
+                            // (and further) key(s) will be streamed from these if necessary
+                            ? getPosition(last.getToken().maxKeyBound(), Operator.GT).position
+                            : uncompressedLength())
+                         : getPosition(rightBound, Operator.GT).position;
+
             if (left == right)
                 // empty range
                 continue;
+
+            assert left < right : String.format("Range=%s openReason=%s first=%s last=%s left=%d right=%d", range, openReason, first, last, left, right);
             positions.add(Pair.create(left, right));
         }
         return positions;
