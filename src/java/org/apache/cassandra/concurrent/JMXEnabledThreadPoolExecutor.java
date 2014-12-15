@@ -37,6 +37,7 @@ public class JMXEnabledThreadPoolExecutor extends DebuggableThreadPoolExecutor i
 {
     private final String mbeanName;
     private final ThreadPoolMetrics metrics;
+    public final int maxPoolSize;
 
     public JMXEnabledThreadPoolExecutor(String threadPoolName)
     {
@@ -73,7 +74,7 @@ public class JMXEnabledThreadPoolExecutor extends DebuggableThreadPoolExecutor i
     {
         super(corePoolSize, maxPoolSize, keepAliveTime, unit, workQueue, threadFactory);
         super.prestartAllCoreThreads();
-
+        this.maxPoolSize = maxPoolSize;
         metrics = new ThreadPoolMetrics(this, jmxPath, threadFactory.id);
 
         MBeanServer mbs = ManagementFactory.getPlatformMBeanServer();

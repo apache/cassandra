@@ -19,6 +19,7 @@ package org.apache.cassandra.metrics;
 
 import com.yammer.metrics.Metrics;
 import com.yammer.metrics.core.Gauge;
+
 import org.apache.cassandra.concurrent.SEPExecutor;
 
 public class SEPMetrics
@@ -34,9 +35,10 @@ public class SEPMetrics
     public final Gauge<Long> currentBlocked;
     /** Number of completed tasks. */
     public final Gauge<Long> completedTasks;
-
     /** Number of tasks waiting to be executed. */
     public final Gauge<Long> pendingTasks;
+    /** Maximum number of threads before it will start queuing tasks */
+    public final Gauge<Integer> maxPoolSize;
 
     private MetricNameFactory factory;
 
@@ -85,6 +87,13 @@ public class SEPMetrics
                 return executor.getCompletedTasks();
             }
         });
+        maxPoolSize =  Metrics.newGauge(factory.createMetricName("MaxPoolSize"), new Gauge<Integer>()
+        {
+            public Integer value()
+            {
+                return executor.maxWorkers;
+            }
+        });
     }
 
     public void release()
@@ -94,5 +103,6 @@ public class SEPMetrics
         Metrics.defaultRegistry().removeMetric(factory.createMetricName("CompletedTasks"));
         Metrics.defaultRegistry().removeMetric(factory.createMetricName("TotalBlockedTasks"));
         Metrics.defaultRegistry().removeMetric(factory.createMetricName("CurrentlyBlockedTasks"));
+        Metrics.defaultRegistry().removeMetric(factory.createMetricName("MaxPoolSize"));
     }
 }
