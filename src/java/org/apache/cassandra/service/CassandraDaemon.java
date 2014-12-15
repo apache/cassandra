@@ -448,7 +448,7 @@ public class CassandraDaemon
 
         // On windows, we need to stop the entire system as prunsrv doesn't have the jsvc hooks
         // We rely on the shutdown hook to drain the node
-        if (!FBUtilities.isUnix())
+        if (FBUtilities.isWindows())
             System.exit(0);
     }
 

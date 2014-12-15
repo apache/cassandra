@@ -154,7 +154,7 @@ public class MetadataSerializer implements IMetadataSerializer
             out.flush();
         }
         // we cant move a file on top of another file in windows:
-        if (!FBUtilities.isUnix())
+        if (FBUtilities.isWindows())
             FileUtils.delete(descriptor.filenameFor(Component.STATS));
         FileUtils.renameWithConfirm(tmpDescriptor.filenameFor(Component.STATS), descriptor.filenameFor(Component.STATS));
 
