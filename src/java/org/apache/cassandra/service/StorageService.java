@@ -2534,7 +2534,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         int cmd = nextRepairCommand.incrementAndGet();
         if (ranges.size() > 0)
         {
-            if (!FBUtilities.isUnix() && parallelismDegree != RepairParallelism.PARALLEL)
+            if (FBUtilities.isWindows() && parallelismDegree != RepairParallelism.PARALLEL)
             {
                 logger.warn("Snapshot-based repair is not yet supported on Windows.  Reverting to parallel repair.");
                 parallelismDegree = RepairParallelism.PARALLEL;
@@ -2570,7 +2570,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             return 0;
 
         int cmd = nextRepairCommand.incrementAndGet();
-        if (!FBUtilities.isUnix() && parallelismDegree != RepairParallelism.PARALLEL)
+        if (FBUtilities.isWindows() && parallelismDegree != RepairParallelism.PARALLEL)
         {
             logger.warn("Snapshot-based repair is not yet supported on Windows.  Reverting to parallel repair.");
             parallelismDegree = RepairParallelism.PARALLEL;

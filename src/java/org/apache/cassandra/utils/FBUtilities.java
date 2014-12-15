@@ -72,6 +72,10 @@ public class FBUtilities
 
     private static final String OPERATING_SYSTEM = System.getProperty("os.name").toLowerCase();
 
+    private static final boolean IS_WINDOWS = OPERATING_SYSTEM.contains("windows");
+
+    private static final boolean HAS_PROCFS = !IS_WINDOWS && (new File(File.separator + "proc")).exists();
+
     private static volatile InetAddress localInetAddress;
     private static volatile InetAddress broadcastInetAddress;
 
@@ -676,9 +680,14 @@ public class FBUtilities
         return historyDir;
     }
 
-    public static boolean isUnix()
+    public static boolean isWindows()
     {
-        return OPERATING_SYSTEM.contains("nix") || OPERATING_SYSTEM.contains("nux") || OPERATING_SYSTEM.contains("aix");
+        return IS_WINDOWS;
+    }
+
+    public static boolean hasProcFS()
+    {
+        return HAS_PROCFS;
     }
 
     public static void updateWithShort(MessageDigest digest, int val)
