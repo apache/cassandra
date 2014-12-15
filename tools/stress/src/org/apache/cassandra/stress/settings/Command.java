@@ -31,11 +31,11 @@ import com.google.common.collect.ImmutableList;
 public enum Command
 {
 
-    READ(false, "Standard1", "Super1",
+    READ(false, "standard1", "Super1",
             "Multiple concurrent reads - the cluster must first be populated by a write test",
             CommandCategory.BASIC
     ),
-    WRITE(true, "Standard1", "Super1",
+    WRITE(true, "standard1", "Super1",
             "insert",
             "Multiple concurrent writes against the cluster",
             CommandCategory.BASIC
@@ -44,12 +44,12 @@ public enum Command
             "Interleaving of any basic commands, with configurable ratio and distribution - the cluster must first be populated by a write test",
             CommandCategory.MIXED
     ),
-    COUNTER_WRITE(true, "Counter1", "SuperCounter1",
+    COUNTER_WRITE(true, "counter1", "SuperCounter1",
             "counter_add",
             "Multiple concurrent updates of counters.",
             CommandCategory.BASIC
     ),
-    COUNTER_READ(false, "Counter1", "SuperCounter1",
+    COUNTER_READ(false, "counter1", "SuperCounter1",
             "counter_get",
             "Multiple concurrent reads of counters. The cluster must first be populated by a counterwrite test.",
             CommandCategory.BASIC
