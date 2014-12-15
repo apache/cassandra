@@ -26,6 +26,8 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
+import com.datastax.driver.core.AuthProvider;
+import com.datastax.driver.core.PlainTextAuthProvider;
 import com.datastax.driver.core.ProtocolOptions;
 
 public class SettingsMode implements Serializable
@@ -34,6 +36,12 @@ public class SettingsMode implements Serializable
     public final ConnectionAPI api;
     public final ConnectionStyle style;
     public final CqlVersion cqlVersion;
+
+    public final String username;
+    public final String password;
+    public final String authProviderClassname;
+    public final AuthProvider authProvider;
+
     private final String compression;
 
     public SettingsMode(GroupedOptions options)
@@ -43,8 +51,37 @@ public class SettingsMode implements Serializable
             cqlVersion = CqlVersion.CQL3;
             Cql3Options opts = (Cql3Options) options;
             api = opts.mode().displayPrefix.equals("native") ? ConnectionAPI.JAVA_DRIVER_NATIVE : ConnectionAPI.THRIFT;
-            style = opts.usePrepared.setByUser() ? ConnectionStyle.CQL_PREPARED : ConnectionStyle.CQL;
+            style = opts.useUnPrepared.setByUser() ? ConnectionStyle.CQL :  ConnectionStyle.CQL_PREPARED;
             compression = ProtocolOptions.Compression.valueOf(opts.useCompression.value().toUpperCase()).name();
+            username = opts.user.value();
+            password = opts.password.value();
+            authProviderClassname = opts.authProvider.value();
+            if (authProviderClassname != null)
+            {
+                try
+                {
+                    Class<?> clazz = Class.forName(authProviderClassname);
+                    if (!AuthProvider.class.isAssignableFrom(clazz))
+                        throw new IllegalArgumentException(clazz + " is not a valid auth provider");
+                    // check we can instantiate it
+                    if (PlainTextAuthProvider.class.equals(clazz))
+                    {
+                        authProvider = (AuthProvider) clazz.getConstructor(String.class, String.class)
+                            .newInstance(username, password);
+                    } else
+                    {
+                        authProvider = (AuthProvider) clazz.newInstance();
+                    }
+                }
+                catch (Exception e)
+                {
+                    throw new IllegalArgumentException("Invalid auth provider class: " + opts.authProvider.value(), e);
+                }
+            }
+            else
+            {
+                authProvider = null;
+            }
         }
         else if (options instanceof Cql3SimpleNativeOptions)
         {
@@ -53,6 +90,10 @@ public class SettingsMode implements Serializable
             api = ConnectionAPI.SIMPLE_NATIVE;
             style = opts.usePrepared.setByUser() ? ConnectionStyle.CQL_PREPARED : ConnectionStyle.CQL;
             compression = ProtocolOptions.Compression.NONE.name();
+            username = null;
+            password = null;
+            authProvider = null;
+            authProviderClassname = null;
         }
         else if (options instanceof ThriftOptions)
         {
@@ -61,6 +102,10 @@ public class SettingsMode implements Serializable
             api = opts.smart.setByUser() ? ConnectionAPI.THRIFT_SMART : ConnectionAPI.THRIFT;
             style = ConnectionStyle.THRIFT;
             compression = ProtocolOptions.Compression.NONE.name();
+            username = opts.user.value();
+            password = opts.password.value();
+            authProviderClassname = null;
+            authProvider = null;
         }
         else
             throw new IllegalStateException();
@@ -94,15 +139,18 @@ public class SettingsMode implements Serializable
     private static abstract class Cql3Options extends GroupedOptions
     {
         final OptionSimple api = new OptionSimple("cql3", "", null, "", true);
-        final OptionSimple usePrepared = new OptionSimple("prepared", "", null, "", false);
+        final OptionSimple useUnPrepared = new OptionSimple("unprepared", "", null, "force use of unprepared statements", false);
         final OptionSimple useCompression = new OptionSimple("compression=", "none|lz4|snappy", "none", "", false);
         final OptionSimple port = new OptionSimple("port=", "[0-9]+", "9046", "", false);
+        final OptionSimple user = new OptionSimple("user=", ".+", null, "username", false);
+        final OptionSimple password = new OptionSimple("password=", ".+", null, "password", false);
+        final OptionSimple authProvider = new OptionSimple("auth-provider=", ".*", null, "Fully qualified implementation of com.datastax.driver.core.AuthProvider", false);
 
         abstract OptionSimple mode();
         @Override
         public List<? extends Option> options()
         {
-            return Arrays.asList(mode(), usePrepared, api, useCompression, port);
+            return Arrays.asList(mode(), useUnPrepared, api, useCompression, port, user, password, authProvider);
         }
     }
 
@@ -125,11 +173,14 @@ public class SettingsMode implements Serializable
     {
         final OptionSimple api = new OptionSimple("thrift", "", null, "", true);
         final OptionSimple smart = new OptionSimple("smart", "", null, "", false);
+        final OptionSimple user = new OptionSimple("user=", ".+", null, "username", false);
+        final OptionSimple password = new OptionSimple("password=", ".+", null, "password", false);
+
 
         @Override
         public List<? extends Option> options()
         {
-            return Arrays.asList(api, smart);
+            return Arrays.asList(api, smart, user, password);
         }
     }
 

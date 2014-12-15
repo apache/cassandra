@@ -25,11 +25,13 @@ import java.io.Serializable;
 import java.util.*;
 
 import com.datastax.driver.core.Metadata;
+import com.google.common.collect.ImmutableMap;
 import org.apache.cassandra.config.EncryptionOptions;
 import org.apache.cassandra.stress.util.JavaDriverClient;
 import org.apache.cassandra.stress.util.SimpleThriftClient;
 import org.apache.cassandra.stress.util.SmartThriftClient;
 import org.apache.cassandra.stress.util.ThriftClient;
+import org.apache.cassandra.thrift.AuthenticationRequest;
 import org.apache.cassandra.thrift.Cassandra;
 import org.apache.cassandra.thrift.InvalidRequestException;
 import org.apache.cassandra.transport.SimpleClient;
@@ -128,6 +130,10 @@ public class StressSettings implements Serializable
 
             if (setKeyspace)
                 client.set_keyspace(schema.keyspace);
+
+            if (mode.username != null)
+                client.login(new AuthenticationRequest(ImmutableMap.of("username", mode.username, "password", mode.password)));
+
         }
         catch (InvalidRequestException e)
         {
