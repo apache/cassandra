@@ -70,8 +70,8 @@ public class FBUtilities
     public static final BigInteger TWO = new BigInteger("2");
     private static final String DEFAULT_TRIGGER_DIR = "triggers";
 
+    private static final String OPERATING_SYSTEM = System.getProperty("os.name").toLowerCase();
     private static final boolean IS_WINDOWS = OPERATING_SYSTEM.contains("windows");
-
     private static final boolean HAS_PROCFS = !IS_WINDOWS && (new File(File.separator + "proc")).exists();
 
     private static volatile InetAddress localInetAddress;

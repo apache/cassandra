@@ -110,7 +110,7 @@ public class SigarLibrary
     private boolean hasAcceptableAddressSpace()
     {
         // Check is invalid on Windows
-        if (!FBUtilities.isUnix())
+        if (FBUtilities.isWindows())
             return true;
 
         try

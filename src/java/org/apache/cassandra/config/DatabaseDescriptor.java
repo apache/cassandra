@@ -177,7 +177,15 @@ public class DatabaseDescriptor
         if (conf.commitlog_total_space_in_mb == null)
             conf.commitlog_total_space_in_mb = hasLargeAddressSpace() ? 8192 : 32;
 
-        if (FBUtilities.isUnix())
+        // Always force standard mode access on Windows - CASSANDRA-6993. Windows won't allow deletion of hard-links to files that
+        // are memory-mapped which causes trouble with snapshots.
+        if (FBUtilities.isWindows())
+        {
+            conf.disk_access_mode = Config.DiskAccessMode.standard;
+            indexAccessMode = conf.disk_access_mode;
+            logger.info("Non-unix environment detected.  DiskAccessMode set to {}, indexAccessMode {}", conf.disk_access_mode, indexAccessMode);
+        }
+        else
         {
             /* evaluate the DiskAccessMode Config directive, which also affects indexAccessMode selection */
             if (conf.disk_access_mode == Config.DiskAccessMode.auto)
@@ -197,14 +205,6 @@ public class DatabaseDescriptor
                 indexAccessMode = conf.disk_access_mode;
                 logger.info("DiskAccessMode is {}, indexAccessMode is {}", conf.disk_access_mode, indexAccessMode);
             }
-        }
-        // Always force standard mode access on Windows - CASSANDRA-6993. Windows won't allow deletion of hard-links to files that
-        // are memory-mapped which causes trouble with snapshots.
-        else
-        {
-            conf.disk_access_mode = Config.DiskAccessMode.standard;
-            indexAccessMode = conf.disk_access_mode;
-            logger.info("Non-unix environment detected.  DiskAccessMode set to {}, indexAccessMode {}", conf.disk_access_mode, indexAccessMode);
         }
 
         /* Authentication and authorization backend, implementing IAuthenticator and IAuthorizer */
