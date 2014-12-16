@@ -107,7 +107,7 @@ public abstract class SettingsCommand implements Serializable
     static abstract class Options extends GroupedOptions
     {
         final OptionSimple noWarmup = new OptionSimple("no-warmup", "", null, "Do not warmup the process", false);
-        final OptionSimple consistencyLevel = new OptionSimple("cl=", "ONE|QUORUM|LOCAL_QUORUM|EACH_QUORUM|ALL|ANY", "ONE", "Consistency level to use", false);
+        final OptionSimple consistencyLevel = new OptionSimple("cl=", "ONE|QUORUM|LOCAL_QUORUM|EACH_QUORUM|ALL|ANY|TWO|THREE|SERIAL|LOCAL_SERIAL|LOCAL_ONE", "ONE", "Consistency level to use", false);
     }
 
     static class Count extends Options
