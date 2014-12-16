@@ -17,16 +17,16 @@
  * under the License.
  */
 
-package org.apache.cassandra.db.compaction;
+package org.apache.cassandra.io.sstable;
 
 import org.apache.cassandra.db.columniterator.OnDiskAtomIterator;
 import org.apache.cassandra.utils.CloseableIterator;
 
 /**
- * An ICompactionScanner is an abstraction allowing multiple SSTableScanners to be
+ * An ISSTableScanner is an abstraction allowing multiple SSTableScanners to be
  * chained together under the hood.  See LeveledCompactionStrategy.getScanners.
  */
-public interface ICompactionScanner extends CloseableIterator<OnDiskAtomIterator>
+public interface ISSTableScanner extends CloseableIterator<OnDiskAtomIterator>
 {
     public long getLengthInBytes();
     public long getCurrentPosition();

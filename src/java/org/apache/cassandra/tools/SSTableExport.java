@@ -22,7 +22,6 @@ import java.io.IOException;
 import java.io.PrintStream;
 import java.util.*;
 
-import org.apache.cassandra.db.compaction.ICompactionScanner;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.commons.cli.*;
 
@@ -323,7 +322,7 @@ public class SSTableExport
             excludeSet = new HashSet<>(Arrays.asList(excludes));
 
         SSTableIdentityIterator row;
-        ICompactionScanner scanner = reader.getScanner();
+        ISSTableScanner scanner = reader.getScanner();
         try
         {
             outs.println("[");

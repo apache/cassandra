@@ -25,6 +25,7 @@ import com.google.common.collect.ImmutableList;
 
 import org.apache.cassandra.db.columniterator.OnDiskAtomIterator;
 import org.apache.cassandra.io.sstable.format.SSTableFormat;
+import org.apache.cassandra.io.sstable.ISSTableScanner;
 import org.apache.cassandra.utils.CloseableIterator;
 import org.apache.cassandra.utils.MergeIterator;
 
@@ -40,7 +41,7 @@ public class CompactionIterable extends AbstractCompactionIterable
         }
     };
 
-    public CompactionIterable(OperationType type, List<ICompactionScanner> scanners, CompactionController controller, SSTableFormat.Type formatType)
+    public CompactionIterable(OperationType type, List<ISSTableScanner> scanners, CompactionController controller, SSTableFormat.Type formatType)
     {
         super(controller, type, scanners);
         this.format = formatType.info;
@@ -81,7 +82,7 @@ public class CompactionIterable extends AbstractCompactionIterable
             {
                 rows.clear();
                 long n = 0;
-                for (ICompactionScanner scanner : scanners)
+                for (ISSTableScanner scanner : scanners)
                     n += scanner.getCurrentPosition();
                 bytesRead = n;
             }

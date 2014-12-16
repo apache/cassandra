@@ -44,6 +44,7 @@ import org.apache.cassandra.db.columniterator.OnDiskAtomIterator;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.io.sstable.ISSTableScanner;
 
 public class LeveledCompactionStrategy extends AbstractCompactionStrategy
 {
@@ -223,7 +224,7 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy
             byLevel.get(sstable.getSSTableLevel()).add(sstable);
         }
 
-        List<ICompactionScanner> scanners = new ArrayList<ICompactionScanner>(sstables.size());
+        List<ISSTableScanner> scanners = new ArrayList<ISSTableScanner>(sstables.size());
         try
         {
             for (Integer level : byLevel.keySet())
@@ -275,14 +276,14 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy
 
     // Lazily creates SSTableBoundedScanner for sstable that are assumed to be from the
     // same level (e.g. non overlapping) - see #4142
-    private static class LeveledScanner extends AbstractIterator<OnDiskAtomIterator> implements ICompactionScanner
+    private static class LeveledScanner extends AbstractIterator<OnDiskAtomIterator> implements ISSTableScanner
     {
         private final Range<Token> range;
         private final List<SSTableReader> sstables;
         private final Iterator<SSTableReader> sstableIterator;
         private final long totalLength;
 
-        private ICompactionScanner currentScanner;
+        private ISSTableScanner currentScanner;
         private long positionOffset;
 
         public LeveledScanner(Collection<SSTableReader> sstables, Range<Token> range)

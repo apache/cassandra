@@ -49,7 +49,7 @@ import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.dht.ByteOrderedPartitioner.BytesToken;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.io.sstable.SSTableIdentityIterator;
+import org.apache.cassandra.io.sstable.*;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -98,7 +98,7 @@ public class AntiCompactionTest
         int nonRepairedKeys = 0;
         for (SSTableReader sstable : store.getSSTables())
         {
-            try (ICompactionScanner scanner = sstable.getScanner())
+            try (ISSTableScanner scanner = sstable.getScanner())
             {
                 while (scanner.hasNext())
                 {
@@ -218,7 +218,7 @@ public class AntiCompactionTest
         int nonRepairedKeys = 0;
         for (SSTableReader sstable : store.getSSTables())
         {
-            ICompactionScanner scanner = sstable.getScanner();
+            ISSTableScanner scanner = sstable.getScanner();
             while (scanner.hasNext())
             {
                 SSTableIdentityIterator row = (SSTableIdentityIterator) scanner.next();

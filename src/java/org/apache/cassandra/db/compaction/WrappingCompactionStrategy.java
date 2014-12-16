@@ -22,6 +22,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.Callable;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -30,6 +31,7 @@ import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.io.sstable.ISSTableScanner;
 import org.apache.cassandra.notifications.INotification;
 import org.apache.cassandra.notifications.INotificationConsumer;
 import org.apache.cassandra.notifications.SSTableAddedNotification;
@@ -318,7 +320,7 @@ public final class WrappingCompactionStrategy extends AbstractCompactionStrategy
                 unrepairedSSTables.add(sstable);
         ScannerList repairedScanners = repaired.getScanners(repairedSSTables, range);
         ScannerList unrepairedScanners = unrepaired.getScanners(unrepairedSSTables, range);
-        List<ICompactionScanner> scanners = new ArrayList<>(repairedScanners.scanners.size() + unrepairedScanners.scanners.size());
+        List<ISSTableScanner> scanners = new ArrayList<>(repairedScanners.scanners.size() + unrepairedScanners.scanners.size());
         scanners.addAll(repairedScanners.scanners);
         scanners.addAll(unrepairedScanners.scanners);
         return new ScannerList(scanners);

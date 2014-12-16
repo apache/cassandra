@@ -25,7 +25,6 @@ import java.util.*;
 
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.columniterator.OnDiskAtomIterator;
-import org.apache.cassandra.db.compaction.ICompactionScanner;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.SSTableWriter;
 import org.apache.cassandra.service.ActiveRepairService;
@@ -84,8 +83,8 @@ public class SSTableUtils
 
     public static void assertContentEquals(SSTableReader lhs, SSTableReader rhs)
     {
-        ICompactionScanner slhs = lhs.getScanner();
-        ICompactionScanner srhs = rhs.getScanner();
+        ISSTableScanner slhs = lhs.getScanner();
+        ISSTableScanner srhs = rhs.getScanner();
         while (slhs.hasNext())
         {
             OnDiskAtomIterator ilhs = slhs.next();

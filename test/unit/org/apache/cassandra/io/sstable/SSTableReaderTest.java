@@ -59,7 +59,6 @@ import org.apache.cassandra.db.Row;
 import org.apache.cassandra.db.RowPosition;
 import org.apache.cassandra.db.columniterator.IdentityQueryFilter;
 import org.apache.cassandra.db.compaction.CompactionManager;
-import org.apache.cassandra.db.compaction.ICompactionScanner;
 import org.apache.cassandra.db.composites.Composites;
 import org.apache.cassandra.dht.LocalPartitioner;
 import org.apache.cassandra.dht.LocalPartitioner.LocalToken;
@@ -370,7 +369,7 @@ public class SSTableReaderTest
         boolean foundScanner = false;
         for (SSTableReader s : store.getSSTables())
         {
-            ICompactionScanner scanner = s.getScanner(new Range<Token>(t(0), t(1)), null);
+            ISSTableScanner scanner = s.getScanner(new Range<Token>(t(0), t(1)), null);
             scanner.next(); // throws exception pre 5407
             foundScanner = true;
         }
