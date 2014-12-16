@@ -1,4 +1,5 @@
 2.0.12:
+ * Fix validation of indexes in COMPACT tables (CASSANDRA-8156)
  * Avoid StackOverflowError when a large list of IN values
    is used for a clustering column (CASSANDRA-8410)
  * Fix NPE when writetime() or ttl() calls are wrapped by
