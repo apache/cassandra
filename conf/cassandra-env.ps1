@@ -134,14 +134,14 @@ Function CalculateHeapSizes
     }
     if (($env:MAX_HEAP_SIZE -and !$env:HEAP_NEWSIZE) -or (!$env:MAX_HEAP_SIZE -and $env:HEAP_NEWSIZE))
     {
-        echo "please set or unset MAX_HEAP_SIZE and HEAP_NEWSIZE in pairs"
+        echo "Please set or unset MAX_HEAP_SIZE and HEAP_NEWSIZE in pairs.  Aborting startup."
         exit 1
     }
 
     $memObject = Get-WMIObject -class win32_physicalmemory
     if ($memObject -eq $null)
     {
-        echo "WARNING!  Could not determine system memory.  Defaulting to 2G heap, 512M newgen.  Manually override in conf/cassandra-env.ps1 for different heap values."
+        echo "WARNING!  Could not determine system memory.  Defaulting to 2G heap, 512M newgen.  Manually override in conf\cassandra-env.ps1 for different heap values."
         $env:MAX_HEAP_SIZE = "2048M"
         $env:HEAP_NEWSIZE = "512M"
         return
@@ -363,14 +363,13 @@ Function SetCassandraEnvironment
     # enable thread priorities, primarily so we can give periodic tasks
     # a lower priority to avoid interfering with client workload
     $env:JVM_OPTS="$env:JVM_OPTS -XX:+UseThreadPriorities"
-    # allows lowering thread priority without being root.  see
-    # http://tech.stolsvik.com/2010/01/linux-java-thread-priorities-workar
+    # allows lowering thread priority without being root on linux - probably
+    # not necessary on Windows but doesn't harm anything.
+    # see http://tech.stolsvik.com/2010/01/linux-java-thread-priorities-workar
     $env:JVM_OPTS="$env:JVM_OPTS -XX:ThreadPriorityPolicy=42"
 
     # min and max heap sizes should be set to the same value to avoid
-    # stop-the-world GC pauses during resize, and so that we can lock the
-    # heap in memory on startup to prevent any of it from being swapped
-    # out.
+    # stop-the-world GC pauses during resize.
     $env:JVM_OPTS="$env:JVM_OPTS -Xms$env:MAX_HEAP_SIZE"
     $env:JVM_OPTS="$env:JVM_OPTS -Xmx$env:MAX_HEAP_SIZE"
     $env:JVM_OPTS="$env:JVM_OPTS -Xmn$env:HEAP_NEWSIZE"
@@ -409,17 +408,18 @@ Function SetCassandraEnvironment
     # $env:JVM_OPTS="$env:JVM_OPTS -XX:+PrintGCApplicationStoppedTime"
     # $env:JVM_OPTS="$env:JVM_OPTS -XX:+PrintPromotionFailure"
     # $env:JVM_OPTS="$env:JVM_OPTS -XX:PrintFLSStatistics=1"
-    # $env:JVM_OPTS="$env:JVM_OPTS -Xloggc:/var/log/cassandra/gc-`date +%s`.log"
+    # $currentDate = (Get-Date).ToString('yyyy.MM.dd')
+    # $env:JVM_OPTS="$env:JVM_OPTS -Xloggc:$env:CASSANDRA_HOME/logs/gc-$currentDate.log"
 
     # If you are using JDK 6u34 7u2 or later you can enable GC log rotation
     # don't stick the date in the log name if rotation is on.
-    # $env:JVM_OPTS="$env:JVM_OPTS -Xloggc:/var/log/cassandra/gc.log"
+    # $env:JVM_OPTS="$env:JVM_OPTS -Xloggc:$env:CASSANDRA_HOME/logs/gc.log"
     # $env:JVM_OPTS="$env:JVM_OPTS -XX:+UseGCLogFileRotation"
     # $env:JVM_OPTS="$env:JVM_OPTS -XX:NumberOfGCLogFiles=10"
     # $env:JVM_OPTS="$env:JVM_OPTS -XX:GCLogFileSize=10M"
 
     # Configure the following for JEMallocAllocator and if jemalloc is not available in the system
-    # library path (Example: /usr/local/lib/). Usually "make install" will do the right thing.
+    # library path.
     # set LD_LIBRARY_PATH=<JEMALLOC_HOME>/lib/
     # $env:JVM_OPTS="$env:JVM_OPTS -Djava.library.path=<JEMALLOC_HOME>/lib/"
 
@@ -443,10 +443,8 @@ Function SetCassandraEnvironment
     $env:JVM_OPTS="$env:JVM_OPTS -Dcom.sun.management.jmxremote.port=$JMX_PORT"
     $env:JVM_OPTS="$env:JVM_OPTS -Dcom.sun.management.jmxremote.ssl=false"
     $env:JVM_OPTS="$env:JVM_OPTS -Dcom.sun.management.jmxremote.authenticate=false"
-    #$env:JVM_OPTS="$env:JVM_OPTS -Dcom.sun.management.jmxremote.password.file=/etc/cassandra/jmxremote.password"
+    #$env:JVM_OPTS="$env:JVM_OPTS -Dcom.sun.management.jmxremote.password.file=C:/jmxremote.password"
     $env:JVM_OPTS="$env:JVM_OPTS $JVM_EXTRA_OPTS"
 
     $env:JVM_OPTS = "$env:JVM_OPTS -Dlog4j.configuration=log4j-server.properties"
 }
-
-
