@@ -321,7 +321,7 @@ public class SSTableExport
             excludeSet = new HashSet<String>(Arrays.asList(excludes));
 
         SSTableIdentityIterator row;
-        SSTableScanner scanner = reader.getScanner();
+        ISSTableScanner scanner = reader.getScanner();
         try
         {
             outs.println("[");

@@ -41,10 +41,7 @@ import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.dht.BytesToken;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.io.sstable.Component;
-import org.apache.cassandra.io.sstable.SSTableReader;
-import org.apache.cassandra.io.sstable.SSTableScanner;
-import org.apache.cassandra.io.sstable.SSTableWriter;
+import org.apache.cassandra.io.sstable.*;
 import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
 import org.apache.cassandra.io.sstable.metadata.StatsMetadata;
 import org.apache.cassandra.service.StorageService;
@@ -161,7 +158,7 @@ public class CompactionsTest extends SchemaLoader
         // check that the shadowed column is gone
         SSTableReader sstable = cfs.getSSTables().iterator().next();
         Range keyRange = new Range<RowPosition>(key, sstable.partitioner.getMinimumToken().maxKeyBound());
-        SSTableScanner scanner = sstable.getScanner(DataRange.forKeyRange(keyRange));
+        ISSTableScanner scanner = sstable.getScanner(DataRange.forKeyRange(keyRange));
         OnDiskAtomIterator iter = scanner.next();
         assertEquals(key, iter.getKey());
         assert iter.next() instanceof RangeTombstone;

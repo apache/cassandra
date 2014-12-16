@@ -40,10 +40,7 @@ import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.dht.BytesToken;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.io.sstable.SSTableIdentityIterator;
-import org.apache.cassandra.io.sstable.SSTableReader;
-import org.apache.cassandra.io.sstable.SSTableScanner;
-import org.apache.cassandra.io.sstable.SSTableWriter;
+import org.apache.cassandra.io.sstable.*;
 import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -58,7 +55,7 @@ public class AntiCompactionTest extends SchemaLoader
     private static final String CF = "Standard1";
 
     @Test
-    public void antiCompactOne() throws InterruptedException, ExecutionException, IOException
+    public void antiCompactOne() throws Exception
     {
         ColumnFamilyStore store = prepareColumnFamilyStore();
         Collection<SSTableReader> sstables = store.getUnrepairedSSTables();
@@ -75,7 +72,7 @@ public class AntiCompactionTest extends SchemaLoader
         int nonRepairedKeys = 0;
         for (SSTableReader sstable : store.getSSTables())
         {
-            try (SSTableScanner scanner = sstable.getScanner())
+            try (ISSTableScanner scanner = sstable.getScanner())
             {
                 while (scanner.hasNext())
                 {

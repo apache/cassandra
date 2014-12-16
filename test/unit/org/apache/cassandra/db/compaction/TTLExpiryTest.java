@@ -29,8 +29,8 @@ import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.columniterator.OnDiskAtomIterator;
+import org.apache.cassandra.io.sstable.ISSTableScanner;
 import org.apache.cassandra.io.sstable.SSTableReader;
-import org.apache.cassandra.io.sstable.SSTableScanner;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 import java.util.Collections;
@@ -181,7 +181,7 @@ public class TTLExpiryTest extends SchemaLoader
         cfs.enableAutoCompaction(true);
         assertEquals(1, cfs.getSSTables().size());
         SSTableReader sstable = cfs.getSSTables().iterator().next();
-        SSTableScanner scanner = sstable.getScanner(DataRange.allData(sstable.partitioner));
+        ISSTableScanner scanner = sstable.getScanner(DataRange.allData(sstable.partitioner));
         assertTrue(scanner.hasNext());
         while(scanner.hasNext())
         {

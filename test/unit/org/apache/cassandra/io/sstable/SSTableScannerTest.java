@@ -27,7 +27,6 @@ import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.columniterator.IdentityQueryFilter;
-import org.apache.cassandra.db.compaction.ICompactionScanner;
 import org.apache.cassandra.dht.Bounds;
 import org.apache.cassandra.dht.BytesToken;
 import org.apache.cassandra.dht.Range;
@@ -78,7 +77,7 @@ public class SSTableScannerTest extends SchemaLoader
 
     private static void assertScanMatches(SSTableReader sstable, int scanStart, int scanEnd, int expectedStart, int expectedEnd)
     {
-        SSTableScanner scanner = sstable.getScanner(new DataRange(boundsFor(scanStart, scanEnd), new IdentityQueryFilter()));
+        ISSTableScanner scanner = sstable.getScanner(new DataRange(boundsFor(scanStart, scanEnd), new IdentityQueryFilter()));
         for (int i = expectedStart; i <= expectedEnd; i++)
             assertEquals(toKey(i), new String(scanner.next().getKey().getKey().array()));
         assertFalse(scanner.hasNext());
@@ -86,7 +85,7 @@ public class SSTableScannerTest extends SchemaLoader
 
     private static void assertScanEmpty(SSTableReader sstable, int scanStart, int scanEnd)
     {
-        SSTableScanner scanner = sstable.getScanner(new DataRange(boundsFor(scanStart, scanEnd), new IdentityQueryFilter()));
+        ISSTableScanner scanner = sstable.getScanner(new DataRange(boundsFor(scanStart, scanEnd), new IdentityQueryFilter()));
         assertFalse(String.format("scan of (%03d, %03d] should be empty", scanStart, scanEnd), scanner.hasNext());
     }
 
@@ -108,7 +107,7 @@ public class SSTableScannerTest extends SchemaLoader
         SSTableReader sstable = store.getSSTables().iterator().next();
 
         // full range scan
-        SSTableScanner scanner = sstable.getScanner();
+        ISSTableScanner scanner = sstable.getScanner();
         for (int i = 2; i < 10; i++)
             assertEquals(toKey(i), new String(scanner.next().getKey().getKey().array()));
 
@@ -135,7 +134,7 @@ public class SSTableScannerTest extends SchemaLoader
         assertScanEmpty(sstable, 10, 11);
     }
 
-    private static void assertScanContainsRanges(ICompactionScanner scanner, int ... rangePairs)
+    private static void assertScanContainsRanges(ISSTableScanner scanner, int ... rangePairs)
     {
         assert rangePairs.length % 2 == 0;
 
@@ -172,7 +171,7 @@ public class SSTableScannerTest extends SchemaLoader
         SSTableReader sstable = store.getSSTables().iterator().next();
 
         // full range scan
-        SSTableScanner fullScanner = sstable.getScanner();
+        ISSTableScanner fullScanner = sstable.getScanner();
         assertScanContainsRanges(fullScanner,
                                  2, 9,
                                  102, 109,
@@ -180,7 +179,7 @@ public class SSTableScannerTest extends SchemaLoader
 
 
         // scan all three ranges separately
-        ICompactionScanner scanner = sstable.getScanner(makeRanges(1, 9,
+        ISSTableScanner scanner = sstable.getScanner(makeRanges(1, 9,
                                                                    101, 109,
                                                                    201, 209),
                                                         null);
@@ -302,11 +301,11 @@ public class SSTableScannerTest extends SchemaLoader
         SSTableReader sstable = store.getSSTables().iterator().next();
 
         // full range scan
-        SSTableScanner fullScanner = sstable.getScanner();
+        ISSTableScanner fullScanner = sstable.getScanner();
         assertScanContainsRanges(fullScanner, 205, 205);
 
         // scan three ranges separately
-        ICompactionScanner scanner = sstable.getScanner(makeRanges(101, 109,
+        ISSTableScanner scanner = sstable.getScanner(makeRanges(101, 109,
                                                                    201, 209), null);
 
         // this will currently fail
