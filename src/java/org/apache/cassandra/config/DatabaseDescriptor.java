@@ -195,23 +195,34 @@ public class DatabaseDescriptor
         if (conf.commitlog_total_space_in_mb == null)
             conf.commitlog_total_space_in_mb = hasLargeAddressSpace() ? 8192 : 32;
 
-        /* evaluate the DiskAccessMode Config directive, which also affects indexAccessMode selection */
-        if (conf.disk_access_mode == Config.DiskAccessMode.auto)
-        {
-            conf.disk_access_mode = hasLargeAddressSpace() ? Config.DiskAccessMode.mmap : Config.DiskAccessMode.standard;
-            indexAccessMode = conf.disk_access_mode;
-            logger.info("DiskAccessMode 'auto' determined to be {}, indexAccessMode is {}", conf.disk_access_mode, indexAccessMode);
-        }
-        else if (conf.disk_access_mode == Config.DiskAccessMode.mmap_index_only)
+        // Always force standard mode access on Windows - CASSANDRA-6993. Windows won't allow deletion of hard-links to files that
+        // are memory-mapped which causes trouble with snapshots.
+        if (FBUtilities.isWindows())
         {
             conf.disk_access_mode = Config.DiskAccessMode.standard;
-            indexAccessMode = Config.DiskAccessMode.mmap;
-            logger.info("DiskAccessMode is {}, indexAccessMode is {}", conf.disk_access_mode, indexAccessMode);
+            indexAccessMode = conf.disk_access_mode;
+            logger.info("Windows environment detected.  DiskAccessMode set to {}, indexAccessMode {}", conf.disk_access_mode, indexAccessMode);
         }
         else
         {
-            indexAccessMode = conf.disk_access_mode;
-            logger.info("DiskAccessMode is {}, indexAccessMode is {}", conf.disk_access_mode, indexAccessMode);
+            /* evaluate the DiskAccessMode Config directive, which also affects indexAccessMode selection */
+            if (conf.disk_access_mode == Config.DiskAccessMode.auto)
+            {
+                conf.disk_access_mode = hasLargeAddressSpace() ? Config.DiskAccessMode.mmap : Config.DiskAccessMode.standard;
+                indexAccessMode = conf.disk_access_mode;
+                logger.info("DiskAccessMode 'auto' determined to be {}, indexAccessMode is {}", conf.disk_access_mode, indexAccessMode);
+            }
+            else if (conf.disk_access_mode == Config.DiskAccessMode.mmap_index_only)
+            {
+                conf.disk_access_mode = Config.DiskAccessMode.standard;
+                indexAccessMode = Config.DiskAccessMode.mmap;
+                logger.info("DiskAccessMode is {}, indexAccessMode is {}", conf.disk_access_mode, indexAccessMode);
+            }
+            else
+            {
+                indexAccessMode = conf.disk_access_mode;
+                logger.info("DiskAccessMode is {}, indexAccessMode is {}", conf.disk_access_mode, indexAccessMode);
+            }
         }
 
         /* Authentication and authorization backend, implementing IAuthenticator and IAuthorizer */
