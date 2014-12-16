@@ -26,6 +26,8 @@ import java.nio.charset.CharacterCodingException;
 import java.util.*;
 
 import org.apache.cassandra.db.Cell;
+import org.apache.cassandra.schema.LegacySchemaTables;
+import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.SyntaxException;
 import org.apache.cassandra.auth.IAuthenticator;
@@ -585,20 +587,15 @@ public abstract class AbstractCassandraStorage extends LoadFunc implements Store
                    IOException
     {
         // get CF meta data
-        String query = "SELECT type," +
-                       "       comparator," +
-                       "       subcomparator," +
-                       "       default_validator," +
-                       "       key_validator," +
-                       "       key_aliases " +
-                       "FROM system.schema_columnfamilies " +
-                       "WHERE keyspace_name = '%s' " +
-                       "  AND columnfamily_name = '%s' ";
+        String query = String.format("SELECT type, comparator, subcomparator, default_validator, key_validator, key_aliases " +
+                                     "FROM %s.%s " +
+                                     "WHERE keyspace_name = '%s' AND columnfamily_name = '%s'",
+                                     SystemKeyspace.NAME,
+                                     LegacySchemaTables.COLUMNFAMILIES,
+                                     keyspace,
+                                     column_family);
 
-        CqlResult result = client.execute_cql3_query(
-                                ByteBufferUtil.bytes(String.format(query, keyspace, column_family)),
-                                Compression.NONE,
-                                ConsistencyLevel.ONE);
+        CqlResult result = client.execute_cql3_query(ByteBufferUtil.bytes(query), Compression.NONE, ConsistencyLevel.ONE);
 
         if (result == null || result.rows == null || result.rows.isEmpty())
             return null;
@@ -657,18 +654,15 @@ public abstract class AbstractCassandraStorage extends LoadFunc implements Store
             ConfigurationException,
             NotFoundException
     {
-        String query = "SELECT column_name, " +
-                       "       validator, " +
-                       "       index_type, " +
-                       "       type " +
-                       "FROM system.schema_columns " +
-                       "WHERE keyspace_name = '%s' " +
-                       "  AND columnfamily_name = '%s'";
+        String query = String.format("SELECT column_name, validator, index_type, type " +
+                                     "FROM %s.%s " +
+                                     "WHERE keyspace_name = '%s' AND columnfamily_name = '%s'",
+                                     SystemKeyspace.NAME,
+                                     LegacySchemaTables.COLUMNS,
+                                     keyspace,
+                                     column_family);
 
-        CqlResult result = client.execute_cql3_query(
-                                   ByteBufferUtil.bytes(String.format(query, keyspace, column_family)),
-                                   Compression.NONE,
-                                   ConsistencyLevel.ONE);
+        CqlResult result = client.execute_cql3_query(ByteBufferUtil.bytes(query), Compression.NONE, ConsistencyLevel.ONE);
 
         List<CqlRow> rows = result.rows;
         List<ColumnDef> columnDefs = new ArrayList<ColumnDef>();

@@ -3259,7 +3259,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     private Future<StreamState> streamHints()
     {
         // StreamPlan will not fail if there are zero files to transfer, so flush anyway (need to get any in-memory hints, as well)
-        ColumnFamilyStore hintsCF = Keyspace.open(SystemKeyspace.NAME).getColumnFamilyStore(SystemKeyspace.HINTS_TABLE);
+        ColumnFamilyStore hintsCF = Keyspace.open(SystemKeyspace.NAME).getColumnFamilyStore(SystemKeyspace.HINTS);
         FBUtilities.waitOnFuture(hintsCF.forceFlush());
 
         // gather all live nodes in the cluster that aren't also leaving
@@ -3292,7 +3292,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                                                           preferred,
                                                           SystemKeyspace.NAME,
                                                           ranges,
-                                                          SystemKeyspace.HINTS_TABLE)
+                                                          SystemKeyspace.HINTS)
                                           .execute();
         }
     }

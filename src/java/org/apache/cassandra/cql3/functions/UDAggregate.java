@@ -24,12 +24,7 @@ import com.google.common.base.Objects;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.cql3.*;
-import org.apache.cassandra.db.*;
-import org.apache.cassandra.db.composites.Composite;
 import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.db.marshal.TypeParser;
-import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.exceptions.*;
 
 /**
@@ -58,6 +53,45 @@ public class UDAggregate extends AbstractFunction implements AggregateFunction
         this.initcond = initcond;
     }
 
+    public static UDAggregate create(FunctionName name,
+                                     List<AbstractType<?>> argTypes,
+                                     AbstractType<?> returnType,
+                                     FunctionName stateFunc,
+                                     FunctionName finalFunc,
+                                     AbstractType<?> stateType,
+                                     ByteBuffer initcond)
+    throws InvalidRequestException
+    {
+        List<AbstractType<?>> stateTypes = new ArrayList<>(argTypes.size() + 1);
+        stateTypes.add(stateType);
+        stateTypes.addAll(argTypes);
+        List<AbstractType<?>> finalTypes = Collections.<AbstractType<?>>singletonList(stateType);
+        return new UDAggregate(name,
+                               argTypes,
+                               returnType,
+                               resolveScalar(name, stateFunc, stateTypes),
+                               finalFunc != null ? resolveScalar(name, finalFunc, finalTypes) : null,
+                               initcond);
+    }
+
+    public static UDAggregate createBroken(FunctionName name,
+                                           List<AbstractType<?>> argTypes,
+                                           AbstractType<?> returnType,
+                                           ByteBuffer initcond,
+                                           final InvalidRequestException reason)
+    {
+        return new UDAggregate(name, argTypes, returnType, null, null, initcond)
+        {
+            public Aggregate newAggregate() throws InvalidRequestException
+            {
+                throw new InvalidRequestException(String.format("Aggregate '%s' exists but hasn't been loaded successfully for the following reason: %s. "
+                                                                + "Please see the server log for more details",
+                                                                this,
+                                                                reason.getMessage()));
+            }
+        };
+    }
+
     public boolean hasReferenceTo(Function function)
     {
         return stateFunction == function || finalFunction == function;
@@ -83,6 +117,26 @@ public class UDAggregate extends AbstractFunction implements AggregateFunction
     public boolean isNative()
     {
         return false;
+    }
+
+    public ScalarFunction stateFunction()
+    {
+        return stateFunction;
+    }
+
+    public ScalarFunction finalFunction()
+    {
+        return finalFunction;
+    }
+
+    public ByteBuffer initialCondition()
+    {
+        return initcond;
+    }
+
+    public AbstractType<?> stateType()
+    {
+        return stateType;
     }
 
     public Aggregate newAggregate() throws InvalidRequestException
@@ -128,134 +182,6 @@ public class UDAggregate extends AbstractFunction implements AggregateFunction
         return (ScalarFunction) func;
     }
 
-    private static Mutation makeSchemaMutation(FunctionName name)
-    {
-        UTF8Type kv = (UTF8Type)SystemKeyspace.SchemaAggregatesTable.getKeyValidator();
-        return new Mutation(SystemKeyspace.NAME, kv.decompose(name.keyspace));
-    }
-
-    public Mutation toSchemaDrop(long timestamp)
-    {
-        Mutation mutation = makeSchemaMutation(name);
-        ColumnFamily cf = mutation.addOrGet(SystemKeyspace.SCHEMA_AGGREGATES_TABLE);
-
-        Composite prefix = SystemKeyspace.SchemaAggregatesTable.comparator.make(name.name, UDHelper.computeSignature(argTypes));
-        int ldt = (int) (System.currentTimeMillis() / 1000);
-        cf.addAtom(new RangeTombstone(prefix, prefix.end(), timestamp, ldt));
-
-        return mutation;
-    }
-
-    public static Map<Composite, UDAggregate> fromSchema(Row row)
-    {
-        UntypedResultSet results = QueryProcessor.resultify("SELECT * FROM system." + SystemKeyspace.SCHEMA_AGGREGATES_TABLE, row);
-        Map<Composite, UDAggregate> udfs = new HashMap<>(results.size());
-        for (UntypedResultSet.Row result : results)
-            udfs.put(SystemKeyspace.SchemaAggregatesTable.comparator.make(result.getString("aggregate_name"), result.getBlob("signature")),
-                     fromSchema(result));
-        return udfs;
-    }
-
-    public Mutation toSchemaUpdate(long timestamp)
-    {
-        Mutation mutation = makeSchemaMutation(name);
-        ColumnFamily cf = mutation.addOrGet(SystemKeyspace.SCHEMA_AGGREGATES_TABLE);
-
-        Composite prefix = SystemKeyspace.SchemaAggregatesTable.comparator.make(name.name, UDHelper.computeSignature(argTypes));
-        CFRowAdder adder = new CFRowAdder(cf, prefix, timestamp);
-
-        adder.resetCollection("argument_types");
-        adder.add("return_type", returnType.toString());
-        adder.add("state_func", stateFunction.name().name);
-        if (stateType != null)
-            adder.add("state_type", stateType.toString());
-        if (finalFunction != null)
-            adder.add("final_func", finalFunction.name().name);
-        if (initcond != null)
-            adder.add("initcond", initcond);
-
-        for (AbstractType<?> argType : argTypes)
-            adder.addListEntry("argument_types", argType.toString());
-
-        return mutation;
-    }
-
-    public static UDAggregate fromSchema(UntypedResultSet.Row row)
-    {
-        String ksName = row.getString("keyspace_name");
-        String functionName = row.getString("aggregate_name");
-        FunctionName name = new FunctionName(ksName, functionName);
-
-        List<String> types = row.getList("argument_types", UTF8Type.instance);
-
-        List<AbstractType<?>> argTypes;
-        if (types == null)
-        {
-            argTypes = Collections.emptyList();
-        }
-        else
-        {
-            argTypes = new ArrayList<>(types.size());
-            for (String type : types)
-                argTypes.add(parseType(type));
-        }
-
-        AbstractType<?> returnType = parseType(row.getString("return_type"));
-
-        FunctionName stateFunc = new FunctionName(ksName, row.getString("state_func"));
-        FunctionName finalFunc = row.has("final_func") ? new FunctionName(ksName, row.getString("final_func")) : null;
-        AbstractType<?> stateType = row.has("state_type") ? parseType(row.getString("state_type")) : null;
-        ByteBuffer initcond = row.has("initcond") ? row.getBytes("initcond") : null;
-
-        try
-        {
-            return create(name, argTypes, returnType, stateFunc, finalFunc, stateType, initcond);
-        }
-        catch (InvalidRequestException reason)
-        {
-            return createBroken(name, argTypes, returnType, initcond, reason);
-        }
-    }
-
-    private static UDAggregate createBroken(FunctionName name, List<AbstractType<?>> argTypes, AbstractType<?> returnType,
-                                            ByteBuffer initcond, final InvalidRequestException reason)
-    {
-        return new UDAggregate(name, argTypes, returnType, null, null, initcond) {
-            public Aggregate newAggregate() throws InvalidRequestException
-            {
-                throw new InvalidRequestException(String.format("Aggregate '%s' exists but hasn't been loaded successfully for the following reason: %s. "
-                                                                + "Please see the server log for more details", this, reason.getMessage()));
-            }
-        };
-    }
-
-    private static UDAggregate create(FunctionName name, List<AbstractType<?>> argTypes, AbstractType<?> returnType,
-                                      FunctionName stateFunc, FunctionName finalFunc, AbstractType<?> stateType, ByteBuffer initcond)
-    throws InvalidRequestException
-    {
-        List<AbstractType<?>> stateTypes = new ArrayList<>(argTypes.size() + 1);
-        stateTypes.add(stateType);
-        stateTypes.addAll(argTypes);
-        List<AbstractType<?>> finalTypes = Collections.<AbstractType<?>>singletonList(stateType);
-        return new UDAggregate(name, argTypes, returnType,
-                               resolveScalar(name, stateFunc, stateTypes),
-                               finalFunc != null ? resolveScalar(name, finalFunc, finalTypes) : null,
-                               initcond);
-    }
-
-    private static AbstractType<?> parseType(String str)
-    {
-        // We only use this when reading the schema where we shouldn't get an error
-        try
-        {
-            return TypeParser.parse(str);
-        }
-        catch (SyntaxException | ConfigurationException e)
-        {
-            throw new RuntimeException(e);
-        }
-    }
-
     @Override
     public boolean equals(Object o)
     {
@@ -263,13 +189,13 @@ public class UDAggregate extends AbstractFunction implements AggregateFunction
             return false;
 
         UDAggregate that = (UDAggregate) o;
-        return Objects.equal(this.name, that.name)
-               && Functions.typeEquals(this.argTypes, that.argTypes)
-               && Functions.typeEquals(this.returnType, that.returnType)
-               && Objects.equal(this.stateFunction, that.stateFunction)
-               && Objects.equal(this.finalFunction, that.finalFunction)
-               && Objects.equal(this.stateType, that.stateType)
-               && Objects.equal(this.initcond, that.initcond);
+        return Objects.equal(name, that.name)
+            && Functions.typeEquals(argTypes, that.argTypes)
+            && Functions.typeEquals(returnType, that.returnType)
+            && Objects.equal(stateFunction, that.stateFunction)
+            && Objects.equal(finalFunction, that.finalFunction)
+            && Objects.equal(stateType, that.stateType)
+            && Objects.equal(initcond, that.initcond);
     }
 
     @Override

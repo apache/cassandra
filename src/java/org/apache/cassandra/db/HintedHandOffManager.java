@@ -115,7 +115,7 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
                                                                                  new NamedThreadFactory("HintedHandoff", Thread.MIN_PRIORITY),
                                                                                  "internal");
 
-    private final ColumnFamilyStore hintStore = Keyspace.open(SystemKeyspace.NAME).getColumnFamilyStore(SystemKeyspace.HINTS_TABLE);
+    private final ColumnFamilyStore hintStore = Keyspace.open(SystemKeyspace.NAME).getColumnFamilyStore(SystemKeyspace.HINTS);
 
     /**
      * Returns a mutation representing a Hint to be sent to <code>targetId</code>
@@ -134,9 +134,9 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
 
         UUID hintId = UUIDGen.getTimeUUID();
         // serialize the hint with id and version as a composite column name
-        CellName name = SystemKeyspace.HintsTable.comparator.makeCellName(hintId, MessagingService.current_version);
+        CellName name = SystemKeyspace.Hints.comparator.makeCellName(hintId, MessagingService.current_version);
         ByteBuffer value = ByteBuffer.wrap(FBUtilities.serialize(mutation, Mutation.serializer, MessagingService.current_version));
-        ColumnFamily cf = ArrayBackedSortedColumns.factory.create(Schema.instance.getCFMetaData(SystemKeyspace.NAME, SystemKeyspace.HINTS_TABLE));
+        ColumnFamily cf = ArrayBackedSortedColumns.factory.create(Schema.instance.getCFMetaData(SystemKeyspace.NAME, SystemKeyspace.HINTS));
         cf.addColumn(name, value, now, ttl);
         return new Mutation(SystemKeyspace.NAME, UUIDType.instance.decompose(targetId), cf);
     }
@@ -182,7 +182,7 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
     private static void deleteHint(ByteBuffer tokenBytes, CellName columnName, long timestamp)
     {
         Mutation mutation = new Mutation(SystemKeyspace.NAME, tokenBytes);
-        mutation.delete(SystemKeyspace.HINTS_TABLE, columnName, timestamp);
+        mutation.delete(SystemKeyspace.HINTS, columnName, timestamp);
         mutation.applyUnsafe(); // don't bother with commitlog since we're going to flush as soon as we're done with delivery
     }
 
@@ -207,7 +207,7 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
         UUID hostId = StorageService.instance.getTokenMetadata().getHostId(endpoint);
         ByteBuffer hostIdBytes = ByteBuffer.wrap(UUIDGen.decompose(hostId));
         final Mutation mutation = new Mutation(SystemKeyspace.NAME, hostIdBytes);
-        mutation.delete(SystemKeyspace.HINTS_TABLE, System.currentTimeMillis());
+        mutation.delete(SystemKeyspace.HINTS, System.currentTimeMillis());
 
         // execute asynchronously to avoid blocking caller (which may be processing gossip)
         Runnable runnable = new Runnable()
@@ -241,7 +241,7 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
                 try
                 {
                     logger.info("Truncating all stored hints.");
-                    Keyspace.open(SystemKeyspace.NAME).getColumnFamilyStore(SystemKeyspace.HINTS_TABLE).truncateBlocking();
+                    Keyspace.open(SystemKeyspace.NAME).getColumnFamilyStore(SystemKeyspace.HINTS).truncateBlocking();
                 }
                 catch (Exception e)
                 {
@@ -375,7 +375,7 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
         {
             long now = System.currentTimeMillis();
             QueryFilter filter = QueryFilter.getSliceFilter(epkey,
-                                                            SystemKeyspace.HINTS_TABLE,
+                                                            SystemKeyspace.HINTS,
                                                             startColumn,
                                                             Composites.EMPTY,
                                                             false,
@@ -601,7 +601,7 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
         try
         {
             RangeSliceCommand cmd = new RangeSliceCommand(SystemKeyspace.NAME,
-                                                          SystemKeyspace.HINTS_TABLE,
+                                                          SystemKeyspace.HINTS,
                                                           System.currentTimeMillis(),
                                                           predicate,
                                                           range,

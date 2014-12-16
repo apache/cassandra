@@ -31,12 +31,13 @@ import org.slf4j.LoggerFactory;
 import com.datastax.driver.core.DataType;
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.utils.FBUtilities;
 
 /**
  * Helper class for User Defined Functions + Aggregates.
  */
-final class UDHelper
+public final class UDHelper
 {
     protected static final Logger logger = LoggerFactory.getLogger(UDHelper.class);
 
@@ -112,12 +113,13 @@ final class UDHelper
     // we use a "signature" which is just a SHA-1 of it's argument types (we could replace that by
     // using a "signature" UDT that would be comprised of the function name and argument types,
     // which we could then use as clustering column. But as we haven't yet used UDT in system tables,
-    // We'll left that decision to #6717).
-    protected static ByteBuffer computeSignature(List<AbstractType<?>> argTypes)
+    // We'll leave that decision to #6717).
+    public static ByteBuffer calculateSignature(AbstractFunction fun)
     {
         MessageDigest digest = FBUtilities.newMessageDigest("SHA-1");
-        for (AbstractType<?> type : argTypes)
-            digest.update(type.asCQL3Type().toString().getBytes(StandardCharsets.UTF_8));
+        digest.update(UTF8Type.instance.decompose(fun.name().name));
+        for (AbstractType<?> type : fun.argTypes())
+            digest.update(UTF8Type.instance.decompose(type.asCQL3Type().toString()));
         return ByteBuffer.wrap(digest.digest());
     }
 }

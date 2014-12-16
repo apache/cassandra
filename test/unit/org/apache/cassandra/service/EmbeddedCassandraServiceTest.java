@@ -59,11 +59,11 @@ public class EmbeddedCassandraServiceTest
     public static void defineSchema() throws Exception
     {
         SchemaLoader.prepareServer();
+        setup();
         SchemaLoader.createKeyspace(KEYSPACE1,
                                     SimpleStrategy.class,
                                     KSMetaData.optsWithRF(1),
                                     SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARD));
-        setup();
     }
 
     /**

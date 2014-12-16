@@ -159,10 +159,10 @@ public abstract class CQLTester
                     schemaChange(String.format("DROP TABLE IF EXISTS %s.%s", KEYSPACE, tableToDrop));
 
                     for (String aggregateName : aggregatesToDrop)
-                        schemaChange(String.format("DROP AGGREGATE IF EXISTS %s", aggregateName));
+                        schemaChange(String.format("DROP AGGREGATE IF EXISTS %s.%s", KEYSPACE, aggregateName));
 
                     for (String functionName : functionsToDrop)
-                        schemaChange(String.format("DROP FUNCTION IF EXISTS %s", functionName));
+                        schemaChange(String.format("DROP FUNCTION IF EXISTS %s.%s", KEYSPACE, functionName));
 
                     for (String typeName : typesToDrop)
                         schemaChange(String.format("DROP TYPE IF EXISTS %s.%s", KEYSPACE, typeName));

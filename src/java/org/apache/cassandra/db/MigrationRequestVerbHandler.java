@@ -26,6 +26,7 @@ import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.MessageIn;
 import org.apache.cassandra.net.MessageOut;
 import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.schema.LegacySchemaTables;
 import org.apache.cassandra.service.MigrationManager;
 
 /**
@@ -40,7 +41,7 @@ public class MigrationRequestVerbHandler implements IVerbHandler
     {
         logger.debug("Received migration request from {}.", message.from);
         MessageOut<Collection<Mutation>> response = new MessageOut<>(MessagingService.Verb.INTERNAL_RESPONSE,
-                                                                     SystemKeyspace.serializeSchema(),
+                                                                     LegacySchemaTables.convertSchemaToMutations(),
                                                                      MigrationManager.MigrationsSerializer.instance);
         MessagingService.instance().sendReply(response, id, message.from);
     }

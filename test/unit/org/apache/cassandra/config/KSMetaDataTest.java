@@ -39,11 +39,7 @@ public class KSMetaDataTest
         options.put("key2", "value2");
         options.put("key3", "value3");
 
-        KSMetaData ksMeta = new KSMetaData("test",
-                                            SimpleStrategy.class,
-                                            options,
-                                            true,
-                                            Collections.<CFMetaData>emptyList());
+        KSMetaData ksMeta = new KSMetaData("test", SimpleStrategy.class, options, true);
 
         assertTrue(ksMeta.toString().contains(options.toString()));
     }

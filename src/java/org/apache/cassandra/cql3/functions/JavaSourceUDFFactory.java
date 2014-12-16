@@ -76,9 +76,8 @@ public final class JavaSourceUDFFactory
         // It is separated to allow return type and argument type checks during compile time via javassist.
         String codeExecInt = generateExecuteInternalMethod(argNames, body, javaReturnType, javaParamTypes);
 
-        if (logger.isDebugEnabled())
-            logger.debug("Generating java source UDF for {} with following c'tor and functions:\n{}\n{}\n{}",
-                         name, codeCtor, codeExecInt, codeExec);
+        logger.debug("Generating java source UDF for {} with following c'tor and functions:\n{}\n{}\n{}",
+                     name, codeCtor, codeExecInt, codeExec);
 
         try
         {

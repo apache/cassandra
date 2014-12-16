@@ -30,6 +30,7 @@ import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.Operator;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.db.ColumnFamilyType;
+import org.apache.cassandra.schema.LegacySchemaTables;
 import org.apache.cassandra.db.WriteType;
 import org.apache.cassandra.db.composites.CellNameType;
 import org.apache.cassandra.db.composites.CellNames;
@@ -330,9 +331,9 @@ public class ThriftConversion
         List<Map<String, ByteBuffer>> cols = new ArrayList<>(columnsRes.rows.size());
         for (CqlRow row : columnsRes.rows)
             cols.add(convertThriftCqlRow(row));
-        UntypedResultSet colsRow = UntypedResultSet.create(cols);
+        UntypedResultSet colsRows = UntypedResultSet.create(cols);
 
-        return CFMetaData.fromSchemaNoTriggers(cfRow, colsRow);
+        return LegacySchemaTables.createTableFromTableRowAndColumnRows(cfRow, colsRows);
     }
 
     private static Map<String, ByteBuffer> convertThriftCqlRow(CqlRow row)

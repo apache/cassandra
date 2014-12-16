@@ -26,25 +26,11 @@ import com.google.common.base.Objects;
 import com.google.common.collect.Lists;
 
 import org.apache.cassandra.cql3.*;
-import org.apache.cassandra.db.*;
-import org.apache.cassandra.db.composites.Composite;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.exceptions.*;
-import org.apache.cassandra.utils.FBUtilities;
-
-import static org.apache.cassandra.utils.FBUtilities.json;
 
 public class ColumnDefinition extends ColumnSpecification
 {
-    // system.schema_columns column names
-    private static final String COLUMN_NAME = "column_name";
-    private static final String TYPE = "validator";
-    private static final String INDEX_TYPE = "index_type";
-    private static final String INDEX_OPTIONS = "index_options";
-    private static final String INDEX_NAME = "index_name";
-    private static final String COMPONENT_INDEX = "component_index";
-    private static final String KIND = "type";
-
     /*
      * The type of CQL3 column this definition represents.
      * There is 3 main type of CQL3 columns: those parts of the partition key,
@@ -62,20 +48,7 @@ public class ColumnDefinition extends ColumnSpecification
         CLUSTERING_COLUMN,
         REGULAR,
         STATIC,
-        COMPACT_VALUE;
-
-        public String serialize()
-        {
-            // For backward compatibility we need to special case CLUSTERING_COLUMN
-            return this == CLUSTERING_COLUMN ? "clustering_key" : this.toString().toLowerCase();
-        }
-
-        public static Kind deserialize(String value)
-        {
-            if (value.equalsIgnoreCase("clustering_key"))
-                return CLUSTERING_COLUMN;
-            return Enum.valueOf(Kind.class, value.toUpperCase());
-        }
+        COMPACT_VALUE
     }
 
     public final Kind kind;
@@ -266,36 +239,6 @@ public class ColumnDefinition extends ColumnSpecification
         return kind == Kind.REGULAR || kind == Kind.STATIC;
     }
 
-    /**
-     * Drop specified column from the schema using given mutation.
-     *
-     * @param mutation  The schema mutation
-     * @param timestamp The timestamp to use for column modification
-     */
-    public void deleteFromSchema(Mutation mutation, long timestamp)
-    {
-        ColumnFamily cf = mutation.addOrGet(SystemKeyspace.SchemaColumnsTable);
-        int ldt = (int) (System.currentTimeMillis() / 1000);
-
-        // Note: we do want to use name.toString(), not name.bytes directly for backward compatibility (For CQL3, this won't make a difference).
-        Composite prefix = SystemKeyspace.SchemaColumnsTable.comparator.make(cfName, name.toString());
-        cf.addAtom(new RangeTombstone(prefix, prefix.end(), timestamp, ldt));
-    }
-
-    public void toSchema(Mutation mutation, long timestamp)
-    {
-        ColumnFamily cf = mutation.addOrGet(SystemKeyspace.SchemaColumnsTable);
-        Composite prefix = SystemKeyspace.SchemaColumnsTable.comparator.make(cfName, name.toString());
-        CFRowAdder adder = new CFRowAdder(cf, prefix, timestamp);
-
-        adder.add(TYPE, type.toString());
-        adder.add(INDEX_TYPE, indexType == null ? null : indexType.toString());
-        adder.add(INDEX_OPTIONS, json(indexOptions));
-        adder.add(INDEX_NAME, indexName);
-        adder.add(COMPONENT_INDEX, componentIndex);
-        adder.add(KIND, kind.serialize());
-    }
-
     public ColumnDefinition apply(ColumnDefinition def)  throws ConfigurationException
     {
         assert kind == def.kind && Objects.equal(componentIndex, def.componentIndex);
@@ -321,81 +264,6 @@ public class ColumnDefinition extends ColumnSpecification
                                     def.getIndexName(),
                                     componentIndex,
                                     kind);
-    }
-
-    public static UntypedResultSet resultify(Row serializedColumns)
-    {
-        String query = String.format("SELECT * FROM %s.%s", SystemKeyspace.NAME, SystemKeyspace.SCHEMA_COLUMNS_TABLE);
-        return QueryProcessor.resultify(query, serializedColumns);
-    }
-
-    /**
-     * Deserialize columns from storage-level representation
-     *
-     * @param serializedColumns storage-level partition containing the column definitions
-     * @return the list of processed ColumnDefinitions
-     */
-    public static List<ColumnDefinition> fromSchema(UntypedResultSet serializedColumns, String ksName, String cfName, AbstractType<?> rawComparator, boolean isSuper)
-    {
-        List<ColumnDefinition> cds = new ArrayList<>();
-        for (UntypedResultSet.Row row : serializedColumns)
-        {
-            Kind kind = row.has(KIND)
-                      ? Kind.deserialize(row.getString(KIND))
-                      : Kind.REGULAR;
-
-            Integer componentIndex = null;
-            if (row.has(COMPONENT_INDEX))
-                componentIndex = row.getInt(COMPONENT_INDEX);
-            else if (kind == Kind.CLUSTERING_COLUMN && isSuper)
-                componentIndex = 1; // A ColumnDefinition for super columns applies to the column component
-
-            // Note: we save the column name as string, but we should not assume that it is an UTF8 name, we
-            // we need to use the comparator fromString method
-            AbstractType<?> comparator = getComponentComparator(rawComparator, componentIndex, kind);
-            ColumnIdentifier name = new ColumnIdentifier(comparator.fromString(row.getString(COLUMN_NAME)), comparator);
-
-            AbstractType<?> validator;
-            try
-            {
-                validator = TypeParser.parse(row.getString(TYPE));
-            }
-            catch (RequestValidationException e)
-            {
-                throw new RuntimeException(e);
-            }
-
-            IndexType indexType = null;
-            if (row.has(INDEX_TYPE))
-                indexType = IndexType.valueOf(row.getString(INDEX_TYPE));
-
-            Map<String, String> indexOptions = null;
-            if (row.has(INDEX_OPTIONS))
-                indexOptions = FBUtilities.fromJsonMap(row.getString(INDEX_OPTIONS));
-
-            String indexName = null;
-            if (row.has(INDEX_NAME))
-                indexName = row.getString(INDEX_NAME);
-
-            cds.add(new ColumnDefinition(ksName, cfName, name, validator, indexType, indexOptions, indexName, componentIndex, kind));
-        }
-
-        return cds;
-    }
-
-    public static AbstractType<?> getComponentComparator(AbstractType<?> rawComparator, Integer componentIndex, ColumnDefinition.Kind kind)
-    {
-        switch (kind)
-        {
-            case REGULAR:
-                if (componentIndex == null || (componentIndex == 0 && !(rawComparator instanceof CompositeType)))
-                    return rawComparator;
-
-                return ((CompositeType)rawComparator).types.get(componentIndex);
-            default:
-                // CQL3 column names are UTF8
-                return UTF8Type.instance;
-        }
     }
 
     public String getIndexName()

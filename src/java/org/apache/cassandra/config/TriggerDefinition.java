@@ -18,20 +18,10 @@
  */
 package org.apache.cassandra.config;
 
-import java.util.*;
-
 import com.google.common.base.Objects;
-
-import org.apache.cassandra.cql3.QueryProcessor;
-import org.apache.cassandra.cql3.UntypedResultSet;
-import org.apache.cassandra.db.*;
-import org.apache.cassandra.db.composites.Composite;
-import org.apache.cassandra.db.marshal.UTF8Type;
 
 public class TriggerDefinition
 {
-    public static final String TRIGGER_NAME = "trigger_name";
-    public static final String TRIGGER_OPTIONS = "trigger_options";
     public static final String CLASS = "class";
 
     public final String name;
@@ -49,59 +39,6 @@ public class TriggerDefinition
     public static TriggerDefinition create(String name, String classOption)
     {
         return new TriggerDefinition(name, classOption);
-    }
-
-    /**
-     * Deserialize triggers from storage-level representation.
-     *
-     * @param serializedTriggers storage-level partition containing the trigger definitions
-     * @return the list of processed TriggerDefinitions
-     */
-    public static List<TriggerDefinition> fromSchema(Row serializedTriggers)
-    {
-        List<TriggerDefinition> triggers = new ArrayList<>();
-        String query = String.format("SELECT * FROM %s.%s", SystemKeyspace.NAME, SystemKeyspace.SCHEMA_TRIGGERS_TABLE);
-        for (UntypedResultSet.Row row : QueryProcessor.resultify(query, serializedTriggers))
-        {
-            String name = row.getString(TRIGGER_NAME);
-            String classOption = row.getMap(TRIGGER_OPTIONS, UTF8Type.instance, UTF8Type.instance).get(CLASS);
-            triggers.add(new TriggerDefinition(name, classOption));
-        }
-        return triggers;
-    }
-
-    /**
-     * Add specified trigger to the schema using given mutation.
-     *
-     * @param mutation  The schema mutation
-     * @param cfName    The name of the parent ColumnFamily
-     * @param timestamp The timestamp to use for the columns
-     */
-    public void toSchema(Mutation mutation, String cfName, long timestamp)
-    {
-        ColumnFamily cf = mutation.addOrGet(SystemKeyspace.SCHEMA_TRIGGERS_TABLE);
-
-        CFMetaData cfm = SystemKeyspace.SchemaTriggersTable;
-        Composite prefix = cfm.comparator.make(cfName, name);
-        CFRowAdder adder = new CFRowAdder(cf, prefix, timestamp);
-
-        adder.addMapEntry(TRIGGER_OPTIONS, CLASS, classOption);
-    }
-
-    /**
-     * Drop specified trigger from the schema using given mutation.
-     *
-     * @param mutation  The schema mutation
-     * @param cfName    The name of the parent ColumnFamily
-     * @param timestamp The timestamp to use for the tombstone
-     */
-    public void deleteFromSchema(Mutation mutation, String cfName, long timestamp)
-    {
-        ColumnFamily cf = mutation.addOrGet(SystemKeyspace.SCHEMA_TRIGGERS_TABLE);
-        int ldt = (int) (System.currentTimeMillis() / 1000);
-
-        Composite prefix = SystemKeyspace.SchemaTriggersTable.comparator.make(cfName, name);
-        cf.addAtom(new RangeTombstone(prefix, prefix.end(), timestamp, ldt));
     }
 
     @Override

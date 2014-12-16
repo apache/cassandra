@@ -21,10 +21,10 @@ package org.apache.cassandra.tools;
 import java.io.File;
 import java.util.*;
 
+import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.commons.cli.*;
 
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.db.Keyspace;
@@ -52,7 +52,7 @@ public class StandaloneSplitter
         try
         {
             // load keyspace descriptions.
-            DatabaseDescriptor.loadSchemas();
+            Schema.instance.loadFromDisk();
 
             String ksName = null;
             String cfName = null;

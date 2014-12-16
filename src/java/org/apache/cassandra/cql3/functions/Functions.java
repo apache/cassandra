@@ -22,12 +22,9 @@ import java.util.Collection;
 import java.util.List;
 
 import com.google.common.collect.ArrayListMultimap;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.cql3.*;
-import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.service.IMigrationListener;
@@ -35,15 +32,10 @@ import org.apache.cassandra.service.MigrationManager;
 
 public abstract class Functions
 {
-    private static final Logger logger = LoggerFactory.getLogger(Functions.class);
-
     // We special case the token function because that's the only function whose argument types actually
     // depend on the table on which the function is called. Because it's the sole exception, it's easier
     // to handle it as a special case.
     private static final FunctionName TOKEN_FUNCTION_NAME = FunctionName.nativeFunction("token");
-
-    private static final String SELECT_UD_FUNCTION = "SELECT * FROM " + SystemKeyspace.NAME + '.' + SystemKeyspace.SCHEMA_FUNCTIONS_TABLE;
-    private static final String SELECT_UD_AGGREGATE = "SELECT * FROM " + SystemKeyspace.NAME + '.' + SystemKeyspace.SCHEMA_AGGREGATES_TABLE;
 
     private Functions() {}
 
@@ -94,18 +86,6 @@ public abstract class Functions
     private static void declare(Function fun)
     {
         declared.put(fun.name(), fun);
-    }
-
-    /**
-     * Loading existing UDFs from the schema.
-     */
-    public static void loadUDFFromSchema()
-    {
-        logger.debug("Loading UDFs");
-        for (UntypedResultSet.Row row : QueryProcessor.executeOnceInternal(SELECT_UD_FUNCTION))
-            addFunction(UDFunction.fromSchema(row));
-        for (UntypedResultSet.Row row : QueryProcessor.executeOnceInternal(SELECT_UD_AGGREGATE))
-            addFunction(UDAggregate.fromSchema(row));
     }
 
     public static ColumnSpecification makeArgSpec(String receiverKs, String receiverCf, Function fun, int i)
@@ -270,7 +250,7 @@ public abstract class Functions
         return sb.toString();
     }
 
-    // This is *not* thread safe but is only called in DefsTables that is synchronized.
+    // This is *not* thread safe but is only called in SchemaTables that is synchronized.
     public static void addFunction(AbstractFunction fun)
     {
         // We shouldn't get there unless that function don't exist

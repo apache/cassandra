@@ -30,11 +30,7 @@ import com.datastax.driver.core.UserType;
 import org.apache.cassandra.config.KSMetaData;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.cql3.*;
-import org.apache.cassandra.db.*;
-import org.apache.cassandra.db.composites.Composite;
 import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.db.marshal.UTF8Type;
-import org.apache.cassandra.db.marshal.TypeParser;
 import org.apache.cassandra.exceptions.*;
 import org.apache.cassandra.service.MigrationManager;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -47,9 +43,10 @@ public abstract class UDFunction extends AbstractFunction implements ScalarFunct
     protected static final Logger logger = LoggerFactory.getLogger(UDFunction.class);
 
     protected final List<ColumnIdentifier> argNames;
+
     protected final String language;
     protected final String body;
-    private final boolean deterministic;
+    protected final boolean isDeterministic;
 
     protected final DataType[] argDataTypes;
     protected final DataType returnDataType;
@@ -60,10 +57,10 @@ public abstract class UDFunction extends AbstractFunction implements ScalarFunct
                          AbstractType<?> returnType,
                          String language,
                          String body,
-                         boolean deterministic)
+                         boolean isDeterministic)
     {
         this(name, argNames, argTypes, UDHelper.driverTypes(argTypes), returnType,
-             UDHelper.driverType(returnType), language, body, deterministic);
+             UDHelper.driverType(returnType), language, body, isDeterministic);
     }
 
     protected UDFunction(FunctionName name,
@@ -74,14 +71,14 @@ public abstract class UDFunction extends AbstractFunction implements ScalarFunct
                          DataType returnDataType,
                          String language,
                          String body,
-                         boolean deterministic)
+                         boolean isDeterministic)
     {
         super(name, argTypes, returnType);
         assert new HashSet<>(argNames).size() == argNames.size() : "duplicate argument names";
         this.argNames = argNames;
         this.language = language;
         this.body = body;
-        this.deterministic = deterministic;
+        this.isDeterministic = isDeterministic;
         this.argDataTypes = argDataTypes;
         this.returnDataType = returnDataType;
     }
@@ -92,13 +89,13 @@ public abstract class UDFunction extends AbstractFunction implements ScalarFunct
                                     AbstractType<?> returnType,
                                     String language,
                                     String body,
-                                    boolean deterministic)
+                                    boolean isDeterministic)
     throws InvalidRequestException
     {
         switch (language)
         {
-            case "java": return JavaSourceUDFFactory.buildUDF(name, argNames, argTypes, returnType, body, deterministic);
-            default: return new ScriptBasedUDF(name, argNames, argTypes, returnType, language, body, deterministic);
+            case "java": return JavaSourceUDFFactory.buildUDF(name, argNames, argTypes, returnType, body, isDeterministic);
+            default: return new ScriptBasedUDF(name, argNames, argTypes, returnType, language, body, isDeterministic);
         }
     }
 
@@ -111,23 +108,26 @@ public abstract class UDFunction extends AbstractFunction implements ScalarFunct
      *  2) we return a meaningful error message if the function is executed (something more precise
      *     than saying that the function doesn't exist)
      */
-    private static UDFunction createBrokenFunction(FunctionName name,
-                                                   List<ColumnIdentifier> argNames,
-                                                   List<AbstractType<?>> argTypes,
-                                                   AbstractType<?> returnType,
-                                                   String language,
-                                                   String body,
-                                                   final InvalidRequestException reason)
+    public static UDFunction createBrokenFunction(FunctionName name,
+                                                  List<ColumnIdentifier> argNames,
+                                                  List<AbstractType<?>> argTypes,
+                                                  AbstractType<?> returnType,
+                                                  String language,
+                                                  String body,
+                                                  final InvalidRequestException reason)
     {
         return new UDFunction(name, argNames, argTypes, returnType, language, body, true)
         {
             public ByteBuffer execute(int protocolVersion, List<ByteBuffer> parameters) throws InvalidRequestException
             {
-                throw new InvalidRequestException(String.format("Function '%s' exists but hasn't been loaded successfully for the following reason: %s. "
-                                                              + "Please see the server log for more details", this, reason.getMessage()));
+                throw new InvalidRequestException(String.format("Function '%s' exists but hasn't been loaded successfully "
+                                                                + "for the following reason: %s. Please see the server log for details",
+                                                                this,
+                                                                reason.getMessage()));
             }
         };
     }
+
 
     public boolean isAggregate()
     {
@@ -136,12 +136,32 @@ public abstract class UDFunction extends AbstractFunction implements ScalarFunct
 
     public boolean isPure()
     {
-        return deterministic;
+        return isDeterministic;
     }
 
     public boolean isNative()
     {
         return false;
+    }
+
+    public List<ColumnIdentifier> argNames()
+    {
+        return argNames;
+    }
+
+    public boolean isDeterministic()
+    {
+        return isDeterministic;
+    }
+
+    public String body()
+    {
+        return body;
+    }
+
+    public String language()
+    {
+        return language;
     }
 
     /**
@@ -150,7 +170,7 @@ public abstract class UDFunction extends AbstractFunction implements ScalarFunct
      * serialized representation to the Java object representation.
      *
      * @param protocolVersion the native protocol version used for serialization
-     * @param argIndex        index of the UDF input argument
+     * @param argIndex index of the UDF input argument
      */
     protected Object compose(int protocolVersion, int argIndex, ByteBuffer value)
     {
@@ -169,117 +189,6 @@ public abstract class UDFunction extends AbstractFunction implements ScalarFunct
         return value == null ? null : returnDataType.serialize(value, ProtocolVersion.fromInt(protocolVersion));
     }
 
-    private static Mutation makeSchemaMutation(FunctionName name)
-    {
-        UTF8Type kv = (UTF8Type)SystemKeyspace.SchemaFunctionsTable.getKeyValidator();
-        return new Mutation(SystemKeyspace.NAME, kv.decompose(name.keyspace));
-    }
-
-    public Mutation toSchemaDrop(long timestamp)
-    {
-        Mutation mutation = makeSchemaMutation(name);
-        ColumnFamily cf = mutation.addOrGet(SystemKeyspace.SCHEMA_FUNCTIONS_TABLE);
-
-        Composite prefix = SystemKeyspace.SchemaFunctionsTable.comparator.make(name.name, UDHelper.computeSignature(argTypes));
-        int ldt = (int) (System.currentTimeMillis() / 1000);
-        cf.addAtom(new RangeTombstone(prefix, prefix.end(), timestamp, ldt));
-
-        return mutation;
-    }
-
-    public static Map<Composite, UDFunction> fromSchema(Row row)
-    {
-        UntypedResultSet results = QueryProcessor.resultify("SELECT * FROM system." + SystemKeyspace.SCHEMA_FUNCTIONS_TABLE, row);
-        Map<Composite, UDFunction> udfs = new HashMap<>(results.size());
-        for (UntypedResultSet.Row result : results)
-            udfs.put(SystemKeyspace.SchemaFunctionsTable.comparator.make(result.getString("function_name"), result.getBlob("signature")),
-                     fromSchema(result));
-        return udfs;
-    }
-
-    public Mutation toSchemaUpdate(long timestamp)
-    {
-        Mutation mutation = makeSchemaMutation(name);
-        ColumnFamily cf = mutation.addOrGet(SystemKeyspace.SCHEMA_FUNCTIONS_TABLE);
-
-        Composite prefix = SystemKeyspace.SchemaFunctionsTable.comparator.make(name.name, UDHelper.computeSignature(argTypes));
-        CFRowAdder adder = new CFRowAdder(cf, prefix, timestamp);
-
-        adder.resetCollection("argument_names");
-        adder.resetCollection("argument_types");
-        adder.add("return_type", returnType.toString());
-        adder.add("language", language);
-        adder.add("body", body);
-        adder.add("deterministic", deterministic);
-
-        for (int i = 0; i < argNames.size(); i++)
-        {
-            adder.addListEntry("argument_names", argNames.get(i).bytes);
-            adder.addListEntry("argument_types", argTypes.get(i).toString());
-        }
-
-        return mutation;
-    }
-
-    public static UDFunction fromSchema(UntypedResultSet.Row row)
-    {
-        String ksName = row.getString("keyspace_name");
-        String functionName = row.getString("function_name");
-        FunctionName name = new FunctionName(ksName, functionName);
-
-        List<String> names = row.getList("argument_names", UTF8Type.instance);
-        List<String> types = row.getList("argument_types", UTF8Type.instance);
-
-        List<ColumnIdentifier> argNames;
-        if (names == null)
-            argNames = Collections.emptyList();
-        else
-        {
-            argNames = new ArrayList<>(names.size());
-            for (String arg : names)
-                argNames.add(new ColumnIdentifier(arg, true));
-        }
-
-        List<AbstractType<?>> argTypes;
-        if (types == null)
-            argTypes = Collections.emptyList();
-        else
-        {
-            argTypes = new ArrayList<>(types.size());
-            for (String type : types)
-                argTypes.add(parseType(type));
-        }
-
-        AbstractType<?> returnType = parseType(row.getString("return_type"));
-
-        boolean deterministic = row.getBoolean("deterministic");
-        String language = row.getString("language");
-        String body = row.getString("body");
-
-        try
-        {
-            return create(name, argNames, argTypes, returnType, language, body, deterministic);
-        }
-        catch (InvalidRequestException e)
-        {
-            logger.error(String.format("Cannot load function '%s' from schema: this function won't be available (on this node)", name), e);
-            return createBrokenFunction(name, argNames, argTypes, returnType, language, body, e);
-        }
-    }
-
-    private static AbstractType<?> parseType(String str)
-    {
-        // We only use this when reading the schema where we shouldn't get an error
-        try
-        {
-            return TypeParser.parse(str);
-        }
-        catch (SyntaxException | ConfigurationException e)
-        {
-            throw new RuntimeException(e);
-        }
-    }
-
     @Override
     public boolean equals(Object o)
     {
@@ -287,19 +196,19 @@ public abstract class UDFunction extends AbstractFunction implements ScalarFunct
             return false;
 
         UDFunction that = (UDFunction)o;
-        return Objects.equal(this.name, that.name)
-            && Functions.typeEquals(this.argTypes, that.argTypes)
-            && Functions.typeEquals(this.returnType, that.returnType)
-            && Objects.equal(this.argNames, that.argNames)
-            && Objects.equal(this.language, that.language)
-            && Objects.equal(this.body, that.body)
-            && Objects.equal(this.deterministic, that.deterministic);
+        return Objects.equal(name, that.name)
+            && Objects.equal(argNames, that.argNames)
+            && Functions.typeEquals(argTypes, that.argTypes)
+            && Functions.typeEquals(returnType, that.returnType)
+            && Objects.equal(language, that.language)
+            && Objects.equal(body, that.body)
+            && Objects.equal(isDeterministic, that.isDeterministic);
     }
 
     @Override
     public int hashCode()
     {
-        return Objects.hashCode(name, argTypes, returnType, argNames, language, body, deterministic);
+        return Objects.hashCode(name, argNames, argTypes, returnType, language, body, isDeterministic);
     }
 
     public void userTypeUpdated(String ksName, String typeName)

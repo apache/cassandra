@@ -26,12 +26,14 @@ import com.google.common.collect.HashMultimap;
 import com.google.common.collect.Multimap;
 
 import org.apache.commons.cli.*;
+
 import org.apache.thrift.protocol.TBinaryProtocol;
 import org.apache.thrift.protocol.TProtocol;
 import org.apache.thrift.transport.TTransport;
 
 import org.apache.cassandra.auth.IAuthenticator;
 import org.apache.cassandra.config.*;
+import org.apache.cassandra.schema.LegacySchemaTables;
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.dht.Range;
@@ -309,7 +311,7 @@ public class BulkLoader
 
                     String cfQuery = String.format("SELECT * FROM %s.%s WHERE keyspace_name = '%s'",
                                                    SystemKeyspace.NAME,
-                                                   SystemKeyspace.SCHEMA_COLUMNFAMILIES_TABLE,
+                                                   LegacySchemaTables.COLUMNFAMILIES,
                                                    keyspace);
                     CqlResult cfRes = client.execute_cql3_query(ByteBufferUtil.bytes(cfQuery), Compression.NONE, ConsistencyLevel.ONE);
 
@@ -319,7 +321,7 @@ public class BulkLoader
                         String columnFamily = UTF8Type.instance.getString(row.columns.get(1).bufferForName());
                         String columnsQuery = String.format("SELECT * FROM %s.%s WHERE keyspace_name = '%s' AND columnfamily_name = '%s'",
                                                             SystemKeyspace.NAME,
-                                                            SystemKeyspace.SCHEMA_COLUMNS_TABLE,
+                                                            LegacySchemaTables.COLUMNS,
                                                             keyspace,
                                                             columnFamily);
                         CqlResult columnsRes = client.execute_cql3_query(ByteBufferUtil.bytes(columnsQuery), Compression.NONE, ConsistencyLevel.ONE);

@@ -349,16 +349,16 @@ public class CQLSSTableWriter implements Closeable
                     if (ksm == null)
                     {
                         ksm = KSMetaData.newKeyspace(this.schema.ksName,
-                                AbstractReplicationStrategy.getClass("org.apache.cassandra.locator.SimpleStrategy"),
-                                ImmutableMap.of("replication_factor", "1"),
-                                true,
-                                Collections.singleton(this.schema));
+                                                     AbstractReplicationStrategy.getClass("org.apache.cassandra.locator.SimpleStrategy"),
+                                                     ImmutableMap.of("replication_factor", "1"),
+                                                     true,
+                                                     Collections.singleton(this.schema));
                         Schema.instance.load(ksm);
                     }
                     else if (Schema.instance.getCFMetaData(this.schema.ksName, this.schema.cfName) == null)
                     {
                         Schema.instance.load(this.schema);
-                        ksm = KSMetaData.cloneWith(ksm, Iterables.concat(ksm.cfMetaData().values(), Collections.singleton(this.schema)));
+                        ksm = ksm.cloneWithTableAdded(this.schema);
                         Schema.instance.setKeyspaceDefinition(ksm);
                         Keyspace.open(ksm.name).initCf(this.schema.cfId, this.schema.cfName, false);
                     }
