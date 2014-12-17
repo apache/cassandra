@@ -987,8 +987,12 @@ class Shell(cmd.Cmd):
                 self.printerr(traceback.format_exc())
                 return False
 
-        if statement.query_string[:6].lower() == 'select' or statement.query_string.lower().startswith("list"):
+        if statement.query_string[:6].lower() == 'select':
             self.print_result(rows, self.parse_for_table_meta(statement.query_string))
+        elif statement.query_string.lower().startswith("list users"):
+            self.print_result(rows, self.get_table_meta('system_auth','users'))
+        elif statement.query_string.lower().startswith("list"):
+            self.print_result(rows, self.get_table_meta('system_auth','permissions'))
         elif rows:
             # CAS INSERT/UPDATE
             self.writeresult("")
