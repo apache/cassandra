@@ -54,14 +54,9 @@ public class SchemaQuery extends SchemaStatement
 
     public SchemaQuery(Timer timer, StressSettings settings, PartitionGenerator generator, SeedManager seedManager, Integer thriftId, PreparedStatement statement, ConsistencyLevel cl, ValidationType validationType, ArgSelect argSelect)
     {
-        super(timer, settings, spec(generator, seedManager, statement.getVariables().size(), argSelect), statement, thriftId, cl, validationType);
+        super(timer, settings, new DataSpec(generator, seedManager, new DistributionFixed(1), argSelect == ArgSelect.MULTIROW ? statement.getVariables().size() : 1), statement, thriftId, cl, validationType);
         this.argSelect = argSelect;
         randomBuffer = new Object[argumentIndex.length][argumentIndex.length];
-    }
-
-    static DataSpec spec(PartitionGenerator generator, SeedManager seedManager, int argCount, ArgSelect argSelect)
-    {
-        return new DataSpec(generator, seedManager, new DistributionFixed(1), argSelect == ArgSelect.MULTIROW ? argCount : 1);
     }
 
     private class JavaDriverRun extends Runner
