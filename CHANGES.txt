@@ -41,6 +41,7 @@
 
 
 2.1.3
+ * (cqlsh) Fixed the handling of LIST statements (CASSANDRA-8370)
  * Make sstablescrub check leveled manifest again (CASSANDRA-8432)
  * Check first/last keys in sstable when giving out positions (CASSANDRA-8458)
  * Disable mmap on Windows (CASSANDRA-6993)
