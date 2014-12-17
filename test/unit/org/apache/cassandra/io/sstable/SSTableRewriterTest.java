@@ -24,6 +24,7 @@ import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+
 import com.google.common.collect.Sets;
 import org.junit.After;
 import org.junit.BeforeClass;
@@ -47,9 +48,12 @@ import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.SSTableWriter;
 import org.apache.cassandra.locator.SimpleStrategy;
 import org.apache.cassandra.db.compaction.SSTableSplitter;
+import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.metrics.StorageMetrics;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.Pair;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
@@ -144,6 +148,63 @@ public class SSTableRewriterTest extends SchemaLoader
         validateCFS(cfs);
         int filecounts = assertFileCounts(sstables.iterator().next().descriptor.directory.list(), 0, 0);
         assertEquals(1, filecounts);
+    }
+
+    @Test
+    public void getPositionsTest() throws InterruptedException
+    {
+        Keyspace keyspace = Keyspace.open(KEYSPACE);
+        ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(CF);
+        cfs.truncateBlocking();
+
+        SSTableReader s = writeFile(cfs, 1000);
+        cfs.addSSTable(s);
+        Set<SSTableReader> sstables = new HashSet<>(cfs.getSSTables());
+        assertEquals(1, sstables.size());
+        SSTableRewriter.overrideOpenInterval(10000000);
+        SSTableRewriter writer = new SSTableRewriter(cfs, sstables, 1000, false);
+        boolean checked = false;
+        try (AbstractCompactionStrategy.ScannerList scanners = cfs.getCompactionStrategy().getScanners(sstables);)
+        {
+            ISSTableScanner scanner = scanners.scanners.get(0);
+            CompactionController controller = new CompactionController(cfs, sstables, cfs.gcBefore(System.currentTimeMillis()));
+            writer.switchWriter(getWriter(cfs, sstables.iterator().next().descriptor.directory));
+            while (scanner.hasNext())
+            {
+                AbstractCompactedRow row = new LazilyCompactedRow(controller, Arrays.asList(scanner.next()));
+                writer.append(row);
+                if (!checked && writer.currentWriter().getFilePointer() > 15000000)
+                {
+                    checked = true;
+                    for (SSTableReader sstable : cfs.getSSTables())
+                    {
+                        if (sstable.openReason == SSTableReader.OpenReason.EARLY)
+                        {
+                            SSTableReader c = sstables.iterator().next();
+                            long lastKeySize = sstable.getPosition(sstable.last, SSTableReader.Operator.GT).position - sstable.getPosition(sstable.last, SSTableReader.Operator.EQ).position;
+                            Collection<Range<Token>> r = Arrays.asList(new Range<>(cfs.partitioner.getMinimumToken(), cfs.partitioner.getMinimumToken()));
+                            List<Pair<Long, Long>> tmplinkPositions = sstable.getPositionsForRanges(r);
+                            List<Pair<Long, Long>> compactingPositions = c.getPositionsForRanges(r);
+                            assertEquals(1, tmplinkPositions.size());
+                            assertEquals(1, compactingPositions.size());
+                            assertEquals(0, tmplinkPositions.get(0).left.longValue());
+                            // make sure we have one key overlap between the early opened file and the compacting one:
+                            assertEquals(tmplinkPositions.get(0).right.longValue(), compactingPositions.get(0).left + lastKeySize);
+                            assertEquals(c.uncompressedLength(), compactingPositions.get(0).right.longValue());
+                        }
+                    }
+                }
+            }
+        }
+        assertTrue(checked);
+        Collection<SSTableReader> newsstables = writer.finish();
+        cfs.getDataTracker().markCompactedSSTablesReplaced(sstables, newsstables, OperationType.COMPACTION);
+        Thread.sleep(100);
+        validateCFS(cfs);
+        int filecounts = assertFileCounts(sstables.iterator().next().descriptor.directory.list(), 0, 0);
+        assertEquals(1, filecounts);
+        cfs.truncateBlocking();
+        validateCFS(cfs);
     }
 
     @Test
