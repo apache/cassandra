@@ -188,10 +188,10 @@ final class SingleColumnRestrictions implements Restrictions
     }
 
     /**
-     * Checks if the restrictions contains multiple contains or contains key.
+     * Checks if the restrictions contains multiple contains, contains key, or map[key] = value.
      *
-     * @return <code>true</code> if the restrictions contains multiple contains or contains key.,
-     * <code>false</code> otherwise
+     * @return <code>true</code> if the restrictions contains multiple contains, contains key, or ,
+     * map[key] = value; <code>false</code> otherwise
      */
     public final boolean hasMultipleContains()
     {
@@ -201,7 +201,7 @@ final class SingleColumnRestrictions implements Restrictions
             if (restriction.isContains())
             {
                 Contains contains = (Contains) restriction;
-                numberOfContains += (contains.numberOfValues() + contains.numberOfKeys());
+                numberOfContains += (contains.numberOfValues() + contains.numberOfKeys() + contains.numberOfEntries());
             }
         }
         return numberOfContains > 1;

@@ -18,6 +18,7 @@
 package org.apache.cassandra.cql3;
 
 import java.util.Collections;
+import java.util.ArrayList;
 import java.util.List;
 
 import org.apache.cassandra.config.CFMetaData;
@@ -27,10 +28,12 @@ import org.apache.cassandra.cql3.restrictions.Restriction;
 import org.apache.cassandra.cql3.restrictions.SingleColumnRestriction;
 import org.apache.cassandra.cql3.statements.Bound;
 import org.apache.cassandra.db.marshal.CollectionType;
+import org.apache.cassandra.db.marshal.ListType;
 import org.apache.cassandra.db.marshal.MapType;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkFalse;
+import static org.apache.cassandra.cql3.statements.RequestValidations.checkTrue;
 
 /**
  * Relations encapsulate the relationship between an entity of some kind, and
@@ -40,15 +43,30 @@ import static org.apache.cassandra.cql3.statements.RequestValidations.checkFalse
 public final class SingleColumnRelation extends Relation
 {
     private final ColumnIdentifier.Raw entity;
+    private final Term.Raw mapKey;
     private final Term.Raw value;
     private final List<Term.Raw> inValues;
 
-    private SingleColumnRelation(ColumnIdentifier.Raw entity, Operator type, Term.Raw value, List<Term.Raw> inValues)
+    private SingleColumnRelation(ColumnIdentifier.Raw entity, Term.Raw mapKey, Operator type, Term.Raw value, List<Term.Raw> inValues)
     {
         this.entity = entity;
+        this.mapKey = mapKey;
         this.relationType = type;
         this.value = value;
         this.inValues = inValues;
+    }
+
+    /**
+     * Creates a new relation.
+     *
+     * @param entity the kind of relation this is; what the term is being compared to.
+     * @param mapKey the key into the entity identifying the value the term is being compared to.
+     * @param type the type that describes how this entity relates to the value.
+     * @param value the value being compared.
+     */
+    public SingleColumnRelation(ColumnIdentifier.Raw entity, Term.Raw mapKey, Operator type, Term.Raw value)
+    {
+        this(entity, mapKey, type, value, null);
     }
 
     /**
@@ -60,17 +78,22 @@ public final class SingleColumnRelation extends Relation
      */
     public SingleColumnRelation(ColumnIdentifier.Raw entity, Operator type, Term.Raw value)
     {
-        this(entity, type, value, null);
+        this(entity, null, type, value);
     }
 
     public static SingleColumnRelation createInRelation(ColumnIdentifier.Raw entity, List<Term.Raw> inValues)
     {
-        return new SingleColumnRelation(entity, Operator.IN, null, inValues);
+        return new SingleColumnRelation(entity, null, Operator.IN, null, inValues);
     }
 
     public ColumnIdentifier.Raw getEntity()
     {
         return entity;
+    }
+
+    public Term.Raw getMapKey()
+    {
+        return mapKey;
     }
 
     @Override
@@ -92,7 +115,7 @@ public final class SingleColumnRelation extends Relation
         switch (relationType)
         {
             case GT: return new SingleColumnRelation(entity, Operator.GTE, value);
-            case LT:  return new SingleColumnRelation(entity, Operator.LTE, value);
+            case LT: return new SingleColumnRelation(entity, Operator.LTE, value);
             default: return this;
         }
     }
@@ -100,10 +123,14 @@ public final class SingleColumnRelation extends Relation
     @Override
     public String toString()
     {
-        if (isIN())
-            return String.format("%s IN %s", entity, inValues);
+        String entityAsString = entity.toString();
+        if (mapKey != null)
+            entityAsString = String.format("%s[%s]", entityAsString, mapKey);
 
-        return String.format("%s %s %s", entity, relationType, value);
+        if (isIN())
+            return String.format("%s IN %s", entityAsString, inValues);
+
+        return String.format("%s %s %s", entityAsString, relationType, value);
     }
 
     @Override
@@ -111,8 +138,15 @@ public final class SingleColumnRelation extends Relation
                                            VariableSpecifications boundNames) throws InvalidRequestException
     {
         ColumnDefinition columnDef = toColumnDefinition(cfm, entity);
-        Term term = toTerm(toReceivers(cfm, columnDef), value, cfm.ksName, boundNames);
-        return new SingleColumnRestriction.EQ(columnDef, term);
+        if (mapKey == null)
+        {
+            Term term = toTerm(toReceivers(cfm, columnDef), value, cfm.ksName, boundNames);
+            return new SingleColumnRestriction.EQ(columnDef, term);
+        }
+        List<? extends ColumnSpecification> receivers = toReceivers(cfm, columnDef);
+        Term entryKey = toTerm(Collections.singletonList(receivers.get(0)), mapKey, cfm.ksName, boundNames);
+        Term entryValue = toTerm(Collections.singletonList(receivers.get(1)), value, cfm.ksName, boundNames);
+        return new SingleColumnRestriction.Contains(columnDef, entryKey, entryValue);
     }
 
     @Override
@@ -195,19 +229,52 @@ public final class SingleColumnRelation extends Relation
 
         checkFalse(isContainsKey() && !(receiver.type instanceof MapType), "Cannot use CONTAINS KEY on non-map column %s", receiver.name);
 
+        if (mapKey != null)
+        {
+            checkFalse(receiver.type instanceof ListType, "Indexes on list entries (%s[index] = value) are not currently supported.", receiver.name);
+            checkTrue(receiver.type instanceof MapType, "Column %s cannot be used as a map", receiver.name);
+            checkTrue(receiver.type.isMultiCell(), "Map-entry equality predicates on frozen map column %s are not supported", receiver.name);
+            checkTrue(isEQ(), "Only EQ relations are supported on map entries");
+        }
+
         if (receiver.type.isCollection())
         {
             // We don't support relations against entire collections (unless they're frozen), like "numbers = {1, 2, 3}"
-            checkFalse(receiver.type.isMultiCell() && !(isContainsKey() || isContains()),
+            checkFalse(receiver.type.isMultiCell() && !isLegalRelationForNonFrozenCollection(),
                        "Collection column '%s' (%s) cannot be restricted by a '%s' relation",
                        receiver.name,
                        receiver.type.asCQL3Type(),
                        operator());
 
             if (isContainsKey() || isContains())
-                receiver = ((CollectionType<?>) receiver.type).makeCollectionReceiver(receiver, isContainsKey());
+            {
+                receiver = makeCollectionReceiver(receiver, isContainsKey());
+            }
+            else if (receiver.type.isMultiCell() && mapKey != null && isEQ())
+            {
+                List<ColumnSpecification> receivers = new ArrayList<>(2);
+                receivers.add(makeCollectionReceiver(receiver, true));
+                receivers.add(makeCollectionReceiver(receiver, false));
+                return receivers;
+            }
         }
+
         return Collections.singletonList(receiver);
+    }
+
+    private ColumnSpecification makeCollectionReceiver(ColumnSpecification receiver, boolean forKey)
+    {
+        return ((CollectionType<?>) receiver.type).makeCollectionReceiver(receiver, forKey);
+    }
+
+    private boolean isLegalRelationForNonFrozenCollection()
+    {
+        return isContainsKey() || isContains() || isMapEntryEquality();
+    }
+
+    private boolean isMapEntryEquality()
+    {
+        return mapKey != null && isEQ();
     }
 
     /**

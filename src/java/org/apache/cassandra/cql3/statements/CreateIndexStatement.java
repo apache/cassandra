@@ -80,34 +80,28 @@ public class CreateIndexStatement extends SchemaAlteringStatement
 
         boolean isMap = cd.type instanceof MapType;
         boolean isFrozenCollection = cd.type.isCollection() && !cd.type.isMultiCell();
-        if (target.isCollectionKeys)
+
+        if (isFrozenCollection)
         {
-            if (!isMap)
-                throw new InvalidRequestException("Cannot create index on keys of column " + target + " with non-map type");
-            if (!cd.type.isMultiCell())
-                throw new InvalidRequestException("Cannot create index on keys of frozen<map> column " + target);
+            validateForFrozenCollection(target);
         }
-        else if (target.isFullCollection)
+        else
         {
-            if (!isFrozenCollection)
-                throw new InvalidRequestException("full() indexes can only be created on frozen collections");
-        }
-        else if (isFrozenCollection)
-        {
-            throw new InvalidRequestException("Frozen collections currently only support full-collection indexes. " +
-                                              "For example, 'CREATE INDEX ON <table>(full(<columnName>))'.");
+            validateNotFullIndex(target);
+            validateIsValuesIndexIfTargetColumnNotCollection(cd, target);
+            validateTargetColumnIsMapIfIndexInvolvesKeys(isMap, target);
         }
 
         if (cd.getIndexType() != null)
         {
-            boolean previousIsKeys = cd.hasIndexOption(SecondaryIndex.INDEX_KEYS_OPTION_NAME);
-            if (isMap && target.isCollectionKeys != previousIsKeys)
+            IndexTarget.TargetType prevType = IndexTarget.TargetType.fromColumnDefinition(cd);
+            if (isMap && target.type != prevType)
             {
-                String msg = "Cannot create index on %s %s, an index on %s %s already exists and indexing "
-                           + "a map on both keys and values at the same time is not currently supported";
+                String msg = "Cannot create index on %s(%s): an index on %s(%s) already exists and indexing " +
+                             "a map on more than one dimension at the same time is not currently supported";
                 throw new InvalidRequestException(String.format(msg,
-                                                                target.column, target.isCollectionKeys ? "keys" : "values",
-                                                                target.column, previousIsKeys ? "keys" : "values"));
+                                                                target.type, target.column,
+                                                                prevType, target.column));
             }
 
             if (ifNotExists)
@@ -135,6 +129,35 @@ public class CreateIndexStatement extends SchemaAlteringStatement
             throw new InvalidRequestException(String.format("Cannot create secondary index on partition key column %s", target.column));
     }
 
+    private void validateForFrozenCollection(IndexTarget target) throws InvalidRequestException
+    {
+        if (target.type != IndexTarget.TargetType.FULL)
+            throw new InvalidRequestException(String.format("Cannot create index on %s of frozen<map> column %s", target.type, target.column));
+    }
+
+    private void validateNotFullIndex(IndexTarget target) throws InvalidRequestException
+    {
+        if (target.type == IndexTarget.TargetType.FULL)
+            throw new InvalidRequestException("full() indexes can only be created on frozen collections");
+    }
+
+    private void validateIsValuesIndexIfTargetColumnNotCollection(ColumnDefinition cd, IndexTarget target) throws InvalidRequestException
+    {
+        if (!cd.type.isCollection() && target.type != IndexTarget.TargetType.VALUES)
+            throw new InvalidRequestException(String.format("Cannot create index on %s of column %s; only non-frozen collections support %s indexes",
+                                                            target.type, target.column, target.type));
+    }
+
+    private void validateTargetColumnIsMapIfIndexInvolvesKeys(boolean isMap, IndexTarget target) throws InvalidRequestException
+    {
+        if (target.type == IndexTarget.TargetType.KEYS || target.type == IndexTarget.TargetType.KEYS_AND_VALUES)
+        {
+            if (!isMap)
+                throw new InvalidRequestException(String.format("Cannot create index on %s of column %s with non-map type",
+                                                                target.type, target.column));
+        }
+    }
+
     public boolean announceMigration(boolean isLocalOnly) throws RequestValidationException
     {
         CFMetaData cfm = Schema.instance.getCFMetaData(keyspace(), columnFamily()).copy();
@@ -156,8 +179,7 @@ public class CreateIndexStatement extends SchemaAlteringStatement
             // to also index map keys, so we record that this is the values we index to make our
             // lives easier then.
             if (cd.type.isCollection() && cd.type.isMultiCell())
-                options = ImmutableMap.of(target.isCollectionKeys ? SecondaryIndex.INDEX_KEYS_OPTION_NAME
-                                                                  : SecondaryIndex.INDEX_VALUES_OPTION_NAME, "");
+                options = ImmutableMap.of(target.type.indexOption(), "");
             cd.setIndexType(IndexType.COMPOSITES, options);
         }
         else

@@ -21,6 +21,8 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Deque;
+import java.util.LinkedList;
 import java.util.List;
 
 import org.apache.cassandra.config.ColumnDefinition;
@@ -32,6 +34,7 @@ import org.apache.cassandra.cql3.statements.Bound;
 import org.apache.cassandra.db.IndexExpression;
 import org.apache.cassandra.db.index.SecondaryIndex;
 import org.apache.cassandra.db.index.SecondaryIndexManager;
+import org.apache.cassandra.db.marshal.CompositeType;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkFalse;
@@ -324,11 +327,13 @@ public abstract class SingleColumnRestriction extends AbstractRestriction
         }
     }
 
-    // This holds both CONTAINS and CONTAINS_KEY restriction because we might want to have both of them.
+    // This holds CONTAINS, CONTAINS_KEY, and map[key] = value restrictions because we might want to have any combination of them.
     public static final class Contains extends SingleColumnRestriction
     {
         private List<Term> values = new ArrayList<>(); // for CONTAINS
-        private List<Term> keys = new ArrayList<>();  // for CONTAINS_KEY
+        private List<Term> keys = new ArrayList<>(); // for CONTAINS_KEY
+        private List<Term> entryKeys = new ArrayList<>(); // for map[key] = value
+        private List<Term> entryValues = new ArrayList<>(); // for map[key] = value
 
         public Contains(ColumnDefinition columnDef, Term t, boolean isKey)
         {
@@ -337,6 +342,13 @@ public abstract class SingleColumnRestriction extends AbstractRestriction
                 keys.add(t);
             else
                 values.add(t);
+        }
+
+        public Contains(ColumnDefinition columnDef, Term mapKey, Term mapValue)
+        {
+            super(columnDef);
+            entryKeys.add(mapKey);
+            entryValues.add(mapValue);
         }
 
         @Override
@@ -355,7 +367,7 @@ public abstract class SingleColumnRestriction extends AbstractRestriction
         public Restriction mergeWith(Restriction otherRestriction) throws InvalidRequestException
         {
             checkTrue(otherRestriction.isContains(),
-                      "Collection column %s can only be restricted by CONTAINS or CONTAINS KEY",
+                      "Collection column %s can only be restricted by CONTAINS, CONTAINS KEY, or map-entry equality",
                       getColumnDef().name);
 
             SingleColumnRestriction.Contains newContains = new Contains(getColumnDef());
@@ -371,15 +383,18 @@ public abstract class SingleColumnRestriction extends AbstractRestriction
                                          QueryOptions options)
                                          throws InvalidRequestException
         {
-            for (ByteBuffer value : values(options))
+            addExpressionsFor(expressions, values(options), Operator.CONTAINS);
+            addExpressionsFor(expressions, keys(options), Operator.CONTAINS_KEY);
+            addExpressionsFor(expressions, entries(options), Operator.EQ);
+        }
+
+        private void addExpressionsFor(List<IndexExpression> target, List<ByteBuffer> values,
+                                       Operator op) throws InvalidRequestException
+        {
+            for (ByteBuffer value : values)
             {
                 validateIndexedValue(columnDef, value);
-                expressions.add(new IndexExpression(columnDef.name.bytes, Operator.CONTAINS, value));
-            }
-            for (ByteBuffer key : keys(options))
-            {
-                validateIndexedValue(columnDef, key);
-                expressions.add(new IndexExpression(columnDef.name.bytes, Operator.CONTAINS_KEY, key));
+                target.add(new IndexExpression(columnDef.name.bytes, op, value));
             }
         }
 
@@ -394,6 +409,9 @@ public abstract class SingleColumnRestriction extends AbstractRestriction
             if (numberOfKeys() > 0)
                 supported |= index.supportsOperator(Operator.CONTAINS_KEY);
 
+            if (numberOfEntries() > 0)
+                supported |= index.supportsOperator(Operator.EQ);
+
             return supported;
         }
 
@@ -407,16 +425,22 @@ public abstract class SingleColumnRestriction extends AbstractRestriction
             return keys.size();
         }
 
+        public int numberOfEntries()
+        {
+            return entryKeys.size();
+        }
+
         @Override
         public boolean usesFunction(String ksName, String functionName)
         {
-            return usesFunction(values, ksName, functionName) || usesFunction(keys, ksName, functionName);
+            return usesFunction(values, ksName, functionName) || usesFunction(keys, ksName, functionName) ||
+                   usesFunction(entryKeys, ksName, functionName) || usesFunction(entryValues, ksName, functionName);
         }
 
         @Override
         public String toString()
         {
-            return String.format("CONTAINS(values=%s, keys=%s)", values, keys);
+            return String.format("CONTAINS(values=%s, keys=%s, entryKeys=%s, entryValues=%s)", values, keys, entryKeys, entryValues);
         }
 
         @Override
@@ -436,9 +460,24 @@ public abstract class SingleColumnRestriction extends AbstractRestriction
         {
             throw new UnsupportedOperationException();
         }
+
         private List<ByteBuffer> keys(QueryOptions options) throws InvalidRequestException
         {
             return bindAndGet(keys, options);
+        }
+
+        private List<ByteBuffer> entries(QueryOptions options) throws InvalidRequestException
+        {
+            List<ByteBuffer> entryBuffers = new ArrayList<>(entryKeys.size());
+            List<ByteBuffer> keyBuffers = bindAndGet(entryKeys, options);
+            List<ByteBuffer> valueBuffers = bindAndGet(entryValues, options);
+            for (int i = 0; i < entryKeys.size(); i++)
+            {
+                if (valueBuffers.get(i) == null)
+                    throw new InvalidRequestException("Unsupported null value for map-entry equality");
+                entryBuffers.add(CompositeType.build(keyBuffers.get(i), valueBuffers.get(i)));
+            }
+            return entryBuffers;
         }
 
         /**
@@ -467,6 +506,8 @@ public abstract class SingleColumnRestriction extends AbstractRestriction
         {
             to.values.addAll(from.values);
             to.keys.addAll(from.keys);
+            to.entryKeys.addAll(from.entryKeys);
+            to.entryValues.addAll(from.entryValues);
         }
 
         private Contains(ColumnDefinition columnDef)

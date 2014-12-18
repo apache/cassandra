@@ -676,9 +676,10 @@ createIndexStatement returns [CreateIndexStatement expr]
     ;
 
 indexIdent returns [IndexTarget.Raw id]
-    : c=cident                { $id = IndexTarget.Raw.valuesOf(c); }
-    | K_KEYS '(' c=cident ')' { $id = IndexTarget.Raw.keysOf(c); }
-    | K_FULL '(' c=cident ')' { $id = IndexTarget.Raw.fullCollection(c); }
+    : c=cident                   { $id = IndexTarget.Raw.valuesOf(c); }
+    | K_KEYS '(' c=cident ')'    { $id = IndexTarget.Raw.keysOf(c); }
+    | K_ENTRIES '(' c=cident ')' { $id = IndexTarget.Raw.keysAndValuesOf(c); }
+    | K_FULL '(' c=cident ')'    { $id = IndexTarget.Raw.fullCollection(c); }
     ;
 
 
@@ -1150,6 +1151,7 @@ relation[List<Relation> clauses]
         { $clauses.add(SingleColumnRelation.createInRelation($name.id, inValues)); }
     | name=cident K_CONTAINS { Operator rt = Operator.CONTAINS; } (K_KEY { rt = Operator.CONTAINS_KEY; })?
         t=term { $clauses.add(new SingleColumnRelation(name, rt, t)); }
+    | name=cident '[' key=term ']' type=relationType t=term { $clauses.add(new SingleColumnRelation(name, key, type, t)); }
     | ids=tupleOfIdentifiers
       ( K_IN
           ( '(' ')'
@@ -1342,6 +1344,7 @@ K_WHERE:       W H E R E;
 K_AND:         A N D;
 K_KEY:         K E Y;
 K_KEYS:        K E Y S;
+K_ENTRIES:     E N T R I E S;
 K_FULL:        F U L L;
 K_INSERT:      I N S E R T;
 K_UPDATE:      U P D A T E;

@@ -18,47 +18,20 @@
 package org.apache.cassandra.db.index.composites;
 
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
-import java.util.List;
 
-import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.cql3.Operator;
 import org.apache.cassandra.db.*;
-import org.apache.cassandra.db.composites.CBuilder;
 import org.apache.cassandra.db.composites.CellName;
-import org.apache.cassandra.db.composites.CellNameType;
-import org.apache.cassandra.db.composites.Composite;
-import org.apache.cassandra.db.composites.CompoundDenseCellNameType;
-import org.apache.cassandra.db.index.SecondaryIndex;
 import org.apache.cassandra.db.marshal.*;
 
 /**
  * Index on the collection element of the cell name of a collection.
  *
- * A cell indexed by this index will have the general form:
- *   ck_0 ... ck_n c_name [col_elt] : v
- * where ck_i are the cluster keys, c_name the CQL3 column name, col_elt the
- * collection element that we want to index (which may or may not be there depending
- * on whether c_name is the collection we're indexing) and v the cell value.
- *
- * Such a cell is indexed if c_name is the indexed collection (in which case we are guaranteed to have
- * col_elt). The index entry will be:
- *   - row key will be col_elt value (getIndexedValue()).
- *   - cell name will be 'rk ck_0 ... ck_n' where rk is the row key of the initial cell.
+ * The row keys for this index are given by the collection element for
+ * indexed columns.
  */
-public class CompositesIndexOnCollectionKey extends CompositesIndex
+public class CompositesIndexOnCollectionKey extends CompositesIndexIncludingCollectionKey
 {
-    public static CellNameType buildIndexComparator(CFMetaData baseMetadata, ColumnDefinition columnDef)
-    {
-        int count = 1 + baseMetadata.clusteringColumns().size(); // row key + clustering prefix
-        List<AbstractType<?>> types = new ArrayList<AbstractType<?>>(count);
-        types.add(SecondaryIndex.keyComparator);
-        for (int i = 0; i < count - 1; i++)
-            types.add(baseMetadata.comparator.subtype(i));
-        return new CompoundDenseCellNameType(types);
-    }
-
     @Override
     protected AbstractType<?> getIndexKeyComparator()
     {
@@ -70,39 +43,11 @@ public class CompositesIndexOnCollectionKey extends CompositesIndex
         return cell.name().get(columnDef.position() + 1);
     }
 
-    protected Composite makeIndexColumnPrefix(ByteBuffer rowKey, Composite cellName)
-    {
-        int count = 1 + baseCfs.metadata.clusteringColumns().size();
-        CBuilder builder = getIndexComparator().builder();
-        builder.add(rowKey);
-        for (int i = 0; i < Math.min(cellName.size(), count - 1); i++)
-            builder.add(cellName.get(i));
-        return builder.build();
-    }
-
-    public IndexedEntry decodeEntry(DecoratedKey indexedValue, Cell indexEntry)
-    {
-        int count = 1 + baseCfs.metadata.clusteringColumns().size();
-        CBuilder builder = baseCfs.getComparator().builder();
-        for (int i = 0; i < count - 1; i++)
-            builder.add(indexEntry.name().get(i + 1));
-        return new IndexedEntry(indexedValue, indexEntry.name(), indexEntry.timestamp(), indexEntry.name().get(0), builder.build());
-    }
-
     @Override
     public boolean supportsOperator(Operator operator)
     {
         return operator == Operator.CONTAINS_KEY ||
                 operator == Operator.CONTAINS && columnDef.type instanceof SetType;
-    }
-
-    @Override
-    public boolean indexes(CellName name)
-    {
-        // We index if the CQL3 column name is the one of the collection we index
-        AbstractType<?> comp = baseCfs.metadata.getColumnDefinitionComparator(columnDef);
-        return name.size() > columnDef.position()
-            && comp.compare(name.get(columnDef.position()), columnDef.name.bytes) == 0;
     }
 
     public boolean isStale(IndexedEntry entry, ColumnFamily data, long now)
