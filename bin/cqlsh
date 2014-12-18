@@ -1720,7 +1720,7 @@ class Shell(cmd.Cmd):
         """
         level = parsed.get_binding('level')
         if level is None:
-            print 'Current consistency level is %s.' % (self.consistency_level)
+            print 'Current consistency level is %s.' % (cassandra.ConsistencyLevel.value_to_name[self.consistency_level])
             return
 
         self.consistency_level = cassandra.ConsistencyLevel.name_to_value[level.upper()]
