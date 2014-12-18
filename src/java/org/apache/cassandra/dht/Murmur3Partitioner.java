@@ -247,7 +247,7 @@ public class Murmur3Partitioner implements IPartitioner
         {
             try
             {
-                return new LongToken(Long.valueOf(string));
+                return new LongToken(Long.parseLong(string));
             }
             catch (NumberFormatException e)
             {
