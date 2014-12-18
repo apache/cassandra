@@ -300,6 +300,14 @@ public abstract class AbstractCompactionStrategy
         return getClass().getSimpleName();
     }
 
+    public synchronized void replaceSSTables(Collection<SSTableReader> removed, Collection<SSTableReader> added)
+    {
+        for (SSTableReader remove : removed)
+            removeSSTable(remove);
+        for (SSTableReader add : added)
+            addSSTable(add);
+    }
+
     public abstract void addSSTable(SSTableReader added);
 
     public abstract void removeSSTable(SSTableReader sstable);

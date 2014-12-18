@@ -41,6 +41,7 @@
 
 
 2.1.3
+ * Make sure we set lastCompactedKey correctly (CASSANDRA-8463)
  * (cqlsh) Fix output of CONSISTENCY command (CASSANDRA-8507)
  * (cqlsh) Fixed the handling of LIST statements (CASSANDRA-8370)
  * Make sstablescrub check leveled manifest again (CASSANDRA-8432)
