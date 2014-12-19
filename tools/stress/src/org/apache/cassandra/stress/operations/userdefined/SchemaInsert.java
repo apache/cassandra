@@ -44,13 +44,8 @@ public class SchemaInsert extends SchemaStatement
 
     public SchemaInsert(Timer timer, StressSettings settings, PartitionGenerator generator, SeedManager seedManager, Distribution batchSize, RatioDistribution useRatio, Integer thriftId, PreparedStatement statement, ConsistencyLevel cl, BatchStatement.Type batchType)
     {
-        super(timer, settings, spec(generator, seedManager, batchSize, useRatio), statement, thriftId, cl, ValidationType.NOT_FAIL);
+        super(timer, settings, new DataSpec(generator, seedManager, batchSize, useRatio), statement, thriftId, cl, ValidationType.NOT_FAIL);
         this.batchType = batchType;
-    }
-
-    private static DataSpec spec(PartitionGenerator generator, SeedManager seedManager, Distribution partitionCount, RatioDistribution useRatio)
-    {
-        return new DataSpec(generator, seedManager, partitionCount, useRatio);
     }
 
     private class JavaDriverRun extends Runner

@@ -169,7 +169,6 @@ public abstract class PartitionIterator implements Iterator<Row>
         // so that we know with what chance we reached there, and we adjust our roll at that level by that amount
         final double[] chancemodifier = new double[generator.clusteringComponents.size()];
         final double[] rollmodifier = new double[generator.clusteringComponents.size()];
-        final ThreadLocalRandom random = ThreadLocalRandom.current();
 
         // track where in the partition we are, and where we are limited to
         final int[] position = new int[generator.clusteringComponents.size()];
@@ -240,7 +239,7 @@ public abstract class PartitionIterator implements Iterator<Row>
                 }
 
                 // seek to our start position
-                switch (seek(isWrite ? position : null))
+                switch (seek(isWrite ? position : 0))
                 {
                     case END_OF_PARTITION:
                         return false;
@@ -382,6 +381,7 @@ public abstract class PartitionIterator implements Iterator<Row>
 
         private boolean advance(int depth, boolean first)
         {
+            ThreadLocalRandom random = ThreadLocalRandom.current();
             // advance the leaf component
             clusteringComponents[depth].poll();
             position[depth]++;
@@ -548,9 +548,9 @@ public abstract class PartitionIterator implements Iterator<Row>
 
         private State setHasNext(boolean hasNext)
         {
+            this.hasNext = hasNext;
             if (!hasNext)
             {
-                this.hasNext = false;
                 boolean isLast = finishedPartition();
                 if (isWrite)
                 {
@@ -562,7 +562,6 @@ public abstract class PartitionIterator implements Iterator<Row>
                 }
                 return isLast ? State.END_OF_PARTITION : State.AFTER_LIMIT;
             }
-            this.hasNext = hasNext;
             return State.SUCCESS;
         }
     }
