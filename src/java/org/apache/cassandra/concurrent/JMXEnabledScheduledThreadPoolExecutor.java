@@ -19,60 +19,24 @@ package org.apache.cassandra.concurrent;
 
 import java.lang.management.ManagementFactory;
 import java.util.List;
-import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.TimeUnit;
+
 import javax.management.MBeanServer;
 import javax.management.ObjectName;
 
 import org.apache.cassandra.metrics.ThreadPoolMetrics;
 
 /**
- * This is a wrapper class for the <i>ScheduledThreadPoolExecutor</i>. It provides an implementation
- * for the <i>afterExecute()</i> found in the <i>ThreadPoolExecutor</i> class to log any unexpected
- * Runtime Exceptions.
+ * A JMX enabled wrapper for DebuggableScheduledThreadPoolExecutor.
  */
-
-public class JMXEnabledThreadPoolExecutor extends DebuggableThreadPoolExecutor implements JMXEnabledThreadPoolExecutorMBean
+public class JMXEnabledScheduledThreadPoolExecutor extends DebuggableScheduledThreadPoolExecutor implements JMXEnabledScheduledThreadPoolExecutorMBean
 {
     private final String mbeanName;
     private final ThreadPoolMetrics metrics;
 
-    public JMXEnabledThreadPoolExecutor(String threadPoolName)
+    public JMXEnabledScheduledThreadPoolExecutor(int corePoolSize, NamedThreadFactory threadFactory, String jmxPath)
     {
-        this(1, Integer.MAX_VALUE, TimeUnit.SECONDS, new LinkedBlockingQueue<Runnable>(), new NamedThreadFactory(threadPoolName), "internal");
-    }
+        super(corePoolSize, threadFactory);
 
-    public JMXEnabledThreadPoolExecutor(String threadPoolName, String jmxPath)
-    {
-        this(1, Integer.MAX_VALUE, TimeUnit.SECONDS, new LinkedBlockingQueue<Runnable>(), new NamedThreadFactory(threadPoolName), jmxPath);
-    }
-
-    public JMXEnabledThreadPoolExecutor(String threadPoolName, int priority)
-    {
-        this(1, Integer.MAX_VALUE, TimeUnit.SECONDS, new LinkedBlockingQueue<Runnable>(), new NamedThreadFactory(threadPoolName, priority), "internal");
-    }
-
-    public JMXEnabledThreadPoolExecutor(int corePoolSize,
-            long keepAliveTime,
-            TimeUnit unit,
-            BlockingQueue<Runnable> workQueue,
-            NamedThreadFactory threadFactory,
-            String jmxPath)
-    {
-        this(corePoolSize, corePoolSize, keepAliveTime, unit, workQueue, threadFactory, jmxPath);
-    }
-
-    public JMXEnabledThreadPoolExecutor(int corePoolSize,
-                                        int maxPoolSize,
-                                        long keepAliveTime,
-                                        TimeUnit unit,
-                                        BlockingQueue<Runnable> workQueue,
-                                        NamedThreadFactory threadFactory,
-                                        String jmxPath)
-    {
-        super(corePoolSize, maxPoolSize, keepAliveTime, unit, workQueue, threadFactory);
-        super.prestartAllCoreThreads();
         metrics = new ThreadPoolMetrics(this, jmxPath, threadFactory.id);
 
         MBeanServer mbs = ManagementFactory.getPlatformMBeanServer();
@@ -86,11 +50,6 @@ public class JMXEnabledThreadPoolExecutor extends DebuggableThreadPoolExecutor i
         {
             throw new RuntimeException(e);
         }
-    }
-
-    public JMXEnabledThreadPoolExecutor(Stage stage)
-    {
-        this(stage.getJmxName(), stage.getJmxType());
     }
 
     private void unregisterMBean()
@@ -114,9 +73,8 @@ public class JMXEnabledThreadPoolExecutor extends DebuggableThreadPoolExecutor i
         // synchronized, because there is no way to access super.mainLock, which would be
         // the preferred way to make this threadsafe
         if (!isShutdown())
-        {
             unregisterMBean();
-        }
+
         super.shutdown();
     }
 
@@ -126,9 +84,8 @@ public class JMXEnabledThreadPoolExecutor extends DebuggableThreadPoolExecutor i
         // synchronized, because there is no way to access super.mainLock, which would be
         // the preferred way to make this threadsafe
         if (!isShutdown())
-        {
             unregisterMBean();
-        }
+
         return super.shutdownNow();
     }
 
@@ -176,24 +133,5 @@ public class JMXEnabledThreadPoolExecutor extends DebuggableThreadPoolExecutor i
     public void setMaximumThreads(int number)
     {
         setMaximumPoolSize(number);
-    }
-
-    @Override
-    protected void onInitialRejection(Runnable task)
-    {
-        metrics.totalBlocked.inc();
-        metrics.currentBlocked.inc();
-    }
-
-    @Override
-    protected void onFinalAccept(Runnable task)
-    {
-        metrics.currentBlocked.dec();
-    }
-
-    @Override
-    protected void onFinalRejection(Runnable task)
-    {
-        metrics.currentBlocked.dec();
     }
 }

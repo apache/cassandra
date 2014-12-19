@@ -34,19 +34,15 @@ import com.google.common.collect.ImmutableSortedSet;
 import com.google.common.collect.Lists;
 import com.google.common.util.concurrent.RateLimiter;
 import com.google.common.util.concurrent.Uninterruptibles;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.concurrent.JMXEnabledThreadPoolExecutor;
+import org.apache.cassandra.concurrent.JMXEnabledScheduledThreadPoolExecutor;
 import org.apache.cassandra.concurrent.NamedThreadFactory;
-import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.Schema;
-import org.apache.cassandra.db.composites.CellName;
-import org.apache.cassandra.db.composites.Composite;
-import org.apache.cassandra.db.composites.Composites;
 import org.apache.cassandra.db.compaction.CompactionManager;
+import org.apache.cassandra.db.composites.*;
 import org.apache.cassandra.db.filter.*;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.UUIDType;
@@ -63,10 +59,7 @@ import org.apache.cassandra.metrics.HintedHandoffMetrics;
 import org.apache.cassandra.net.MessageOut;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.*;
-import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.utils.JVMStabilityInspector;
-import org.apache.cassandra.utils.UUIDGen;
+import org.apache.cassandra.utils.*;
 import org.cliffc.high_scale_lib.NonBlockingHashSet;
 
 /**
@@ -106,14 +99,13 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
 
     static final int maxHintTTL = Integer.parseInt(System.getProperty("cassandra.maxHintTTL", String.valueOf(Integer.MAX_VALUE)));
 
-    private final NonBlockingHashSet<InetAddress> queuedDeliveries = new NonBlockingHashSet<InetAddress>();
+    private final NonBlockingHashSet<InetAddress> queuedDeliveries = new NonBlockingHashSet<>();
 
-    private final ThreadPoolExecutor executor = new JMXEnabledThreadPoolExecutor(DatabaseDescriptor.getMaxHintsThread(),
-                                                                                 Integer.MAX_VALUE,
-                                                                                 TimeUnit.SECONDS,
-                                                                                 new LinkedBlockingQueue<Runnable>(),
-                                                                                 new NamedThreadFactory("HintedHandoff", Thread.MIN_PRIORITY),
-                                                                                 "internal");
+    private final JMXEnabledScheduledThreadPoolExecutor executor =
+        new JMXEnabledScheduledThreadPoolExecutor(
+            DatabaseDescriptor.getMaxHintsThread(),
+            new NamedThreadFactory("HintedHandoff", Thread.MIN_PRIORITY),
+            "internal");
 
     private final ColumnFamilyStore hintStore = Keyspace.open(SystemKeyspace.NAME).getColumnFamilyStore(SystemKeyspace.HINTS);
 
@@ -176,7 +168,7 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
                 metrics.log();
             }
         };
-        ScheduledExecutors.optionalTasks.scheduleWithFixedDelay(runnable, 10, 10, TimeUnit.MINUTES);
+        executor.scheduleWithFixedDelay(runnable, 10, 10, TimeUnit.MINUTES);
     }
 
     private static void deleteHint(ByteBuffer tokenBytes, CellName columnName, long timestamp)
@@ -228,7 +220,7 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
                 }
             }
         };
-        ScheduledExecutors.optionalTasks.submit(runnable);
+        executor.submit(runnable);
     }
 
     //foobar
@@ -249,7 +241,7 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
                 }
             }
         };
-        ScheduledExecutors.optionalTasks.submit(runnable).get();
+        executor.submit(runnable).get();
 
     }
 
@@ -513,7 +505,7 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
 
         IPartitioner p = StorageService.getPartitioner();
         RowPosition minPos = p.getMinimumToken().minKeyBound();
-        Range<RowPosition> range = new Range<RowPosition>(minPos, minPos);
+        Range<RowPosition> range = new Range<>(minPos, minPos);
         IDiskAtomFilter filter = new NamesQueryFilter(ImmutableSortedSet.<CellName>of());
         List<Row> rows = hintStore.getRangeSlice(range, null, filter, Integer.MAX_VALUE, System.currentTimeMillis());
         for (Row row : rows)
@@ -577,7 +569,7 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
         Token.TokenFactory tokenFactory = StorageService.getPartitioner().getTokenFactory();
 
         // Extract the keys as strings to be reported.
-        LinkedList<String> result = new LinkedList<String>();
+        LinkedList<String> result = new LinkedList<>();
         for (Row row : getHintsSlice(1))
         {
             if (row.cf != null) //ignore removed rows
@@ -596,7 +588,7 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
         // From keys "" to ""...
         IPartitioner partitioner = StorageService.getPartitioner();
         RowPosition minPos = partitioner.getMinimumToken().minKeyBound();
-        Range<RowPosition> range = new Range<RowPosition>(minPos, minPos);
+        Range<RowPosition> range = new Range<>(minPos, minPos);
 
         try
         {
