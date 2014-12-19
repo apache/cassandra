@@ -1637,6 +1637,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             }
         }
 
+        boolean isMoving = tokenMetadata.isMoving(endpoint); // capture because updateNormalTokens clears moving status
         tokenMetadata.updateNormalTokens(tokensToUpdateInMetadata, endpoint);
         for (InetAddress ep : endpointsToRemove)
         {
@@ -1649,7 +1650,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         if (!localTokensToRemove.isEmpty())
             SystemKeyspace.updateLocalTokens(Collections.<Token>emptyList(), localTokensToRemove);
 
-        if (tokenMetadata.isMoving(endpoint)) // if endpoint was moving to a new token
+        if (isMoving)
         {
             tokenMetadata.removeFromMoving(endpoint);
 
