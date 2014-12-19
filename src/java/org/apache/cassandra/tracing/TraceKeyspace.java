@@ -18,11 +18,7 @@
 package org.apache.cassandra.tracing;
 
 import java.nio.ByteBuffer;
-import java.util.Arrays;
-import java.util.Date;
-import java.util.List;
-import java.util.Map;
-import java.util.concurrent.TimeUnit;
+import java.util.*;
 
 import com.google.common.collect.ImmutableMap;
 
@@ -70,8 +66,7 @@ public final class TraceKeyspace
     private static CFMetaData compile(String name, String description, String schema)
     {
         return CFMetaData.compile(String.format(schema, name), NAME)
-                         .comment(description)
-                         .defaultTimeToLive((int) TimeUnit.DAYS.toSeconds(1));
+                         .comment(description);
     }
 
     public static KSMetaData definition()

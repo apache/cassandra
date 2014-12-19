@@ -19,8 +19,10 @@ package org.apache.cassandra.config;
 
 import java.io.IOException;
 import java.io.StringReader;
+import java.sql.Time;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 
 import com.google.common.collect.Sets;
 import org.supercsv.io.CsvListReader;
@@ -215,8 +217,8 @@ public class Config
                                                                                                   .surroundingSpacesNeedQuotes(true).build();
 
     // TTL for different types of trace events.
-    public Integer tracetype_query_ttl = 60 * 60 * 24;
-    public Integer tracetype_repair_ttl = 60 * 60 * 24 * 7;
+    public int tracetype_query_ttl = (int) TimeUnit.DAYS.toSeconds(1);
+    public int tracetype_repair_ttl = (int) TimeUnit.DAYS.toSeconds(7);
 
     public static boolean getOutboundBindAny()
     {
