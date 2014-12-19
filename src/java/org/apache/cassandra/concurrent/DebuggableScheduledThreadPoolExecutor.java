@@ -33,6 +33,11 @@ public class DebuggableScheduledThreadPoolExecutor extends ScheduledThreadPoolEx
         super(corePoolSize, new NamedThreadFactory(threadPoolName, priority));
     }
 
+    public DebuggableScheduledThreadPoolExecutor(int corePoolSize, ThreadFactory threadFactory)
+    {
+        super(corePoolSize, threadFactory);
+    }
+
     public DebuggableScheduledThreadPoolExecutor(String threadPoolName)
     {
         this(1, threadPoolName, Thread.NORM_PRIORITY);
