@@ -83,6 +83,7 @@
  * Log failed host when preparing incremental repair (CASSANDRA-8228)
  * Force config client mode in CQLSSTableWriter (CASSANDRA-8281)
 Merged from 2.0:
+ * Fix paging for multi-partition IN queries (CASSANDRA-8408)
  * Fix MOVED_NODE topology event never being emitted when a node
    moves its token (CASSANDRA-8373)
  * Fix validation of indexes in COMPACT tables (CASSANDRA-8156)
