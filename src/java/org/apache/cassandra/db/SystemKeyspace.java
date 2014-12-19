@@ -214,7 +214,8 @@ public final class SystemKeyspace
 
     private static CFMetaData compile(String name, String description, String schema)
     {
-        return CFMetaData.compile(String.format(schema, name), NAME).comment(description);
+        return CFMetaData.compile(String.format(schema, name), NAME)
+                         .comment(description);
     }
 
     public static KSMetaData definition()
