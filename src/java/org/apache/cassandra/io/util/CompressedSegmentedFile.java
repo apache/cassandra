@@ -20,6 +20,7 @@ package org.apache.cassandra.io.util;
 import org.apache.cassandra.io.compress.CompressedRandomAccessReader;
 import org.apache.cassandra.io.compress.CompressedSequentialWriter;
 import org.apache.cassandra.io.compress.CompressionMetadata;
+import org.apache.cassandra.io.sstable.format.SSTableWriter;
 
 public class CompressedSegmentedFile extends SegmentedFile implements ICompressedFile
 {
@@ -44,24 +45,17 @@ public class CompressedSegmentedFile extends SegmentedFile implements ICompresse
             // only one segment in a standard-io file
         }
 
-        protected CompressionMetadata metadata(String path, boolean early)
+        protected CompressionMetadata metadata(String path, SSTableWriter.FinishType finishType)
         {
             if (writer == null)
                 return CompressionMetadata.create(path);
-            else if (early)
-                return writer.openEarly();
-            else
-                return writer.openAfterClose();
+
+            return writer.open(finishType);
         }
 
-        public SegmentedFile complete(String path)
+        public SegmentedFile complete(String path, SSTableWriter.FinishType finishType)
         {
-            return new CompressedSegmentedFile(path, metadata(path, false));
-        }
-
-        public SegmentedFile openEarly(String path)
-        {
-            return new CompressedSegmentedFile(path, metadata(path, true));
+            return new CompressedSegmentedFile(path, metadata(path, finishType));
         }
     }
 

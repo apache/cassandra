@@ -53,6 +53,19 @@ public abstract class SSTableWriter extends SSTable
 {
     private static final Logger logger = LoggerFactory.getLogger(SSTableWriter.class);
 
+    public static enum FinishType
+    {
+        NORMAL(SSTableReader.OpenReason.NORMAL),
+        EARLY(SSTableReader.OpenReason.EARLY), // no renaming
+        FINISH_EARLY(SSTableReader.OpenReason.NORMAL); // tidy up an EARLY finish
+        public final SSTableReader.OpenReason openReason;
+
+        FinishType(SSTableReader.OpenReason openReason)
+        {
+            this.openReason = openReason;
+        }
+    }
+
     protected final long repairedAt;
     protected final long keyCount;
     protected final MetadataCollector metadataCollector;
@@ -150,10 +163,10 @@ public abstract class SSTableWriter extends SSTable
 
     public SSTableReader closeAndOpenReader(long maxDataAge)
     {
-        return closeAndOpenReader(maxDataAge, repairedAt);
+        return finish(FinishType.NORMAL, maxDataAge, repairedAt);
     }
 
-    public abstract SSTableReader closeAndOpenReader(long maxDataAge, long repairedAt);
+    public abstract SSTableReader finish(FinishType finishType, long maxDataAge, long repairedAt);
 
     public abstract SSTableReader openEarly(long maxDataAge);
 

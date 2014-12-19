@@ -29,6 +29,7 @@ import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.FSReadError;
 import org.apache.cassandra.io.compress.CompressedSequentialWriter;
+import org.apache.cassandra.io.sstable.format.SSTableWriter;
 import org.apache.cassandra.utils.Pair;
 
 /**
@@ -115,13 +116,12 @@ public abstract class SegmentedFile
          * Called after all potential boundaries have been added to apply this Builder to a concrete file on disk.
          * @param path The file on disk.
          */
-        public abstract SegmentedFile complete(String path);
+        public abstract SegmentedFile complete(String path, SSTableWriter.FinishType openType);
 
-        /**
-         * Called after all potential boundaries have been added to apply this Builder to a concrete file on disk.
-         * @param path The file on disk.
-         */
-        public abstract SegmentedFile openEarly(String path);
+        public SegmentedFile complete(String path)
+        {
+            return complete(path, SSTableWriter.FinishType.NORMAL);
+        }
 
         public void serializeBounds(DataOutput out) throws IOException
         {

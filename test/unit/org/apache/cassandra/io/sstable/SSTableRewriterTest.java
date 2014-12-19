@@ -33,11 +33,7 @@ import org.junit.Test;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.config.KSMetaData;
-import org.apache.cassandra.db.ArrayBackedSortedColumns;
-import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.db.DecoratedKey;
-import org.apache.cassandra.db.Keyspace;
-import org.apache.cassandra.db.Mutation;
+import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.compaction.AbstractCompactedRow;
 import org.apache.cassandra.db.compaction.AbstractCompactionStrategy;
 import org.apache.cassandra.db.compaction.CompactionController;
@@ -508,7 +504,6 @@ public class SSTableRewriterTest extends SchemaLoader
         cfs.disableAutoCompaction();
 
         SSTableReader s = writeFile(cfs, 400);
-        DecoratedKey origFirst = s.first;
         cfs.addSSTable(s);
         Set<SSTableReader> compacting = Sets.newHashSet(s);
         SSTableRewriter.overrideOpenInterval(1000000);
@@ -524,8 +519,7 @@ public class SSTableRewriterTest extends SchemaLoader
                 rewriter.append(new LazilyCompactedRow(controller, Arrays.asList(scanner.next())));
                 if (rewriter.currentWriter().getOnDiskFilePointer() > 2500000)
                 {
-                    assertEquals(1, cfs.getSSTables().size()); // we dont open small files early ...
-                    assertEquals(origFirst, cfs.getSSTables().iterator().next().first); // ... and the first key should stay the same
+                    assertEquals(files, cfs.getSSTables().size()); // all files are now opened early
                     rewriter.switchWriter(getWriter(cfs, s.descriptor.directory));
                     files++;
                 }
@@ -639,6 +633,73 @@ public class SSTableRewriterTest extends SchemaLoader
 
         assertEquals(0, filecount);
 
+    }
+
+    @Test
+    public void testAllKeysReadable() throws Exception
+    {
+        Keyspace keyspace = Keyspace.open(KEYSPACE);
+        ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(CF);
+        cfs.truncateBlocking();
+        for (int i = 0; i < 100; i++)
+        {
+            DecoratedKey key = Util.dk(Integer.toString(i));
+            Mutation rm = new Mutation(KEYSPACE, key.getKey());
+            for (int j = 0; j < 10; j++)
+                rm.add(CF, Util.cellname(Integer.toString(j)), ByteBufferUtil.EMPTY_BYTE_BUFFER, 100);
+            rm.apply();
+        }
+        cfs.forceBlockingFlush();
+        cfs.forceMajorCompaction();
+        validateKeys(keyspace);
+
+        assertEquals(1, cfs.getSSTables().size());
+        SSTableReader s = cfs.getSSTables().iterator().next();
+        Set<SSTableReader> compacting = new HashSet<>();
+        compacting.add(s);
+        cfs.getDataTracker().markCompacting(compacting);
+
+        SSTableRewriter rewriter = new SSTableRewriter(cfs, compacting, 1000, false);
+        SSTableRewriter.overrideOpenInterval(1);
+        SSTableWriter w = getWriter(cfs, s.descriptor.directory);
+        rewriter.switchWriter(w);
+        int keyCount = 0;
+        try (ISSTableScanner scanner = compacting.iterator().next().getScanner();
+             CompactionController controller = new CompactionController(cfs, compacting, 0))
+        {
+            while (scanner.hasNext())
+            {
+                rewriter.append(new LazilyCompactedRow(controller, Arrays.asList(scanner.next())));
+                if (keyCount % 10 == 0)
+                {
+                    rewriter.switchWriter(getWriter(cfs, s.descriptor.directory));
+                }
+                keyCount++;
+                validateKeys(keyspace);
+            }
+            try
+            {
+                cfs.getDataTracker().markCompactedSSTablesReplaced(compacting, rewriter.finish(), OperationType.COMPACTION);
+                cfs.getDataTracker().unmarkCompacting(compacting);
+            }
+            catch (Throwable t)
+            {
+                rewriter.abort();
+            }
+        }
+        validateKeys(keyspace);
+        Thread.sleep(1000);
+        validateCFS(cfs);
+    }
+
+    private void validateKeys(Keyspace ks)
+    {
+        for (int i = 0; i < 100; i++)
+        {
+            DecoratedKey key = Util.dk(Integer.toString(i));
+            ColumnFamily cf = Util.getColumnFamily(ks, key, CF);
+            assertTrue(cf != null);
+        }
     }
 
     private SSTableReader writeFile(ColumnFamilyStore cfs, int count)

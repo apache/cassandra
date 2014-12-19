@@ -19,6 +19,8 @@ package org.apache.cassandra.io.util;
 
 import java.io.File;
 
+import org.apache.cassandra.io.sstable.format.SSTableWriter;
+
 public class BufferedSegmentedFile extends SegmentedFile
 {
     public BufferedSegmentedFile(String path, long length)
@@ -33,15 +35,10 @@ public class BufferedSegmentedFile extends SegmentedFile
             // only one segment in a standard-io file
         }
 
-        public SegmentedFile complete(String path)
+        public SegmentedFile complete(String path, SSTableWriter.FinishType finishType)
         {
             long length = new File(path).length();
             return new BufferedSegmentedFile(path, length);
-        }
-
-        public SegmentedFile openEarly(String path)
-        {
-            return complete(path);
         }
     }
 

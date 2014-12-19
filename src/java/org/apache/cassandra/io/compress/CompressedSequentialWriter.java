@@ -27,6 +27,7 @@ import org.apache.cassandra.io.FSReadError;
 import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.io.sstable.CorruptSSTableException;
 import org.apache.cassandra.io.sstable.Descriptor;
+import org.apache.cassandra.io.sstable.format.SSTableWriter;
 import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
 import org.apache.cassandra.io.util.DataIntegrityMetadata;
 import org.apache.cassandra.io.util.FileMark;
@@ -139,15 +140,10 @@ public class CompressedSequentialWriter extends SequentialWriter
         chunkOffset += compressedLength + 4;
     }
 
-    public CompressionMetadata openEarly()
+    public CompressionMetadata open(SSTableWriter.FinishType finishType)
     {
-        return metadataWriter.openEarly(originalSize, chunkOffset);
-    }
-
-    public CompressionMetadata openAfterClose()
-    {
-        assert current == originalSize;
-        return metadataWriter.openAfterClose(current, chunkOffset);
+        assert finishType != SSTableWriter.FinishType.NORMAL || current == originalSize;
+        return metadataWriter.open(originalSize, chunkOffset, finishType);
     }
 
     @Override
