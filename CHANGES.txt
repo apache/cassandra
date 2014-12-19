@@ -41,6 +41,7 @@
  * Log failed host when preparing incremental repair (CASSANDRA-8228)
  * Force config client mode in CQLSSTableWriter (CASSANDRA-8281)
 Merged from 2.0:
+ * Move MeteredFlusher to its own thread (CASSANDRA-8485)
  * Fix non-distinct results in DISTNCT queries on static columns when
    paging is enabled (CASSANDRA-8087)
  * Move all hints related tasks to hints internal executor (CASSANDRA-8285)
