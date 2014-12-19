@@ -47,10 +47,10 @@ import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.CorruptSSTableException;
 import org.apache.cassandra.io.sstable.Descriptor;
+import org.apache.cassandra.io.sstable.SSTableWriter;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.io.util.Memory;
-import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
 
 /**
@@ -217,7 +217,7 @@ public class CompressionMetadata
             throw new CorruptSSTableException(new EOFException(), indexFilePath);
 
         long chunkOffset = chunkOffsets.getLong(idx);
-        long nextChunkOffset = (idx + 8 == chunkOffsets.size())
+        long nextChunkOffset = (idx + 8 == chunkOffsetsSize)
                                 ? compressedFileLength
                                 : chunkOffsets.getLong(idx + 8);
 
@@ -319,16 +319,23 @@ public class CompressionMetadata
             }
         }
 
-        public CompressionMetadata openEarly(long dataLength, long compressedLength)
+        public CompressionMetadata open(long dataLength, long compressedLength, SSTableWriter.FinishType finishType)
         {
+            RefCountedMemory offsets;
+            switch (finishType)
+            {
+                case EARLY:
+                    offsets = this.offsets;
+                    break;
+                case NORMAL:
+                case FINISH_EARLY:
+                    offsets = this.offsets.copy(count * 8L);
+                    this.offsets.unreference();
+                    break;
+                default:
+                    throw new AssertionError();
+            }
             return new CompressionMetadata(filePath, parameters, offsets, count * 8L, dataLength, compressedLength, Descriptor.Version.CURRENT.hasPostCompressionAdlerChecksums);
-        }
-
-        public CompressionMetadata openAfterClose(long dataLength, long compressedLength)
-        {
-            RefCountedMemory newOffsets = offsets.copy(count * 8L);
-            offsets.unreference();
-            return new CompressionMetadata(filePath, parameters, newOffsets, count * 8L, dataLength, compressedLength, Descriptor.Version.CURRENT.hasPostCompressionAdlerChecksums);
         }
 
         /**
@@ -360,8 +367,8 @@ public class CompressionMetadata
             	out = new DataOutputStream(new BufferedOutputStream(new FileOutputStream(filePath)));
 	            assert chunks == count;
 	            writeHeader(out, dataLength, chunks);
-	            for (int i = 0 ; i < count ; i++)
-	                out.writeLong(offsets.getLong(i * 8));
+                for (int i = 0 ; i < count ; i++)
+                    out.writeLong(offsets.getLong(i * 8));
             }
             finally
             {

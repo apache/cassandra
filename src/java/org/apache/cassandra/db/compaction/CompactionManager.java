@@ -1035,9 +1035,6 @@ public class CompactionManager implements CompactionManagerMBean
                         unrepairedKeyCount++;
                     }
                 }
-                // we have the same readers being rewritten by both writers, so we ask the first one NOT to close them
-                // so that the second one can do so safely, without leaving us with references < 0 or any other ugliness
-                // add repaired table with a non-null timestamp field to be saved in SSTableMetadata#repairedAt
                 anticompactedSSTables.addAll(repairedSSTableWriter.finish(repairedAt));
                 anticompactedSSTables.addAll(unRepairedSSTableWriter.finish(ActiveRepairService.UNREPAIRED_SSTABLE));
                 cfs.getDataTracker().markCompactedSSTablesReplaced(sstableAsSet, anticompactedSSTables, OperationType.ANTICOMPACTION);
