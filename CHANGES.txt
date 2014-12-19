@@ -1,4 +1,5 @@
 2.0.12:
+ * Move MeteredFlusher to its own thread (CASSANDRA-8485)
  * Fix non-distinct results in DISTNCT queries on static columns when
    paging is enabled (CASSANDRA-8087)
  * Move all hints related tasks to hints internal executor (CASSANDRA-8285)

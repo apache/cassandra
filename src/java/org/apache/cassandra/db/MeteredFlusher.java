@@ -21,15 +21,32 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.concurrent.DebuggableScheduledThreadPoolExecutor;
 import org.apache.cassandra.config.DatabaseDescriptor;
 
 public class MeteredFlusher implements Runnable
 {
     private static final Logger logger = LoggerFactory.getLogger(MeteredFlusher.class);
+
+    public static final MeteredFlusher instance = new MeteredFlusher();
+
+    private final ScheduledExecutorService executor;
+
+    private MeteredFlusher()
+    {
+        executor = new DebuggableScheduledThreadPoolExecutor("MeteredFlusher");
+    }
+
+    public void start()
+    {
+        executor.scheduleWithFixedDelay(this, 1, 1, TimeUnit.SECONDS);
+    }
 
     public void run()
     {
@@ -55,7 +72,7 @@ public class MeteredFlusher implements Runnable
             long size = cfs.getTotalMemtableLiveSize();
             if (allowedSize > flushingSize && size > (allowedSize - flushingSize) / maxInFlight)
             {
-                logger.info("flushing high-traffic column family {} (estimated {} bytes)", cfs, size);
+                logger.info("Flushing high-traffic column family {} (estimated {} bytes)", cfs, size);
                 cfs.forceFlush();
             }
             else
@@ -66,7 +83,7 @@ public class MeteredFlusher implements Runnable
 
         if (liveSize + flushingSize <= allowedSize)
             return;
-        logger.info("estimated {} live and {} flushing bytes used by all memtables", liveSize, flushingSize);
+        logger.info("Estimated {} live and {} flushing bytes used by all memtables", liveSize, flushingSize);
 
         Collections.sort(affectedCFs, new Comparator<ColumnFamilyStore>()
         {
@@ -89,16 +106,16 @@ public class MeteredFlusher implements Runnable
             long size = cfs.getTotalMemtableLiveSize();
             if (size > 0)
             {
-                logger.info("flushing {} to free up {} bytes", cfs, size);
+                logger.info("Flushing {} to free up {} bytes", cfs, size);
                 liveSize -= size;
                 cfs.forceFlush();
             }
         }
 
-        logger.trace("memtable memory usage is {} bytes with {} live", liveSize + flushingSize, liveSize);
+        logger.trace("Memtable memory usage is {} bytes with {} live", liveSize + flushingSize, liveSize);
     }
 
-    private static List<ColumnFamilyStore> affectedColumnFamilies()
+    private List<ColumnFamilyStore> affectedColumnFamilies()
     {
         List<ColumnFamilyStore> affected = new ArrayList<>();
         // filter out column families that aren't affected by MeteredFlusher
@@ -108,7 +125,7 @@ public class MeteredFlusher implements Runnable
         return affected;
     }
 
-    private static long calculateAllowedSize()
+    private long calculateAllowedSize()
     {
         long allowed = DatabaseDescriptor.getTotalMemtableSpaceInMB() * 1048576L;
         // deduct the combined memory limit of the tables unaffected by the metered flusher (we don't flush them, we
@@ -119,7 +136,7 @@ public class MeteredFlusher implements Runnable
         return allowed;
     }
 
-    private static long calculateFlushingSize()
+    private long calculateFlushingSize()
     {
         ColumnFamilyStore measuredCFS = Memtable.activelyMeasuring;
         long flushing = measuredCFS != null && measuredCFS.getCompactionStrategy().isAffectedByMeteredFlusher()
