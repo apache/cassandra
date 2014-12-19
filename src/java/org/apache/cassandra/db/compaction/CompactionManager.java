@@ -445,26 +445,33 @@ public class CompactionManager implements CompactionManagerMBean
 
     public void performMaximal(final ColumnFamilyStore cfStore) throws InterruptedException, ExecutionException
     {
-        submitMaximal(cfStore, getDefaultGcBefore(cfStore)).get();
+        FBUtilities.waitOnFutures(submitMaximal(cfStore, getDefaultGcBefore(cfStore)));
     }
 
-    public Future<?> submitMaximal(final ColumnFamilyStore cfStore, final int gcBefore)
+    public List<Future<?>> submitMaximal(final ColumnFamilyStore cfStore, final int gcBefore)
     {
         // here we compute the task off the compaction executor, so having that present doesn't
         // confuse runWithCompactionsDisabled -- i.e., we don't want to deadlock ourselves, waiting
         // for ourselves to finish/acknowledge cancellation before continuing.
         final Collection<AbstractCompactionTask> tasks = cfStore.getCompactionStrategy().getMaximalTask(gcBefore);
-        Runnable runnable = new WrappedRunnable()
+
+        if (tasks == null)
+            return Collections.emptyList();
+
+        List<Future<?>> futures = new ArrayList<>();
+
+        for (final AbstractCompactionTask task : tasks)
         {
-            protected void runMayThrow() throws IOException
+            Runnable runnable = new WrappedRunnable()
             {
-                if (tasks == null)
-                    return;
-                for (AbstractCompactionTask task : tasks)
+                protected void runMayThrow() throws IOException
+                {
                     task.execute(metrics);
-            }
-        };
-        return executor.submit(runnable);
+                }
+            };
+            futures.add(executor.submit(runnable));
+        }
+        return futures;
     }
 
     public void forceUserDefinedCompaction(String dataFiles)

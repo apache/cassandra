@@ -42,6 +42,7 @@
 
 
 2.1.3
+ * Run major compactions for repaired/unrepaired in parallel (CASSANDRA-8510)
  * (cqlsh) Fix compression options in DESCRIBE TABLE output when compression
    is disabled (CASSANDRA-8288)
  * (cqlsh) Fix DESCRIBE output after keyspaces are altered (CASSANDRA-7623)
