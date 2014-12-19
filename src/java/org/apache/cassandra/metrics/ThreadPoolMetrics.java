@@ -19,8 +19,6 @@ package org.apache.cassandra.metrics;
 
 import java.util.concurrent.ThreadPoolExecutor;
 
-import org.apache.cassandra.concurrent.JMXEnabledThreadPoolExecutor;
-
 import com.yammer.metrics.Metrics;
 import com.yammer.metrics.core.*;
 
@@ -54,7 +52,7 @@ public class ThreadPoolMetrics
      * @param path Type of thread pool
      * @param poolName Name of thread pool to identify metrics
      */
-    public ThreadPoolMetrics(final JMXEnabledThreadPoolExecutor executor, String path, String poolName)
+    public ThreadPoolMetrics(final ThreadPoolExecutor executor, String path, String poolName)
     {
         this.factory = new ThreadPoolMetricNameFactory("ThreadPools", path, poolName);
 
@@ -85,7 +83,7 @@ public class ThreadPoolMetrics
         {
             public Integer value()
             {
-                return executor.maxPoolSize;
+                return executor.getMaximumPoolSize();
             }
         });
     }
