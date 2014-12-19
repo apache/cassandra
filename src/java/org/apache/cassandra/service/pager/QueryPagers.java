@@ -99,7 +99,7 @@ public class QueryPagers
             if (commands.size() == 1)
                 return pager(commands.get(0), consistencyLevel, cState, local, state);
 
-            return new MultiPartitionPager(commands, consistencyLevel, cState, local, state);
+            return new MultiPartitionPager(commands, consistencyLevel, cState, local, state, ((Pageable.ReadCommands) command).limitForQuery);
         }
         else if (command instanceof ReadCommand)
         {
