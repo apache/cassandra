@@ -97,15 +97,10 @@ public class PagedRangeCommand extends AbstractRangeCommand
 
     public boolean countCQL3Rows()
     {
-        // We only use PagedRangeCommand for CQL3. However, for SELECT DISTINCT, we want to return false here, because
-        // we just want to pick the first cell of each partition and returning true here would throw off the logic in
-        // ColumnFamilyStore.filter().
-        // What we do know is that for a SELECT DISTINCT the underlying SliceQueryFilter will have a compositesToGroup==-1
-        // and a count==1. And while it would be possible for a normal SELECT on a COMPACT table to also have such
-        // parameters, it's fine returning false since if we do count one cell for each partition, then each partition
-        // will coincide with exactly one CQL3 row.
-        SliceQueryFilter filter = (SliceQueryFilter)predicate;
-        return filter.compositesToGroup >= 0 || filter.count != 1;
+        // For CQL3 queries, unless this is a DISTINCT query, the slice filter count is the LIMIT of the query.
+        // We don't page queries in the first place if their LIMIT <= pageSize and so we'll never page a query with
+        // a limit of 1. See CASSANDRA-8087 for more details.
+        return ((SliceQueryFilter)predicate).count != 1;
     }
 
     public List<Row> executeLocally()

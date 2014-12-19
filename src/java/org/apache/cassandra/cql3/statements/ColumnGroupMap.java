@@ -24,10 +24,13 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import com.google.common.base.Objects;
 import org.apache.cassandra.db.Column;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.CompositeType;
+import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.Pair;
+import org.apache.commons.lang3.StringUtils;
 
 public class ColumnGroupMap
 {
@@ -96,6 +99,24 @@ public class ColumnGroupMap
         return map.containsKey(key);
     }
 
+    @Override
+    public String toString()
+    {
+        List<String> fullStringPath = new ArrayList<>(fullPath.length);
+        for (ByteBuffer buffer : fullPath)
+            fullStringPath.add(ByteBufferUtil.bytesToHex(buffer));
+
+        List<String> stringMap = new ArrayList<>(fullPath.length);
+        for (Map.Entry<ByteBuffer, Value> entry : map.entrySet())
+            stringMap.add(ByteBufferUtil.bytesToHex(entry.getKey()) + ": " + entry.getValue());
+
+        return Objects.toStringHelper(this)
+                .add("fullPath", "[" + StringUtils.join(fullStringPath, ", ") + "]")
+                .add("map", "{" + StringUtils.join(stringMap, ", ") + "}")
+                .add("isStatic", isStatic)
+                .toString();
+    }
+
     private interface Value {};
 
     private static class Simple implements Value
@@ -105,6 +126,12 @@ public class ColumnGroupMap
         Simple(Column column)
         {
             this.column = column;
+        }
+
+        @Override
+        public String toString()
+        {
+            return Objects.toStringHelper(this).add("column", ByteBufferUtil.bytesToHex(column.name())).toString();
         }
     }
 

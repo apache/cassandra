@@ -292,7 +292,11 @@ public class SliceQueryFilter implements IDiskAtomFilter
 
     public int lastCounted()
     {
-        return columnCounter == null ? 0 : columnCounter.live();
+        // If we have a slice limit set, columnCounter.live() can overcount by one because we have to call
+        // columnCounter.count() before we can tell if we've exceeded the slice limit (and accordingly, should not
+        // add the cells to returned container).  To deal with this overcounting, we take the min of the slice
+        // limit and the counter's count.
+        return columnCounter == null ? 0 : Math.min(columnCounter.live(), count);
     }
 
     public int lastIgnored()
