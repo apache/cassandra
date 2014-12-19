@@ -212,7 +212,7 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
         else
         {
             List<ReadCommand> commands = getSliceCommands(variables, limitForQuery, now);
-            command = commands == null ? null : new Pageable.ReadCommands(commands);
+            command = commands == null ? null : new Pageable.ReadCommands(commands, limitForQuery);
         }
 
         int pageSize = options.getPageSize();

@@ -98,7 +98,7 @@ public class QueryPagers
             if (commands.size() == 1)
                 return pager(commands.get(0), consistencyLevel, local, state);
 
-            return new MultiPartitionPager(commands, consistencyLevel, local, state);
+            return new MultiPartitionPager(commands, consistencyLevel, local, state, ((Pageable.ReadCommands) command).limitForQuery);
         }
         else if (command instanceof ReadCommand)
         {
@@ -113,11 +113,6 @@ public class QueryPagers
             else
                 return new RangeSliceQueryPager(rangeCommand, consistencyLevel, local, state);
         }
-    }
-
-    public static QueryPager pager(Pageable command, ConsistencyLevel consistencyLevel)
-    {
-        return pager(command, consistencyLevel, false, null);
     }
 
     public static QueryPager pager(Pageable command, ConsistencyLevel consistencyLevel, PagingState state)

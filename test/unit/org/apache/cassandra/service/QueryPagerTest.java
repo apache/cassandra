@@ -236,7 +236,7 @@ public class QueryPagerTest extends SchemaLoader
         QueryPager pager = QueryPagers.localPager(new Pageable.ReadCommands(new ArrayList<ReadCommand>() {{
             add(sliceQuery("k1", "c2", "c6", 10));
             add(sliceQuery("k4", "c3", "c5", 10));
-        }}));
+        }}, 10));
 
         List<Row> page;
 

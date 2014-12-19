@@ -30,9 +30,12 @@ public interface Pageable
     {
         public final List<ReadCommand> commands;
 
-        public ReadCommands(List<ReadCommand> commands)
+        public final int limitForQuery;
+
+        public ReadCommands(List<ReadCommand> commands, int limitForQuery)
         {
             this.commands = commands;
+            this.limitForQuery = limitForQuery;
         }
     }
 }
