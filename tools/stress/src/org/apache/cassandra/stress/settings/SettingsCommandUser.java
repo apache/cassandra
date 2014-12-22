@@ -65,6 +65,11 @@ public class SettingsCommandUser extends SettingsCommand
             throw new IllegalArgumentException("Must specify at least one command with a non-zero ratio");
     }
 
+    public boolean hasInsertOnly()
+    {
+        return ratios.size() == 1 && ratios.containsKey("insert");
+    }
+
     public OpDistributionFactory getFactory(final StressSettings settings)
     {
         final SeedManager seeds = new SeedManager(settings);

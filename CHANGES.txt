@@ -42,6 +42,7 @@
 
 
 2.1.3
+ * Stress - user defined writes should populate sequentally (CASSANDRA-8524)
  * Fix regression in SSTableRewriter causing some rows to become unreadable 
    during compaction (CASSANDRA-8429)
  * Run major compactions for repaired/unrepaired in parallel (CASSANDRA-8510)
