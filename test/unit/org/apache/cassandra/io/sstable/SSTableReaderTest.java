@@ -56,6 +56,7 @@ import org.apache.cassandra.thrift.IndexExpression;
 import org.apache.cassandra.thrift.IndexOperator;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.Pair;
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 @RunWith(OrderedJUnit4ClassRunner.class)
@@ -204,6 +205,39 @@ public class SSTableReaderTest extends SchemaLoader
     }
 
     @Test
+    public void testGetPositionsKeyCacheStats() throws IOException, ExecutionException, InterruptedException
+    {
+        Keyspace keyspace = Keyspace.open("Keyspace1");
+        ColumnFamilyStore store = keyspace.getColumnFamilyStore("Standard2");
+        CacheService.instance.keyCache.setCapacity(1000);
+
+        // insert data and compact to a single sstable
+        CompactionManager.instance.disableAutoCompaction();
+        for (int j = 0; j < 10; j++)
+        {
+            ByteBuffer key = ByteBufferUtil.bytes(String.valueOf(j));
+            RowMutation rm = new RowMutation("Keyspace1", key);
+            rm.add("Standard2", ByteBufferUtil.bytes("0"), ByteBufferUtil.EMPTY_BYTE_BUFFER, j);
+            rm.apply();
+        }
+        store.forceBlockingFlush();
+        CompactionManager.instance.performMaximal(store);
+
+        SSTableReader sstable = store.getSSTables().iterator().next();
+        sstable.getPosition(k(2), SSTableReader.Operator.EQ);
+        assertEquals(0, sstable.getKeyCacheHit());
+        assertEquals(1, sstable.getBloomFilterTruePositiveCount());
+        sstable.getPosition(k(2), SSTableReader.Operator.EQ);
+        assertEquals(1, sstable.getKeyCacheHit());
+        assertEquals(2, sstable.getBloomFilterTruePositiveCount());
+        sstable.getPosition(k(15), SSTableReader.Operator.EQ);
+        assertEquals(1, sstable.getKeyCacheHit());
+        assertEquals(2, sstable.getBloomFilterTruePositiveCount());
+
+    }
+
+
+    @Test
     public void testPersistentStatisticsWithSecondaryIndex() throws IOException, ExecutionException, InterruptedException
     {
         // Create secondary index and flush to disk
@@ -254,7 +288,7 @@ public class SSTableReaderTest extends SchemaLoader
 
         // test to see if sstable can be opened as expected
         SSTableReader target = SSTableReader.open(desc);
-        Assert.assertEquals(target.getKeySampleSize(), 1);
+        assertEquals(target.getKeySampleSize(), 1);
         Assert.assertArrayEquals(ByteBufferUtil.getArray(firstKey.key), target.getKeySample(0));
         assert target.first.equals(firstKey);
         assert target.last.equals(lastKey);

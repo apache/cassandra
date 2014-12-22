@@ -887,7 +887,10 @@ public class SSTableReader extends SSTable implements Closeable
                 RowIndexEntry cachedEntry = keyCache.get(unifiedKey);
                 keyCacheRequest.incrementAndGet();
                 if (cachedEntry != null)
+                {
                     keyCacheHit.incrementAndGet();
+                    bloomFilterTracker.addTruePositive();
+                }
                 return cachedEntry;
             }
             else
