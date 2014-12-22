@@ -127,7 +127,7 @@ public class MappedFileDataInput extends AbstractDataInput implements FileDataIn
      * @return buffer with portion of file content
      * @throws IOException on any fail of I/O operation
      */
-    public synchronized ByteBuffer readBytes(int length) throws IOException
+    public ByteBuffer readBytes(int length) throws IOException
     {
         int remaining = buffer.remaining() - position;
         if (length > remaining)
