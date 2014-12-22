@@ -134,6 +134,11 @@ public class SettingsPopulation implements Serializable
         String[] params = clArgs.remove("-pop");
         if (params == null)
         {
+            if (command instanceof SettingsCommandUser && ((SettingsCommandUser)command).hasInsertOnly())
+            {
+                return new SettingsPopulation(new SequentialOptions(defaultLimit));
+            }
+
             // return defaults:
             switch(command.type)
             {
