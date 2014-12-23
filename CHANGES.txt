@@ -1,4 +1,5 @@
 2.1.3
+ * Properly calculate expected write size during compaction (CASSANDRA-8532)
  * Invalidate affected prepared statements when a table's columns
    are altered (CASSANDRA-7910)
  * Stress - user defined writes should populate sequentally (CASSANDRA-8524)

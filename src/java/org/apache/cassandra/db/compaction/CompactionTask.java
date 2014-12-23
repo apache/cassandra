@@ -146,6 +146,7 @@ public class CompactionTask extends AbstractCompactionTask
             long estimatedTotalKeys = Math.max(cfs.metadata.getMinIndexInterval(), SSTableReader.getApproximateKeyCount(actuallyCompact));
             long estimatedSSTables = Math.max(1, SSTableReader.getTotalBytes(actuallyCompact) / strategy.getMaxSSTableBytes());
             long keysPerSSTable = (long) Math.ceil((double) estimatedTotalKeys / estimatedSSTables);
+            long expectedSSTableSize = Math.min(getExpectedWriteSize(), strategy.getMaxSSTableBytes());
             logger.debug("Expected bloom filter size : {}", keysPerSSTable);
 
             try (AbstractCompactionStrategy.ScannerList scanners = strategy.getScanners(actuallyCompact))
@@ -173,7 +174,7 @@ public class CompactionTask extends AbstractCompactionTask
                         return;
                     }
 
-                    writer.switchWriter(createCompactionWriter(cfs.directories.getLocationForDisk(getWriteDirectory(estimatedTotalKeys/estimatedSSTables)), keysPerSSTable, minRepairedAt));
+                    writer.switchWriter(createCompactionWriter(cfs.directories.getLocationForDisk(getWriteDirectory(expectedSSTableSize)), keysPerSSTable, minRepairedAt));
                     while (iter.hasNext())
                     {
                         if (ci.isStopRequested())
@@ -185,7 +186,7 @@ public class CompactionTask extends AbstractCompactionTask
                             totalKeysWritten++;
                             if (newSSTableSegmentThresholdReached(writer.currentWriter()))
                             {
-                                writer.switchWriter(createCompactionWriter(cfs.directories.getLocationForDisk(getWriteDirectory(estimatedTotalKeys/estimatedSSTables)), keysPerSSTable, minRepairedAt));
+                                writer.switchWriter(createCompactionWriter(cfs.directories.getLocationForDisk(getWriteDirectory(expectedSSTableSize)), keysPerSSTable, minRepairedAt));
                             }
                         }
 
