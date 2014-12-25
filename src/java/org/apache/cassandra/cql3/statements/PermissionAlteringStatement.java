@@ -34,10 +34,10 @@ public abstract class PermissionAlteringStatement extends AuthorizationStatement
     protected DataResource resource;
     protected final String username;
 
-    protected PermissionAlteringStatement(Set<Permission> permissions, IResource resource, String username)
+    protected PermissionAlteringStatement(Set<Permission> permissions, DataResource resource, String username)
     {
         this.permissions = permissions;
-        this.resource = (DataResource) resource;
+        this.resource = resource;
         this.username = username;
     }
 

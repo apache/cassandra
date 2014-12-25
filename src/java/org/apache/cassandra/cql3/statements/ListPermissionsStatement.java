@@ -52,10 +52,10 @@ public class ListPermissionsStatement extends AuthorizationStatement
     private final String username;
     private final boolean recursive;
 
-    public ListPermissionsStatement(Set<Permission> permissions, IResource resource, String username, boolean recursive)
+    public ListPermissionsStatement(Set<Permission> permissions, DataResource resource, String username, boolean recursive)
     {
         this.permissions = permissions;
-        this.resource = (DataResource) resource;
+        this.resource = resource;
         this.username = username;
         this.recursive = recursive;
     }

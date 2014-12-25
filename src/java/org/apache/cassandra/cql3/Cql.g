@@ -810,7 +810,7 @@ grantStatement returns [GrantStatement stmt]
           resource
       K_TO
           username
-      { $stmt = new GrantStatement($permissionOrAll.perms, $resource.res, $username.text); }
+      { $stmt = new GrantStatement($permissionOrAll.perms, (DataResource) $resource.res, $username.text); }
     ;
 
 /**
@@ -823,7 +823,7 @@ revokeStatement returns [RevokeStatement stmt]
           resource
       K_FROM
           username
-      { $stmt = new RevokeStatement($permissionOrAll.perms, $resource.res, $username.text); }
+      { $stmt = new RevokeStatement($permissionOrAll.perms, (DataResource) $resource.res, $username.text); }
     ;
 
 listPermissionsStatement returns [ListPermissionsStatement stmt]
@@ -837,7 +837,7 @@ listPermissionsStatement returns [ListPermissionsStatement stmt]
       ( K_ON resource { resource = $resource.res; } )?
       ( K_OF username { username = $username.text; } )?
       ( K_NORECURSIVE { recursive = false; } )?
-      { $stmt = new ListPermissionsStatement($permissionOrAll.perms, resource, username, recursive); }
+      { $stmt = new ListPermissionsStatement($permissionOrAll.perms, (DataResource) resource, username, recursive); }
     ;
 
 permission returns [Permission perm]

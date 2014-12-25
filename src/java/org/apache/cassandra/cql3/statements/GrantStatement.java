@@ -20,7 +20,7 @@ package org.apache.cassandra.cql3.statements;
 
 import java.util.Set;
 
-import org.apache.cassandra.auth.IResource;
+import org.apache.cassandra.auth.DataResource;
 import org.apache.cassandra.auth.Permission;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.exceptions.RequestExecutionException;
@@ -30,7 +30,7 @@ import org.apache.cassandra.transport.messages.ResultMessage;
 
 public class GrantStatement extends PermissionAlteringStatement
 {
-    public GrantStatement(Set<Permission> permissions, IResource resource, String username)
+    public GrantStatement(Set<Permission> permissions, DataResource resource, String username)
     {
         super(permissions, resource, username);
     }
