@@ -104,22 +104,26 @@ class CqlRecordWriter extends AbstractColumnFamilyRecordWriter<Map<String, ByteB
         try
         {
             Cassandra.Client client = ConfigHelper.getClientFromOutputAddressList(conf);
-            client.set_keyspace(ConfigHelper.getOutputKeyspace(conf));
-            String user = ConfigHelper.getOutputKeyspaceUserName(conf);
-            String password = ConfigHelper.getOutputKeyspacePassword(conf);
-            if ((user != null) && (password != null))
-                AbstractColumnFamilyOutputFormat.login(user, password, client);
-            retrievePartitionKeyValidator(client);
-            String cqlQuery = CqlConfigHelper.getOutputCql(conf).trim();
-            if (cqlQuery.toLowerCase().startsWith("insert"))
-                throw new UnsupportedOperationException("INSERT with CqlRecordWriter is not supported, please use UPDATE/DELETE statement");
-            cql = appendKeyWhereClauses(cqlQuery);
-
             if (client != null)
             {
+                client.set_keyspace(ConfigHelper.getOutputKeyspace(conf));
+                String user = ConfigHelper.getOutputKeyspaceUserName(conf);
+                String password = ConfigHelper.getOutputKeyspacePassword(conf);
+                if ((user != null) && (password != null))
+                    AbstractColumnFamilyOutputFormat.login(user, password, client);
+                retrievePartitionKeyValidator(client);
+                String cqlQuery = CqlConfigHelper.getOutputCql(conf).trim();
+                if (cqlQuery.toLowerCase().startsWith("insert"))
+                    throw new UnsupportedOperationException("INSERT with CqlRecordWriter is not supported, please use UPDATE/DELETE statement");
+                cql = appendKeyWhereClauses(cqlQuery);
+
                 TTransport transport = client.getOutputProtocol().getTransport();
                 if (transport.isOpen())
                     transport.close();
+            }
+            else
+            {
+                throw new IllegalArgumentException("Invalid configuration specified " + conf);
             }
         }
         catch (Exception e)
