@@ -74,7 +74,7 @@ public class CqlStorage extends AbstractCassandraStorage
     {
         super();
         this.pageSize = pageSize;
-        DEFAULT_INPUT_FORMAT = "org.apache.cassandra.hadoop.cql3.CqlPagingInputFormat";
+        DEFAULT_INPUT_FORMAT = "org.apache.cassandra.hadoop.cql3.CqlInputFormat";
         DEFAULT_OUTPUT_FORMAT = "org.apache.cassandra.hadoop.cql3.CqlOutputFormat";
     }   
 
