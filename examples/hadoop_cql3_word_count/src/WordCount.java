@@ -37,12 +37,10 @@ import org.apache.hadoop.io.Text;
 import org.apache.hadoop.mapreduce.Job;
 import org.apache.hadoop.mapreduce.Mapper;
 import org.apache.hadoop.mapreduce.Reducer;
-import org.apache.hadoop.mapreduce.Mapper.Context;
 import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
 import org.apache.hadoop.util.Tool;
 import org.apache.hadoop.util.ToolRunner;
 import com.datastax.driver.core.Row;
-import java.nio.charset.CharacterCodingException;
 
 /**
  * This counts the occurrences of words in ColumnFamily
@@ -122,7 +120,7 @@ public class WordCount extends Configured implements Tool
         public void map(Long key, Row row, Context context) throws IOException, InterruptedException
         {
             String value = row.getString("line");
-            logger.debug("read {}:{}={} from {}", new Object[] {key, "line", value, context.getInputSplit()});
+            logger.debug("read {}:{}={} from {}", key, "line", value, context.getInputSplit());
             StringTokenizer itr = new StringTokenizer(value);
             while (itr.hasMoreTokens())
             {
