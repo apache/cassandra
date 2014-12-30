@@ -669,18 +669,25 @@ Table of Contents
       the rest of the message will be <change_type><target><options> where:
         - <change_type> is a [string] representing the type of changed involved.
           It will be one of "CREATED", "UPDATED" or "DROPPED".
-        - <target> is a [string] that can be one of "KEYSPACE", "TABLE" or "TYPE"
-          and describes what has been modified ("TYPE" stands for modifications
-          related to user types).
-        - <options> depends on the preceding <target>. If <target> is
-          "KEYSPACE", then <options> will be a single [string] representing the
-          keyspace changed. Otherwise, if <target> is "TABLE" or "TYPE", then
-          <options> will be 2 [string]: the first one will be the keyspace
-          containing the affected object, and the second one will be the name
-          of said affected object (so either the table name or the user type
-          name).
+        - <target> is a [string] that can be one of "KEYSPACE", "TABLE", "TYPE",
+          "FUNCTION" or "AGGREGATE" and describes what has been modified
+          ("TYPE" stands for modifications related to user types, "FUNCTION"
+          for modifications related to user defined functions, "AGGREGATE"
+          for modifications related to user defined aggregates).
+        - <options> depends on the preceding <target>:
+          - If <target> is "KEYSPACE", then <options> will be a single [string]
+            representing the keyspace changed.
+          - If <target> is "TABLE" or "TYPE", then
+            <options> will be 2 [string]: the first one will be the keyspace
+            containing the affected object, and the second one will be the name
+            of said affected object (either the table, user type, function, or
+            aggregate name).
+          - If <target> is "FUNCTION" or "AGGREGATE", multiple arguments follow:
+            - [string] keyspace containing the user defined function / aggregate
+            - [string] the function/aggregate name
+            - [string list] one string for each argument type (as CQL type)
 
-  All EVENT message have a streamId of -1 (Section 2.3).
+  All EVENT messages have a streamId of -1 (Section 2.3).
 
   Please note that "NEW_NODE" and "UP" events are sent based on internal Gossip
   communication and as such may be sent a short delay before the binary
@@ -896,4 +903,6 @@ Table of Contents
 
 10. Changes from v3
 
+  * The format of "SCHEMA_CHANGE" events (Section 4.2.6) (and implicitly "Schema_change" results (Section 4.2.5.5))
+    has been modified, and now includes changes related to user defined functions and user defined aggregates.
 

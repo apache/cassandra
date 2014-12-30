@@ -47,12 +47,15 @@ public final class CreateAggregateStatement extends SchemaAlteringStatement
     private final boolean orReplace;
     private final boolean ifNotExists;
     private FunctionName functionName;
-    private String stateFunc;
-    private String finalFunc;
+    private final String stateFunc;
+    private final String finalFunc;
     private final CQL3Type.Raw stateTypeRaw;
 
     private final List<CQL3Type.Raw> argRawTypes;
     private final Term.Raw ival;
+
+    private UDAggregate udAggregate;
+    private boolean replaced;
 
     public CreateAggregateStatement(FunctionName functionName,
                                     List<CQL3Type.Raw> argRawTypes,
@@ -102,7 +105,9 @@ public final class CreateAggregateStatement extends SchemaAlteringStatement
 
     public Event.SchemaChange changeEvent()
     {
-        return null;
+        return new Event.SchemaChange(replaced ? Event.SchemaChange.Change.UPDATED : Event.SchemaChange.Change.CREATED,
+                                      Event.SchemaChange.Target.AGGREGATE,
+                                      udAggregate.name().keyspace, udAggregate.name().name, AbstractType.asCQLTypeStringList(udAggregate.argTypes()));
     }
 
     public boolean announceMigration(boolean isLocalOnly) throws RequestValidationException
@@ -164,10 +169,11 @@ public final class CreateAggregateStatement extends SchemaAlteringStatement
             initcond = ival.prepare(functionName.keyspace, receiver).bindAndGet(QueryOptions.DEFAULT);
         }
 
-        UDAggregate udAggregate = new UDAggregate(functionName, argTypes, returnType,
+        udAggregate = new UDAggregate(functionName, argTypes, returnType,
                                                   fState,
                                                   fFinal,
                                                   initcond);
+        replaced = old != null;
 
         MigrationManager.announceNewAggregate(udAggregate, isLocalOnly);
 

@@ -42,6 +42,8 @@ public final class DropFunctionStatement extends SchemaAlteringStatement
     private final List<CQL3Type.Raw> argRawTypes;
     private final boolean argsPresent;
 
+    private Function old;
+
     public DropFunctionStatement(FunctionName functionName,
                                  List<CQL3Type.Raw> argRawTypes,
                                  boolean argsPresent,
@@ -81,7 +83,8 @@ public final class DropFunctionStatement extends SchemaAlteringStatement
     @Override
     public Event.SchemaChange changeEvent()
     {
-        return null;
+        return new Event.SchemaChange(Event.SchemaChange.Change.DROPPED, Event.SchemaChange.Target.FUNCTION,
+                                      old.name().keyspace, old.name().name, AbstractType.asCQLTypeStringList(old.argTypes()));
     }
 
     @Override
@@ -135,7 +138,10 @@ public final class DropFunctionStatement extends SchemaAlteringStatement
         if (!references.isEmpty())
             throw new InvalidRequestException(String.format("Function '%s' still referenced by %s", functionName, references));
 
+        this.old = old;
+
         MigrationManager.announceFunctionDrop((UDFunction) old, isLocalOnly);
+
         return true;
     }
 

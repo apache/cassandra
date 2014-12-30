@@ -42,6 +42,8 @@ public final class DropAggregateStatement extends SchemaAlteringStatement
     private final List<CQL3Type.Raw> argRawTypes;
     private final boolean argsPresent;
 
+    private Function old;
+
     public DropAggregateStatement(FunctionName functionName,
                                   List<CQL3Type.Raw> argRawTypes,
                                   boolean argsPresent,
@@ -77,7 +79,8 @@ public final class DropAggregateStatement extends SchemaAlteringStatement
 
     public Event.SchemaChange changeEvent()
     {
-        return null;
+        return new Event.SchemaChange(Event.SchemaChange.Change.DROPPED, Event.SchemaChange.Target.AGGREGATE,
+                                      old.name().keyspace, old.name().name, AbstractType.asCQLTypeStringList(old.argTypes()));
     }
 
     public boolean announceMigration(boolean isLocalOnly) throws RequestValidationException
@@ -130,7 +133,10 @@ public final class DropAggregateStatement extends SchemaAlteringStatement
             throw new InvalidRequestException(String.format("Cannot drop aggregate '%s' because it is a " +
                                                             "native (built-in) function", functionName));
 
+        this.old = old;
+
         MigrationManager.announceAggregateDrop((UDAggregate)old, isLocalOnly);
+
         return true;
     }
 }

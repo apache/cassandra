@@ -18,6 +18,7 @@
 package org.apache.cassandra.db.marshal;
 
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
@@ -61,6 +62,14 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>
                 return AbstractType.this.compare(o2, o1);
             }
         };
+    }
+
+    public static List<String> asCQLTypeStringList(List<AbstractType<?>> abstractTypes)
+    {
+        List<String> r = new ArrayList<>(abstractTypes.size());
+        for (AbstractType<?> abstractType : abstractTypes)
+            r.add(abstractType.asCQL3Type().toString());
+        return r;
     }
 
     public T compose(ByteBuffer bytes)

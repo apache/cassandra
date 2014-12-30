@@ -42,21 +42,25 @@ import org.slf4j.LoggerFactory;
 
 import com.datastax.driver.core.*;
 import com.datastax.driver.core.ResultSet;
+import com.datastax.driver.core.Row;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.cql3.functions.FunctionName;
-import org.apache.cassandra.db.Directories;
-import org.apache.cassandra.db.Keyspace;
-import org.apache.cassandra.db.SystemKeyspace;
+import org.apache.cassandra.cql3.statements.ParsedStatement;
+import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.db.marshal.TupleType;
 import org.apache.cassandra.exceptions.*;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.serializers.TypeSerializer;
+import org.apache.cassandra.service.ClientState;
+import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.transport.Event;
 import org.apache.cassandra.transport.Server;
+import org.apache.cassandra.transport.messages.ResultMessage;
 
 /**
  * Base class for CQL tests.
@@ -93,6 +97,8 @@ public abstract class CQLTester
             throw new RuntimeException(e);
         }
     }
+
+    public static ResultMessage lastSchemaChangeResult;
 
     private List<String> tables = new ArrayList<>();
     private List<String> types = new ArrayList<>();
@@ -327,7 +333,7 @@ public abstract class CQLTester
         String fullQuery = String.format(query, functionName);
         functions.add(functionName + '(' + argTypes + ')');
         logger.info(fullQuery);
-        execute(fullQuery);
+        schemaChange(fullQuery);
     }
 
     protected String createAggregate(String keyspace, String argTypes, String query) throws Throwable
@@ -342,7 +348,7 @@ public abstract class CQLTester
         String fullQuery = String.format(query, aggregateName);
         aggregates.add(aggregateName + '(' + argTypes + ')');
         logger.info(fullQuery);
-        execute(fullQuery);
+        schemaChange(fullQuery);
     }
 
     protected void createTable(String query)
@@ -426,12 +432,33 @@ public abstract class CQLTester
         schemaChange(fullQuery);
     }
 
-    private static void schemaChange(String query)
+    protected void assertLastSchemaChange(Event.SchemaChange.Change change, Event.SchemaChange.Target target,
+                                          String keyspace, String name,
+                                          String... argTypes)
+    {
+        Assert.assertTrue(lastSchemaChangeResult instanceof ResultMessage.SchemaChange);
+        ResultMessage.SchemaChange schemaChange = (ResultMessage.SchemaChange) lastSchemaChangeResult;
+        Assert.assertSame(change, schemaChange.change.change);
+        Assert.assertSame(target, schemaChange.change.target);
+        Assert.assertEquals(keyspace, schemaChange.change.keyspace);
+        Assert.assertEquals(name, schemaChange.change.name);
+        Assert.assertEquals(argTypes != null ? Arrays.asList(argTypes) : null, schemaChange.change.argTypes);
+    }
+
+    protected static void schemaChange(String query)
     {
         try
         {
-            // executeOnceInternal don't work for schema changes
-            QueryProcessor.executeOnceInternal(query);
+            ClientState state = ClientState.forInternalCalls();
+            state.setKeyspace(SystemKeyspace.NAME);
+            QueryState queryState = new QueryState(state);
+
+            ParsedStatement.Prepared prepared = QueryProcessor.parseStatement(query, queryState);
+            prepared.statement.validate(state);
+
+            QueryOptions options = QueryOptions.forInternalCalls(Collections.<ByteBuffer>emptyList());
+
+            lastSchemaChangeResult = prepared.statement.executeInternal(queryState, options);
         }
         catch (Exception e)
         {

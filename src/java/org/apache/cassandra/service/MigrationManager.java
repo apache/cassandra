@@ -63,16 +63,16 @@ public class MigrationManager
 
     public static final int MIGRATION_DELAY_IN_MS = 60000;
 
-    private final List<IMigrationListener> listeners = new CopyOnWriteArrayList<>();
+    private final List<MigrationListener> listeners = new CopyOnWriteArrayList<>();
     
     private MigrationManager() {}
 
-    public void register(IMigrationListener listener)
+    public void register(MigrationListener listener)
     {
         listeners.add(listener);
     }
 
-    public void unregister(IMigrationListener listener)
+    public void unregister(MigrationListener listener)
     {
         listeners.remove(listener);
     }
@@ -160,92 +160,93 @@ public class MigrationManager
 
     public void notifyCreateKeyspace(KSMetaData ksm)
     {
-        for (IMigrationListener listener : listeners)
+        for (MigrationListener listener : listeners)
             listener.onCreateKeyspace(ksm.name);
     }
 
     public void notifyCreateColumnFamily(CFMetaData cfm)
     {
-        for (IMigrationListener listener : listeners)
+        for (MigrationListener listener : listeners)
             listener.onCreateColumnFamily(cfm.ksName, cfm.cfName);
     }
 
     public void notifyCreateUserType(UserType ut)
     {
-        for (IMigrationListener listener : listeners)
+        for (MigrationListener listener : listeners)
             listener.onCreateUserType(ut.keyspace, ut.getNameAsString());
     }
 
     public void notifyCreateFunction(UDFunction udf)
     {
-        for (IMigrationListener listener : listeners)
-            listener.onCreateFunction(udf.name().keyspace, udf.name().name);
+        for (MigrationListener listener : listeners)
+            listener.onCreateFunction(udf.name().keyspace, udf.name().name, udf.argTypes());
     }
+
 
     public void notifyCreateAggregate(UDAggregate udf)
     {
-        for (IMigrationListener listener : listeners)
-            listener.onCreateAggregate(udf.name().keyspace, udf.name().name);
+        for (MigrationListener listener : listeners)
+            listener.onCreateAggregate(udf.name().keyspace, udf.name().name, udf.argTypes());
     }
 
     public void notifyUpdateKeyspace(KSMetaData ksm)
     {
-        for (IMigrationListener listener : listeners)
+        for (MigrationListener listener : listeners)
             listener.onUpdateKeyspace(ksm.name);
     }
 
     public void notifyUpdateColumnFamily(CFMetaData cfm)
     {
-        for (IMigrationListener listener : listeners)
+        for (MigrationListener listener : listeners)
             listener.onUpdateColumnFamily(cfm.ksName, cfm.cfName);
     }
 
     public void notifyUpdateUserType(UserType ut)
     {
-        for (IMigrationListener listener : listeners)
+        for (MigrationListener listener : listeners)
             listener.onUpdateUserType(ut.keyspace, ut.getNameAsString());
     }
 
     public void notifyUpdateFunction(UDFunction udf)
     {
-        for (IMigrationListener listener : listeners)
-            listener.onUpdateFunction(udf.name().keyspace, udf.name().name);
+        for (MigrationListener listener : listeners)
+            listener.onUpdateFunction(udf.name().keyspace, udf.name().name, udf.argTypes());
     }
 
     public void notifyUpdateAggregate(UDAggregate udf)
     {
-        for (IMigrationListener listener : listeners)
-            listener.onUpdateAggregate(udf.name().keyspace, udf.name().name);
+        for (MigrationListener listener : listeners)
+            listener.onUpdateAggregate(udf.name().keyspace, udf.name().name, udf.argTypes());
     }
 
     public void notifyDropKeyspace(KSMetaData ksm)
     {
-        for (IMigrationListener listener : listeners)
+        for (MigrationListener listener : listeners)
             listener.onDropKeyspace(ksm.name);
     }
 
     public void notifyDropColumnFamily(CFMetaData cfm)
     {
-        for (IMigrationListener listener : listeners)
+        for (MigrationListener listener : listeners)
             listener.onDropColumnFamily(cfm.ksName, cfm.cfName);
     }
 
     public void notifyDropUserType(UserType ut)
     {
-        for (IMigrationListener listener : listeners)
+        for (MigrationListener listener : listeners)
             listener.onDropUserType(ut.keyspace, ut.getNameAsString());
     }
 
     public void notifyDropFunction(UDFunction udf)
     {
-        for (IMigrationListener listener : listeners)
-            listener.onDropFunction(udf.name().keyspace, udf.name().name);
+        for (MigrationListener listener : listeners)
+            listener.onDropFunction(udf.name().keyspace, udf.name().name, udf.argTypes());
     }
 
     public void notifyDropAggregate(UDAggregate udf)
     {
-        for (IMigrationListener listener : listeners)
-            listener.onDropAggregate(udf.name().keyspace, udf.name().name);
+        for (MigrationListener listener : listeners)
+            listener.onDropAggregate(udf.name().keyspace, udf.name().name, udf.argTypes());
     }
 
     public static void announceNewKeyspace(KSMetaData ksm) throws ConfigurationException

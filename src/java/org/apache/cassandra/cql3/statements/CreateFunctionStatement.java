@@ -51,6 +51,9 @@ public final class CreateFunctionStatement extends SchemaAlteringStatement
     private final List<CQL3Type.Raw> argRawTypes;
     private final CQL3Type.Raw rawReturnType;
 
+    private UDFunction udFunction;
+    private boolean replaced;
+
     public CreateFunctionStatement(FunctionName functionName,
                                    String language,
                                    String body,
@@ -101,7 +104,9 @@ public final class CreateFunctionStatement extends SchemaAlteringStatement
 
     public Event.SchemaChange changeEvent()
     {
-        return null;
+        return new Event.SchemaChange(replaced ? Event.SchemaChange.Change.UPDATED : Event.SchemaChange.Change.CREATED,
+                                      Event.SchemaChange.Target.FUNCTION,
+                                      udFunction.name().keyspace, udFunction.name().name, AbstractType.asCQLTypeStringList(udFunction.argTypes()));
     }
 
     public boolean announceMigration(boolean isLocalOnly) throws RequestValidationException
@@ -131,7 +136,11 @@ public final class CreateFunctionStatement extends SchemaAlteringStatement
                                                                 functionName, returnType.asCQL3Type(), old.returnType().asCQL3Type()));
         }
 
-        MigrationManager.announceNewFunction(UDFunction.create(functionName, argNames, argTypes, returnType, language, body, deterministic), isLocalOnly);
+        this.udFunction = UDFunction.create(functionName, argNames, argTypes, returnType, language, body, deterministic);
+        this.replaced = old != null;
+
+        MigrationManager.announceNewFunction(udFunction, isLocalOnly);
+
         return true;
     }
 

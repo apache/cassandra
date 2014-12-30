@@ -31,6 +31,7 @@ import com.googlecode.concurrentlinkedhashmap.EntryWeigher;
 import com.googlecode.concurrentlinkedhashmap.EvictionListener;
 
 import org.antlr.runtime.*;
+import org.apache.cassandra.service.MigrationListener;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -50,7 +51,6 @@ import org.apache.cassandra.exceptions.RequestValidationException;
 import org.apache.cassandra.exceptions.SyntaxException;
 import org.apache.cassandra.metrics.CQLMetrics;
 import org.apache.cassandra.service.ClientState;
-import org.apache.cassandra.service.IMigrationListener;
 import org.apache.cassandra.service.MigrationManager;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.service.pager.QueryPager;
@@ -560,7 +560,7 @@ public class QueryProcessor implements QueryHandler
         return meter.measureDeep(key);
     }
 
-    private static class MigrationSubscriber implements IMigrationListener
+    private static class MigrationSubscriber extends MigrationListener
     {
         private void removeInvalidPreparedStatements(String ksName, String cfName)
         {
@@ -602,10 +602,7 @@ public class QueryProcessor implements QueryHandler
             return ksName.equals(statementKsName) && (cfName == null || cfName.equals(statementCfName));
         }
 
-        public void onCreateKeyspace(String ksName) { }
-        public void onCreateColumnFamily(String ksName, String cfName) { }
-        public void onCreateUserType(String ksName, String typeName) { }
-        public void onCreateFunction(String ksName, String functionName) {
+        public void onCreateFunction(String ksName, String functionName, List<AbstractType<?>> argTypes) {
             if (Functions.getOverloadCount(new FunctionName(ksName, functionName)) > 1)
             {
                 // in case there are other overloads, we have to remove all overloads since argument type
@@ -614,7 +611,7 @@ public class QueryProcessor implements QueryHandler
                 removeInvalidPreparedStatementsForFunction(thriftPreparedStatements.values().iterator(), ksName, functionName);
             }
         }
-        public void onCreateAggregate(String ksName, String aggregateName) {
+        public void onCreateAggregate(String ksName, String aggregateName, List<AbstractType<?>> argTypes) {
             if (Functions.getOverloadCount(new FunctionName(ksName, aggregateName)) > 1)
             {
                 // in case there are other overloads, we have to remove all overloads since argument type
@@ -623,12 +620,6 @@ public class QueryProcessor implements QueryHandler
                 removeInvalidPreparedStatementsForFunction(thriftPreparedStatements.values().iterator(), ksName, aggregateName);
             }
         }
-
-        public void onUpdateKeyspace(String ksName) { }
-        public void onUpdateColumnFamily(String ksName, String cfName) { }
-        public void onUpdateUserType(String ksName, String typeName) { }
-        public void onUpdateFunction(String ksName, String functionName) { }
-        public void onUpdateAggregate(String ksName, String aggregateName) { }
 
         public void onDropKeyspace(String ksName)
         {
@@ -640,18 +631,17 @@ public class QueryProcessor implements QueryHandler
             removeInvalidPreparedStatements(ksName, cfName);
         }
 
-        public void onDropUserType(String ksName, String typeName) { }
-        public void onDropFunction(String ksName, String functionName) {
+        public void onDropFunction(String ksName, String functionName, List<AbstractType<?>> argTypes) {
             removeInvalidPreparedStatementsForFunction(preparedStatements.values().iterator(), ksName, functionName);
             removeInvalidPreparedStatementsForFunction(thriftPreparedStatements.values().iterator(), ksName, functionName);
         }
-        public void onDropAggregate(String ksName, String aggregateName)
+        public void onDropAggregate(String ksName, String aggregateName, List<AbstractType<?>> argTypes)
         {
             removeInvalidPreparedStatementsForFunction(preparedStatements.values().iterator(), ksName, aggregateName);
             removeInvalidPreparedStatementsForFunction(thriftPreparedStatements.values().iterator(), ksName, aggregateName);
         }
 
-        private void removeInvalidPreparedStatementsForFunction(Iterator<ParsedStatement.Prepared> iterator,
+        private static void removeInvalidPreparedStatementsForFunction(Iterator<ParsedStatement.Prepared> iterator,
                                                                 String ksName, String functionName)
         {
             while (iterator.hasNext())

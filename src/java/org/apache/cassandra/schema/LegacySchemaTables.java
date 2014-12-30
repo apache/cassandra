@@ -157,7 +157,7 @@ public class LegacySchemaTables
                 "CREATE TABLE %s ("
                 + "keyspace_name text,"
                 + "function_name text,"
-                + "signature blob,"
+                + "signature frozen<list<text>>,"
                 + "argument_names list<text>,"
                 + "argument_types list<text>,"
                 + "body text,"
@@ -172,7 +172,7 @@ public class LegacySchemaTables
                 "CREATE TABLE %s ("
                 + "keyspace_name text,"
                 + "aggregate_name text,"
-                + "signature blob,"
+                + "signature frozen<list<text>>,"
                 + "argument_types list<text>,"
                 + "final_func text,"
                 + "initcond blob,"
@@ -1293,7 +1293,7 @@ public class LegacySchemaTables
     private static void addFunctionToSchemaMutation(UDFunction function, long timestamp, Mutation mutation)
     {
         ColumnFamily cells = mutation.addOrGet(Functions);
-        Composite prefix = Functions.comparator.make(function.name().name, UDHelper.calculateSignature(function));
+        Composite prefix = Functions.comparator.make(function.name().name, functionSignatureWithTypes(function));
         CFRowAdder adder = new CFRowAdder(cells, prefix, timestamp);
 
         adder.resetCollection("argument_names");
@@ -1319,7 +1319,7 @@ public class LegacySchemaTables
         ColumnFamily cells = mutation.addOrGet(Functions);
         int ldt = (int) (System.currentTimeMillis() / 1000);
 
-        Composite prefix = Functions.comparator.make(function.name().name, UDHelper.calculateSignature(function));
+        Composite prefix = Functions.comparator.make(function.name().name, functionSignatureWithTypes(function));
         cells.addAtom(new RangeTombstone(prefix, prefix.end(), timestamp, ldt));
 
         return mutation;
@@ -1332,7 +1332,7 @@ public class LegacySchemaTables
         for (UntypedResultSet.Row row : QueryProcessor.resultify(query, partition))
         {
             UDFunction function = createFunctionFromFunctionRow(row);
-            functions.put(UDHelper.calculateSignature(function), function);
+            functions.put(functionSignatureWithNameAndTypes(function), function);
         }
         return functions;
     }
@@ -1385,7 +1385,7 @@ public class LegacySchemaTables
     private static void addAggregateToSchemaMutation(UDAggregate aggregate, long timestamp, Mutation mutation)
     {
         ColumnFamily cells = mutation.addOrGet(Aggregates);
-        Composite prefix = Aggregates.comparator.make(aggregate.name().name, UDHelper.calculateSignature(aggregate));
+        Composite prefix = Aggregates.comparator.make(aggregate.name().name, functionSignatureWithTypes(aggregate));
         CFRowAdder adder = new CFRowAdder(cells, prefix, timestamp);
 
         adder.resetCollection("argument_types");
@@ -1409,7 +1409,7 @@ public class LegacySchemaTables
         for (UntypedResultSet.Row row : QueryProcessor.resultify(query, partition))
         {
             UDAggregate aggregate = createAggregateFromAggregateRow(row);
-            aggregates.put(UDHelper.calculateSignature(aggregate), aggregate);
+            aggregates.put(functionSignatureWithNameAndTypes(aggregate), aggregate);
         }
         return aggregates;
     }
@@ -1459,7 +1459,7 @@ public class LegacySchemaTables
         ColumnFamily cells = mutation.addOrGet(Aggregates);
         int ldt = (int) (System.currentTimeMillis() / 1000);
 
-        Composite prefix = Aggregates.comparator.make(aggregate.name().name, UDHelper.calculateSignature(aggregate));
+        Composite prefix = Aggregates.comparator.make(aggregate.name().name, functionSignatureWithTypes(aggregate));
         cells.addAtom(new RangeTombstone(prefix, prefix.end(), timestamp, ldt));
 
         return mutation;
@@ -1477,4 +1477,31 @@ public class LegacySchemaTables
             throw new RuntimeException(e);
         }
     }
+
+    // We allow method overloads, so a function is not uniquely identified by its name only, but
+    // also by its argument types. To distinguish overloads of given function name in the schema
+    // we use a "signature" which is just a list of it's CQL argument types (we could replace that by
+    // using a "signature" UDT that would be comprised of the function name and argument types,
+    // which we could then use as clustering column. But as we haven't yet used UDT in system tables,
+    // We'll leave that decision to #6717).
+    public static ByteBuffer functionSignatureWithTypes(AbstractFunction fun)
+    {
+        ListType<String> list = ListType.getInstance(UTF8Type.instance, false);
+        List<String> strList = new ArrayList<>(fun.argTypes().size());
+        for (AbstractType<?> argType : fun.argTypes())
+            strList.add(argType.asCQL3Type().toString());
+        return list.decompose(strList);
+    }
+
+    public static ByteBuffer functionSignatureWithNameAndTypes(AbstractFunction fun)
+    {
+        ListType<String> list = ListType.getInstance(UTF8Type.instance, false);
+        List<String> strList = new ArrayList<>(fun.argTypes().size() + 2);
+        strList.add(fun.name().keyspace);
+        strList.add(fun.name().name);
+        for (AbstractType<?> argType : fun.argTypes())
+            strList.add(argType.asCQL3Type().toString());
+        return list.decompose(strList);
+    }
+
 }
