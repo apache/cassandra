@@ -724,11 +724,15 @@ public final class CFMetaData
         return def == null ? defaultValidator : def.type;
     }
 
-    public void reload()
+    /**
+     * Updates this object in place to match the definition in the system schema tables.
+     * @return true if any columns were added, removed, or altered; otherwise, false is returned
+     */
+    public boolean reload()
     {
         try
         {
-            apply(LegacySchemaTables.createTableFromName(ksName, cfName));
+            return apply(LegacySchemaTables.createTableFromName(ksName, cfName));
         }
         catch (ConfigurationException e)
         {
@@ -739,10 +743,11 @@ public final class CFMetaData
     /**
      * Updates CFMetaData in-place to match cfm
      *
+     * @return true if any columns were added, removed, or altered; otherwise, false is returned
      * @throws ConfigurationException if ks/cf names or cf ids didn't match
      */
     @VisibleForTesting
-    public void apply(CFMetaData cfm) throws ConfigurationException
+    public boolean apply(CFMetaData cfm) throws ConfigurationException
     {
         logger.debug("applying {} to {}", cfm, this);
 
@@ -802,6 +807,10 @@ public final class CFMetaData
 
         rebuild();
         logger.debug("application result is {}", this);
+
+        return !columnDiff.entriesOnlyOnLeft().isEmpty() ||
+               !columnDiff.entriesOnlyOnRight().isEmpty() ||
+               !columnDiff.entriesDiffering().isEmpty();
     }
 
     public void validateCompatility(CFMetaData cfm) throws ConfigurationException

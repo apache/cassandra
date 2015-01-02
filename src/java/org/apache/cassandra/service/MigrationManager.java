@@ -195,10 +195,10 @@ public class MigrationManager
             listener.onUpdateKeyspace(ksm.name);
     }
 
-    public void notifyUpdateColumnFamily(CFMetaData cfm)
+    public void notifyUpdateColumnFamily(CFMetaData cfm, boolean columnsDidChange)
     {
         for (MigrationListener listener : listeners)
-            listener.onUpdateColumnFamily(cfm.ksName, cfm.cfName);
+            listener.onUpdateColumnFamily(cfm.ksName, cfm.cfName, columnsDidChange);
     }
 
     public void notifyUpdateUserType(UserType ut)

@@ -47,7 +47,7 @@ public abstract class MigrationListener
     {
     }
 
-    public void onUpdateColumnFamily(String ksName, String cfName)
+    public void onUpdateColumnFamily(String ksName, String cfName, boolean columnsDidChange)
     {
     }
 

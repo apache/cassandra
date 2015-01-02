@@ -472,11 +472,11 @@ public class Schema
     {
         CFMetaData cfm = getCFMetaData(ksName, tableName);
         assert cfm != null;
-        cfm.reload();
+        boolean columnsDidChange = cfm.reload();
 
         Keyspace keyspace = Keyspace.open(cfm.ksName);
         keyspace.getColumnFamilyStore(cfm.cfName).reload();
-        MigrationManager.instance.notifyUpdateColumnFamily(cfm);
+        MigrationManager.instance.notifyUpdateColumnFamily(cfm, columnsDidChange);
     }
 
     public void dropTable(String ksName, String tableName)
