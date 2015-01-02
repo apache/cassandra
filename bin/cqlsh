@@ -562,15 +562,32 @@ class Shell(cmd.Cmd):
             self.session = self.conn.connect(keyspace)
         else:
             self.session = self.conn.connect()
+
+        self.color = color
+        self.display_time_format = display_time_format
+        self.display_float_precision = display_float_precision
+
+        # Workaround for CASSANDRA-8521 until PYTHON-205 is resolved.
+        # If there is no schema metadata present (due to a schema mismatch),
+        # get rid of the code that checks for a schema mismatch and force
+        # the schema metadata to be built.
+        if not self.conn.metadata.keyspaces:
+            self.printerr("Warning: schema version mismatch detected; check the schema versions of your "
+                          "nodes in system.local and system.peers.")
+            original_method = self.conn.control_connection._get_schema_mismatches
+            try:
+                self.conn.control_connection._get_schema_mismatches = lambda *args, **kwargs: None
+                future = self.conn.submit_schema_refresh()
+                future.result(timeout=10)
+            finally:
+                self.conn.control_connection._get_schema_mismatches = original_method
+
         self.session.default_timeout = client_timeout
         self.session.row_factory = ordered_dict_factory
         self.get_connection_versions()
 
         self.current_keyspace = keyspace
 
-        self.color = color
-        self.display_time_format = display_time_format
-        self.display_float_precision = display_float_precision
         self.max_trace_wait = max_trace_wait
         self.session.max_trace_wait = max_trace_wait
         if encoding is None:
@@ -980,7 +997,7 @@ class Shell(cmd.Cmd):
                 rows = self.session.execute(statement, trace=self.tracing_enabled)
                 break
             except CQL_ERRORS, err:
-                self.printerr(str(err))
+                self.printerr(str(err.__class__.__name__) + ": " + str(err))
                 return False
             except Exception, err:
                 import traceback
