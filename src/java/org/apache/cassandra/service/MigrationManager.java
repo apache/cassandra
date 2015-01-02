@@ -61,16 +61,16 @@ public class MigrationManager
 
     public static final int MIGRATION_DELAY_IN_MS = 60000;
 
-    private final List<IMigrationListener> listeners = new CopyOnWriteArrayList<IMigrationListener>();
+    private final List<MigrationListener> listeners = new CopyOnWriteArrayList<MigrationListener>();
     
     private MigrationManager() {}
 
-    public void register(IMigrationListener listener)
+    public void register(MigrationListener listener)
     {
         listeners.add(listener);
     }
 
-    public void unregister(IMigrationListener listener)
+    public void unregister(MigrationListener listener)
     {
         listeners.remove(listener);
     }
@@ -158,55 +158,55 @@ public class MigrationManager
 
     public void notifyCreateKeyspace(KSMetaData ksm)
     {
-        for (IMigrationListener listener : listeners)
+        for (MigrationListener listener : listeners)
             listener.onCreateKeyspace(ksm.name);
     }
 
     public void notifyCreateColumnFamily(CFMetaData cfm)
     {
-        for (IMigrationListener listener : listeners)
+        for (MigrationListener listener : listeners)
             listener.onCreateColumnFamily(cfm.ksName, cfm.cfName);
     }
 
     public void notifyCreateUserType(UserType ut)
     {
-        for (IMigrationListener listener : listeners)
+        for (MigrationListener listener : listeners)
             listener.onCreateUserType(ut.keyspace, ut.getNameAsString());
     }
 
     public void notifyUpdateKeyspace(KSMetaData ksm)
     {
-        for (IMigrationListener listener : listeners)
+        for (MigrationListener listener : listeners)
             listener.onUpdateKeyspace(ksm.name);
     }
 
-    public void notifyUpdateColumnFamily(CFMetaData cfm)
+    public void notifyUpdateColumnFamily(CFMetaData cfm, boolean columnsDidChange)
     {
-        for (IMigrationListener listener : listeners)
-            listener.onUpdateColumnFamily(cfm.ksName, cfm.cfName);
+        for (MigrationListener listener : listeners)
+            listener.onUpdateColumnFamily(cfm.ksName, cfm.cfName, columnsDidChange);
     }
 
     public void notifyUpdateUserType(UserType ut)
     {
-        for (IMigrationListener listener : listeners)
+        for (MigrationListener listener : listeners)
             listener.onUpdateUserType(ut.keyspace, ut.getNameAsString());
     }
 
     public void notifyDropKeyspace(KSMetaData ksm)
     {
-        for (IMigrationListener listener : listeners)
+        for (MigrationListener listener : listeners)
             listener.onDropKeyspace(ksm.name);
     }
 
     public void notifyDropColumnFamily(CFMetaData cfm)
     {
-        for (IMigrationListener listener : listeners)
+        for (MigrationListener listener : listeners)
             listener.onDropColumnFamily(cfm.ksName, cfm.cfName);
     }
 
     public void notifyDropUserType(UserType ut)
     {
-        for (IMigrationListener listener : listeners)
+        for (MigrationListener listener : listeners)
             listener.onDropUserType(ut.keyspace, ut.getNameAsString());
     }
 

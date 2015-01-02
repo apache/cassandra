@@ -419,13 +419,13 @@ public class DefsTables
     {
         CFMetaData cfm = Schema.instance.getCFMetaData(ksName, cfName);
         assert cfm != null;
-        cfm.reload();
+        boolean columnsDidChange = cfm.reload();
 
         if (!StorageService.instance.isClientMode())
         {
             Keyspace keyspace = Keyspace.open(cfm.ksName);
             keyspace.getColumnFamilyStore(cfm.cfName).reload();
-            MigrationManager.instance.notifyUpdateColumnFamily(cfm);
+            MigrationManager.instance.notifyUpdateColumnFamily(cfm, columnsDidChange);
         }
     }
 

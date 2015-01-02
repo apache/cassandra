@@ -185,7 +185,7 @@ public class Auth implements AuthMBean
         DatabaseDescriptor.getAuthorizer().setup();
 
         // register a custom MigrationListener for permissions cleanup after dropped keyspaces/cfs.
-        MigrationManager.instance.register(new MigrationListener());
+        MigrationManager.instance.register(new AuthMigrationListener());
 
         // the delay is here to give the node some time to see its peers - to reduce
         // "Skipped default superuser setup: some nodes were not ready" log spam.
@@ -318,9 +318,9 @@ public class Auth implements AuthMBean
     }
 
     /**
-     * IMigrationListener implementation that cleans up permissions on dropped resources.
+     * MigrationListener implementation that cleans up permissions on dropped resources.
      */
-    public static class MigrationListener implements IMigrationListener
+    public static class AuthMigrationListener extends MigrationListener
     {
         public void onDropKeyspace(String ksName)
         {
@@ -330,34 +330,6 @@ public class Auth implements AuthMBean
         public void onDropColumnFamily(String ksName, String cfName)
         {
             DatabaseDescriptor.getAuthorizer().revokeAll(DataResource.columnFamily(ksName, cfName));
-        }
-
-        public void onDropUserType(String ksName, String userType)
-        {
-        }
-
-        public void onCreateKeyspace(String ksName)
-        {
-        }
-
-        public void onCreateColumnFamily(String ksName, String cfName)
-        {
-        }
-
-        public void onCreateUserType(String ksName, String userType)
-        {
-        }
-
-        public void onUpdateKeyspace(String ksName)
-        {
-        }
-
-        public void onUpdateColumnFamily(String ksName, String cfName)
-        {
-        }
-
-        public void onUpdateUserType(String ksName, String userType)
-        {
         }
     }
 }
