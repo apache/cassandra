@@ -45,6 +45,7 @@ import org.apache.cassandra.db.marshal.CompositeType;
 import org.apache.cassandra.db.marshal.IntegerType;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.locator.SimpleStrategy;
+import org.apache.cassandra.metrics.ClearableHistogram;
 import org.apache.cassandra.utils.WrappedRunnable;
 import static org.apache.cassandra.Util.column;
 import static org.apache.cassandra.Util.expiringColumn;
@@ -481,18 +482,18 @@ public class KeyspaceTest
             rm.applyUnsafe();
             cfStore.forceBlockingFlush();
         }
-        cfStore.metric.sstablesPerReadHistogram.cf.clear();
+        ((ClearableHistogram)cfStore.metric.sstablesPerReadHistogram.cf).clear();
         ColumnFamily cf = cfStore.getColumnFamily(key, Composites.EMPTY, cellname("col1499"), false, 1000, System.currentTimeMillis());
-        assertEquals(cfStore.metric.sstablesPerReadHistogram.cf.max(), 5, 0.1);
+        assertEquals(cfStore.metric.sstablesPerReadHistogram.cf.getSnapshot().getMax(), 5, 0.1);
         int i = 0;
         for (Cell c : cf.getSortedColumns())
         {
             assertEquals(ByteBufferUtil.string(c.name().toByteBuffer()), "col" + (1000 + i++));
         }
         assertEquals(i, 500);
-        cfStore.metric.sstablesPerReadHistogram.cf.clear();
+        ((ClearableHistogram)cfStore.metric.sstablesPerReadHistogram.cf).clear();
         cf = cfStore.getColumnFamily(key, cellname("col1500"), cellname("col2000"), false, 1000, System.currentTimeMillis());
-        assertEquals(cfStore.metric.sstablesPerReadHistogram.cf.max(), 5, 0.1);
+        assertEquals(cfStore.metric.sstablesPerReadHistogram.cf.getSnapshot().getMax(), 5, 0.1);
 
         for (Cell c : cf.getSortedColumns())
         {
@@ -501,9 +502,9 @@ public class KeyspaceTest
         assertEquals(i, 1000);
 
         // reverse
-        cfStore.metric.sstablesPerReadHistogram.cf.clear();
+        ((ClearableHistogram)cfStore.metric.sstablesPerReadHistogram.cf).clear();
         cf = cfStore.getColumnFamily(key, cellname("col2000"), cellname("col1500"), true, 1000, System.currentTimeMillis());
-        assertEquals(cfStore.metric.sstablesPerReadHistogram.cf.max(), 5, 0.1);
+        assertEquals(cfStore.metric.sstablesPerReadHistogram.cf.getSnapshot().getMax(), 5, 0.1);
         i = 500;
         for (Cell c : cf.getSortedColumns())
         {
@@ -550,13 +551,13 @@ public class KeyspaceTest
         }
         Composite start = type.builder().add(ByteBufferUtil.bytes("a5")).add(ByteBufferUtil.bytes(85)).build();
         Composite finish = type.builder().add(ByteBufferUtil.bytes("a5")).build().end();
-        cfs.metric.sstablesPerReadHistogram.cf.clear();
+        ((ClearableHistogram)cfs.metric.sstablesPerReadHistogram.cf).clear();
         ColumnFamily cf = cfs.getColumnFamily(key, start, finish, false, 1000, System.currentTimeMillis());
         int colCount = 0;
         for (Cell c : cf)
             colCount++;
         assertEquals(2, colCount);
-        assertEquals(2, cfs.metric.sstablesPerReadHistogram.cf.max(), 0.1);
+        assertEquals(2, cfs.metric.sstablesPerReadHistogram.cf.getSnapshot().getMax(), 0.1);
     }
 
     private void validateSliceLarge(ColumnFamilyStore cfStore) throws IOException

@@ -15,18 +15,34 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.scheduler;
+package org.apache.cassandra.metrics;
+
+import com.google.common.annotations.VisibleForTesting;
+
+import com.codahale.metrics.Histogram;
 
 /**
- * Exposes client request scheduling metrics for a particular scheduler queue.
- * @see org.apache.cassandra.metrics.LatencyMetrics
+ * Adds ability to reset a histogram
  */
-@Deprecated
-public interface WeightedQueueMBean
+public class ClearableHistogram extends Histogram
 {
-    public long getOperations();
-    public long getTotalLatencyMicros();
-    public double getRecentLatencyMicros();
-    public long[] getTotalLatencyHistogramMicros();
-    public long[] getRecentLatencyHistogramMicros();
+    private final EstimatedHistogramReservoir reservoirRef;
+
+    /**
+     * Creates a new {@link com.codahale.metrics.Histogram} with the given reservoir.
+     *
+     * @param reservoir the reservoir to create a histogram from
+     */
+    public ClearableHistogram(EstimatedHistogramReservoir reservoir)
+    {
+        super(reservoir);
+
+        this.reservoirRef = reservoir;
+    }
+
+    @VisibleForTesting
+    public void clear()
+    {
+        reservoirRef.clear();
+    }
 }

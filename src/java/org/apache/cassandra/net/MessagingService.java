@@ -879,7 +879,7 @@ public final class MessagingService implements MessagingServiceMBean
         boolean logTpstats = false;
         for (Map.Entry<Verb, DroppedMessageMetrics> entry : droppedMessages.entrySet())
         {
-            int dropped = (int) entry.getValue().dropped.count();
+            int dropped = (int) entry.getValue().dropped.getCount();
             Verb verb = entry.getKey();
             int recent = dropped - lastDroppedInternal.get(verb);
             if (recent > 0)
@@ -1018,26 +1018,14 @@ public final class MessagingService implements MessagingServiceMBean
     {
         Map<String, Integer> map = new HashMap<String, Integer>(droppedMessages.size());
         for (Map.Entry<Verb, DroppedMessageMetrics> entry : droppedMessages.entrySet())
-            map.put(entry.getKey().toString(), (int) entry.getValue().dropped.count());
+            map.put(entry.getKey().toString(), (int) entry.getValue().dropped.getCount());
         return map;
     }
 
-    public Map<String, Integer> getRecentlyDroppedMessages()
-    {
-        Map<String, Integer> map = new HashMap<String, Integer>(droppedMessages.size());
-        for (Map.Entry<Verb, DroppedMessageMetrics> entry : droppedMessages.entrySet())
-            map.put(entry.getKey().toString(), entry.getValue().getRecentlyDropped());
-        return map;
-    }
 
     public long getTotalTimeouts()
     {
-        return ConnectionMetrics.totalTimeouts.count();
-    }
-
-    public long getRecentTotalTimouts()
-    {
-        return ConnectionMetrics.getRecentTotalTimeout();
+        return ConnectionMetrics.totalTimeouts.getCount();
     }
 
     public Map<String, Long> getTimeoutsPerHost()
@@ -1047,18 +1035,6 @@ public final class MessagingService implements MessagingServiceMBean
         {
             String ip = entry.getKey().getHostAddress();
             long recent = entry.getValue().getTimeouts();
-            result.put(ip, recent);
-        }
-        return result;
-    }
-
-    public Map<String, Long> getRecentTimeoutsPerHost()
-    {
-        Map<String, Long> result = new HashMap<String, Long>(connectionManagers.size());
-        for (Map.Entry<InetAddress, OutboundTcpConnectionPool> entry: connectionManagers.entrySet())
-        {
-            String ip = entry.getKey().getHostAddress();
-            long recent = entry.getValue().getRecentTimeouts();
             result.put(ip, recent);
         }
         return result;

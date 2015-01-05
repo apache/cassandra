@@ -185,8 +185,8 @@ public class RowCacheTest
         Keyspace keyspace = Keyspace.open(KEYSPACE_CACHED);
         String cf = "CachedIntCF";
         ColumnFamilyStore cachedStore  = keyspace.getColumnFamilyStore(cf);
-        long startRowCacheHits = cachedStore.metric.rowCacheHit.count();
-        long startRowCacheOutOfRange = cachedStore.metric.rowCacheHitOutOfRange.count();
+        long startRowCacheHits = cachedStore.metric.rowCacheHit.getCount();
+        long startRowCacheOutOfRange = cachedStore.metric.rowCacheHitOutOfRange.getCount();
         // empty the row cache
         CacheService.instance.invalidateRowCache();
 
@@ -206,31 +206,31 @@ public class RowCacheTest
                                                                 Composites.EMPTY,
                                                                 Composites.EMPTY,
                                                                 false, 10, System.currentTimeMillis()));
-        assertEquals(startRowCacheHits, cachedStore.metric.rowCacheHit.count());
+        assertEquals(startRowCacheHits, cachedStore.metric.rowCacheHit.getCount());
 
         // do another query, limit is 20, which is < 100 that we cache, we should get a hit and it should be in range
         cachedStore.getColumnFamily(QueryFilter.getSliceFilter(dk, cf,
                                                                 Composites.EMPTY,
                                                                 Composites.EMPTY,
                                                                 false, 20, System.currentTimeMillis()));
-        assertEquals(++startRowCacheHits, cachedStore.metric.rowCacheHit.count());
-        assertEquals(startRowCacheOutOfRange, cachedStore.metric.rowCacheHitOutOfRange.count());
+        assertEquals(++startRowCacheHits, cachedStore.metric.rowCacheHit.getCount());
+        assertEquals(startRowCacheOutOfRange, cachedStore.metric.rowCacheHitOutOfRange.getCount());
 
         // get a slice from 95 to 105, 95->99 are in cache, we should not get a hit and then row cache is out of range
         cachedStore.getColumnFamily(QueryFilter.getSliceFilter(dk, cf,
                                                                CellNames.simpleDense(ByteBufferUtil.bytes(95)),
                                                                CellNames.simpleDense(ByteBufferUtil.bytes(105)),
                                                                false, 10, System.currentTimeMillis()));
-        assertEquals(startRowCacheHits, cachedStore.metric.rowCacheHit.count());
-        assertEquals(++startRowCacheOutOfRange, cachedStore.metric.rowCacheHitOutOfRange.count());
+        assertEquals(startRowCacheHits, cachedStore.metric.rowCacheHit.getCount());
+        assertEquals(++startRowCacheOutOfRange, cachedStore.metric.rowCacheHitOutOfRange.getCount());
 
         // get a slice with limit > 100, we should get a hit out of range.
         cachedStore.getColumnFamily(QueryFilter.getSliceFilter(dk, cf,
                                                                Composites.EMPTY,
                                                                Composites.EMPTY,
                                                                false, 101, System.currentTimeMillis()));
-        assertEquals(startRowCacheHits, cachedStore.metric.rowCacheHit.count());
-        assertEquals(++startRowCacheOutOfRange, cachedStore.metric.rowCacheHitOutOfRange.count());
+        assertEquals(startRowCacheHits, cachedStore.metric.rowCacheHit.getCount());
+        assertEquals(++startRowCacheOutOfRange, cachedStore.metric.rowCacheHitOutOfRange.getCount());
 
 
         CacheService.instance.invalidateRowCache();
@@ -240,7 +240,7 @@ public class RowCacheTest
                                                                 Composites.EMPTY,
                                                                 Composites.EMPTY,
                                                                 false, 105, System.currentTimeMillis()));
-        assertEquals(startRowCacheHits, cachedStore.metric.rowCacheHit.count());
+        assertEquals(startRowCacheHits, cachedStore.metric.rowCacheHit.getCount());
         // validate the stuff in cache;
         ColumnFamily cachedCf = (ColumnFamily)CacheService.instance.rowCache.get(rck);
         assertEquals(cachedCf.getColumnCount(), 100);

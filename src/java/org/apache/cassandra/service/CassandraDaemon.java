@@ -58,6 +58,7 @@ import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.FSError;
 import org.apache.cassandra.io.sstable.CorruptSSTableException;
 import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.metrics.CassandraMetricsRegistry;
 import org.apache.cassandra.metrics.StorageMetrics;
 import org.apache.cassandra.thrift.ThriftServer;
 import org.apache.cassandra.tracing.Tracing;
@@ -558,9 +559,9 @@ public class CassandraDaemon
         while (numOkay < GOSSIP_SETTLE_POLL_SUCCESSES_REQUIRED)
         {
             Uninterruptibles.sleepUninterruptibly(GOSSIP_SETTLE_POLL_INTERVAL_MS, TimeUnit.MILLISECONDS);
-            long completed = gossipStage.getCompletedTasks();
-            long active = gossipStage.getActiveCount();
-            long pending = gossipStage.getPendingTasks();
+            long completed = gossipStage.metrics.completedTasks.getValue();
+            long active = gossipStage.metrics.activeTasks.getValue();
+            long pending = gossipStage.metrics.pendingTasks.getValue();
             totalPolls++;
             if (active == 0 && pending == 0)
             {

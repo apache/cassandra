@@ -180,35 +180,6 @@ public class CacheService implements CacheServiceMBean
         return cache;
     }
 
-    public long getKeyCacheHits()
-    {
-        return keyCache.getMetrics().hits.count();
-    }
-
-    public long getRowCacheHits()
-    {
-        return rowCache.getMetrics().hits.count();
-    }
-
-    public long getKeyCacheRequests()
-    {
-        return keyCache.getMetrics().requests.count();
-    }
-
-    public long getRowCacheRequests()
-    {
-        return rowCache.getMetrics().requests.count();
-    }
-
-    public double getKeyCacheRecentHitRate()
-    {
-        return keyCache.getMetrics().getRecentHitRate();
-    }
-
-    public double getRowCacheRecentHitRate()
-    {
-        return rowCache.getMetrics().getRecentHitRate();
-    }
 
     public int getRowCacheSavePeriodInSeconds()
     {
@@ -339,15 +310,8 @@ public class CacheService implements CacheServiceMBean
         counterCache.clear();
     }
 
-    public long getRowCacheCapacityInBytes()
-    {
-        return rowCache.getMetrics().capacity.value();
-    }
 
-    public long getRowCacheCapacityInMB()
-    {
-        return getRowCacheCapacityInBytes() / 1024 / 1024;
-    }
+
 
     public void setRowCacheCapacityInMB(long capacity)
     {
@@ -357,15 +321,6 @@ public class CacheService implements CacheServiceMBean
         rowCache.setCapacity(capacity * 1024 * 1024);
     }
 
-    public long getKeyCacheCapacityInBytes()
-    {
-        return keyCache.getMetrics().capacity.value();
-    }
-
-    public long getKeyCacheCapacityInMB()
-    {
-        return getKeyCacheCapacityInBytes() / 1024 / 1024;
-    }
 
     public void setKeyCacheCapacityInMB(long capacity)
     {
@@ -381,26 +336,6 @@ public class CacheService implements CacheServiceMBean
             throw new RuntimeException("capacity should not be negative.");
 
         counterCache.setCapacity(capacity * 1024 * 1024);
-    }
-
-    public long getRowCacheSize()
-    {
-        return rowCache.getMetrics().size.value();
-    }
-
-    public long getRowCacheEntries()
-    {
-        return rowCache.size();
-    }
-
-    public long getKeyCacheSize()
-    {
-        return keyCache.getMetrics().size.value();
-    }
-
-    public long getKeyCacheEntries()
-    {
-        return keyCache.size();
     }
 
     public void saveCaches() throws ExecutionException, InterruptedException

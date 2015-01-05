@@ -143,8 +143,8 @@ public class AntiCompactionTest
         long sum = 0;
         for (SSTableReader x : cfs.getSSTables())
             sum += x.bytesOnDisk();
-        assertEquals(sum, cfs.metric.liveDiskSpaceUsed.count());
-        assertEquals(origSize, cfs.metric.liveDiskSpaceUsed.count(), 100000);
+        assertEquals(sum, cfs.metric.liveDiskSpaceUsed.getCount());
+        assertEquals(origSize, cfs.metric.liveDiskSpaceUsed.getCount(), 100000);
 
     }
 

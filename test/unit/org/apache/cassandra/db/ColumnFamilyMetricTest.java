@@ -53,8 +53,8 @@ public class ColumnFamilyMetricTest
 
         store.truncateBlocking();
 
-        assertEquals(0, store.metric.liveDiskSpaceUsed.count());
-        assertEquals(0, store.metric.totalDiskSpaceUsed.count());
+        assertEquals(0, store.metric.liveDiskSpaceUsed.getCount());
+        assertEquals(0, store.metric.totalDiskSpaceUsed.getCount());
 
         for (int j = 0; j < 10; j++)
         {
@@ -72,14 +72,14 @@ public class ColumnFamilyMetricTest
         }
 
         // size metrics should show the sum of all SSTable sizes
-        assertEquals(size, store.metric.liveDiskSpaceUsed.count());
-        assertEquals(size, store.metric.totalDiskSpaceUsed.count());
+        assertEquals(size, store.metric.liveDiskSpaceUsed.getCount());
+        assertEquals(size, store.metric.totalDiskSpaceUsed.getCount());
 
         store.truncateBlocking();
 
         // after truncate, size metrics should be down to 0
-        assertEquals(0, store.metric.liveDiskSpaceUsed.count());
-        assertEquals(0, store.metric.totalDiskSpaceUsed.count());
+        assertEquals(0, store.metric.liveDiskSpaceUsed.getCount());
+        assertEquals(0, store.metric.totalDiskSpaceUsed.getCount());
 
         store.enableAutoCompaction();
     }

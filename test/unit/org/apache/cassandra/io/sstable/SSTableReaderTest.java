@@ -200,7 +200,7 @@ public class SSTableReaderTest
         store.forceBlockingFlush();
 
         clearAndLoad(store);
-        assert store.getMaxRowSize() != 0;
+        assert store.metric.maxRowSize.getValue() != 0;
     }
 
     private void clearAndLoad(ColumnFamilyStore cfs)

@@ -482,7 +482,7 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
         if (meanColumnCount <= 0)
             return PAGE_SIZE;
 
-        int averageColumnSize = (int) (hintStore.getMeanRowSize() / meanColumnCount);
+        int averageColumnSize = (int) (hintStore.metric.meanRowSize.getValue() / meanColumnCount);
         if (averageColumnSize <= 0)
             return PAGE_SIZE;
 

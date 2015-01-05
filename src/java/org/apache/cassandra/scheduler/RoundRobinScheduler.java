@@ -145,8 +145,6 @@ public class RoundRobinScheduler implements IRequestScheduler
         weightedQueue = queues.putIfAbsent(id, maybenew);
         if (weightedQueue == null)
         {
-            // created new queue: register for monitoring
-            maybenew.register();
             return maybenew;
         }
 

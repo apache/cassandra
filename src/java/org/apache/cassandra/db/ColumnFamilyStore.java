@@ -365,7 +365,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                 {
                     case PERCENTILE:
                         // get percentile in nanos
-                        assert metric.coordinatorReadLatency.durationUnit() == TimeUnit.MICROSECONDS;
                         sampleLatencyNanos = (long) (metric.coordinatorReadLatency.getSnapshot().getValue(retryPolicy.value) * 1000d);
                         break;
                     case CUSTOM:
@@ -425,25 +424,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         metric.release();
     }
 
-    public long getMinRowSize()
-    {
-        return metric.minRowSize.value();
-    }
-
-    public long getMaxRowSize()
-    {
-        return metric.maxRowSize.value();
-    }
-
-    public long getMeanRowSize()
-    {
-        return metric.meanRowSize.value();
-    }
-
-    public int getMeanColumns()
-    {
-        return data.getMeanColumns();
-    }
 
     public static ColumnFamilyStore createColumnFamilyStore(Keyspace keyspace, String columnFamily, boolean loadSSTables)
     {
@@ -1426,20 +1406,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return valid;
     }
 
-    public long getMemtableColumnsCount()
-    {
-        return metric.memtableColumnsCount.value();
-    }
 
-    public long getMemtableDataSize()
-    {
-        return metric.memtableOnHeapSize.value();
-    }
 
-    public int getMemtableSwitchCount()
-    {
-        return (int) metric.memtableSwitchCount.count();
-    }
 
     /**
      * Package protected for access from the CompactionManager.
@@ -1457,71 +1425,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     public Set<SSTableReader> getUncompactingSSTables()
     {
         return data.getUncompactingSSTables();
-    }
-
-    public long[] getRecentSSTablesPerReadHistogram()
-    {
-        return metric.recentSSTablesPerRead.getBuckets(true);
-    }
-
-    public long[] getSSTablesPerReadHistogram()
-    {
-        return metric.sstablesPerRead.getBuckets(false);
-    }
-
-    public long getReadCount()
-    {
-        return metric.readLatency.latency.count();
-    }
-
-    public double getRecentReadLatencyMicros()
-    {
-        return metric.readLatency.getRecentLatency();
-    }
-
-    public long[] getLifetimeReadLatencyHistogramMicros()
-    {
-        return metric.readLatency.totalLatencyHistogram.getBuckets(false);
-    }
-
-    public long[] getRecentReadLatencyHistogramMicros()
-    {
-        return metric.readLatency.recentLatencyHistogram.getBuckets(true);
-    }
-
-    public long getTotalReadLatencyMicros()
-    {
-        return metric.readLatency.totalLatency.count();
-    }
-
-    public int getPendingTasks()
-    {
-        return (int) metric.pendingFlushes.count();
-    }
-
-    public long getWriteCount()
-    {
-        return metric.writeLatency.latency.count();
-    }
-
-    public long getTotalWriteLatencyMicros()
-    {
-        return metric.writeLatency.totalLatency.count();
-    }
-
-    public double getRecentWriteLatencyMicros()
-    {
-        return metric.writeLatency.getRecentLatency();
-    }
-
-    public long[] getLifetimeWriteLatencyHistogramMicros()
-    {
-        return metric.writeLatency.totalLatencyHistogram.getBuckets(false);
-    }
-
-    public long[] getRecentWriteLatencyHistogramMicros()
-    {
-        return metric.writeLatency.recentLatencyHistogram.getBuckets(true);
     }
 
     public ColumnFamily getColumnFamily(DecoratedKey key,
@@ -2328,19 +2231,9 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return directories.getSnapshotDetails();
     }
 
-    public long getTotalDiskSpaceUsed()
+    public boolean hasUnreclaimedSpace()
     {
-        return metric.totalDiskSpaceUsed.count();
-    }
-
-    public long getLiveDiskSpaceUsed()
-    {
-        return metric.liveDiskSpaceUsed.count();
-    }
-
-    public int getLiveSSTableCount()
-    {
-        return metric.liveSSTableCount.value();
+        return metric.liveDiskSpaceUsed.getCount() < metric.totalDiskSpaceUsed.getCount();
     }
 
     /**
@@ -2613,45 +2506,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return runWithCompactionsDisabled(callable, false);
     }
 
-    public long getBloomFilterFalsePositives()
-    {
-        return metric.bloomFilterFalsePositives.value();
-    }
-
-    public long getRecentBloomFilterFalsePositives()
-    {
-        return metric.recentBloomFilterFalsePositives.value();
-    }
-
-    public double getBloomFilterFalseRatio()
-    {
-        return metric.bloomFilterFalseRatio.value();
-    }
-
-    public double getRecentBloomFilterFalseRatio()
-    {
-        return metric.recentBloomFilterFalseRatio.value();
-    }
-
-    public long getBloomFilterDiskSpaceUsed()
-    {
-        return metric.bloomFilterDiskSpaceUsed.value();
-    }
-
-    public long getBloomFilterOffHeapMemoryUsed()
-    {
-        return metric.bloomFilterOffHeapMemoryUsed.value();
-    }
-
-    public long getIndexSummaryOffHeapMemoryUsed()
-    {
-        return metric.indexSummaryOffHeapMemoryUsed.value();
-    }
-
-    public long getCompressionMetadataOffHeapMemoryUsed()
-    {
-        return metric.compressionMetadataOffHeapMemoryUsed.value();
-    }
 
     @Override
     public String toString()
@@ -2748,36 +2602,16 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                     "is deprecated, set the compaction strategy option 'enabled' to 'false' instead or use the nodetool command 'disableautocompaction'.");
     }
 
-    public double getTombstonesPerSlice()
-    {
-        return metric.tombstoneScannedHistogram.cf.getSnapshot().getMedian();
-    }
-
-    public double getLiveCellsPerSlice()
-    {
-        return metric.liveScannedHistogram.cf.getSnapshot().getMedian();
-    }
-
     // End JMX get/set.
+
+    public int getMeanColumns()
+    {
+        return data.getMeanColumns();
+    }
 
     public long estimateKeys()
     {
         return data.estimatedKeys();
-    }
-
-    public long[] getEstimatedRowSizeHistogram()
-    {
-        return metric.estimatedRowSizeHistogram.value();
-    }
-
-    public long[] getEstimatedColumnCountHistogram()
-    {
-        return metric.estimatedColumnCountHistogram.value();
-    }
-
-    public double getCompressionRatio()
-    {
-        return metric.compressionRatio.value();
     }
 
     /** true if this CFS contains secondary index data */

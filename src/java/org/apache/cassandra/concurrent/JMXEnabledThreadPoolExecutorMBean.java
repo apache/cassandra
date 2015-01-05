@@ -17,24 +17,9 @@
  */
 package org.apache.cassandra.concurrent;
 
-/**
- * @see org.apache.cassandra.metrics.ThreadPoolMetrics
- */
-@Deprecated
-public interface JMXEnabledThreadPoolExecutorMBean extends IExecutorMBean
+
+public interface JMXEnabledThreadPoolExecutorMBean
 {
-    /**
-     * Get the number of tasks that had blocked before being accepted (or
-     * rejected).
-     */
-    public int getTotalBlockedTasks();
-
-    /**
-     * Get the number of tasks currently blocked, waiting to be accepted by
-     * the executor (because all threads are busy and the backing queue is full).
-     */
-    public int getCurrentlyBlockedTasks();
-
     /**
      * Returns core pool size of thread pool.
      */

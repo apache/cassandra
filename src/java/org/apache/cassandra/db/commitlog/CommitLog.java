@@ -291,26 +291,6 @@ public class CommitLog implements CommitLogMBean
         }
     }
 
-    @Override
-    public long getCompletedTasks()
-    {
-        return metrics.completedTasks.value();
-    }
-
-    @Override
-    public long getPendingTasks()
-    {
-        return metrics.pendingTasks.value();
-    }
-
-    /**
-     * @return the total size occupied by commitlog segments expressed in bytes. (used by MBean)
-     */
-    public long getTotalCommitlogSize()
-    {
-        return metrics.totalCommitLogSize.value();
-    }
-
     public List<String> getActiveSegmentNames()
     {
         List<String> segmentNames = new ArrayList<>();

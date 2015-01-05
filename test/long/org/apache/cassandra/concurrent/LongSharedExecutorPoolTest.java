@@ -116,7 +116,7 @@ public class LongSharedExecutorPoolTest
         final ExecutorService[] executors = new ExecutorService[executorCount];
         for (int i = 0 ; i < executors.length ; i++)
         {
-            executors[i] = JMXEnabledSharedExecutorPool.SHARED.newExecutor(threadCount, maxQueued, "test" + i, "test" + i);
+            executors[i] = SharedExecutorPool.SHARED.newExecutor(threadCount, maxQueued, "test" + i, "test" + i);
             threadCounts[i] = threadCount;
             workCount[i] = new WeibullDistribution(2, maxQueued);
             threadCount *= 2;

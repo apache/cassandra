@@ -161,13 +161,6 @@ public interface StorageServiceMBean extends NotificationEmitter
     /** Retrieve the mapping of endpoint to host ID */
     public Map<String, String> getHostIdMap();
 
-    /**
-     * Numeric load value.
-     * @see org.apache.cassandra.metrics.StorageMetrics#load
-     */
-    @Deprecated
-    public double getLoad();
-
     /** Human-readable load value */
     public String getLoadString();
 
@@ -440,9 +433,6 @@ public interface StorageServiceMBean extends NotificationEmitter
     // allows a node that have been started without joining the ring to join it
     public void joinRing() throws IOException;
     public boolean isJoined();
-
-    @Deprecated
-    public int getExceptionCount();
 
     public void setStreamThroughputMbPerSec(int value);
     public int getStreamThroughputMbPerSec();

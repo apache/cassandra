@@ -20,20 +20,14 @@
  */
 package org.apache.cassandra.metrics;
 
-import java.util.concurrent.TimeUnit;
 
-import com.yammer.metrics.Metrics;
-import com.yammer.metrics.core.Counter;
-import com.yammer.metrics.core.Meter;
+import com.codahale.metrics.Meter;
+
+import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;
+
 
 public class ClientRequestMetrics extends LatencyMetrics
 {
-    @Deprecated public static final Counter readTimeouts = Metrics.newCounter(DefaultNameFactory.createMetricName("ClientRequestMetrics", "ReadTimeouts", null));
-    @Deprecated public static final Counter writeTimeouts = Metrics.newCounter(DefaultNameFactory.createMetricName("ClientRequestMetrics", "WriteTimeouts", null));
-    @Deprecated public static final Counter readUnavailables = Metrics.newCounter(DefaultNameFactory.createMetricName("ClientRequestMetrics", "ReadUnavailables", null));
-    @Deprecated public static final Counter writeUnavailables = Metrics.newCounter(DefaultNameFactory.createMetricName("ClientRequestMetrics", "WriteUnavailables", null));
-    @Deprecated public static final Counter readFailures = Metrics.newCounter(DefaultNameFactory.createMetricName("ClientRequestMetrics", "ReadFailures", null));
-
     public final Meter timeouts;
     public final Meter unavailables;
     public final Meter failures;
@@ -42,16 +36,16 @@ public class ClientRequestMetrics extends LatencyMetrics
     {
         super("ClientRequest", scope);
 
-        timeouts = Metrics.newMeter(factory.createMetricName("Timeouts"), "timeouts", TimeUnit.SECONDS);
-        unavailables = Metrics.newMeter(factory.createMetricName("Unavailables"), "unavailables", TimeUnit.SECONDS);
-        failures = Metrics.newMeter(factory.createMetricName("Failures"), "failures", TimeUnit.SECONDS);
+        timeouts = Metrics.meter(factory.createMetricName("Timeouts"));
+        unavailables = Metrics.meter(factory.createMetricName("Unavailables"));
+        failures = Metrics.meter(factory.createMetricName("Failures"));
     }
 
     public void release()
     {
         super.release();
-        Metrics.defaultRegistry().removeMetric(factory.createMetricName("Timeouts"));
-        Metrics.defaultRegistry().removeMetric(factory.createMetricName("Unavailables"));
-        Metrics.defaultRegistry().removeMetric(factory.createMetricName("Failures"));
+        Metrics.remove(factory.createMetricName("Timeouts"));
+        Metrics.remove(factory.createMetricName("Unavailables"));
+        Metrics.remove(factory.createMetricName("Failures"));
     }
 }

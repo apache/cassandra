@@ -17,6 +17,11 @@
  */
 package org.apache.cassandra.concurrent;
 
+import java.util.Arrays;
+
+import com.google.common.base.Predicate;
+import com.google.common.collect.Iterables;
+
 public enum Stage
 {
     READ,
@@ -30,6 +35,17 @@ public enum Stage
     TRACING,
     INTERNAL_RESPONSE,
     READ_REPAIR;
+
+    public static Iterable<Stage> jmxEnabledStages()
+    {
+        return Iterables.filter(Arrays.asList(values()), new Predicate<Stage>()
+        {
+            public boolean apply(Stage stage)
+            {
+                return stage != TRACING;
+            }
+        });
+    }
 
     public String getJmxType()
     {

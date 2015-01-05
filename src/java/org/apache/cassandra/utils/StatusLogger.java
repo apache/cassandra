@@ -19,15 +19,14 @@ package org.apache.cassandra.utils;
 
 import java.lang.management.ManagementFactory;
 import java.util.Set;
-import javax.management.JMX;
-import javax.management.MBeanServer;
-import javax.management.MalformedObjectNameException;
-import javax.management.ObjectName;
+import javax.management.*;
 
 import com.google.common.collect.Iterables;
 
 import org.apache.cassandra.cache.*;
 
+import org.apache.cassandra.concurrent.Stage;
+import org.apache.cassandra.metrics.ThreadPoolMetrics;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -43,34 +42,25 @@ public class StatusLogger
 {
     private static final Logger logger = LoggerFactory.getLogger(StatusLogger.class);
 
+
     public static void log()
     {
         MBeanServer server = ManagementFactory.getPlatformMBeanServer();
 
         // everything from o.a.c.concurrent
         logger.info(String.format("%-25s%10s%10s%15s%10s%18s", "Pool Name", "Active", "Pending", "Completed", "Blocked", "All Time Blocked"));
-        Set<ObjectName> request, internal;
-        try
+
+        for (Stage stage : Stage.jmxEnabledStages())
         {
-            request = server.queryNames(new ObjectName("org.apache.cassandra.request:type=*"), null);
-            internal = server.queryNames(new ObjectName("org.apache.cassandra.internal:type=*"), null);
+            System.out.printf("%-25s%10s%10s%15s%10s%18s%n",
+                              stage.getJmxName(),
+                              ThreadPoolMetrics.getJmxMetric(server, stage.getJmxType(), stage.getJmxName(), "ActiveTasks"),
+                              ThreadPoolMetrics.getJmxMetric(server, stage.getJmxType(), stage.getJmxName(), "PendingTasks"),
+                              ThreadPoolMetrics.getJmxMetric(server, stage.getJmxType(), stage.getJmxName(), "CompletedTasks"),
+                              ThreadPoolMetrics.getJmxMetric(server, stage.getJmxType(), stage.getJmxName(), "CurrentlyBlockedTasks"),
+                              ThreadPoolMetrics.getJmxMetric(server, stage.getJmxType(), stage.getJmxName(), "TotalBlockedTasks"));
         }
-        catch (MalformedObjectNameException e)
-        {
-            throw new RuntimeException(e);
-        }
-        for (ObjectName objectName : Iterables.concat(request, internal))
-        {
-            String poolName = objectName.getKeyProperty("type");
-            JMXEnabledThreadPoolExecutorMBean threadPoolProxy = JMX.newMBeanProxy(server, objectName, JMXEnabledThreadPoolExecutorMBean.class);
-            logger.info(String.format("%-25s%10s%10s%15s%10s%18s",
-                                      poolName,
-                                      threadPoolProxy.getActiveCount(),
-                                      threadPoolProxy.getPendingTasks(),
-                                      threadPoolProxy.getCompletedTasks(),
-                                      threadPoolProxy.getCurrentlyBlockedTasks(),
-                                      threadPoolProxy.getTotalBlockedTasks()));
-        }
+
         // one offs
         logger.info(String.format("%-25s%10s%10s",
                                   "CompactionManager", CompactionManager.instance.getActiveCompactions(), CompactionManager.instance.getPendingTasks()));
@@ -114,7 +104,7 @@ public class StatusLogger
         {
             logger.info(String.format("%-25s%20s",
                                       cfs.keyspace.getName() + "." + cfs.name,
-                                      cfs.getMemtableColumnsCount() + "," + cfs.getMemtableDataSize()));
+                                      cfs.metric.memtableColumnsCount.getValue() + "," + cfs.metric.memtableLiveDataSize.getValue()));
         }
     }
 }

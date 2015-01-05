@@ -31,24 +31,22 @@ import javax.management.openmbean.*;
 
 import com.google.common.base.Joiner;
 import com.google.common.base.Throwables;
-
 import com.google.common.collect.*;
 
-import com.yammer.metrics.reporting.JmxReporter;
-
 import io.airlift.command.*;
+
+import org.apache.commons.lang3.ArrayUtils;
 import org.apache.commons.lang3.StringUtils;
 
-import org.apache.cassandra.concurrent.JMXEnabledThreadPoolExecutorMBean;
+import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.db.ColumnFamilyStoreMBean;
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.db.compaction.CompactionManagerMBean;
 import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.locator.EndpointSnitchInfoMBean;
-
-import org.apache.cassandra.metrics.ColumnFamilyMetrics.Sampler;
-
+import org.apache.cassandra.metrics.CassandraMetricsRegistry;
+import org.apache.cassandra.metrics.ColumnFamilyMetrics;
 import org.apache.cassandra.net.MessagingServiceMBean;
 import org.apache.cassandra.repair.messages.RepairOption;
 import org.apache.cassandra.repair.RepairParallelism;
@@ -60,7 +58,7 @@ import org.apache.cassandra.utils.EstimatedHistogram;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 
-import org.apache.commons.lang3.ArrayUtils;
+import static org.apache.cassandra.metrics.ColumnFamilyMetrics.Sampler;
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkState;
 import static com.google.common.base.Throwables.getStackTraceAsString;
@@ -739,8 +737,8 @@ public class NodeTool
                 for (ColumnFamilyStoreMBean cfstore : columnFamilies)
                 {
                     String cfName = cfstore.getColumnFamilyName();
-                    long writeCount = ((JmxReporter.TimerMBean) probe.getColumnFamilyMetric(keyspaceName, cfName, "WriteLatency")).getCount();
-                    long readCount = ((JmxReporter.TimerMBean) probe.getColumnFamilyMetric(keyspaceName, cfName, "ReadLatency")).getCount();
+                    long writeCount = ((CassandraMetricsRegistry.JmxTimerMBean) probe.getColumnFamilyMetric(keyspaceName, cfName, "WriteLatency")).getCount();
+                    long readCount = ((CassandraMetricsRegistry.JmxTimerMBean) probe.getColumnFamilyMetric(keyspaceName, cfName, "ReadLatency")).getCount();
 
                     if (readCount > 0)
                     {
@@ -821,12 +819,12 @@ public class NodeTool
                     System.out.println("\t\tMemtable data size: " + format((Long) probe.getColumnFamilyMetric(keyspaceName, cfName, "MemtableLiveDataSize"), humanReadable));
                     System.out.println("\t\tMemtable off heap memory used: " + format(memtableOffHeapSize, humanReadable));
                     System.out.println("\t\tMemtable switch count: " + probe.getColumnFamilyMetric(keyspaceName, cfName, "MemtableSwitchCount"));
-                    System.out.println("\t\tLocal read count: " + ((JmxReporter.TimerMBean) probe.getColumnFamilyMetric(keyspaceName, cfName, "ReadLatency")).getCount());
-                    double localReadLatency = ((JmxReporter.TimerMBean) probe.getColumnFamilyMetric(keyspaceName, cfName, "ReadLatency")).getMean() / 1000;
+                    System.out.println("\t\tLocal read count: " + ((CassandraMetricsRegistry.JmxTimerMBean) probe.getColumnFamilyMetric(keyspaceName, cfName, "ReadLatency")).getCount());
+                    double localReadLatency = ((CassandraMetricsRegistry.JmxTimerMBean) probe.getColumnFamilyMetric(keyspaceName, cfName, "ReadLatency")).getMean() / 1000;
                     double localRLatency = localReadLatency > 0 ? localReadLatency : Double.NaN;
                     System.out.printf("\t\tLocal read latency: %01.3f ms%n", localRLatency);
-                    System.out.println("\t\tLocal write count: " + ((JmxReporter.TimerMBean) probe.getColumnFamilyMetric(keyspaceName, cfName, "WriteLatency")).getCount());
-                    double localWriteLatency = ((JmxReporter.TimerMBean) probe.getColumnFamilyMetric(keyspaceName, cfName, "WriteLatency")).getMean() / 1000;
+                    System.out.println("\t\tLocal write count: " + ((CassandraMetricsRegistry.JmxTimerMBean) probe.getColumnFamilyMetric(keyspaceName, cfName, "WriteLatency")).getCount());
+                    double localWriteLatency = ((CassandraMetricsRegistry.JmxTimerMBean) probe.getColumnFamilyMetric(keyspaceName, cfName, "WriteLatency")).getMean() / 1000;
                     double localWLatency = localWriteLatency > 0 ? localWriteLatency : Double.NaN;
                     System.out.printf("\t\tLocal write latency: %01.3f ms%n", localWLatency);
                     System.out.println("\t\tPending flushes: " + probe.getColumnFamilyMetric(keyspaceName, cfName, "PendingFlushes"));
@@ -840,10 +838,10 @@ public class NodeTool
                     System.out.println("\t\tCompacted partition minimum bytes: " + format((Long) probe.getColumnFamilyMetric(keyspaceName, cfName, "MinRowSize"), humanReadable));
                     System.out.println("\t\tCompacted partition maximum bytes: " + format((Long) probe.getColumnFamilyMetric(keyspaceName, cfName, "MaxRowSize"), humanReadable));
                     System.out.println("\t\tCompacted partition mean bytes: " + format((Long) probe.getColumnFamilyMetric(keyspaceName, cfName, "MeanRowSize"), humanReadable));
-                    JmxReporter.HistogramMBean histogram = (JmxReporter.HistogramMBean) probe.getColumnFamilyMetric(keyspaceName, cfName, "LiveScannedHistogram");
+                    CassandraMetricsRegistry.JmxHistogramMBean histogram = (CassandraMetricsRegistry.JmxHistogramMBean) probe.getColumnFamilyMetric(keyspaceName, cfName, "LiveScannedHistogram");
                     System.out.println("\t\tAverage live cells per slice (last five minutes): " + histogram.getMean());
                     System.out.println("\t\tMaximum live cells per slice (last five minutes): " + histogram.getMax());
-                    histogram = (JmxReporter.HistogramMBean) probe.getColumnFamilyMetric(keyspaceName, cfName, "TombstoneScannedHistogram");
+                    histogram = (CassandraMetricsRegistry.JmxHistogramMBean) probe.getColumnFamilyMetric(keyspaceName, cfName, "TombstoneScannedHistogram");
                     System.out.println("\t\tAverage tombstones per slice (last five minutes): " + histogram.getMean());
                     System.out.println("\t\tMaximum tombstones per slice (last five minutes): " + histogram.getMax());
 
@@ -945,7 +943,7 @@ public class NodeTool
         @Option(name = "-k", description = "Number of the top partitions to list (Default: 10)")
         private int topCount = 10;
         @Option(name = "-a", description = "Comma separated list of samplers to use (Default: all)")
-        private String samplers = join(Sampler.values(), ',');
+        private String samplers = join(ColumnFamilyMetrics.Sampler.values(), ',');
         @Override
         public void execute(NodeProbe probe)
         {
@@ -1083,9 +1081,9 @@ public class NodeTool
             }
 
             String[] percentiles = new String[]{"50%", "75%", "95%", "98%", "99%", "Min", "Max"};
-            double[] readLatency = probe.metricPercentilesAsArray((JmxReporter.HistogramMBean) probe.getColumnFamilyMetric(keyspace, cfname, "ReadLatency"));
-            double[] writeLatency = probe.metricPercentilesAsArray((JmxReporter.TimerMBean) probe.getColumnFamilyMetric(keyspace, cfname, "WriteLatency"));
-            double[] sstablesPerRead = probe.metricPercentilesAsArray((JmxReporter.HistogramMBean) probe.getColumnFamilyMetric(keyspace, cfname, "SSTablesPerReadHistogram"));
+            double[] readLatency = probe.metricPercentilesAsArray((CassandraMetricsRegistry.JmxTimerMBean) probe.getColumnFamilyMetric(keyspace, cfname, "ReadLatency"));
+            double[] writeLatency = probe.metricPercentilesAsArray((CassandraMetricsRegistry.JmxTimerMBean) probe.getColumnFamilyMetric(keyspace, cfname, "WriteLatency"));
+            double[] sstablesPerRead = probe.metricPercentilesAsArray((CassandraMetricsRegistry.JmxHistogramMBean) probe.getColumnFamilyMetric(keyspace, cfname, "SSTablesPerReadHistogram"));
 
             System.out.println(format("%s/%s histograms", keyspace, cfname));
             System.out.println(format("%-10s%10s%18s%18s%18s%18s",
@@ -2565,19 +2563,15 @@ public class NodeTool
         {
             System.out.printf("%-25s%10s%10s%15s%10s%18s%n", "Pool Name", "Active", "Pending", "Completed", "Blocked", "All time blocked");
 
-            Iterator<Map.Entry<String, JMXEnabledThreadPoolExecutorMBean>> threads = probe.getThreadPoolMBeanProxies();
-            while (threads.hasNext())
+            for (Stage stage : Stage.jmxEnabledStages())
             {
-                Map.Entry<String, JMXEnabledThreadPoolExecutorMBean> thread = threads.next();
-                String poolName = thread.getKey();
-                JMXEnabledThreadPoolExecutorMBean threadPoolProxy = thread.getValue();
                 System.out.printf("%-25s%10s%10s%15s%10s%18s%n",
-                        poolName,
-                        threadPoolProxy.getActiveCount(),
-                        threadPoolProxy.getPendingTasks(),
-                        threadPoolProxy.getCompletedTasks(),
-                        threadPoolProxy.getCurrentlyBlockedTasks(),
-                        threadPoolProxy.getTotalBlockedTasks());
+                                  stage.getJmxName(),
+                                  probe.getThreadPoolMetric(stage, "ActiveTasks"),
+                                  probe.getThreadPoolMetric(stage, "PendingTasks"),
+                                  probe.getThreadPoolMetric(stage, "CompletedTasks"),
+                                  probe.getThreadPoolMetric(stage, "CurrentlyBlockedTasks"),
+                                  probe.getThreadPoolMetric(stage, "TotalBlockedTasks"));
             }
 
             System.out.printf("%n%-20s%10s%n", "Message type", "Dropped");

@@ -538,7 +538,7 @@ public class CassandraServer implements Cassandra.Iface
             // request by page if this is a large row
             if (cfs.getMeanColumns() > 0)
             {
-                int averageColumnSize = (int) (cfs.getMeanRowSize() / cfs.getMeanColumns());
+                int averageColumnSize = (int) (cfs.metric.meanRowSize.getValue() / cfs.getMeanColumns());
                 pageSize = Math.min(COUNT_PAGE_SIZE, 4 * 1024 * 1024 / averageColumnSize);
                 pageSize = Math.max(2, pageSize);
                 logger.debug("average row column size is {}; using pageSize of {}", averageColumnSize, pageSize);

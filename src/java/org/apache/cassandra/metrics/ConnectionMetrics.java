@@ -18,11 +18,12 @@
 package org.apache.cassandra.metrics;
 
 import java.net.InetAddress;
-import java.util.concurrent.TimeUnit;
 
-import com.yammer.metrics.Metrics;
-import com.yammer.metrics.core.Gauge;
-import com.yammer.metrics.core.Meter;
+import com.codahale.metrics.Gauge;
+import com.codahale.metrics.Meter;
+
+import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;
+
 
 import org.apache.cassandra.net.OutboundTcpConnectionPool;
 
@@ -34,8 +35,7 @@ public class ConnectionMetrics
     public static final String TYPE_NAME = "Connection";
 
     /** Total number of timeouts happened on this node */
-    public static final Meter totalTimeouts = Metrics.newMeter(DefaultNameFactory.createMetricName(TYPE_NAME, "TotalTimeouts", null), "total timeouts", TimeUnit.SECONDS);
-    private static long recentTimeouts;
+    public static final Meter totalTimeouts = Metrics.meter(DefaultNameFactory.createMetricName(TYPE_NAME, "TotalTimeouts", null));
 
     public final String address;
     /** Pending tasks for Command(Mutations, Read etc) TCP Connections */
@@ -53,8 +53,6 @@ public class ConnectionMetrics
 
     private final MetricNameFactory factory;
 
-    private long recentTimeoutCount;
-
     /**
      * Create metrics for given connection pool.
      *
@@ -68,69 +66,51 @@ public class ConnectionMetrics
 
         factory = new DefaultNameFactory("Connection", address);
 
-        commandPendingTasks = Metrics.newGauge(factory.createMetricName("CommandPendingTasks"), new Gauge<Integer>()
+        commandPendingTasks = Metrics.register(factory.createMetricName("CommandPendingTasks"), new Gauge<Integer>()
         {
-            public Integer value()
+            public Integer getValue()
             {
                 return connectionPool.cmdCon.getPendingMessages();
             }
         });
-        commandCompletedTasks = Metrics.newGauge(factory.createMetricName("CommandCompletedTasks"), new Gauge<Long>()
+        commandCompletedTasks = Metrics.register(factory.createMetricName("CommandCompletedTasks"), new Gauge<Long>()
         {
-            public Long value()
+            public Long getValue()
             {
                 return connectionPool.cmdCon.getCompletedMesssages();
             }
         });
-        commandDroppedTasks = Metrics.newGauge(factory.createMetricName("CommandDroppedTasks"), new Gauge<Long>()
+        commandDroppedTasks = Metrics.register(factory.createMetricName("CommandDroppedTasks"), new Gauge<Long>()
         {
-            public Long value()
+            public Long getValue()
             {
                 return connectionPool.cmdCon.getDroppedMessages();
             }
         });
-        responsePendingTasks = Metrics.newGauge(factory.createMetricName("ResponsePendingTasks"), new Gauge<Integer>()
+        responsePendingTasks = Metrics.register(factory.createMetricName("ResponsePendingTasks"), new Gauge<Integer>()
         {
-            public Integer value()
+            public Integer getValue()
             {
                 return connectionPool.ackCon.getPendingMessages();
             }
         });
-        responseCompletedTasks = Metrics.newGauge(factory.createMetricName("ResponseCompletedTasks"), new Gauge<Long>()
+        responseCompletedTasks = Metrics.register(factory.createMetricName("ResponseCompletedTasks"), new Gauge<Long>()
         {
-            public Long value()
+            public Long getValue()
             {
                 return connectionPool.ackCon.getCompletedMesssages();
             }
         });
-        timeouts = Metrics.newMeter(factory.createMetricName("Timeouts"), "timeouts", TimeUnit.SECONDS);
+        timeouts = Metrics.meter(factory.createMetricName("Timeouts"));
     }
 
     public void release()
     {
-        Metrics.defaultRegistry().removeMetric(factory.createMetricName("CommandPendingTasks"));
-        Metrics.defaultRegistry().removeMetric(factory.createMetricName("CommandCompletedTasks"));
-        Metrics.defaultRegistry().removeMetric(factory.createMetricName("CommandDroppedTasks"));
-        Metrics.defaultRegistry().removeMetric(factory.createMetricName("ResponsePendingTasks"));
-        Metrics.defaultRegistry().removeMetric(factory.createMetricName("ResponseCompletedTasks"));
-        Metrics.defaultRegistry().removeMetric(factory.createMetricName("Timeouts"));
-    }
-
-    @Deprecated
-    public static long getRecentTotalTimeout()
-    {
-        long total = totalTimeouts.count();
-        long recent = total - recentTimeouts;
-        recentTimeouts = total;
-        return recent;
-    }
-
-    @Deprecated
-    public long getRecentTimeout()
-    {
-        long timeoutCount = timeouts.count();
-        long recent = timeoutCount - recentTimeoutCount;
-        recentTimeoutCount = timeoutCount;
-        return recent;
+        Metrics.remove(factory.createMetricName("CommandPendingTasks"));
+        Metrics.remove(factory.createMetricName("CommandCompletedTasks"));
+        Metrics.remove(factory.createMetricName("CommandDroppedTasks"));
+        Metrics.remove(factory.createMetricName("ResponsePendingTasks"));
+        Metrics.remove(factory.createMetricName("ResponseCompletedTasks"));
+        Metrics.remove(factory.createMetricName("Timeouts"));
     }
 }

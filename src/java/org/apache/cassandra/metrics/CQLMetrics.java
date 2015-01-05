@@ -17,11 +17,12 @@
  */
 package org.apache.cassandra.metrics;
 
+import com.codahale.metrics.Counter;
+import com.codahale.metrics.Gauge;
+import com.codahale.metrics.RatioGauge;
 import org.apache.cassandra.cql3.QueryProcessor;
-import com.yammer.metrics.Metrics;
-import com.yammer.metrics.core.Counter;
-import com.yammer.metrics.core.Gauge;
-import com.yammer.metrics.util.RatioGauge;
+
+import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;
 
 public class CQLMetrics
 {
@@ -36,27 +37,32 @@ public class CQLMetrics
 
     public CQLMetrics()
     {
-        regularStatementsExecuted = Metrics.newCounter(factory.createMetricName("RegularStatementsExecuted"));
-        preparedStatementsExecuted = Metrics.newCounter(factory.createMetricName("PreparedStatementsExecuted"));
-        preparedStatementsEvicted = Metrics.newCounter(factory.createMetricName("PreparedStatementsEvicted"));
+        regularStatementsExecuted = Metrics.counter(factory.createMetricName("RegularStatementsExecuted"));
+        preparedStatementsExecuted = Metrics.counter(factory.createMetricName("PreparedStatementsExecuted"));
+        preparedStatementsEvicted = Metrics.counter(factory.createMetricName("PreparedStatementsEvicted"));
 
-        preparedStatementsCount = Metrics.newGauge(factory.createMetricName("PreparedStatementsCount"), new Gauge<Integer>()
+        preparedStatementsCount = Metrics.register(factory.createMetricName("PreparedStatementsCount"), new Gauge<Integer>()
         {
-            public Integer value()
+            public Integer getValue()
             {
                 return QueryProcessor.preparedStatementsCount();
             }
         });
-        preparedStatementsRatio = Metrics.newGauge(factory.createMetricName("PreparedStatementsRatio"), new RatioGauge()
+        preparedStatementsRatio = Metrics.register(factory.createMetricName("PreparedStatementsRatio"), new RatioGauge()
         {
+            public Ratio getRatio()
+            {
+                return Ratio.of(getNumerator(), getDenominator());
+            }
+
             public double getNumerator()
             {
-                return preparedStatementsExecuted.count();
+                return preparedStatementsExecuted.getCount();
             }
 
             public double getDenominator()
             {
-                return regularStatementsExecuted.count() + preparedStatementsExecuted.count();
+                return regularStatementsExecuted.getCount() + preparedStatementsExecuted.getCount();
             }
         });
     }

@@ -81,6 +81,7 @@ import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.locator.SimpleStrategy;
+import org.apache.cassandra.metrics.ClearableHistogram;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.thrift.SlicePredicate;
@@ -178,9 +179,9 @@ public class ColumnFamilyStoreTest
         rm.applyUnsafe();
         cfs.forceBlockingFlush();
 
-        cfs.getRecentSSTablesPerReadHistogram(); // resets counts
+        ((ClearableHistogram)cfs.metric.sstablesPerReadHistogram.cf).clear(); // resets counts
         cfs.getColumnFamily(Util.namesQueryFilter(cfs, Util.dk("key1"), "Column1"));
-        assertEquals(1, cfs.getRecentSSTablesPerReadHistogram()[0]);
+        assertEquals(1, cfs.metric.sstablesPerReadHistogram.cf.getCount());
     }
 
     @Test

@@ -54,6 +54,8 @@ import static org.apache.cassandra.concurrent.SEPWorker.Work;
 public class SharedExecutorPool
 {
 
+    public static final SharedExecutorPool SHARED = new SharedExecutorPool("SharedPool");
+
     // the name assigned to workers in the pool, and the id suffix
     final String poolName;
     final AtomicLong workerId = new AtomicLong();
@@ -99,5 +101,12 @@ public class SharedExecutorPool
         int current = spinningCount.get();
         if (current == 0 && spinningCount.compareAndSet(0, 1))
             schedule(Work.SPINNING);
+    }
+
+    public TracingAwareExecutorService newExecutor(int maxConcurrency, int maxQueuedTasks, String jmxPath, String name)
+    {
+        SEPExecutor executor = new SEPExecutor(this, maxConcurrency, maxQueuedTasks, jmxPath, name);
+        executors.add(executor);
+        return executor;
     }
 }

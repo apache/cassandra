@@ -19,13 +19,17 @@ package org.apache.cassandra.metrics;
 
 import java.util.Set;
 
+import com.codahale.metrics.Gauge;
+import com.codahale.metrics.Histogram;
+import com.codahale.metrics.MetricRegistry;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
-import com.yammer.metrics.Metrics;
-import com.yammer.metrics.core.*;
+
+import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;
+
 
 /**
  * Metrics for {@link ColumnFamilyStore}.
@@ -104,112 +108,112 @@ public class KeyspaceMetrics
         {
             public Long getValue(ColumnFamilyMetrics metric)
             {
-                return metric.memtableColumnsCount.value();
+                return metric.memtableColumnsCount.getValue();
             }
         });
         memtableLiveDataSize = createKeyspaceGauge("MemtableLiveDataSize", new MetricValue()
         {
             public Long getValue(ColumnFamilyMetrics metric)
             {
-                return metric.memtableLiveDataSize.value();
+                return metric.memtableLiveDataSize.getValue();
             }
         }); 
         memtableOnHeapDataSize = createKeyspaceGauge("MemtableOnHeapDataSize", new MetricValue()
         {
             public Long getValue(ColumnFamilyMetrics metric)
             {
-                return metric.memtableOnHeapSize.value();
+                return metric.memtableOnHeapSize.getValue();
             }
         });
         memtableOffHeapDataSize = createKeyspaceGauge("MemtableOffHeapDataSize", new MetricValue()
         {
             public Long getValue(ColumnFamilyMetrics metric)
             {
-                return metric.memtableOffHeapSize.value();
+                return metric.memtableOffHeapSize.getValue();
             }
         });
         allMemtablesLiveDataSize = createKeyspaceGauge("AllMemtablesLiveDataSize", new MetricValue()
         {
             public Long getValue(ColumnFamilyMetrics metric)
             {
-                return metric.allMemtablesLiveDataSize.value();
+                return metric.allMemtablesLiveDataSize.getValue();
             }
         });
         allMemtablesOnHeapDataSize = createKeyspaceGauge("AllMemtablesOnHeapDataSize", new MetricValue()
         {
             public Long getValue(ColumnFamilyMetrics metric)
             {
-                return metric.allMemtablesOnHeapSize.value();
+                return metric.allMemtablesOnHeapSize.getValue();
             }
         });
         allMemtablesOffHeapDataSize = createKeyspaceGauge("AllMemtablesOffHeapDataSize", new MetricValue()
         {
             public Long getValue(ColumnFamilyMetrics metric)
             {
-                return metric.allMemtablesOffHeapSize.value();
+                return metric.allMemtablesOffHeapSize.getValue();
             }
         });
         memtableSwitchCount = createKeyspaceGauge("MemtableSwitchCount", new MetricValue()
         {
             public Long getValue(ColumnFamilyMetrics metric)
             {
-                return metric.memtableSwitchCount.count();
+                return metric.memtableSwitchCount.getCount();
             }
         });
         pendingCompactions = createKeyspaceGauge("PendingCompactions", new MetricValue()
         {
             public Long getValue(ColumnFamilyMetrics metric)
             {
-                return (long) metric.pendingCompactions.value();
+                return (long) metric.pendingCompactions.getValue();
             }
         });
         pendingFlushes = createKeyspaceGauge("PendingFlushes", new MetricValue()
         {
             public Long getValue(ColumnFamilyMetrics metric)
             {
-                return (long) metric.pendingFlushes.count();
+                return (long) metric.pendingFlushes.getCount();
             }
         });
         liveDiskSpaceUsed = createKeyspaceGauge("LiveDiskSpaceUsed", new MetricValue()
         {
             public Long getValue(ColumnFamilyMetrics metric)
             {
-                return metric.liveDiskSpaceUsed.count();
+                return metric.liveDiskSpaceUsed.getCount();
             }
         });
         totalDiskSpaceUsed = createKeyspaceGauge("TotalDiskSpaceUsed", new MetricValue()
         {
             public Long getValue(ColumnFamilyMetrics metric)
             {
-                return metric.totalDiskSpaceUsed.count();
+                return metric.totalDiskSpaceUsed.getCount();
             }
         });
         bloomFilterDiskSpaceUsed = createKeyspaceGauge("BloomFilterDiskSpaceUsed", new MetricValue()
         {
             public Long getValue(ColumnFamilyMetrics metric)
             {
-                return metric.bloomFilterDiskSpaceUsed.value();
+                return metric.bloomFilterDiskSpaceUsed.getValue();
             }
         });
         bloomFilterOffHeapMemoryUsed = createKeyspaceGauge("BloomFilterOffHeapMemoryUsed", new MetricValue()
         {
             public Long getValue(ColumnFamilyMetrics metric)
             {
-                return metric.bloomFilterOffHeapMemoryUsed.value();
+                return metric.bloomFilterOffHeapMemoryUsed.getValue();
             }
         });
         indexSummaryOffHeapMemoryUsed = createKeyspaceGauge("IndexSummaryOffHeapMemoryUsed", new MetricValue()
         {
             public Long getValue(ColumnFamilyMetrics metric)
             {
-                return metric.indexSummaryOffHeapMemoryUsed.value();
+                return metric.indexSummaryOffHeapMemoryUsed.getValue();
             }
         });
         compressionMetadataOffHeapMemoryUsed = createKeyspaceGauge("CompressionMetadataOffHeapMemoryUsed", new MetricValue()
         {
             public Long getValue(ColumnFamilyMetrics metric)
             {
-                return metric.compressionMetadataOffHeapMemoryUsed.value();
+                return metric.compressionMetadataOffHeapMemoryUsed.getValue();
             }
         });
         // latency metrics for ColumnFamilyMetrics to update
@@ -217,10 +221,10 @@ public class KeyspaceMetrics
         writeLatency = new LatencyMetrics(factory, "Write");
         rangeLatency = new LatencyMetrics(factory, "Range");
         // create histograms for ColumnFamilyMetrics to replicate updates to
-        sstablesPerReadHistogram = Metrics.newHistogram(factory.createMetricName("SSTablesPerReadHistogram"), true);
-        tombstoneScannedHistogram = Metrics.newHistogram(factory.createMetricName("TombstoneScannedHistogram"), true);
-        liveScannedHistogram = Metrics.newHistogram(factory.createMetricName("LiveScannedHistogram"), true);
-        colUpdateTimeDeltaHistogram = Metrics.newHistogram(factory.createMetricName("ColUpdateTimeDeltaHistogram"), true);
+        sstablesPerReadHistogram = Metrics.histogram(factory.createMetricName("SSTablesPerReadHistogram"));
+        tombstoneScannedHistogram = Metrics.histogram(factory.createMetricName("TombstoneScannedHistogram"));
+        liveScannedHistogram = Metrics.histogram(factory.createMetricName("LiveScannedHistogram"));
+        colUpdateTimeDeltaHistogram = Metrics.histogram(factory.createMetricName("ColUpdateTimeDeltaHistogram"));
         // add manually since histograms do not use createKeyspaceGauge method
         allMetrics.addAll(Lists.newArrayList("SSTablesPerReadHistogram", "TombstoneScannedHistogram", "LiveScannedHistogram"));
 
@@ -236,7 +240,7 @@ public class KeyspaceMetrics
     {
         for(String name : allMetrics) 
         {
-            Metrics.defaultRegistry().removeMetric(factory.createMetricName(name));
+            Metrics.remove(factory.createMetricName(name));
         }
         // latency metrics contain multiple metrics internally and need to be released manually
         readLatency.release();
@@ -251,7 +255,7 @@ public class KeyspaceMetrics
     {
         /**
          * get value of a metric
-         * @param columnfamilymetrics of a column family in this keyspace
+         * @param metric of a column family in this keyspace
          * @return current value of a metric
          */
         public Long getValue(ColumnFamilyMetrics metric);
@@ -260,15 +264,15 @@ public class KeyspaceMetrics
     /**
      * Creates a gauge that will sum the current value of a metric for all column families in this keyspace
      * @param name
-     * @param MetricValue 
+     * @param extractor
      * @return Gauge&gt;Long> that computes sum of MetricValue.getValue()
      */
     private Gauge<Long> createKeyspaceGauge(String name, final MetricValue extractor)
     {
         allMetrics.add(name);
-        return Metrics.newGauge(factory.createMetricName(name), new Gauge<Long>()
+        return Metrics.register(factory.createMetricName(name), new Gauge<Long>()
         {
-            public Long value()
+            public Long getValue()
             {
                 long sum = 0;
                 for (ColumnFamilyStore cf : keyspace.getColumnFamilyStores())
@@ -289,7 +293,7 @@ public class KeyspaceMetrics
             this.keyspaceName = ks.getName();
         }
 
-        public MetricName createMetricName(String metricName)
+        public CassandraMetricsRegistry.MetricName createMetricName(String metricName)
         {
             String groupName = ColumnFamilyMetrics.class.getPackage().getName();
 
@@ -299,7 +303,7 @@ public class KeyspaceMetrics
             mbeanName.append(",keyspace=").append(keyspaceName);
             mbeanName.append(",name=").append(metricName);
 
-            return new MetricName(groupName, "keyspace", metricName, keyspaceName, mbeanName.toString());
+            return new CassandraMetricsRegistry.MetricName(groupName, "keyspace", metricName, keyspaceName, mbeanName.toString());
         }
     }
 }

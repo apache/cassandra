@@ -2009,24 +2009,10 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             onDead(endpoint, state);
     }
 
-    /** raw load value */
-    public double getLoad()
-    {
-        double bytes = 0;
-        for (String keyspaceName : Schema.instance.getKeyspaces())
-        {
-            Keyspace keyspace = Schema.instance.getKeyspaceInstance(keyspaceName);
-            if (keyspace == null)
-                continue;
-            for (ColumnFamilyStore cfs : keyspace.getColumnFamilyStores())
-                bytes += cfs.getLiveDiskSpaceUsed();
-        }
-        return bytes;
-    }
 
     public String getLoadString()
     {
-        return FileUtils.stringifyFileSize(getLoad());
+        return FileUtils.stringifyFileSize(StorageMetrics.load.getCount());
     }
 
     public Map<String, String> getLoadMap()
@@ -4111,11 +4097,6 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
         SSTableLoader loader = new SSTableLoader(dir, client, new OutputHandler.LogOutput());
         return loader.stream();
-    }
-
-    public int getExceptionCount()
-    {
-        return (int)StorageMetrics.exceptions.count();
     }
 
     public void rescheduleFailedDeletions()

@@ -20,9 +20,11 @@ package org.apache.cassandra.metrics;
 import java.net.InetAddress;
 import java.util.concurrent.ConcurrentMap;
 
-import com.yammer.metrics.Metrics;
-import com.yammer.metrics.core.Counter;
+
+import com.codahale.metrics.Counter;
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
+
+import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;
 
 /**
  * Metrics for streaming.
@@ -33,9 +35,9 @@ public class StreamingMetrics
 
     private static final ConcurrentMap<InetAddress, StreamingMetrics> instances = new NonBlockingHashMap<InetAddress, StreamingMetrics>();
 
-    public static final Counter activeStreamsOutbound = Metrics.newCounter(DefaultNameFactory.createMetricName(TYPE_NAME, "ActiveOutboundStreams", null));
-    public static final Counter totalIncomingBytes = Metrics.newCounter(DefaultNameFactory.createMetricName(TYPE_NAME, "TotalIncomingBytes", null));
-    public static final Counter totalOutgoingBytes = Metrics.newCounter(DefaultNameFactory.createMetricName(TYPE_NAME, "TotalOutgoingBytes", null));
+    public static final Counter activeStreamsOutbound = Metrics.counter(DefaultNameFactory.createMetricName(TYPE_NAME, "ActiveOutboundStreams", null));
+    public static final Counter totalIncomingBytes = Metrics.counter(DefaultNameFactory.createMetricName(TYPE_NAME, "TotalIncomingBytes", null));
+    public static final Counter totalOutgoingBytes = Metrics.counter(DefaultNameFactory.createMetricName(TYPE_NAME, "TotalOutgoingBytes", null));
     public final Counter incomingBytes;
     public final Counter outgoingBytes;
 
@@ -53,7 +55,7 @@ public class StreamingMetrics
     public StreamingMetrics(final InetAddress peer)
     {
         MetricNameFactory factory = new DefaultNameFactory("Streaming", peer.getHostAddress().replaceAll(":", "."));
-        incomingBytes = Metrics.newCounter(factory.createMetricName("IncomingBytes"));
-        outgoingBytes= Metrics.newCounter(factory.createMetricName("OutgoingBytes"));
+        incomingBytes = Metrics.counter(factory.createMetricName("IncomingBytes"));
+        outgoingBytes= Metrics.counter(factory.createMetricName("OutgoingBytes"));
     }
 }

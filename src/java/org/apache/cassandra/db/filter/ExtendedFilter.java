@@ -214,7 +214,7 @@ public abstract class ExtendedFilter
             {
                 // if we have a high chance of getting all the columns in a single index slice (and it's not too costly), do that.
                 // otherwise, the extraFilter (lazily created) will fetch by name the columns referenced by the additional expressions.
-                if (cfs.getMaxRowSize() < DatabaseDescriptor.getColumnIndexSize())
+                if (cfs.metric.maxRowSize.getValue() < DatabaseDescriptor.getColumnIndexSize())
                 {
                     logger.trace("Expanding slice filter to entire row to cover additional expressions");
                     return new SliceQueryFilter(ColumnSlice.ALL_COLUMNS_ARRAY, ((SliceQueryFilter)filter).reversed, Integer.MAX_VALUE);

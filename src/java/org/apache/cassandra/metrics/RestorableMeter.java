@@ -18,12 +18,12 @@
  */
 package org.apache.cassandra.metrics;
 
-import com.yammer.metrics.core.Clock;
 
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static java.lang.Math.exp;
+import com.codahale.metrics.Clock;
 
 /**
  * A meter metric which measures mean throughput as well as fifteen-minute and two-hour
@@ -52,7 +52,7 @@ public class RestorableMeter
     public RestorableMeter() {
         this.m15Rate = new RestorableEWMA(TimeUnit.MINUTES.toSeconds(15));
         this.m120Rate = new RestorableEWMA(TimeUnit.MINUTES.toSeconds(120));
-        this.startTime = this.clock.tick();
+        this.startTime = this.clock.getTick();
         this.lastTick = new AtomicLong(startTime);
     }
 
@@ -64,7 +64,7 @@ public class RestorableMeter
     public RestorableMeter(double lastM15Rate, double lastM120Rate) {
         this.m15Rate = new RestorableEWMA(lastM15Rate, TimeUnit.MINUTES.toSeconds(15));
         this.m120Rate = new RestorableEWMA(lastM120Rate, TimeUnit.MINUTES.toSeconds(120));
-        this.startTime = this.clock.tick();
+        this.startTime = this.clock.getTick();
         this.lastTick = new AtomicLong(startTime);
     }
 
@@ -73,7 +73,7 @@ public class RestorableMeter
      */
     private void tickIfNecessary() {
         final long oldTick = lastTick.get();
-        final long newTick = clock.tick();
+        final long newTick = clock.getTick();
         final long age = newTick - oldTick;
         if (age > TICK_INTERVAL) {
             final long newIntervalStartTick = newTick - age % TICK_INTERVAL;
@@ -139,7 +139,7 @@ public class RestorableMeter
         if (count() == 0) {
             return 0.0;
         } else {
-            final long elapsed = (clock.tick() - startTime);
+            final long elapsed = (clock.getTick() - startTime);
             return (count() / (double) elapsed) * NANOS_PER_SECOND;
         }
     }

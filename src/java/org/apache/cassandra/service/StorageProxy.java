@@ -568,7 +568,6 @@ public class StorageProxy implements StorageProxyMBean
             else
             {
                 writeMetrics.timeouts.mark();
-                ClientRequestMetrics.writeTimeouts.inc();
                 Tracing.trace("Write timeout; received {} of {} required replies", ex.received, ex.blockFor);
                 throw ex;
             }
@@ -576,13 +575,12 @@ public class StorageProxy implements StorageProxyMBean
         catch (UnavailableException e)
         {
             writeMetrics.unavailables.mark();
-            ClientRequestMetrics.writeUnavailables.inc();
             Tracing.trace("Unavailable");
             throw e;
         }
         catch (OverloadedException e)
         {
-            ClientRequestMetrics.writeUnavailables.inc();
+            writeMetrics.unavailables.mark();
             Tracing.trace("Overloaded");
             throw e;
         }
@@ -651,14 +649,12 @@ public class StorageProxy implements StorageProxyMBean
         catch (UnavailableException e)
         {
             writeMetrics.unavailables.mark();
-            ClientRequestMetrics.writeUnavailables.inc();
             Tracing.trace("Unavailable");
             throw e;
         }
         catch (WriteTimeoutException e)
         {
             writeMetrics.timeouts.mark();
-            ClientRequestMetrics.writeTimeouts.inc();
             Tracing.trace("Write timeout; received {} of {} required replies", e.received, e.blockFor);
             throw e;
         }
@@ -864,10 +860,10 @@ public class StorageProxy implements StorageProxyMBean
             // The idea is that if we have over maxHintsInProgress hints in flight, this is probably due to
             // a small number of nodes causing problems, so we should avoid shutting down writes completely to
             // healthy nodes.  Any node with no hintsInProgress is considered healthy.
-            if (StorageMetrics.totalHintsInProgress.count() > maxHintsInProgress
+            if (StorageMetrics.totalHintsInProgress.getCount() > maxHintsInProgress
                     && (getHintsInProgressFor(destination).get() > 0 && shouldHint(destination)))
             {
-                throw new OverloadedException("Too many in flight hints: " + StorageMetrics.totalHintsInProgress.count());
+                throw new OverloadedException("Too many in flight hints: " + StorageMetrics.totalHintsInProgress.getCount());
             }
 
             if (FailureDetector.instance.isAlive(destination))
@@ -1184,7 +1180,6 @@ public class StorageProxy implements StorageProxyMBean
         if (StorageService.instance.isBootstrapMode() && !systemKeyspaceQuery(commands))
         {
             readMetrics.unavailables.mark();
-            ClientRequestMetrics.readUnavailables.inc();
             throw new IsBootstrappingException();
         }
 
@@ -1233,21 +1228,18 @@ public class StorageProxy implements StorageProxyMBean
         catch (UnavailableException e)
         {
             readMetrics.unavailables.mark();
-            ClientRequestMetrics.readUnavailables.inc();
             casReadMetrics.unavailables.mark();
             throw e;
         }
         catch (ReadTimeoutException e)
         {
             readMetrics.timeouts.mark();
-            ClientRequestMetrics.readTimeouts.inc();
             casReadMetrics.timeouts.mark();
             throw e;
         }
         catch (ReadFailureException e)
         {
             readMetrics.failures.mark();
-            ClientRequestMetrics.readFailures.inc();
             casReadMetrics.failures.mark();
             throw e;
         }
@@ -1277,19 +1269,16 @@ public class StorageProxy implements StorageProxyMBean
         catch (UnavailableException e)
         {
             readMetrics.unavailables.mark();
-            ClientRequestMetrics.readUnavailables.inc();
             throw e;
         }
         catch (ReadTimeoutException e)
         {
             readMetrics.timeouts.mark();
-            ClientRequestMetrics.readTimeouts.inc();
             throw e;
         }
         catch (ReadFailureException e)
         {
             readMetrics.failures.mark();
-            ClientRequestMetrics.readFailures.inc();
             throw e;
         }
         finally
@@ -1989,81 +1978,6 @@ public class StorageProxy implements StorageProxyMBean
         return ranges;
     }
 
-    public long getReadOperations()
-    {
-        return readMetrics.latency.count();
-    }
-
-    public long getTotalReadLatencyMicros()
-    {
-        return readMetrics.totalLatency.count();
-    }
-
-    public double getRecentReadLatencyMicros()
-    {
-        return readMetrics.getRecentLatency();
-    }
-
-    public long[] getTotalReadLatencyHistogramMicros()
-    {
-        return readMetrics.totalLatencyHistogram.getBuckets(false);
-    }
-
-    public long[] getRecentReadLatencyHistogramMicros()
-    {
-        return readMetrics.recentLatencyHistogram.getBuckets(true);
-    }
-
-    public long getRangeOperations()
-    {
-        return rangeMetrics.latency.count();
-    }
-
-    public long getTotalRangeLatencyMicros()
-    {
-        return rangeMetrics.totalLatency.count();
-    }
-
-    public double getRecentRangeLatencyMicros()
-    {
-        return rangeMetrics.getRecentLatency();
-    }
-
-    public long[] getTotalRangeLatencyHistogramMicros()
-    {
-        return rangeMetrics.totalLatencyHistogram.getBuckets(false);
-    }
-
-    public long[] getRecentRangeLatencyHistogramMicros()
-    {
-        return rangeMetrics.recentLatencyHistogram.getBuckets(true);
-    }
-
-    public long getWriteOperations()
-    {
-        return writeMetrics.latency.count();
-    }
-
-    public long getTotalWriteLatencyMicros()
-    {
-        return writeMetrics.totalLatency.count();
-    }
-
-    public double getRecentWriteLatencyMicros()
-    {
-        return writeMetrics.getRecentLatency();
-    }
-
-    public long[] getTotalWriteLatencyHistogramMicros()
-    {
-        return writeMetrics.totalLatencyHistogram.getBuckets(false);
-    }
-
-    public long[] getRecentWriteLatencyHistogramMicros()
-    {
-        return writeMetrics.recentLatencyHistogram.getBuckets(true);
-    }
-
     public boolean getHintedHandoffEnabled()
     {
         return DatabaseDescriptor.hintedHandoffEnabled();
@@ -2291,7 +2205,7 @@ public class StorageProxy implements StorageProxyMBean
 
     public long getTotalHints()
     {
-        return StorageMetrics.totalHints.count();
+        return StorageMetrics.totalHints.getCount();
     }
 
     public int getMaxHintsInProgress()
@@ -2306,7 +2220,7 @@ public class StorageProxy implements StorageProxyMBean
 
     public int getHintsInProgress()
     {
-        return (int) StorageMetrics.totalHintsInProgress.count();
+        return (int) StorageMetrics.totalHintsInProgress.getCount();
     }
 
     public void verifyNoHintsInProgress()
@@ -2339,14 +2253,14 @@ public class StorageProxy implements StorageProxyMBean
 
     
     public long getReadRepairAttempted() {
-        return ReadRepairMetrics.attempted.count();
+        return ReadRepairMetrics.attempted.getCount();
     }
     
     public long getReadRepairRepairedBlocking() {
-        return ReadRepairMetrics.repairedBlocking.count();
+        return ReadRepairMetrics.repairedBlocking.getCount();
     }
     
     public long getReadRepairRepairedBackground() {
-        return ReadRepairMetrics.repairedBackground.count();
+        return ReadRepairMetrics.repairedBackground.getCount();
     }
 }
