@@ -145,8 +145,7 @@ public class CommitLogSegmentManager
                             }
                             catch (InterruptedException e)
                             {
-                                // shutdown signal; exit cleanly
-                                continue;
+                                throw new AssertionError();
                             }
                         }
 
@@ -536,7 +535,7 @@ public class CommitLogSegmentManager
     public void shutdown()
     {
         run = false;
-        managerThread.interrupt();
+        segmentManagementTasks.add(Callables.<CommitLogSegment>returning(null));
     }
 
     /**
