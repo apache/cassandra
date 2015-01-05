@@ -19,6 +19,7 @@ package org.apache.cassandra.repair;
 
 import java.net.InetAddress;
 import java.util.*;
+import java.util.concurrent.CompletableFuture;
 
 import com.google.common.util.concurrent.*;
 import org.slf4j.Logger;
@@ -34,7 +35,7 @@ import org.apache.cassandra.utils.Pair;
 /**
  * RepairJob runs repair on given ColumnFamily.
  */
-public class RepairJob extends AbstractFuture<RepairResult> implements Runnable
+public class RepairJob extends CompletableFuture<RepairResult> implements Runnable
 {
     private static Logger logger = LoggerFactory.getLogger(RepairJob.class);
 
@@ -156,7 +157,7 @@ public class RepairJob extends AbstractFuture<RepairResult> implements Runnable
             public void onSuccess(List<SyncStat> stats)
             {
                 logger.info(String.format("[repair #%s] %s is fully synced", session.getId(), desc.columnFamily));
-                set(new RepairResult(desc, stats));
+                complete(new RepairResult(desc, stats));
             }
 
             /**
@@ -165,7 +166,7 @@ public class RepairJob extends AbstractFuture<RepairResult> implements Runnable
             public void onFailure(Throwable t)
             {
                 logger.warn(String.format("[repair #%s] %s sync failed", session.getId(), desc.columnFamily));
-                setException(t);
+                completeExceptionally(t);
             }
         }, taskExecutor);
 

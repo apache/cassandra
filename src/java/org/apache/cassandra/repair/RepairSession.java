@@ -20,9 +20,9 @@ package org.apache.cassandra.repair;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.util.*;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
-import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import com.google.common.collect.Lists;
@@ -31,6 +31,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.concurrent.DebuggableThreadPoolExecutor;
+import org.apache.cassandra.utils.concurrent.FutureTransform;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
@@ -246,7 +247,7 @@ public class RepairSession extends AbstractFuture<RepairSessionResult> implement
         }
 
         // Create and submit RepairJob for each ColumnFamily
-        List<ListenableFuture<RepairResult>> jobs = new ArrayList<>(cfnames.length);
+        List<CompletableFuture<RepairResult>> jobs = new ArrayList<>(cfnames.length);
         for (String cfname : cfnames)
         {
             RepairJob job = new RepairJob(this, cfname, parallelismDegree, repairedAt, taskExecutor);
@@ -255,9 +256,9 @@ public class RepairSession extends AbstractFuture<RepairSessionResult> implement
         }
 
         // When all RepairJobs are done without error, cleanup and set the final result
-        Futures.addCallback(Futures.allAsList(jobs), new FutureCallback<List<RepairResult>>()
+        FutureTransform.allAsList(jobs).handle((results, t) -> 
         {
-            public void onSuccess(List<RepairResult> results)
+            if (t == null) 
             {
                 // this repair session is completed
                 logger.info("[repair #{}] {}", getId(), "Session completed successfully");
@@ -267,14 +268,14 @@ public class RepairSession extends AbstractFuture<RepairSessionResult> implement
                 taskExecutor.shutdown();
                 // mark this session as terminated
                 terminate();
-            }
-
-            public void onFailure(Throwable t)
+            } 
+            else
             {
                 logger.error(String.format("[repair #%s] Session completed with the following error", getId()), t);
                 Tracing.traceRepair("Session completed with the following error: {}", t);
                 setException(t);
             }
+            return null;
         });
     }
 

@@ -65,8 +65,8 @@
     <property name="test.pig.src" value="${test.dir}/pig"/>
     <property name="dist.dir" value="${build.dir}/dist"/>
 	
-	<property name="source.version" value="1.7"/>
-	<property name="target.version" value="1.7"/>
+	<property name="source.version" value="1.8"/>
+	<property name="target.version" value="1.8"/>
 	
     <condition property="version" value="${base.version}">
       <isset property="release"/>
