@@ -25,6 +25,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.hadoop.cql3.CqlConfigHelper;
+import org.apache.cassandra.hadoop.cql3.CqlPagingInputFormat;
 import org.apache.cassandra.hadoop.cql3.CqlInputFormat;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.conf.Configured;
@@ -155,7 +156,7 @@ public class WordCountCounters extends Configured implements Tool
         else
         {
             job.setMapperClass(SumMapper.class);
-            job.setInputFormatClass(CqlInputFormat.class);
+            job.setInputFormatClass(CqlPagingInputFormat.class);
             ConfigHelper.setInputRpcPort(job.getConfiguration(), "9160");
         }
 
