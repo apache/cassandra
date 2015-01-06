@@ -211,12 +211,12 @@ public class FailureDetector implements IFailureDetector, FailureDetectorMBean
         {
             // avoid adding an empty ArrivalWindow to the Map
             heartbeatWindow = new ArrivalWindow(SAMPLE_SIZE);
-            heartbeatWindow.add(now);
+            heartbeatWindow.add(now, ep);
             arrivalSamples.put(ep, heartbeatWindow);
         }
         else
         {
-            heartbeatWindow.add(now);
+            heartbeatWindow.add(now, ep);
         }
     }
 
@@ -326,7 +326,7 @@ class ArrivalWindow
         }
     }
 
-    synchronized void add(long value)
+    synchronized void add(long value, InetAddress ep)
     {
         assert tLast >= 0;
         if (tLast > 0L)
@@ -335,7 +335,7 @@ class ArrivalWindow
             if (interArrivalTime <= MAX_INTERVAL_IN_NANO)
                 arrivalIntervals.add(interArrivalTime);
             else
-                logger.debug("Ignoring interval time of {}", interArrivalTime);
+                logger.debug("Ignoring interval time of {} for {}", interArrivalTime, ep);
         }
         else
         {

@@ -25,6 +25,10 @@ import static org.junit.Assert.*;
 
 import org.junit.Test;
 
+import java.lang.RuntimeException;
+import java.net.InetAddress;
+import java.net.UnknownHostException;
+
 public class ArrivalWindowTest
 {
     @Test
@@ -32,12 +36,20 @@ public class ArrivalWindowTest
     {
         final ArrivalWindow windowWithNano = new ArrivalWindow(4);
         final long toNano = 1000000L;
-
-        windowWithNano.add(111 * toNano);
-        windowWithNano.add(222 * toNano);
-        windowWithNano.add(333 * toNano);
-        windowWithNano.add(444 * toNano);
-        windowWithNano.add(555 * toNano);
+        InetAddress ep;
+        try
+        {
+            ep = InetAddress.getLocalHost();
+        }
+        catch (UnknownHostException e)
+        {
+            throw new RuntimeException(e);
+        }
+        windowWithNano.add(111 * toNano, ep);
+        windowWithNano.add(222 * toNano, ep);
+        windowWithNano.add(333 * toNano, ep);
+        windowWithNano.add(444 * toNano, ep);
+        windowWithNano.add(555 * toNano, ep);
 
         //all good
         assertEquals(1.0, windowWithNano.phi(666 * toNano), 0.01);
