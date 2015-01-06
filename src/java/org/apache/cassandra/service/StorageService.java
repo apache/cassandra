@@ -2464,25 +2464,30 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                                 boolean fullRepair,
                                 String... columnFamilies)
     {
-        return forceRepairAsync(keyspace, isSequential ? RepairParallelism.SEQUENTIAL : RepairParallelism.PARALLEL, dataCenters, hosts, primaryRange, fullRepair, columnFamilies);
+        return forceRepairAsync(keyspace, isSequential ? RepairParallelism.SEQUENTIAL.ordinal() : RepairParallelism.PARALLEL.ordinal(), dataCenters, hosts, primaryRange, fullRepair, columnFamilies);
     }
 
     @Deprecated
     public int forceRepairAsync(String keyspace,
-                                RepairParallelism parallelismDegree,
+                                int parallelismDegree,
                                 Collection<String> dataCenters,
                                 Collection<String> hosts,
                                 boolean primaryRange,
                                 boolean fullRepair,
                                 String... columnFamilies)
     {
-        if (FBUtilities.isWindows() && parallelismDegree != RepairParallelism.PARALLEL)
+        if (parallelismDegree < 0 || parallelismDegree > RepairParallelism.values().length - 1)
+        {
+            throw new IllegalArgumentException("Invalid parallelism degree specified: " + parallelismDegree);
+        }
+        RepairParallelism parallelism = RepairParallelism.values()[parallelismDegree];
+        if (FBUtilities.isWindows() && parallelism != RepairParallelism.PARALLEL)
         {
             logger.warn("Snapshot-based repair is not yet supported on Windows.  Reverting to parallel repair.");
-            parallelismDegree = RepairParallelism.PARALLEL;
+            parallelism = RepairParallelism.PARALLEL;
         }
 
-        RepairOption options = new RepairOption(parallelismDegree, primaryRange, !fullRepair, false, 1, Collections.<Range<Token>>emptyList());
+        RepairOption options = new RepairOption(parallelism, primaryRange, !fullRepair, false, 1, Collections.<Range<Token>>emptyList());
         if (dataCenters != null)
         {
             options.getDataCenters().addAll(dataCenters);
@@ -2525,26 +2530,31 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                                      boolean fullRepair,
                                      String... columnFamilies)
     {
-        return forceRepairRangeAsync(beginToken, endToken, keyspaceName, isSequential ? RepairParallelism.SEQUENTIAL : RepairParallelism.PARALLEL, dataCenters, hosts, fullRepair, columnFamilies);
+        return forceRepairRangeAsync(beginToken, endToken, keyspaceName, isSequential ? RepairParallelism.SEQUENTIAL.ordinal() : RepairParallelism.PARALLEL.ordinal(), dataCenters, hosts, fullRepair, columnFamilies);
     }
 
     public int forceRepairRangeAsync(String beginToken,
                                      String endToken,
                                      String keyspaceName,
-                                     RepairParallelism parallelismDegree,
+                                     int parallelismDegree,
                                      Collection<String> dataCenters,
                                      Collection<String> hosts,
                                      boolean fullRepair,
                                      String... columnFamilies)
     {
-        if (FBUtilities.isWindows() && parallelismDegree != RepairParallelism.PARALLEL)
+        if (parallelismDegree < 0 || parallelismDegree > RepairParallelism.values().length - 1)
+        {
+            throw new IllegalArgumentException("Invalid parallelism degree specified: " + parallelismDegree);
+        }
+        RepairParallelism parallelism = RepairParallelism.values()[parallelismDegree];
+        if (FBUtilities.isWindows() && parallelism != RepairParallelism.PARALLEL)
         {
             logger.warn("Snapshot-based repair is not yet supported on Windows.  Reverting to parallel repair.");
-            parallelismDegree = RepairParallelism.PARALLEL;
+            parallelism = RepairParallelism.PARALLEL;
         }
         Collection<Range<Token>> repairingRange = createRepairRangeFrom(beginToken, endToken);
 
-        RepairOption options = new RepairOption(parallelismDegree, false, !fullRepair, false, 1, repairingRange);
+        RepairOption options = new RepairOption(parallelism, false, !fullRepair, false, 1, repairingRange);
         options.getDataCenters().addAll(dataCenters);
         if (hosts != null)
         {
