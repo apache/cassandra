@@ -17,8 +17,6 @@
  */
 package org.apache.cassandra.service;
 
-import org.apache.cassandra.repair.RepairParallelism;
-
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
@@ -268,9 +266,10 @@ public interface StorageServiceMBean extends NotificationEmitter
      *   type: "repair"
      *   userObject: int array of length 2, [0]=command number, [1]=ordinal of AntiEntropyService.Status
      *
+     * @param parallelismDegree 0: sequential, 1: parallel, 2: DC parallel
      * @return Repair command number, or 0 if nothing to repair
      */
-    public int forceRepairAsync(String keyspace, RepairParallelism parallelismDegree, Collection<String> dataCenters, final Collection<String> hosts, boolean primaryRange, String... columnFamilies);
+    public int forceRepairAsync(String keyspace, int parallelismDegree, Collection<String> dataCenters, final Collection<String> hosts, boolean primaryRange, String... columnFamilies);
 
     /**
      * Same as forceRepairAsync, but handles a specified range
@@ -279,8 +278,10 @@ public interface StorageServiceMBean extends NotificationEmitter
 
     /**
      * Same as forceRepairAsync, but handles a specified range
+     *
+     * @param parallelismDegree 0: sequential, 1: parallel, 2: DC parallel
      */
-    public int forceRepairRangeAsync(String beginToken, String endToken, final String keyspaceName, RepairParallelism parallelismDegree, Collection<String> dataCenters, final Collection<String> hosts,  final String... columnFamilies);
+    public int forceRepairRangeAsync(String beginToken, String endToken, final String keyspaceName, int parallelismDegree, Collection<String> dataCenters, final Collection<String> hosts,  final String... columnFamilies);
 
     /**
      * Invoke repair asynchronously.
