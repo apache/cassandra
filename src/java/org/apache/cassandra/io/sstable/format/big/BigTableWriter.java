@@ -393,7 +393,7 @@ public class BigTableWriter extends SSTableWriter
     {
         Pair<Descriptor, StatsMetadata> p;
 
-        p = close(finishType, repairedAt);
+        p = close(finishType, repairedAt < 0 ? this.repairedAt : repairedAt);
         Descriptor desc = p.left;
         StatsMetadata metadata = p.right;
 
