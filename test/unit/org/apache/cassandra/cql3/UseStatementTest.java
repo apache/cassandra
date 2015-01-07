@@ -24,6 +24,6 @@ public class UseStatementTest extends CQLTester
     @Test
     public void testUseStatementWithBindVariable() throws Throwable
     {
-        assertInvalidSyntaxMessage("Bind variables cannot be used for keyspace or table names", "USE ?");
+        assertInvalidSyntaxMessage("Bind variables cannot be used for keyspace names", "USE ?");
     }
 }
