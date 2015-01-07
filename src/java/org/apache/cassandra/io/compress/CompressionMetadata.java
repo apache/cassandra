@@ -178,6 +178,9 @@ public class CompressionMetadata
         try
         {
             int chunkCount = input.readInt();
+            if (chunkCount <= 0)
+                throw new IOException("Compressed file with 0 chunks encountered: " + input);
+
             Memory offsets = Memory.allocate(chunkCount * 8);
 
             for (int i = 0; i < chunkCount; i++)
@@ -398,6 +401,8 @@ public class CompressionMetadata
 
         public Chunk(long offset, int length)
         {
+            assert(length > 0);
+
             this.offset = offset;
             this.length = length;
         }
