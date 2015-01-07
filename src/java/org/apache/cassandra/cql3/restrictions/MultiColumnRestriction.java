@@ -43,8 +43,6 @@ import static org.apache.cassandra.cql3.statements.RequestValidations.invalidReq
 
 public abstract class MultiColumnRestriction extends AbstractPrimaryKeyRestrictions
 {
-    protected final CType ctype;
-
     /**
      * The columns to which the restriction apply.
      */
@@ -52,7 +50,7 @@ public abstract class MultiColumnRestriction extends AbstractPrimaryKeyRestricti
 
     public MultiColumnRestriction(CType ctype, List<ColumnDefinition> columnDefs)
     {
-        this.ctype = ctype;
+        super(ctype);
         this.columnDefs = columnDefs;
     }
 

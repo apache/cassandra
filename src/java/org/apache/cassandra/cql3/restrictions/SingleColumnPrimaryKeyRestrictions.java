@@ -43,11 +43,6 @@ import static org.apache.cassandra.cql3.statements.RequestValidations.checkTrue;
 final class SingleColumnPrimaryKeyRestrictions extends AbstractPrimaryKeyRestrictions
 {
     /**
-     * The composite type.
-     */
-    private final CType ctype;
-
-    /**
      * The restrictions.
      */
     private final SingleColumnRestrictions restrictions;
@@ -74,7 +69,7 @@ final class SingleColumnPrimaryKeyRestrictions extends AbstractPrimaryKeyRestric
 
     public SingleColumnPrimaryKeyRestrictions(CType ctype)
     {
-        this.ctype = ctype;
+        super(ctype);
         this.restrictions = new SingleColumnRestrictions();
         this.eq = true;
     }
@@ -82,8 +77,8 @@ final class SingleColumnPrimaryKeyRestrictions extends AbstractPrimaryKeyRestric
     private SingleColumnPrimaryKeyRestrictions(SingleColumnPrimaryKeyRestrictions primaryKeyRestrictions,
                                                SingleColumnRestriction restriction) throws InvalidRequestException
     {
+        super(primaryKeyRestrictions.ctype);
         this.restrictions = primaryKeyRestrictions.restrictions.addRestriction(restriction);
-        this.ctype = primaryKeyRestrictions.ctype;
 
         if (!primaryKeyRestrictions.isEmpty())
         {
@@ -166,9 +161,10 @@ final class SingleColumnPrimaryKeyRestrictions extends AbstractPrimaryKeyRestric
 
         if (restriction.isOnToken())
         {
-            checkTrue(isEmpty(), "Columns \"%s\" cannot be restricted by both a normal relation and a token relation",
-                      ((TokenRestriction) restriction).getColumnNamesAsString());
-            return (PrimaryKeyRestrictions) restriction;
+            if (isEmpty())
+                return (PrimaryKeyRestrictions) restriction;
+
+            return new TokenFilter(this, (TokenRestriction) restriction);
         }
 
         return new SingleColumnPrimaryKeyRestrictions(this, (SingleColumnRestriction) restriction);

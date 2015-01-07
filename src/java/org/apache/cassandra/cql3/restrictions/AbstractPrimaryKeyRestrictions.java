@@ -17,11 +17,23 @@
  */
 package org.apache.cassandra.cql3.restrictions;
 
+import org.apache.cassandra.db.composites.CType;
+
 /**
  * Base class for <code>PrimaryKeyRestrictions</code>.
  */
 abstract class AbstractPrimaryKeyRestrictions extends AbstractRestriction implements PrimaryKeyRestrictions
 {
+    /**
+     * The composite type.
+     */
+    protected final CType ctype;
+
+    public AbstractPrimaryKeyRestrictions(CType ctype)
+    {
+        this.ctype = ctype;
+    }
+
     @Override
     public final boolean isEmpty()
     {

@@ -29,6 +29,7 @@ import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.Term;
 import org.apache.cassandra.cql3.statements.Bound;
 import org.apache.cassandra.db.IndexExpression;
+import org.apache.cassandra.db.composites.CType;
 import org.apache.cassandra.db.composites.Composite;
 import org.apache.cassandra.db.index.SecondaryIndexManager;
 import org.apache.cassandra.exceptions.InvalidRequestException;
@@ -48,10 +49,12 @@ public abstract class TokenRestriction extends AbstractPrimaryKeyRestrictions
     /**
      * Creates a new <code>TokenRestriction</code> that apply to the specified columns.
      *
+     * @param ctype the composite type
      * @param columnDefs the definition of the columns to which apply the token restriction
      */
-    public TokenRestriction(List<ColumnDefinition> columnDefs)
+    public TokenRestriction(CType ctype, List<ColumnDefinition> columnDefs)
     {
+        super(ctype);
         this.columnDefs = columnDefs;
     }
 
@@ -101,13 +104,43 @@ public abstract class TokenRestriction extends AbstractPrimaryKeyRestrictions
         return Joiner.on(", ").join(ColumnDefinition.toIdentifiers(columnDefs));
     }
 
+    @Override
+    public final PrimaryKeyRestrictions mergeWith(Restriction otherRestriction) throws InvalidRequestException
+    {
+        if (!otherRestriction.isOnToken())
+            return new TokenFilter(toPrimaryKeyRestriction(otherRestriction), this);
+
+        return doMergeWith((TokenRestriction) otherRestriction);
+    }
+
+    /**
+     * Merges this restriction with the specified <code>TokenRestriction</code>.
+     * @param otherRestriction the <code>TokenRestriction</code> to merge with.
+     */
+    protected abstract PrimaryKeyRestrictions doMergeWith(TokenRestriction otherRestriction) throws InvalidRequestException;
+
+    /**
+     * Converts the specified restriction into a <code>PrimaryKeyRestrictions</code>.
+     *
+     * @param restriction the restriction to convert
+     * @return a <code>PrimaryKeyRestrictions</code>
+     * @throws InvalidRequestException if a problem occurs while converting the restriction
+     */
+    private PrimaryKeyRestrictions toPrimaryKeyRestriction(Restriction restriction) throws InvalidRequestException
+    {
+        if (restriction instanceof PrimaryKeyRestrictions)
+            return (PrimaryKeyRestrictions) restriction;
+
+        return new SingleColumnPrimaryKeyRestrictions(ctype).mergeWith(restriction);
+    }
+
     public static final class EQ extends TokenRestriction
     {
         private final Term value;
 
-        public EQ(List<ColumnDefinition> columnDefs, Term value)
+        public EQ(CType ctype, List<ColumnDefinition> columnDefs, Term value)
         {
-            super(columnDefs);
+            super(ctype, columnDefs);
             this.value = value;
         }
 
@@ -124,7 +157,7 @@ public abstract class TokenRestriction extends AbstractPrimaryKeyRestrictions
         }
 
         @Override
-        public PrimaryKeyRestrictions mergeWith(Restriction restriction) throws InvalidRequestException
+        protected PrimaryKeyRestrictions doMergeWith(TokenRestriction otherRestriction) throws InvalidRequestException
         {
             throw invalidRequest("%s cannot be restricted by more than one relation if it includes an Equal",
                                  Joiner.on(", ").join(ColumnDefinition.toIdentifiers(columnDefs)));
@@ -141,9 +174,9 @@ public abstract class TokenRestriction extends AbstractPrimaryKeyRestrictions
     {
         private final TermSlice slice;
 
-        public Slice(List<ColumnDefinition> columnDefs, Bound bound, boolean inclusive, Term term)
+        public Slice(CType ctype, List<ColumnDefinition> columnDefs, Bound bound, boolean inclusive, Term term)
         {
-            super(columnDefs);
+            super(ctype, columnDefs);
             slice = TermSlice.newInstance(bound, inclusive, term);
         }
 
@@ -185,13 +218,9 @@ public abstract class TokenRestriction extends AbstractPrimaryKeyRestrictions
         }
 
         @Override
-        public PrimaryKeyRestrictions mergeWith(Restriction otherRestriction)
+        protected PrimaryKeyRestrictions doMergeWith(TokenRestriction otherRestriction)
         throws InvalidRequestException
         {
-            if (!otherRestriction.isOnToken())
-                throw invalidRequest("Columns \"%s\" cannot be restricted by both a normal relation and a token relation",
-                                     getColumnNamesAsString());
-
             if (!otherRestriction.isSlice())
                 throw invalidRequest("Columns \"%s\" cannot be restricted by both an equality and an inequality relation",
                                      getColumnNamesAsString());
@@ -206,7 +235,7 @@ public abstract class TokenRestriction extends AbstractPrimaryKeyRestrictions
                 throw invalidRequest("More than one restriction was found for the end bound on %s",
                                      getColumnNamesAsString());
 
-            return new Slice(columnDefs,  slice.merge(otherSlice.slice));
+            return new Slice(ctype, columnDefs,  slice.merge(otherSlice.slice));
         }
 
         @Override
@@ -215,9 +244,9 @@ public abstract class TokenRestriction extends AbstractPrimaryKeyRestrictions
             return String.format("SLICE%s", slice);
         }
 
-        private Slice(List<ColumnDefinition> columnDefs, TermSlice slice)
+        private Slice(CType ctype, List<ColumnDefinition> columnDefs, TermSlice slice)
         {
-            super(columnDefs);
+            super(ctype, columnDefs);
             this.slice = slice;
         }
     }

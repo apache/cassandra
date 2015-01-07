@@ -259,10 +259,9 @@ public final class StatementRestrictions
         // If a component of the partition key is restricted by a relation, all preceding
         // components must have a EQ. Only the last partition key component can be in IN relation.
         if (partitionKeyRestrictions.isOnToken())
-        {
             isKeyRange = true;
-        }
-        else if (hasPartitionKeyUnrestrictedComponents())
+
+        if (hasPartitionKeyUnrestrictedComponents())
         {
             if (!partitionKeyRestrictions.isEmpty())
             {
