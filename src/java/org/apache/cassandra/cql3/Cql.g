@@ -854,7 +854,7 @@ ksName[KeyspaceElementName name]
     : t=IDENT              { $name.setKeyspace($t.text, false);}
     | t=QUOTED_NAME        { $name.setKeyspace($t.text, true);}
     | k=unreserved_keyword { $name.setKeyspace(k, false);}
-    | QMARK {addRecognitionError("Bind variables cannot be used for keyspace");}
+    | QMARK {addRecognitionError("Bind variables cannot be used for keyspace names");}
     ;
 
 cfName[CFName name]
