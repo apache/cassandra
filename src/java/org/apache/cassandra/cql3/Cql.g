@@ -566,12 +566,13 @@ createIndexStatement returns [CreateIndexStatement expr]
     @init {
         IndexPropDefs props = new IndexPropDefs();
         boolean ifNotExists = false;
+        IndexName name = new IndexName();
     }
     : K_CREATE (K_CUSTOM { props.isCustom = true; })? K_INDEX (K_IF K_NOT K_EXISTS { ifNotExists = true; } )?
-        (idxName=IDENT)? K_ON cf=columnFamilyName '(' id=indexIdent ')'
+        (idxName[name])? K_ON cf=columnFamilyName '(' id=indexIdent ')'
         (K_USING cls=STRING_LITERAL { props.customClass = $cls.text; })?
         (K_WITH properties[props])?
-      { $expr = new CreateIndexStatement(cf, $idxName.text, id, props, ifNotExists); }
+      { $expr = new CreateIndexStatement(cf, name, id, props, ifNotExists); }
     ;
 
 indexIdent returns [IndexTarget.Raw id]
@@ -832,34 +833,42 @@ ident returns [ColumnIdentifier id]
 // Keyspace & Column family names
 keyspaceName returns [String id]
     @init { CFName name = new CFName(); }
-    : cfOrKsName[name, true] { $id = name.getKeyspace(); }
+    : ksName[name] { $id = name.getKeyspace(); }
     ;
 
 indexName returns [IndexName name]
     @init { $name = new IndexName(); }
-    : (idxOrKsName[name, true] '.')? idxOrKsName[name, false]
-    ;
-
-idxOrKsName[IndexName name, boolean isKs]
-    : t=IDENT              { if (isKs) $name.setKeyspace($t.text, false); else $name.setIndex($t.text, false); }
-    | t=QUOTED_NAME        { if (isKs) $name.setKeyspace($t.text, true); else $name.setIndex($t.text, true); }
-    | k=unreserved_keyword { if (isKs) $name.setKeyspace(k, false); else $name.setIndex(k, false); }
+    : (ksName[name] '.')? idxName[name]
     ;
 
 columnFamilyName returns [CFName name]
     @init { $name = new CFName(); }
-    : (cfOrKsName[name, true] '.')? cfOrKsName[name, false]
+    : (ksName[name] '.')? cfName[name]
     ;
 
 userTypeName returns [UTName name]
     : (ks=ident '.')? ut=non_type_ident { return new UTName(ks, ut); }
     ;
 
-cfOrKsName[CFName name, boolean isKs]
-    : t=IDENT              { if (isKs) $name.setKeyspace($t.text, false); else $name.setColumnFamily($t.text, false); }
-    | t=QUOTED_NAME        { if (isKs) $name.setKeyspace($t.text, true); else $name.setColumnFamily($t.text, true); }
-    | k=unreserved_keyword { if (isKs) $name.setKeyspace(k, false); else $name.setColumnFamily(k, false); }
-    | QMARK {addRecognitionError("Bind variables cannot be used for keyspace or table names");}
+ksName[KeyspaceElementName name]
+    : t=IDENT              { $name.setKeyspace($t.text, false);}
+    | t=QUOTED_NAME        { $name.setKeyspace($t.text, true);}
+    | k=unreserved_keyword { $name.setKeyspace(k, false);}
+    | QMARK {addRecognitionError("Bind variables cannot be used for keyspace");}
+    ;
+
+cfName[CFName name]
+    : t=IDENT              { $name.setColumnFamily($t.text, false); }
+    | t=QUOTED_NAME        { $name.setColumnFamily($t.text, true); }
+    | k=unreserved_keyword { $name.setColumnFamily(k, false); }
+    | QMARK {addRecognitionError("Bind variables cannot be used for table names");}
+    ;
+
+idxName[IndexName name]
+    : t=IDENT              { $name.setIndex($t.text, false); }
+    | t=QUOTED_NAME        { $name.setIndex($t.text, true);}
+    | k=unreserved_keyword { $name.setIndex(k, false); }
+    | QMARK {addRecognitionError("Bind variables cannot be used for index names");}
     ;
 
 constant returns [Constants.Literal constant]

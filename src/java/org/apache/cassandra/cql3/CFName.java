@@ -17,31 +17,13 @@
  */
 package org.apache.cassandra.cql3;
 
-import java.util.Locale;
-
-public class CFName
+public class CFName extends KeyspaceElementName
 {
-    private String ksName;
     private String cfName;
-
-    public void setKeyspace(String ks, boolean keepCase)
-    {
-        ksName = keepCase ? ks : ks.toLowerCase(Locale.US);
-    }
 
     public void setColumnFamily(String cf, boolean keepCase)
     {
-        cfName = keepCase ? cf : cf.toLowerCase(Locale.US);
-    }
-
-    public boolean hasKeyspace()
-    {
-        return ksName != null;
-    }
-
-    public String getKeyspace()
-    {
-        return ksName;
+        cfName = toInternalName(cf, keepCase);
     }
 
     public String getColumnFamily()
@@ -52,6 +34,6 @@ public class CFName
     @Override
     public String toString()
     {
-        return (hasKeyspace() ? (ksName + ".") : "") + cfName;
+        return super.toString() + cfName;
     }
 }

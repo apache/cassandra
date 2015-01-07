@@ -49,13 +49,13 @@ public class CreateIndexStatement extends SchemaAlteringStatement
     private final boolean ifNotExists;
 
     public CreateIndexStatement(CFName name,
-                                String indexName,
+                                IndexName indexName,
                                 IndexTarget.Raw target,
                                 IndexPropDefs properties,
                                 boolean ifNotExists)
     {
         super(name);
-        this.indexName = indexName;
+        this.indexName = indexName.getIdx();
         this.rawTarget = target;
         this.properties = properties;
         this.ifNotExists = ifNotExists;
