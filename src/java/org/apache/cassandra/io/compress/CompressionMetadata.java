@@ -381,6 +381,15 @@ public class CompressionMetadata
                 FileUtils.closeQuietly(out);
             }
         }
+
+        public void abort()
+        {
+            if (offsets != null)
+            {
+                offsets.unreference();
+                offsets = null;
+            }
+        }
     }
 
     /**

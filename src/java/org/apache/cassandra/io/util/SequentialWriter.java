@@ -22,6 +22,9 @@ import java.nio.ByteBuffer;
 import java.nio.channels.ClosedChannelException;
 import java.nio.channels.WritableByteChannel;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.FSReadError;
 import org.apache.cassandra.io.FSWriteError;
@@ -38,6 +41,8 @@ import org.apache.cassandra.utils.CLibrary;
  */
 public class SequentialWriter extends OutputStream implements WritableByteChannel
 {
+    private static final Logger logger = LoggerFactory.getLogger(SequentialWriter.class);
+
     // isDirty - true if this.buffer contains any un-synced bytes
     protected boolean isDirty = false, syncNeeded = false;
 
@@ -46,7 +51,7 @@ public class SequentialWriter extends OutputStream implements WritableByteChanne
 
     protected byte[] buffer;
     private final int fd;
-    private final int directoryFD;
+    private int directoryFD;
     // directory should be synced only after first file sync, in other words, only once per file
     private boolean directorySynced = false;
 
@@ -439,16 +444,34 @@ public class SequentialWriter extends OutputStream implements WritableByteChanne
 
         buffer = null;
 
-        try
+        cleanup(true);
+    }
+
+    public void abort()
+    {
+        cleanup(false);
+    }
+
+    private void cleanup(boolean throwExceptions)
+    {
+        if (directoryFD >= 0)
         {
-            out.close();
-        }
-        catch (IOException e)
-        {
-            throw new FSWriteError(e, getPath());
+            try { CLibrary.tryCloseFD(directoryFD); }
+            catch (Throwable t) { handle(t, throwExceptions); }
+            directoryFD = -1;
         }
 
-        CLibrary.tryCloseFD(directoryFD);
+        // close is idempotent
+        try { out.close(); }
+        catch (Throwable t) { handle(t, throwExceptions); }
+    }
+
+    private void handle(Throwable t, boolean throwExceptions)
+    {
+        if (!throwExceptions)
+            logger.warn("Suppressing exception thrown while aborting writer", t);
+        else
+            throw new FSWriteError(t, getPath());
     }
 
     // hack to make life easier for subclasses

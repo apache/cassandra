@@ -261,6 +261,12 @@ public class CompressedSequentialWriter extends SequentialWriter
         }
     }
 
+    public void abort()
+    {
+        super.abort();
+        metadataWriter.abort();
+    }
+
     @Override
     public void writeFullChecksum(Descriptor descriptor)
     {

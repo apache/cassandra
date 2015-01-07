@@ -50,4 +50,10 @@ public class ChecksummedSequentialWriter extends SequentialWriter
         super.close();
         crcWriter.close();
     }
+
+    public void abort()
+    {
+        super.abort();
+        crcWriter.abort();
+    }
 }
