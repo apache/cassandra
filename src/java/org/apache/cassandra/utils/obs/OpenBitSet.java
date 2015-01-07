@@ -393,7 +393,7 @@ public class OpenBitSet implements IBitSet
     return (int)((h>>32) ^ h) + 0x98761234;
   }
 
-  public void close() throws IOException {
+  public void close() {
     // noop, let GC do the cleanup.
   }
 

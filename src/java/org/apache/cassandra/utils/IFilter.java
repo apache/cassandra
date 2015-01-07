@@ -35,4 +35,6 @@ public interface IFilter extends Closeable
      * @return the amount of memory in bytes used off heap
      */
     long offHeapSize();
+
+    void close();
 }

@@ -145,7 +145,7 @@ public class OffHeapBitSet implements IBitSet
         return new OffHeapBitSet(memory);
     }
 
-    public void close() throws IOException
+    public void close()
     {
         bytes.free();
     }

@@ -20,6 +20,9 @@ package org.apache.cassandra.io.util;
 import java.io.*;
 import java.nio.channels.ClosedChannelException;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.FSReadError;
 import org.apache.cassandra.io.FSWriteError;
@@ -31,6 +34,8 @@ import org.apache.cassandra.utils.CLibrary;
  */
 public class SequentialWriter extends OutputStream
 {
+    private static final Logger logger = LoggerFactory.getLogger(SequentialWriter.class);
+
     // isDirty - true if this.buffer contains any un-synced bytes
     protected boolean isDirty = false, syncNeeded = false;
 
@@ -385,17 +390,31 @@ public class SequentialWriter extends OutputStream
         if (skipIOCache && bytesSinceCacheFlush > 0)
             CLibrary.trySkipCache(fd, 0, 0);
 
-        try
-        {
-            out.close();
-        }
-        catch (IOException e)
-        {
-            throw new FSWriteError(e, getPath());
-        }
+        cleanup(true);
+    }
 
+    public void abort()
+    {
+        cleanup(false);
+    }
+
+    private void cleanup(boolean throwExceptions)
+    {
         FileUtils.closeQuietly(metadata);
-        CLibrary.tryCloseFD(directoryFD);
+
+        try { CLibrary.tryCloseFD(directoryFD); }
+        catch (Throwable t) { handle(t, throwExceptions); }
+
+        try { out.close(); }
+        catch (Throwable t) { handle(t, throwExceptions); }
+    }
+
+    private void handle(Throwable t, boolean throwExceptions)
+    {
+        if (!throwExceptions)
+            logger.warn("Suppressing exception thrown while aborting writer", t);
+        else
+            throw new FSWriteError(t, getPath());
     }
 
     /**

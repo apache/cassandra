@@ -112,7 +112,7 @@ public abstract class BloomFilter implements IFilter
         bitset.clear();
     }
 
-    public void close() throws IOException
+    public void close()
     {
         bitset.close();
     }

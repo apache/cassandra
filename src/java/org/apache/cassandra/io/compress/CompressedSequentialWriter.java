@@ -271,6 +271,12 @@ public class CompressedSequentialWriter extends SequentialWriter
         }
     }
 
+    public void abort()
+    {
+        super.abort();
+        metadataWriter.abort();
+    }
+
     /**
      * Class to hold a mark to the position of the file
      */

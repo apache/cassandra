@@ -314,8 +314,8 @@ public class SSTableWriter extends SSTable
     public void abort()
     {
         assert descriptor.temporary;
-        FileUtils.closeQuietly(iwriter);
-        FileUtils.closeQuietly(dataFile);
+        iwriter.abort();
+        dataFile.abort();
 
         Set<Component> components = SSTable.componentsFor(descriptor);
         try
@@ -391,6 +391,7 @@ public class SSTableWriter extends SSTable
         }
         catch (IOException e)
         {
+            out.abort();
             throw new FSWriteError(e, out.getPath());
         }
         out.close();
@@ -496,6 +497,12 @@ public class SSTableWriter extends SSTable
             long position = indexFile.getFilePointer();
             indexFile.close(); // calls force
             FileUtils.truncate(indexFile.getPath(), position);
+        }
+
+        public void abort()
+        {
+            indexFile.abort();
+            bf.close();
         }
 
         public void mark()

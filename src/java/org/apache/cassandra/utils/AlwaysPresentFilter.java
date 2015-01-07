@@ -31,7 +31,7 @@ public class AlwaysPresentFilter implements IFilter
 
     public void clear() { }
 
-    public void close() throws IOException { }
+    public void close() { }
 
     public long serializedSize() { return 0; }
 

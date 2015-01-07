@@ -23,6 +23,9 @@ import java.util.*;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.primitives.Longs;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.FSReadError;
@@ -40,6 +43,8 @@ import org.apache.cassandra.utils.Pair;
  */
 public class CompressionMetadata
 {
+    private static final Logger logger = LoggerFactory.getLogger(CompressionMetadata.class);
+
     public final long dataLength;
     public final long compressedFileLength;
     public final boolean hasPostCompressionAdlerChecksums;
@@ -374,6 +379,18 @@ public class CompressionMetadata
             if (getChannel().isOpen()) // if RAF.closed were public we could just use that, but it's not
                 getChannel().force(true);
             super.close();
+        }
+
+        public void abort()
+        {
+            try
+            {
+                super.close();
+            }
+            catch (Throwable t)
+            {
+                logger.warn("Suppressed exception while closing CompressionMetadata.Writer for {}", filePath, t);
+            }
         }
     }
 
