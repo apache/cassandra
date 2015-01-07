@@ -20,11 +20,14 @@ package org.apache.cassandra.streaming;
 import java.net.InetAddress;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CancellationException;
+import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 
 import org.junit.Test;
 
+import junit.framework.Assert;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
@@ -61,19 +64,25 @@ public class StreamTransferTaskTest extends SchemaLoader
         {
             List<Range<Token>> ranges = new ArrayList<>();
             ranges.add(new Range<>(sstable.first.getToken(), sstable.last.getToken()));
-            task.addTransferFile(sstable, 1, sstable.getPositionsForRanges(ranges));
+            task.addTransferFile(sstable, 1, sstable.getPositionsForRanges(ranges), 0);
         }
         assertEquals(2, task.getTotalNumberOfFiles());
 
         // if file sending completes before timeout then the task should be canceled.
-        ScheduledFuture f = task.scheduleTimeout(0, 1, TimeUnit.SECONDS);
-        task.complete(0);
-        // timeout task may run after complete but it is noop
+        Future f = task.scheduleTimeout(0, 0, TimeUnit.NANOSECONDS);
         f.get();
 
         // when timeout runs on second file, task should be completed
         f = task.scheduleTimeout(1, 1, TimeUnit.MILLISECONDS);
-        f.get();
+        task.complete(1);
+        try
+        {
+            f.get();
+            Assert.assertTrue(false);
+        }
+        catch (CancellationException ex)
+        {
+        }
         assertEquals(StreamSession.State.WAIT_COMPLETE, session.state());
 
         // when all streaming are done, time out task should not be scheduled.
