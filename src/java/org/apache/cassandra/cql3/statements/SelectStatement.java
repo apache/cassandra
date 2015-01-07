@@ -1945,7 +1945,7 @@ public class SelectStatement implements CQLStatement
                             break;
                         }
                         throw new InvalidRequestException(String.format(
-                                "PRIMARY KEY column \"%s\" cannot be restricted (preceding column \"%s\" is either not restricted or by a non-EQ relation)", cdef.name, previous));
+                                "PRIMARY KEY column \"%s\" cannot be restricted (preceding column \"%s\" is either not restricted or by a non-EQ relation)", cdef.name, previous.name));
                     }
                 }
                 else if (restriction.isSlice())
