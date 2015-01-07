@@ -43,6 +43,7 @@
 
 
 2.1.3
+ * Better detection/logging for corruption in compressed sstables (CASSANDRA-8192)
  * Use the correct repairedAt value when closing writer (CASSANDRA-8570)
  * (cqlsh) Handle a schema mismatch being detected on startup (CASSANDRA-8512)
  * Properly calculate expected write size during compaction (CASSANDRA-8532)
