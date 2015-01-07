@@ -346,16 +346,12 @@ public class SSTableWriter extends SSTable
         assert descriptor.type.isTemporary;
         if (iwriter == null && dataFile == null)
             return;
+
         if (iwriter != null)
-        {
-            FileUtils.closeQuietly(iwriter.indexFile);
-            if (closeBf)
-            {
-                iwriter.bf.close();
-            }
-        }
+            iwriter.abort(closeBf);
+
         if (dataFile!= null)
-            FileUtils.closeQuietly(dataFile);
+            dataFile.abort();
 
         Set<Component> components = SSTable.componentsFor(descriptor);
         try
@@ -589,7 +585,7 @@ public class SSTableWriter extends SSTable
     /**
      * Encapsulates writing the index and filter for an SSTable. The state of this object is not valid until it has been closed.
      */
-    class IndexWriter implements Closeable
+    class IndexWriter
     {
         private final SequentialWriter indexFile;
         public final SegmentedFile.Builder builder;
@@ -631,6 +627,13 @@ public class SSTableWriter extends SSTable
 
             summary.maybeAddEntry(key, indexPosition);
             builder.addPotentialBoundary(indexPosition);
+        }
+
+        public void abort(boolean closeBf)
+        {
+            indexFile.abort();
+            if (closeBf)
+                bf.close();
         }
 
         /**
