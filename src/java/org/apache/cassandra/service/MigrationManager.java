@@ -141,7 +141,7 @@ public class MigrationManager
         return StageManager.getStage(Stage.MIGRATION).submit(new MigrationTask(endpoint));
     }
 
-    private static boolean shouldPullSchemaFrom(InetAddress endpoint)
+    public static boolean shouldPullSchemaFrom(InetAddress endpoint)
     {
         /*
          * Don't request schema from nodes with a differnt or unknonw major version (may have incompatible schema)

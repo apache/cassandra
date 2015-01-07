@@ -48,7 +48,14 @@ class MigrationTask extends WrappedRunnable
 
     public void runMayThrow() throws Exception
     {
-        MessageOut message = new MessageOut<>(MessagingService.Verb.MIGRATION_REQUEST, null, MigrationManager.MigrationsSerializer.instance);
+        // There is a chance that quite some time could have passed between now and the MM#maybeScheduleSchemaPull(),
+        // potentially enough for the endpoint node to restart - which is an issue if it does restart upgraded, with
+        // a higher major.
+        if (!MigrationManager.shouldPullSchemaFrom(endpoint))
+        {
+            logger.info("Skipped sending a migration request: node {} has a higher major version now.", endpoint);
+            return;
+        }
 
         if (!FailureDetector.instance.isAlive(endpoint))
         {
@@ -56,9 +63,10 @@ class MigrationTask extends WrappedRunnable
             return;
         }
 
+        MessageOut message = new MessageOut<>(MessagingService.Verb.MIGRATION_REQUEST, null, MigrationManager.MigrationsSerializer.instance);
+
         IAsyncCallback<Collection<RowMutation>> cb = new IAsyncCallback<Collection<RowMutation>>()
         {
-            @Override
             public void response(MessageIn<Collection<RowMutation>> message)
             {
                 try
@@ -75,7 +83,6 @@ class MigrationTask extends WrappedRunnable
                 }
             }
 
-            @Override
             public boolean isLatencyForSnitch()
             {
                 return false;
