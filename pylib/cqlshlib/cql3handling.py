@@ -998,7 +998,12 @@ def create_cf_composite_primary_key_comma_completer(ctxt, cass):
     return [',']
 
 syntax_rules += r'''
-<createIndexStatement> ::= "CREATE" "CUSTOM"? "INDEX" ("IF" "NOT" "EXISTS")? indexname=<identifier>? "ON"
+
+<idxName> ::= <identifier>
+            | <quotedName>
+            | <unreservedKeyword>;
+
+<createIndexStatement> ::= "CREATE" "CUSTOM"? "INDEX" ("IF" "NOT" "EXISTS")? indexname=<idxName>? "ON"
                                cf=<columnFamilyName> "(" (
                                    col=<cident> |
                                    "keys(" col=<cident> ")" |

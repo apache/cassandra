@@ -17,31 +17,13 @@
  */
 package org.apache.cassandra.cql3;
 
-import java.util.Locale;
-
-public class IndexName 
+public final class IndexName extends KeyspaceElementName
 {
-    private String ksName;
     private String idxName;
-
-    public void setKeyspace(String ks, boolean keepCase)
-    {
-        ksName = keepCase ? ks : ks.toLowerCase(Locale.US);
-    }
 
     public void setIndex(String idx, boolean keepCase)
     {
-        idxName = keepCase ? idx : idx.toLowerCase(Locale.US);
-    }
-
-    public boolean hasKeyspace()
-    {
-        return ksName != null;
-    }
-
-    public String getKeyspace()
-    {
-        return ksName;
+        idxName = toInternalName(idx, keepCase);
     }
 
     public String getIdx()
@@ -53,13 +35,13 @@ public class IndexName
     {
         CFName cfName = new CFName();
         if (hasKeyspace())
-            cfName.setKeyspace(ksName, true);
+            cfName.setKeyspace(getKeyspace(), true);
     	return cfName;
     }
 
     @Override
     public String toString()
     {
-        return (hasKeyspace() ? (ksName + ".") : "") + idxName;
+        return super.toString() + idxName;
     }
 }
