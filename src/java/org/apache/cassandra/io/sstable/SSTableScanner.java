@@ -52,18 +52,15 @@ public class SSTableScanner implements ISSTableScanner
 
     protected Iterator<OnDiskAtomIterator> iterator;
 
-    // We can race with the sstable for deletion during compaction.  If it's been ref counted to 0, skip
     public static ISSTableScanner getScanner(SSTableReader sstable, DataRange dataRange, RateLimiter limiter)
     {
-        return sstable.acquireReference()
-                ? new SSTableScanner(sstable, dataRange, limiter)
-                : new SSTableScanner.EmptySSTableScanner(sstable.getFilename());
+        return new SSTableScanner(sstable, dataRange, limiter);
     }
     public static ISSTableScanner getScanner(SSTableReader sstable, Collection<Range<Token>> tokenRanges, RateLimiter limiter)
     {
         // We want to avoid allocating a SSTableScanner if the range don't overlap the sstable (#5249)
         List<Pair<Long, Long>> positions = sstable.getPositionsForRanges(Range.normalize(tokenRanges));
-        if (positions.isEmpty() || !sstable.acquireReference())
+        if (positions.isEmpty())
             return new EmptySSTableScanner(sstable.getFilename());
 
         return new SSTableScanner(sstable, tokenRanges, limiter);
@@ -173,7 +170,6 @@ public class SSTableScanner implements ISSTableScanner
     public void close() throws IOException
     {
         FileUtils.close(dfile, ifile);
-        sstable.releaseReference();
     }
 
     public long getLengthInBytes()
