@@ -93,6 +93,8 @@
  * Log failed host when preparing incremental repair (CASSANDRA-8228)
  * Force config client mode in CQLSSTableWriter (CASSANDRA-8281)
 Merged from 2.0:
+ * Fix race condition in StreamTransferTask that could lead to
+   infinite loops and premature sstable deletion (CASSANDRA-7704)
  * Add an extra version check to MigrationTask (CASSANDRA-8462)
  * Ensure SSTableWriter cleans up properly after failure (CASSANDRA-8499)
  * Increase bf true positive count on key cache hit (CASSANDRA-8525)
