@@ -23,6 +23,7 @@ import java.io.RandomAccessFile;
 import java.nio.ByteBuffer;
 import java.nio.MappedByteBuffer;
 import java.nio.channels.FileChannel;
+import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
@@ -104,7 +105,7 @@ public class CommitLogSegment
     public final long id;
 
     private final File logFile;
-    private final RandomAccessFile logFileAccessor;
+    private final FileChannel channel;
     private final int fd;
 
     private final MappedByteBuffer buffer;
@@ -134,7 +135,6 @@ public class CommitLogSegment
         id = getNextId();
         descriptor = new CommitLogDescriptor(id);
         logFile = new File(DatabaseDescriptor.getCommitLogLocation(), descriptor.fileName());
-        boolean isCreating = true;
 
         try
         {
@@ -147,25 +147,37 @@ public class CommitLogSegment
                     logger.debug("Re-using discarded CommitLog segment for {} from {}", id, filePath);
                     if (!oldFile.renameTo(logFile))
                         throw new IOException("Rename from " + filePath + " to " + id + " failed");
-                    isCreating = false;
+                }
+                else
+                {
+                    logger.debug("Creating new CommitLog segment: " + logFile);
                 }
             }
 
-            // Open the initial the segment file
-            logFileAccessor = new RandomAccessFile(logFile, "rw");
+            // Extend or truncate the file size to the standard segment size as we may have restarted after a segment
+            // size configuration change, leaving "incorrectly" sized segments on disk.
+            // NOTE: while we're using RAF to allow extension of file on disk w/out sparse, we need to avoid using RAF
+            // for grabbing the FileChannel due to FILE_SHARE_DELETE flag bug on windows.
+            // See: https://bugs.openjdk.java.net/browse/JDK-6357433 and CASSANDRA-8308
+            if (logFile.length() != DatabaseDescriptor.getCommitLogSegmentSize())
+            {
+                try (RandomAccessFile raf = new RandomAccessFile(logFile, "rw"))
+                {
+                    raf.setLength(DatabaseDescriptor.getCommitLogSegmentSize());
+                }
+                catch (IOException e)
+                {
+                    throw new FSWriteError(e, logFile);
+                }
+            }
 
-            if (isCreating)
-                logger.debug("Creating new commit log segment {}", logFile.getPath());
+            channel = FileChannel.open(logFile.toPath(), StandardOpenOption.WRITE, StandardOpenOption.READ);
 
-            // Map the segment, extending or truncating it to the standard segment size.
-            // (We may have restarted after a segment size configuration change, leaving "incorrectly"
-            // sized segments on disk.)
-            logFileAccessor.setLength(DatabaseDescriptor.getCommitLogSegmentSize());
-            fd = CLibrary.getfd(logFileAccessor.getFD());
+            fd = CLibrary.getfd(channel);
+            buffer = channel.map(FileChannel.MapMode.READ_WRITE, 0, DatabaseDescriptor.getCommitLogSegmentSize());
 
-            buffer = logFileAccessor.getChannel().map(FileChannel.MapMode.READ_WRITE, 0, DatabaseDescriptor.getCommitLogSegmentSize());
-            // write the header
             CommitLogDescriptor.writeHeader(buffer, descriptor);
+
             // mark the initial sync marker as uninitialised
             buffer.putInt(CommitLogDescriptor.HEADER_SIZE, 0);
             buffer.putLong(CommitLogDescriptor.HEADER_SIZE + 4, 0);
@@ -415,7 +427,7 @@ public class CommitLogSegment
         {
             if (FileUtils.isCleanerAvailable())
                 FileUtils.clean(buffer);
-            logFileAccessor.close();
+            channel.close();
         }
         catch (IOException e)
         {

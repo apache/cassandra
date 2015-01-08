@@ -419,6 +419,7 @@ public class SchemaLoader
 
     public static void cleanupAndLeaveDirs()
     {
+        CommitLog.instance.resetUnsafe(); // unmap CLS before attempting to delete or Windows complains
         mkdirs();
         cleanup();
         mkdirs();
@@ -434,7 +435,11 @@ public class SchemaLoader
             File dir = new File(dirName);
             if (!dir.exists())
                 throw new RuntimeException("No such directory: " + dir.getAbsolutePath());
-            FileUtils.deleteRecursive(dir);
+
+            // Leave the folder around as Windows will complain about directory deletion w/handles open to children files
+            String[] children = dir.list();
+            for (String child : children)
+                FileUtils.deleteRecursive(new File(dir, child));
         }
 
         cleanupSavedCaches();
@@ -445,7 +450,9 @@ public class SchemaLoader
             File dir = new File(dirName);
             if (!dir.exists())
                 throw new RuntimeException("No such directory: " + dir.getAbsolutePath());
-            FileUtils.deleteRecursive(dir);
+            String[] children = dir.list();
+            for (String child : children)
+                FileUtils.deleteRecursive(new File(dir, child));
         }
     }
 

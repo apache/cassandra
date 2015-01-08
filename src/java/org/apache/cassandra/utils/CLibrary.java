@@ -20,6 +20,7 @@ package org.apache.cassandra.utils;
 import java.io.FileDescriptor;
 import java.io.RandomAccessFile;
 import java.lang.reflect.Field;
+import java.nio.channels.FileChannel;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -276,6 +277,24 @@ public final class CLibrary
         }
     }
 
+    public static int getfd(FileChannel channel)
+    {
+        Field field = FBUtilities.getProtectedField(channel.getClass(), "fd");
+
+        if (field == null)
+            return -1;
+
+        try
+        {
+            return getfd((FileDescriptor)field.get(channel));
+        }
+        catch (IllegalArgumentException|IllegalAccessException e)
+        {
+            logger.warn("Unable to read fd field from FileChannel");
+        }
+        return -1;
+    }
+
     /**
      * Get system file descriptor from FileDescriptor object.
      * @param descriptor - FileDescriptor objec to get fd from
@@ -295,7 +314,7 @@ public final class CLibrary
         catch (Exception e)
         {
             JVMStabilityInspector.inspectThrowable(e);
-            logger.warn("unable to read fd field from FileDescriptor");
+            logger.warn("Unable to read fd field from FileDescriptor");
         }
 
         return -1;
