@@ -156,7 +156,7 @@ public class CommitLogSegment
 
             // Extend or truncate the file size to the standard segment size as we may have restarted after a segment
             // size configuration change, leaving "incorrectly" sized segments on disk.
-            // NOTE: while we're using RAF to allow extension of file on disk w/out sparse, we need to avoid using RAF
+            // NOTE: while we're using RAF to easily adjust file size, we need to avoid using RAF
             // for grabbing the FileChannel due to FILE_SHARE_DELETE flag bug on windows.
             // See: https://bugs.openjdk.java.net/browse/JDK-6357433 and CASSANDRA-8308
             if (logFile.length() != DatabaseDescriptor.getCommitLogSegmentSize())
