@@ -347,7 +347,7 @@ public class CompactionManager implements CompactionManagerMBean
             return AllSSTableOpStatus.ABORTED;
         }
         final boolean hasIndexes = cfStore.indexManager.hasIndexes();
-        final CleanupStrategy cleanupStrategy = CleanupStrategy.get(cfStore, ranges);
+
         return parallelAllSSTableOperation(cfStore, new OneSSTableOperation()
         {
             @Override
@@ -361,6 +361,7 @@ public class CompactionManager implements CompactionManagerMBean
             @Override
             public void execute(SSTableReader input) throws IOException
             {
+                CleanupStrategy cleanupStrategy = CleanupStrategy.get(cfStore, ranges);
                 doCleanupOne(cfStore, input, cleanupStrategy, ranges, hasIndexes);
             }
         });

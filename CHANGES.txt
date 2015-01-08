@@ -1,4 +1,5 @@
 2.1.3
+ * Don't reuse the same cleanup strategy for all sstables (CASSANDRA-8537)
  * Fix case-sensitivity of index name on CREATE and DROP INDEX
    statements (CASSANDRA-8365)
  * Better detection/logging for corruption in compressed sstables (CASSANDRA-8192)
