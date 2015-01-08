@@ -259,7 +259,7 @@ public class CommitLogTest extends SchemaLoader
             CommitLog.instance.recover(new File[]{ logFile }); //CASSANDRA-1119 / CASSANDRA-1179 throw on failure*/
         }
     }
-    
+
     @Test
     public void testVersions()
     {
