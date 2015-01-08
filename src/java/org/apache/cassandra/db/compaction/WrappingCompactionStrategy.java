@@ -358,6 +358,11 @@ public final class WrappingCompactionStrategy extends AbstractCompactionStrategy
         return new ScannerList(scanners);
     }
 
+    public Collection<Collection<SSTableReader>> groupSSTablesForAntiCompaction(Collection<SSTableReader> sstablesToGroup)
+    {
+        return unrepaired.groupSSTablesForAntiCompaction(sstablesToGroup);
+    }
+
     public List<AbstractCompactionStrategy> getWrappedStrategies()
     {
         return Arrays.asList(repaired, unrepaired);

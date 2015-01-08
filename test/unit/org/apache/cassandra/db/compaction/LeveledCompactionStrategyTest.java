@@ -121,10 +121,10 @@ public class LeveledCompactionStrategyTest
         }
 
         waitForLeveling(cfs);
-        LeveledCompactionStrategy strategy = (LeveledCompactionStrategy) cfs.getCompactionStrategy();
+        WrappingCompactionStrategy strategy = (WrappingCompactionStrategy) cfs.getCompactionStrategy();
         // Checking we're not completely bad at math
-        assert strategy.getLevelSize(1) > 0;
-        assert strategy.getLevelSize(2) > 0;
+        assert strategy.getSSTableCountPerLevel()[1] > 0;
+        assert strategy.getSSTableCountPerLevel()[2] > 0;
 
         Collection<Collection<SSTableReader>> groupedSSTables = cfs.getCompactionStrategy().groupSSTablesForAntiCompaction(cfs.getSSTables());
         for (Collection<SSTableReader> sstableGroup : groupedSSTables)
