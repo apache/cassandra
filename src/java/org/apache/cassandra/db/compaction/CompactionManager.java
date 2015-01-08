@@ -220,8 +220,14 @@ public class CompactionManager implements CompactionManagerMBean
         {
             public Object call() throws IOException
             {
-                operation.perform(cfs, sstables);
-                cfs.getDataTracker().unmarkCompacting(sstables);
+                try
+                {
+                    operation.perform(cfs, sstables);
+                }
+                finally
+                {
+                    cfs.getDataTracker().unmarkCompacting(sstables);
+                }
                 return this;
             }
         };

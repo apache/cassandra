@@ -1,4 +1,5 @@
 2.0.12:
+ * Make sure we unmark compacting after scrub/cleanup etc (CASSANDRA-8548)
  * Check for available disk space before starting a compaction (CASSANDRA-8562)
  * Fix DISTINCT queries with LIMITs or paging when some partitions
    contain only tombstones (CASSANDRA-8490)
