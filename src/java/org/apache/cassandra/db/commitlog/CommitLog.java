@@ -27,6 +27,7 @@ import java.util.concurrent.TimeUnit;
 import javax.management.MBeanServer;
 import javax.management.ObjectName;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.util.concurrent.Uninterruptibles;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
@@ -378,7 +379,8 @@ public class CommitLog implements CommitLogMBean
         }
     }
 
-    static boolean handleCommitError(String message, Throwable t)
+    @VisibleForTesting
+    public static boolean handleCommitError(String message, Throwable t)
     {
         switch (DatabaseDescriptor.getCommitFailurePolicy())
         {
