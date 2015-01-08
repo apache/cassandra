@@ -260,7 +260,8 @@ public class CompositesSearcher extends SecondaryIndexSearcher
                         else
                             previousPrefix = null;
 
-                        logger.trace("Adding index hit to current row for {}", indexComparator.getString(cell.name()));
+                        if (logger.isTraceEnabled())
+                            logger.trace("Adding index hit to current row for {}", indexComparator.getString(cell.name()));
 
                         // We always query the whole CQL3 row. In the case where the original filter was a name filter this might be
                         // slightly wasteful, but this probably doesn't matter in practice and it simplify things.
