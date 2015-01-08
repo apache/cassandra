@@ -22,6 +22,8 @@ import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.*;
 
+import org.apache.commons.lang3.StringUtils;
+
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.BeforeClass;
@@ -34,6 +36,7 @@ import org.apache.cassandra.db.compaction.LeveledManifest;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.io.FSWriteError;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -190,15 +193,14 @@ public class DirectoriesTest
         try 
         {
             DatabaseDescriptor.setDiskFailurePolicy(DiskFailurePolicy.best_effort);
-            
-            for (DataDirectory dd : Directories.dataFileLocations)
+            // Fake a Directory creation failure
+            if (Directories.dataFileLocations.length > 0)
             {
-                dd.location.setExecutable(false);
-                dd.location.setWritable(false);
+                String[] path = new String[] {KS, "bad"};
+                File dir = new File(Directories.dataFileLocations[0].location, StringUtils.join(path, File.separator));
+                FileUtils.handleFSError(new FSWriteError(new IOException("Unable to create directory " + dir), dir));
             }
-            
-            Directories.create(KS, "bad");
-            
+
             for (DataDirectory dd : Directories.dataFileLocations)
             {
                 File file = new File(dd.location, new File(KS, "bad").getPath());
@@ -207,12 +209,6 @@ public class DirectoriesTest
         } 
         finally 
         {
-            for (DataDirectory dd : Directories.dataFileLocations)
-            {
-                dd.location.setExecutable(true);
-                dd.location.setWritable(true);
-            }
-            
             DatabaseDescriptor.setDiskFailurePolicy(origPolicy);
         }
     }
