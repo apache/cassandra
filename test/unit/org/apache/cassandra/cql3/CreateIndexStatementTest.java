@@ -79,7 +79,7 @@ public class CreateIndexStatementTest extends CQLTester
         else
         {
             execute("USE " + KEYSPACE);
-            dropIndex("DROP INDEX " + indexName);
+            execute("DROP INDEX " + indexName);
         }
 
         assertInvalidMessage("No secondary indexes on the restricted columns support the provided operators",
