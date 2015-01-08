@@ -31,6 +31,8 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 
+import org.apache.commons.lang3.StringUtils;
+
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -43,6 +45,7 @@ import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.io.FSWriteError;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -194,30 +197,22 @@ public class DirectoriesTest
         try 
         {
             DatabaseDescriptor.setDiskFailurePolicy(DiskFailurePolicy.best_effort);
-            
-            for (DataDirectory dd : Directories.dataDirectories)
+            // Fake a Directory creation failure
+            if (Directories.dataDirectories.length > 0)
             {
-                dd.location.setExecutable(false);
-                dd.location.setWritable(false);
+                String[] path = new String[] {KS, "bad"};
+                File dir = new File(Directories.dataDirectories[0].location, StringUtils.join(path, File.separator));
+                FileUtils.handleFSError(new FSWriteError(new IOException("Unable to create directory " + dir), dir));
             }
 
-            // nested folders in /tmp is enough to fail on *nix but we need to pass the 255 char limit to get a failure on Windows and blacklist
-            CFMetaData cfm = new CFMetaData(KS, "badbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbad", ColumnFamilyType.Standard, null);
-            Directories dir = new Directories(cfm);
-
-            for (File file : dir.getCFDirectories())
+            for (DataDirectory dd : Directories.dataDirectories)
             {
+                File file = new File(dd.location, new File(KS, "bad").getPath());
                 assertTrue(BlacklistedDirectories.isUnwritable(file));
             }
         } 
         finally 
         {
-            for (DataDirectory dd : Directories.dataDirectories)
-            {
-                dd.location.setExecutable(true);
-                dd.location.setWritable(true);
-            }
-            
             DatabaseDescriptor.setDiskFailurePolicy(origPolicy);
         }
     }
