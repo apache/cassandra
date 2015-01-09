@@ -1,4 +1,7 @@
 3.0
+ * Add ReadFailureException to native protocol, respond
+   immediately when replicas encounter errors while handling
+   a read request (CASSANDRA-7886)
  * Switch CommitLogSegment from RandomAccessFile to nio (CASSANDRA-8308)
  * Allow mixing token and partition key restrictions (CASSANDRA-7016)
  * Support index key/value entries on map collections (CASSANDRA-8473)

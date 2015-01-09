@@ -19,7 +19,6 @@ package org.apache.cassandra.service;
 
 import org.apache.cassandra.db.AbstractRangeCommand;
 import org.apache.cassandra.db.RangeSliceReply;
-import org.apache.cassandra.db.filter.TombstoneOverwhelmingException;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.MessageIn;
 import org.apache.cassandra.net.MessagingService;
@@ -29,24 +28,13 @@ public class RangeSliceVerbHandler implements IVerbHandler<AbstractRangeCommand>
 {
     public void doVerb(MessageIn<AbstractRangeCommand> message, int id)
     {
-        try
+        if (StorageService.instance.isBootstrapMode())
         {
-            if (StorageService.instance.isBootstrapMode())
-            {
-                /* Don't service reads! */
-                throw new RuntimeException("Cannot service reads while bootstrapping!");
-            }
-            RangeSliceReply reply = new RangeSliceReply(message.payload.executeLocally());
-            Tracing.trace("Enqueuing response to {}", message.from);
-            MessagingService.instance().sendReply(reply.createMessage(), id, message.from);
+            /* Don't service reads! */
+            throw new RuntimeException("Cannot service reads while bootstrapping!");
         }
-        catch (TombstoneOverwhelmingException e)
-        {
-            // error already logged.  Drop the request
-        }
-        catch (Exception ex)
-        {
-            throw new RuntimeException(ex);
-        }
+        RangeSliceReply reply = new RangeSliceReply(message.payload.executeLocally());
+        Tracing.trace("Enqueuing response to {}", message.from);
+        MessagingService.instance().sendReply(reply.createMessage(), id, message.from);
     }
 }

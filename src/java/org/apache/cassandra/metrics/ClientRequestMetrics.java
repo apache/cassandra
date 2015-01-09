@@ -32,9 +32,11 @@ public class ClientRequestMetrics extends LatencyMetrics
     @Deprecated public static final Counter writeTimeouts = Metrics.newCounter(DefaultNameFactory.createMetricName("ClientRequestMetrics", "WriteTimeouts", null));
     @Deprecated public static final Counter readUnavailables = Metrics.newCounter(DefaultNameFactory.createMetricName("ClientRequestMetrics", "ReadUnavailables", null));
     @Deprecated public static final Counter writeUnavailables = Metrics.newCounter(DefaultNameFactory.createMetricName("ClientRequestMetrics", "WriteUnavailables", null));
+    @Deprecated public static final Counter readFailures = Metrics.newCounter(DefaultNameFactory.createMetricName("ClientRequestMetrics", "ReadFailures", null));
 
     public final Meter timeouts;
     public final Meter unavailables;
+    public final Meter failures;
 
     public ClientRequestMetrics(String scope)
     {
@@ -42,6 +44,7 @@ public class ClientRequestMetrics extends LatencyMetrics
 
         timeouts = Metrics.newMeter(factory.createMetricName("Timeouts"), "timeouts", TimeUnit.SECONDS);
         unavailables = Metrics.newMeter(factory.createMetricName("Unavailables"), "unavailables", TimeUnit.SECONDS);
+        failures = Metrics.newMeter(factory.createMetricName("Failures"), "failures", TimeUnit.SECONDS);
     }
 
     public void release()
@@ -49,5 +52,6 @@ public class ClientRequestMetrics extends LatencyMetrics
         super.release();
         Metrics.defaultRegistry().removeMetric(factory.createMetricName("Timeouts"));
         Metrics.defaultRegistry().removeMetric(factory.createMetricName("Unavailables"));
+        Metrics.defaultRegistry().removeMetric(factory.createMetricName("Failures"));
     }
 }

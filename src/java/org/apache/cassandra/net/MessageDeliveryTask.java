@@ -19,6 +19,7 @@ package org.apache.cassandra.net;
 
 import java.util.EnumSet;
 
+import org.apache.cassandra.db.filter.TombstoneOverwhelmingException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -70,7 +71,10 @@ public class MessageDeliveryTask implements Runnable
                 MessagingService.instance().sendReply(response, id, message.from);
             }
 
-            throw t;
+            if (t instanceof TombstoneOverwhelmingException)
+                logger.error(t.getMessage());
+            else
+                throw t;
         }
         if (GOSSIP_VERBS.contains(message.verb))
             Gossiper.instance.setLastProcessedMessageAt(constructionTime);

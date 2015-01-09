@@ -26,10 +26,7 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.WriteType;
 import org.apache.cassandra.exceptions.*;
-import org.apache.cassandra.transport.CBUtil;
-import org.apache.cassandra.transport.Message;
-import org.apache.cassandra.transport.ProtocolException;
-import org.apache.cassandra.transport.ServerError;
+import org.apache.cassandra.transport.*;
 import org.apache.cassandra.utils.MD5Digest;
 
 /**
@@ -74,6 +71,16 @@ public class ErrorMessage extends Message.Response
                     break;
                 case TRUNCATE_ERROR:
                     te = new TruncateException(msg);
+                    break;
+                case READ_FAILURE:
+                    {
+                        ConsistencyLevel cl = CBUtil.readConsistencyLevel(body);
+                        int received = body.readInt();
+                        int blockFor = body.readInt();
+                        int failure = body.readInt();
+                        byte dataPresent = body.readByte();
+                        te = new ReadFailureException(cl, received, failure, blockFor, dataPresent != 0);
+                    }
                     break;
                 case WRITE_TIMEOUT:
                 case READ_TIMEOUT:
@@ -123,21 +130,33 @@ public class ErrorMessage extends Message.Response
 
         public void encode(ErrorMessage msg, ByteBuf dest, int version)
         {
-            dest.writeInt(msg.error.code().value);
-            CBUtil.writeString(msg.error.getMessage(), dest);
+            final TransportException err = getBackwardsCompatibleException(msg, version);
+            dest.writeInt(err.code().value);
+            CBUtil.writeString(err.getMessage(), dest);
 
-            switch (msg.error.code())
+            switch (err.code())
             {
                 case UNAVAILABLE:
-                    UnavailableException ue = (UnavailableException)msg.error;
+                    UnavailableException ue = (UnavailableException)err;
                     CBUtil.writeConsistencyLevel(ue.consistency, dest);
                     dest.writeInt(ue.required);
                     dest.writeInt(ue.alive);
                     break;
+                case READ_FAILURE:
+                    {
+                        RequestFailureException rfe = (RequestFailureException)err;
+
+                        CBUtil.writeConsistencyLevel(rfe.consistency, dest);
+                        dest.writeInt(rfe.received);
+                        dest.writeInt(rfe.blockFor);
+                        dest.writeInt(rfe.failures);
+                        dest.writeByte((byte)(((ReadFailureException)rfe).dataPresent ? 1 : 0));
+                    }
+                    break;
                 case WRITE_TIMEOUT:
                 case READ_TIMEOUT:
-                    RequestTimeoutException rte = (RequestTimeoutException)msg.error;
-                    boolean isWrite = msg.error.code() == ExceptionCode.WRITE_TIMEOUT;
+                    RequestTimeoutException rte = (RequestTimeoutException)err;
+                    boolean isWrite = err.code() == ExceptionCode.WRITE_TIMEOUT;
 
                     CBUtil.writeConsistencyLevel(rte.consistency, dest);
                     dest.writeInt(rte.received);
@@ -148,11 +167,11 @@ public class ErrorMessage extends Message.Response
                         dest.writeByte((byte)(((ReadTimeoutException)rte).dataPresent ? 1 : 0));
                     break;
                 case UNPREPARED:
-                    PreparedQueryNotFoundException pqnfe = (PreparedQueryNotFoundException)msg.error;
+                    PreparedQueryNotFoundException pqnfe = (PreparedQueryNotFoundException)err;
                     CBUtil.writeBytes(pqnfe.id.bytes, dest);
                     break;
                 case ALREADY_EXISTS:
-                    AlreadyExistsException aee = (AlreadyExistsException)msg.error;
+                    AlreadyExistsException aee = (AlreadyExistsException)err;
                     CBUtil.writeString(aee.ksName, dest);
                     CBUtil.writeString(aee.cfName, dest);
                     break;
@@ -161,26 +180,33 @@ public class ErrorMessage extends Message.Response
 
         public int encodedSize(ErrorMessage msg, int version)
         {
-            int size = 4 + CBUtil.sizeOfString(msg.error.getMessage());
-            switch (msg.error.code())
+            final TransportException err = getBackwardsCompatibleException(msg, version);
+            int size = 4 + CBUtil.sizeOfString(err.getMessage());
+            switch (err.code())
             {
                 case UNAVAILABLE:
-                    UnavailableException ue = (UnavailableException)msg.error;
+                    UnavailableException ue = (UnavailableException)err;
                     size += CBUtil.sizeOfConsistencyLevel(ue.consistency) + 8;
+                    break;
+                case READ_FAILURE:
+                    {
+                        ReadFailureException rfe = (ReadFailureException)err;
+                        size += CBUtil.sizeOfConsistencyLevel(rfe.consistency) + 4 + 4 + 4 + 1;
+                    }
                     break;
                 case WRITE_TIMEOUT:
                 case READ_TIMEOUT:
-                    RequestTimeoutException rte = (RequestTimeoutException)msg.error;
-                    boolean isWrite = msg.error.code() == ExceptionCode.WRITE_TIMEOUT;
+                    RequestTimeoutException rte = (RequestTimeoutException)err;
+                    boolean isWrite = err.code() == ExceptionCode.WRITE_TIMEOUT;
                     size += CBUtil.sizeOfConsistencyLevel(rte.consistency) + 8;
                     size += isWrite ? CBUtil.sizeOfString(((WriteTimeoutException)rte).writeType.toString()) : 1;
                     break;
                 case UNPREPARED:
-                    PreparedQueryNotFoundException pqnfe = (PreparedQueryNotFoundException)msg.error;
+                    PreparedQueryNotFoundException pqnfe = (PreparedQueryNotFoundException)err;
                     size += CBUtil.sizeOfBytes(pqnfe.id.bytes);
                     break;
                 case ALREADY_EXISTS:
-                    AlreadyExistsException aee = (AlreadyExistsException)msg.error;
+                    AlreadyExistsException aee = (AlreadyExistsException)err;
                     size += CBUtil.sizeOfString(aee.ksName);
                     size += CBUtil.sizeOfString(aee.cfName);
                     break;
@@ -188,6 +214,17 @@ public class ErrorMessage extends Message.Response
             return size;
         }
     };
+
+    private static TransportException getBackwardsCompatibleException(ErrorMessage msg, int version)
+    {
+        if (msg.error.code() == ExceptionCode.READ_FAILURE && version < Server.VERSION_4)
+        {
+            ReadFailureException rfe = (ReadFailureException) msg.error;
+            return new ReadTimeoutException(rfe.consistency, rfe.received, rfe.blockFor, rfe.dataPresent);
+        }
+
+        return msg.error;
+    }
 
     // We need to figure error codes out (#3979)
     public final TransportException error;

@@ -880,7 +880,21 @@ Table of Contents
                 <data_present> is a single byte. If its value is 0, it means
                                the replica that was asked for data has not
                                responded. Otherwise, the value is != 0.
-
+    0x1300    Read_failure: A non-timeout exception during a read request. The rest
+              of the ERROR message body will be
+                <cl><received><blockfor><numfailures><data_present>
+              where:
+                <cl> is the [consistency] level of the query having triggered
+                     the exception.
+                <received> is an [int] representing the number of nodes having
+                           answered the request.
+                <blockfor> is the number of replicas whose response is
+                           required to achieve <cl>.
+                <numfailures> is an [int] representing the number of nodes that
+                              experience a failure while executing the request.
+                <data_present> is a single byte. If its value is 0, it means
+                               the replica that was asked for data had not
+                               responded. Otherwise, the value is != 0.
     0x2000    Syntax_error: The submitted query has a syntax error.
     0x2100    Unauthorized: The logged user doesn't have the right to perform
               the query.
@@ -905,4 +919,5 @@ Table of Contents
 
   * The format of "SCHEMA_CHANGE" events (Section 4.2.6) (and implicitly "Schema_change" results (Section 4.2.5.5))
     has been modified, and now includes changes related to user defined functions and user defined aggregates.
+  * Read_failure error code was added.
 

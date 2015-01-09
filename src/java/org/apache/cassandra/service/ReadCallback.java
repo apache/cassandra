@@ -32,10 +32,13 @@ import org.apache.cassandra.concurrent.StageManager;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ReadCommand;
 import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.exceptions.ReadFailureException;
 import org.apache.cassandra.exceptions.ReadTimeoutException;
+import org.apache.cassandra.exceptions.RequestExecutionException;
 import org.apache.cassandra.exceptions.UnavailableException;
 import org.apache.cassandra.metrics.ReadRepairMetrics;
 import org.apache.cassandra.net.IAsyncCallback;
+import org.apache.cassandra.net.IAsyncCallbackWithFailure;
 import org.apache.cassandra.net.MessageIn;
 import org.apache.cassandra.net.MessageOut;
 import org.apache.cassandra.net.MessagingService;
@@ -43,7 +46,7 @@ import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.concurrent.SimpleCondition;
 
-public class ReadCallback<TMessage, TResolved> implements IAsyncCallback<TMessage>
+public class ReadCallback<TMessage, TResolved> implements IAsyncCallbackWithFailure<TMessage>
 {
     protected static final Logger logger = LoggerFactory.getLogger( ReadCallback.class );
 
@@ -57,6 +60,10 @@ public class ReadCallback<TMessage, TResolved> implements IAsyncCallback<TMessag
     private static final AtomicIntegerFieldUpdater<ReadCallback> recievedUpdater
             = AtomicIntegerFieldUpdater.newUpdater(ReadCallback.class, "received");
     private volatile int received = 0;
+    private static final AtomicIntegerFieldUpdater<ReadCallback> failuresUpdater
+            = AtomicIntegerFieldUpdater.newUpdater(ReadCallback.class, "failures");
+    private volatile int failures = 0;
+
     private final Keyspace keyspace; // TODO push this into ConsistencyLevel?
 
     /**
@@ -95,7 +102,7 @@ public class ReadCallback<TMessage, TResolved> implements IAsyncCallback<TMessag
         }
     }
 
-    public TResolved get() throws ReadTimeoutException, DigestMismatchException
+    public TResolved get() throws ReadFailureException, ReadTimeoutException, DigestMismatchException
     {
         if (!await(command.getTimeout(), TimeUnit.MILLISECONDS))
         {
@@ -107,13 +114,22 @@ public class ReadCallback<TMessage, TResolved> implements IAsyncCallback<TMessag
             throw ex;
         }
 
+        if (blockfor + failures > endpoints.size())
+        {
+            ReadFailureException ex = new ReadFailureException(consistencyLevel, received, failures, blockfor, resolver.isDataPresent());
+
+            if (logger.isDebugEnabled())
+                logger.debug("Read failure: {}", ex.toString());
+            throw ex;
+        }
+
         return blockfor == 1 ? resolver.getData() : resolver.resolve();
     }
 
     public void response(MessageIn<TMessage> message)
     {
         resolver.preprocess(message);
-        int n = waitingFor(message)
+        int n = waitingFor(message.from)
               ? recievedUpdater.incrementAndGet(this)
               : received;
         if (n >= blockfor && resolver.isDataPresent())
@@ -129,10 +145,10 @@ public class ReadCallback<TMessage, TResolved> implements IAsyncCallback<TMessag
     /**
      * @return true if the message counts towards the blockfor threshold
      */
-    private boolean waitingFor(MessageIn message)
+    private boolean waitingFor(InetAddress from)
     {
         return consistencyLevel.isDatacenterLocal()
-             ? DatabaseDescriptor.getLocalDataCenter().equals(DatabaseDescriptor.getEndpointSnitch().getDatacenter(message.from))
+             ? DatabaseDescriptor.getLocalDataCenter().equals(DatabaseDescriptor.getEndpointSnitch().getDatacenter(from))
              : true;
     }
 
@@ -193,5 +209,16 @@ public class ReadCallback<TMessage, TResolved> implements IAsyncCallback<TMessag
                     MessagingService.instance().sendRR(message, endpoint, repairHandler);
             }
         }
+    }
+
+    @Override
+    public void onFailure(InetAddress from)
+    {
+        int n = waitingFor(from)
+              ? failuresUpdater.incrementAndGet(this)
+              : failures;
+
+        if (blockfor + n > endpoints.size())
+            condition.signalAll();
     }
 }

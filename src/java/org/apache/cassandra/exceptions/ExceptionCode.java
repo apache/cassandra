@@ -39,6 +39,7 @@ public enum ExceptionCode
     TRUNCATE_ERROR  (0x1003),
     WRITE_TIMEOUT   (0x1100),
     READ_TIMEOUT    (0x1200),
+    READ_FAILURE    (0x1300),
 
     // 2xx: problem validating the request
     SYNTAX_ERROR    (0x2000),

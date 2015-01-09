@@ -26,6 +26,7 @@ import org.apache.cassandra.db.columniterator.LazyColumnIterator;
 import org.apache.cassandra.db.columniterator.OnDiskAtomIterator;
 import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.db.filter.IDiskAtomFilter;
+import org.apache.cassandra.db.filter.TombstoneOverwhelmingException;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.utils.CloseableIterator;
 import org.apache.cassandra.utils.MergeIterator;
@@ -93,15 +94,23 @@ public class RowIteratorFactory
                 ColumnFamily cached = cfs.getRawCachedRow(key);
                 IDiskAtomFilter filter = range.columnFilter(key.getKey());
 
-                if (cached == null || !cfs.isFilterFullyCoveredBy(filter, cached, now))
+                try
                 {
-                    // not cached: collate
-                    QueryFilter.collateOnDiskAtom(returnCF, colIters, filter, gcBefore, now);
+                    if (cached == null || !cfs.isFilterFullyCoveredBy(filter, cached, now))
+                    {
+                        // not cached: collate
+                        QueryFilter.collateOnDiskAtom(returnCF, colIters, filter, gcBefore, now);
+                    }
+                    else
+                    {
+                        QueryFilter keyFilter = new QueryFilter(key, cfs.name, filter, now);
+                        returnCF = cfs.filterColumnFamily(cached, keyFilter);
+                    }
                 }
-                else
+                catch(TombstoneOverwhelmingException e)
                 {
-                    QueryFilter keyFilter = new QueryFilter(key, cfs.name, filter, now);
-                    returnCF = cfs.filterColumnFamily(cached, keyFilter);
+                    e.setKey(key);
+                    throw e;
                 }
 
                 Row rv = new Row(key, returnCF);

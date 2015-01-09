@@ -37,6 +37,7 @@ import org.apache.cassandra.db.ReadCommand;
 import org.apache.cassandra.db.ReadResponse;
 import org.apache.cassandra.db.Row;
 import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.exceptions.ReadFailureException;
 import org.apache.cassandra.exceptions.ReadTimeoutException;
 import org.apache.cassandra.exceptions.UnavailableException;
 import org.apache.cassandra.metrics.ReadRepairMetrics;
@@ -87,7 +88,7 @@ public abstract class AbstractReadExecutor
             else
             {
                 logger.trace("reading data from {}", endpoint);
-                MessagingService.instance().sendRR(command.createMessage(), endpoint, handler);
+                MessagingService.instance().sendRRWithFailure(command.createMessage(), endpoint, handler);
             }
         }
         if (readLocal)
@@ -112,7 +113,7 @@ public abstract class AbstractReadExecutor
             else
             {
                 logger.trace("reading digest from {}", endpoint);
-                MessagingService.instance().sendRR(message, endpoint, handler);
+                MessagingService.instance().sendRRWithFailure(message, endpoint, handler);
             }
         }
     }
@@ -139,7 +140,7 @@ public abstract class AbstractReadExecutor
      * wait for an answer.  Blocks until success or timeout, so it is caller's
      * responsibility to call maybeTryAdditionalReplicas first.
      */
-    public Row get() throws ReadTimeoutException, DigestMismatchException
+    public Row get() throws ReadFailureException, ReadTimeoutException, DigestMismatchException
     {
         return handler.get();
     }
@@ -280,7 +281,7 @@ public abstract class AbstractReadExecutor
 
                 InetAddress extraReplica = Iterables.getLast(targetReplicas);
                 logger.trace("speculating read retry on {}", extraReplica);
-                MessagingService.instance().sendRR(retryCommand.createMessage(), extraReplica, handler);
+                MessagingService.instance().sendRRWithFailure(retryCommand.createMessage(), extraReplica, handler);
                 speculated = true;
 
                 cfs.metric.speculativeRetries.inc();

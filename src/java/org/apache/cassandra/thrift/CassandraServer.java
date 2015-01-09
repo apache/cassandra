@@ -1202,13 +1202,9 @@ public class CassandraServer implements Cassandra.Iface
         {
             throw ThriftConversion.toThrift(e);
         }
-        catch (ReadTimeoutException e)
+        catch (RequestExecutionException e)
         {
-            throw ThriftConversion.toThrift(e);
-        }
-        catch (org.apache.cassandra.exceptions.UnavailableException e)
-        {
-            throw ThriftConversion.toThrift(e);
+            throw ThriftConversion.rethrow(e);
         }
         finally
         {
@@ -1288,13 +1284,9 @@ public class CassandraServer implements Cassandra.Iface
         {
             throw ThriftConversion.toThrift(e);
         }
-        catch (ReadTimeoutException e)
+        catch (RequestExecutionException e)
         {
-            throw ThriftConversion.toThrift(e);
-        }
-        catch (org.apache.cassandra.exceptions.UnavailableException e)
-        {
-            throw ThriftConversion.toThrift(e);
+            throw ThriftConversion.rethrow(e);
         }
         finally
         {
@@ -1364,13 +1356,9 @@ public class CassandraServer implements Cassandra.Iface
         {
             throw ThriftConversion.toThrift(e);
         }
-        catch (ReadTimeoutException e)
+        catch (RequestExecutionException e)
         {
-            throw ThriftConversion.toThrift(e);
-        }
-        catch (org.apache.cassandra.exceptions.UnavailableException e)
-        {
-            throw ThriftConversion.toThrift(e);
+            throw ThriftConversion.rethrow(e);
         }
         finally
         {
