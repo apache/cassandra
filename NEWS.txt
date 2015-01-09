@@ -13,6 +13,15 @@ restore snapshots created with the previous major version using the
 'sstableloader' tool. You can upgrade the file format of your snapshots
 using the provided 'sstableupgrade' tool.
 
+2.0.12
+======
+
+Upgrading
+---------
+    - Nothing specific to this release, but refer to previous entries if you
+      are upgrading from a previous version.
+
+
 2.0.11
 ======
 
