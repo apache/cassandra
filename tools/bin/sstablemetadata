@@ -16,29 +16,32 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-if [ "x$CLASSPATH" = "x" ]; then
-    
-    # execute from the build dir.
-    if [ -d `dirname $0`/../../build/classes ]; then
-        for directory in `dirname $0`/../../build/classes/*; do
-            CLASSPATH=$CLASSPATH:$directory
-        done
-    else
-        if [ -f `dirname $0`/../lib/stress.jar ]; then
-            CLASSPATH=`dirname $0`/../lib/stress.jar
+if [ "x$CASSANDRA_INCLUDE" = "x" ]; then
+    for include in "`dirname "$0"`/cassandra.in.sh" \
+                   "$HOME/.cassandra.in.sh" \
+                   /usr/share/cassandra/cassandra.in.sh \
+                   /usr/local/share/cassandra/cassandra.in.sh \
+                   /opt/cassandra/cassandra.in.sh; do
+        if [ -r "$include" ]; then
+            . "$include"
+            break
         fi
-    fi
-
-    for jar in `dirname $0`/../../lib/*.jar; do
-        CLASSPATH=$CLASSPATH:$jar
     done
+elif [ -r "$CASSANDRA_INCLUDE" ]; then
+    . "$CASSANDRA_INCLUDE"
 fi
 
+
 # Use JAVA_HOME if set, otherwise look for java in PATH
-if [ -x $JAVA_HOME/bin/java ]; then
-    JAVA=$JAVA_HOME/bin/java
+if [ -x "$JAVA_HOME/bin/java" ]; then
+    JAVA="$JAVA_HOME/bin/java"
 else
-    JAVA=`which java`
+    JAVA="`which java`"
+fi
+
+if [ -z "$CLASSPATH" ]; then
+    echo "You must set the CLASSPATH var" >&2
+    exit 1
 fi
 
 $JAVA -cp $CLASSPATH \
