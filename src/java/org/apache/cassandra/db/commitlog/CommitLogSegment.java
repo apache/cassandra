@@ -150,7 +150,7 @@ public class CommitLogSegment
                 }
                 else
                 {
-                    logger.debug("Creating new CommitLog segment: " + logFile);
+                    logger.debug("Creating new CommitLog segment: {}", logFile);
                 }
             }
 
