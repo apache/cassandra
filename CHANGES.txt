@@ -96,6 +96,8 @@
  * Log failed host when preparing incremental repair (CASSANDRA-8228)
  * Force config client mode in CQLSSTableWriter (CASSANDRA-8281)
 Merged from 2.0:
+ * Fix DISTINCT queries with LIMITs or paging when some partitions
+   contain only tombstones (CASSANDRA-8490)
  * Introduce background cache refreshing to permissions cache
    (CASSANDRA-8194)
  * Fix race condition in StreamTransferTask that could lead to
