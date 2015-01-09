@@ -79,6 +79,14 @@ authorizer: AllowAllAuthorizer
 # Will be disabled automatically for AllowAllAuthorizer.
 permissions_validity_in_ms: 2000
 
+# Refresh interval for permissions cache (if enabled).
+# After this interval, cache entries become eligible for refresh. Upon next
+# access, an async reload is scheduled and the old value returned until it
+# completes. If permissions_validity_in_ms is non-zero, then this must be
+# also.
+# Defaults to the same value as permissions_validity_in_ms.
+# permissions_update_interval_in_ms: 1000
+
 # The partitioner is responsible for distributing groups of rows (by
 # partition key) across nodes in the cluster.  You should leave this
 # alone for new clusters.  The partitioner can NOT be changed without
