@@ -20,9 +20,6 @@ package org.apache.cassandra.auth;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
-import com.google.common.cache.CacheBuilder;
-import com.google.common.cache.CacheLoader;
-import com.google.common.cache.LoadingCache;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 import org.apache.commons.lang3.StringUtils;
@@ -32,9 +29,9 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.KSMetaData;
 import org.apache.cassandra.config.Schema;
-import org.apache.cassandra.cql3.UntypedResultSet;
-import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.QueryOptions;
+import org.apache.cassandra.cql3.QueryProcessor;
+import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.cql3.statements.SelectStatement;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.exceptions.RequestExecutionException;
@@ -43,9 +40,8 @@ import org.apache.cassandra.locator.SimpleStrategy;
 import org.apache.cassandra.service.*;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.utils.Pair;
 
-public class Auth implements AuthMBean
+public class Auth
 {
     private static final Logger logger = LoggerFactory.getLogger(Auth.class);
 
@@ -57,8 +53,10 @@ public class Auth implements AuthMBean
     public static final String USERS_CF = "users";
 
     // User-level permissions cache.
-    public static volatile LoadingCache<Pair<AuthenticatedUser, IResource>, Set<Permission>> permissionsCache = initPermissionsCache(null);
-
+    private static final PermissionsCache permissionsCache = new PermissionsCache(DatabaseDescriptor.getPermissionsValidity(),
+                                                                                  DatabaseDescriptor.getPermissionsUpdateInterval(),
+                                                                                  DatabaseDescriptor.getPermissionsCacheMaxEntries(),
+                                                                                  DatabaseDescriptor.getAuthorizer());
 
     private static final String USERS_CF_SCHEMA = String.format("CREATE TABLE %s.%s ("
                                                                 + "name text,"
@@ -71,44 +69,9 @@ public class Auth implements AuthMBean
 
     private static SelectStatement selectUserStatement;
 
-    public int getPermissionsValidity()
+    public static Set<Permission> getPermissions(AuthenticatedUser user, IResource resource)
     {
-        return DatabaseDescriptor.getPermissionsValidity();
-    }
-
-    public void setPermissionsValidity(int timeoutInMs)
-    {
-        DatabaseDescriptor.setPermissionsValidity(timeoutInMs);
-        permissionsCache = initPermissionsCache(permissionsCache);
-    }
-
-    public void invalidatePermissionsCache()
-    {
-        permissionsCache = initPermissionsCache(null);
-    }
-
-    private static LoadingCache<Pair<AuthenticatedUser, IResource>, Set<Permission>> initPermissionsCache(LoadingCache<Pair<AuthenticatedUser, IResource>, Set<Permission>> oldCache)
-    {
-        if (DatabaseDescriptor.getAuthorizer() instanceof AllowAllAuthorizer)
-            return null;
-
-        int validityPeriod = DatabaseDescriptor.getPermissionsValidity();
-        if (validityPeriod <= 0)
-            return null;
-
-        LoadingCache<Pair<AuthenticatedUser, IResource>, Set<Permission>> newCache =
-            CacheBuilder.newBuilder().expireAfterWrite(validityPeriod, TimeUnit.MILLISECONDS)
-                    .build(new CacheLoader<Pair<AuthenticatedUser, IResource>, Set<Permission>>()
-                    {
-                        public Set<Permission> load(Pair<AuthenticatedUser, IResource> userResource)
-                        {
-                            return DatabaseDescriptor.getAuthorizer().authorize(userResource.left,
-                                    userResource.right);
-                        }
-                    });
-        if (oldCache != null)
-            newCache.putAll(oldCache.asMap());
-        return newCache;
+        return permissionsCache.getPermissions(user, resource);
     }
 
     /**

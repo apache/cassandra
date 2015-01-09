@@ -19,7 +19,6 @@ package org.apache.cassandra.service;
 
 import java.net.SocketAddress;
 import java.util.*;
-import java.util.concurrent.ExecutionException;
 
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Sets;
@@ -40,7 +39,6 @@ import org.apache.cassandra.exceptions.UnauthorizedException;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.thrift.ThriftValidation;
 import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.SemanticVersion;
 
 /**
@@ -313,17 +311,6 @@ public class ClientState
 
     private Set<Permission> authorize(IResource resource)
     {
-        // AllowAllAuthorizer or manually disabled caching.
-        if (Auth.permissionsCache == null)
-            return DatabaseDescriptor.getAuthorizer().authorize(user, resource);
-
-        try
-        {
-            return Auth.permissionsCache.get(Pair.create(user, resource));
-        }
-        catch (ExecutionException e)
-        {
-            throw new RuntimeException(e);
-        }
+        return Auth.getPermissions(user, resource);
     }
 }

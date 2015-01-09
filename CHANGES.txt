@@ -1,4 +1,6 @@
 2.0.12:
+ * Introduce background cache refreshing to permissions cache
+   (CASSANDRA-8194)
  * Fix race condition in StreamTransferTask that could lead to
    infinite loops and premature sstable deletion (CASSANDRA-7704)
  * Add an extra version check to MigrationTask (CASSANDRA-8462)
