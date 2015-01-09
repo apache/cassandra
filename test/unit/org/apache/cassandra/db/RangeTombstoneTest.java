@@ -455,7 +455,7 @@ public class RangeTombstoneTest
             assertTrue("Cell " + i + " shouldn't be live", !isLive(cf, cf.getColumn(b(i))));
 
         // Compact everything and re-test
-        CompactionManager.instance.performMaximal(cfs);
+        CompactionManager.instance.performMaximal(cfs, false);
         cf = cfs.getColumnFamily(QueryFilter.getIdentityFilter(dk(key), CFNAME, System.currentTimeMillis()));
 
         for (int i = 0; i < 5; i++)
@@ -532,7 +532,7 @@ public class RangeTombstoneTest
         assertEquals(2, cfs.getSSTables().size());
 
         // compact down to single sstable
-        CompactionManager.instance.performMaximal(cfs);
+        CompactionManager.instance.performMaximal(cfs, false);
         assertEquals(1, cfs.getSSTables().size());
 
         // test the physical structure of the sstable i.e. rt & columns on disk
@@ -632,7 +632,7 @@ public class RangeTombstoneTest
         // We should have indexed 1 column
         assertEquals(1, index.inserts.size());
 
-        CompactionManager.instance.performMaximal(cfs);
+        CompactionManager.instance.performMaximal(cfs, false);
 
         // compacted down to single sstable
         assertEquals(1, cfs.getSSTables().size());

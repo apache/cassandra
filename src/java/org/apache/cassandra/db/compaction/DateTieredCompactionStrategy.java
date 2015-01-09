@@ -356,7 +356,7 @@ public class DateTieredCompactionStrategy extends AbstractCompactionStrategy
     }
 
     @Override
-    public synchronized Collection<AbstractCompactionTask> getMaximalTask(int gcBefore)
+    public synchronized Collection<AbstractCompactionTask> getMaximalTask(int gcBefore, boolean splitOutput)
     {
         Iterable<SSTableReader> sstables = cfs.markAllCompacting();
         if (sstables == null)

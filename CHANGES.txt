@@ -1,4 +1,5 @@
 3.0
+ * Make it possible to major compact LCS (CASSANDRA-7272)
  * Make FunctionExecutionException extend RequestExecutionException
    (CASSANDRA-9055)
  * Add support for SELECT JSON, INSERT JSON syntax and new toJson(), fromJson()

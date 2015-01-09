@@ -109,7 +109,7 @@ public class MetadataCollector
         this.columnNameComparator = columnNameComparator;
     }
 
-    public MetadataCollector(Collection<SSTableReader> sstables, CellNameType columnNameComparator, int level)
+    public MetadataCollector(Iterable<SSTableReader> sstables, CellNameType columnNameComparator, int level, boolean skipAncestors)
     {
         this(columnNameComparator);
 
@@ -117,13 +117,21 @@ public class MetadataCollector
         sstableLevel(level);
         // Get the max timestamp of the precompacted sstables
         // and adds generation of live ancestors
-        for (SSTableReader sstable : sstables)
+        if (!skipAncestors)
         {
-            addAncestor(sstable.descriptor.generation);
-            for (Integer i : sstable.getAncestors())
-                if (new File(sstable.descriptor.withGeneration(i).filenameFor(Component.DATA)).exists())
-                    addAncestor(i);
+            for (SSTableReader sstable : sstables)
+            {
+                addAncestor(sstable.descriptor.generation);
+                for (Integer i : sstable.getAncestors())
+                    if (new File(sstable.descriptor.withGeneration(i).filenameFor(Component.DATA)).exists())
+                        addAncestor(i);
+            }
         }
+    }
+
+    public MetadataCollector(Iterable<SSTableReader> sstables, CellNameType columnNameComparator, int level)
+    {
+        this(sstables, columnNameComparator, level, false);
     }
 
     public MetadataCollector addKey(ByteBuffer key)

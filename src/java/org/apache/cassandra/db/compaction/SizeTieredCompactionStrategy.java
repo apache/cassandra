@@ -25,6 +25,9 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
+
+import org.apache.cassandra.db.compaction.writers.CompactionAwareWriter;
+import org.apache.cassandra.db.compaction.writers.SplittingSizeTieredCompactionWriter;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import com.google.common.primitives.Longs;
 import org.slf4j.Logger;
@@ -192,13 +195,15 @@ public class SizeTieredCompactionStrategy extends AbstractCompactionStrategy
         }
     }
 
-    public Collection<AbstractCompactionTask> getMaximalTask(final int gcBefore)
+    public Collection<AbstractCompactionTask> getMaximalTask(final int gcBefore, boolean splitOutput)
     {
         Iterable<SSTableReader> filteredSSTables = filterSuspectSSTables(sstables);
         if (Iterables.isEmpty(filteredSSTables))
             return null;
         if (!cfs.getDataTracker().markCompacting(ImmutableList.copyOf(filteredSSTables)))
             return null;
+        if (splitOutput)
+            return Arrays.<AbstractCompactionTask>asList(new SplittingCompactionTask(cfs, filteredSSTables, gcBefore, false));
         return Arrays.<AbstractCompactionTask>asList(new CompactionTask(cfs, filteredSSTables, gcBefore, false));
     }
 
@@ -329,5 +334,19 @@ public class SizeTieredCompactionStrategy extends AbstractCompactionStrategy
         return String.format("SizeTieredCompactionStrategy[%s/%s]",
             cfs.getMinimumCompactionThreshold(),
             cfs.getMaximumCompactionThreshold());
+    }
+
+    private class SplittingCompactionTask extends CompactionTask
+    {
+        public SplittingCompactionTask(ColumnFamilyStore cfs, Iterable<SSTableReader> sstables, int gcBefore, boolean offline)
+        {
+            super(cfs, sstables, gcBefore, offline);
+        }
+
+        @Override
+        public CompactionAwareWriter getCompactionAwareWriter(ColumnFamilyStore cfs, Set<SSTableReader> allSSTables, Set<SSTableReader> nonExpiredSSTables)
+        {
+            return new SplittingSizeTieredCompactionWriter(cfs, allSSTables, nonExpiredSSTables, compactionType);
+        }
     }
 }

@@ -36,8 +36,10 @@ public interface ColumnFamilyStoreMBean
 
     /**
      * force a major compaction of this column family
+     *
+     * @param splitOutput true if the output of the major compaction should be split in several sstables
      */
-    public void forceMajorCompaction() throws ExecutionException, InterruptedException;
+    public void forceMajorCompaction(boolean splitOutput) throws ExecutionException, InterruptedException;
 
     /**
      * Gets the minimum number of sstables in queue before compaction kicks off

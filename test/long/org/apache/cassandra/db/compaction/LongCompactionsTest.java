@@ -196,7 +196,7 @@ public class LongCompactionsTest
 
         if (cfs.getSSTables().size() > 1)
         {
-            CompactionManager.instance.performMaximal(cfs);
+            CompactionManager.instance.performMaximal(cfs, false);
         }
     }
 }

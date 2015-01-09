@@ -78,7 +78,7 @@ public final class WrappingCompactionStrategy extends AbstractCompactionStrategy
     }
 
     @Override
-    public Collection<AbstractCompactionTask> getMaximalTask(final int gcBefore)
+    public Collection<AbstractCompactionTask> getMaximalTask(final int gcBefore, final boolean splitOutput)
     {
         // runWithCompactionsDisabled cancels active compactions and disables them, then we are able
         // to make the repaired/unrepaired strategies mark their own sstables as compacting. Once the
@@ -90,8 +90,8 @@ public final class WrappingCompactionStrategy extends AbstractCompactionStrategy
             {
                 synchronized (WrappingCompactionStrategy.this)
                 {
-                    Collection<AbstractCompactionTask> repairedTasks = repaired.getMaximalTask(gcBefore);
-                    Collection<AbstractCompactionTask> unrepairedTasks = unrepaired.getMaximalTask(gcBefore);
+                    Collection<AbstractCompactionTask> repairedTasks = repaired.getMaximalTask(gcBefore, splitOutput);
+                    Collection<AbstractCompactionTask> unrepairedTasks = unrepaired.getMaximalTask(gcBefore, splitOutput);
 
                     if (repairedTasks == null && unrepairedTasks == null)
                         return null;

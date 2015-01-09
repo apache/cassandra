@@ -122,7 +122,7 @@ public class SSTableReaderTest
             rm.applyUnsafe();
         }
         store.forceBlockingFlush();
-        CompactionManager.instance.performMaximal(store);
+        CompactionManager.instance.performMaximal(store, false);
 
         List<Range<Token>> ranges = new ArrayList<Range<Token>>();
         // 1 key
@@ -163,7 +163,7 @@ public class SSTableReaderTest
             rm.applyUnsafe();
         }
         store.forceBlockingFlush();
-        CompactionManager.instance.performMaximal(store);
+        CompactionManager.instance.performMaximal(store, false);
 
         // check that all our keys are found correctly
         SSTableReader sstable = store.getSSTables().iterator().next();
@@ -254,7 +254,7 @@ public class SSTableReaderTest
             rm.applyUnsafe();
         }
         store.forceBlockingFlush();
-        CompactionManager.instance.performMaximal(store);
+        CompactionManager.instance.performMaximal(store, false);
 
         SSTableReader sstable = store.getSSTables().iterator().next();
         long p2 = sstable.getPosition(k(2), SSTableReader.Operator.EQ).position;
@@ -302,7 +302,7 @@ public class SSTableReaderTest
             rm.apply();
         }
         store.forceBlockingFlush();
-        CompactionManager.instance.performMaximal(store);
+        CompactionManager.instance.performMaximal(store, false);
 
         SSTableReader sstable = store.getSSTables().iterator().next();
         sstable.getPosition(k(2), SSTableReader.Operator.EQ);
@@ -426,7 +426,7 @@ public class SSTableReaderTest
             rm.applyUnsafe();
         }
         store.forceBlockingFlush();
-        CompactionManager.instance.performMaximal(store);
+        CompactionManager.instance.performMaximal(store, false);
 
         // construct a range which is present in the sstable, but whose
         // keys are not found in the first segment of the index.
@@ -463,7 +463,7 @@ public class SSTableReaderTest
             rm.applyUnsafe();
         }
         store.forceBlockingFlush();
-        CompactionManager.instance.performMaximal(store);
+        CompactionManager.instance.performMaximal(store, false);
 
         Collection<SSTableReader> sstables = store.getSSTables();
         assert sstables.size() == 1;

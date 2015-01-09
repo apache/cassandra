@@ -18,6 +18,14 @@ using the provided 'sstableupgrade' tool.
 
 New features
 ------------
+   - It is now possible to do major compactions when using leveled compaction.
+     Doing that will take all sstables and compact them out in levels. The
+     levels will be non overlapping so doing this will still not be something
+     you want to do very often since it might cause more compactions for a while.
+     It is also possible to split output when doing a major compaction with
+     STCS - files will be split in sizes 50%, 25%, 12.5% etc of the total size.
+     This might be a bit better than old major compactions which created one big
+     file on disk.
    - A new tool has been added bin/sstableverify that checks for errors/bitrot
      in all sstables.  Unlike scrub, this is a non-invasive tool. 
    - Authentication & Authorization APIs have been updated to introduce

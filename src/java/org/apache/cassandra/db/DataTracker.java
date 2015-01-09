@@ -197,11 +197,12 @@ public class DataTracker
      * unmarkCompacting, but since we will never call markObsolete on a sstable marked
      * as compacting (unless there is a serious bug), we can skip this.
      */
-    public boolean markCompacting(Collection<SSTableReader> sstables)
+    public boolean markCompacting(Iterable<SSTableReader> sstables)
     {
         return markCompacting(sstables, false, false);
     }
-    public boolean markCompacting(Collection<SSTableReader> sstables, boolean newTables, boolean offline)
+
+    public boolean markCompacting(Iterable<SSTableReader> sstables, boolean newTables, boolean offline)
     {
         assert sstables != null && !Iterables.isEmpty(sstables);
         while (true)
@@ -772,7 +773,7 @@ public class DataTracker
             return new View(liveMemtables, flushingMemtables, newSSTables, compacting, newShadowed, intervalTree);
         }
 
-        View markCompacting(Collection<SSTableReader> tomark)
+        View markCompacting(Iterable<SSTableReader> tomark)
         {
             Set<SSTableReader> compactingNew = ImmutableSet.<SSTableReader>builder().addAll(compacting).addAll(tomark).build();
             return new View(liveMemtables, flushingMemtables, sstablesMap, compactingNew, shadowed, intervalTree);
