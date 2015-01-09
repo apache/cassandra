@@ -42,6 +42,12 @@ public class SliceQueryFilter implements IDiskAtomFilter
     private static final Logger logger = LoggerFactory.getLogger(SliceQueryFilter.class);
     public static final Serializer serializer = new Serializer();
 
+    /**
+     * A special value for compositesToGroup that indicates that partitioned tombstones should not be included in results
+     * or count towards the limit.  See CASSANDRA-8490 for more details on why this is needed (and done this way).
+     **/
+    public static final int IGNORE_TOMBSTONED_PARTITIONS = -2;
+
     public final ColumnSlice[] slices;
     public final boolean reversed;
     public volatile int count;

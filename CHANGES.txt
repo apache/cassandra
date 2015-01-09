@@ -1,4 +1,6 @@
 2.0.12:
+ * Fix DISTINCT queries with LIMITs or paging when some partitions
+   contain only tombstones (CASSANDRA-8490)
  * Introduce background cache refreshing to permissions cache
    (CASSANDRA-8194)
  * Fix race condition in StreamTransferTask that could lead to

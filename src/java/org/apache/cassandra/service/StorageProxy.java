@@ -1499,7 +1499,8 @@ public class StorageProxy implements StorageProxyMBean
         // now scan until we have enough results
         try
         {
-            int cql3RowCount = 0;
+            int liveRowCount = 0;
+            boolean countLiveRows = command.countCQL3Rows() || command.ignoredTombstonedPartitions();
             rows = new ArrayList<>();
 
             // when dealing with LocalStrategy keyspaces, we can skip the range splitting and merging (which can be
@@ -1594,8 +1595,8 @@ public class StorageProxy implements StorageProxyMBean
                     for (Row row : handler.get())
                     {
                         rows.add(row);
-                        if (nodeCmd.countCQL3Rows())
-                            cql3RowCount += row.getLiveCount(command.predicate, command.timestamp);
+                        if (countLiveRows)
+                            liveRowCount += row.getLiveCount(command.predicate, command.timestamp);
                     }
                     FBUtilities.waitOnFutures(resolver.repairResults, DatabaseDescriptor.getWriteRpcTimeout());
                 }
@@ -1636,7 +1637,7 @@ public class StorageProxy implements StorageProxyMBean
                 }
 
                 // if we're done, great, otherwise, move to the next range
-                int count = nodeCmd.countCQL3Rows() ? cql3RowCount : rows.size();
+                int count = countLiveRows ? liveRowCount : rows.size();
                 if (count >= nodeCmd.limit())
                     break;
             }
@@ -1652,8 +1653,8 @@ public class StorageProxy implements StorageProxyMBean
 
     private static List<Row> trim(AbstractRangeCommand command, List<Row> rows)
     {
-        // When maxIsColumns, we let the caller trim the result.
-        if (command.countCQL3Rows())
+        // for CQL3 queries, let the caller trim the results
+        if (command.countCQL3Rows() || command.ignoredTombstonedPartitions())
             return rows;
         else
             return rows.size() > command.limit() ? rows.subList(0, command.limit()) : rows;

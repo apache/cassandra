@@ -1749,6 +1749,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         List<Row> rows = new ArrayList<Row>();
         int columnsCount = 0;
         int total = 0, matched = 0;
+        boolean ignoreTombstonedPartitions = filter.ignoreTombstonedPartitions();
 
         try
         {
@@ -1784,7 +1785,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                 }
 
                 rows.add(new Row(rawRow.key, data));
-                matched++;
+                if (!ignoreTombstonedPartitions || !data.hasOnlyTombstones(filter.timestamp))
+                    matched++;
 
                 if (data != null)
                     columnsCount += filter.lastCounted(data);

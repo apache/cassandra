@@ -87,6 +87,18 @@ public class DataRange
         return keyRange.right;
     }
 
+    /**
+     * Returns true if tombstoned partitions should not be included in results or count towards the limit.
+     * See CASSANDRA-8490 for more details on why this is needed (and done this way).
+     * */
+    public boolean ignoredTombstonedPartitions()
+    {
+        if (!(columnFilter instanceof SliceQueryFilter))
+            return false;
+
+        return ((SliceQueryFilter) columnFilter).compositesToGroup == SliceQueryFilter.IGNORE_TOMBSTONED_PARTITIONS;
+    }
+
     // Whether the bounds of this DataRange actually wraps around.
     public boolean isWrapAround()
     {

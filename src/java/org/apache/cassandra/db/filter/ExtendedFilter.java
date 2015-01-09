@@ -127,6 +127,12 @@ public abstract class ExtendedFilter
      */
     public abstract ColumnFamily prune(DecoratedKey key, ColumnFamily data);
 
+    /** Returns true if tombstoned partitions should not be included in results or count towards the limit, false otherwise. */
+    public boolean ignoreTombstonedPartitions()
+    {
+        return dataRange.ignoredTombstonedPartitions();
+    }
+
     /**
      * @return true if the provided data satisfies all the expressions from
      * the clause of this filter.
