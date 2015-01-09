@@ -81,7 +81,7 @@ public class DateTieredCompactionStrategyTest extends SchemaLoader
         {
             options.put(DateTieredCompactionStrategyOptions.BASE_TIME_KEY, "-1337");
             validateOptions(options);
-            fail(String.format("%Negative %s should be rejected", DateTieredCompactionStrategyOptions.BASE_TIME_KEY));
+            fail(String.format("Negative %s should be rejected", DateTieredCompactionStrategyOptions.BASE_TIME_KEY));
         }
         catch (ConfigurationException e)
         {
@@ -92,7 +92,7 @@ public class DateTieredCompactionStrategyTest extends SchemaLoader
         {
             options.put(DateTieredCompactionStrategyOptions.MAX_SSTABLE_AGE_KEY, "-1337");
             validateOptions(options);
-            fail(String.format("%Negative %s should be rejected", DateTieredCompactionStrategyOptions.MAX_SSTABLE_AGE_KEY));
+            fail(String.format("Negative %s should be rejected", DateTieredCompactionStrategyOptions.MAX_SSTABLE_AGE_KEY));
         }
         catch (ConfigurationException e)
         {
