@@ -56,6 +56,19 @@ public abstract class AbstractRangeCommand implements IReadCommand
 
     public abstract int limit();
     public abstract boolean countCQL3Rows();
+
+    /**
+     * Returns true if tombstoned partitions should not be included in results or count towards the limit.
+     * See CASSANDRA-8490 for more details on why this is needed (and done this way).
+     * */
+    public boolean ignoredTombstonedPartitions()
+    {
+        if (!(predicate instanceof SliceQueryFilter))
+            return false;
+
+        return ((SliceQueryFilter) predicate).compositesToGroup == SliceQueryFilter.IGNORE_TOMBSTONED_PARTITIONS;
+    }
+
     public abstract List<Row> executeLocally();
 
     public long getTimeout()
