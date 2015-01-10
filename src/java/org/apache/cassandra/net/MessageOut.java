@@ -128,8 +128,8 @@ public class MessageOut<T>
         size += TypeSizes.NATIVE.sizeof(parameters.size());
         for (Map.Entry<String, byte[]> entry : parameters.entrySet())
         {
-            TypeSizes.NATIVE.sizeof(entry.getKey());
-            TypeSizes.NATIVE.sizeof(entry.getValue().length);
+            size += TypeSizes.NATIVE.sizeof(entry.getKey());
+            size += TypeSizes.NATIVE.sizeof(entry.getValue().length);
             size += entry.getValue().length;
         }
 
