@@ -146,7 +146,7 @@ Merged from 2.0:
  * Improve PropertyFileSnitch logging (CASSANDRA-8183)
  * Add DC-aware sequential repair (CASSANDRA-8193)
  * Use live sstables in snapshot repair if possible (CASSANDRA-8312)
-
+ * Fix hints serialized size calculation (CASSANDRA-8587)
 
 2.1.2
  * (cqlsh) parse_for_table_meta errors out on queries with undefined
