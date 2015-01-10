@@ -132,7 +132,7 @@ public class DropTypeStatement extends SchemaAlteringStatement
             else if (toCheck instanceof SetType)
                 return isUsedBy(((SetType)toCheck).getElementsType());
             else
-                return isUsedBy(((MapType)toCheck).getKeysType()) || isUsedBy(((MapType)toCheck).getKeysType());
+                return isUsedBy(((MapType)toCheck).getKeysType()) || isUsedBy(((MapType)toCheck).getValuesType());
         }
         return false;
     }
