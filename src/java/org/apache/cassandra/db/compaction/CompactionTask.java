@@ -19,6 +19,7 @@ package org.apache.cassandra.db.compaction;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -88,12 +89,14 @@ public class CompactionTask extends AbstractCompactionTask
             logger.warn("insufficient space to compact all requested files {}", StringUtils.join(sstables, ", "));
             // Note that we have removed files that are still marked as compacting.
             // This suboptimal but ok since the caller will unmark all the sstables at the end.
-            return sstables.remove(cfs.getMaxSizeFile(sstables));
+            SSTableReader removedSSTable = cfs.getMaxSizeFile(sstables);
+            if (sstables.remove(removedSSTable))
+            {
+                cfs.getDataTracker().unmarkCompacting(Arrays.asList(removedSSTable));
+                return true;
+            }
         }
-        else
-        {
-            return false;
-        }
+        return false;
     }
 
     /**
@@ -116,6 +119,11 @@ public class CompactionTask extends AbstractCompactionTask
 
         if (DatabaseDescriptor.isSnapshotBeforeCompaction())
             cfs.snapshotWithoutFlush(System.currentTimeMillis() + "-compact-" + cfs.name);
+
+        // note that we need to do a rough estimate early if we can fit the compaction on disk - this is pessimistic, but
+        // since we might remove sstables from the compaction in checkAvailableDiskSpace it needs to be done here
+        long earlySSTableEstimate = Math.max(1, cfs.getExpectedCompactedFileSize(sstables, compactionType) / strategy.getMaxSSTableBytes());
+        checkAvailableDiskSpace(earlySSTableEstimate);
 
         // sanity check: all sstables must belong to the same cfs
         assert !Iterables.any(sstables, new Predicate<SSTableReader>()
@@ -149,7 +157,7 @@ public class CompactionTask extends AbstractCompactionTask
             Set<SSTableReader> actuallyCompact = Sets.difference(sstables, controller.getFullyExpiredSSTables());
 
             long estimatedTotalKeys = Math.max(cfs.metadata.getMinIndexInterval(), SSTableReader.getApproximateKeyCount(actuallyCompact));
-            long estimatedSSTables = Math.max(1, SSTableReader.getTotalBytes(actuallyCompact) / strategy.getMaxSSTableBytes());
+            long estimatedSSTables = Math.max(1, cfs.getExpectedCompactedFileSize(actuallyCompact, compactionType) / strategy.getMaxSSTableBytes());
             long keysPerSSTable = (long) Math.ceil((double) estimatedTotalKeys / estimatedSSTables);
             SSTableFormat.Type sstableFormat = getFormatType(sstables);
 
@@ -276,6 +284,15 @@ public class CompactionTask extends AbstractCompactionTask
         if (minRepairedAt == Long.MAX_VALUE)
             return ActiveRepairService.UNREPAIRED_SSTABLE;
         return minRepairedAt;
+    }
+
+    protected void checkAvailableDiskSpace(long estimatedSSTables)
+    {
+        while (!getDirectories().hasAvailableDiskSpace(estimatedSSTables, getExpectedWriteSize()))
+        {
+            if (!reduceScopeForLimitedSpace())
+                throw new RuntimeException(String.format("Not enough space for compaction, estimated sstables = %d, expected write size = %d", estimatedSSTables, getExpectedWriteSize()));
+        }
     }
 
     private SSTableWriter createCompactionWriter(File sstableDirectory, long keysPerSSTable, long repairedAt, SSTableFormat.Type type)
