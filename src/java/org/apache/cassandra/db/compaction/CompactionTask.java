@@ -100,6 +100,11 @@ public class CompactionTask extends AbstractCompactionTask
         if (DatabaseDescriptor.isSnapshotBeforeCompaction())
             cfs.snapshotWithoutFlush(System.currentTimeMillis() + "-compact-" + cfs.name);
 
+        // note that we need to do a rough estimate early if we can fit the compaction on disk - this is pessimistic, but
+        // since we might remove sstables from the compaction in checkAvailableDiskSpace it needs to be done here
+        long earlySSTableEstimate = Math.max(1, cfs.getExpectedCompactedFileSize(toCompact, compactionType) / strategy.getMaxSSTableBytes());
+        checkAvailableDiskSpace(earlySSTableEstimate);
+
         // sanity check: all sstables must belong to the same cfs
         for (SSTableReader sstable : toCompact)
             assert sstable.descriptor.cfname.equals(cfs.name);
@@ -118,7 +123,7 @@ public class CompactionTask extends AbstractCompactionTask
         long totalkeysWritten = 0;
 
         long estimatedTotalKeys = Math.max(cfs.metadata.getIndexInterval(), SSTableReader.getApproximateKeyCount(actuallyCompact, cfs.metadata));
-        long estimatedSSTables = Math.max(1, SSTable.getTotalBytes(actuallyCompact) / strategy.getMaxSSTableBytes());
+        long estimatedSSTables = Math.max(1, cfs.getExpectedCompactedFileSize(actuallyCompact, compactionType) / strategy.getMaxSSTableBytes());
         long keysPerSSTable = (long) Math.ceil((double) estimatedTotalKeys / estimatedSSTables);
         if (logger.isDebugEnabled())
             logger.debug("Expected bloom filter size : " + keysPerSSTable);
@@ -291,6 +296,15 @@ public class CompactionTask extends AbstractCompactionTask
         logger.info(String.format("Compacted %d sstables to [%s].  %,d bytes to %,d (~%d%% of original) in %,dms = %fMB/s.  %,d total partitions merged to %,d.  Partition merge counts were {%s}",
                                   toCompact.size(), builder.toString(), startsize, endsize, (int) (ratio * 100), dTime, mbps, totalSourceRows, totalkeysWritten, mergeSummary.toString()));
         logger.debug(String.format("CF Total Bytes Compacted: %,d", CompactionTask.addToTotalBytesCompacted(endsize)));
+    }
+
+    protected void checkAvailableDiskSpace(long estimatedSSTables)
+    {
+        while (!getDirectories().hasAvailableDiskSpace(estimatedSSTables, getExpectedWriteSize()))
+        {
+            if (!reduceScopeForLimitedSpace())
+                throw new RuntimeException(String.format("Not enough space for compaction, estimated sstables = %d, expected write size = %d", estimatedSSTables, getExpectedWriteSize()));
+        }
     }
 
     private SSTableWriter createCompactionWriter(File sstableDirectory, long keysPerSSTable)

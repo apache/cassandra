@@ -308,6 +308,24 @@ public class Directories
         Collections.sort(candidates);
     }
 
+    public boolean hasAvailableDiskSpace(long estimatedSSTables, long expectedTotalWriteSize)
+    {
+        long writeSize = expectedTotalWriteSize / estimatedSSTables;
+        long totalAvailable = 0L;
+
+        for (DataDirectory dataDir : dataFileLocations)
+        {
+            if (BlacklistedDirectories.isUnwritable(getLocationForDisk(dataDir)))
+                  continue;
+            DataDirectoryCandidate candidate = new DataDirectoryCandidate(dataDir);
+            // exclude directory if its total writeSize does not fit to data directory
+            if (candidate.availableSpace < writeSize)
+                continue;
+            totalAvailable += candidate.availableSpace;
+        }
+        return totalAvailable > expectedTotalWriteSize;
+    }
+
 
     public static File getSnapshotDirectory(Descriptor desc, String snapshotName)
     {
