@@ -683,7 +683,7 @@ public abstract class AbstractCassandraStorage extends LoadFunc implements Store
             if (cassandraStorage)
                 return columnDefs;
 
-            // otherwise for CqlStorage, check metadata for classic thrift tables
+            // otherwise for CqlNativeStorage, check metadata for classic thrift tables
             CFMetaData cfm = getCFMetaData(keyspace, column_family, client);
             for (ColumnDefinition def : cfm.regularAndStaticColumns())
             {
