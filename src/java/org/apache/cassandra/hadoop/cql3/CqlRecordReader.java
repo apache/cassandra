@@ -72,8 +72,6 @@ public class CqlRecordReader extends RecordReader<Long, Row>
 {
     private static final Logger logger = LoggerFactory.getLogger(CqlRecordReader.class);
 
-    public static final int DEFAULT_CQL_PAGE_LIMIT = 1000;
-
     private ColumnFamilySplit split;
     private RowIterator rowIterator;
 
