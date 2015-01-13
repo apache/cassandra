@@ -28,6 +28,7 @@ import org.apache.cassandra.db.composites.CellNames;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.hadoop.ConfigHelper;
 import org.apache.cassandra.hadoop.cql3.CqlConfigHelper;
+import org.apache.cassandra.hadoop.cql3.CqlRecordReader;
 import org.apache.cassandra.thrift.CfDef;
 import org.apache.cassandra.thrift.ColumnDef;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -78,6 +79,9 @@ public class CqlNativeStorage extends CqlStorage
     public void prepareToRead(RecordReader reader, PigSplit split)
     {
         this.reader = reader;
+        if (reader instanceof CqlRecordReader) {
+            nativeProtocolVersion = ((CqlRecordReader) reader).getNativeProtocolVersion();
+        }
     }
 
     /** get next row */
