@@ -81,6 +81,8 @@ public class CqlConfigHelper
     private static final String INPUT_NATIVE_SSL_KEY_STORE_PASSWARD = "cassandra.input.native.ssl.key.store.password";
     private static final String INPUT_NATIVE_SSL_CIPHER_SUITES = "cassandra.input.native.ssl.cipher.suites";
 
+    private static final String INPUT_NATIVE_PROTOCOL_VERSION = "cassandra.input.native.protocol.version";
+
     private static final String OUTPUT_CQL = "cassandra.output.cql";
     
     /**
@@ -279,6 +281,10 @@ public class CqlConfigHelper
         return conf.get(OUTPUT_CQL);
     }
 
+    private static Optional<Integer> getProtocolVersion(Configuration conf) {
+        return getIntSetting(INPUT_NATIVE_PROTOCOL_VERSION, conf);
+    }
+
     public static Cluster getInputCluster(String host, Configuration conf)
     {
         // this method has been left for backward compatibility
@@ -290,6 +296,7 @@ public class CqlConfigHelper
         int port = getInputNativePort(conf);
         Optional<AuthProvider> authProvider = getAuthProvider(conf);
         Optional<SSLOptions> sslOptions = getSSLOptions(conf);
+        Optional<Integer> protocolVersion = getProtocolVersion(conf);
         LoadBalancingPolicy loadBalancingPolicy = getReadLoadBalancingPolicy(conf, hosts);
         SocketOptions socketOptions = getReadSocketOptions(conf);
         QueryOptions queryOptions = getReadQueryOptions(conf);
@@ -305,6 +312,9 @@ public class CqlConfigHelper
         if (sslOptions.isPresent())
             builder.withSSL(sslOptions.get());
 
+        if (protocolVersion.isPresent()) {
+            builder.withProtocolVersion(protocolVersion.get());
+        }
         builder.withLoadBalancingPolicy(loadBalancingPolicy)
                .withSocketOptions(socketOptions)
                .withQueryOptions(queryOptions)
@@ -312,6 +322,7 @@ public class CqlConfigHelper
 
         return builder.build();
     }
+
 
     public static void setInputCoreConnections(Configuration conf, String connections)
     {

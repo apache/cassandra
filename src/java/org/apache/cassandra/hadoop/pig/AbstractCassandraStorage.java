@@ -62,6 +62,7 @@ import org.slf4j.LoggerFactory;
  */
 public abstract class AbstractCassandraStorage extends LoadFunc implements StoreFuncInterface, LoadMetadata
 {
+
     protected enum MarshallerType { COMPARATOR, DEFAULT_VALIDATOR, KEY_VALIDATOR, SUBCOMPARATOR };
 
     // system environment variables that can be set to configure connection info:
@@ -101,6 +102,8 @@ public abstract class AbstractCassandraStorage extends LoadFunc implements Store
     protected boolean usePartitionFilter = false;
     protected String initHostAddress;
     protected String rpcPort;
+    protected int nativeProtocolVersion = 1;
+
 
     public AbstractCassandraStorage()
     {
@@ -793,7 +796,7 @@ public abstract class AbstractCassandraStorage extends LoadFunc implements Store
         {
             // For CollectionType, the compose() method assumes the v3 protocol format of collection, which
             // is not correct here since we query using the CQL-over-thrift interface which use the pre-v3 format
-            return ((CollectionSerializer)validator.getSerializer()).deserializeForNativeProtocol(value, 1);
+            return ((CollectionSerializer)validator.getSerializer()).deserializeForNativeProtocol(value, nativeProtocolVersion);
         }
 
         return validator.compose(value);
