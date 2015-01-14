@@ -296,8 +296,6 @@ class IndexedSliceReader extends AbstractIterator<OnDiskAtom> implements OnDiskA
             // can be mistakenly added this way.
             if (reversed && !prefetched.isEmpty())
             {
-                // Whether we've found anything to return in prefetched
-                boolean gotSome = false;
                 // Avoids some comparison when we know it's not useful
                 boolean inSlice = false;
 
@@ -313,7 +311,6 @@ class IndexedSliceReader extends AbstractIterator<OnDiskAtom> implements OnDiskA
                         if (prefetchedCol instanceof RangeTombstone)
                         {
                             blockColumns.addLast(prefetched.poll());
-                            gotSome = true;
                             continue;
                         }
 
@@ -331,7 +328,6 @@ class IndexedSliceReader extends AbstractIterator<OnDiskAtom> implements OnDiskA
                     else if (inSlice || isColumnBeforeSliceFinish(prefetchedCol))
                     {
                         blockColumns.addLast(prefetched.poll());
-                        gotSome = true;
                         inSlice = true;
                     }
                     // if col is after slice, ignore
@@ -340,7 +336,7 @@ class IndexedSliceReader extends AbstractIterator<OnDiskAtom> implements OnDiskA
                         prefetched.poll();
                     }
                 }
-                if (gotSome)
+                if (!blockColumns.isEmpty())
                     return true;
             }
             try
