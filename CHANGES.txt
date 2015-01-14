@@ -102,6 +102,8 @@
  * Log failed host when preparing incremental repair (CASSANDRA-8228)
  * Force config client mode in CQLSSTableWriter (CASSANDRA-8281)
 Merged from 2.0:
+ * Use more efficient slice size for querying internal secondary
+   index tables (CASSANDRA-8550)
  * Fix potentially returning deleted rows with range tombstone (CASSANDRA-8558)
  * Check for available disk space before starting a compaction (CASSANDRA-8562)
  * Fix DISTINCT queries with LIMITs or paging when some partitions
