@@ -327,6 +327,10 @@ class IndexedSliceReader extends AbstractIterator<OnDiskAtom> implements OnDiskA
 
             // If we read blocks in reversed disk order, we may have columns from the previous block to handle.
             // Note that prefetched keeps columns in reversed disk order.
+            // Also note that Range Tombstone handling is a bit tricky, because we may run into range tombstones
+            // that cover a slice *after* we've move to the previous slice. To keep it simple, we simply include
+            // every RT in prefetched: it's only slightly inefficient to do so and there is only so much RT that
+            // can be mistakenly added this way.
             if (reversed && !prefetched.isEmpty())
             {
                 boolean gotSome = false;
@@ -340,8 +344,22 @@ class IndexedSliceReader extends AbstractIterator<OnDiskAtom> implements OnDiskA
                     if (isColumnBeforeSliceStart(prefetchedCol))
                     {
                         inSlice = false;
-                        if (!setNextSlice())
-                            return false;
+
+                        // As explained above, we add RT unconditionally
+                        if (prefetchedCol instanceof RangeTombstone)
+                        {
+                            blockColumns.addLast(prefetched.poll());
+                            gotSome = true;
+                            continue;
+                        }
+
+                        // Otherwise, we either move to the next slice or, if we have none (which can happen
+                        // because we unwind prefetched no matter what due to RT), we skip the cell
+                        if (hasMoreSlice())
+                            setNextSlice();
+                        else
+                            prefetched.poll();
+
                     }
                     // col is within slice, all columns
                     // (we go in reverse, so as soon as we are in a slice, no need to check
@@ -416,12 +434,19 @@ class IndexedSliceReader extends AbstractIterator<OnDiskAtom> implements OnDiskA
                 // (If in slice, don't bother checking that until we change slice)
                 if (!inSlice && isColumnBeforeSliceStart(column))
                 {
-                    if (reversed)
+                    // If it's a rangeTombstone, then we need to read it and include it unless it's end
+                    // stops before our slice start.
+                    if (column instanceof RangeTombstone && !isBeforeSliceStart(((RangeTombstone)column).max))
+                    {
+                        addColumn(column);
+                    }
+                    else if (reversed)
                     {
                         // the next slice select columns that are before the current one, so it may
                         // match this column, so keep it around.
                         prefetched.addFirst(column);
                     }
+
                     column = null;
                 }
                 // col is within slice
@@ -492,6 +517,11 @@ class IndexedSliceReader extends AbstractIterator<OnDiskAtom> implements OnDiskA
                 // (If in slice, don't bother checking that until we change slice)
                 if (!inSlice && isColumnBeforeSliceStart(column))
                 {
+                    // If it's a rangeTombstone, then we need to read it and include it unless it's end
+                    // stops before our slice start.
+                    if (column instanceof RangeTombstone && !isBeforeSliceStart(((RangeTombstone)column).max))
+                        addColumn(column);
+
                     column = null;
                     continue;
                 }
