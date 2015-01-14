@@ -26,7 +26,6 @@ import java.util.*;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.thrift.*;
-import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.Pair;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.mapreduce.TaskAttemptContext;
@@ -199,7 +198,6 @@ final class ColumnFamilyRecordWriter extends AbstractColumnFamilyRecordWriter<By
                     }
                     catch (Exception e)
                     {
-                        JVMStabilityInspector.inspectThrowable(e);
                         closeInternal();
                         if (!iter.hasNext())
                         {

@@ -40,7 +40,6 @@ import org.apache.cassandra.hadoop.HadoopCompat;
 import org.apache.cassandra.thrift.*;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.mapreduce.TaskAttemptContext;
 import org.apache.hadoop.util.Progressable;
@@ -255,7 +254,6 @@ class CqlRecordWriter extends AbstractColumnFamilyRecordWriter<Map<String, ByteB
                     }
                     catch (Exception e)
                     {
-                        JVMStabilityInspector.inspectThrowable(e);
                         closeInternal();
                         if (!iter.hasNext())
                         {
