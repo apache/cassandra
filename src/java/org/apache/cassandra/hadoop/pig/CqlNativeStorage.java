@@ -378,7 +378,6 @@ public class CqlNativeStorage extends AbstractCassandraStorage
                 }
                 catch (Exception e)
                 {
-                    JVMStabilityInspector.inspectThrowable(e);
                     // no compact column at value_alias
                 }
             }
