@@ -942,16 +942,19 @@ functionName returns [String s]
     | K_TOKEN                       { $s = "token"; }
     ;
 
-functionArgs returns [List<Term.Raw> a]
-    : '(' ')' { $a = Collections.emptyList(); }
-    | '(' t1=term { List<Term.Raw> args = new ArrayList<Term.Raw>(); args.add(t1); }
-          ( ',' tn=term { args.add(tn); } )*
-       ')' { $a = args; }
+function returns [Term.Raw t]
+    : f=functionName '(' ')'                   { $t = new FunctionCall.Raw(f, Collections.<Term.Raw>emptyList()); }
+    | f=functionName '(' args=functionArgs ')' { $t = new FunctionCall.Raw(f, args); }
+    ;
+
+functionArgs returns [List<Term.Raw> args]
+    @init{ $args = new ArrayList<Term.Raw>(); }
+    : t1=term {args.add(t1); } ( ',' tn=term { args.add(tn); } )*
     ;
 
 term returns [Term.Raw term]
     : v=value                          { $term = v; }
-    | f=functionName args=functionArgs { $term = new FunctionCall.Raw(f, args); }
+    | f=function                       { $term = f; }
     | '(' c=comparatorType ')' t=term  { $term = new TypeCast(c, t); }
     ;
 
