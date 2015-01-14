@@ -125,9 +125,8 @@ public class CompositesSearcher extends SecondaryIndexSearcher
             private int limit = filter.currentLimit();
             private int columnsCount = 0;
 
-            private int meanColumns = Math.max(index.getIndexCfs().getMeanColumns(), 1);
-            // We shouldn't fetch only 1 row as this provides buggy paging in case the first row doesn't satisfy all clauses
-            private int rowsPerQuery = Math.max(Math.min(filter.maxRows(), filter.maxColumns() / meanColumns), 2);
+            // We have to fetch at least two rows to avoid breaking paging if the first row doesn't satisfy all clauses
+            private int indexCellsPerQuery = Math.max(2, Math.min(filter.maxColumns(), filter.maxRows()));
 
             public boolean needsFiltering()
             {
@@ -163,9 +162,9 @@ public class CompositesSearcher extends SecondaryIndexSearcher
 
                     if (indexCells == null || indexCells.isEmpty())
                     {
-                        if (columnsRead < rowsPerQuery)
+                        if (columnsRead < indexCellsPerQuery)
                         {
-                            logger.trace("Read only {} (< {}) last page through, must be done", columnsRead, rowsPerQuery);
+                            logger.trace("Read only {} (< {}) last page through, must be done", columnsRead, indexCellsPerQuery);
                             return makeReturn(currentKey, data);
                         }
 
@@ -178,7 +177,7 @@ public class CompositesSearcher extends SecondaryIndexSearcher
                                                                              lastSeenPrefix,
                                                                              endPrefix,
                                                                              false,
-                                                                             rowsPerQuery,
+                                                                             indexCellsPerQuery,
                                                                              filter.timestamp);
                         ColumnFamily indexRow = index.getIndexCfs().getColumnFamily(indexFilter);
                         if (indexRow == null || !indexRow.hasColumns())
