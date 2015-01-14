@@ -17,59 +17,52 @@
  */
 package org.apache.cassandra.cql3.statements;
 
-import org.apache.cassandra.auth.Auth;
+import org.apache.cassandra.auth.AuthenticatedUser;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.cql3.UserOptions;
-import org.apache.cassandra.exceptions.InvalidRequestException;
-import org.apache.cassandra.exceptions.RequestExecutionException;
-import org.apache.cassandra.exceptions.RequestValidationException;
-import org.apache.cassandra.exceptions.UnauthorizedException;
+import org.apache.cassandra.cql3.RoleName;
+import org.apache.cassandra.exceptions.*;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.transport.messages.ResultMessage;
 
-public class CreateUserStatement extends AuthenticationStatement
+public class DropRoleStatement extends AuthenticationStatement
 {
-    private final String username;
-    private final UserOptions opts;
-    private final boolean superuser;
-    private final boolean ifNotExists;
+    private final String role;
+    private final boolean ifExists;
 
-    public CreateUserStatement(String username, UserOptions opts, boolean superuser, boolean ifNotExists)
+    public DropRoleStatement(RoleName name, boolean ifExists)
     {
-        this.username = username;
-        this.opts = opts;
-        this.superuser = superuser;
-        this.ifNotExists = ifNotExists;
+        this.role = name.getName();
+        this.ifExists = ifExists;
     }
 
     public void validate(ClientState state) throws RequestValidationException
     {
-        if (username.isEmpty())
-            throw new InvalidRequestException("Username can't be an empty string");
-
-        opts.validate();
-
         // validate login here before checkAccess to avoid leaking user existence to anonymous users.
         state.ensureNotAnonymous();
 
-        if (!ifNotExists && Auth.isExistingUser(username))
-            throw new InvalidRequestException(String.format("User %s already exists", username));
+        if (!ifExists && !DatabaseDescriptor.getRoleManager().isExistingRole(role))
+            throw new InvalidRequestException(String.format("%s doesn't exist", role));
+
+        AuthenticatedUser user = state.getUser();
+        if (user != null && user.getName().equals(role))
+            throw new InvalidRequestException("Cannot DROP primary role for current login");
     }
 
     public void checkAccess(ClientState state) throws UnauthorizedException
     {
         if (!state.getUser().isSuper())
-            throw new UnauthorizedException("Only superusers are allowed to perform CREATE USER queries");
+            throw new UnauthorizedException("Only superusers are allowed to perform DROP [ROLE|USER] queries" );
     }
 
     public ResultMessage execute(ClientState state) throws RequestValidationException, RequestExecutionException
     {
         // not rejected in validate()
-        if (ifNotExists && Auth.isExistingUser(username))
+        if (ifExists && !DatabaseDescriptor.getRoleManager().isExistingRole(role))
             return null;
 
-        DatabaseDescriptor.getAuthenticator().create(username, opts.getOptions());
-        Auth.insertUser(username, superuser);
+        // clean up grants and permissions of the dropped role.
+        DatabaseDescriptor.getRoleManager().dropRole(state.getUser(), role);
+        DatabaseDescriptor.getAuthorizer().revokeAll(role);
         return null;
     }
 }

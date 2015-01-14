@@ -55,8 +55,8 @@ public abstract class AuthorizationStatement extends ParsedStatement implements 
 
     public static DataResource maybeCorrectResource(DataResource resource, ClientState state) throws InvalidRequestException
     {
-        if (resource.isColumnFamilyLevel() && resource.getKeyspace() == null)
-            return DataResource.columnFamily(state.getKeyspace(), resource.getColumnFamily());
+        if (resource.isTableLevel() && resource.getKeyspace() == null)
+            return DataResource.table(state.getKeyspace(), resource.getTable());
         return resource;
     }
 }

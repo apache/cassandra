@@ -81,6 +81,7 @@ public class DatabaseDescriptor
 
     private static IAuthenticator authenticator = new AllowAllAuthenticator();
     private static IAuthorizer authorizer = new AllowAllAuthorizer();
+    private static IRoleManager roleManager = new CassandraRoleManager();
 
     private static IRequestScheduler requestScheduler;
     private static RequestSchedulerId requestSchedulerId;
@@ -184,7 +185,7 @@ public class DatabaseDescriptor
             }
         }
 
-        /* Authentication and authorization backend, implementing IAuthenticator and IAuthorizer */
+        /* Authentication, authorization and role management backend, implementing IAuthenticator, IAuthorizer & IRoleMapper*/
         if (conf.authenticator != null)
             authenticator = FBUtilities.newAuthenticator(conf.authenticator);
 
@@ -194,6 +195,12 @@ public class DatabaseDescriptor
         if (authenticator instanceof AllowAllAuthenticator && !(authorizer instanceof AllowAllAuthorizer))
             throw new ConfigurationException("AllowAllAuthenticator can't be used with " +  conf.authorizer);
 
+        if (conf.role_manager != null)
+            roleManager = FBUtilities.newRoleManager(conf.role_manager);
+
+        if (authenticator instanceof PasswordAuthenticator && !(roleManager instanceof CassandraRoleManager))
+            throw new ConfigurationException("CassandraRoleManager must be used with PasswordAuthenticator");
+
         if (conf.internode_authenticator != null)
             internodeAuthenticator = FBUtilities.construct(conf.internode_authenticator, "internode_authenticator");
         else
@@ -201,6 +208,7 @@ public class DatabaseDescriptor
 
         authenticator.validateConfiguration();
         authorizer.validateConfiguration();
+        roleManager.validateConfiguration();
         internodeAuthenticator.validateConfiguration();
 
         /* Hashing strategy */
@@ -604,6 +612,11 @@ public class DatabaseDescriptor
         return authorizer;
     }
 
+    public static IRoleManager getRoleManager()
+    {
+        return roleManager;
+    }
+
     public static int getPermissionsValidity()
     {
         return conf.permissions_validity_in_ms;
@@ -619,6 +632,11 @@ public class DatabaseDescriptor
         return conf.permissions_update_interval_in_ms == -1
              ? conf.permissions_validity_in_ms
              : conf.permissions_update_interval_in_ms;
+    }
+
+    public static int getRolesValidity()
+    {
+        return conf.roles_validity_in_ms;
     }
 
     public static int getThriftFramedTransportSize()

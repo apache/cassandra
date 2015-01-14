@@ -666,7 +666,9 @@ class CQL3HelpTopics(CQLHelpTopics):
 
     def help_create(self):
         super(CQL3HelpTopics, self).help_create()
-        print "          HELP CREATE_USER;\n"
+        print """          HELP CREATE_USER;
+          HELP CREATE_ROLE;
+        """
 
     def help_alter(self):
         print """
@@ -702,8 +704,10 @@ class CQL3HelpTopics(CQLHelpTopics):
         """
 
     def help_drop(self):
-        super(CQL3HelpTopics, self).help_drop()
-        print "          HELP DROP_USER;\n"
+        super(CQL3HelpTopics, self).help_create()
+        print """          HELP DROP_USER;
+          HELP DROP_ROLE;
+        """
 
     def help_list(self):
         print """
@@ -758,10 +762,10 @@ class CQL3HelpTopics(CQLHelpTopics):
                   ON ALL KEYSPACES
                    | KEYSPACE <keyspace>
                    | [TABLE] [<keyspace>.]<table>
-                  TO <username>
+                  TO [ROLE <rolename> | USER <username>]
 
         Grant the specified permission (or all permissions) on a resource
-        to a user.
+        to a role or user.
 
         To be able to grant a permission on some resource you have to
         have that permission yourself and also AUTHORIZE permission on it,
@@ -776,10 +780,10 @@ class CQL3HelpTopics(CQLHelpTopics):
                   ON ALL KEYSPACES
                    | KEYSPACE <keyspace>
                    | [TABLE] [<keyspace>.]<table>
-                  FROM <username>
+                  FROM [ROLE <rolename> | USER <username>]
 
         Revokes the specified permission (or all permissions) on a resource
-        from a user.
+        from a role or user.
 
         To be able to revoke a permission on some resource you have to
         have that permission yourself and also AUTHORIZE permission on it,
@@ -794,12 +798,13 @@ class CQL3HelpTopics(CQLHelpTopics):
                   [ON ALL KEYSPACES
                     | KEYSPACE <keyspace>
                     | [TABLE] [<keyspace>.]<table>]
-                  [OF <username>]
+                  [OF [ROLE <rolename> | USER <username>]
                   [NORECURSIVE]
 
         Omitting ON <resource> part will list permissions on ALL KEYSPACES,
         every keyspace and table.
-        Omitting OF <username> part will list permissions of all users.
+        Omitting OF [ROLE <rolename> | USER <username>] part will list permissions
+        of all roles and users.
         Omitting NORECURSIVE specifier will list permissions of the resource
         and all its parents (table, table's keyspace and ALL KEYSPACES).
 
@@ -817,4 +822,47 @@ class CQL3HelpTopics(CQLHelpTopics):
           DROP: required for DROP KEYSPACE, DROP TABLE
           MODIFY: required for INSERT, DELETE, UPDATE, TRUNCATE
           SELECT: required for SELECT
+        """
+
+    def help_create_role(self):
+        print """
+        CREATE ROLE <rolename>;
+
+        CREATE ROLE creates a new Cassandra role.
+        Only superusers can issue CREATE ROLE requests.
+        To create a superuser account use SUPERUSER option (NOSUPERUSER is the default).
+        """
+
+    def help_drop_role(self):
+        print """
+        DROP ROLE <rolename>;
+
+        DROP ROLE removes an existing role. You have to be logged in as a superuser
+        to issue a DROP ROLE statement.
+        """
+
+    def help_list_roles(self):
+        print """
+        LIST ROLES [OF [ROLE <rolename> | USER <username>] [NORECURSIVE]];
+
+        Only superusers can use the OF clause to list the roles granted to a role or user.
+        If a superuser omits the OF clause then all the created roles will be listed.
+        If a non-superuser calls LIST ROLES then the roles granted to that user are listed.
+        If NORECURSIVE is provided then only directly granted roles are listed.
+        """
+
+    def help_grant_role(self):
+        print """
+        GRANT ROLE <rolename> TO [ROLE <rolename> | USER <username>]
+
+        Grant the specified role to another role or user. You have to be logged
+        in as superuser to issue a GRANT ROLE statement.
+        """
+
+    def help_revoke_role(self):
+        print """
+        REVOKE ROLE <rolename> FROM [ROLE <rolename> | USER <username>]
+
+        Revoke the specified role from another role or user. You have to be logged
+        in as superuser to issue a REVOKE ROLE statement.
         """

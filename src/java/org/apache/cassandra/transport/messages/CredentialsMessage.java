@@ -20,15 +20,14 @@ package org.apache.cassandra.transport.messages;
 import java.util.HashMap;
 import java.util.Map;
 
+import io.netty.buffer.ByteBuf;
 import org.apache.cassandra.auth.AuthenticatedUser;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.transport.ProtocolException;
-import io.netty.buffer.ByteBuf;
-
 import org.apache.cassandra.exceptions.AuthenticationException;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.transport.CBUtil;
 import org.apache.cassandra.transport.Message;
+import org.apache.cassandra.transport.ProtocolException;
 
 /**
  * Message to indicate that the server is ready to receive requests.
@@ -75,14 +74,15 @@ public class CredentialsMessage extends Message.Request
     {
         try
         {
-            AuthenticatedUser user = DatabaseDescriptor.getAuthenticator().authenticate(credentials);
+            AuthenticatedUser user = DatabaseDescriptor.getAuthenticator().legacyAuthenticate(credentials);
             state.getClientState().login(user);
-            return new ReadyMessage();
         }
         catch (AuthenticationException e)
         {
             return ErrorMessage.fromException(e);
         }
+
+        return new ReadyMessage();
     }
 
     @Override

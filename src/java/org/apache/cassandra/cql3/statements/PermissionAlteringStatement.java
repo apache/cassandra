@@ -19,10 +19,10 @@ package org.apache.cassandra.cql3.statements;
 
 import java.util.Set;
 
-import org.apache.cassandra.auth.Auth;
 import org.apache.cassandra.auth.DataResource;
-import org.apache.cassandra.auth.IResource;
 import org.apache.cassandra.auth.Permission;
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.cql3.RoleName;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.RequestValidationException;
 import org.apache.cassandra.exceptions.UnauthorizedException;
@@ -32,13 +32,13 @@ public abstract class PermissionAlteringStatement extends AuthorizationStatement
 {
     protected final Set<Permission> permissions;
     protected DataResource resource;
-    protected final String username;
+    protected final String grantee;
 
-    protected PermissionAlteringStatement(Set<Permission> permissions, DataResource resource, String username)
+    protected PermissionAlteringStatement(Set<Permission> permissions, DataResource resource, RoleName grantee)
     {
         this.permissions = permissions;
         this.resource = resource;
-        this.username = username;
+        this.grantee = grantee.getName();
     }
 
     public void validate(ClientState state) throws RequestValidationException
@@ -46,13 +46,13 @@ public abstract class PermissionAlteringStatement extends AuthorizationStatement
         // validate login here before checkAccess to avoid leaking user existence to anonymous users.
         state.ensureNotAnonymous();
 
-        if (!Auth.isExistingUser(username))
-            throw new InvalidRequestException(String.format("User %s doesn't exist", username));
+        if (!DatabaseDescriptor.getRoleManager().isExistingRole(grantee))
+            throw new InvalidRequestException(String.format("Role %s doesn't exist", grantee));
 
         // if a keyspace is omitted when GRANT/REVOKE ON TABLE <table>, we need to correct the resource.
         resource = maybeCorrectResource(resource, state);
         if (!resource.exists())
-            throw new InvalidRequestException(String.format("%s doesn't exist", resource));
+            throw new InvalidRequestException(String.format("Resource %s doesn't exist", resource));
     }
 
     public void checkAccess(ClientState state) throws UnauthorizedException

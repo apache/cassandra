@@ -17,25 +17,21 @@
  */
 package org.apache.cassandra.auth;
 
-import org.apache.cassandra.exceptions.AuthenticationException;
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.service.MigrationListener;
 
-public interface ISaslAwareAuthenticator extends IAuthenticator
+/**
+ * MigrationListener implementation that cleans up permissions on dropped resources.
+ */
+public class AuthMigrationListener extends MigrationListener
 {
-    /**
-     * Provide a SaslAuthenticator to be used by the CQL binary protocol server. If
-     * the configured IAuthenticator requires authentication but does not implement this
-     * interface we refuse to start the binary protocol server as it will have no way
-     * of authenticating clients.
-     * @return SaslAuthenticator implementation
-     * (see {@link PasswordAuthenticator.PlainTextSaslAuthenticator})
-     */
-    SaslAuthenticator newAuthenticator();
-
-
-    public interface SaslAuthenticator
+    public void onDropKeyspace(String ksName)
     {
-        public byte[] evaluateResponse(byte[] clientResponse) throws AuthenticationException;
-        public boolean isComplete();
-        public AuthenticatedUser getAuthenticatedUser() throws AuthenticationException;
+        DatabaseDescriptor.getAuthorizer().revokeAll(DataResource.keyspace(ksName));
+    }
+
+    public void onDropColumnFamily(String ksName, String cfName)
+    {
+        DatabaseDescriptor.getAuthorizer().revokeAll(DataResource.table(ksName, cfName));
     }
 }

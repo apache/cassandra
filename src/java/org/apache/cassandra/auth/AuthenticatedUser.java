@@ -17,15 +17,45 @@
  */
 package org.apache.cassandra.auth;
 
+import java.util.Set;
+import java.util.concurrent.Callable;
+import java.util.concurrent.TimeUnit;
+
 import com.google.common.base.Objects;
+import com.google.common.cache.CacheBuilder;
+import com.google.common.cache.CacheLoader;
+import com.google.common.cache.LoadingCache;
+import com.google.common.util.concurrent.ListenableFuture;
+import com.google.common.util.concurrent.ListenableFutureTask;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import org.apache.cassandra.concurrent.ScheduledExecutors;
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.exceptions.RequestExecutionException;
+import org.apache.cassandra.exceptions.RequestValidationException;
 
 /**
  * Returned from IAuthenticator#authenticate(), represents an authenticated user everywhere internally.
+ *
+ * Holds the name of the user and the roles that have been granted to the user. The roles will be cached
+ * for roles_validity_in_ms.
  */
 public class AuthenticatedUser
 {
+    private static final Logger logger = LoggerFactory.getLogger(AuthenticatedUser.class);
+
     public static final String ANONYMOUS_USERNAME = "anonymous";
     public static final AuthenticatedUser ANONYMOUS_USER = new AuthenticatedUser(ANONYMOUS_USERNAME);
+
+    // User-level roles cache
+    private static final LoadingCache<String, Set<String>> rolesCache = initRolesCache();
+
+    // User-level permissions cache.
+    private static final PermissionsCache permissionsCache = new PermissionsCache(DatabaseDescriptor.getPermissionsValidity(),
+                                                                                  DatabaseDescriptor.getPermissionsUpdateInterval(),
+                                                                                  DatabaseDescriptor.getPermissionsCacheMaxEntries(),
+                                                                                  DatabaseDescriptor.getAuthorizer());
 
     private final String name;
 
@@ -47,7 +77,16 @@ public class AuthenticatedUser
      */
     public boolean isSuper()
     {
-        return !isAnonymous() && Auth.isSuperuser(name);
+        return !isAnonymous() && hasSuperuserRole();
+    }
+
+    private boolean hasSuperuserRole()
+    {
+        IRoleManager roleManager = DatabaseDescriptor.getRoleManager();
+        for (String role : getRoles())
+            if (roleManager.isSuper(role))
+                return true;
+        return false;
     }
 
     /**
@@ -56,6 +95,80 @@ public class AuthenticatedUser
     public boolean isAnonymous()
     {
         return this == ANONYMOUS_USER;
+    }
+
+    /**
+     * Get the roles that have been granted to the user via the IRoleManager
+     *
+     * @return a list of roles that have been granted to the user
+     */
+    public Set<String> getRoles()
+    {
+        if (rolesCache == null)
+            return loadRoles(name);
+
+        try
+        {
+            return rolesCache.get(name);
+        }
+        catch (Exception e)
+        {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public static Set<Permission> getPermissions(AuthenticatedUser user, IResource resource)
+    {
+        return permissionsCache.getPermissions(user, resource);
+    }
+
+    private static Set<String> loadRoles(String name)
+    {
+        try
+        {
+            return DatabaseDescriptor.getRoleManager().getRoles(name, true);
+        }
+        catch (RequestValidationException e)
+        {
+            throw new AssertionError(e); // not supposed to happen
+        }
+        catch (RequestExecutionException e)
+        {
+            throw new RuntimeException(e);
+        }
+    }
+    
+    private static LoadingCache<String, Set<String>> initRolesCache()
+    {
+        if (DatabaseDescriptor.getAuthenticator() instanceof AllowAllAuthenticator)
+            return null;
+
+        int validityPeriod = DatabaseDescriptor.getRolesValidity();
+        if (validityPeriod <= 0)
+            return null;
+
+        return CacheBuilder.newBuilder()
+                           .refreshAfterWrite(validityPeriod, TimeUnit.MILLISECONDS)
+                           .build(new CacheLoader<String, Set<String>>()
+                           {
+                               public Set<String> load(String name)
+                               {
+                                   return loadRoles(name);
+                               }
+
+                               public ListenableFuture<Set<String>> reload(final String name, Set<String> oldValue)
+                               {
+                                   ListenableFutureTask<Set<String>> task = ListenableFutureTask.create(new Callable<Set<String>>()
+                                   {
+                                       public Set<String> call()
+                                       {
+                                           return loadRoles(name);
+                                       }
+                                   });
+                                   ScheduledExecutors.optionalTasks.execute(task);
+                                   return task;
+                               }
+                           });
     }
 
     @Override

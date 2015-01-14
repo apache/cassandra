@@ -20,18 +20,18 @@ package org.apache.cassandra.cql3;
 import java.util.HashMap;
 import java.util.Map;
 
-import org.apache.cassandra.auth.IAuthenticator;
+import org.apache.cassandra.auth.IRoleManager;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.utils.FBUtilities;
 
-public class UserOptions
+public class RoleOptions
 {
-    private final Map<IAuthenticator.Option, Object> options = new HashMap<IAuthenticator.Option, Object>();
+    private final Map<IRoleManager.Option, Object> options = new HashMap<>();
 
     public void put(String name, Object value)
     {
-        options.put(IAuthenticator.Option.valueOf(name.toUpperCase()), value);
+        options.put(IRoleManager.Option.valueOf(name.toUpperCase()), value);
     }
 
     public boolean isEmpty()
@@ -39,18 +39,18 @@ public class UserOptions
         return options.isEmpty();
     }
 
-    public Map<IAuthenticator.Option, Object> getOptions()
+    public Map<IRoleManager.Option, Object> getOptions()
     {
         return options;
     }
 
     public void validate() throws InvalidRequestException
     {
-        for (IAuthenticator.Option option : options.keySet())
+        for (IRoleManager.Option option : options.keySet())
         {
-            if (!DatabaseDescriptor.getAuthenticator().supportedOptions().contains(option))
-                throw new InvalidRequestException(String.format("%s doesn't support %s option",
-                                                                DatabaseDescriptor.getAuthenticator().getClass().getName(),
+            if (!DatabaseDescriptor.getRoleManager().supportedOptions().contains(option))
+                throw new InvalidRequestException(String.format("%s doesn't support %s",
+                                                                DatabaseDescriptor.getRoleManager().getClass().getName(),
                                                                 option));
         }
     }

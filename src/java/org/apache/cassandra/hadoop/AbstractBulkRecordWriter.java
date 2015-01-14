@@ -21,18 +21,13 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Future;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
+import java.util.*;
+import java.util.concurrent.*;
 
-import org.apache.cassandra.auth.IAuthenticator;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import org.apache.cassandra.auth.PasswordAuthenticator;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -46,8 +41,6 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.mapreduce.RecordWriter;
 import org.apache.hadoop.mapreduce.TaskAttemptContext;
 import org.apache.hadoop.util.Progressable;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 public abstract class AbstractBulkRecordWriter<K, V> extends RecordWriter<K, V>
 implements org.apache.hadoop.mapred.RecordWriter<K, V>
@@ -191,8 +184,8 @@ implements org.apache.hadoop.mapred.RecordWriter<K, V>
                     if (username != null)
                     {
                         Map<String, String> creds = new HashMap<String, String>();
-                        creds.put(IAuthenticator.USERNAME_KEY, username);
-                        creds.put(IAuthenticator.PASSWORD_KEY, password);
+                        creds.put(PasswordAuthenticator.USERNAME_KEY, username);
+                        creds.put(PasswordAuthenticator.PASSWORD_KEY, password);
                         AuthenticationRequest authRequest = new AuthenticationRequest(creds);
                         client.login(authRequest);
                     }

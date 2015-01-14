@@ -40,6 +40,7 @@ options {
     import org.apache.cassandra.auth.Permission;
     import org.apache.cassandra.auth.DataResource;
     import org.apache.cassandra.auth.IResource;
+    import org.apache.cassandra.auth.IRoleManager;
     import org.apache.cassandra.cql3.*;
     import org.apache.cassandra.cql3.statements.*;
     import org.apache.cassandra.cql3.selection.*;
@@ -247,6 +248,12 @@ cqlStatement returns [ParsedStatement stmt]
     | st29=dropFunctionStatement       { $stmt = st29; }
     | st30=createAggregateStatement    { $stmt = st30; }
     | st31=dropAggregateStatement      { $stmt = st31; }
+    | st32=createRoleStatement         { $stmt = st32; }
+    | st33=alterRoleStatement          { $stmt = st33; }
+    | st34=dropRoleStatement           { $stmt = st34; }
+    | st35=listRolesStatement          { $stmt = st35; }
+    | st36=grantRoleStatement          { $stmt = st36; }
+    | st37=revokeRoleStatement         { $stmt = st37; }
     ;
 
 /*
@@ -802,7 +809,7 @@ truncateStatement returns [TruncateStatement stmt]
     ;
 
 /**
- * GRANT <permission> ON <resource> TO <username>
+ * GRANT <permission> ON <resource> TO <rolename>
  */
 grantStatement returns [GrantStatement stmt]
     : K_GRANT
@@ -810,12 +817,12 @@ grantStatement returns [GrantStatement stmt]
       K_ON
           resource
       K_TO
-          username
-      { $stmt = new GrantStatement($permissionOrAll.perms, (DataResource) $resource.res, $username.text); }
+          grantee=userOrRoleName
+      { $stmt = new GrantStatement($permissionOrAll.perms, (DataResource) $resource.res, grantee); }
     ;
 
 /**
- * REVOKE <permission> ON <resource> FROM <username>
+ * REVOKE <permission> ON <resource> FROM <rolename>
  */
 revokeStatement returns [RevokeStatement stmt]
     : K_REVOKE
@@ -823,22 +830,44 @@ revokeStatement returns [RevokeStatement stmt]
       K_ON
           resource
       K_FROM
-          username
-      { $stmt = new RevokeStatement($permissionOrAll.perms, (DataResource) $resource.res, $username.text); }
+          revokee=userOrRoleName
+      { $stmt = new RevokeStatement($permissionOrAll.perms, (DataResource) $resource.res, revokee); }
+    ;
+
+/**
+ * GRANT ROLE <rolename> TO <grantee>
+ */
+grantRoleStatement returns [GrantRoleStatement stmt]
+    : K_GRANT
+          role=userOrRoleName
+      K_TO
+          grantee=userOrRoleName
+      { $stmt = new GrantRoleStatement(role, grantee); }
+    ;
+
+/**
+ * REVOKE ROLE <rolename> FROM <revokee>
+ */
+revokeRoleStatement returns [RevokeRoleStatement stmt]
+    : K_REVOKE
+          role=userOrRoleName
+      K_FROM
+          revokee=userOrRoleName
+      { $stmt = new RevokeRoleStatement(role, revokee); }
     ;
 
 listPermissionsStatement returns [ListPermissionsStatement stmt]
     @init {
         IResource resource = null;
-        String username = null;
         boolean recursive = true;
+        RoleName grantee = new RoleName();
     }
     : K_LIST
           permissionOrAll
       ( K_ON resource { resource = $resource.res; } )?
-      ( K_OF username { username = $username.text; } )?
+      ( K_OF roleName[grantee] )?
       ( K_NORECURSIVE { recursive = false; } )?
-      { $stmt = new ListPermissionsStatement($permissionOrAll.perms, (DataResource) resource, username, recursive); }
+      { $stmt = new ListPermissionsStatement($permissionOrAll.perms, (DataResource) resource, grantee, recursive); }
     ;
 
 permission returns [Permission perm]
@@ -859,59 +888,127 @@ dataResource returns [DataResource res]
     : K_ALL K_KEYSPACES { $res = DataResource.root(); }
     | K_KEYSPACE ks = keyspaceName { $res = DataResource.keyspace($ks.id); }
     | ( K_COLUMNFAMILY )? cf = columnFamilyName
-      { $res = DataResource.columnFamily($cf.name.getKeyspace(), $cf.name.getColumnFamily()); }
+      { $res = DataResource.table($cf.name.getKeyspace(), $cf.name.getColumnFamily()); }
     ;
 
 /**
  * CREATE USER [IF NOT EXISTS] <username> [WITH PASSWORD <password>] [SUPERUSER|NOSUPERUSER]
  */
-createUserStatement returns [CreateUserStatement stmt]
+createUserStatement returns [CreateRoleStatement stmt]
     @init {
-        UserOptions opts = new UserOptions();
+        RoleOptions opts = new RoleOptions();
+        opts.put(IRoleManager.Option.LOGIN.name(), true);
         boolean superuser = false;
         boolean ifNotExists = false;
+        RoleName name = new RoleName();
     }
-    : K_CREATE K_USER (K_IF K_NOT K_EXISTS { ifNotExists = true; })? username
-      ( K_WITH userOptions[opts] )?
+    : K_CREATE K_USER (K_IF K_NOT K_EXISTS { ifNotExists = true; })? u=username { name.setName($u.text, false); }
+      ( K_WITH roleOptions[opts] )?
       ( K_SUPERUSER { superuser = true; } | K_NOSUPERUSER { superuser = false; } )?
-      { $stmt = new CreateUserStatement($username.text, opts, superuser, ifNotExists); }
+      { opts.put(IRoleManager.Option.SUPERUSER.name(), superuser);
+        $stmt = new CreateRoleStatement(name, opts, ifNotExists); }
     ;
 
 /**
  * ALTER USER <username> [WITH PASSWORD <password>] [SUPERUSER|NOSUPERUSER]
  */
-alterUserStatement returns [AlterUserStatement stmt]
+alterUserStatement returns [AlterRoleStatement stmt]
     @init {
-        UserOptions opts = new UserOptions();
-        Boolean superuser = null;
+        RoleOptions opts = new RoleOptions();
+        RoleName name = new RoleName();
     }
-    : K_ALTER K_USER username
-      ( K_WITH userOptions[opts] )?
-      ( K_SUPERUSER { superuser = true; } | K_NOSUPERUSER { superuser = false; } )?
-      { $stmt = new AlterUserStatement($username.text, opts, superuser); }
+    : K_ALTER K_USER u=username { name.setName($u.text, false); }
+      ( K_WITH roleOptions[opts] )?
+      ( K_SUPERUSER { opts.put(IRoleManager.Option.SUPERUSER.name(), true); }
+        | K_NOSUPERUSER { opts.put(IRoleManager.Option.SUPERUSER.name(), false); } ) ?
+      {  $stmt = new AlterRoleStatement(name, opts); }
     ;
 
 /**
  * DROP USER [IF EXISTS] <username>
  */
-dropUserStatement returns [DropUserStatement stmt]
-    @init { boolean ifExists = false; }
-    : K_DROP K_USER (K_IF K_EXISTS { ifExists = true; })? username { $stmt = new DropUserStatement($username.text, ifExists); }
+dropUserStatement returns [DropRoleStatement stmt]
+    @init {
+        boolean ifExists = false;
+        RoleName name = new RoleName();
+    }
+    : K_DROP K_USER (K_IF K_EXISTS { ifExists = true; })? u=username { name.setName($u.text, false); $stmt = new DropRoleStatement(name, ifExists); }
     ;
 
 /**
  * LIST USERS
  */
-listUsersStatement returns [ListUsersStatement stmt]
+listUsersStatement returns [ListRolesStatement stmt]
     : K_LIST K_USERS { $stmt = new ListUsersStatement(); }
     ;
 
-userOptions[UserOptions opts]
-    : userOption[opts]
+/**
+ * CREATE ROLE [IF NOT EXISTS] <rolename> [WITH PASSWORD <password>] [SUPERUSER|NOSUPERUSER] [LOGIN|NOLOGIN]
+ */
+createRoleStatement returns [CreateRoleStatement stmt]
+    @init {
+        RoleOptions opts = new RoleOptions();
+        boolean superuser = false;
+        boolean login = false;
+        boolean ifNotExists = false;
+    }
+    : K_CREATE K_ROLE (K_IF K_NOT K_EXISTS { ifNotExists = true; })? name=userOrRoleName
+      ( K_WITH roleOptions[opts] )?
+      ( K_SUPERUSER { superuser = true; } | K_NOSUPERUSER { superuser = false; } )?
+      ( K_LOGIN { login = true; } | K_NOLOGIN { login = false; } )?
+      { opts.put(IRoleManager.Option.SUPERUSER.name(), superuser);
+        opts.put(IRoleManager.Option.LOGIN.name(), login);
+        $stmt = new CreateRoleStatement(name, opts, ifNotExists); }
     ;
 
-userOption[UserOptions opts]
-    : k=K_PASSWORD v=STRING_LITERAL { opts.put($k.text, $v.text); }
+/**
+ * ALTER ROLE <rolename> [WITH PASSWORD <password>] [SUPERUSER|NOSUPERUSER]
+ */
+alterRoleStatement returns [AlterRoleStatement stmt]
+    @init {
+        RoleOptions opts = new RoleOptions();
+    }
+    : K_ALTER K_ROLE name=userOrRoleName
+      ( K_WITH roleOptions[opts] )?
+      ( K_SUPERUSER { opts.put(IRoleManager.Option.SUPERUSER.name(), true); }
+        | K_NOSUPERUSER { opts.put(IRoleManager.Option.SUPERUSER.name(), false); } ) ?
+      ( K_LOGIN { opts.put(IRoleManager.Option.LOGIN.name(), true); }
+        | K_NOLOGIN { opts.put(IRoleManager.Option.LOGIN.name(), false); } )?
+      {  $stmt = new AlterRoleStatement(name, opts); }
+    ;
+
+/**
+ * DROP ROLE [IF EXISTS] <rolename>
+ */
+dropRoleStatement returns [DropRoleStatement stmt]
+    @init {
+        boolean ifExists = false;
+    }
+    : K_DROP K_ROLE (K_IF K_EXISTS { ifExists = true; })? name=userOrRoleName
+      { $stmt = new DropRoleStatement(name, ifExists); }
+    ;
+
+/**
+ * LIST ROLES [OF <rolename>] [NORECURSIVE]
+ */
+listRolesStatement returns [ListRolesStatement stmt]
+    @init {
+        boolean recursive = true;
+        RoleName grantee = new RoleName();
+    }
+    : K_LIST K_ROLES
+      ( K_OF roleName[grantee])?
+      ( K_NORECURSIVE { recursive = false; } )?
+      { $stmt = new ListRolesStatement(grantee, recursive); }
+    ;
+
+roleOptions[RoleOptions opts]
+    : roleOption[opts] (K_AND roleOption[opts])*
+    ;
+
+roleOption[RoleOptions opts]
+    :  k=K_PASSWORD v=STRING_LITERAL { opts.put($k.text, $v.text); }
+    |  k=K_OPTIONS  m=mapLiteral { opts.put(IRoleManager.Option.OPTIONS.name(), convertPropertyMap(m)); }
     ;
 
 /** DEFINITIONS **/
@@ -952,6 +1049,11 @@ userTypeName returns [UTName name]
     : (ks=ident '.')? ut=non_type_ident { return new UTName(ks, ut); }
     ;
 
+userOrRoleName returns [RoleName name]
+    @init { $name = new RoleName(); }
+    : roleName[name] {return $name;}
+    ;
+
 ksName[KeyspaceElementName name]
     : t=IDENT              { $name.setKeyspace($t.text, false);}
     | t=QUOTED_NAME        { $name.setKeyspace($t.text, true);}
@@ -971,6 +1073,13 @@ idxName[IndexName name]
     | t=QUOTED_NAME        { $name.setIndex($t.text, true);}
     | k=unreserved_keyword { $name.setIndex(k, false); }
     | QMARK {addRecognitionError("Bind variables cannot be used for index names");}
+    ;
+
+roleName[RoleName name]
+    : t=IDENT              { $name.setName($t.text, false); }
+    | t=QUOTED_NAME        { $name.setName($t.text, true); }
+    | k=unreserved_keyword { $name.setName(k, false); }
+    | QMARK {addRecognitionError("Bind variables cannot be used for role names");}
     ;
 
 constant returns [Constants.Literal constant]
@@ -1326,8 +1435,13 @@ basic_unreserved_keyword returns [String str]
         | K_ALL
         | K_USER
         | K_USERS
+        | K_ROLE
+        | K_ROLES
         | K_SUPERUSER
         | K_NOSUPERUSER
+        | K_LOGIN
+        | K_NOLOGIN
+        | K_OPTIONS
         | K_PASSWORD
         | K_EXISTS
         | K_CUSTOM
@@ -1417,9 +1531,14 @@ K_NORECURSIVE: N O R E C U R S I V E;
 
 K_USER:        U S E R;
 K_USERS:       U S E R S;
+K_ROLE:        R O L E;
+K_ROLES:       R O L E S;
 K_SUPERUSER:   S U P E R U S E R;
 K_NOSUPERUSER: N O S U P E R U S E R;
 K_PASSWORD:    P A S S W O R D;
+K_LOGIN:       L O G I N;
+K_NOLOGIN:     N O L O G I N;
+K_OPTIONS:     O P T I O N S;
 
 K_CLUSTERING:  C L U S T E R I N G;
 K_ASCII:       A S C I I;

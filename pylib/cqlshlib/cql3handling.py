@@ -254,10 +254,16 @@ JUNK ::= /([ \t\r\f\v]+|(--|[/][/])[^\n\r]*([\n\r]|$)|[/][*].*?[*][/])/ ;
                             | <alterUserStatement>
                             | <dropUserStatement>
                             | <listUsersStatement>
+                            | <createRoleStatement>
+                            | <alterRoleStatement>
+                            | <dropRoleStatement>
+                            | <listRolesStatement>
                             ;
 
 <authorizationStatement> ::= <grantStatement>
+                           | <grantRoleStatement>
                            | <revokeStatement>
+                           | <revokeRoleStatement>
                            | <listPermissionsStatement>
                            ;
 
@@ -1169,14 +1175,49 @@ syntax_rules += r'''
 '''
 
 syntax_rules += r'''
-<grantStatement> ::= "GRANT" <permissionExpr> "ON" <resource> "TO" <username>
+<rolename> ::= <identifier>
+             | <quotedName>
+             | <unreservedKeyword>
+             ;
+
+<createRoleStatement> ::= "CREATE" "ROLE" <rolename>
+                              ( "WITH" <roleProperty> ("AND" <roleProperty>)*)?
+                              ( "SUPERUSER" | "NOSUPERUSER" )?
+                              ( "LOGIN" | "NOLOGIN" )?
+                        ;
+
+<alterRoleStatement> ::= "ALTER" "ROLE" <rolename>
+                              ( "WITH" <roleProperty> ("AND" <roleProperty>)*)?
+                              ( "SUPERUSER" | "NOSUPERUSER" )?
+                              ( "LOGIN" | "NOLOGIN" )?
+                       ;
+<roleProperty> ::= "PASSWORD" <stringLiteral>
+                 | "OPTIONS" <mapLiteral>
+                 ;
+
+<dropRoleStatement> ::= "DROP" "ROLE" <rolename>
+                      ;
+
+<grantRoleStatement> ::= "GRANT" <rolename> "TO" <rolename>
+                       ;
+
+<revokeRoleStatement> ::= "REVOKE" <rolename> "FROM" <rolename>
+                        ;
+
+<listRolesStatement> ::= "LIST" "ROLES"
+                              ( "OF" <rolename> )? "NORECURSIVE"?
+                       ;
+'''
+
+syntax_rules += r'''
+<grantStatement> ::= "GRANT" <permissionExpr> "ON" <resource> "TO" <rolename>
                    ;
 
-<revokeStatement> ::= "REVOKE" <permissionExpr> "ON" <resource> "FROM" <username>
+<revokeStatement> ::= "REVOKE" <permissionExpr> "ON" <resource> "FROM" <rolename>
                     ;
 
 <listPermissionsStatement> ::= "LIST" <permissionExpr>
-                                    ( "ON" <resource> )? ( "OF" <username> )? "NORECURSIVE"?
+                                    ( "ON" <resource> )? ( "OF" <rolename> )? "NORECURSIVE"?
                              ;
 
 <permission> ::= "AUTHORIZE"
@@ -1214,11 +1255,24 @@ def username_name_completer(ctxt, cass):
     session = cass.session
     return [maybe_quote(row.values()[0].replace("'", "''")) for row in session.execute("LIST USERS")]
 
+@completer_for('rolename', 'role')
+def rolename_completer(ctxt, cass):
+    def maybe_quote(name):
+        if CqlRuleSet.is_valid_cql3_name(name):
+            return name
+        return "'%s'" % name
+
+    # disable completion for CREATE ROLE.
+    if ctxt.matched[0][0] == 'K_CREATE':
+        return [Hint('<rolename>')]
+
+    session = cass.session
+    return [maybe_quote(row[0].replace("'", "''")) for row in session.execute("LIST ROLES")]
+
 syntax_rules += r'''
 <createTriggerStatement> ::= "CREATE" "TRIGGER" ( "IF" "NOT" "EXISTS" )? <cident>
                                "ON" cf=<columnFamilyName> "USING" class=<stringLiteral>
                            ;
-
 <dropTriggerStatement> ::= "DROP" "TRIGGER" ( "IF" "EXISTS" )? triggername=<cident>
                              "ON" cf=<columnFamilyName>
                          ;

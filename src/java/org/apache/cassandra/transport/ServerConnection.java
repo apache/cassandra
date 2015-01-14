@@ -20,21 +20,17 @@ package org.apache.cassandra.transport;
 import java.util.concurrent.ConcurrentMap;
 
 import io.netty.channel.Channel;
-
 import org.apache.cassandra.auth.IAuthenticator;
-import org.apache.cassandra.auth.ISaslAwareAuthenticator;
-import org.apache.cassandra.auth.ISaslAwareAuthenticator.SaslAuthenticator;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.QueryState;
-
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
 
 public class ServerConnection extends Connection
 {
     private enum State { UNINITIALIZED, AUTHENTICATION, READY }
 
-    private volatile SaslAuthenticator saslAuthenticator;
+    private volatile IAuthenticator.SaslNegotiator saslNegotiator;
     private final ClientState clientState;
     private volatile State state;
 
@@ -104,7 +100,7 @@ public class ServerConnection extends Connection
                 {
                     state = State.READY;
                     // we won't use the authenticator again, null it so that it can be GC'd
-                    saslAuthenticator = null;
+                    saslNegotiator = null;
                 }
                 break;
             case READY:
@@ -114,14 +110,10 @@ public class ServerConnection extends Connection
         }
     }
 
-    public SaslAuthenticator getAuthenticator()
+    public IAuthenticator.SaslNegotiator getSaslNegotiator()
     {
-        if (saslAuthenticator == null)
-        {
-            IAuthenticator authenticator = DatabaseDescriptor.getAuthenticator();
-            assert authenticator instanceof ISaslAwareAuthenticator : "Configured IAuthenticator does not support SASL authentication";
-            saslAuthenticator = ((ISaslAwareAuthenticator)authenticator).newAuthenticator();
-        }
-        return saslAuthenticator;
+        if (saslNegotiator == null)
+            saslNegotiator = DatabaseDescriptor.getAuthenticator().newSaslNegotiator();
+        return saslNegotiator;
     }
 }

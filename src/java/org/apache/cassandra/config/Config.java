@@ -19,20 +19,19 @@ package org.apache.cassandra.config;
 
 import java.io.IOException;
 import java.io.StringReader;
-import java.sql.Time;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 import com.google.common.collect.Sets;
-import org.supercsv.io.CsvListReader;
-import org.supercsv.prefs.CsvPreference;
 
 import org.apache.cassandra.config.EncryptionOptions.ClientEncryptionOptions;
 import org.apache.cassandra.config.EncryptionOptions.ServerEncryptionOptions;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.util.NativeAllocator;
 import org.apache.cassandra.utils.FBUtilities;
+import org.supercsv.io.CsvListReader;
+import org.supercsv.prefs.CsvPreference;
 
 /**
  * A class that contains configuration properties for the cassandra node it runs within.
@@ -44,9 +43,11 @@ public class Config
     public String cluster_name = "Test Cluster";
     public String authenticator;
     public String authorizer;
+    public String role_manager;
     public int permissions_validity_in_ms = 2000;
     public int permissions_cache_max_entries = 1000;
     public int permissions_update_interval_in_ms = -1;
+    public int roles_validity_in_ms = 2000;
 
     /* Hashing strategy Random or OPHF */
     public String partitioner;

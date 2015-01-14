@@ -17,10 +17,6 @@
  */
 package org.apache.cassandra.cql3.statements;
 
-import java.util.Set;
-
-import org.apache.cassandra.auth.DataResource;
-import org.apache.cassandra.auth.Permission;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.RoleName;
 import org.apache.cassandra.exceptions.RequestExecutionException;
@@ -28,16 +24,17 @@ import org.apache.cassandra.exceptions.RequestValidationException;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.transport.messages.ResultMessage;
 
-public class GrantStatement extends PermissionAlteringStatement
+public class RevokeRoleStatement extends RoleManagementStatement
 {
-    public GrantStatement(Set<Permission> permissions, DataResource resource, RoleName grantee)
+    public RevokeRoleStatement(RoleName name, RoleName grantee)
     {
-        super(permissions, resource, grantee);
+        super(name, grantee);
     }
 
     public ResultMessage execute(ClientState state) throws RequestValidationException, RequestExecutionException
     {
-        DatabaseDescriptor.getAuthorizer().grant(state.getUser(), permissions, resource, grantee);
+        DatabaseDescriptor.getRoleManager().revokeRole(state.getUser(), role, grantee);
         return null;
     }
+
 }
