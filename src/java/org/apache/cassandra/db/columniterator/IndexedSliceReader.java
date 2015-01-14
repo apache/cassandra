@@ -337,7 +337,7 @@ class IndexedSliceReader extends AbstractIterator<OnDiskAtom> implements OnDiskA
                 boolean inSlice = false;
 
                 OnDiskAtom prefetchedCol;
-                while ((prefetchedCol = prefetched.peek() ) != null)
+                while ((prefetchedCol = prefetched.peek()) != null)
                 {
                     // col is before slice, we update the slice
                     if (isColumnBeforeSliceStart(prefetchedCol))
@@ -351,12 +351,15 @@ class IndexedSliceReader extends AbstractIterator<OnDiskAtom> implements OnDiskA
                             continue;
                         }
 
-                        // Otherwise, we either move to the next slice or, if we have none (which can happen
-                        // because we unwind prefetched no matter what due to RT), we skip the cell
-                        if (hasMoreSlice())
-                            setNextSlice();
-                        else
-                            prefetched.poll();
+                        // Otherwise, we either move to the next slice. If we have no more slice, then
+                        // simply unwind prefetched entirely and add all RT.
+                        if (!setNextSlice())
+                        {
+                            while ((prefetchedCol = prefetched.poll()) != null)
+                                if (prefetchedCol instanceof RangeTombstone)
+                                    blockColumns.addLast(prefetchedCol);
+                            break;
+                        }
 
                     }
                     // col is within slice, all columns
@@ -373,8 +376,11 @@ class IndexedSliceReader extends AbstractIterator<OnDiskAtom> implements OnDiskA
                         prefetched.poll();
                     }
                 }
+
                 if (!blockColumns.isEmpty())
                     return true;
+                else if (!hasMoreSlice())
+                    return false;
             }
             try
             {
