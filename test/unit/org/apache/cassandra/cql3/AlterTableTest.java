@@ -19,8 +19,6 @@ package org.apache.cassandra.cql3;
 
 import org.junit.Test;
 
-import org.apache.cassandra.exceptions.InvalidRequestException;
-
 public class AlterTableTest extends CQLTester
 {
     @Test
@@ -82,5 +80,14 @@ public class AlterTableTest extends CQLTester
         execute("ALTER TABLE %s DROP myCollection;");
 
         assertInvalid("ALTER TABLE %s ADD myCollection map<int, int>;");
+    }
+
+    @Test
+    public void testChangeStrategyWithUnquotedAgrument() throws Throwable
+    {
+        createTable("CREATE TABLE %s (id text PRIMARY KEY);");
+
+        assertInvalidSyntaxMessage("no viable alternative at input '}'",
+                                   "ALTER TABLE %s WITH caching = {'keys' : 'all', 'rows_per_partition' : ALL};");
     }
 }
