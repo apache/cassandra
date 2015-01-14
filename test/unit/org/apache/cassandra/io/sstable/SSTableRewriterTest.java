@@ -200,6 +200,7 @@ public class SSTableRewriterTest extends SchemaLoader
         int filecounts = assertFileCounts(sstables.iterator().next().descriptor.directory.list(), 0, 0);
         assertEquals(1, filecounts);
         cfs.truncateBlocking();
+        Thread.sleep(1000); // make sure the deletion tasks have run etc
         validateCFS(cfs);
     }
 
@@ -492,6 +493,7 @@ public class SSTableRewriterTest extends SchemaLoader
         Thread.sleep(1000);
         assertFileCounts(s.descriptor.directory.list(), 0, 0);
         cfs.truncateBlocking();
+        Thread.sleep(1000); // make sure the deletion tasks have run etc
         validateCFS(cfs);
     }
 
