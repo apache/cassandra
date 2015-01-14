@@ -197,7 +197,7 @@ public interface CellNameType extends CType
         public boolean hasUnprocessed() throws IOException;
 
         /**
-         * Comparare the next name to read to the provided Composite.
+         * Compare the next name to read to the provided Composite.
          * This does not consume the next name.
          */
         public int compareNextTo(Composite composite) throws IOException;
