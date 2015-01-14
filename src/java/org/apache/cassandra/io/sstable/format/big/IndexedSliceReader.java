@@ -291,8 +291,13 @@ class IndexedSliceReader extends AbstractIterator<OnDiskAtom> implements OnDiskA
 
             // If we read blocks in reversed disk order, we may have columns from the previous block to handle.
             // Note that prefetched keeps columns in reversed disk order.
+            // Also note that Range Tombstone handling is a bit tricky, because we may run into range tombstones
+            // that cover a slice *after* we've move to the previous slice. To keep it simple, we simply include
+            // every RT in prefetched: it's only slightly inefficient to do so and there is only so much RT that
+            // can be mistakenly added this way.
             if (reversed && !prefetched.isEmpty())
             {
+                // Whether we've found anything to return in prefetched
                 boolean gotSome = false;
                 // Avoids some comparison when we know it's not useful
                 boolean inSlice = false;
@@ -304,8 +309,22 @@ class IndexedSliceReader extends AbstractIterator<OnDiskAtom> implements OnDiskA
                     if (isColumnBeforeSliceStart(prefetchedCol))
                     {
                         inSlice = false;
-                        if (!setNextSlice())
-                            return false;
+
+                        // As explained above, we add RT unconditionally
+                        if (prefetchedCol instanceof RangeTombstone)
+                        {
+                            blockColumns.addLast(prefetched.poll());
+                            gotSome = true;
+                            continue;
+                        }
+
+                        // Otherwise, we either move to the next slice or, if we have none (which can happen
+                        // because we unwind prefetched no matter what due to RT), we skip the cell
+                        if (hasMoreSlice())
+                            setNextSlice();
+                        else
+                            prefetched.poll();
+
                     }
                     // col is within slice, all columns
                     // (we go in reverse, so as soon as we are in a slice, no need to check
@@ -375,6 +394,16 @@ class IndexedSliceReader extends AbstractIterator<OnDiskAtom> implements OnDiskA
                 Composite start = currentStart();
                 if (!inSlice && !start.isEmpty() && deserializer.compareNextTo(start) < 0)
                 {
+                    // If it's a rangeTombstone, then we need to read it and include it unless it's end
+                    // stops before our slice start.
+                    if (deserializer.nextIsRangeTombstone())
+                    {
+                        RangeTombstone rt = (RangeTombstone)deserializer.readNext();
+                        if (comparator.compare(rt.max, start) >= 0)
+                            addColumn(rt);
+                        continue;
+                    }
+
                     if (reversed)
                     {
                         // the next slice select columns that are before the current one, so it may
@@ -452,7 +481,18 @@ class IndexedSliceReader extends AbstractIterator<OnDiskAtom> implements OnDiskA
                 Composite start = currentStart();
                 if (!inSlice && !start.isEmpty() && deserializer.compareNextTo(start) < 0)
                 {
-                    deserializer.skipNext();
+                    // If it's a rangeTombstone, then we need to read it and include it unless it's end
+                    // stops before our slice start. Otherwise, we can skip it.
+                    if (deserializer.nextIsRangeTombstone())
+                    {
+                        RangeTombstone rt = (RangeTombstone)deserializer.readNext();
+                        if (comparator.compare(rt.max, start) >= 0)
+                            addColumn(rt);
+                    }
+                    else
+                    {
+                        deserializer.skipNext();
+                    }
                     continue;
                 }
 

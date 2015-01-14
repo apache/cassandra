@@ -43,6 +43,10 @@ public class AtomDeserializer
     private final int expireBefore;
     private final Version version;
 
+    // The "flag" for the next name (which correspond to the "masks" in ColumnSerializer) if it has been
+    // read already, Integer.MIN_VALUE otherwise;
+    private int nextFlags = Integer.MIN_VALUE;
+
     public AtomDeserializer(CellNameType type, DataInput in, ColumnSerializer.Flag flag, int expireBefore, Version version)
     {
         this.type = type;
@@ -83,17 +87,30 @@ public class AtomDeserializer
     }
 
     /**
+     * Returns whether the next atom is a range tombstone or not.
+     *
+     * Please note that this should only be called after compareNextTo() has been called.
+     */
+    public boolean nextIsRangeTombstone() throws IOException
+    {
+        nextFlags = in.readUnsignedByte();
+        return (nextFlags & ColumnSerializer.RANGE_TOMBSTONE_MASK) != 0;
+    }
+
+    /**
      * Returns the next atom.
      */
     public OnDiskAtom readNext() throws IOException
     {
         Composite name = nameDeserializer.readNext();
         assert !name.isEmpty(); // This would imply hasNext() hasn't been called
-        int b = in.readUnsignedByte();
-        if ((b & ColumnSerializer.RANGE_TOMBSTONE_MASK) != 0)
-            return type.rangeTombstoneSerializer().deserializeBody(in, name, version);
-        else
-            return type.columnSerializer().deserializeColumnBody(in, (CellName)name, b, flag, expireBefore);
+
+        nextFlags = nextFlags == Integer.MIN_VALUE ? in.readUnsignedByte() : nextFlags;
+        OnDiskAtom atom = (nextFlags & ColumnSerializer.RANGE_TOMBSTONE_MASK) != 0
+                        ? type.rangeTombstoneSerializer().deserializeBody(in, name, version)
+                        : type.columnSerializer().deserializeColumnBody(in, (CellName)name, nextFlags, flag, expireBefore);
+        nextFlags = Integer.MIN_VALUE;
+        return atom;
     }
 
     /**
@@ -102,10 +119,11 @@ public class AtomDeserializer
     public void skipNext() throws IOException
     {
         nameDeserializer.skipNext();
-        int b = in.readUnsignedByte();
-        if ((b & ColumnSerializer.RANGE_TOMBSTONE_MASK) != 0)
+        nextFlags = nextFlags == Integer.MIN_VALUE ? in.readUnsignedByte() : nextFlags;
+        if ((nextFlags & ColumnSerializer.RANGE_TOMBSTONE_MASK) != 0)
             type.rangeTombstoneSerializer().skipBody(in, version);
         else
-            type.columnSerializer().skipColumnBody(in, b);
+            type.columnSerializer().skipColumnBody(in, nextFlags);
+        nextFlags = Integer.MIN_VALUE;
     }
 }

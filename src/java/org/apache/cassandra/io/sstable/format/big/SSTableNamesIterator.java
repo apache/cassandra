@@ -215,16 +215,31 @@ class SSTableNamesIterator extends AbstractIterator<OnDiskAtom> implements OnDis
             while (file.bytesPastMark(mark) < indexInfo.width && nextToFetch != null)
             {
                 int cmp = deserializer.compareNextTo(nextToFetch);
-                if (cmp == 0)
+                if (cmp < 0)
+                {
+                    // If it's a rangeTombstone, then we need to read it and include
+                    // it if it includes our target. Otherwise, we can skip it.
+                    if (deserializer.nextIsRangeTombstone())
+                    {
+                        RangeTombstone rt = (RangeTombstone)deserializer.readNext();
+                        if (comparator.compare(rt.max, nextToFetch) >= 0)
+                            result.add(rt);
+                    }
+                    else
+                    {
+                        deserializer.skipNext();
+                    }
+                }
+                else if (cmp == 0)
                 {
                     nextToFetch = toFetch.hasNext() ? toFetch.next() : null;
                     result.add(deserializer.readNext());
-                    continue;
                 }
-
-                deserializer.skipNext();
-                if (cmp > 0)
+                else
+                {
+                    deserializer.skipNext();
                     nextToFetch = toFetch.hasNext() ? toFetch.next() : null;
+                }
             }
         }
     }
