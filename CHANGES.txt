@@ -50,6 +50,7 @@
 
 
 2.1.3
+ * (cqlsh) Escape clqshrc passwords properly (CASSANDRA-8618)
  * Fix NPE when passing wrong argument in ALTER TABLE statement (CASSANDRA-8355)
  * Pig: Refactor and deprecate CqlStorage (CASSANDRA-8599)
  * Don't reuse the same cleanup strategy for all sstables (CASSANDRA-8537)

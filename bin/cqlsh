@@ -1927,9 +1927,12 @@ def read_options(cmdlineargs, environment):
     configs = ConfigParser.SafeConfigParser()
     configs.read(CONFIG_FILE)
 
+    rawconfigs = ConfigParser.RawConfigParser()
+    rawconfigs.read(CONFIG_FILE)
+
     optvalues = optparse.Values()
     optvalues.username = option_with_default(configs.get, 'authentication', 'username')
-    optvalues.password = option_with_default(configs.get, 'authentication', 'password')
+    optvalues.password = option_with_default(rawconfigs.get, 'authentication', 'password')
     optvalues.keyspace = option_with_default(configs.get, 'authentication', 'keyspace')
     optvalues.completekey = option_with_default(configs.get, 'ui', 'completekey',
                                                 DEFAULT_COMPLETEKEY)
