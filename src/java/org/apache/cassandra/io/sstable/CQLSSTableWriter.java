@@ -34,6 +34,7 @@ import org.apache.cassandra.cql3.statements.*;
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.config.*;
 import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.composites.Composite;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.dht.IPartitioner;
@@ -78,8 +79,8 @@ public class CQLSSTableWriter implements Closeable
 {
     static
     {
-        // The CQLSSTableWriter must always be used in client mode.
-        Config.setClientMode(true);
+        // The Keyspace need to be initialized before we can call Keyspace.open
+        Keyspace.setInitialized();
     }
 
     private final AbstractSSTableSimpleWriter writer;
@@ -269,6 +270,14 @@ public class CQLSSTableWriter implements Closeable
     public void close() throws IOException
     {
         writer.close();
+        try
+        {
+            CommitLog.instance.shutdownBlocking();
+        }
+        catch (InterruptedException e)
+        {
+            Thread.currentThread().interrupt();
+        }
     }
 
     /**
