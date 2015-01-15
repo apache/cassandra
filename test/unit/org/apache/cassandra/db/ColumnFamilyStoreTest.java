@@ -1778,7 +1778,7 @@ public class ColumnFamilyStoreTest
             {
                 MetadataCollector collector = new MetadataCollector(cfmeta.comparator);
                 collector.addAncestor(sstable1.descriptor.generation); // add ancestor from previously written sstable
-                return SSTableWriter.create(Descriptor.fromFilename(makeFilename(directory, metadata.ksName, metadata.cfName, DatabaseDescriptor.getSSTableFormat())),
+                return SSTableWriter.create(createDescriptor(directory, metadata.ksName, metadata.cfName, DatabaseDescriptor.getSSTableFormat()),
                         0L,
                         ActiveRepairService.UNREPAIRED_SSTABLE,
                         metadata,

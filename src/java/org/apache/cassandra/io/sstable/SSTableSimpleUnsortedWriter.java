@@ -205,9 +205,10 @@ public class SSTableSimpleUnsortedWriter extends AbstractSSTableSimpleWriter
         public void run()
         {
             SSTableWriter writer = null;
-            try
+
+            while (true)
             {
-                while (true)
+                try
                 {
                     Buffer b = writeQueue.take();
                     if (b == SENTINEL)
@@ -218,14 +219,17 @@ public class SSTableSimpleUnsortedWriter extends AbstractSSTableSimpleWriter
                         writer.append(entry.getKey(), entry.getValue());
                     writer.close();
                 }
+                catch (Throwable e)
+                {
+                    JVMStabilityInspector.inspectThrowable(e);
+                    if (writer != null)
+                        writer.abort();
+                    // Keep only the first exception
+                    if (exception == null)
+                      exception = e;
+                }
             }
-            catch (Throwable e)
-            {
-                JVMStabilityInspector.inspectThrowable(e);
-                if (writer != null)
-                    writer.abort();
-                exception = e;
-            }
+
         }
     }
 }

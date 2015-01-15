@@ -63,13 +63,18 @@ public abstract class AbstractSSTableSimpleWriter implements Closeable
 
     protected SSTableWriter getWriter()
     {
-        return SSTableWriter.create(Descriptor.fromFilename(makeFilename(directory, metadata.ksName, metadata.cfName, formatType)), 0, ActiveRepairService.UNREPAIRED_SSTABLE);
+        return SSTableWriter.create(createDescriptor(directory, metadata.ksName, metadata.cfName, formatType), 0, ActiveRepairService.UNREPAIRED_SSTABLE);
     }
 
-    // find available generation and pick up filename from that
-    protected static String makeFilename(File directory, final String keyspace, final String columnFamily, final SSTableFormat.Type fmt)
+    protected static Descriptor createDescriptor(File directory, final String keyspace, final String columnFamily, final SSTableFormat.Type fmt)
     {
-        final Set<Descriptor> existing = new HashSet<Descriptor>();
+        int maxGen = getNextGeneration(directory, columnFamily);
+        return new Descriptor(directory, keyspace, columnFamily, maxGen + 1, Descriptor.Type.TEMP, fmt);
+    }
+
+    private static int getNextGeneration(File directory, final String columnFamily)
+    {
+        final Set<Descriptor> existing = new HashSet<>();
         directory.list(new FilenameFilter()
         {
             public boolean accept(File dir, String name)
@@ -93,8 +98,7 @@ public abstract class AbstractSSTableSimpleWriter implements Closeable
                 maxGen = generation.getAndIncrement();
             }
         }
-
-        return new Descriptor(directory, keyspace, columnFamily, maxGen + 1, Descriptor.Type.TEMP, fmt).filenameFor(Component.DATA);
+        return maxGen;
     }
 
     /**
