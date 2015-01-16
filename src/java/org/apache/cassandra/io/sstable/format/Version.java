@@ -40,8 +40,6 @@ public abstract class Version
 
     public abstract boolean isLatestVersion();
 
-    public abstract boolean hasPostCompressionAdlerChecksums();
-
     public abstract boolean hasSamplingLevel();
 
     public abstract boolean hasNewStatsFile();

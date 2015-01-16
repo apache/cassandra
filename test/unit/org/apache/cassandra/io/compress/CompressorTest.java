@@ -17,29 +17,47 @@
  */
 package org.apache.cassandra.io.compress;
 
-import java.io.IOException;
-import java.io.UnsupportedEncodingException;
+import java.io.*;
+import java.nio.ByteBuffer;
+import java.nio.MappedByteBuffer;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Random;
 
+import com.google.common.io.Files;
 import org.apache.cassandra.io.compress.ICompressor.WrappedArray;
 
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
 import static org.junit.Assert.*;
 
-public class LZ4CompressorTest
+public class CompressorTest
 {
+    ICompressor compressor;
 
-    LZ4Compressor compressor;
+    ICompressor[] compressors = new ICompressor[] {
+            LZ4Compressor.create(Collections.<String, String>emptyMap()),
+            DeflateCompressor.create(Collections.<String, String>emptyMap()),
+            SnappyCompressor.create(Collections.<String, String>emptyMap())
+    };
 
-    @Before
-    public void setUp()
+
+    @Test
+    public void testAllCompressors() throws IOException
     {
-        compressor = LZ4Compressor.create(Collections.<String, String>emptyMap());
+        for (ICompressor compressor : compressors)
+        {
+            this.compressor = compressor;
+
+            testEmptyArray();
+            testLongArray();
+            testShortArray();
+            testMappedFile();
+        }
     }
+
 
     public void test(byte[] data, int off, int len) throws IOException
     {
@@ -61,24 +79,55 @@ public class LZ4CompressorTest
         test(data, 0, data.length);
     }
 
-    @Test
     public void testEmptyArray() throws IOException
     {
         test(new byte[0]);
     }
 
-    @Test
     public void testShortArray() throws UnsupportedEncodingException, IOException
     {
         test("Cassandra".getBytes("UTF-8"), 1, 7);
     }
 
-    @Test
     public void testLongArray() throws UnsupportedEncodingException, IOException
     {
         byte[] data = new byte[1 << 20];
         test(data, 13, 1 << 19);
         new Random(0).nextBytes(data);
         test(data, 13, 1 << 19);
+    }
+
+    public void testMappedFile() throws IOException
+    {
+        byte[] data = new byte[1 << 20];
+        new Random().nextBytes(data);
+
+        //create a temp file
+        File temp = File.createTempFile("tempfile", ".tmp");
+        temp.deleteOnExit();
+
+        //Prepend some random bytes to the output and compress
+        final int outOffset = 3;
+        final WrappedArray out = new WrappedArray(new byte[outOffset + compressor.initialCompressedBufferLength(data.length)]);
+        new Random().nextBytes(out.buffer);
+        final int compressedLength = compressor.compress(data, 0, data.length, out, outOffset);
+        Files.write(out.buffer, temp);
+
+        MappedByteBuffer mappedData = Files.map(temp);
+        mappedData.position(outOffset);
+        mappedData.limit(compressedLength+outOffset);
+
+
+        ByteBuffer result = compressor.useDirectOutputByteBuffers()
+                ? ByteBuffer.allocateDirect(data.length + 100)
+                : ByteBuffer.allocate(data.length + 100);
+
+        int length = compressor.uncompress(mappedData, result);
+
+        Assert.assertEquals(data.length, length);
+        for (int i = 0; i < length; i++)
+        {
+            Assert.assertEquals("Decompression mismatch at byte "+i, data[i], result.get());
+        }
     }
 }

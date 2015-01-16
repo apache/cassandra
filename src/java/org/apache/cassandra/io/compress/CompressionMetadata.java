@@ -62,7 +62,6 @@ public class CompressionMetadata
 {
     public final long dataLength;
     public final long compressedFileLength;
-    public final boolean hasPostCompressionAdlerChecksums;
     private final Memory chunkOffsets;
     private final long chunkOffsetsSize;
     public final String indexFilePath;
@@ -82,14 +81,13 @@ public class CompressionMetadata
     public static CompressionMetadata create(String dataFilePath)
     {
         Descriptor desc = Descriptor.fromFilename(dataFilePath);
-        return new CompressionMetadata(desc.filenameFor(Component.COMPRESSION_INFO), new File(dataFilePath).length(), desc.version.hasPostCompressionAdlerChecksums());
+        return new CompressionMetadata(desc.filenameFor(Component.COMPRESSION_INFO), new File(dataFilePath).length());
     }
 
     @VisibleForTesting
-    CompressionMetadata(String indexFilePath, long compressedLength, boolean hasPostCompressionAdlerChecksums)
+    CompressionMetadata(String indexFilePath, long compressedLength)
     {
         this.indexFilePath = indexFilePath;
-        this.hasPostCompressionAdlerChecksums = hasPostCompressionAdlerChecksums;
 
         DataInputStream stream;
         try
@@ -137,13 +135,12 @@ public class CompressionMetadata
         this.chunkOffsetsSize = chunkOffsets.size();
     }
 
-    private CompressionMetadata(String filePath, CompressionParameters parameters, RefCountedMemory offsets, long offsetsSize, long dataLength, long compressedLength, boolean hasPostCompressionAdlerChecksums)
+    private CompressionMetadata(String filePath, CompressionParameters parameters, RefCountedMemory offsets, long offsetsSize, long dataLength, long compressedLength)
     {
         this.indexFilePath = filePath;
         this.parameters = parameters;
         this.dataLength = dataLength;
         this.compressedFileLength = compressedLength;
-        this.hasPostCompressionAdlerChecksums = hasPostCompressionAdlerChecksums;
         this.chunkOffsets = offsets;
         offsets.reference();
         this.chunkOffsetsSize = offsetsSize;
@@ -342,7 +339,7 @@ public class CompressionMetadata
                 default:
                     throw new AssertionError();
             }
-            return new CompressionMetadata(filePath, parameters, offsets, count * 8L, dataLength, compressedLength, latestVersion.hasPostCompressionAdlerChecksums());
+            return new CompressionMetadata(filePath, parameters, offsets, count * 8L, dataLength, compressedLength);
         }
 
         /**

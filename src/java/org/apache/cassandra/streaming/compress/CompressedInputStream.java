@@ -62,17 +62,15 @@ public class CompressedInputStream extends InputStream
     private static final byte[] POISON_PILL = new byte[0];
 
     private long totalCompressedBytesRead;
-    private final boolean hasPostCompressionAdlerChecksums;
 
     /**
      * @param source Input source to read compressed data from
      * @param info Compression info
      */
-    public CompressedInputStream(InputStream source, CompressionInfo info, boolean hasPostCompressionAdlerChecksums)
+    public CompressedInputStream(InputStream source, CompressionInfo info)
     {
         this.info = info;
-        this.checksum = hasPostCompressionAdlerChecksums ? new Adler32() : new CRC32();
-        this.hasPostCompressionAdlerChecksums = hasPostCompressionAdlerChecksums;
+        this.checksum =  new Adler32();
         this.buffer = new byte[info.parameters.chunkLength()];
         // buffer is limited to store up to 1024 chunks
         this.dataBuffer = new ArrayBlockingQueue<byte[]>(Math.min(info.chunks.length, 1024));
@@ -117,14 +115,7 @@ public class CompressedInputStream extends InputStream
         // validate crc randomly
         if (info.parameters.getCrcCheckChance() > ThreadLocalRandom.current().nextDouble())
         {
-            if (hasPostCompressionAdlerChecksums)
-            {
-                checksum.update(compressed, 0, compressed.length - checksumBytes.length);
-            }
-            else
-            {
-                checksum.update(buffer, 0, validBufferBytes);
-            }
+            checksum.update(compressed, 0, compressed.length - checksumBytes.length);
 
             System.arraycopy(compressed, compressed.length - checksumBytes.length, checksumBytes, 0, checksumBytes.length);
             if (Ints.fromByteArray(checksumBytes) != (int) checksum.getValue())
