@@ -314,7 +314,7 @@ public class StorageProxy implements StorageProxyMBean
             pendingEndpoints = ImmutableList.copyOf(Iterables.filter(pendingEndpoints, isLocalDc));
         }
         int participants = pendingEndpoints.size() + naturalEndpoints.size();
-        int requiredParticipants = participants + 1  / 2; // See CASSANDRA-833
+        int requiredParticipants = (participants + 1) / 2; // See CASSANDRA-8346, CASSANDRA-833
         List<InetAddress> liveEndpoints = ImmutableList.copyOf(Iterables.filter(Iterables.concat(naturalEndpoints, pendingEndpoints), IAsyncCallback.isAlive));
         if (liveEndpoints.size() < requiredParticipants)
             throw new UnavailableException(consistencyForPaxos, requiredParticipants, liveEndpoints.size());
