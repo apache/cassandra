@@ -134,7 +134,7 @@ Merged from 2.0:
  * Fix NPE after dropping a keyspace (CASSANDRA-8332)
  * Fix error message on read repair timeouts (CASSANDRA-7947)
  * Default DTCS base_time_seconds changed to 60 (CASSANDRA-8417)
- * Refuse Paxos operation with more than one pending endpoint (CASSANDRA-8346)
+ * Refuse Paxos operation with more than one pending endpoint (CASSANDRA-8346, 8640)
  * Throw correct exception when trying to bind a keyspace or table
    name (CASSANDRA-6952)
  * Make HHOM.compact synchronized (CASSANDRA-8416)
