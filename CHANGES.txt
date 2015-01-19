@@ -1,3 +1,7 @@
+2.0.13:
+ * Round up time deltas lower than 1ms in BulkLoader (CASSANDRA-8645)
+
+
 2.0.12:
  * Use more efficient slice size for querying internal secondary
    index tables (CASSANDRA-8550)

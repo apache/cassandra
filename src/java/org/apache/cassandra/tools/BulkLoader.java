@@ -188,7 +188,7 @@ public class BulkLoader
                     sb.append(" (").append(size == 0 ? 100L : current * 100L / size).append("%)] ");
                 }
                 long time = System.nanoTime();
-                long deltaTime = TimeUnit.NANOSECONDS.toMillis(time - lastTime);
+                long deltaTime = Math.max(1L, TimeUnit.NANOSECONDS.toMillis(time - lastTime));
                 lastTime = time;
                 long deltaProgress = totalProgress - lastProgress;
                 lastProgress = totalProgress;
@@ -204,7 +204,7 @@ public class BulkLoader
         private int mbPerSec(long bytes, long timeInMs)
         {
             double bytesPerMs = ((double)bytes) / timeInMs;
-            return (int)((bytesPerMs * 1000) / (1024 * 2024));
+            return (int)((bytesPerMs * 1000) / (1024 * 1024));
         }
     }
 
