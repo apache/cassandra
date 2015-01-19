@@ -366,14 +366,7 @@ public abstract class CQLTester
         tables.add(currentTable);
         String fullQuery = formatQuery(query);
         logger.info(fullQuery);
-        try
-        {
-            QueryProcessor.executeOnceInternal(fullQuery);
-        }
-        catch (RuntimeException ex)
-        {
-            throw ex.getCause();
-        }
+        QueryProcessor.executeOnceInternal(fullQuery);
     }
 
     protected void alterTable(String query)
@@ -387,14 +380,7 @@ public abstract class CQLTester
     {
         String fullQuery = formatQuery(query);
         logger.info(fullQuery);
-        try
-        {
-            QueryProcessor.executeOnceInternal(fullQuery);
-        }
-        catch (RuntimeException ex)
-        {
-            throw ex.getCause();
-        }
+        QueryProcessor.executeOnceInternal(fullQuery);
     }
 
     protected void dropTable(String query)
@@ -415,14 +401,7 @@ public abstract class CQLTester
     {
         String fullQuery = formatQuery(query);
         logger.info(fullQuery);
-        try
-        {
-            QueryProcessor.executeOnceInternal(fullQuery);
-        }
-        catch (RuntimeException ex)
-        {
-            throw ex.getCause();
-        }
+        QueryProcessor.executeOnceInternal(fullQuery);
     }
 
     protected void dropIndex(String query) throws Throwable
@@ -486,32 +465,23 @@ public abstract class CQLTester
 
     protected UntypedResultSet execute(String query, Object... values) throws Throwable
     {
-        try
-        {
-            query = formatQuery(query);
+        query = formatQuery(query);
 
-            UntypedResultSet rs;
-            if (usePrepared)
-            {
-                logger.info("Executing: {} with values {}", query, formatAllValues(values));
-                rs = QueryProcessor.executeOnceInternal(query, transformValues(values));
-            }
-            else
-            {
-                query = replaceValues(query, values);
-                logger.info("Executing: {}", query);
-                rs = QueryProcessor.executeOnceInternal(query);
-            }
-            if (rs != null)
-                logger.info("Got {} rows", rs.size());
-            return rs;
-        }
-        catch (RuntimeException e)
+        UntypedResultSet rs;
+        if (usePrepared)
         {
-            Throwable cause = e.getCause() != null ? e.getCause() : e;
-            logger.info("Got error: {}", cause.getMessage() == null ? cause.toString() : cause.getMessage());
-            throw cause;
+            logger.info("Executing: {} with values {}", query, formatAllValues(values));
+            rs = QueryProcessor.executeOnceInternal(query, transformValues(values));
         }
+        else
+        {
+            query = replaceValues(query, values);
+            logger.info("Executing: {}", query);
+            rs = QueryProcessor.executeOnceInternal(query);
+        }
+        if (rs != null)
+            logger.info("Got {} rows", rs.size());
+        return rs;
     }
 
     protected void assertRowsNet(int protocolVersion, ResultSet result, Object[]... rows)
@@ -660,16 +630,7 @@ public abstract class CQLTester
     {
         try
         {
-            try
-            {
-                execute(query, values);
-            }
-            catch (RuntimeException e)
-            {
-                Throwable cause = e.getCause();
-                if (cause instanceof InvalidRequestException)
-                    throw cause;
-            }
+            execute(query, values);
             String q = USE_PREPARED_VALUES
                      ? query + " (values: " + formatAllValues(values) + ")"
                      : replaceValues(query, values);

@@ -140,18 +140,10 @@ public class PasswordAuthenticator implements IAuthenticator
     private AuthenticatedUser doAuthenticate(String username, String password, SelectStatement authenticationStatement)
     throws RequestExecutionException, AuthenticationException
     {
-        UntypedResultSet result;
-        try
-        {
-            ResultMessage.Rows rows = authenticationStatement.execute(QueryState.forInternalCalls(),
-                                                                      QueryOptions.forInternalCalls(consistencyForRole(username),
-                                                                                                    Lists.newArrayList(ByteBufferUtil.bytes(username))));
-            result = UntypedResultSet.create(rows.result);
-        }
-        catch (RequestValidationException e)
-        {
-            throw new AssertionError(e); // not supposed to happen
-        }
+        ResultMessage.Rows rows = authenticationStatement.execute(QueryState.forInternalCalls(),
+                                                                  QueryOptions.forInternalCalls(consistencyForRole(username),
+                                                                                                Lists.newArrayList(ByteBufferUtil.bytes(username))));
+        UntypedResultSet result = UntypedResultSet.create(rows.result);
 
         if ((result.isEmpty() || !result.one().has(SALTED_HASH)) || !BCrypt.checkpw(password, result.one().getString(SALTED_HASH)))
             throw new AuthenticationException("Username and/or password are incorrect");
@@ -161,14 +153,7 @@ public class PasswordAuthenticator implements IAuthenticator
 
     private SelectStatement prepare(String query)
     {
-        try
-        {
-            return (SelectStatement) QueryProcessor.getStatement(query, ClientState.forInternalCalls()).statement;
-        }
-        catch (RequestValidationException e)
-        {
-            throw new AssertionError(e);
-        }
+        return (SelectStatement) QueryProcessor.getStatement(query, ClientState.forInternalCalls()).statement;
     }
 
     private class PlainTextSaslAuthenticator implements SaslNegotiator

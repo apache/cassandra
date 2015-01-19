@@ -251,28 +251,20 @@ public abstract class AbstractReplicationStrategy
                                                                         IEndpointSnitch snitch,
                                                                         Map<String, String> strategyOptions)
     {
+        AbstractReplicationStrategy strategy = createInternal(keyspaceName, strategyClass, tokenMetadata, snitch, strategyOptions);
+
+        // Because we used to not properly validate unrecognized options, we only log a warning if we find one.
         try
         {
-            AbstractReplicationStrategy strategy = createInternal(keyspaceName, strategyClass, tokenMetadata, snitch, strategyOptions);
-
-            // Because we used to not properly validate unrecognized options, we only log a warning if we find one.
-            try
-            {
-                strategy.validateExpectedOptions();
-            }
-            catch (ConfigurationException e)
-            {
-                logger.warn("Ignoring {}", e.getMessage());
-            }
-
-            strategy.validateOptions();
-            return strategy;
+            strategy.validateExpectedOptions();
         }
         catch (ConfigurationException e)
         {
-            // If that happens at this point, there is nothing we can do about it.
-            throw new RuntimeException(e);
+            logger.warn("Ignoring {}", e.getMessage());
         }
+
+        strategy.validateOptions();
+        return strategy;
     }
 
     public static void validateReplicationStrategy(String keyspaceName,

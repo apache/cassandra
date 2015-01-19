@@ -31,6 +31,7 @@ import com.googlecode.concurrentlinkedhashmap.EntryWeigher;
 import com.googlecode.concurrentlinkedhashmap.EvictionListener;
 
 import org.antlr.runtime.*;
+import org.apache.cassandra.exceptions.CassandraException;
 import org.apache.cassandra.service.MigrationListener;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -73,7 +74,7 @@ public class QueryProcessor implements QueryHandler
     private static final MemoryMeter meter = new MemoryMeter().withGuessing(MemoryMeter.Guess.FALLBACK_BEST).ignoreKnownSingletons();
     private static final long MAX_CACHE_PREPARED_MEMORY = Runtime.getRuntime().maxMemory() / 256;
 
-    private static EntryWeigher<MD5Digest, ParsedStatement.Prepared> cqlMemoryUsageWeigher = new EntryWeigher<MD5Digest, ParsedStatement.Prepared>()
+    private static final EntryWeigher<MD5Digest, ParsedStatement.Prepared> cqlMemoryUsageWeigher = new EntryWeigher<MD5Digest, ParsedStatement.Prepared>()
     {
         @Override
         public int weightOf(MD5Digest key, ParsedStatement.Prepared value)
@@ -82,7 +83,7 @@ public class QueryProcessor implements QueryHandler
         }
     };
 
-    private static EntryWeigher<Integer, ParsedStatement.Prepared> thriftMemoryUsageWeigher = new EntryWeigher<Integer, ParsedStatement.Prepared>()
+    private static final EntryWeigher<Integer, ParsedStatement.Prepared> thriftMemoryUsageWeigher = new EntryWeigher<Integer, ParsedStatement.Prepared>()
     {
         @Override
         public int weightOf(Integer key, ParsedStatement.Prepared value)
@@ -159,14 +160,7 @@ public class QueryProcessor implements QueryHandler
         InternalStateInstance()
         {
             ClientState state = ClientState.forInternalCalls();
-            try
-            {
-                state.setKeyspace(SystemKeyspace.NAME);
-            }
-            catch (InvalidRequestException e)
-            {
-                throw new RuntimeException();
-            }
+            state.setKeyspace(SystemKeyspace.NAME);
             this.queryState = new QueryState(state);
         }
     }
@@ -268,18 +262,11 @@ public class QueryProcessor implements QueryHandler
 
     public static UntypedResultSet process(String query, ConsistencyLevel cl) throws RequestExecutionException
     {
-        try
-        {
-            ResultMessage result = instance.process(query, QueryState.forInternalCalls(), QueryOptions.forInternalCalls(cl, Collections.<ByteBuffer>emptyList()));
-            if (result instanceof ResultMessage.Rows)
-                return UntypedResultSet.create(((ResultMessage.Rows)result).result);
-            else
-                return null;
-        }
-        catch (RequestValidationException e)
-        {
-            throw new RuntimeException(e);
-        }
+        ResultMessage result = instance.process(query, QueryState.forInternalCalls(), QueryOptions.forInternalCalls(cl, Collections.<ByteBuffer>emptyList()));
+        if (result instanceof ResultMessage.Rows)
+            return UntypedResultSet.create(((ResultMessage.Rows)result).result);
+        else
+            return null;
     }
 
     private static QueryOptions makeInternalOptions(ParsedStatement.Prepared prepared, Object[] values)
@@ -312,41 +299,23 @@ public class QueryProcessor implements QueryHandler
 
     public static UntypedResultSet executeInternal(String query, Object... values)
     {
-        try
-        {
-            ParsedStatement.Prepared prepared = prepareInternal(query);
-            ResultMessage result = prepared.statement.executeInternal(internalQueryState(), makeInternalOptions(prepared, values));
-            if (result instanceof ResultMessage.Rows)
-                return UntypedResultSet.create(((ResultMessage.Rows)result).result);
-            else
-                return null;
-        }
-        catch (RequestExecutionException e)
-        {
-            throw new RuntimeException(e);
-        }
-        catch (RequestValidationException e)
-        {
-            throw new RuntimeException("Error validating " + query, e);
-        }
+        ParsedStatement.Prepared prepared = prepareInternal(query);
+        ResultMessage result = prepared.statement.executeInternal(internalQueryState(), makeInternalOptions(prepared, values));
+        if (result instanceof ResultMessage.Rows)
+            return UntypedResultSet.create(((ResultMessage.Rows)result).result);
+        else
+            return null;
     }
 
     public static UntypedResultSet executeInternalWithPaging(String query, int pageSize, Object... values)
     {
-        try
-        {
-            ParsedStatement.Prepared prepared = prepareInternal(query);
-            if (!(prepared.statement instanceof SelectStatement))
-                throw new IllegalArgumentException("Only SELECTs can be paged");
+        ParsedStatement.Prepared prepared = prepareInternal(query);
+        if (!(prepared.statement instanceof SelectStatement))
+            throw new IllegalArgumentException("Only SELECTs can be paged");
 
-            SelectStatement select = (SelectStatement)prepared.statement;
-            QueryPager pager = QueryPagers.localPager(select.getPageableCommand(makeInternalOptions(prepared, values)));
-            return UntypedResultSet.create(select, pager, pageSize);
-        }
-        catch (RequestValidationException e)
-        {
-            throw new RuntimeException("Error validating query" + e);
-        }
+        SelectStatement select = (SelectStatement)prepared.statement;
+        QueryPager pager = QueryPagers.localPager(select.getPageableCommand(makeInternalOptions(prepared, values)));
+        return UntypedResultSet.create(select, pager, pageSize);
     }
 
     /**
@@ -355,24 +324,13 @@ public class QueryProcessor implements QueryHandler
      */
     public static UntypedResultSet executeOnceInternal(String query, Object... values)
     {
-        try
-        {
-            ParsedStatement.Prepared prepared = parseStatement(query, internalQueryState());
-            prepared.statement.validate(internalQueryState().getClientState());
-            ResultMessage result = prepared.statement.executeInternal(internalQueryState(), makeInternalOptions(prepared, values));
-            if (result instanceof ResultMessage.Rows)
-                return UntypedResultSet.create(((ResultMessage.Rows)result).result);
-            else
-                return null;
-        }
-        catch (RequestExecutionException e)
-        {
-            throw new RuntimeException(e);
-        }
-        catch (RequestValidationException e)
-        {
-            throw new RuntimeException("Error validating query " + query, e);
-        }
+        ParsedStatement.Prepared prepared = parseStatement(query, internalQueryState());
+        prepared.statement.validate(internalQueryState().getClientState());
+        ResultMessage result = prepared.statement.executeInternal(internalQueryState(), makeInternalOptions(prepared, values));
+        if (result instanceof ResultMessage.Rows)
+            return UntypedResultSet.create(((ResultMessage.Rows)result).result);
+        else
+            return null;
     }
 
     public static UntypedResultSet resultify(String query, Row row)
@@ -382,27 +340,18 @@ public class QueryProcessor implements QueryHandler
 
     public static UntypedResultSet resultify(String query, List<Row> rows)
     {
-        try
-        {
-            SelectStatement ss = (SelectStatement) getStatement(query, null).statement;
-            ResultSet cqlRows = ss.process(rows);
-            return UntypedResultSet.create(cqlRows);
-        }
-        catch (RequestValidationException e)
-        {
-            throw new AssertionError(e);
-        }
+        SelectStatement ss = (SelectStatement) getStatement(query, null).statement;
+        ResultSet cqlRows = ss.process(rows);
+        return UntypedResultSet.create(cqlRows);
     }
 
     public ResultMessage.Prepared prepare(String queryString, QueryState queryState)
-    throws RequestValidationException
     {
         ClientState cState = queryState.getClientState();
         return prepare(queryString, cState, cState instanceof ThriftClientState);
     }
 
     public static ResultMessage.Prepared prepare(String queryString, ClientState clientState, boolean forThrift)
-    throws RequestValidationException
     {
         ResultMessage.Prepared existing = getStoredPreparedStatement(queryString, clientState.getRawKeyspace(), forThrift);
         if (existing != null)
@@ -540,6 +489,10 @@ public class QueryProcessor implements QueryHandler
             errorCollector.throwFirstSyntaxError();
 
             return statement;
+        }
+        catch (CassandraException ce)
+        {
+            throw ce;
         }
         catch (RuntimeException re)
         {

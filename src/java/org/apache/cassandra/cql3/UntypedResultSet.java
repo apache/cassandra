@@ -175,17 +175,13 @@ public abstract class UntypedResultSet implements Iterable<UntypedResultSet.Row>
 
                 protected Row computeNext()
                 {
-                    try {
-                        while (currentPage == null || !currentPage.hasNext())
-                        {
-                            if (pager.isExhausted())
-                                return endOfData();
-                            currentPage = select.process(pager.fetchPage(pageSize)).rows.iterator();
-                        }
-                        return new Row(metadata, currentPage.next());
-                    } catch (RequestValidationException | RequestExecutionException e) {
-                        throw new RuntimeException(e);
+                    while (currentPage == null || !currentPage.hasNext())
+                    {
+                        if (pager.isExhausted())
+                            return endOfData();
+                        currentPage = select.process(pager.fetchPage(pageSize)).rows.iterator();
                     }
+                    return new Row(metadata, currentPage.next());
                 }
             };
         }

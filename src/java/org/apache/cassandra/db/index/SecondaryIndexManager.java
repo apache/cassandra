@@ -50,7 +50,6 @@ import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.composites.CellName;
 import org.apache.cassandra.db.filter.ExtendedFilter;
-import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.io.sstable.ReducingKeyIterator;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
@@ -274,15 +273,7 @@ public class SecondaryIndexManager
 
         assert cdef.getIndexType() != null;
 
-        SecondaryIndex index;
-        try
-        {
-            index = SecondaryIndex.createInstance(baseCfs, cdef);
-        }
-        catch (ConfigurationException e)
-        {
-            throw new RuntimeException(e);
-        }
+        SecondaryIndex index = SecondaryIndex.createInstance(baseCfs, cdef);
 
         // Keep a single instance of the index per-cf for row level indexes
         // since we want all columns to be under the index

@@ -291,19 +291,12 @@ public final class CFMetaData
 
     public static CFMetaData compile(String cql, String keyspace)
     {
-        try
-        {
-            CFStatement parsed = (CFStatement)QueryProcessor.parseStatement(cql);
-            parsed.prepareKeyspace(keyspace);
-            CreateTableStatement statement = (CreateTableStatement) parsed.prepare().statement;
-            CFMetaData cfm = newSystemMetadata(keyspace, statement.columnFamily(), "", statement.comparator);
-            statement.applyPropertiesTo(cfm);
-            return cfm.rebuild();
-        }
-        catch (RequestValidationException e)
-        {
-            throw new RuntimeException(e);
-        }
+        CFStatement parsed = (CFStatement)QueryProcessor.parseStatement(cql);
+        parsed.prepareKeyspace(keyspace);
+        CreateTableStatement statement = (CreateTableStatement) parsed.prepare().statement;
+        CFMetaData cfm = newSystemMetadata(keyspace, statement.columnFamily(), "", statement.comparator);
+        statement.applyPropertiesTo(cfm);
+        return cfm.rebuild();
     }
 
     /**
@@ -730,14 +723,7 @@ public final class CFMetaData
      */
     public boolean reload()
     {
-        try
-        {
-            return apply(LegacySchemaTables.createTableFromName(ksName, cfName));
-        }
-        catch (ConfigurationException e)
-        {
-            throw new RuntimeException(e);
-        }
+        return apply(LegacySchemaTables.createTableFromName(ksName, cfName));
     }
 
     /**

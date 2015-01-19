@@ -516,10 +516,6 @@ public abstract class AbstractCassandraStorage extends LoadFunc implements Store
                         logger.error("Authentication exception: invalid username and/or password");
                         throw new IOException(e);
                     }
-                    catch (AuthorizationException e)
-                    {
-                        throw new AssertionError(e); // never actually throws AuthorizationException.
-                    }
                 }
 
                 // compose the CfDef for the columfamily

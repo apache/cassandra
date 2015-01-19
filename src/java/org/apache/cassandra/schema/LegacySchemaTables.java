@@ -47,7 +47,6 @@ import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.InvalidRequestException;
-import org.apache.cassandra.exceptions.SyntaxException;
 import org.apache.cassandra.io.compress.CompressionParameters;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.service.StorageService;
@@ -752,17 +751,10 @@ public class LegacySchemaTables
     {
         String query = String.format("SELECT * FROM %s.%s", SystemKeyspace.NAME, KEYSPACES);
         UntypedResultSet.Row row = QueryProcessor.resultify(query, partition).one();
-        try
-        {
-            return new KSMetaData(row.getString("keyspace_name"),
-                                  AbstractReplicationStrategy.getClass(row.getString("strategy_class")),
-                                  fromJsonMap(row.getString("strategy_options")),
-                                  row.getBoolean("durable_writes"));
-        }
-        catch (ConfigurationException e)
-        {
-            throw new RuntimeException(e);
-        }
+        return new KSMetaData(row.getString("keyspace_name"),
+                              AbstractReplicationStrategy.getClass(row.getString("strategy_class")),
+                              fromJsonMap(row.getString("strategy_options")),
+                              row.getBoolean("durable_writes"));
     }
 
     /*
@@ -1040,15 +1032,8 @@ public class LegacySchemaTables
         CFMetaData cfm = createTableFromTableRowAndColumnsPartition(result, serializedColumns);
 
         Row serializedTriggers = readSchemaPartitionForTable(TRIGGERS, ksName, cfName);
-        try
-        {
-            for (TriggerDefinition trigger : createTriggersFromTriggersPartition(serializedTriggers))
-                cfm.addTriggerDefinition(trigger);
-        }
-        catch (InvalidRequestException e)
-        {
-            throw new RuntimeException(e);
-        }
+        for (TriggerDefinition trigger : createTriggersFromTriggersPartition(serializedTriggers))
+            cfm.addTriggerDefinition(trigger);
 
         return cfm;
     }
@@ -1056,80 +1041,73 @@ public class LegacySchemaTables
     public static CFMetaData createTableFromTableRowAndColumnRows(UntypedResultSet.Row result,
                                                                   UntypedResultSet serializedColumnDefinitions)
     {
-        try
-        {
-            String ksName = result.getString("keyspace_name");
-            String cfName = result.getString("columnfamily_name");
+        String ksName = result.getString("keyspace_name");
+        String cfName = result.getString("columnfamily_name");
 
-            AbstractType<?> rawComparator = TypeParser.parse(result.getString("comparator"));
-            AbstractType<?> subComparator = result.has("subcomparator") ? TypeParser.parse(result.getString("subcomparator")) : null;
-            ColumnFamilyType cfType = ColumnFamilyType.valueOf(result.getString("type"));
+        AbstractType<?> rawComparator = TypeParser.parse(result.getString("comparator"));
+        AbstractType<?> subComparator = result.has("subcomparator") ? TypeParser.parse(result.getString("subcomparator")) : null;
+        ColumnFamilyType cfType = ColumnFamilyType.valueOf(result.getString("type"));
 
-            AbstractType<?> fullRawComparator = CFMetaData.makeRawAbstractType(rawComparator, subComparator);
+        AbstractType<?> fullRawComparator = CFMetaData.makeRawAbstractType(rawComparator, subComparator);
 
-            List<ColumnDefinition> columnDefs = createColumnsFromColumnRows(serializedColumnDefinitions,
-                                                                            ksName,
-                                                                            cfName,
-                                                                            fullRawComparator,
-                                                                            cfType == ColumnFamilyType.Super);
+        List<ColumnDefinition> columnDefs = createColumnsFromColumnRows(serializedColumnDefinitions,
+                                                                        ksName,
+                                                                        cfName,
+                                                                        fullRawComparator,
+                                                                        cfType == ColumnFamilyType.Super);
 
-            boolean isDense = result.has("is_dense")
-                            ? result.getBoolean("is_dense")
-                            : CFMetaData.calculateIsDense(fullRawComparator, columnDefs);
+        boolean isDense = result.has("is_dense")
+                        ? result.getBoolean("is_dense")
+                        : CFMetaData.calculateIsDense(fullRawComparator, columnDefs);
 
-            CellNameType comparator = CellNames.fromAbstractType(fullRawComparator, isDense);
+        CellNameType comparator = CellNames.fromAbstractType(fullRawComparator, isDense);
 
-            // if we are upgrading, we use id generated from names initially
-            UUID cfId = result.has("cf_id")
-                      ? result.getUUID("cf_id")
-                      : CFMetaData.generateLegacyCfId(ksName, cfName);
+        // if we are upgrading, we use id generated from names initially
+        UUID cfId = result.has("cf_id")
+                  ? result.getUUID("cf_id")
+                  : CFMetaData.generateLegacyCfId(ksName, cfName);
 
-            CFMetaData cfm = new CFMetaData(ksName, cfName, cfType, comparator, cfId);
-            cfm.isDense(isDense);
+        CFMetaData cfm = new CFMetaData(ksName, cfName, cfType, comparator, cfId);
+        cfm.isDense(isDense);
 
-            cfm.readRepairChance(result.getDouble("read_repair_chance"));
-            cfm.dcLocalReadRepairChance(result.getDouble("local_read_repair_chance"));
-            cfm.gcGraceSeconds(result.getInt("gc_grace_seconds"));
-            cfm.defaultValidator(TypeParser.parse(result.getString("default_validator")));
-            cfm.keyValidator(TypeParser.parse(result.getString("key_validator")));
-            cfm.minCompactionThreshold(result.getInt("min_compaction_threshold"));
-            cfm.maxCompactionThreshold(result.getInt("max_compaction_threshold"));
-            if (result.has("comment"))
-                cfm.comment(result.getString("comment"));
-            if (result.has("memtable_flush_period_in_ms"))
-                cfm.memtableFlushPeriod(result.getInt("memtable_flush_period_in_ms"));
-            cfm.caching(CachingOptions.fromString(result.getString("caching")));
-            if (result.has("default_time_to_live"))
-                cfm.defaultTimeToLive(result.getInt("default_time_to_live"));
-            if (result.has("speculative_retry"))
-                cfm.speculativeRetry(CFMetaData.SpeculativeRetry.fromString(result.getString("speculative_retry")));
-            cfm.compactionStrategyClass(CFMetaData.createCompactionStrategy(result.getString("compaction_strategy_class")));
-            cfm.compressionParameters(CompressionParameters.create(fromJsonMap(result.getString("compression_parameters"))));
-            cfm.compactionStrategyOptions(fromJsonMap(result.getString("compaction_strategy_options")));
+        cfm.readRepairChance(result.getDouble("read_repair_chance"));
+        cfm.dcLocalReadRepairChance(result.getDouble("local_read_repair_chance"));
+        cfm.gcGraceSeconds(result.getInt("gc_grace_seconds"));
+        cfm.defaultValidator(TypeParser.parse(result.getString("default_validator")));
+        cfm.keyValidator(TypeParser.parse(result.getString("key_validator")));
+        cfm.minCompactionThreshold(result.getInt("min_compaction_threshold"));
+        cfm.maxCompactionThreshold(result.getInt("max_compaction_threshold"));
+        if (result.has("comment"))
+            cfm.comment(result.getString("comment"));
+        if (result.has("memtable_flush_period_in_ms"))
+            cfm.memtableFlushPeriod(result.getInt("memtable_flush_period_in_ms"));
+        cfm.caching(CachingOptions.fromString(result.getString("caching")));
+        if (result.has("default_time_to_live"))
+            cfm.defaultTimeToLive(result.getInt("default_time_to_live"));
+        if (result.has("speculative_retry"))
+            cfm.speculativeRetry(CFMetaData.SpeculativeRetry.fromString(result.getString("speculative_retry")));
+        cfm.compactionStrategyClass(CFMetaData.createCompactionStrategy(result.getString("compaction_strategy_class")));
+        cfm.compressionParameters(CompressionParameters.create(fromJsonMap(result.getString("compression_parameters"))));
+        cfm.compactionStrategyOptions(fromJsonMap(result.getString("compaction_strategy_options")));
 
-            if (result.has("min_index_interval"))
-                cfm.minIndexInterval(result.getInt("min_index_interval"));
+        if (result.has("min_index_interval"))
+            cfm.minIndexInterval(result.getInt("min_index_interval"));
 
-            if (result.has("max_index_interval"))
-                cfm.maxIndexInterval(result.getInt("max_index_interval"));
+        if (result.has("max_index_interval"))
+            cfm.maxIndexInterval(result.getInt("max_index_interval"));
 
-            if (result.has("bloom_filter_fp_chance"))
-                cfm.bloomFilterFpChance(result.getDouble("bloom_filter_fp_chance"));
-            else
-                cfm.bloomFilterFpChance(cfm.getBloomFilterFpChance());
+        if (result.has("bloom_filter_fp_chance"))
+            cfm.bloomFilterFpChance(result.getDouble("bloom_filter_fp_chance"));
+        else
+            cfm.bloomFilterFpChance(cfm.getBloomFilterFpChance());
 
-            if (result.has("dropped_columns"))
-                cfm.droppedColumns(convertDroppedColumns(result.getMap("dropped_columns", UTF8Type.instance, LongType.instance)));
+        if (result.has("dropped_columns"))
+            cfm.droppedColumns(convertDroppedColumns(result.getMap("dropped_columns", UTF8Type.instance, LongType.instance)));
 
-            for (ColumnDefinition cd : columnDefs)
-                cfm.addOrReplaceColumnDefinition(cd);
+        for (ColumnDefinition cd : columnDefs)
+            cfm.addOrReplaceColumnDefinition(cd);
 
-            return cfm.rebuild();
-        }
-        catch (SyntaxException | ConfigurationException e)
-        {
-            throw new RuntimeException(e);
-        }
+        return cfm.rebuild();
     }
 
     private static Map<ColumnIdentifier, Long> convertDroppedColumns(Map<String, Long> raw)
@@ -1467,15 +1445,7 @@ public class LegacySchemaTables
 
     private static AbstractType<?> parseType(String str)
     {
-        try
-        {
-            return TypeParser.parse(str);
-        }
-        catch (SyntaxException | ConfigurationException e)
-        {
-            // We only use this when reading the schema where we shouldn't get an error
-            throw new RuntimeException(e);
-        }
+        return TypeParser.parse(str);
     }
 
     // We allow method overloads, so a function is not uniquely identified by its name only, but

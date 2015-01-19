@@ -87,18 +87,11 @@ public abstract class SchemaAlteringStatement extends CFStatement implements CQL
 
     public ResultMessage executeInternal(QueryState state, QueryOptions options)
     {
-        try
-        {
-            boolean didChangeSchema = announceMigration(true);
-            if (!didChangeSchema)
-                return new ResultMessage.Void();
+        boolean didChangeSchema = announceMigration(true);
+        if (!didChangeSchema)
+            return new ResultMessage.Void();
 
-            Event.SchemaChange ce = changeEvent();
-            return ce == null ? new ResultMessage.Void() : new ResultMessage.SchemaChange(ce);
-        }
-        catch (RequestValidationException e)
-        {
-            throw new RuntimeException(e);
-        }
+        Event.SchemaChange ce = changeEvent();
+        return ce == null ? new ResultMessage.Void() : new ResultMessage.SchemaChange(ce);
     }
 }

@@ -17,7 +17,7 @@
  */
 package org.apache.cassandra.exceptions;
 
-public abstract class CassandraException extends Exception implements TransportException
+public abstract class CassandraException extends RuntimeException implements TransportException
 {
     private final ExceptionCode code;
 

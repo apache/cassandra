@@ -41,18 +41,9 @@ public class ThriftCompatibilityTest extends SchemaLoader
                                             .addColumnDefinition(integerColumn("thriftcompat", "JdbcInteger")));
     }
 
-    private static UntypedResultSet execute(String query) throws Throwable
+    private static UntypedResultSet execute(String query)
     {
-        try
-        {
-            return QueryProcessor.executeInternal(String.format(query));
-        }
-        catch (RuntimeException exc)
-        {
-            if (exc.getCause() != null)
-                throw exc.getCause();
-            throw exc;
-        }
+        return QueryProcessor.executeInternal(String.format(query));
     }
 
     /** Test For CASSANDRA-8178 */

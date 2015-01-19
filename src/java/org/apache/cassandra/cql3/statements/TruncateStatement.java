@@ -62,15 +62,7 @@ public class TruncateStatement extends CFStatement implements CQLStatement
         {
             StorageProxy.truncateBlocking(keyspace(), columnFamily());
         }
-        catch (UnavailableException e)
-        {
-            throw new TruncateException(e);
-        }
-        catch (TimeoutException e)
-        {
-            throw new TruncateException(e);
-        }
-        catch (IOException e)
+        catch (UnavailableException | TimeoutException | IOException e)
         {
             throw new TruncateException(e);
         }

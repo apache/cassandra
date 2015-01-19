@@ -369,18 +369,11 @@ public class CassandraAuthorizer implements IAuthorizer
 
     private SelectStatement prepare(String entityname, String permissionsTable)
     {
-        try
-        {
-            String query = String.format("SELECT permissions FROM %s.%s WHERE %s = ? AND resource = ?",
-                                         AuthKeyspace.NAME,
-                                         permissionsTable,
-                                         entityname);
-            return (SelectStatement) QueryProcessor.getStatement(query, ClientState.forInternalCalls()).statement;
-        }
-        catch (RequestValidationException e)
-        {
-            throw new AssertionError(e);
-        }
+        String query = String.format("SELECT permissions FROM %s.%s WHERE %s = ? AND resource = ?",
+                                     AuthKeyspace.NAME,
+                                     permissionsTable,
+                                     entityname);
+        return (SelectStatement) QueryProcessor.getStatement(query, ClientState.forInternalCalls()).statement;
     }
 
     /**

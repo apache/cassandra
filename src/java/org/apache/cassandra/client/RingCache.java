@@ -88,7 +88,7 @@ public class RingCache
                 }
             }
         }
-        catch (InvalidRequestException | IOException e)
+        catch (IOException e)
         {
             throw new RuntimeException(e);
         }

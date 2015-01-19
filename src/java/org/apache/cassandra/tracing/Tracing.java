@@ -308,11 +308,6 @@ public class Tracing
         {
             StorageProxy.mutate(Arrays.asList(mutation), ConsistencyLevel.ANY);
         }
-        catch (UnavailableException | WriteTimeoutException e)
-        {
-            // should never happen; ANY does not throw UAE or WTE
-            throw new AssertionError(e);
-        }
         catch (OverloadedException e)
         {
             logger.warn("Too many nodes are overloaded to save trace events");
