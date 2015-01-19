@@ -233,7 +233,7 @@ public class BulkLoader
         private int mbPerSec(long bytes, long timeInNano)
         {
             double bytesPerNano = ((double)bytes) / timeInNano;
-            return (int)((bytesPerNano * 1000 * 1000 * 1000) / (1024 * 2024));
+            return (int)((bytesPerNano * 1000 * 1000 * 1000) / (1024 * 1024));
         }
 
         private void printSummary(int connectionsPerHost)
