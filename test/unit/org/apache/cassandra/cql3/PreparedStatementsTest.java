@@ -53,14 +53,14 @@ public class PreparedStatementsTest extends SchemaLoader
         // to wait slightly before trying to connect to it. We should fix this but in the meantime using a sleep.
         Thread.sleep(500);
 
-		cluster = Cluster.builder().addContactPoint("127.0.0.1")
+        cluster = Cluster.builder().addContactPoint("127.0.0.1")
                                    .withPort(DatabaseDescriptor.getNativeTransportPort())
                                    .build();
         session = cluster.connect();
 
         session.execute(dropKsStatement);
         session.execute(createKsStatement);
-	}
+    }
 
     @AfterClass
     public static void tearDown() throws Exception
@@ -75,19 +75,27 @@ public class PreparedStatementsTest extends SchemaLoader
         String dropTableStatement = "DROP TABLE IF EXISTS " + KEYSPACE + ".qp_cleanup;";
 
         session.execute(createTableStatement);
+
         PreparedStatement prepared = session.prepare("INSERT INTO " + KEYSPACE + ".qp_cleanup (id, cid, val) VALUES (?, ?, ?)");
+        PreparedStatement preparedBatch = session.prepare("BEGIN BATCH " +
+                                                          "INSERT INTO " + KEYSPACE + ".qp_cleanup (id, cid, val) VALUES (?, ?, ?);" +
+                                                          "APPLY BATCH;");
         session.execute(dropTableStatement);
         session.execute(createTableStatement);
         session.execute(prepared.bind(1, 1, "value"));
+        session.execute(preparedBatch.bind(2, 2, "value2"));
 
         session.execute(dropKsStatement);
         session.execute(createKsStatement);
         session.execute(createTableStatement);
-        session.execute(prepared.bind(1, 1, "value"));
-        session.execute(dropKsStatement);
 
-        // FIXME: where is invalidation actually tested?
-	}
+        // The driver will get a response about the prepared statement being invalid, causing it to transparently
+        // re-prepare the statement.  We'll rely on the fact that we get no errors while executing this to show that
+        // the statements have been invalidated.
+        session.execute(prepared.bind(1, 1, "value"));
+        session.execute(preparedBatch.bind(2, 2, "value2"));
+        session.execute(dropKsStatement);
+    }
 
     @Test
     public void testStatementRePreparationOnReconnect()
