@@ -89,9 +89,10 @@ public abstract class ReadCommand implements IReadCommand, Pageable
         return isDigestQuery;
     }
 
-    public void setDigestQuery(boolean isDigestQuery)
+    public ReadCommand setIsDigestQuery(boolean isDigestQuery)
     {
         this.isDigestQuery = isDigestQuery;
+        return this;
     }
 
     public String getColumnFamilyName()

@@ -38,9 +38,7 @@ public class RetriedSliceFromReadCommand extends SliceFromReadCommand
     @Override
     public ReadCommand copy()
     {
-        ReadCommand readCommand = new RetriedSliceFromReadCommand(ksName, key, cfName, timestamp, filter, originalCount);
-        readCommand.setDigestQuery(isDigestQuery());
-        return readCommand;
+        return new RetriedSliceFromReadCommand(ksName, key, cfName, timestamp, filter, originalCount).setIsDigestQuery(isDigestQuery());
     }
 
     @Override
