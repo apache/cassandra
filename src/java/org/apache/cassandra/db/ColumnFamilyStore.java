@@ -1486,6 +1486,31 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return metric.writeLatency.recentLatencyHistogram.getBuckets(true);
     }
 
+    public long getRangeCount()
+    {
+        return metric.rangeLatency.latency.count();
+    }
+
+    public double getRecentRangeLatencyMicros()
+    {
+        return metric.rangeLatency.getRecentLatency();
+    }
+
+    public long[] getLifetimeRangeLatencyHistogramMicros()
+    {
+        return metric.rangeLatency.totalLatencyHistogram.getBuckets(false);
+    }
+
+    public long[] getRecentRangeLatencyHistogramMicros()
+    {
+        return metric.rangeLatency.recentLatencyHistogram.getBuckets(true);
+    }
+
+    public long getTotalRangeLatencyMicros()
+    {
+        return metric.rangeLatency.totalLatency.count();
+    }
+
     public ColumnFamily getColumnFamily(DecoratedKey key,
                                         Composite start,
                                         Composite finish,
