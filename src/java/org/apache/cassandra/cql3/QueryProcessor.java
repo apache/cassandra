@@ -593,6 +593,16 @@ public class QueryProcessor implements QueryHandler
                 statementKsName = selectStatement.keyspace();
                 statementCfName = selectStatement.columnFamily();
             }
+            else if (statement instanceof BatchStatement)
+            {
+                BatchStatement batchStatement = ((BatchStatement) statement);
+                for (ModificationStatement stmt : batchStatement.getStatements())
+                {
+                    if (shouldInvalidate(ksName, cfName, stmt))
+                        return true;
+                }
+                return false;
+            }
             else
             {
                 return false;

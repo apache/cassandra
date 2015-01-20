@@ -1,4 +1,6 @@
 2.1.3
+ * Invalidate prepared BATCH statements when related tables
+   or keyspaces are dropped (CASSANDRA-8652)
  * Fix missing results in secondary index queries on collections
    with ALLOW FILTERING (CASSANDRA-8421)
  * Expose EstimatedHistogram metrics for range slices (CASSANDRA-8627)
