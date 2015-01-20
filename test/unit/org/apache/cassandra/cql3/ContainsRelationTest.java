@@ -76,6 +76,24 @@ public class ContainsRelationTest extends CQLTester
     }
 
     @Test
+    public void testListContainsWithFiltering() throws Throwable
+    {
+        createTable("CREATE TABLE %s (e int PRIMARY KEY, f list<text>, s int)");
+        createIndex("CREATE INDEX ON %s(f)");
+        for(int i = 0; i < 3; i++)
+        {
+            execute("INSERT INTO %s (e, f, s) VALUES (?, ?, ?)", i, list("Dubai"), 4);
+        }
+        for(int i = 3; i < 5; i++)
+        {
+            execute("INSERT INTO %s (e, f, s) VALUES (?, ?, ?)", i, list("Dubai"), 3);
+        }
+        assertRows(execute("SELECT * FROM %s WHERE f CONTAINS ? AND s=? allow filtering", "Dubai", 3),
+                   row(3, list("Dubai"), 3),
+                   row(4, list("Dubai"), 3));
+    }
+
+    @Test
     public void testMapKeyContains() throws Throwable
     {
         createTable("CREATE TABLE %s (account text, id int, categories map<text,text>, PRIMARY KEY (account, id))");

@@ -219,6 +219,7 @@ public class CompositesSearcher extends SecondaryIndexSearcher
                         {
                             DecoratedKey previousKey = currentKey;
                             currentKey = dk;
+                            previousPrefix = null;
 
                             // We're done with the previous row, return it if it had data, continue otherwise
                             indexCells.addFirst(cell);

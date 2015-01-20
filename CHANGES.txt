@@ -1,4 +1,6 @@
 2.1.3
+ * Fix missing results in secondary index queries on collections
+   with ALLOW FILTERING (CASSANDRA-8421)
  * Expose EstimatedHistogram metrics for range slices (CASSANDRA-8627)
  * (cqlsh) Escape clqshrc passwords properly (CASSANDRA-8618)
  * Fix NPE when passing wrong argument in ALTER TABLE statement (CASSANDRA-8355)
