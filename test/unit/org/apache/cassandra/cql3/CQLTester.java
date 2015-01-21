@@ -18,7 +18,6 @@
 package org.apache.cassandra.cql3;
 
 import java.io.File;
-import java.io.IOException;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.net.InetAddress;
@@ -89,10 +88,13 @@ public abstract class CQLTester
 
         try
         {
-            ServerSocket serverSocket = new ServerSocket(0);
-            nativePort = serverSocket.getLocalPort();
+            try (ServerSocket serverSocket = new ServerSocket(0))
+            {
+                nativePort = serverSocket.getLocalPort();
+            }
+            Thread.sleep(250);
         }
-        catch (IOException e)
+        catch (Exception e)
         {
             throw new RuntimeException(e);
         }
