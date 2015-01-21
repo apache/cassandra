@@ -1,5 +1,6 @@
 2.0.13:
  * Round up time deltas lower than 1ms in BulkLoader (CASSANDRA-8645)
+ * Add batch remove iterator to ABSC (CASSANDRA-8414)
 
 
 2.0.12:

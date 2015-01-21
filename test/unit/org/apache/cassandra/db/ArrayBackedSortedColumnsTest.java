@@ -28,10 +28,12 @@ import org.junit.Test;
 import static org.junit.Assert.*;
 
 import com.google.common.base.Functions;
+import com.google.common.collect.Sets;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.Schema;
+import org.apache.cassandra.utils.BatchRemoveIterator;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.db.filter.ColumnSlice;
 import org.apache.cassandra.utils.HeapAllocator;
@@ -192,5 +194,96 @@ public class ArrayBackedSortedColumnsTest extends SchemaLoader
         iter.next();
         iter.remove();
         assertTrue(!iter.hasNext());
+    }
+
+    @Test(expected = IllegalStateException.class)
+    public void testBatchRemoveTwice()
+    {
+        ColumnFamily map = ArrayBackedSortedColumns.factory.create(metadata(), false);
+        map.addColumn(new Column(ByteBufferUtil.bytes(1)), HeapAllocator.instance);
+        map.addColumn(new Column(ByteBufferUtil.bytes(2)), HeapAllocator.instance);
+
+        BatchRemoveIterator<Column> batchIter = map.batchRemoveIterator();
+        batchIter.next();
+        batchIter.remove();
+        batchIter.remove();
+    }
+
+    @Test(expected = IllegalStateException.class)
+    public void testBatchCommitTwice()
+    {
+        ColumnFamily map = ArrayBackedSortedColumns.factory.create(metadata(), false);
+        map.addColumn(new Column(ByteBufferUtil.bytes(1)), HeapAllocator.instance);
+        map.addColumn(new Column(ByteBufferUtil.bytes(2)), HeapAllocator.instance);
+
+        BatchRemoveIterator<Column> batchIter = map.batchRemoveIterator();
+        batchIter.next();
+        batchIter.remove();
+        batchIter.commit();
+        batchIter.commit();
+    }
+
+    @Test
+    public void testBatchRemove()
+    {
+        testBatchRemoveInternal(false);
+        testBatchRemoveInternal(true);
+    }
+
+    public void testBatchRemoveInternal(boolean reversed)
+    {
+        ColumnFamily map = ArrayBackedSortedColumns.factory.create(metadata(), reversed);
+        int[] values = new int[]{ 1, 2, 3, 5 };
+
+        for (int i = 0; i < values.length; ++i)
+            map.addColumn(new Column(ByteBufferUtil.bytes(values[reversed ? values.length - 1 - i : i])), HeapAllocator.instance);
+
+        BatchRemoveIterator<Column> batchIter = map.batchRemoveIterator();
+        batchIter.next();
+        batchIter.remove();
+        batchIter.next();
+        batchIter.remove();
+
+        assertEquals("1st column before commit", 1, map.iterator().next().name().getInt(0));
+
+        batchIter.commit();
+
+        assertEquals("1st column after commit", 3, map.iterator().next().name().getInt(0));
+    }
+
+    @Test
+    public void testBatchRemoveCopy()
+    {
+        // Test delete some random columns and check the result
+        ColumnFamily map = ArrayBackedSortedColumns.factory.create(metadata(), false);
+        int n = 127;
+        int[] values = new int[n];
+        for (int i = 0; i < n; i++) values[i] = i;
+        Set<Integer> toRemove = Sets.newHashSet(3, 12, 13, 15, 58, 103, 112);
+
+        for (int value : values)
+            map.addColumn(new Column(ByteBufferUtil.bytes(value)), HeapAllocator.instance);
+
+        BatchRemoveIterator<Column> batchIter = map.batchRemoveIterator();
+        while (batchIter.hasNext())
+            if (toRemove.contains(batchIter.next().name().getInt(0)))
+                batchIter.remove();
+
+        batchIter.commit();
+
+        int expected = 0;
+
+        while (toRemove.contains(expected))
+            expected++;
+
+        for (Column column : map)
+        {
+            assertEquals(expected, column.name().getInt(0));
+            expected++;
+            while (toRemove.contains(expected))
+                expected++;
+        }
+
+        assertEquals(expected, n);
     }
 }
