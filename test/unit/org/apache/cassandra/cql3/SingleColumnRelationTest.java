@@ -384,6 +384,25 @@ public class SingleColumnRelationTest extends CQLTester
     }
 
     @Test
+    public void testINWithDuplicateValue() throws Throwable
+    {
+        for (String compactOption : new String[] { "", " WITH COMPACT STORAGE" })
+        {
+            createTable("CREATE TABLE %s (k1 int, k2 int, v int, PRIMARY KEY (k1, k2))" + compactOption);
+            execute("INSERT INTO %s (k1,  k2, v) VALUES (?, ?, ?)", 1, 1, 1);
+
+            assertRows(execute("SELECT * FROM %s WHERE k1 IN (?, ?)", 1, 1),
+                       row(1, 1, 1));
+
+            assertRows(execute("SELECT * FROM %s WHERE k1 IN (?, ?) AND k2 IN (?, ?)", 1, 1, 1, 1),
+                       row(1, 1, 1));
+
+            assertRows(execute("SELECT * FROM %s WHERE k1 = ? AND k2 IN (?, ?)", 1, 1, 1),
+                       row(1, 1, 1));
+        }
+    }
+
+    @Test
     public void testLargeClusteringINValues() throws Throwable
     {
         createTable("CREATE TABLE %s (k int, c int, v int, PRIMARY KEY (k, c))");
@@ -392,7 +411,6 @@ public class SingleColumnRelationTest extends CQLTester
         for (int i = 0; i < 10000; i++)
             inValues.add(i);
         assertRows(execute("SELECT * FROM %s WHERE k=? AND c IN ?", 0, inValues),
-                row(0, 0, 0)
-        );
+                row(0, 0, 0));
     }
 }

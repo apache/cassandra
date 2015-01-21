@@ -660,4 +660,19 @@ public class MultiColumnRelationTest extends CQLTester
         assertInvalidMessage("Partition key parts: b must be restricted as other parts are",
                              "SELECT * FROM %s WHERE a = ? AND (c, d) >= (?, ?) ALLOW FILTERING", 0, 1, 1);
     }
+
+    @Test
+    public void testINWithDuplicateValue() throws Throwable
+    {
+        for (String compactOption : new String[] { "", " WITH COMPACT STORAGE" })
+        {
+            createTable("CREATE TABLE %s (k1 int, k2 int, v int, PRIMARY KEY (k1, k2))" + compactOption);
+            execute("INSERT INTO %s (k1,  k2, v) VALUES (?, ?, ?)", 1, 1, 1);
+
+            assertRows(execute("SELECT * FROM %s WHERE k1 IN (?, ?) AND (k2) IN ((?), (?))", 1, 1, 1, 2),
+                       row(1, 1, 1));
+            assertRows(execute("SELECT * FROM %s WHERE k1 = ? AND (k2) IN ((?), (?))", 1, 1, 1),
+                       row(1, 1, 1));
+        }
+    }
 }
