@@ -65,6 +65,13 @@ public class SelectStatement implements CQLStatement
 
     private static final int DEFAULT_COUNT_PAGE_SIZE = 10000;
 
+    /**
+     * In the current version a query containing duplicate values in an IN restriction on the partition key will
+     * cause the same record to be returned multiple time. This behavior will be changed in 3.0 but until then
+     * we will log a warning the first time this problem occurs.
+     */
+    private static volatile boolean HAS_LOGGED_WARNING_FOR_IN_RESTRICTION_WITH_DUPLICATES;
+
     private final int boundTerms;
     public final CFMetaData cfm;
     public final Parameters parameters;
@@ -588,6 +595,13 @@ public class SelectStatement implements CQLStatement
 
             if (builder.remainingCount() == 1)
             {
+                if (values.size() > 1 && !HAS_LOGGED_WARNING_FOR_IN_RESTRICTION_WITH_DUPLICATES  && containsDuplicates(values))
+                {
+                    // This approach does not fully prevent race conditions but it is not a big deal.
+                    HAS_LOGGED_WARNING_FOR_IN_RESTRICTION_WITH_DUPLICATES = true;
+                    logger.warn("SELECT queries with IN restrictions on the partition key containing duplicate values will return duplicate rows.");
+                }
+
                 for (ByteBuffer val : values)
                 {
                     if (val == null)
@@ -607,6 +621,17 @@ public class SelectStatement implements CQLStatement
             }
         }
         return keys;
+    }
+
+    /**
+     * Checks if the specified list contains duplicate values.
+     *
+     * @param values the values to check
+     * @return <code>true</code> if the specified list contains duplicate values, <code>false</code> otherwise.
+     */
+    private static boolean containsDuplicates(List<ByteBuffer> values)
+    {
+        return new HashSet<>(values).size() < values.size();
     }
 
     private ByteBuffer getKeyBound(Bound b, QueryOptions options) throws InvalidRequestException
