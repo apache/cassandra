@@ -20,17 +20,18 @@ package org.apache.cassandra.cache;
 import java.io.DataInput;
 import java.io.IOException;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.ISerializer;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.net.MessagingService;
 
-public class SerializingCacheProvider
+public class SerializingCacheProvider implements CacheProvider<RowCacheKey, IRowCacheEntry>
 {
-    public ICache<RowCacheKey, IRowCacheEntry> create(long capacity)
+    public ICache<RowCacheKey, IRowCacheEntry> create()
     {
-        return SerializingCache.create(capacity, new RowCacheSerializer());
+        return SerializingCache.create(DatabaseDescriptor.getRowCacheSizeInMB() * 1024 * 1024, new RowCacheSerializer());
     }
 
     // Package protected for tests

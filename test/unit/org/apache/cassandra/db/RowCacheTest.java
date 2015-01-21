@@ -156,9 +156,9 @@ public class RowCacheTest
         rowCacheLoad(100, Integer.MAX_VALUE, 1000);
 
         ColumnFamilyStore store = Keyspace.open(KEYSPACE_CACHED).getColumnFamilyStore(CF_CACHED);
-        assertEquals(CacheService.instance.rowCache.getKeySet().size(), 100);
+        assertEquals(CacheService.instance.rowCache.size(), 100);
         store.cleanupCache();
-        assertEquals(CacheService.instance.rowCache.getKeySet().size(), 100);
+        assertEquals(CacheService.instance.rowCache.size(), 100);
         TokenMetadata tmd = StorageService.instance.getTokenMetadata();
         byte[] tk1, tk2;
         tk1 = "key1000".getBytes();
@@ -166,7 +166,7 @@ public class RowCacheTest
         tmd.updateNormalToken(new BytesToken(tk1), InetAddress.getByName("127.0.0.1"));
         tmd.updateNormalToken(new BytesToken(tk2), InetAddress.getByName("127.0.0.2"));
         store.cleanupCache();
-        assertEquals(CacheService.instance.rowCache.getKeySet().size(), 50);
+        assertEquals(50, CacheService.instance.rowCache.size());
         CacheService.instance.setRowCacheCapacityInMB(0);
     }
 
@@ -259,19 +259,19 @@ public class RowCacheTest
 
         // empty the cache
         CacheService.instance.invalidateRowCache();
-        assert CacheService.instance.rowCache.size() == 0;
+        assertEquals(0, CacheService.instance.rowCache.size());
 
         // insert data and fill the cache
         SchemaLoader.insertData(KEYSPACE_CACHED, CF_CACHED, offset, totalKeys);
         SchemaLoader.readData(KEYSPACE_CACHED, CF_CACHED, offset, totalKeys);
-        assert CacheService.instance.rowCache.size() == totalKeys;
+        assertEquals(totalKeys, CacheService.instance.rowCache.size());
 
         // force the cache to disk
         CacheService.instance.rowCache.submitWrite(keysToSave).get();
 
         // empty the cache again to make sure values came from disk
         CacheService.instance.invalidateRowCache();
-        assert CacheService.instance.rowCache.size() == 0;
-        assert CacheService.instance.rowCache.loadSaved(store) == (keysToSave == Integer.MAX_VALUE ? totalKeys : keysToSave);
+        assertEquals(0, CacheService.instance.rowCache.size());
+        assertEquals(keysToSave == Integer.MAX_VALUE ? totalKeys : keysToSave, CacheService.instance.rowCache.loadSaved(store));
     }
 }

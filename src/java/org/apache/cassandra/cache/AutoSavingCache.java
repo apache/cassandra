@@ -59,7 +59,7 @@ public class AutoSavingCache<K extends CacheKey, V> extends InstrumentingCache<K
     protected volatile ScheduledFuture<?> saveTask;
     protected final CacheService.CacheType cacheType;
 
-    private CacheSerializer<K, V> cacheLoader;
+    private final CacheSerializer<K, V> cacheLoader;
     private static final String CURRENT_VERSION = "b";
 
     private static volatile IStreamFactory streamFactory = new IStreamFactory()
@@ -177,16 +177,24 @@ public class AutoSavingCache<K extends CacheKey, V> extends InstrumentingCache<K
 
     public class Writer extends CompactionInfo.Holder
     {
-        private final Set<K> keys;
+        private final Iterator<K> keyIterator;
         private final CompactionInfo info;
         private long keysWritten;
+        private final long keysEstimate;
 
         protected Writer(int keysToSave)
         {
-            if (keysToSave >= getKeySet().size())
-                keys = getKeySet();
+            int size = size();
+            if (keysToSave >= size || keysToSave == 0)
+            {
+                keyIterator = keyIterator();
+                keysEstimate = size;
+            }
             else
-                keys = hotKeySet(keysToSave);
+            {
+                keyIterator = hotKeyIterator(keysToSave);
+                keysEstimate = keysToSave;
+            }
 
             OperationType type;
             if (cacheType == CacheService.CacheType.KEY_CACHE)
@@ -201,7 +209,7 @@ public class AutoSavingCache<K extends CacheKey, V> extends InstrumentingCache<K
             info = new CompactionInfo(CFMetaData.denseCFMetaData(SystemKeyspace.NAME, cacheType.toString(), BytesType.instance),
                                       type,
                                       0,
-                                      keys.size(),
+                                      keysEstimate,
                                       "keys");
         }
 
@@ -213,7 +221,8 @@ public class AutoSavingCache<K extends CacheKey, V> extends InstrumentingCache<K
         public CompactionInfo getCompactionInfo()
         {
             // keyset can change in size, thus total can too
-            return info.forProgress(keysWritten, Math.max(keysWritten, keys.size()));
+            // TODO need to check for this one... was: info.forProgress(keysWritten, Math.max(keysWritten, keys.size()));
+            return info.forProgress(keysWritten, Math.max(keysWritten, keysEstimate));
         }
 
         public void saveCache()
@@ -221,7 +230,7 @@ public class AutoSavingCache<K extends CacheKey, V> extends InstrumentingCache<K
             logger.debug("Deleting old {} files.", cacheType);
             deleteOldCacheFiles();
 
-            if (keys.isEmpty())
+            if (!keyIterator.hasNext())
             {
                 logger.debug("Skipping {} save, cache is empty.", cacheType);
                 return;
@@ -235,8 +244,9 @@ public class AutoSavingCache<K extends CacheKey, V> extends InstrumentingCache<K
 
             try
             {
-                for (K key : keys)
+                while (keyIterator.hasNext())
                 {
+                    K key = keyIterator.next();
                     UUID cfId = key.getCFId();
                     if (!Schema.instance.hasCF(key.getCFId()))
                         continue; // the table has been dropped.
@@ -270,10 +280,22 @@ public class AutoSavingCache<K extends CacheKey, V> extends InstrumentingCache<K
                     }
 
                     keysWritten++;
+                    if (keysWritten >= keysEstimate)
+                        break;
                 }
             }
             finally
             {
+                if (keyIterator instanceof Closeable)
+                    try
+                    {
+                        ((Closeable)keyIterator).close();
+                    }
+                    catch (IOException ignored)
+                    {
+                        // not thrown (by OHC)
+                    }
+
                 for (OutputStream writer : streams.values())
                     FileUtils.closeQuietly(writer);
             }
@@ -290,7 +312,7 @@ public class AutoSavingCache<K extends CacheKey, V> extends InstrumentingCache<K
                     logger.error("Unable to rename {} to {}", tmpFile, cacheFile);
             }
 
-            logger.info("Saved {} ({} items) in {} ms", cacheType, keys.size(), TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start));
+            logger.info("Saved {} ({} items) in {} ms", cacheType, keysWritten, TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start));
         }
 
         private File tempCacheFile(UUID cfId)

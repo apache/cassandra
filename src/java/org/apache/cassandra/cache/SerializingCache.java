@@ -18,7 +18,7 @@
 package org.apache.cassandra.cache;
 
 import java.io.IOException;
-import java.util.Set;
+import java.util.Iterator;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -264,14 +264,14 @@ public class SerializingCache<K, V> implements ICache<K, V>
             mem.unreference();
     }
 
-    public Set<K> keySet()
+    public Iterator<K> keyIterator()
     {
-        return map.keySet();
+        return map.keySet().iterator();
     }
 
-    public Set<K> hotKeySet(int n)
+    public Iterator<K> hotKeyIterator(int n)
     {
-        return map.descendingKeySetWithLimit(n);
+        return map.descendingKeySetWithLimit(n).iterator();
     }
 
     public boolean containsKey(K key)

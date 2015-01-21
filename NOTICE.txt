@@ -66,3 +66,8 @@ Javassist
 
 SIGAR
 http://sigar.hyperic.com/
+
+OHC
+(https://github.com/snazy/ohc)
+Java Off-Heap-Cache, licensed under APLv2
+Copyright 2014-2015 Robert Stupp, Germany.

@@ -17,7 +17,7 @@
  */
 package org.apache.cassandra.cache;
 
-import java.util.Set;
+import java.util.Iterator;
 
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap;
 import com.googlecode.concurrentlinkedhashmap.EntryWeigher;
@@ -45,7 +45,7 @@ public class ConcurrentLinkedHashCache<K extends IMeasurableMemory, V extends IM
                                             .concurrencyLevel(DEFAULT_CONCURENCY_LEVEL)
                                             .build();
 
-        return new ConcurrentLinkedHashCache<K, V>(map);
+        return new ConcurrentLinkedHashCache<>(map);
     }
 
     public static <K extends IMeasurableMemory, V extends IMeasurableMemory> ConcurrentLinkedHashCache<K, V> create(long weightedCapacity)
@@ -116,14 +116,14 @@ public class ConcurrentLinkedHashCache<K extends IMeasurableMemory, V extends IM
         map.remove(key);
     }
 
-    public Set<K> keySet()
+    public Iterator<K> keyIterator()
     {
-        return map.keySet();
+        return map.keySet().iterator();
     }
 
-    public Set<K> hotKeySet(int n)
+    public Iterator<K> hotKeyIterator(int n)
     {
-        return map.descendingKeySetWithLimit(n);
+        return map.descendingKeySetWithLimit(n).iterator();
     }
 
     public boolean containsKey(K key)

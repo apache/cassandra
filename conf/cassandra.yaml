@@ -181,15 +181,25 @@ key_cache_save_period: 14400
 # Disabled by default, meaning all keys are going to be saved
 # key_cache_keys_to_save: 100
 
+# Row cache implementation class name.
+# Available implementations:
+#   org.apache.cassandra.cache.OHCProvider                Fully off-heap row cache implementation (default).
+#   org.apache.cassandra.cache.SerializingCacheProvider   This is the row cache implementation availabile
+#                                                         in previous releases of Cassandra.
+# row_cache_class_name: org.apache.cassandra.cache.OHCProvider
+
 # Maximum size of the row cache in memory.
-# NOTE: if you reduce the size, you may not get you hottest keys loaded on startup.
+# Please note that OHC cache implementation requires some additional off-heap memory to manage
+# the map structures and some in-flight memory during operations before/after cache entries can be
+# accounted against the cache capacity. This overhead is usually small compared to the whole capacity.
+# Do not specify more memory that the system can afford in the worst usual situation and leave some
+# headroom for OS block level cache. Do never allow your system to swap.
 #
 # Default value is 0, to disable row caching.
 row_cache_size_in_mb: 0
 
-# Duration in seconds after which Cassandra should
-# save the row cache. Caches are saved to saved_caches_directory as specified
-# in this configuration file.
+# Duration in seconds after which Cassandra should save the row cache.
+# Caches are saved to saved_caches_directory as specified in this configuration file.
 #
 # Saved caches greatly improve cold-start speeds, and is relatively cheap in
 # terms of I/O for the key cache. Row cache saving is much more expensive and
@@ -198,8 +208,8 @@ row_cache_size_in_mb: 0
 # Default is 0 to disable saving the row cache.
 row_cache_save_period: 0
 
-# Number of keys from the row cache to save
-# Disabled by default, meaning all keys are going to be saved
+# Number of keys from the row cache to save.
+# Specify 0 (which is the default), meaning all keys are going to be saved
 # row_cache_keys_to_save: 100
 
 # Maximum size of the counter cache in memory.

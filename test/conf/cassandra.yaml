@@ -36,3 +36,5 @@ server_encryption_options:
 incremental_backups: true
 concurrent_compactors: 4
 compaction_throughput_mb_per_sec: 0
+row_cache_class_name: org.apache.cassandra.cache.OHCProvider
+row_cache_size_in_mb: 16

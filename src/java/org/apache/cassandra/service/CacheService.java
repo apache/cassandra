@@ -33,6 +33,7 @@ import javax.management.MBeanServer;
 import javax.management.ObjectName;
 
 import com.google.common.util.concurrent.Futures;
+
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -132,10 +133,22 @@ public class CacheService implements CacheServiceMBean
     {
         logger.info("Initializing row cache with capacity of {} MBs", DatabaseDescriptor.getRowCacheSizeInMB());
 
-        long rowCacheInMemoryCapacity = DatabaseDescriptor.getRowCacheSizeInMB() * 1024 * 1024;
+        CacheProvider<RowCacheKey, IRowCacheEntry> cacheProvider;
+        String cacheProviderClassName = DatabaseDescriptor.getRowCacheSizeInMB() > 0
+                                        ? DatabaseDescriptor.getRowCacheClassName() : "org.apache.cassandra.cache.NopCacheProvider";
+        try
+        {
+            Class<CacheProvider<RowCacheKey, IRowCacheEntry>> cacheProviderClass =
+                (Class<CacheProvider<RowCacheKey, IRowCacheEntry>>) Class.forName(cacheProviderClassName);
+            cacheProvider = cacheProviderClass.newInstance();
+        }
+        catch (Exception e)
+        {
+            throw new RuntimeException("Cannot find configured row cache provider class " + DatabaseDescriptor.getRowCacheClassName());
+        }
 
         // cache object
-        ICache<RowCacheKey, IRowCacheEntry> rc = new SerializingCacheProvider().create(rowCacheInMemoryCapacity);
+        ICache<RowCacheKey, IRowCacheEntry> rc = cacheProvider.create();
         AutoSavingCache<RowCacheKey, IRowCacheEntry> rowCache = new AutoSavingCache<>(rc, CacheType.ROW_CACHE, new RowCacheSerializer());
 
         int rowCacheKeysToSave = DatabaseDescriptor.getRowCacheKeysToSave();
@@ -285,7 +298,7 @@ public class CacheService implements CacheServiceMBean
 
     public void invalidateKeyCacheForCf(UUID cfId)
     {
-        Iterator<KeyCacheKey> keyCacheIterator = keyCache.getKeySet().iterator();
+        Iterator<KeyCacheKey> keyCacheIterator = keyCache.keyIterator();
         while (keyCacheIterator.hasNext())
         {
             KeyCacheKey key = keyCacheIterator.next();
@@ -301,7 +314,7 @@ public class CacheService implements CacheServiceMBean
 
     public void invalidateRowCacheForCf(UUID cfId)
     {
-        Iterator<RowCacheKey> rowCacheIterator = rowCache.getKeySet().iterator();
+        Iterator<RowCacheKey> rowCacheIterator = rowCache.keyIterator();
         while (rowCacheIterator.hasNext())
         {
             RowCacheKey rowCacheKey = rowCacheIterator.next();
@@ -312,7 +325,7 @@ public class CacheService implements CacheServiceMBean
 
     public void invalidateCounterCacheForCf(UUID cfId)
     {
-        Iterator<CounterCacheKey> counterCacheIterator = counterCache.getKeySet().iterator();
+        Iterator<CounterCacheKey> counterCacheIterator = counterCache.keyIterator();
         while (counterCacheIterator.hasNext())
         {
             CounterCacheKey counterCacheKey = counterCacheIterator.next();

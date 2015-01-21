@@ -1961,19 +1961,23 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     {
         Collection<Range<Token>> ranges = StorageService.instance.getLocalRanges(keyspace.getName());
 
-        for (RowCacheKey key : CacheService.instance.rowCache.getKeySet())
+        for (Iterator<RowCacheKey> keyIter = CacheService.instance.rowCache.keyIterator();
+             keyIter.hasNext(); )
         {
+            RowCacheKey key = keyIter.next();
             DecoratedKey dk = partitioner.decorateKey(ByteBuffer.wrap(key.key));
-            if (key.cfId == metadata.cfId && !Range.isInRanges(dk.getToken(), ranges))
+            if (key.cfId.equals(metadata.cfId) && !Range.isInRanges(dk.getToken(), ranges))
                 invalidateCachedRow(dk);
         }
 
         if (metadata.isCounter())
         {
-            for (CounterCacheKey key : CacheService.instance.counterCache.getKeySet())
+            for (Iterator<CounterCacheKey> keyIter = CacheService.instance.counterCache.keyIterator();
+                 keyIter.hasNext(); )
             {
+                CounterCacheKey key = keyIter.next();
                 DecoratedKey dk = partitioner.decorateKey(ByteBuffer.wrap(key.partitionKey));
-                if (key.cfId == metadata.cfId && !Range.isInRanges(dk.getToken(), ranges))
+                if (key.cfId.equals(metadata.cfId) && !Range.isInRanges(dk.getToken(), ranges))
                     CacheService.instance.counterCache.remove(key);
             }
         }

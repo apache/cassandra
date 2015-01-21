@@ -18,6 +18,7 @@
 package org.apache.cassandra.db;
 
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
@@ -88,8 +89,10 @@ public class KeyCacheTest
 
         // really? our caches don't implement the map interface? (hence no .addAll)
         Map<KeyCacheKey, RowIndexEntry> savedMap = new HashMap<KeyCacheKey, RowIndexEntry>();
-        for (KeyCacheKey k : CacheService.instance.keyCache.getKeySet())
+        for (Iterator<KeyCacheKey> iter = CacheService.instance.keyCache.keyIterator();
+             iter.hasNext();)
         {
+            KeyCacheKey k = iter.next();
             if (k.desc.ksname.equals(KEYSPACE1) && k.desc.cfname.equals(COLUMN_FAMILY2))
                 savedMap.put(k, CacheService.instance.keyCache.get(k));
         }
@@ -207,8 +210,10 @@ public class KeyCacheTest
     private void assertKeyCacheSize(int expected, String keyspace, String columnFamily)
     {
         int size = 0;
-        for (KeyCacheKey k : CacheService.instance.keyCache.getKeySet())
+        for (Iterator<KeyCacheKey> iter = CacheService.instance.keyCache.keyIterator();
+             iter.hasNext();)
         {
+            KeyCacheKey k = iter.next();
             if (k.desc.ksname.equals(keyspace) && k.desc.cfname.equals(columnFamily))
                 size++;
         }

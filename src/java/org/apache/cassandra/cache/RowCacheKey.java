@@ -33,6 +33,12 @@ public class RowCacheKey implements CacheKey, Comparable<RowCacheKey>
 
     private static final long EMPTY_SIZE = ObjectSizes.measure(new RowCacheKey(null, ByteBufferUtil.EMPTY_BYTE_BUFFER));
 
+    public RowCacheKey(UUID cfId, byte[] key)
+    {
+        this.cfId = cfId;
+        this.key = key;
+    }
+
     public RowCacheKey(UUID cfId, DecoratedKey key)
     {
         this(cfId, key.getKey());
