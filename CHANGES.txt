@@ -53,6 +53,7 @@
 
 
 2.1.3
+ * Add tooling to detect hot partitions (CASSANDRA-7974)
  * Fix cassandra-stress user-mode truncation of partition generation (CASSANDRA-8608)
  * Only stream from unrepaired sstables during inc repair (CASSANDRA-8267)
  * Don't allow starting multiple inc repairs on the same sstables (CASSANDRA-8316)

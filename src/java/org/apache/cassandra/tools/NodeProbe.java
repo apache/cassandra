@@ -28,8 +28,7 @@ import java.net.UnknownHostException;
 import java.text.SimpleDateFormat;
 import java.util.*;
 import java.util.Map.Entry;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.TimeoutException;
+import java.util.concurrent.*;
 import java.util.concurrent.locks.Condition;
 import javax.management.*;
 import javax.management.openmbean.CompositeData;
@@ -37,11 +36,11 @@ import javax.management.remote.JMXConnectionNotification;
 import javax.management.remote.JMXConnector;
 import javax.management.remote.JMXConnectorFactory;
 import javax.management.remote.JMXServiceURL;
-import javax.management.openmbean.TabularData;
+import javax.management.openmbean.*;
 
 import com.google.common.base.Function;
-import com.google.common.collect.Iterables;
-import com.google.common.collect.Sets;
+import com.google.common.collect.*;
+import com.google.common.util.concurrent.Uninterruptibles;
 
 import com.google.common.util.concurrent.AbstractFuture;
 import com.yammer.metrics.reporting.JmxReporter;
@@ -56,6 +55,7 @@ import org.apache.cassandra.gms.FailureDetectorMBean;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.gms.GossiperMBean;
 import org.apache.cassandra.locator.EndpointSnitchInfoMBean;
+import org.apache.cassandra.metrics.ColumnFamilyMetrics.Sampler;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.MessagingServiceMBean;
 import org.apache.cassandra.repair.RepairParallelism;
@@ -278,6 +278,22 @@ public class NodeProbe implements AutoCloseable
                 out.println("Exception occurred during clean-up. " + e);
             }
         }
+    }
+
+    public Map<Sampler, CompositeData> getPartitionSample(String ks, String cf, int capacity, int duration, int count, List<Sampler> samplers) throws OpenDataException
+    {
+        ColumnFamilyStoreMBean cfsProxy = getCfsProxy(ks, cf);
+        for(Sampler sampler : samplers)
+        {
+            cfsProxy.beginLocalSampling(sampler.name(), capacity);
+        }
+        Uninterruptibles.sleepUninterruptibly(duration, TimeUnit.MILLISECONDS);
+        Map<Sampler, CompositeData> result = Maps.newHashMap();
+        for(Sampler sampler : samplers)
+        {
+            result.put(sampler, cfsProxy.finishLocalSampling(sampler.name(), count));
+        }
+        return result;
     }
 
     public void invalidateCounterCache()

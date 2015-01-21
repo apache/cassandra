@@ -17,9 +17,8 @@
  */
 package org.apache.cassandra.metrics;
 
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.Set;
+import java.nio.ByteBuffer;
+import java.util.*;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeUnit;
 
@@ -28,11 +27,13 @@ import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
 import org.apache.cassandra.utils.EstimatedHistogram;
+import org.apache.cassandra.utils.TopKSampler;
 
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 import com.yammer.metrics.Metrics;
 import com.yammer.metrics.core.*;
+import com.yammer.metrics.core.Timer;
 import com.yammer.metrics.util.RatioGauge;
 
 /**
@@ -144,6 +145,7 @@ public class ColumnFamilyMetrics
     public final static LatencyMetrics globalWriteLatency = new LatencyMetrics(globalNameFactory, "Write");
     public final static LatencyMetrics globalRangeLatency = new LatencyMetrics(globalNameFactory, "Range");
     
+    public final Map<Sampler, TopKSampler<ByteBuffer>> samplers;
     /**
      * stores metrics that will be rolled into a single global metric
      */
@@ -202,6 +204,12 @@ public class ColumnFamilyMetrics
     public ColumnFamilyMetrics(final ColumnFamilyStore cfs)
     {
         factory = new ColumnFamilyMetricNameFactory(cfs);
+
+        samplers = Maps.newHashMap();
+        for (Sampler sampler : Sampler.values())
+        {
+            samplers.put(sampler, new TopKSampler<ByteBuffer>());
+        }
 
         memtableColumnsCount = createColumnFamilyGauge("MemtableColumnsCount", new Gauge<Long>()
         {
@@ -765,5 +773,10 @@ public class ColumnFamilyMetrics
             mbeanName.append(",name=").append(metricName);
             return new MetricName(groupName, "ColumnFamily", metricName, "all", mbeanName.toString());
         }
+    }
+
+    public static enum Sampler
+    {
+        READS, WRITES
     }
 }
