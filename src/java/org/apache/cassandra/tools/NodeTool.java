@@ -27,13 +27,11 @@ import java.util.*;
 import java.util.Map.Entry;
 import java.util.concurrent.ExecutionException;
 
-import javax.management.openmbean.TabularData;
+import javax.management.openmbean.*;
 
 import com.google.common.base.Joiner;
 import com.google.common.base.Throwables;
-import com.google.common.collect.ArrayListMultimap;
-import com.google.common.collect.LinkedHashMultimap;
-import com.google.common.collect.Maps;
+import com.google.common.collect.*;
 import com.yammer.metrics.reporting.JmxReporter;
 
 import io.airlift.command.*;
@@ -47,6 +45,7 @@ import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.locator.EndpointSnitchInfoMBean;
 import org.apache.cassandra.locator.LocalStrategy;
+import org.apache.cassandra.metrics.ColumnFamilyMetrics.Sampler;
 import org.apache.cassandra.net.MessagingServiceMBean;
 import org.apache.cassandra.repair.RepairParallelism;
 import org.apache.cassandra.service.CacheServiceMBean;
@@ -146,6 +145,7 @@ public class NodeTool
                 Drain.class,
                 TruncateHints.class,
                 TpStats.class,
+                TopPartitions.class,
                 SetLoggingLevel.class,
                 GetLoggingLevels.class
         );
@@ -921,6 +921,81 @@ public class NodeTool
                 for (String ks : filter.keySet())
                     if (verifier.get(ks).size() > 0)
                         throw new IllegalArgumentException("Unknown column families: " + verifier.get(ks).toString() + " in keyspace: " + ks);
+            }
+        }
+    }
+
+    @Command(name = "toppartitions", description = "Sample and print the most active partitions for a given column family")
+    public static class TopPartitions extends NodeToolCmd
+    {
+        @Arguments(usage = "<keyspace> <cfname> <duration>", description = "The keyspace, column family name, and duration in milliseconds")
+        private List<String> args = new ArrayList<>();
+        @Option(name = "-s", description = "Capacity of stream summary, closer to the actual cardinality of partitions will yield more accurate results (Default: 256)")
+        private int size = 256;
+        @Option(name = "-k", description = "Number of the top partitions to list (Default: 10)")
+        private int topCount = 10;
+        @Option(name = "-a", description = "Comma separated list of samplers to use (Default: all)")
+        private String samplers = join(Sampler.values(), ',');
+        @Override
+        public void execute(NodeProbe probe)
+        {
+            checkArgument(args.size() == 3, "toppartitions requires keyspace, column family name, and duration");
+            checkArgument(topCount < size, "TopK count (-k) option must be smaller then the summary capacity (-s)");
+            String keyspace = args.get(0);
+            String cfname = args.get(1);
+            Integer duration = Integer.parseInt(args.get(2));
+            // generate the list of samplers
+            List<Sampler> targets = Lists.newArrayList();
+            for (String s : samplers.split(","))
+            {
+                try
+                {
+                    targets.add(Sampler.valueOf(s.toUpperCase()));
+                } catch (Exception e)
+                {
+                    throw new IllegalArgumentException(s + " is not a valid sampler, choose one of: " + join(Sampler.values(), ", "));
+                }
+            }
+
+            Map<Sampler, CompositeData> results;
+            try
+            {
+                results = probe.getPartitionSample(keyspace, cfname, size, duration, topCount, targets);
+            } catch (OpenDataException e)
+            {
+                throw new RuntimeException(e);
+            }
+            boolean first = true;
+            for(Entry<Sampler, CompositeData> result : results.entrySet())
+            {
+                CompositeData sampling = result.getValue();
+                // weird casting for http://bugs.sun.com/view_bug.do?bug_id=6548436
+                List<CompositeData> topk = (List<CompositeData>) (Object) Lists.newArrayList(((TabularDataSupport) sampling.get("partitions")).values());
+                Collections.sort(topk, new Ordering<CompositeData>()
+                {
+                    public int compare(CompositeData left, CompositeData right)
+                    {
+                        return Long.compare((long) right.get("count"), (long) left.get("count"));
+                    }
+                });
+                if(!first)
+                    System.out.println();
+                System.out.println(result.getKey().toString()+ " Sampler:");
+                System.out.printf("  Cardinality: ~%d (%d capacity)%n", (long) sampling.get("cardinality"), size);
+                System.out.printf("  Top %d partitions:%n", topCount);
+                if (topk.size() == 0)
+                {
+                    System.out.println("\tNothing recorded during sampling period...");
+                } else
+                {
+                    int offset = 0;
+                    for (CompositeData entry : topk)
+                        offset = Math.max(offset, entry.get("string").toString().length());
+                    System.out.printf("\t%-" + offset + "s%10s%10s%n", "Partition", "Count", "+/-");
+                    for (CompositeData entry : topk)
+                        System.out.printf("\t%-" + offset + "s%10d%10d%n", entry.get("string").toString(), entry.get("count"), entry.get("error"));
+                }
+                first = false;
             }
         }
     }

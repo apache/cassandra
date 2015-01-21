@@ -26,14 +26,12 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.regex.Pattern;
 import javax.management.*;
+import javax.management.openmbean.*;
 
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.base.Function;
-import com.google.common.base.Predicate;
+import com.google.common.base.*;
 import com.google.common.collect.*;
 import com.google.common.util.concurrent.*;
-import com.google.common.util.concurrent.Futures;
-import com.google.common.util.concurrent.Uninterruptibles;
 
 import org.json.simple.*;
 import org.slf4j.Logger;
@@ -68,13 +66,17 @@ import org.apache.cassandra.io.sstable.metadata.CompactionMetadata;
 import org.apache.cassandra.io.sstable.metadata.MetadataType;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.metrics.ColumnFamilyMetrics;
+import org.apache.cassandra.metrics.ColumnFamilyMetrics.Sampler;
 import org.apache.cassandra.service.CacheService;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.streaming.StreamLockfile;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.*;
+import org.apache.cassandra.utils.TopKSampler.SamplerResult;
 import org.apache.cassandra.utils.concurrent.OpOrder;
 import org.apache.cassandra.utils.memory.MemtableAllocator;
+
+import com.clearspring.analytics.stream.Counter;
 
 public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 {
@@ -101,6 +103,39 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                                                                                             new LinkedBlockingQueue<Runnable>(),
                                                                                             new NamedThreadFactory("MemtableReclaimMemory"),
                                                                                             "internal");
+
+    private static final String[] COUNTER_NAMES = new String[]{"raw", "count", "error", "string"};
+    private static final String[] COUNTER_DESCS = new String[]
+    { "partition key in raw hex bytes",
+      "value of this partition for given sampler",
+      "value is within the error bounds plus or minus of this",
+      "the partition key turned into a human readable format" };
+    private static final CompositeType COUNTER_COMPOSITE_TYPE;
+    private static final TabularType COUNTER_TYPE;
+
+    private static final String[] SAMPLER_NAMES = new String[]{"cardinality", "partitions"};
+    private static final String[] SAMPLER_DESCS = new String[]
+    { "cardinality of partitions",
+      "list of counter results" };
+
+    private static final String SAMPLING_RESULTS_NAME = "SAMPLING_RESULTS";
+    private static final CompositeType SAMPLING_RESULT;
+
+    static
+    {
+        try
+        {
+            OpenType<?>[] counterTypes = new OpenType[] { SimpleType.STRING, SimpleType.LONG, SimpleType.LONG, SimpleType.STRING };
+            COUNTER_COMPOSITE_TYPE = new CompositeType(SAMPLING_RESULTS_NAME, SAMPLING_RESULTS_NAME, COUNTER_NAMES, COUNTER_DESCS, counterTypes);
+            COUNTER_TYPE = new TabularType(SAMPLING_RESULTS_NAME, SAMPLING_RESULTS_NAME, COUNTER_COMPOSITE_TYPE, COUNTER_NAMES);
+
+            OpenType<?>[] samplerTypes = new OpenType[] { SimpleType.LONG, COUNTER_TYPE };
+            SAMPLING_RESULT = new CompositeType(SAMPLING_RESULTS_NAME, SAMPLING_RESULTS_NAME, SAMPLER_NAMES, SAMPLER_DESCS, samplerTypes);
+        } catch (OpenDataException e)
+        {
+            throw Throwables.propagate(e);
+        }
+    }
 
     public final Keyspace keyspace;
     public final String name;
@@ -1152,6 +1187,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         Memtable mt = data.getMemtableFor(opGroup, replayPosition);
         final long timeDelta = mt.put(key, columnFamily, indexer, opGroup);
         maybeUpdateRowCache(key);
+        metric.samplers.get(Sampler.WRITES).addSample(key.getKey());
         metric.writeLatency.addNano(System.nanoTime() - start);
         if(timeDelta < Long.MAX_VALUE)
             metric.colUpdateTimeDeltaHistogram.update(timeDelta);
@@ -1915,8 +1951,33 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         {
             columns = controller.getTopLevelColumns(Memtable.MEMORY_POOL.needToCopyOnHeap());
         }
+        if (columns != null)
+            metric.samplers.get(Sampler.READS).addSample(filter.key.getKey());
         metric.updateSSTableIterated(controller.getSstablesIterated());
         return columns;
+    }
+
+    public void beginLocalSampling(String sampler, int capacity)
+    {
+        metric.samplers.get(Sampler.valueOf(sampler)).beginSampling(capacity);
+    }
+
+    public CompositeData finishLocalSampling(String sampler, int count) throws OpenDataException
+    {
+        SamplerResult<ByteBuffer> samplerResults = metric.samplers.get(Sampler.valueOf(sampler))
+                .finishSampling(count);
+        TabularDataSupport result = new TabularDataSupport(COUNTER_TYPE);
+        for (Counter<ByteBuffer> counter : samplerResults.topK)
+        {
+            byte[] key = counter.getItem().array();
+            result.put(new CompositeDataSupport(COUNTER_COMPOSITE_TYPE, COUNTER_NAMES, new Object[] {
+                    Hex.bytesToHex(key), // raw
+                    counter.getCount(),  // count
+                    counter.getError(),  // error
+                    metadata.getKeyValidator().getString(ByteBuffer.wrap(key)) })); // string
+        }
+        return new CompositeDataSupport(SAMPLING_RESULT, SAMPLER_NAMES, new Object[]{
+                samplerResults.cardinality, result});
     }
 
     public void cleanupCache()
