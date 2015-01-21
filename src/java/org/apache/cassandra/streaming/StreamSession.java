@@ -307,7 +307,6 @@ public class StreamSession implements IEndpointStateChangeSubscriber
                 ColumnFamilyStore.ViewFragment view = cfStore.selectAndReference(cfStore.viewFilter(rowBoundsList));
                 sstables.addAll(view.sstables);
             }
-
             List<SSTableStreamingSections> sections = new ArrayList<>(sstables.size());
             for (SSTableReader sstable : sstables)
             {

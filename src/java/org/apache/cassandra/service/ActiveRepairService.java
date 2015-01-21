@@ -139,7 +139,7 @@ public class ActiveRepairService
         return session;
     }
 
-    public void terminateSessions()
+    public synchronized void terminateSessions()
     {
         Throwable cause = new IOException("Terminate session is called");
         for (RepairSession session : sessions.values())
@@ -229,7 +229,7 @@ public class ActiveRepairService
         return neighbors;
     }
 
-    public UUID prepareForRepair(Set<InetAddress> endpoints, RepairOption options, List<ColumnFamilyStore> columnFamilyStores)
+    public synchronized UUID prepareForRepair(Set<InetAddress> endpoints, RepairOption options, List<ColumnFamilyStore> columnFamilyStores)
     {
         UUID parentRepairSession = UUIDGen.getTimeUUID();
         registerParentRepairSession(parentRepairSession, columnFamilyStores, options.getRanges(), options.isIncremental());
@@ -290,6 +290,18 @@ public class ActiveRepairService
         parentRepairSessions.put(parentRepairSession, new ParentRepairSession(columnFamilyStores, ranges, isIncremental, System.currentTimeMillis()));
     }
 
+    public Set<SSTableReader> currentlyRepairing(UUID cfId, UUID parentRepairSession)
+    {
+        Set<SSTableReader> repairing = new HashSet<>();
+        for (Map.Entry<UUID, ParentRepairSession> entry : parentRepairSessions.entrySet())
+        {
+            Collection<SSTableReader> sstables = entry.getValue().sstableMap.get(cfId);
+            if (sstables != null && !entry.getKey().equals(parentRepairSession))
+                repairing.addAll(sstables);
+        }
+        return repairing;
+    }
+
     public void finishParentSession(UUID parentSession, Set<InetAddress> neighbors, Collection<Range<Token>> successfulRanges)
     {
         try
@@ -314,7 +326,7 @@ public class ActiveRepairService
         return parentRepairSessions.get(parentSessionId);
     }
 
-    public ParentRepairSession removeParentRepairSession(UUID parentSessionId)
+    public synchronized ParentRepairSession removeParentRepairSession(UUID parentSessionId)
     {
         return parentRepairSessions.remove(parentSessionId);
     }
@@ -331,20 +343,8 @@ public class ActiveRepairService
             return futures;
         for (Map.Entry<UUID, ColumnFamilyStore> columnFamilyStoreEntry : prs.columnFamilyStores.entrySet())
         {
-
             Collection<SSTableReader> sstables = new HashSet<>(prs.getAndReferenceSSTables(columnFamilyStoreEntry.getKey()));
             ColumnFamilyStore cfs = columnFamilyStoreEntry.getValue();
-            boolean success = false;
-            while (!success)
-            {
-                for (SSTableReader compactingSSTable : cfs.getDataTracker().getCompacting())
-                {
-                    if (sstables.remove(compactingSSTable))
-                        SSTableReader.releaseReferences(Arrays.asList(compactingSSTable));
-                }
-                success = sstables.isEmpty() || cfs.getDataTracker().markCompacting(sstables);
-            }
-
             futures.add(CompactionManager.instance.submitAntiCompaction(cfs, successfulRanges, sstables, prs.repairedAt));
         }
 
@@ -421,7 +421,7 @@ public class ActiveRepairService
 
         public synchronized Set<SSTableReader> getAndReferenceSSTablesInRange(UUID cfId, Range<Token> range)
         {
-            Collection<SSTableReader> allSSTables= getAndReferenceSSTables(cfId);
+            Collection<SSTableReader> allSSTables = getAndReferenceSSTables(cfId);
             Set<SSTableReader> sstables = new HashSet<>();
             for (SSTableReader sstable : allSSTables)
             {
@@ -431,7 +431,17 @@ public class ActiveRepairService
                     sstable.releaseReference();
             }
             return sstables;
+        }
 
+        @Override
+        public String toString()
+        {
+            return "ParentRepairSession{" +
+                    "columnFamilyStores=" + columnFamilyStores +
+                    ", ranges=" + ranges +
+                    ", sstableMap=" + sstableMap +
+                    ", repairedAt=" + repairedAt +
+                    '}';
         }
     }
 }
