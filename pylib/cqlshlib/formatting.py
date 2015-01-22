@@ -246,6 +246,7 @@ def format_value_map(val, encoding, colormap, time_format, float_precision, null
     displaywidth = 4 * len(subs) + sum(k.displaywidth + v.displaywidth for (k, v) in subs)
     return FormattedValue(bval, coloredval, displaywidth)
 formatter_for('OrderedDict')(format_value_map)
+formatter_for('OrderedMap')(format_value_map)
 
 
 def format_value_utype(val, encoding, colormap, time_format, float_precision, nullval, **_):
