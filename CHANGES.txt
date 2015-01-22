@@ -1,4 +1,6 @@
 2.1.3
+ * Make sure we don't add tmplink files to the compaction
+   strategy (CASSANDRA-8580)
  * (cqlsh) Handle maps with blob keys (CASSANDRA-8372)
  * (cqlsh) Handle DynamicCompositeType schemas correctly (CASSANDRA-8563)
  * Duplicate rows returned when in clause has repeated values (CASSANDRA-6707)

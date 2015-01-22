@@ -323,10 +323,13 @@ public final class WrappingCompactionStrategy extends AbstractCompactionStrategy
         super.startup();
         for (SSTableReader sstable : cfs.getSSTables())
         {
-            if (sstable.isRepaired())
-                repaired.addSSTable(sstable);
-            else
-                unrepaired.addSSTable(sstable);
+            if (sstable.openReason != SSTableReader.OpenReason.EARLY)
+            {
+                if (sstable.isRepaired())
+                    repaired.addSSTable(sstable);
+                else
+                    unrepaired.addSSTable(sstable);
+            }
         }
         repaired.startup();
         unrepaired.startup();
