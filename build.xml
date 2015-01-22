@@ -447,7 +447,6 @@
                 artifactId="cassandra-parent"
                 version="${version}"/>
         <!-- do NOT remove this, it breaks pig-test -->
-        <dependency groupId="org.slf4j" artifactId="slf4j-log4j12" version="1.7.2"/>
         <dependency groupId="joda-time" artifactId="joda-time" version="2.3" />
       </artifact:pom>
 

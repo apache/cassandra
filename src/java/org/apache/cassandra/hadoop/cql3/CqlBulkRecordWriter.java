@@ -136,6 +136,7 @@ public class CqlBulkRecordWriter extends AbstractBulkRecordWriter<Object, List<B
     }
     
     /**
+     * <p>
      * The column values must correspond to the order in which
      * they appear in the insert stored procedure. 
      * 

@@ -32,15 +32,17 @@ import org.apache.cassandra.utils.FBUtilities;
 import com.google.common.collect.Multimap;
 
 /**
+ * <p>
  * This Replication Strategy takes a property file that gives the intended
  * replication factor in each datacenter.  The sum total of the datacenter
  * replication factor values should be equal to the keyspace replication
  * factor.
- * <p/>
+ * </p>
+ * <p>
  * So for example, if the keyspace replication factor is 6, the
  * datacenter replication factors could be 3, 2, and 1 - so 3 replicas in
  * one datacenter, 2 in another, and 1 in another - totalling 6.
- * <p/>
+ * </p>
  * This class also caches the Endpoints and invalidates the cache if there is a
  * change in the number of tokens.
  */

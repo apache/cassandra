@@ -831,13 +831,16 @@ public class StorageProxy implements StorageProxyMBean
      * is not available.
      *
      * Note about hints:
-     *
+     * <pre>
+     * {@code
      * | Hinted Handoff | Consist. Level |
      * | on             |       >=1      | --> wait for hints. We DO NOT notify the handler with handler.response() for hints;
      * | on             |       ANY      | --> wait for hints. Responses count towards consistency.
      * | off            |       >=1      | --> DO NOT fire hints. And DO NOT wait for them to complete.
      * | off            |       ANY      | --> DO NOT fire hints. And DO NOT wait for them to complete.
-     *
+     * }
+     * </pre>
+     * 
      * @throws OverloadedException if the hints cannot be written/enqueued
      */
     public static void sendToHintedEndpoints(final Mutation mutation,

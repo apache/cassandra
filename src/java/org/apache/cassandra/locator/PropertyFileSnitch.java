@@ -37,8 +37,9 @@ import org.apache.cassandra.utils.WrappedRunnable;
 import org.apache.commons.lang3.StringUtils;
 
 /**
+ * <p>
  * Used to determine if two IP's are in the same datacenter or on the same rack.
- * <p/>
+ * </p>
  * Based on a properties file in the following format:
  *
  * 10.0.0.13=DC1:RAC2

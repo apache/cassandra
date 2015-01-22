@@ -277,7 +277,9 @@ public class Tuples
 
     /**
      * A raw placeholder for a tuple of values for different multiple columns, each of which may have a different type.
+     * {@code
      * For example, "SELECT ... WHERE (col1, col2) > ?".
+     * }
      */
     public static class Raw extends AbstractMarker.Raw implements Term.MultiColumnRaw
     {
@@ -363,7 +365,9 @@ public class Tuples
     }
 
     /**
+     * {@code
      * Represents a marker for a single tuple, like "SELECT ... WHERE (a, b, c) > ?"
+     * }
      */
     public static class Marker extends AbstractMarker
     {

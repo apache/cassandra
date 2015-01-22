@@ -48,8 +48,8 @@ public interface IAuthorizer
      *
      * @param performer User who grants the permissions.
      * @param permissions Set of permissions to grant.
-     * @param to Name of the role to which the permissions are to be granted.
      * @param resource Resource on which to grant the permissions.
+     * @param grantee name of the role to which the permissions are to be granted.
      *
      * @throws RequestValidationException
      * @throws RequestExecutionException
@@ -80,7 +80,7 @@ public interface IAuthorizer
      *                    matching ones.
      * @param resource The resource on which permissions are requested. Can be null, in which case permissions on all
      *                 resources should be returned.
-     * @param of The name of the role whose permissions are requested. Can be null, in which case permissions of every
+     * @param grantee The name of the role whose permissions are requested. Can be null, in which case permissions of every
      *           role should be returned.
      *
      * @return All of the matching permission that the requesting user is authorized to know about.

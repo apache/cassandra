@@ -55,8 +55,9 @@ import static org.apache.cassandra.db.index.SecondaryIndexManager.Updater;
  * isolated (in the sense of ACID). Typically a addAll is guaranteed that no
  * other thread can see the state where only parts but not all columns have
  * been added.
- * <p/>
+ * <p>
  * WARNING: removing element through getSortedColumns().iterator() is *not* supported
+ * </p>
  */
 public class AtomicBTreeColumns extends ColumnFamily
 {

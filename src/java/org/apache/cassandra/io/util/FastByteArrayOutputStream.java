@@ -72,7 +72,7 @@ public class FastByteArrayOutputStream extends OutputStream {
      *            initial size for the underlying byte array, must be
      *            non-negative.
      * @throws IllegalArgumentException
-     *             if {@code size} < 0.
+     *             if {@code size < 0}.
      */
     public FastByteArrayOutputStream(int size) {
         if (size >= 0) {

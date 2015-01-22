@@ -57,15 +57,19 @@ import org.apache.hadoop.mapreduce.RecordReader;
 import org.apache.hadoop.mapreduce.TaskAttemptContext;
 
 /**
+ * <p>
  * CqlRecordReader reads the rows return from the CQL query
  * It uses CQL auto-paging.
- * <p/>
+ * </p>
+ * <p>
  * Return a Long as a local CQL row key starts from 0;
- * <p/>
+ * </p>
+ * {@code
  * Row as C* java driver CQL result set row
  * 1) select clause must include partition key columns (to calculate the progress based on the actual CF row processed)
  * 2) where clause must include token(partition_key1, ...  , partition_keyn) > ? and 
  *       token(partition_key1, ... , partition_keyn) <= ?  (in the right order) 
+ * }
  */
 public class CqlRecordReader extends RecordReader<Long, Row>
         implements org.apache.hadoop.mapred.RecordReader<Long, Row>, AutoCloseable

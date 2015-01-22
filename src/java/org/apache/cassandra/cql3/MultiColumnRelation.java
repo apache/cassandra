@@ -36,10 +36,12 @@ import static org.apache.cassandra.cql3.statements.RequestValidations.invalidReq
 /**
  * A relation using the tuple notation, which typically affects multiple columns.
  * Examples:
+ * {@code
  *  - SELECT ... WHERE (a, b, c) > (1, 'a', 10)
  *  - SELECT ... WHERE (a, b, c) IN ((1, 2, 3), (4, 5, 6))
  *  - SELECT ... WHERE (a, b) < ?
  *  - SELECT ... WHERE (a, b) IN ?
+ * }
  */
 public class MultiColumnRelation extends Relation
 {
@@ -65,7 +67,9 @@ public class MultiColumnRelation extends Relation
 
     /**
      * Creates a multi-column EQ, LT, LTE, GT, or GTE relation.
+     * {@code
      * For example: "SELECT ... WHERE (a, b) > (0, 1)"
+     * }
      * @param entities the columns on the LHS of the relation
      * @param relationType the relation operator
      * @param valuesOrMarker a Tuples.Literal instance or a Tuples.Raw marker

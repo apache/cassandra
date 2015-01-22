@@ -37,6 +37,8 @@ import org.apache.cassandra.utils.memory.*;
 
 
 /**
+ * <pre>
+ * {@code
  * Packs a CellName AND a Cell into one off-heap representation.
  * Layout is:
  *
@@ -55,6 +57,8 @@ import org.apache.cassandra.utils.memory.*;
  * name extra:  lowest 2 bits indicate the clustering size delta (i.e. how many name items are NOT part of the clustering key)
  *              the next 2 bits indicate the CellNameType
  *              the next bit indicates if the column is a static or clustered/dynamic column
+ * }
+ * </pre>
  */
 public abstract class AbstractNativeCell extends AbstractCell implements CellName
 {

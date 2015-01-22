@@ -35,8 +35,7 @@ public final class RequestValidations
      * be thrown.
      *
      * @param expression the expression to test
-     * @param messageTemplate the error message
-     * @param messageArgs the message arguments
+     * @param message the error message
      * @throws InvalidRequestException if the specified expression is <code>false</code>.
      */
     public static void checkTrue(boolean expression, String message) throws InvalidRequestException
@@ -66,8 +65,7 @@ public final class RequestValidations
      * Checks that the specified list does not contains duplicates.
      *
      * @param list the list to test
-     * @param messageTemplate the template used to build the error message
-     * @param messageArgs the message arguments
+     * @param message the error message
      * @throws InvalidRequestException if the specified list contains duplicates.
      */
     public static void checkContainsNoDuplicates(List<?> list, String message) throws InvalidRequestException
