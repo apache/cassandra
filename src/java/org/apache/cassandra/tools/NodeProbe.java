@@ -19,10 +19,7 @@ package org.apache.cassandra.tools;
 
 import java.io.IOException;
 import java.io.PrintStream;
-import java.lang.management.ManagementFactory;
-import java.lang.management.MemoryMXBean;
-import java.lang.management.MemoryUsage;
-import java.lang.management.RuntimeMXBean;
+import java.lang.management.*;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.text.SimpleDateFormat;
@@ -30,23 +27,13 @@ import java.util.*;
 import java.util.Map.Entry;
 import java.util.concurrent.*;
 import java.util.concurrent.locks.Condition;
+
 import javax.management.*;
-import javax.management.openmbean.CompositeData;
-import javax.management.remote.JMXConnectionNotification;
-import javax.management.remote.JMXConnector;
-import javax.management.remote.JMXConnectorFactory;
-import javax.management.remote.JMXServiceURL;
 import javax.management.openmbean.*;
+import javax.management.remote.*;
 
-import com.google.common.base.Function;
-import com.google.common.collect.*;
-import com.google.common.util.concurrent.Uninterruptibles;
-
-import com.yammer.metrics.reporting.JmxReporter;
 import org.apache.cassandra.concurrent.JMXEnabledThreadPoolExecutorMBean;
-import org.apache.cassandra.db.ColumnFamilyStoreMBean;
-import org.apache.cassandra.db.HintedHandOffManager;
-import org.apache.cassandra.db.HintedHandOffManagerMBean;
+import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.compaction.CompactionManagerMBean;
 import org.apache.cassandra.gms.FailureDetector;
@@ -57,11 +44,17 @@ import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.MessagingServiceMBean;
 import org.apache.cassandra.repair.RepairParallelism;
 import org.apache.cassandra.service.*;
-import org.apache.cassandra.streaming.StreamState;
 import org.apache.cassandra.streaming.StreamManagerMBean;
+import org.apache.cassandra.streaming.StreamState;
 import org.apache.cassandra.streaming.management.StreamStateCompositeData;
-import org.apache.cassandra.utils.concurrent.SimpleCondition;
+import org.apache.cassandra.utils.EstimatedHistogram;
 import org.apache.cassandra.utils.JVMStabilityInspector;
+import org.apache.cassandra.utils.concurrent.SimpleCondition;
+
+import com.google.common.base.Function;
+import com.google.common.collect.*;
+import com.google.common.util.concurrent.Uninterruptibles;
+import com.yammer.metrics.reporting.JmxReporter;
 
 /**
  * JMX client operations for Cassandra.
@@ -1157,15 +1150,28 @@ public class NodeProbe implements AutoCloseable
         }
     }
 
-    public double[] metricPercentilesAsArray(JmxReporter.HistogramMBean metric)
+    public double[] metricPercentilesAsArray(long[] counts)
     {
-        return new double[]{ metric.get50thPercentile(),
-                metric.get75thPercentile(),
-                metric.get95thPercentile(),
-                metric.get98thPercentile(),
-                metric.get99thPercentile(),
-                metric.getMin(),
-                metric.getMax()};
+        double[] offsetPercentiles = new double[] { 0.5, 0.75, 0.95, 0.98, 0.99 };
+        long[] offsets = new EstimatedHistogram(counts.length).getBucketOffsets();
+        EstimatedHistogram metric = new EstimatedHistogram(offsets, counts);
+        double[] result = new double[7];
+
+        if (metric.isOverflowed())
+        {
+            System.err.println(String.format("EstimatedHistogram overflowed larger than %s, unable to calculate percentiles",
+                                             offsets[offsets.length - 1]));
+            for (int i = 0; i < result.length; i++)
+                result[i] = Double.NaN;
+        }
+        else
+        {
+            for (int i = 0; i < offsetPercentiles.length; i++)
+                result[i] = metric.percentile(offsetPercentiles[i]);
+        }
+        result[5] = metric.min();
+        result[6] = metric.max();
+        return result;
     }
 
     public TabularData getCompactionHistory()

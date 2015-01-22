@@ -37,22 +37,20 @@ import com.yammer.metrics.reporting.JmxReporter;
 import io.airlift.command.*;
 
 import org.apache.cassandra.concurrent.JMXEnabledThreadPoolExecutorMBean;
-import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.ColumnFamilyStoreMBean;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.compaction.CompactionManagerMBean;
 import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.locator.EndpointSnitchInfoMBean;
-import org.apache.cassandra.locator.LocalStrategy;
 import org.apache.cassandra.metrics.ColumnFamilyMetrics.Sampler;
 import org.apache.cassandra.net.MessagingServiceMBean;
 import org.apache.cassandra.repair.RepairParallelism;
 import org.apache.cassandra.service.CacheServiceMBean;
+import org.apache.cassandra.service.StorageProxyMBean;
 import org.apache.cassandra.streaming.ProgressInfo;
 import org.apache.cassandra.streaming.SessionInfo;
 import org.apache.cassandra.streaming.StreamState;
-import org.apache.cassandra.utils.EstimatedHistogram;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 
@@ -1014,55 +1012,15 @@ public class NodeTool
             String keyspace = args.get(0);
             String cfname = args.get(1);
 
+            ColumnFamilyStoreMBean store = probe.getCfsProxy(keyspace, cfname);
+
             // calculate percentile of row size and column count
-            long[] estimatedRowSize = (long[]) probe.getColumnFamilyMetric(keyspace, cfname, "EstimatedRowSizeHistogram");
-            long[] estimatedColumnCount = (long[]) probe.getColumnFamilyMetric(keyspace, cfname, "EstimatedColumnCountHistogram");
-
-            long[] rowSizeBucketOffsets = new EstimatedHistogram(estimatedRowSize.length).getBucketOffsets();
-            long[] columnCountBucketOffsets = new EstimatedHistogram(estimatedColumnCount.length).getBucketOffsets();
-            EstimatedHistogram rowSizeHist = new EstimatedHistogram(rowSizeBucketOffsets, estimatedRowSize);
-            EstimatedHistogram columnCountHist = new EstimatedHistogram(columnCountBucketOffsets, estimatedColumnCount);
-
-            // build arrays to store percentile values
-            double[] estimatedRowSizePercentiles = new double[7];
-            double[] estimatedColumnCountPercentiles = new double[7];
-            double[] offsetPercentiles = new double[]{0.5, 0.75, 0.95, 0.98, 0.99};
-
-            if (rowSizeHist.isOverflowed())
-            {
-                System.err.println(String.format("Row sizes are larger than %s, unable to calculate percentiles", rowSizeBucketOffsets[rowSizeBucketOffsets.length - 1]));
-                for (int i = 0; i < offsetPercentiles.length; i++)
-                        estimatedRowSizePercentiles[i] = Double.NaN;
-            }
-            else
-            {
-                for (int i = 0; i < offsetPercentiles.length; i++)
-                    estimatedRowSizePercentiles[i] = rowSizeHist.percentile(offsetPercentiles[i]);
-            }
-
-            if (columnCountHist.isOverflowed())
-            {
-                System.err.println(String.format("Column counts are larger than %s, unable to calculate percentiles", columnCountBucketOffsets[columnCountBucketOffsets.length - 1]));
-                for (int i = 0; i < estimatedColumnCountPercentiles.length; i++)
-                    estimatedColumnCountPercentiles[i] = Double.NaN;
-            }
-            else
-            {
-                for (int i = 0; i < offsetPercentiles.length; i++)
-                    estimatedColumnCountPercentiles[i] = columnCountHist.percentile(offsetPercentiles[i]);
-            }
-
-            // min value
-            estimatedRowSizePercentiles[5] = rowSizeHist.min();
-            estimatedColumnCountPercentiles[5] = columnCountHist.min();
-            // max value
-            estimatedRowSizePercentiles[6] = rowSizeHist.max();
-            estimatedColumnCountPercentiles[6] = columnCountHist.max();
-
             String[] percentiles = new String[]{"50%", "75%", "95%", "98%", "99%", "Min", "Max"};
-            double[] readLatency = probe.metricPercentilesAsArray((JmxReporter.HistogramMBean) probe.getColumnFamilyMetric(keyspace, cfname, "ReadLatency"));
-            double[] writeLatency = probe.metricPercentilesAsArray((JmxReporter.TimerMBean) probe.getColumnFamilyMetric(keyspace, cfname, "WriteLatency"));
-            double[] sstablesPerRead = probe.metricPercentilesAsArray((JmxReporter.HistogramMBean) probe.getColumnFamilyMetric(keyspace, cfname, "SSTablesPerReadHistogram"));
+            double[] readLatency = probe.metricPercentilesAsArray(store.getRecentReadLatencyHistogramMicros());
+            double[] writeLatency = probe.metricPercentilesAsArray(store.getRecentWriteLatencyHistogramMicros());
+            double[] estimatedRowSizePercentiles = probe.metricPercentilesAsArray(store.getEstimatedRowSizeHistogram());
+            double[] estimatedColumnCountPercentiles = probe.metricPercentilesAsArray(store.getEstimatedColumnCountHistogram());
+            double[] sstablesPerRead = probe.metricPercentilesAsArray(store.getRecentSSTablesPerReadHistogram());
 
             System.out.println(format("%s/%s histograms", keyspace, cfname));
             System.out.println(format("%-10s%10s%18s%18s%18s%18s",
@@ -1704,10 +1662,11 @@ public class NodeTool
         @Override
         public void execute(NodeProbe probe)
         {
+            StorageProxyMBean sp = probe.getSpProxy();
             String[] percentiles = new String[]{"50%", "75%", "95%", "98%", "99%", "Min", "Max"};
-            double[] readLatency = probe.metricPercentilesAsArray(probe.getProxyMetric("Read"));
-            double[] writeLatency = probe.metricPercentilesAsArray(probe.getProxyMetric("Write"));
-            double[] rangeLatency = probe.metricPercentilesAsArray(probe.getProxyMetric("RangeSlice"));
+            double[] readLatency = probe.metricPercentilesAsArray(sp.getRecentReadLatencyHistogramMicros());
+            double[] writeLatency = probe.metricPercentilesAsArray(sp.getRecentWriteLatencyHistogramMicros());
+            double[] rangeLatency = probe.metricPercentilesAsArray(sp.getRecentRangeLatencyHistogramMicros());
 
             System.out.println("proxy histograms");
             System.out.println(format("%-10s%18s%18s%18s",
