@@ -192,10 +192,10 @@ final class TokenFilter extends ForwardingPrimaryKeyRestrictions
             Token start = deserializeToken(slice.bounds(START, options).get(0));
 
             BoundType startBoundType = toBoundType(slice.isInclusive(START));
-            BoundType endBoundType = toBoundType(slice.isInclusive(END));
 
             if (slice.hasBound(END))
             {
+                BoundType endBoundType = toBoundType(slice.isInclusive(END));
                 Token end = deserializeToken(slice.bounds(END, options).get(0));
 
                 if (start.equals(end) && (BoundType.OPEN == startBoundType || BoundType.OPEN == endBoundType))
