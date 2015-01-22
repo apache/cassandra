@@ -1,4 +1,6 @@
 2.1.3
+ * (cqlsh) Handle maps with blob keys (CASSANDRA-8372)
+ * (cqlsh) Handle DynamicCompositeType schemas correctly (CASSANDRA-8563)
  * Duplicate rows returned when in clause has repeated values (CASSANDRA-6707)
  * Add tooling to detect hot partitions (CASSANDRA-7974)
  * Fix cassandra-stress user-mode truncation of partition generation (CASSANDRA-8608)
