@@ -118,6 +118,7 @@
  * Log failed host when preparing incremental repair (CASSANDRA-8228)
  * Force config client mode in CQLSSTableWriter (CASSANDRA-8281)
 Merged from 2.0:
+ * Add batch remove iterator to ABSC (CASSANDRA-8414)
  * Round up time deltas lower than 1ms in BulkLoader (CASSANDRA-8645)
  * Use more efficient slice size for querying internal secondary
    index tables (CASSANDRA-8550)

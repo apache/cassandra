@@ -516,6 +516,12 @@ public abstract class ColumnFamily implements Iterable<Cell>, IRowCacheEntry
         return ByteBuffer.wrap(out.getData(), 0, out.getLength());
     }
 
+
+    /**
+     * @return an iterator where the removes are carried out once everything has been iterated
+     */
+    public abstract BatchRemoveIterator<Cell> batchRemoveIterator();
+
     public abstract static class Factory <T extends ColumnFamily>
     {
         /**

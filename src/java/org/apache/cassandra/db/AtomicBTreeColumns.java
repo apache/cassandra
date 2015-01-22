@@ -399,6 +399,11 @@ public class AtomicBTreeColumns extends ColumnFamily
         return false;
     }
 
+    public BatchRemoveIterator<Cell> batchRemoveIterator()
+    {
+        throw new UnsupportedOperationException();
+    }
+
     private static final class Holder
     {
         final DeletionInfo deletionInfo;

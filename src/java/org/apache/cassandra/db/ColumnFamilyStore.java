@@ -1247,7 +1247,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
      */
     public static ColumnFamily removeDeletedColumnsOnly(ColumnFamily cf, int gcBefore, SecondaryIndexManager.Updater indexer)
     {
-        Iterator<Cell> iter = cf.iterator();
+        BatchRemoveIterator<Cell> iter = cf.batchRemoveIterator();
         DeletionInfo.InOrderTester tester = cf.inOrderDeletionTester();
         boolean hasDroppedColumns = !cf.metadata.getDroppedColumns().isEmpty();
         while (iter.hasNext())
@@ -1263,7 +1263,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                 indexer.remove(c);
             }
         }
-
+        iter.commit();
         return cf;
     }
 
@@ -1281,10 +1281,11 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         if (cf == null || cf.metadata.getDroppedColumns().isEmpty())
             return;
 
-        Iterator<Cell> iter = cf.iterator();
+        BatchRemoveIterator<Cell> iter = cf.batchRemoveIterator();
         while (iter.hasNext())
             if (isDroppedColumn(iter.next(), metadata))
                 iter.remove();
+        iter.commit();
     }
 
     /**

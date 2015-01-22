@@ -17,12 +17,7 @@
  */
 package org.apache.cassandra.db;
 
-import java.util.AbstractCollection;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Comparator;
-import java.util.Iterator;
-import java.util.NoSuchElementException;
+import java.util.*;
 
 import com.google.common.base.Function;
 import com.google.common.collect.AbstractIterator;
@@ -32,6 +27,7 @@ import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.composites.CellName;
 import org.apache.cassandra.db.composites.Composite;
 import org.apache.cassandra.db.filter.ColumnSlice;
+import org.apache.cassandra.utils.BatchRemoveIterator;
 import org.apache.cassandra.utils.memory.AbstractAllocator;
 import org.apache.cassandra.utils.SearchIterator;
 
@@ -113,6 +109,94 @@ public class ArrayBackedSortedColumns extends ColumnFamily
     public boolean isInsertReversed()
     {
         return reversed;
+    }
+
+    public BatchRemoveIterator<Cell> batchRemoveIterator()
+    {
+        maybeSortCells();
+
+        return new BatchRemoveIterator<Cell>()
+        {
+            private final Iterator<Cell> iter = iterator();
+            private BitSet removedIndexes = new BitSet(size);
+            private int idx = -1;
+            private boolean shouldCallNext = false;
+            private boolean isCommitted = false;
+            private boolean removedAnything = false;
+
+            public void commit()
+            {
+                if (isCommitted)
+                    throw new IllegalStateException();
+                isCommitted = true;
+
+                if (!removedAnything)
+                    return;
+
+                // the lowest index both not visited and known to be not removed
+                int keepIdx = removedIndexes.nextClearBit(0);
+                // the running total of kept items
+                int resultLength = 0;
+                // start from the first not-removed cell, and shift left.
+                int removeIdx = removedIndexes.nextSetBit(keepIdx + 1);
+                while (removeIdx >= 0)
+                {
+                    int length = removeIdx - keepIdx;
+                    if (length > 0)
+                    {
+                        copy(keepIdx, resultLength, length);
+                        resultLength += length;
+                    }
+                    keepIdx = removedIndexes.nextClearBit(removeIdx + 1);
+                    if (keepIdx < 0)
+                        keepIdx = size;
+                    removeIdx = removedIndexes.nextSetBit(keepIdx + 1);
+                }
+                // Copy everything after the last deleted column
+                int length = size - keepIdx;
+                if (length > 0)
+                {
+                    copy(keepIdx, resultLength, length);
+                    resultLength += length;
+                }
+
+                for (int i = resultLength; i < size; i++)
+                    cells[i] = null;
+
+                size = sortedSize = resultLength;
+            }
+
+            private void copy(int src, int dst, int len)
+            {
+                // [src, src+len) and [dst, dst+len) might overlap but it's okay because we're going from left to right
+                assert dst <= src : "dst must not be greater than src";
+
+                if (dst < src)
+                    System.arraycopy(cells, src, cells, dst, len);
+            }
+
+            public boolean hasNext()
+            {
+                return iter.hasNext();
+            }
+
+            public Cell next()
+            {
+                idx++;
+                shouldCallNext = false;
+                return iter.next();
+            }
+
+            public void remove()
+            {
+                if (shouldCallNext)
+                    throw new IllegalStateException();
+
+                removedIndexes.set(reversed ? size - idx - 1 : idx);
+                removedAnything = true;
+                shouldCallNext = true;
+            }
+        };
     }
 
     private Comparator<Composite> internalComparator()
