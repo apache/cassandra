@@ -57,7 +57,7 @@ public class StandaloneScrubber
         try
         {
             // load keyspace descriptions.
-            DatabaseDescriptor.loadSchemas();
+            DatabaseDescriptor.loadSchemas(false);
 
             if (Schema.instance.getCFMetaData(options.keyspaceName, options.cfName) == null)
                 throw new IllegalArgumentException(String.format("Unknown keyspace/columnFamily %s.%s",

@@ -545,7 +545,7 @@ public class SSTableImport
             oldSCFormat = true;
         }
 
-        DatabaseDescriptor.loadSchemas();
+        DatabaseDescriptor.loadSchemas(false);
         if (Schema.instance.getNonSystemKeyspaces().size() < 1)
         {
             String msg = "no non-system keyspaces are defined";
