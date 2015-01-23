@@ -52,7 +52,7 @@ public class StandaloneSplitter
         try
         {
             // load keyspace descriptions.
-            DatabaseDescriptor.loadSchemas();
+            DatabaseDescriptor.loadSchemas(false);
 
             String ksName = null;
             String cfName = null;

@@ -638,8 +638,21 @@ public class DatabaseDescriptor
         return conf.dynamic_snitch ? new DynamicEndpointSnitch(snitch) : snitch;
     }
 
-    /** load keyspace (keyspace) definitions, but do not initialize the keyspace instances. */
+    /**
+     * load keyspace (keyspace) definitions, but do not initialize the keyspace instances.
+     * Schema version may be updated as the result.
+     */
     public static void loadSchemas()
+    {
+        loadSchemas(true);
+    }
+
+    /**
+     * Load schema definitions.
+     *
+     * @param updateVersion true if schema version needs to be updated
+     */
+    public static void loadSchemas(boolean updateVersion)
     {
         ColumnFamilyStore schemaCFS = SystemKeyspace.schemaCFS(SystemKeyspace.SCHEMA_KEYSPACES_CF);
 
@@ -658,7 +671,8 @@ public class DatabaseDescriptor
             Schema.instance.load(DefsTables.loadFromKeyspace());
         }
 
-        Schema.instance.updateVersion();
+        if (updateVersion)
+            Schema.instance.updateVersion();
     }
 
     private static boolean hasExistingNoSystemTables()
