@@ -330,6 +330,7 @@
           <dependency groupId="org.antlr" artifactId="stringtemplate" version="4.0.2"/>
           <dependency groupId="org.slf4j" artifactId="slf4j-api" version="1.7.2"/>
           <dependency groupId="org.slf4j" artifactId="log4j-over-slf4j" version="1.7.2"/>
+          <dependency groupId="org.slf4j" artifactId="jcl-over-slf4j" version="1.7.2" />
           <dependency groupId="ch.qos.logback" artifactId="logback-core" version="1.1.2"/>
           <dependency groupId="ch.qos.logback" artifactId="logback-classic" version="1.1.2"/>
           <dependency groupId="org.codehaus.jackson" artifactId="jackson-core-asl" version="1.9.2"/>
@@ -341,15 +342,16 @@
             <exclusion groupId="org.slf4j" artifactId="slf4j-log4j12"/>
           </dependency>
           <dependency groupId="org.yaml" artifactId="snakeyaml" version="1.11"/>
-          <dependency groupId="org.apache.thrift" artifactId="libthrift" version="0.9.1"/>
-
+          <dependency groupId="org.apache.thrift" artifactId="libthrift" version="0.9.1">
+	         <exclusion groupId="commons-logging" artifactId="commons-logging"/>
+          </dependency>
           <dependency groupId="junit" artifactId="junit" version="4.6" />
-          <dependency groupId="commons-logging" artifactId="commons-logging" version="1.1.1"/>
           <dependency groupId="org.apache.rat" artifactId="apache-rat" version="0.10">
              <exclusion groupId="commons-lang" artifactId="commons-lang"/>
           </dependency>
           <dependency groupId="org.apache.hadoop" artifactId="hadoop-core" version="1.0.3">
           	<exclusion groupId="org.mortbay.jetty" artifactId="servlet-api"/>
+          	<exclusion groupId="commons-logging" artifactId="commons-logging"/>
           </dependency>
           <dependency groupId="org.apache.hadoop" artifactId="hadoop-minicluster" version="1.0.3"/>
           <dependency groupId="org.apache.pig" artifactId="pig" version="0.12.1"/>
@@ -417,7 +419,6 @@
                 artifactId="cassandra-parent"
                 version="${version}"/>
         <dependency groupId="junit" artifactId="junit"/>
-        <dependency groupId="commons-logging" artifactId="commons-logging"/>
         <dependency groupId="org.apache.rat" artifactId="apache-rat"/>
         <dependency groupId="org.apache.hadoop" artifactId="hadoop-core"/>
       	<dependency groupId="org.apache.hadoop" artifactId="hadoop-minicluster"/>
@@ -475,6 +476,7 @@
         <dependency groupId="org.antlr" artifactId="stringtemplate" version="4.0.2"/>
         <dependency groupId="org.slf4j" artifactId="slf4j-api"/>
         <dependency groupId="org.slf4j" artifactId="log4j-over-slf4j"/>
+        <dependency groupId="org.slf4j" artifactId="jcl-over-slf4j"/>
         <dependency groupId="org.codehaus.jackson" artifactId="jackson-core-asl"/>
         <dependency groupId="org.codehaus.jackson" artifactId="jackson-mapper-asl"/>
         <dependency groupId="com.googlecode.json-simple" artifactId="json-simple"/>
@@ -520,6 +522,7 @@
         <dependency groupId="org.apache.commons" artifactId="commons-lang3"/>
         <dependency groupId="org.slf4j" artifactId="slf4j-api"/>
         <dependency groupId="org.slf4j" artifactId="log4j-over-slf4j"/>
+        <dependency groupId="org.slf4j" artifactId="jcl-over-slf4j"/>
         <dependency groupId="org.apache.thrift" artifactId="libthrift"/>
       </artifact:pom>
       <artifact:pom id="clientutil-pom"
