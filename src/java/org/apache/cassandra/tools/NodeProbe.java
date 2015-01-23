@@ -54,7 +54,10 @@ import org.apache.cassandra.utils.concurrent.SimpleCondition;
 import com.google.common.base.Function;
 import com.google.common.collect.*;
 import com.google.common.util.concurrent.Uninterruptibles;
+
 import com.yammer.metrics.reporting.JmxReporter;
+
+import static org.apache.commons.lang3.ArrayUtils.isEmpty;
 
 /**
  * JMX client operations for Cassandra.
@@ -1152,10 +1155,17 @@ public class NodeProbe implements AutoCloseable
 
     public double[] metricPercentilesAsArray(long[] counts)
     {
+        double[] result = new double[7];
+
+        if (isEmpty(counts))
+        {
+            Arrays.fill(result, Double.NaN);
+            return result;
+        }
+
         double[] offsetPercentiles = new double[] { 0.5, 0.75, 0.95, 0.98, 0.99 };
         long[] offsets = new EstimatedHistogram(counts.length).getBucketOffsets();
         EstimatedHistogram metric = new EstimatedHistogram(offsets, counts);
-        double[] result = new double[7];
 
         if (metric.isOverflowed())
         {

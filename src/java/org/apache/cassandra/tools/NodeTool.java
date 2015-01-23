@@ -32,6 +32,7 @@ import javax.management.openmbean.*;
 import com.google.common.base.Joiner;
 import com.google.common.base.Throwables;
 import com.google.common.collect.*;
+
 import com.yammer.metrics.reporting.JmxReporter;
 
 import io.airlift.command.*;
@@ -62,6 +63,7 @@ import static com.google.common.collect.Lists.newArrayList;
 import static java.lang.Integer.parseInt;
 import static java.lang.String.format;
 import static org.apache.commons.lang3.ArrayUtils.EMPTY_STRING_ARRAY;
+import static org.apache.commons.lang3.ArrayUtils.isEmpty;
 import static org.apache.commons.lang3.StringUtils.*;
 
 public class NodeTool
@@ -1014,12 +1016,20 @@ public class NodeTool
 
             ColumnFamilyStoreMBean store = probe.getCfsProxy(keyspace, cfname);
 
+            long[] estimatedRowSizeHistogram = store.getEstimatedRowSizeHistogram();
+            long[] estimatedColumnCountHistogram = store.getEstimatedColumnCountHistogram();
+
+            if (isEmpty(estimatedRowSizeHistogram) || isEmpty(estimatedColumnCountHistogram))
+            {
+                System.err.println("No SSTables exists, unable to calculate 'Partition Size' and 'Cell Count' percentiles");
+            }
+
             // calculate percentile of row size and column count
             String[] percentiles = new String[]{"50%", "75%", "95%", "98%", "99%", "Min", "Max"};
             double[] readLatency = probe.metricPercentilesAsArray(store.getRecentReadLatencyHistogramMicros());
             double[] writeLatency = probe.metricPercentilesAsArray(store.getRecentWriteLatencyHistogramMicros());
-            double[] estimatedRowSizePercentiles = probe.metricPercentilesAsArray(store.getEstimatedRowSizeHistogram());
-            double[] estimatedColumnCountPercentiles = probe.metricPercentilesAsArray(store.getEstimatedColumnCountHistogram());
+            double[] estimatedRowSizePercentiles = probe.metricPercentilesAsArray(estimatedRowSizeHistogram);
+            double[] estimatedColumnCountPercentiles = probe.metricPercentilesAsArray(estimatedColumnCountHistogram);
             double[] sstablesPerRead = probe.metricPercentilesAsArray(store.getRecentSSTablesPerReadHistogram());
 
             System.out.println(format("%s/%s histograms", keyspace, cfname));
