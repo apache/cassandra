@@ -31,7 +31,9 @@ import javax.management.openmbean.*;
 
 import com.google.common.base.Joiner;
 import com.google.common.base.Throwables;
+
 import com.google.common.collect.*;
+
 import com.yammer.metrics.reporting.JmxReporter;
 
 import io.airlift.command.*;
@@ -44,7 +46,9 @@ import org.apache.cassandra.db.compaction.CompactionManagerMBean;
 import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.locator.EndpointSnitchInfoMBean;
+
 import org.apache.cassandra.metrics.ColumnFamilyMetrics.Sampler;
+
 import org.apache.cassandra.net.MessagingServiceMBean;
 import org.apache.cassandra.repair.messages.RepairOption;
 import org.apache.cassandra.repair.RepairParallelism;
@@ -64,6 +68,7 @@ import static com.google.common.collect.Lists.newArrayList;
 import static java.lang.Integer.parseInt;
 import static java.lang.String.format;
 import static org.apache.commons.lang3.ArrayUtils.EMPTY_STRING_ARRAY;
+import static org.apache.commons.lang3.ArrayUtils.isEmpty;
 import static org.apache.commons.lang3.StringUtils.*;
 
 public class NodeTool
@@ -1023,46 +1028,59 @@ public class NodeTool
             long[] estimatedRowSize = (long[]) probe.getColumnFamilyMetric(keyspace, cfname, "EstimatedRowSizeHistogram");
             long[] estimatedColumnCount = (long[]) probe.getColumnFamilyMetric(keyspace, cfname, "EstimatedColumnCountHistogram");
 
-            long[] rowSizeBucketOffsets = new EstimatedHistogram(estimatedRowSize.length).getBucketOffsets();
-            long[] columnCountBucketOffsets = new EstimatedHistogram(estimatedColumnCount.length).getBucketOffsets();
-            EstimatedHistogram rowSizeHist = new EstimatedHistogram(rowSizeBucketOffsets, estimatedRowSize);
-            EstimatedHistogram columnCountHist = new EstimatedHistogram(columnCountBucketOffsets, estimatedColumnCount);
-
             // build arrays to store percentile values
             double[] estimatedRowSizePercentiles = new double[7];
             double[] estimatedColumnCountPercentiles = new double[7];
             double[] offsetPercentiles = new double[]{0.5, 0.75, 0.95, 0.98, 0.99};
 
-            if (rowSizeHist.isOverflowed())
+            if (isEmpty(estimatedRowSize) || isEmpty(estimatedColumnCount))
             {
-                System.err.println(String.format("Row sizes are larger than %s, unable to calculate percentiles", rowSizeBucketOffsets[rowSizeBucketOffsets.length - 1]));
-                for (int i = 0; i < offsetPercentiles.length; i++)
-                        estimatedRowSizePercentiles[i] = Double.NaN;
-            }
-            else
-            {
-                for (int i = 0; i < offsetPercentiles.length; i++)
-                    estimatedRowSizePercentiles[i] = rowSizeHist.percentile(offsetPercentiles[i]);
-            }
+                System.err.println("No SSTables exists, unable to calculate 'Partition Size' and 'Cell Count' percentiles");
 
-            if (columnCountHist.isOverflowed())
-            {
-                System.err.println(String.format("Column counts are larger than %s, unable to calculate percentiles", columnCountBucketOffsets[columnCountBucketOffsets.length - 1]));
-                for (int i = 0; i < estimatedColumnCountPercentiles.length; i++)
+                for (int i = 0; i < 7; i++)
+                {
+                    estimatedRowSizePercentiles[i] = Double.NaN;
                     estimatedColumnCountPercentiles[i] = Double.NaN;
+                }
             }
             else
             {
-                for (int i = 0; i < offsetPercentiles.length; i++)
-                    estimatedColumnCountPercentiles[i] = columnCountHist.percentile(offsetPercentiles[i]);
-            }
+                long[] rowSizeBucketOffsets = new EstimatedHistogram(estimatedRowSize.length).getBucketOffsets();
+                long[] columnCountBucketOffsets = new EstimatedHistogram(estimatedColumnCount.length).getBucketOffsets();
+                EstimatedHistogram rowSizeHist = new EstimatedHistogram(rowSizeBucketOffsets, estimatedRowSize);
+                EstimatedHistogram columnCountHist = new EstimatedHistogram(columnCountBucketOffsets, estimatedColumnCount);
 
-            // min value
-            estimatedRowSizePercentiles[5] = rowSizeHist.min();
-            estimatedColumnCountPercentiles[5] = columnCountHist.min();
-            // max value
-            estimatedRowSizePercentiles[6] = rowSizeHist.max();
-            estimatedColumnCountPercentiles[6] = columnCountHist.max();
+                if (rowSizeHist.isOverflowed())
+                {
+                    System.err.println(String.format("Row sizes are larger than %s, unable to calculate percentiles", rowSizeBucketOffsets[rowSizeBucketOffsets.length - 1]));
+                    for (int i = 0; i < offsetPercentiles.length; i++)
+                            estimatedRowSizePercentiles[i] = Double.NaN;
+                }
+                else
+                {
+                    for (int i = 0; i < offsetPercentiles.length; i++)
+                        estimatedRowSizePercentiles[i] = rowSizeHist.percentile(offsetPercentiles[i]);
+                }
+
+                if (columnCountHist.isOverflowed())
+                {
+                    System.err.println(String.format("Column counts are larger than %s, unable to calculate percentiles", columnCountBucketOffsets[columnCountBucketOffsets.length - 1]));
+                    for (int i = 0; i < estimatedColumnCountPercentiles.length; i++)
+                        estimatedColumnCountPercentiles[i] = Double.NaN;
+                }
+                else
+                {
+                    for (int i = 0; i < offsetPercentiles.length; i++)
+                        estimatedColumnCountPercentiles[i] = columnCountHist.percentile(offsetPercentiles[i]);
+                }
+
+                // min value
+                estimatedRowSizePercentiles[5] = rowSizeHist.min();
+                estimatedColumnCountPercentiles[5] = columnCountHist.min();
+                // max value
+                estimatedRowSizePercentiles[6] = rowSizeHist.max();
+                estimatedColumnCountPercentiles[6] = columnCountHist.max();
+            }
 
             String[] percentiles = new String[]{"50%", "75%", "95%", "98%", "99%", "Min", "Max"};
             double[] readLatency = probe.metricPercentilesAsArray((JmxReporter.HistogramMBean) probe.getColumnFamilyMetric(keyspace, cfname, "ReadLatency"));
