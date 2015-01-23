@@ -501,7 +501,7 @@ public class SSTableImport
             isSorted = true;
         }
 
-        Schema.instance.loadFromDisk();
+        Schema.instance.loadFromDisk(false);
         if (Schema.instance.getNonSystemKeyspaces().size() < 1)
         {
             String msg = "no non-system keyspaces are defined";

@@ -418,7 +418,7 @@ public class SSTableExport
         String[] excludes = cmd.getOptionValues(EXCLUDEKEY_OPTION);
         String ssTableFileName = new File(cmd.getArgs()[0]).getAbsolutePath();
 
-        Schema.instance.loadFromDisk();
+        Schema.instance.loadFromDisk(false);
         Descriptor descriptor = Descriptor.fromFilename(ssTableFileName);
 
         // Start by validating keyspace name

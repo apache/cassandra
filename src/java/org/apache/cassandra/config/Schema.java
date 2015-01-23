@@ -89,11 +89,25 @@ public class Schema
         load(SystemKeyspace.definition());
     }
 
-    /** load keyspace (keyspace) definitions, but do not initialize the keyspace instances. */
+    /**
+     * load keyspace (keyspace) definitions, but do not initialize the keyspace instances.
+     * Schema version may be updated as the result.
+     */
     public Schema loadFromDisk()
     {
+        return loadFromDisk(true);
+    }
+
+    /**
+     * Load schema definitions from disk.
+     *
+     * @param updateVersion true if schema version needs to be updated
+     */
+    public Schema loadFromDisk(boolean updateVersion)
+    {
         load(LegacySchemaTables.readSchemaFromSystemTables());
-        updateVersion();
+        if (updateVersion)
+            updateVersion();
         return this;
     }
 
