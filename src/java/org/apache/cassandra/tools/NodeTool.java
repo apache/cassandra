@@ -55,6 +55,7 @@ import org.apache.cassandra.streaming.StreamState;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 
+import org.apache.commons.lang3.ArrayUtils;
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkState;
 import static com.google.common.base.Throwables.getStackTraceAsString;
@@ -63,7 +64,6 @@ import static com.google.common.collect.Lists.newArrayList;
 import static java.lang.Integer.parseInt;
 import static java.lang.String.format;
 import static org.apache.commons.lang3.ArrayUtils.EMPTY_STRING_ARRAY;
-import static org.apache.commons.lang3.ArrayUtils.isEmpty;
 import static org.apache.commons.lang3.StringUtils.*;
 
 public class NodeTool
@@ -1019,7 +1019,7 @@ public class NodeTool
             long[] estimatedRowSizeHistogram = store.getEstimatedRowSizeHistogram();
             long[] estimatedColumnCountHistogram = store.getEstimatedColumnCountHistogram();
 
-            if (isEmpty(estimatedRowSizeHistogram) || isEmpty(estimatedColumnCountHistogram))
+            if (ArrayUtils.isEmpty(estimatedRowSizeHistogram) || ArrayUtils.isEmpty(estimatedColumnCountHistogram))
             {
                 System.err.println("No SSTables exists, unable to calculate 'Partition Size' and 'Cell Count' percentiles");
             }
