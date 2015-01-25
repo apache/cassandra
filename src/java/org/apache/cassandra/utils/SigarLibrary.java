@@ -165,7 +165,7 @@ public class SigarLibrary
             if (swapEnabled || !goodAddressSpace || !goodFileLimits || !goodProcNumber)
             {
                 logger.warn("Cassandra server running in degraded mode. Is swap disabled? : {},  Address space adequate? : {}, " +
-                            " nofile limit adequate? : {}, nproc limit adequate? : {} ", swapEnabled, goodAddressSpace,
+                            " nofile limit adequate? : {}, nproc limit adequate? : {} ", !swapEnabled, goodAddressSpace,
                             goodFileLimits, goodProcNumber );
             }
             else
