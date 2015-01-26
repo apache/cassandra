@@ -314,43 +314,28 @@ public class ArrayBackedSortedColumns extends AbstractThreadUnsafeSortedColumns
                 if (!removedAnything)
                     return;
 
-                // the lowest index both not visited and known to be not removed
-                int keepIdx = removedIndexes.nextClearBit(0);
-                // the running total of kept items
-                int resultLength = 0;
-                // start from the first not-removed cell, and shift left.
-                int removeIdx = removedIndexes.nextSetBit(keepIdx + 1);
-                while (removeIdx >= 0)
+                int size = columns.size();
+                int retainedCount = 0;
+                int clearIdx, setIdx = -1;
+
+                // shift all [clearIdx, setIdx) segments to the left, skipping any removed columns
+                while (true)
                 {
-                    int length = removeIdx - keepIdx;
-                    if (length > 0)
-                    {
-                        copy(keepIdx, resultLength, length);
-                        resultLength += length;
-                    }
-                    keepIdx = removedIndexes.nextClearBit(removeIdx + 1);
-                    if (keepIdx < 0)
-                        keepIdx = columns.size();
-                    removeIdx = removedIndexes.nextSetBit(keepIdx + 1);
-                }
-                // Copy everything after the last deleted column
-                int length = columns.size() - keepIdx;
-                if (length > 0)
-                {
-                    copy(keepIdx, resultLength, length);
-                    resultLength += length;
+                    clearIdx = removedIndexes.nextClearBit(setIdx + 1);
+                    if (clearIdx >= size)
+                        break; // nothing left to retain
+
+                    setIdx = removedIndexes.nextSetBit(clearIdx + 1);
+                    if (setIdx < 0)
+                        setIdx = size; // no removals past retainIdx - copy all remaining cells
+
+                    if (retainedCount != clearIdx)
+                        Collections.copy(columns.subList(retainedCount, retainedCount + setIdx - clearIdx),
+                                         columns.subList(clearIdx, setIdx));
+                    retainedCount += (setIdx - clearIdx);
                 }
 
-                columns.subList(resultLength, columns.size()).clear();
-            }
-
-            private void copy(int src, int dst, int len)
-            {
-                // [src, src+len) and [dst, dst+len) might overlap, but it's okay because we're going from left to right
-                assert dst <= src : "dst must not be greater than src";
-
-                if (dst < src)
-                    Collections.copy(columns.subList(dst, dst + len), columns.subList(src, src + len));
+                columns.subList(retainedCount, size).clear();
             }
 
             public boolean hasNext()
