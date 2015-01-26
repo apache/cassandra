@@ -201,8 +201,7 @@ public class CqlTableDataTypeTest extends PigTestBase
     };
 
     @BeforeClass
-    public static void setup() throws IOException, InterruptedException, ConfigurationException, TException,
-        ClassNotFoundException, NoSuchFieldException, IllegalAccessException, InstantiationException
+    public static void setup() throws IOException, ConfigurationException, TException
     {
         startCassandra();
         executeCQLStatements(statements);
@@ -210,7 +209,7 @@ public class CqlTableDataTypeTest extends PigTestBase
     }
 
     @Test
-    public void testCqlNativeStorageRegularType() throws TException, IOException
+    public void testCqlNativeStorageRegularType() throws IOException
     {
         //input_cql=select * from cqltable where token(key) > ? and token(key) <= ?
         cqlTableTest("rows = LOAD 'cql://cql3ks/cqltable?" + defaultParameters + nativeParameters + "&input_cql=select%20*%20from%20cqltable%20where%20token(key)%20%3E%20%3F%20and%20token(key)%20%3C%3D%20%3F' USING CqlNativeStorage();");
@@ -280,7 +279,7 @@ public class CqlTableDataTypeTest extends PigTestBase
     }
 
     @Test
-    public void testCqlNativeStorageSetType() throws TException, IOException
+    public void testCqlNativeStorageSetType() throws IOException
     {
         //input_cql=select * from settable where token(key) > ? and token(key) <= ?
         settableTest("set_rows = LOAD 'cql://cql3ks/settable?" + defaultParameters + nativeParameters + "&input_cql=select%20*%20from%20settable%20where%20token(key)%20%3E%20%3F%20and%20token(key)%20%3C%3D%20%3F' USING CqlNativeStorage();");
@@ -346,7 +345,7 @@ public class CqlTableDataTypeTest extends PigTestBase
     }
 
     @Test
-    public void testCqlNativeStorageListType() throws TException, IOException
+    public void testCqlNativeStorageListType() throws IOException
     {
         //input_cql=select * from listtable where token(key) > ? and token(key) <= ?
         listtableTest("list_rows = LOAD 'cql://cql3ks/listtable?" + defaultParameters + nativeParameters + "&input_cql=select%20*%20from%20listtable%20where%20token(key)%20%3E%20%3F%20and%20token(key)%20%3C%3D%20%3F' USING CqlNativeStorage();");
@@ -412,7 +411,7 @@ public class CqlTableDataTypeTest extends PigTestBase
     }
 
     @Test
-    public void testCqlNativeStorageMapType() throws TException, IOException
+    public void testCqlNativeStorageMapType() throws IOException
     {
         //input_cql=select * from maptable where token(key) > ? and token(key) <= ?
         maptableTest("map_rows = LOAD 'cql://cql3ks/maptable?" + defaultParameters + nativeParameters + "&input_cql=select%20*%20from%20maptable%20where%20token(key)%20%3E%20%3F%20and%20token(key)%20%3C%3D%20%3F' USING CqlNativeStorage();");

@@ -51,7 +51,7 @@ public class LongFlushMemtableTest
     }
 
     @Test
-    public void testFlushMemtables() throws IOException, ConfigurationException
+    public void testFlushMemtables() throws ConfigurationException
     {
         Keyspace keyspace = Keyspace.open(KEYSPACE1);
         for (int i = 0; i < 100; i++)

@@ -171,8 +171,7 @@ public class ThriftColumnFamilyTest extends PigTestBase
     };
 
     @BeforeClass
-    public static void setup() throws IOException, InterruptedException, ConfigurationException, TException,
-        ClassNotFoundException, NoSuchFieldException, IllegalAccessException, InstantiationException
+    public static void setup() throws IOException, ConfigurationException, TException
     {
         startCassandra();
         executeCQLStatements(statements);
@@ -180,8 +179,7 @@ public class ThriftColumnFamilyTest extends PigTestBase
     }
 
     @Test
-    public void testCqlNativeStorage() throws IOException, ClassNotFoundException, TException, NoSuchFieldException,
-        IllegalAccessException, InstantiationException
+    public void testCqlNativeStorage() throws IOException
     {
         //regular thrift column families
         //input_cql=select * from "some_app" where token(key) > ? and token(key) <= ?
@@ -302,8 +300,7 @@ public class ThriftColumnFamilyTest extends PigTestBase
     }
 
     @Test
-    public void testCassandraStorageSchema() throws IOException, ClassNotFoundException, TException, NoSuchFieldException,
-        IllegalAccessException, InstantiationException
+    public void testCassandraStorageSchema() throws IOException
     {
         //results: (qux,(atomic_weight,0.660161815846869),(created,1335890877),(name,User Qux),(percent,64.7),
         //(rating,2),(score,12000),(vote_type,dislike))
@@ -342,8 +339,7 @@ public class ThriftColumnFamilyTest extends PigTestBase
     }
 
     @Test
-    public void testCassandraStorageFullCopy() throws IOException, ClassNotFoundException, TException, NoSuchFieldException,
-        IllegalAccessException, InstantiationException
+    public void testCassandraStorageFullCopy() throws IOException, TException
     {
         pig.setBatchOn();
         pig.registerQuery("rows = LOAD 'cassandra://thrift_ks/some_app?" + defaultParameters + "' USING CassandraStorage();");
@@ -356,13 +352,12 @@ public class ThriftColumnFamilyTest extends PigTestBase
     }
 
     @Test
-    public void testCassandraStorageSigleTupleCopy() throws IOException, ClassNotFoundException, TException,
-        NoSuchFieldException, IllegalAccessException, InstantiationException
+    public void testCassandraStorageSingleTupleCopy() throws IOException, TException
     {
         executeCQLStatements(deleteCopyOfSomeAppTableData);
         pig.setBatchOn();
         pig.registerQuery("rows = LOAD 'cassandra://thrift_ks/some_app?" + defaultParameters + "' USING CassandraStorage();");
-        //sigle tuple
+        //single tuple
         pig.registerQuery("onecol = FOREACH rows GENERATE key, percent;");
         pig.registerQuery("STORE onecol INTO 'cassandra://thrift_ks/copy_of_some_app?" + defaultParameters + "' USING CassandraStorage();");
         pig.executeBatch();
@@ -391,8 +386,7 @@ public class ThriftColumnFamilyTest extends PigTestBase
     }
 
     @Test
-    public void testCassandraStorageBagOnlyCopy() throws IOException, ClassNotFoundException, TException,
-        NoSuchFieldException, IllegalAccessException, InstantiationException
+    public void testCassandraStorageBagOnlyCopy() throws IOException, TException
     {
         executeCQLStatements(deleteCopyOfSomeAppTableData);
         pig.setBatchOn();
@@ -435,8 +429,7 @@ public class ThriftColumnFamilyTest extends PigTestBase
     }
 
     @Test
-    public void testCassandraStorageFilter() throws IOException, ClassNotFoundException, TException, NoSuchFieldException,
-        IllegalAccessException, InstantiationException
+    public void testCassandraStorageFilter() throws IOException, TException
     {
         executeCQLStatements(deleteCopyOfSomeAppTableData);
         pig.setBatchOn();
@@ -503,7 +496,7 @@ public class ThriftColumnFamilyTest extends PigTestBase
     }
 
     @Test
-    public void testCassandraStorageJoin() throws IOException, ClassNotFoundException, TException, IllegalAccessException, InstantiationException
+    public void testCassandraStorageJoin() throws IOException
     {
         //test key types with a join
         pig.registerQuery("U8 = load 'cassandra://thrift_ks/u8?" + defaultParameters + "' using CassandraStorage();");
@@ -555,8 +548,7 @@ public class ThriftColumnFamilyTest extends PigTestBase
     }
 
     @Test
-    public void testCassandraStorageCounterCF() throws IOException, ClassNotFoundException, TException, NoSuchFieldException,
-        IllegalAccessException, InstantiationException
+    public void testCassandraStorageCounterCF() throws IOException
     {
         //Test counter column family support
         pig.registerQuery("CC = load 'cassandra://thrift_ks/cc?" + defaultParameters + "' using CassandraStorage();");
@@ -568,8 +560,7 @@ public class ThriftColumnFamilyTest extends PigTestBase
     }
 
     @Test
-    public void testCassandraStorageCompositeColumnCF() throws IOException, ClassNotFoundException, TException,
-        NoSuchFieldException, IllegalAccessException, InstantiationException
+    public void testCassandraStorageCompositeColumnCF() throws IOException
     {
         //Test CompositeType
         pig.registerQuery("compo = load 'cassandra://thrift_ks/compo?" + defaultParameters + "' using CassandraStorage();");
@@ -636,8 +627,7 @@ public class ThriftColumnFamilyTest extends PigTestBase
     }
 
     @Test
-    public void testCassandraStorageCompositeKeyCF() throws IOException, ClassNotFoundException, TException,
-        NoSuchFieldException, IllegalAccessException, InstantiationException
+    public void testCassandraStorageCompositeKeyCF() throws IOException
     {
         //Test CompositeKey
         pig.registerQuery("compokeys = load 'cassandra://thrift_ks/compo_key?" + defaultParameters + "' using CassandraStorage();");

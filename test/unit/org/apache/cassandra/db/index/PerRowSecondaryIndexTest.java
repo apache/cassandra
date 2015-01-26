@@ -144,7 +144,7 @@ public class PerRowSecondaryIndexTest
     }
     
     @Test
-    public void testInvalidSearch() throws IOException
+    public void testInvalidSearch()
     {
         Mutation rm;
         rm = new Mutation(KEYSPACE1, ByteBufferUtil.bytes("k4"));

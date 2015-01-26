@@ -50,7 +50,7 @@ public class NonNativeTimestampTest extends SchemaLoader
     }
 
     @Test
-    public void setServerTimestampForNonCqlNativeStatements() throws RequestValidationException, RequestExecutionException, CharacterCodingException, UnsupportedEncodingException
+    public void setServerTimestampForNonCqlNativeStatements() throws RequestValidationException, RequestExecutionException
     {
         String createKsCQL = "CREATE KEYSPACE non_native_ts_test" +
                              " WITH REPLICATION = { 'class' : 'SimpleStrategy', 'replication_factor' : 1 };";

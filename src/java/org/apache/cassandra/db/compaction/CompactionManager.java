@@ -471,7 +471,7 @@ public class CompactionManager implements CompactionManagerMBean
         logger.info(String.format("Completed anticompaction successfully"));
     }
 
-    public void performMaximal(final ColumnFamilyStore cfStore) throws InterruptedException, ExecutionException
+    public void performMaximal(final ColumnFamilyStore cfStore)
     {
         FBUtilities.waitOnFutures(submitMaximal(cfStore, getDefaultGcBefore(cfStore)));
     }

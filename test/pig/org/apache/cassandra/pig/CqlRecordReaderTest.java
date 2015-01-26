@@ -57,8 +57,7 @@ public class CqlRecordReaderTest extends PigTestBase
     };
 
     @BeforeClass
-    public static void setup() throws IOException, InterruptedException, ConfigurationException,
-        TException, ClassNotFoundException, NoSuchFieldException, IllegalAccessException, InstantiationException
+    public static void setup() throws IOException, ConfigurationException, TException
     {
         startCassandra();
         executeCQLStatements(statements);

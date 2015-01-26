@@ -97,12 +97,12 @@ public class LongSharedExecutorPoolTest
     }
 
     @Test
-    public void testPromptnessOfExecution() throws InterruptedException, ExecutionException, TimeoutException
+    public void testPromptnessOfExecution() throws InterruptedException, ExecutionException
     {
         testPromptnessOfExecution(TimeUnit.MINUTES.toNanos(2L), 0.5f);
     }
 
-    private void testPromptnessOfExecution(long intervalNanos, float loadIncrement) throws InterruptedException, ExecutionException, TimeoutException
+    private void testPromptnessOfExecution(long intervalNanos, float loadIncrement) throws InterruptedException, ExecutionException
     {
         final int executorCount = 4;
         int threadCount = 8;
@@ -217,7 +217,7 @@ public class LongSharedExecutorPoolTest
         }
     }
 
-    public static void main(String[] args) throws InterruptedException, ExecutionException, TimeoutException
+    public static void main(String[] args) throws InterruptedException, ExecutionException
     {
         // do longer test
         new LongSharedExecutorPoolTest().testPromptnessOfExecution(TimeUnit.MINUTES.toNanos(10L), 0.1f);

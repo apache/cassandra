@@ -333,7 +333,7 @@ public class RangeTombstoneTest
     }
 
     @Test
-    public void test7810() throws ExecutionException, InterruptedException, IOException
+    public void test7810() throws ExecutionException, InterruptedException
     {
         Keyspace ks = Keyspace.open(KSNAME);
         ColumnFamilyStore cfs = ks.getColumnFamilyStore(CFNAME);
@@ -381,7 +381,7 @@ public class RangeTombstoneTest
     }
 
     @Test
-    public void test7808_2() throws ExecutionException, InterruptedException, IOException
+    public void test7808_2() throws ExecutionException, InterruptedException
     {
         Keyspace ks = Keyspace.open(KSNAME);
         ColumnFamilyStore cfs = ks.getColumnFamilyStore(CFNAME);

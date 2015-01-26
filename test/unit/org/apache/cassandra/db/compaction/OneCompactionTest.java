@@ -59,7 +59,7 @@ public class OneCompactionTest
                                     SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARD2));
     }
 
-    private void testCompaction(String columnFamilyName, int insertsPerTable) throws ExecutionException, InterruptedException
+    private void testCompaction(String columnFamilyName, int insertsPerTable)
     {
         CompactionManager.instance.disableAutoCompaction();
 
@@ -81,13 +81,13 @@ public class OneCompactionTest
     }
 
     @Test
-    public void testCompaction1() throws ExecutionException, InterruptedException
+    public void testCompaction1()
     {
         testCompaction("Standard1", 1);
     }
 
     @Test
-    public void testCompaction2() throws ExecutionException, InterruptedException
+    public void testCompaction2()
     {
         testCompaction("Standard2", 2);
     }

@@ -160,7 +160,7 @@ public class CompactionsTest
     }
 
     @Test
-    public void testSuperColumnTombstones() throws ExecutionException, InterruptedException
+    public void testSuperColumnTombstones()
     {
         Keyspace keyspace = Keyspace.open(KEYSPACE1);
         ColumnFamilyStore cfs = keyspace.getColumnFamilyStore("Super1");
@@ -378,7 +378,7 @@ public class CompactionsTest
     }
 
     @Test
-    public void testRangeTombstones() throws IOException, ExecutionException, InterruptedException
+    public void testRangeTombstones()
     {
         Keyspace keyspace = Keyspace.open(KEYSPACE1);
         ColumnFamilyStore cfs = keyspace.getColumnFamilyStore("Standard2");

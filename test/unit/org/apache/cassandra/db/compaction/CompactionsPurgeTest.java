@@ -90,7 +90,7 @@ public class CompactionsPurgeTest
     }
 
     @Test
-    public void testMajorCompactionPurge() throws ExecutionException, InterruptedException
+    public void testMajorCompactionPurge()
     {
         CompactionManager.instance.disableAutoCompaction();
 
@@ -362,7 +362,7 @@ public class CompactionsPurgeTest
     }
 
     @Test
-    public void testRowTombstoneObservedBeforePurging() throws InterruptedException, ExecutionException
+    public void testRowTombstoneObservedBeforePurging()
     {
         String keyspace = "cql_keyspace";
         String table = "table1";

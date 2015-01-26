@@ -127,7 +127,7 @@ public class AntiCompactionTest
     }
 
     @Test
-    public void antiCompactionSizeTest() throws ExecutionException, InterruptedException, IOException
+    public void antiCompactionSizeTest() throws InterruptedException, IOException
     {
         Keyspace keyspace = Keyspace.open(KEYSPACE1);
         ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(CF);
@@ -180,16 +180,16 @@ public class AntiCompactionTest
     }
 
     @Test
-    public void antiCompactTenSTC() throws InterruptedException, ExecutionException, IOException{
+    public void antiCompactTenSTC() throws InterruptedException, IOException{
         antiCompactTen("SizeTieredCompactionStrategy");
     }
 
     @Test
-    public void antiCompactTenLC() throws InterruptedException, ExecutionException, IOException{
+    public void antiCompactTenLC() throws InterruptedException, IOException{
         antiCompactTen("LeveledCompactionStrategy");
     }
 
-    public void antiCompactTen(String compactionStrategy) throws InterruptedException, ExecutionException, IOException
+    public void antiCompactTen(String compactionStrategy) throws InterruptedException, IOException
     {
         Keyspace keyspace = Keyspace.open(KEYSPACE1);
         ColumnFamilyStore store = keyspace.getColumnFamilyStore(CF);
@@ -240,7 +240,7 @@ public class AntiCompactionTest
         assertEquals(nonRepairedKeys, 60);
     }
     @Test
-    public void shouldMutateRepairedAt() throws InterruptedException, ExecutionException, IOException
+    public void shouldMutateRepairedAt() throws InterruptedException, IOException
     {
         ColumnFamilyStore store = prepareColumnFamilyStore();
         Collection<SSTableReader> sstables = store.getUnrepairedSSTables();
@@ -259,7 +259,7 @@ public class AntiCompactionTest
 
 
     @Test
-    public void shouldSkipAntiCompactionForNonIntersectingRange() throws InterruptedException, ExecutionException, IOException
+    public void shouldSkipAntiCompactionForNonIntersectingRange() throws InterruptedException, IOException
     {
         Keyspace keyspace = Keyspace.open(KEYSPACE1);
         ColumnFamilyStore store = keyspace.getColumnFamilyStore(CF);

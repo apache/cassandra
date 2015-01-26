@@ -48,7 +48,7 @@ public class ThriftValidationTest
     public static final String CF_STANDARDLONG3 = "StandardLong3";
 
     @BeforeClass
-    public static void defineSchema() throws ConfigurationException, IOException, TException
+    public static void defineSchema() throws ConfigurationException
     {
         SchemaLoader.prepareServer();
         SchemaLoader.createKeyspace(KEYSPACE1,

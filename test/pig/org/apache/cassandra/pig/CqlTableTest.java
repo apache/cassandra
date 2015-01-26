@@ -73,8 +73,7 @@ public class CqlTableTest extends PigTestBase
     };
 
     @BeforeClass
-    public static void setup() throws IOException, InterruptedException, ConfigurationException, TException, ClassNotFoundException,
-        NoSuchFieldException, IllegalAccessException, InstantiationException
+    public static void setup() throws IOException, ConfigurationException, TException
     {
         startCassandra();
         executeCQLStatements(statements);
@@ -82,7 +81,7 @@ public class CqlTableTest extends PigTestBase
     }
 
     @Test
-    public void testCqlNativeStorageSchema() throws TException, IOException
+    public void testCqlNativeStorageSchema() throws IOException
     {
         //input_cql=select * from cqltable where token(key1) > ? and token(key1) <= ?
         cqlTableSchemaTest("rows = LOAD 'cql://cql3ks/cqltable?" + defaultParameters + nativeParameters +  "&input_cql=select%20*%20from%20cqltable%20where%20token(key1)%20%3E%20%3F%20and%20token(key1)%20%3C%3D%20%3F' USING CqlNativeStorage();");
@@ -127,13 +126,13 @@ public class CqlTableTest extends PigTestBase
     }
 
     @Test
-    public void testCqlNativeStorageSingleKeyTable() throws TException, IOException
+    public void testCqlNativeStorageSingleKeyTable() throws IOException
     {
         //input_cql=select * from moredata where token(x) > ? and token(x) <= ?
-        SingleKeyTableTest("moretestvalues= LOAD 'cql://cql3ks/moredata?" + defaultParameters + nativeParameters + "&input_cql=select%20*%20from%20moredata%20where%20token(x)%20%3E%20%3F%20and%20token(x)%20%3C%3D%20%3F' USING CqlNativeStorage();");
+        singleKeyTableTest("moretestvalues= LOAD 'cql://cql3ks/moredata?" + defaultParameters + nativeParameters + "&input_cql=select%20*%20from%20moredata%20where%20token(x)%20%3E%20%3F%20and%20token(x)%20%3C%3D%20%3F' USING CqlNativeStorage();");
     }
 
-    private void SingleKeyTableTest(String initialQuery) throws TException, IOException
+    private void singleKeyTableTest(String initialQuery) throws IOException
     {
         pig.setBatchOn();
         pig.registerQuery(initialQuery);
@@ -156,13 +155,13 @@ public class CqlTableTest extends PigTestBase
     }
 
     @Test
-    public void testCqlNativeStorageCompositeKeyTable() throws TException, IOException
+    public void testCqlNativeStorageCompositeKeyTable() throws IOException
     {
         //input_cql=select * from compmore where token(id) > ? and token(id) <= ?
-        CompositeKeyTableTest("moredata= LOAD 'cql://cql3ks/compmore?" + defaultParameters + nativeParameters + "&input_cql=select%20*%20from%20compmore%20where%20token(id)%20%3E%20%3F%20and%20token(id)%20%3C%3D%20%3F' USING CqlNativeStorage();");
+        compositeKeyTableTest("moredata= LOAD 'cql://cql3ks/compmore?" + defaultParameters + nativeParameters + "&input_cql=select%20*%20from%20compmore%20where%20token(id)%20%3E%20%3F%20and%20token(id)%20%3C%3D%20%3F' USING CqlNativeStorage();");
     }
 
-    private void CompositeKeyTableTest(String initialQuery) throws TException, IOException
+    private void compositeKeyTableTest(String initialQuery) throws IOException
     {
         pig.setBatchOn();
         pig.registerQuery(initialQuery);
@@ -191,13 +190,13 @@ public class CqlTableTest extends PigTestBase
     }
 
     @Test
-    public void testCqlNativeStorageCollectionColumnTable() throws TException, IOException
+    public void testCqlNativeStorageCollectionColumnTable() throws IOException
     {
         //input_cql=select * from collectiontable where token(m) > ? and token(m) <= ?
         CollectionColumnTableTest("collectiontable= LOAD 'cql://cql3ks/collectiontable?" + defaultParameters + nativeParameters + "&input_cql=select%20*%20from%20collectiontable%20where%20token(m)%20%3E%20%3F%20and%20token(m)%20%3C%3D%20%3F' USING CqlNativeStorage();");
     }
 
-    private void CollectionColumnTableTest(String initialQuery) throws TException, IOException
+    private void CollectionColumnTableTest(String initialQuery) throws IOException
     {
         pig.setBatchOn();
         pig.registerQuery(initialQuery);
@@ -230,8 +229,7 @@ public class CqlTableTest extends PigTestBase
     }
 
     @Test
-    public void testCassandraStorageSchema() throws IOException, ClassNotFoundException, TException, NoSuchFieldException,
-        IllegalAccessException, InstantiationException
+    public void testCassandraStorageSchema() throws IOException
     {
         //results: (key1,{((111,),),((111,column1),100),((111,column2),10.1)})
         pig.registerQuery("rows = LOAD 'cassandra://cql3ks/cqltable?" + defaultParameters + "' USING CassandraStorage();");

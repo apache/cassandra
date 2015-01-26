@@ -71,7 +71,7 @@ public class SSTableImportTest
     public static final String CQL_TABLE = "table1";
 
     @BeforeClass
-    public static void defineSchema() throws ConfigurationException, IOException, TException
+    public static void defineSchema() throws ConfigurationException
     {
         SchemaLoader.prepareServer();
         SchemaLoader.createKeyspace(KEYSPACE1,

@@ -69,8 +69,7 @@ public class ThriftColumnFamilyDataTypeTest extends PigTestBase
     };
 
     @BeforeClass
-    public static void setup() throws IOException, InterruptedException, ConfigurationException, TException,
-        ClassNotFoundException, NoSuchFieldException, IllegalAccessException, InstantiationException
+    public static void setup() throws IOException, ConfigurationException, TException
     {
         startCassandra();
         executeCQLStatements(statements);
@@ -78,8 +77,7 @@ public class ThriftColumnFamilyDataTypeTest extends PigTestBase
     }
 
     @Test
-    public void testCassandraStorageDataType() throws IOException, ClassNotFoundException, TException,
-        NoSuchFieldException, IllegalAccessException, InstantiationException
+    public void testCassandraStorageDataType() throws IOException
     {
         pig.registerQuery("rows = LOAD 'cassandra://thrift_ks/some_app?" + defaultParameters + "' USING CassandraStorage();");
         Tuple t = pig.openIterator("rows").next();

@@ -127,7 +127,7 @@ public class LongCompactionsTest
     }
 
     @Test
-    public void testStandardColumnCompactions() throws IOException, ExecutionException, InterruptedException
+    public void testStandardColumnCompactions()
     {
         // this test does enough rows to force multiple block indexes to be used
         Keyspace keyspace = Keyspace.open(KEYSPACE1);
@@ -168,7 +168,7 @@ public class LongCompactionsTest
         cfs.truncateBlocking();
     }
 
-    private void forceCompactions(ColumnFamilyStore cfs) throws ExecutionException, InterruptedException
+    private void forceCompactions(ColumnFamilyStore cfs)
     {
         // re-enable compaction with thresholds low enough to force a few rounds
         cfs.setCompactionThresholds(2, 4);

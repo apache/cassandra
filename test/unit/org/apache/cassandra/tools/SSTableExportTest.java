@@ -74,7 +74,7 @@ public class SSTableExportTest
     public static final String CF_VALSWITHQUOTES = "ValuesWithQuotes";
 
     @BeforeClass
-    public static void defineSchema() throws ConfigurationException, IOException, TException
+    public static void defineSchema() throws ConfigurationException
     {
         SchemaLoader.prepareServer();
         SchemaLoader.createKeyspace(KEYSPACE1,

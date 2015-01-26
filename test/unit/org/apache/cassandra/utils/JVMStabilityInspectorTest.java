@@ -68,7 +68,7 @@ public class JVMStabilityInspectorTest
     }
 
     @Test
-    public void fileHandleTest() throws FileNotFoundException
+    public void fileHandleTest()
     {
         KillerForTests killerForTests = new KillerForTests();
         JVMStabilityInspector.Killer originalKiller = JVMStabilityInspector.replaceKiller(killerForTests);

@@ -107,7 +107,7 @@ public class SSTableReaderTest
     }
 
     @Test
-    public void testGetPositionsForRanges() throws ExecutionException, InterruptedException
+    public void testGetPositionsForRanges()
     {
         Keyspace keyspace = Keyspace.open(KEYSPACE1);
         ColumnFamilyStore store = keyspace.getColumnFamilyStore("Standard2");
@@ -146,7 +146,7 @@ public class SSTableReaderTest
     }
 
     @Test
-    public void testSpannedIndexPositions() throws IOException, ExecutionException, InterruptedException
+    public void testSpannedIndexPositions() throws IOException
     {
         MmappedSegmentedFile.MAX_SEGMENT_SIZE = 40; // each index entry is ~11 bytes, so this will generate lots of segments
 
@@ -238,7 +238,7 @@ public class SSTableReaderTest
     }
 
     @Test
-    public void testGetPositionsForRangesWithKeyCache() throws ExecutionException, InterruptedException
+    public void testGetPositionsForRangesWithKeyCache()
     {
         Keyspace keyspace = Keyspace.open(KEYSPACE1);
         ColumnFamilyStore store = keyspace.getColumnFamilyStore("Standard2");
@@ -286,7 +286,7 @@ public class SSTableReaderTest
         // check if opening and querying works
         assertIndexQueryWorks(store);
     }
-    public void testGetPositionsKeyCacheStats() throws IOException, ExecutionException, InterruptedException
+    public void testGetPositionsKeyCacheStats()
     {
         Keyspace keyspace = Keyspace.open(KEYSPACE1);
         ColumnFamilyStore store = keyspace.getColumnFamilyStore("Standard2");
@@ -407,7 +407,7 @@ public class SSTableReaderTest
     }
 
     @Test
-    public void testGetPositionsForRangesFromTableOpenedForBulkLoading() throws IOException, ExecutionException, InterruptedException
+    public void testGetPositionsForRangesFromTableOpenedForBulkLoading() throws IOException
     {
         Keyspace keyspace = Keyspace.open(KEYSPACE1);
         ColumnFamilyStore store = keyspace.getColumnFamilyStore("Standard2");
