@@ -17,16 +17,24 @@
  */
 package org.apache.cassandra.db;
 
+import java.io.IOException;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.*;
 
 import org.junit.Test;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.cql3.QueryProcessor;
+import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.dht.ByteOrderedPartitioner.BytesToken;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.SemanticVersion;
+
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 public class SystemKeyspaceTest
 {
@@ -68,5 +76,69 @@ public class SystemKeyspaceTest
         UUID firstId = SystemKeyspace.getLocalHostId();
         UUID secondId = SystemKeyspace.getLocalHostId();
         assert firstId.equals(secondId) : String.format("%s != %s%n", firstId.toString(), secondId.toString());
+    }
+
+    @Test
+    public void snapshotSystemKeyspaceIfUpgrading() throws IOException
+    {
+        // First, check that in the absence of any previous installed version, we don't create snapshots
+        for (ColumnFamilyStore cfs : Keyspace.open(SystemKeyspace.NAME).getColumnFamilyStores())
+            cfs.clearUnsafe();
+        Keyspace.clearSnapshot(null, SystemKeyspace.NAME);
+
+        SystemKeyspace.snapshotOnVersionChange();
+        assertTrue(getSystemSnapshotFiles().isEmpty());
+
+        // now setup system.local as if we're upgrading from a previous version
+        SemanticVersion next = getCurrentReleaseVersion();
+        setupReleaseVersion(new SemanticVersion(String.format("%s.%s.%s", next.major - 1, next.minor, next.patch)));
+        Keyspace.clearSnapshot(null, SystemKeyspace.NAME);
+        assertTrue(getSystemSnapshotFiles().isEmpty());
+
+        // Compare versions again & verify that snapshots were created for all tables in the system ks
+        SystemKeyspace.snapshotOnVersionChange();
+        assertEquals(SystemKeyspace.definition().cfMetaData().size(), getSystemSnapshotFiles().size());
+
+        // clear out the snapshots & set the previous recorded version equal to the latest, we shouldn't
+        // see any new snapshots created this time.
+        Keyspace.clearSnapshot(null, SystemKeyspace.NAME);
+        setupReleaseVersion(getCurrentReleaseVersion());
+
+        SystemKeyspace.snapshotOnVersionChange();
+        assertTrue(getSystemSnapshotFiles().isEmpty());
+    }
+
+    private SemanticVersion getCurrentReleaseVersion()
+    {
+        return new SemanticVersion(FBUtilities.getReleaseVersionString());
+    }
+
+    private Set<String> getSystemSnapshotFiles()
+    {
+        Set<String> snapshottedTableNames = new HashSet<>();
+        for (ColumnFamilyStore cfs : Keyspace.open(SystemKeyspace.NAME).getColumnFamilyStores())
+        {
+            if (!cfs.getSnapshotDetails().isEmpty())
+                snapshottedTableNames.add(cfs.getColumnFamilyName());
+        }
+        return snapshottedTableNames;
+    }
+
+    private void setupReleaseVersion(SemanticVersion version)
+    {
+        // besides the release_version, we also need to insert the cluster_name or the check
+        // in SystemKeyspace.checkHealth were we verify it matches DatabaseDescriptor will fail
+        QueryProcessor.executeInternal(String.format("INSERT INTO system.local(key, release_version, cluster_name) " +
+                                                     "VALUES ('local', '%s', '%s')",
+                                                     version,
+                                                     DatabaseDescriptor.getClusterName()));
+        String r = readLocalVersion();
+        assertEquals(String.format("Expected %s, got %s", version, r), version.toString(), r);
+    }
+
+    private String readLocalVersion()
+    {
+        UntypedResultSet rs = QueryProcessor.executeInternal("SELECT release_version FROM system.local WHERE key='local'");
+        return rs.isEmpty() || !rs.one().has("release_version") ? null : rs.one().getString("release_version");
     }
 }

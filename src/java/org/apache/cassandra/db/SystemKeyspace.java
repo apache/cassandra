@@ -17,14 +17,13 @@
  */
 package org.apache.cassandra.db;
 
-import java.io.DataInputStream;
-import java.io.IOError;
-import java.io.IOException;
+import java.io.*;
 import java.net.InetAddress;
 import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
-import javax.management.openmbean.*;
+import javax.management.openmbean.OpenDataException;
+import javax.management.openmbean.TabularData;
 
 import com.google.common.base.Function;
 import com.google.common.collect.*;
@@ -67,6 +66,15 @@ import static org.apache.cassandra.cql3.QueryProcessor.executeOnceInternal;
 public final class SystemKeyspace
 {
     private static final Logger logger = LoggerFactory.getLogger(SystemKeyspace.class);
+
+    // Used to indicate that there was a previous version written to the legacy (pre 1.2)
+    // system.Versions table, but that we cannot read it. Suffice to say, any upgrade should
+    // proceed through 1.2.x before upgrading to the current version.
+    public static final SemanticVersion UNREADABLE_VERSION = new SemanticVersion("0.0.0-unknown");
+
+    // Used to indicate that no previous version information was found. When encountered, we assume that
+    // Cassandra was not previously installed and we're in the process of starting a fresh node.
+    public static final SemanticVersion NULL_VERSION = new SemanticVersion("0.0.0-absent");
 
     public static final String NAME = "system";
 
@@ -289,10 +297,21 @@ public final class SystemKeyspace
 
     private static void setupVersion()
     {
-        String req = "INSERT INTO system.%s (key, release_version, cql_version, thrift_version, native_protocol_version, data_center, rack, partitioner) VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
+        String req = "INSERT INTO system.%s (" +
+                     "  key, " +
+                     "  cluster_name, " +
+                     "  release_version, " +
+                     "  cql_version, " +
+                     "  thrift_version, " +
+                     "  native_protocol_version, " +
+                     "  data_center, " +
+                     "  rack, " +
+                     "  partitioner" +
+                     ") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)";
         IEndpointSnitch snitch = DatabaseDescriptor.getEndpointSnitch();
         executeOnceInternal(String.format(req, LOCAL),
                             LOCAL,
+                            DatabaseDescriptor.getClusterName(),
                             FBUtilities.getReleaseVersionString(),
                             QueryProcessor.CQL_VERSION.toString(),
                             cassandraConstants.VERSION,
@@ -686,8 +705,6 @@ public final class SystemKeyspace
                 throw new ConfigurationException("Found system keyspace files, but they couldn't be loaded!");
 
             // no system files.  this is a new node.
-            req = "INSERT INTO system.%s (key, cluster_name) VALUES ('%s', ?)";
-            executeInternal(String.format(req, LOCAL, LOCAL), DatabaseDescriptor.getClusterName());
             return;
         }
 
@@ -1002,6 +1019,68 @@ public final class SystemKeyspace
     {
         ColumnFamilyStore availableRanges = Keyspace.open(NAME).getColumnFamilyStore(AVAILABLE_RANGES);
         availableRanges.truncateBlocking();
+    }
+
+    /**
+     * Compare the release version in the system.local table with the one included in the distro.
+     * If they don't match, snapshot all tables in the system keyspace. This is intended to be
+     * called at startup to create a backup of the system tables during an upgrade
+     *
+     * @throws IOException
+     */
+    public static void snapshotOnVersionChange() throws IOException
+    {
+        String previous = getPreviousVersionString();
+        String next = FBUtilities.getReleaseVersionString();
+
+        // if we're restarting after an upgrade, snapshot the system keyspace
+        if (!previous.equals(NULL_VERSION.toString()) && !previous.equals(next))
+
+        {
+            logger.info("Detected version upgrade from {} to {}, snapshotting system keyspace", previous, next);
+            String snapshotName = Keyspace.getTimestampedSnapshotName(String.format("upgrade-%s-%s",
+                                                                                    previous,
+                                                                                    next));
+            Keyspace systemKs = Keyspace.open(SystemKeyspace.NAME);
+            systemKs.snapshot(snapshotName, null);
+        }
+    }
+
+    /**
+     * Try to determine what the previous version, if any, was installed on this node.
+     * Primary source of truth is the release version in system.local. If the previous
+     * version cannot be determined by looking there then either:
+     * * the node never had a C* install before
+     * * the was a very old version (pre 1.2) installed, which did not include system.local
+     *
+     * @return either a version read from the system.local table or one of two special values
+     * indicating either no previous version (SystemUpgrade.NULL_VERSION) or an unreadable,
+     * legacy version (SystemUpgrade.UNREADABLE_VERSION).
+     */
+    private static String getPreviousVersionString()
+    {
+        String req = "SELECT release_version FROM system.%s WHERE key='%s'";
+        UntypedResultSet result = executeInternal(String.format(req, SystemKeyspace.LOCAL, SystemKeyspace.LOCAL));
+        if (result.isEmpty() || !result.one().has("release_version"))
+        {
+            // it isn't inconceivable that one might try to upgrade a node straight from <= 1.1 to whatever
+            // the current version is. If we couldn't read a previous version from system.local we check for
+            // the existence of the legacy system.Versions table. We don't actually attempt to read a version
+            // from there, but it informs us that this isn't a completely new node.
+            for (File dataDirectory : Directories.getKSChildDirectories(SystemKeyspace.NAME))
+            {
+                if (dataDirectory.getName().equals("Versions") && dataDirectory.listFiles().length > 0)
+                {
+                    logger.debug("Found unreadable versions info in pre 1.2 system.Versions table");
+                    return UNREADABLE_VERSION.toString();
+                }
+            }
+
+            // no previous version information found, we can assume that this is a new node
+            return NULL_VERSION.toString();
+        }
+        // report back whatever we found in the system table
+        return result.one().getString("release_version");
     }
 
     private static ByteBuffer rangeToBytes(Range<Token> range)

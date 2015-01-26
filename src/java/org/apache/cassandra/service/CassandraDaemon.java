@@ -25,7 +25,9 @@ import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.rmi.registry.LocateRegistry;
 import java.rmi.server.RMIServerSocketFactory;
-import java.util.*;
+import java.util.Collections;
+import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import javax.management.MBeanServer;
 import javax.management.ObjectName;
@@ -34,18 +36,12 @@ import javax.management.remote.JMXConnectorServer;
 import javax.management.remote.JMXServiceURL;
 import javax.management.remote.rmi.RMIConnectorServer;
 
-import com.google.common.collect.Iterables;
 import com.google.common.util.concurrent.Uninterruptibles;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.addthis.metrics3.reporter.config.ReporterConfig;
-
-import org.apache.cassandra.concurrent.JMXEnabledThreadPoolExecutor;
-import org.apache.cassandra.concurrent.ScheduledExecutors;
-import org.apache.cassandra.concurrent.Stage;
-import org.apache.cassandra.concurrent.StageManager;
+import org.apache.cassandra.concurrent.*;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.Schema;
@@ -53,6 +49,7 @@ import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.exceptions.StartupException;
 import org.apache.cassandra.io.FSError;
 import org.apache.cassandra.io.sstable.CorruptSSTableException;
 import org.apache.cassandra.io.util.FileUtils;
@@ -71,74 +68,42 @@ import org.apache.cassandra.utils.*;
 public class CassandraDaemon
 {
     public static final String MBEAN_NAME = "org.apache.cassandra.db:type=NativeAccess";
-    public static JMXConnectorServer jmxServer = null;
+    private static JMXConnectorServer jmxServer = null;
 
     private static final Logger logger = LoggerFactory.getLogger(CassandraDaemon.class);
 
     private static void maybeInitJmx()
     {
-        String jmxPort = System.getProperty("com.sun.management.jmxremote.port");
+        if (System.getProperty("com.sun.management.jmxremote.port") != null)
+            return;
 
+        String jmxPort = System.getProperty("cassandra.jmx.local.port");
         if (jmxPort == null)
+            return;
+
+        System.setProperty("java.rmi.server.hostname", InetAddress.getLoopbackAddress().getHostAddress());
+        RMIServerSocketFactory serverFactory = new RMIServerSocketFactoryImpl();
+        Map<String, ?> env = Collections.singletonMap(RMIConnectorServer.RMI_SERVER_SOCKET_FACTORY_ATTRIBUTE, serverFactory);
+        try
         {
-            logger.warn("JMX is not enabled to receive remote connections. Please see cassandra-env.sh for more info.");
-
-            jmxPort = System.getProperty("cassandra.jmx.local.port");
-
-            if (jmxPort == null)
-            {
-                logger.error("cassandra.jmx.local.port missing from cassandra-env.sh, unable to start local JMX service." + jmxPort);
-            }
-            else
-            {
-                System.setProperty("java.rmi.server.hostname", InetAddress.getLoopbackAddress().getHostAddress());
-
-                try
-                {
-                    RMIServerSocketFactory serverFactory = new RMIServerSocketFactoryImpl();
-                    LocateRegistry.createRegistry(Integer.valueOf(jmxPort), null, serverFactory);
-
-                    StringBuffer url = new StringBuffer();
-                    url.append("service:jmx:");
-                    url.append("rmi://localhost/jndi/");
-                    url.append("rmi://localhost:").append(jmxPort).append("/jmxrmi");
-                    
-                    Map env = new HashMap();
-                    env.put(RMIConnectorServer.RMI_SERVER_SOCKET_FACTORY_ATTRIBUTE, serverFactory);
-
-                    jmxServer = new RMIConnectorServer(
-                            new JMXServiceURL(url.toString()),
-                            env,
-                            ManagementFactory.getPlatformMBeanServer()
-                    );
-
-                    jmxServer.start();
-                }
-                catch (IOException e)
-                {
-                    logger.error("Error starting local jmx server: ", e);
-                }
-            }
+            LocateRegistry.createRegistry(Integer.valueOf(jmxPort), null, serverFactory);
+            JMXServiceURL url = new JMXServiceURL(String.format("service:jmx:rmi://localhost/jndi/rmi://localhost:%s/jmxrmi", jmxPort));
+            jmxServer = new RMIConnectorServer(url, env, ManagementFactory.getPlatformMBeanServer());
+            jmxServer.start();
         }
-        else
+        catch (IOException e)
         {
-            logger.info("JMX is enabled to receive remote connections on port: " + jmxPort);
+            logger.error("Error starting local jmx server: ", e);
         }
     }
 
     private static final CassandraDaemon instance = new CassandraDaemon();
 
-    /**
-     * The earliest legit timestamp a casandra instance could have ever launched.
-     * Date roughly taken from http://perspectives.mvdirona.com/2008/07/12/FacebookReleasesCassandraAsOpenSource.aspx
-     * We use this to ensure the system clock is at least somewhat correct at startup.
-     */
-    private static final long EARLIEST_LAUNCH_DATE = 1215820800000L;
-
     public Server thriftServer;
     public Server nativeServer;
 
     private final boolean runManaged;
+    protected final StartupChecks startupChecks;
 
     public CassandraDaemon() {
         this(false);
@@ -146,6 +111,7 @@ public class CassandraDaemon
 
     public CassandraDaemon(boolean runManaged) {
         this.runManaged = runManaged;
+        this.startupChecks = new StartupChecks().withDefaultTests();
     }
 
     /**
@@ -155,74 +121,27 @@ public class CassandraDaemon
      */
     protected void setup()
     {
+        logSystemInfo();
+
         try
         {
-            logger.info("Hostname: {}", InetAddress.getLocalHost().getHostName());
+            startupChecks.verify();
         }
-        catch (UnknownHostException e1)
+        catch (StartupException e)
         {
-            logger.info("Could not resolve local host");
-        }
-
-        long now = System.currentTimeMillis();
-        if (now < EARLIEST_LAUNCH_DATE)
-        {
-            String msg = String.format("current machine time is %s, but that is seemingly incorrect. exiting now.", new Date(now).toString());
-            logger.error(msg);
-            throw new IllegalStateException(msg);
-        }
-
-        // log warnings for different kinds of sub-optimal JVMs.  tldr use 64-bit Oracle >= 1.6u32
-        if (!DatabaseDescriptor.hasLargeAddressSpace())
-            logger.info("32bit JVM detected.  It is recommended to run Cassandra on a 64bit JVM for better performance.");
-        String javaVersion = System.getProperty("java.version");
-        String javaVmName = System.getProperty("java.vm.name");
-        logger.info("JVM vendor/version: {}/{}", javaVmName, javaVersion);
-        if (javaVmName.contains("OpenJDK"))
-        {
-            // There is essentially no QA done on OpenJDK builds, and
-            // clusters running OpenJDK have seen many heap and load issues.
-            logger.warn("OpenJDK is not recommended. Please upgrade to the newest Oracle Java release");
-        }
-        else if (!javaVmName.contains("HotSpot"))
-        {
-            logger.warn("Non-Oracle JVM detected.  Some features, such as immediate unmap of compacted SSTables, may not work as intended");
-        }
-     /*   else
-        {
-            String[] java_version = javaVersion.split("_");
-            String java_major = java_version[0];
-            int java_minor;
-            try
-            {
-                java_minor = (java_version.length > 1) ? Integer.parseInt(java_version[1]) : 0;
-            }
-            catch (NumberFormatException e)
-            {
-                // have only seen this with java7 so far but no doubt there are other ways to break this
-                logger.info("Unable to parse java version {}", Arrays.toString(java_version));
-                java_minor = 32;
-            }
-        }
-     */
-        logger.info("Heap size: {}/{}", Runtime.getRuntime().totalMemory(), Runtime.getRuntime().maxMemory());
-        for(MemoryPoolMXBean pool: ManagementFactory.getMemoryPoolMXBeans())
-            logger.info("{} {}: {}", pool.getName(), pool.getType(), pool.getPeakUsage());
-        logger.info("Classpath: {}", System.getProperty("java.class.path"));
-
-        // Fail-fast if JNA is not available or failing to initialize properly
-        // except with -Dcassandra.boot_without_jna=true. See CASSANDRA-6575.
-        if (!CLibrary.jnaAvailable())
-        {
-            boolean jnaRequired = !Boolean.getBoolean("cassandra.boot_without_jna");
-
-            if (jnaRequired)
-            {
-                exitOrFail(3, "JNA failing to initialize properly. Use -Dcassandra.boot_without_jna=true to bootstrap even so.");
-            }
+            exitOrFail(e.returnCode, e.getMessage(), e.getCause());
         }
 
         CLibrary.tryMlockall();
+
+        try
+        {
+            SystemKeyspace.snapshotOnVersionChange();
+        }
+        catch (IOException e)
+        {
+            exitOrFail(3, e.getMessage(), e.getCause());
+        }
 
         maybeInitJmx();
 
@@ -253,59 +172,6 @@ public class CassandraDaemon
                 }
             }
         });
-
-        // check all directories(data, commitlog, saved cache) for existence and permission
-        Iterable<String> dirs = Iterables.concat(Arrays.asList(DatabaseDescriptor.getAllDataFileLocations()),
-                                                 Arrays.asList(DatabaseDescriptor.getCommitLogLocation(),
-                                                               DatabaseDescriptor.getSavedCachesLocation()));
-
-        SigarLibrary sigarLibrary = new SigarLibrary();
-        if (sigarLibrary.initialized())
-            sigarLibrary.warnIfRunningInDegradedMode();
-        else
-            logger.info("Sigar could not be initialized");
-
-        for (String dataDir : dirs)
-        {
-            logger.debug("Checking directory {}", dataDir);
-            File dir = new File(dataDir);
-
-            // check that directories exist.
-            if (!dir.exists())
-            {
-                logger.error("Directory {} doesn't exist", dataDir);
-                // if they don't, failing their creation, stop cassandra.
-                if (!dir.mkdirs())
-                {
-                    exitOrFail(3, "Has no permission to create directory "+ dataDir);
-                }
-            }
-            // if directories exist verify their permissions
-            if (!Directories.verifyFullPermissions(dir, dataDir))
-            {
-                // if permissions aren't sufficient, stop cassandra.
-                exitOrFail(3, "Insufficient permissions on directory " + dataDir);
-            }
-
-
-        }
-
-        if (CacheService.instance == null) // should never happen
-            throw new RuntimeException("Failed to initialize Cache Service.");
-
-        // check the system keyspace to keep user from shooting self in foot by changing partitioner, cluster name, etc.
-        // we do a one-off scrub of the system keyspace first; we can't load the list of the rest of the keyspaces,
-        // until system keyspace is opened.
-        for (CFMetaData cfm : Schema.instance.getKeyspaceMetaData(SystemKeyspace.NAME).values())
-            ColumnFamilyStore.scrubDataDirectories(cfm);
-        try
-        {
-            SystemKeyspace.checkHealth();
-        }
-        catch (ConfigurationException e)
-        {
-            exitOrFail(100, "Fatal exception during initialization", e);
-        }
 
         // load schema from disk
         Schema.instance.loadFromDisk();
@@ -454,6 +320,26 @@ public class CassandraDaemon
         InetAddress nativeAddr = DatabaseDescriptor.getRpcAddress();
         int nativePort = DatabaseDescriptor.getNativeTransportPort();
         nativeServer = new org.apache.cassandra.transport.Server(nativeAddr, nativePort);
+    }
+
+    private void logSystemInfo()
+    {
+        try
+        {
+            logger.info("Hostname: {}", InetAddress.getLocalHost().getHostName());
+        }
+        catch (UnknownHostException e1)
+        {
+            logger.info("Could not resolve local host");
+        }
+
+        logger.info("JVM vendor/version: {}/{}", System.getProperty("java.vm.name"), System.getProperty("java.version"));
+        logger.info("Heap size: {}/{}", Runtime.getRuntime().totalMemory(), Runtime.getRuntime().maxMemory());
+
+        for(MemoryPoolMXBean pool: ManagementFactory.getMemoryPoolMXBeans())
+            logger.info("{} {}: {}", pool.getName(), pool.getType(), pool.getPeakUsage());
+
+        logger.info("Classpath: {}", System.getProperty("java.class.path"));
     }
 
     /**
