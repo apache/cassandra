@@ -20,7 +20,6 @@ package org.apache.cassandra.cql3.functions;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.reflect.Method;
-import java.nio.ByteBuffer;
 import java.util.*;
 
 import org.slf4j.Logger;

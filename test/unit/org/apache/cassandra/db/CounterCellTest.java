@@ -29,7 +29,6 @@ import java.util.Arrays;
 import org.junit.Assert;
 import org.junit.Test;
 
-import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.db.composites.CellNameType;
 import org.apache.cassandra.db.composites.SimpleDenseCellNameType;

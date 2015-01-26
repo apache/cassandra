@@ -21,7 +21,6 @@ import java.util.Collections;
 import java.util.List;
 
 import org.apache.cassandra.db.RowPosition;
-import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.Pair;
 
 /**

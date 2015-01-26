@@ -38,7 +38,6 @@ import java.util.concurrent.ThreadLocalRandom;
 
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.BytesType;
-import org.apache.cassandra.stress.Operation;
 import org.apache.cassandra.stress.generate.values.Generator;
 
 // a partition is re-used to reduce garbage generation, as is its internal RowIterator

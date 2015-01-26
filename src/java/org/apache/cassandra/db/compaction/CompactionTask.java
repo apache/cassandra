@@ -18,7 +18,6 @@
 package org.apache.cassandra.db.compaction;
 
 import java.io.File;
-import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;

@@ -21,7 +21,6 @@ import java.util.List;
 
 import org.apache.cassandra.db.marshal.AbstractType;
 
-import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.github.jamm.Unmetered;
 
 @Unmetered

@@ -20,7 +20,6 @@ package org.apache.cassandra.io;
 import java.io.DataInput;
 import java.io.IOException;
 
-import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.format.Version;
 import org.apache.cassandra.io.util.DataOutputPlus;
 

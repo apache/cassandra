@@ -33,7 +33,6 @@ import org.apache.cassandra.stress.generate.PartitionGenerator;
 import org.apache.cassandra.stress.generate.SeedManager;
 import org.apache.cassandra.stress.settings.Command;
 import org.apache.cassandra.stress.settings.ConnectionStyle;
-import org.apache.cassandra.stress.settings.CqlVersion;
 import org.apache.cassandra.stress.settings.StressSettings;
 import org.apache.cassandra.stress.util.JavaDriverClient;
 import org.apache.cassandra.stress.util.ThriftClient;

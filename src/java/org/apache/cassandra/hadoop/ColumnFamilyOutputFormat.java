@@ -18,7 +18,6 @@
 package org.apache.cassandra.hadoop;
 
 
-import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.List;
 import org.apache.cassandra.thrift.*;

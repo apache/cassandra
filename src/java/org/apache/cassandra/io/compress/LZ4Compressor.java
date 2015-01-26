@@ -26,7 +26,6 @@ import java.util.Set;
 
 import net.jpountz.lz4.LZ4Exception;
 import net.jpountz.lz4.LZ4Factory;
-import org.apache.cassandra.utils.FastByteOperations;
 
 public class LZ4Compressor implements ICompressor
 {

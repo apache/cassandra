@@ -25,7 +25,6 @@ import java.util.List;
 import java.util.Map;
 
 import com.google.common.collect.Iterables;
-import net.nicoulaj.compilecommand.annotations.Inline;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 

@@ -23,9 +23,7 @@ import static org.junit.Assert.assertEquals;
 
 import java.io.IOException;
 import java.io.DataInputStream;
-import java.io.DataOutputStream;
 import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
 import java.nio.ByteBuffer;
 import java.nio.charset.CharacterCodingException;
 import java.util.Arrays;
@@ -33,7 +31,6 @@ import java.util.Arrays;
 import org.junit.Test;
 
 import org.apache.cassandra.io.util.DataOutputBuffer;
-import org.apache.cassandra.io.util.FastByteArrayOutputStream;
 
 public class ByteBufferUtilTest
 {

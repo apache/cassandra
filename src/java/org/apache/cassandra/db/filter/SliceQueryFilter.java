@@ -38,7 +38,6 @@ import org.apache.cassandra.db.composites.Composite;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.io.util.FileDataInput;
-import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.tracing.Tracing;
 
 public class SliceQueryFilter implements IDiskAtomFilter

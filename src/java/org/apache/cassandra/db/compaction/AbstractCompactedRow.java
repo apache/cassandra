@@ -24,7 +24,6 @@ import java.security.MessageDigest;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.RowIndexEntry;
 import org.apache.cassandra.io.sstable.ColumnStats;
-import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.io.util.SequentialWriter;
 
 /**

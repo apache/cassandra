@@ -17,8 +17,6 @@
  */
 package org.apache.cassandra.utils;
 
-import net.nicoulaj.compilecommand.annotations.Inline;
-
 import java.nio.ByteBuffer;
 
 /**

@@ -25,14 +25,12 @@ import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.zip.Adler32;
-import java.util.zip.CRC32;
 import java.util.zip.Checksum;
 
 import com.google.common.collect.Iterators;
 import com.google.common.primitives.Ints;
 
 import org.apache.cassandra.io.compress.CompressionMetadata;
-import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.WrappedRunnable;
 
 /**

@@ -26,7 +26,6 @@ import com.google.common.collect.AbstractIterator;
 
 import org.apache.cassandra.cql3.statements.SelectStatement;
 import org.apache.cassandra.db.marshal.*;
-import org.apache.cassandra.exceptions.*;
 import org.apache.cassandra.service.pager.QueryPager;
 
 /** a utility for doing internal cql-based queries */

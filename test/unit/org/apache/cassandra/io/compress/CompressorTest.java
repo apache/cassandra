@@ -28,7 +28,6 @@ import com.google.common.io.Files;
 import org.apache.cassandra.io.compress.ICompressor.WrappedArray;
 
 import org.junit.Assert;
-import org.junit.Before;
 import org.junit.Test;
 
 import static org.junit.Assert.*;

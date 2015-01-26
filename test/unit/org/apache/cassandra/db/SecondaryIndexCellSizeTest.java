@@ -31,7 +31,6 @@ import org.apache.cassandra.db.index.SecondaryIndexSearcher;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.concurrent.OpOrder;
-import org.apache.cassandra.utils.memory.MemtableAllocator;
 
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;

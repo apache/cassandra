@@ -24,7 +24,6 @@ import java.util.Comparator;
 
 import org.apache.cassandra.db.DeletionInfo;
 import org.apache.cassandra.db.RangeTombstone;
-import org.apache.cassandra.db.RowIndexEntry;
 import org.apache.cassandra.db.filter.ColumnSlice;
 import org.apache.cassandra.db.filter.SliceQueryFilter;
 import org.apache.cassandra.db.marshal.AbstractType;

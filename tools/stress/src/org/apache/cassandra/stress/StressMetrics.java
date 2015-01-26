@@ -28,7 +28,6 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ThreadFactory;
 
-import com.google.common.util.concurrent.Uninterruptibles;
 import org.apache.commons.lang3.time.DurationFormatUtils;
 import org.apache.cassandra.concurrent.NamedThreadFactory;
 import org.apache.cassandra.stress.settings.StressSettings;

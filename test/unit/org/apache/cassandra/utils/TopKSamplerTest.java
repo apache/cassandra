@@ -7,8 +7,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 import junit.framework.Assert;
 
-import org.apache.cassandra.concurrent.Stage;
-import org.apache.cassandra.concurrent.StageManager;
 import org.apache.cassandra.utils.TopKSampler.SamplerResult;
 import org.junit.Test;
 

@@ -33,7 +33,6 @@ import org.apache.cassandra.io.sstable.metadata.IMetadataSerializer;
 import org.apache.cassandra.io.sstable.metadata.LegacyMetadataSerializer;
 import org.apache.cassandra.io.sstable.metadata.MetadataSerializer;
 import org.apache.cassandra.utils.Pair;
-import org.apache.commons.lang.StringUtils;
 
 import static org.apache.cassandra.io.sstable.Component.separator;
 

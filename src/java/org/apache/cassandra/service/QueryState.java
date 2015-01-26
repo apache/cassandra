@@ -21,7 +21,6 @@ import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
 
 import org.apache.cassandra.tracing.Tracing;
-import org.apache.cassandra.utils.FBUtilities;
 
 /**
  * Represents the state related to a given query.

@@ -27,7 +27,6 @@ import com.google.common.base.Throwables;
 import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.sstable.format.SSTableWriter;
 import org.apache.cassandra.io.sstable.format.Version;
-import org.apache.cassandra.io.util.FileUtils;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

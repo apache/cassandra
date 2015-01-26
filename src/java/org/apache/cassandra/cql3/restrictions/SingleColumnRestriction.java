@@ -19,10 +19,7 @@ package org.apache.cassandra.cql3.restrictions;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
-import java.util.Deque;
-import java.util.LinkedList;
 import java.util.List;
 
 import org.apache.cassandra.config.ColumnDefinition;

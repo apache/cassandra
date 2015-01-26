@@ -25,7 +25,6 @@ import org.apache.cassandra.service.StorageService;
 import org.junit.Test;
 
 import java.io.DataInputStream;
-import java.io.DataOutputStream;
 import java.io.IOException;
 
 public class SerializationsTest extends AbstractSerializationsTester

@@ -29,7 +29,6 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import java.io.IOException;
-import java.util.concurrent.TimeUnit;
 
 public class BatchTests
 {

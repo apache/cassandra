@@ -39,7 +39,6 @@ import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.ColumnStats;
-import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.locator.SimpleStrategy;
 import org.apache.cassandra.net.MessageIn;
 import org.apache.cassandra.net.MessageOut;
