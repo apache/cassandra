@@ -28,16 +28,19 @@ import java.util.Date;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
+
 import javax.management.MBeanServer;
 import javax.management.ObjectName;
 import javax.management.StandardMBean;
 
 import com.google.common.collect.Iterables;
 import com.google.common.util.concurrent.Uninterruptibles;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.addthis.metrics.reporter.config.ReporterConfig;
+
 import org.apache.cassandra.concurrent.JMXEnabledThreadPoolExecutor;
 import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.concurrent.Stage;
@@ -476,6 +479,12 @@ public class CassandraDaemon
                 //Allow the server to start even if the bean can't be registered
             }
 
+            try {
+                DatabaseDescriptor.forceStaticInitialization();
+            } catch (ExceptionInInitializerError e) {
+                throw e.getCause();
+            }
+
             setup();
 
             if (pidFile != null)
@@ -493,12 +502,27 @@ public class CassandraDaemon
         }
         catch (Throwable e)
         {
-            logger.error("Exception encountered during startup", e);
+            boolean logStackTrace =
+                    e instanceof ConfigurationException ? ((ConfigurationException)e).logStackTrace : true;
 
-            // try to warn user on stdout too, if we haven't already detached
-            e.printStackTrace();
-            System.out.println("Exception encountered during startup: " + e.getMessage());
-            exitOrFail(3, "Exception encountered during startup", e);
+            System.out.println("Exception (" + e.getClass().getName() + ") encountered during startup: " + e.getMessage());
+
+            if (logStackTrace)
+            {
+                if (runManaged)
+                    logger.error("Exception encountered during startup", e);
+                // try to warn user on stdout too, if we haven't already detached
+                e.printStackTrace();
+                exitOrFail(3, "Exception encountered during startup", e);
+            }
+            else
+            {
+                if (runManaged)
+                    logger.error("Exception encountered during startup: " + e.getMessage());
+                // try to warn user on stdout too, if we haven't already detached
+                System.err.println(e.getMessage());
+                exitOrFail(3, "Exception encountered during startup: " + e.getMessage());
+            }
         }
     }
 
@@ -570,7 +594,7 @@ public class CassandraDaemon
     {
         instance.activate();
     }
-    
+
     private void exitOrFail(int code, String message) {
         exitOrFail(code, message, null);
     }
