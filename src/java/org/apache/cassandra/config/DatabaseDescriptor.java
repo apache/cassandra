@@ -158,6 +158,27 @@ public class DatabaseDescriptor
         return loader.loadConfig();
     }
 
+    private static InetAddress getNetworkInterfaceAddress(String intf, String configName) throws ConfigurationException
+    {
+        try
+        {
+            NetworkInterface ni = NetworkInterface.getByName(intf);
+            if (ni == null)
+                throw new ConfigurationException("Configured " + configName + " \"" + intf + "\" could not be found");
+            Enumeration<InetAddress> addrs = ni.getInetAddresses();
+            if (!addrs.hasMoreElements())
+                throw new ConfigurationException("Configured " + configName + " \"" + intf + "\" was found, but had no addresses");
+            InetAddress retval = listenAddress = addrs.nextElement();
+            if (addrs.hasMoreElements())
+                throw new ConfigurationException("Configured " + configName + " \"" + intf + "\" can't have more than one address");
+            return retval;
+        }
+        catch (SocketException e)
+        {
+            throw new ConfigurationException("Configured " + configName + " \"" + intf + "\" caused an exception", e);
+        }
+    }
+
     private static void applyConfig(Config config) throws ConfigurationException
     {
         conf = config;
@@ -326,18 +347,7 @@ public class DatabaseDescriptor
         }
         else if (conf.listen_interface != null)
         {
-            try
-            {
-                Enumeration<InetAddress> addrs = NetworkInterface.getByName(conf.listen_interface).getInetAddresses();
-                listenAddress = addrs.nextElement();
-                if (addrs.hasMoreElements())
-                    throw new ConfigurationException("Interface " + conf.listen_interface +" can't have more than one address");
-            }
-            catch (SocketException e)
-            {
-                throw new ConfigurationException("Unknown network interface in listen_interface " + conf.listen_interface);
-            }
-
+            listenAddress = getNetworkInterfaceAddress(conf.listen_interface, "listen_interface");
         }
 
         /* Gossip Address to broadcast */
@@ -374,17 +384,7 @@ public class DatabaseDescriptor
         }
         else if (conf.rpc_interface != null)
         {
-            try
-            {
-                Enumeration<InetAddress> addrs = NetworkInterface.getByName(conf.rpc_interface).getInetAddresses();
-                rpcAddress = addrs.nextElement();
-                if (addrs.hasMoreElements())
-                    throw new ConfigurationException("Interface " + conf.rpc_interface +" can't have more than one address");
-            }
-            catch (SocketException e)
-            {
-                throw new ConfigurationException("Unknown network interface in rpc_interface " + conf.rpc_interface);
-            }
+            listenAddress = getNetworkInterfaceAddress(conf.rpc_interface, "rpc_interface");
         }
         else
         {
