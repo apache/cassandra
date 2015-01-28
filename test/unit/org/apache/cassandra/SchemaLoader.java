@@ -21,6 +21,7 @@ import java.io.File;
 import java.nio.ByteBuffer;
 import java.util.*;
 
+import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.slf4j.Logger;
@@ -62,6 +63,15 @@ public class SchemaLoader
         // Schema.instance.load(schemaDefinition());
         for (KSMetaData ksm : schemaDefinition())
             MigrationManager.announceNewKeyspace(ksm);
+    }
+
+    @After
+    public void leakDetect() throws InterruptedException
+    {
+        System.gc();
+        System.gc();
+        System.gc();
+        Thread.sleep(10);
     }
 
     public static void prepareServer()

@@ -200,7 +200,7 @@ public class SSTableRewriterTest extends SchemaLoader
         assertTrue(s != s2);
         assertFileCounts(dir.list(), 2, 3);
         s.markObsolete();
-        s.releaseReference();
+        s.sharedRef().release();
         Thread.sleep(1000);
         assertFileCounts(dir.list(), 0, 3);
         writer.abort(false);
@@ -705,7 +705,7 @@ public class SSTableRewriterTest extends SchemaLoader
         for (SSTableReader sstable : cfs.getSSTables())
         {
             assertFalse(sstable.isMarkedCompacted());
-            assertEquals(1, sstable.referenceCount());
+            assertEquals(1, sstable.sharedRef().globalCount());
             liveDescriptors.add(sstable.descriptor.generation);
         }
         for (File dir : cfs.directories.getCFDirectories())

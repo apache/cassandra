@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.db.compaction;
 
+import org.apache.cassandra.utils.concurrent.Refs;
 import static org.hamcrest.CoreMatchers.is;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -63,9 +64,11 @@ public class AntiCompactionTest extends SchemaLoader
         Range<Token> range = new Range<Token>(new BytesToken("0".getBytes()), new BytesToken("4".getBytes()));
         List<Range<Token>> ranges = Arrays.asList(range);
 
-        SSTableReader.acquireReferences(sstables);
+        Refs<SSTableReader> refs = Refs.tryRef(sstables);
+        if (refs == null)
+            throw new IllegalStateException();
         long repairedAt = 1000;
-        CompactionManager.instance.performAnticompaction(store, ranges, sstables, repairedAt);
+        CompactionManager.instance.performAnticompaction(store, ranges, refs, repairedAt);
 
         assertEquals(2, store.getSSTables().size());
         int repairedKeys = 0;
@@ -93,7 +96,7 @@ public class AntiCompactionTest extends SchemaLoader
         for (SSTableReader sstable : store.getSSTables())
         {
             assertFalse(sstable.isMarkedCompacted());
-            assertEquals(1, sstable.referenceCount());
+            assertEquals(1, sstable.sharedRef().globalCount());
         }
         assertEquals(0, store.getDataTracker().getCompacting().size());
         assertEquals(repairedKeys, 4);
@@ -110,8 +113,7 @@ public class AntiCompactionTest extends SchemaLoader
         long origSize = s.bytesOnDisk();
         Range<Token> range = new Range<Token>(new BytesToken(ByteBufferUtil.bytes(0)), new BytesToken(ByteBufferUtil.bytes(500)));
         Collection<SSTableReader> sstables = cfs.getSSTables();
-        SSTableReader.acquireReferences(sstables);
-        CompactionManager.instance.performAnticompaction(cfs, Arrays.asList(range), sstables, 12345);
+        CompactionManager.instance.performAnticompaction(cfs, Arrays.asList(range), Refs.tryRef(sstables), 12345);
         long sum = 0;
         for (SSTableReader x : cfs.getSSTables())
             sum += x.bytesOnDisk();
@@ -149,12 +151,13 @@ public class AntiCompactionTest extends SchemaLoader
         Range<Token> range = new Range<Token>(new BytesToken("-10".getBytes()), new BytesToken("-1".getBytes()));
         List<Range<Token>> ranges = Arrays.asList(range);
 
-        SSTableReader.acquireReferences(sstables);
-        CompactionManager.instance.performAnticompaction(store, ranges, sstables, 1);
-
+        Refs<SSTableReader> refs = Refs.tryRef(sstables);
+        if (refs == null)
+            throw new IllegalStateException();
+        CompactionManager.instance.performAnticompaction(store, ranges, refs, 1);
         assertThat(store.getSSTables().size(), is(1));
         assertThat(Iterables.get(store.getSSTables(), 0).isRepaired(), is(false));
-        assertThat(Iterables.get(store.getSSTables(), 0).referenceCount(), is(1));
+        assertThat(Iterables.get(store.getSSTables(), 0).sharedRef().globalCount(), is(1));
         assertThat(store.getDataTracker().getCompacting().size(), is(0));
     }
 
@@ -167,12 +170,11 @@ public class AntiCompactionTest extends SchemaLoader
         Range<Token> range = new Range<Token>(new BytesToken("0".getBytes()), new BytesToken("9999".getBytes()));
         List<Range<Token>> ranges = Arrays.asList(range);
 
-        SSTableReader.acquireReferences(sstables);
-        CompactionManager.instance.performAnticompaction(store, ranges, sstables, 1);
+        CompactionManager.instance.performAnticompaction(store, ranges, Refs.tryRef(sstables), 1);
 
         assertThat(store.getSSTables().size(), is(1));
         assertThat(Iterables.get(store.getSSTables(), 0).isRepaired(), is(true));
-        assertThat(Iterables.get(store.getSSTables(), 0).referenceCount(), is(1));
+        assertThat(Iterables.get(store.getSSTables(), 0).sharedRef().globalCount(), is(1));
         assertThat(store.getDataTracker().getCompacting().size(), is(0));
     }
 

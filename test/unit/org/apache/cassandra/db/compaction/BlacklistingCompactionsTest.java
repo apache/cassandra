@@ -26,6 +26,8 @@ import java.util.Collection;
 import java.util.HashSet;
 import java.util.Set;
 
+import org.junit.After;
+import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
@@ -43,6 +45,15 @@ import static org.apache.cassandra.Util.cellname;
 public class BlacklistingCompactionsTest extends SchemaLoader
 {
     public static final String KEYSPACE = "Keyspace1";
+
+    @After
+    public void leakDetect() throws InterruptedException
+    {
+        System.gc();
+        System.gc();
+        System.gc();
+        Thread.sleep(10);
+    }
 
     @BeforeClass
     public static void closeStdErr()

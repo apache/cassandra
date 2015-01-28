@@ -119,7 +119,7 @@ public class StandaloneScrubber
 
                         // Remove the sstable (it's been copied by scrub and snapshotted)
                         sstable.markObsolete();
-                        sstable.releaseReference();
+                        sstable.sharedRef().release();
                     }
                     catch (Exception e)
                     {

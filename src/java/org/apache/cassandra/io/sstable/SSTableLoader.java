@@ -39,6 +39,8 @@ import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.OutputHandler;
 import org.apache.cassandra.utils.Pair;
 
+import org.apache.cassandra.utils.concurrent.Ref;
+
 /**
  * Cassandra SSTable bulk loader.
  * Load an externally created sstable into a cluster.
@@ -130,7 +132,7 @@ public class SSTableLoader implements StreamEventHandler
                         List<Pair<Long, Long>> sstableSections = sstable.getPositionsForRanges(tokenRanges);
                         long estimatedKeys = sstable.estimatedKeysForRanges(tokenRanges);
 
-                        StreamSession.SSTableStreamingSections details = new StreamSession.SSTableStreamingSections(sstable, sstableSections, estimatedKeys, ActiveRepairService.UNREPAIRED_SSTABLE);
+                        StreamSession.SSTableStreamingSections details = new StreamSession.SSTableStreamingSections(sstable, sstable.sharedRef(), sstableSections, estimatedKeys, ActiveRepairService.UNREPAIRED_SSTABLE);
                         streamingDetails.put(endpoint, details);
                     }
 
@@ -176,15 +178,17 @@ public class SSTableLoader implements StreamEventHandler
                 continue;
 
             List<StreamSession.SSTableStreamingSections> endpointDetails = new LinkedList<>();
-
+            List<Ref> refs = new ArrayList<>();
             try
             {
                 // transferSSTables assumes references have been acquired
                 for (StreamSession.SSTableStreamingSections details : streamingDetails.get(remote))
                 {
-                    if (!details.sstable.acquireReference())
+                    Ref ref = details.sstable.tryRef();
+                    if (ref == null)
                         throw new IllegalStateException();
 
+                    refs.add(ref);
                     endpointDetails.add(details);
                 }
 
@@ -192,8 +196,8 @@ public class SSTableLoader implements StreamEventHandler
             }
             finally
             {
-                for (StreamSession.SSTableStreamingSections details : endpointDetails)
-                    details.sstable.releaseReference();
+                for (Ref ref : refs)
+                    ref.release();
             }
         }
         plan.listeners(this, listeners);

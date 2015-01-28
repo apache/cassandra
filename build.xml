@@ -1109,6 +1109,7 @@
         <jvmarg value="-Djava.awt.headless=true"/>
         <jvmarg value="-javaagent:${basedir}/lib/jamm-0.3.0.jar" />
         <jvmarg value="-ea"/>
+        <jvmarg value="-Dcassandra.debugrefcount=true"/>
         <jvmarg value="-Xss256k"/>
         <jvmarg value="-Dcassandra.memtable_row_overhead_computation_step=100"/>
         <jvmarg value="-Dcassandra.test.use_prepared=${cassandra.test.use_prepared}"/>

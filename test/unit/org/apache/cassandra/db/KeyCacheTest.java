@@ -38,6 +38,7 @@ import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.service.CacheService;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
+import org.apache.cassandra.utils.concurrent.Refs;
 import static org.junit.Assert.assertEquals;
 
 public class KeyCacheTest extends SchemaLoader
@@ -151,8 +152,9 @@ public class KeyCacheTest extends SchemaLoader
         assertKeyCacheSize(2, KEYSPACE1, COLUMN_FAMILY1);
 
         Set<SSTableReader> readers = cfs.getDataTracker().getSSTables();
-        for (SSTableReader reader : readers)
-            reader.acquireReference();
+        Refs<SSTableReader> refs = Refs.tryRef(readers);
+        if (refs == null)
+            throw new IllegalStateException();
 
         Util.compactAll(cfs, Integer.MAX_VALUE).get();
         // after compaction cache should have entries for new SSTables,
@@ -160,8 +162,7 @@ public class KeyCacheTest extends SchemaLoader
         // if we had 2 keys in cache previously it should become 4
         assertKeyCacheSize(4, KEYSPACE1, COLUMN_FAMILY1);
 
-        for (SSTableReader reader : readers)
-            reader.releaseReference();
+        refs.release();
 
         Uninterruptibles.sleepUninterruptibly(10, TimeUnit.MILLISECONDS);;
         while (ScheduledExecutors.nonPeriodicTasks.getActiveCount() + ScheduledExecutors.nonPeriodicTasks.getQueue().size() > 0);

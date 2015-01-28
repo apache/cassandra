@@ -18,7 +18,6 @@
 package org.apache.cassandra.db.index;
 
 import java.nio.ByteBuffer;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.Set;
@@ -51,6 +50,8 @@ import org.apache.cassandra.io.sstable.ReducingKeyIterator;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
+
+import org.apache.cassandra.utils.concurrent.Refs;
 
 /**
  * Abstract base class for different types of secondary indexes.
@@ -202,8 +203,7 @@ public abstract class SecondaryIndex
         logger.info(String.format("Submitting index build of %s for data in %s",
                 getIndexName(), StringUtils.join(baseCfs.getSSTables(), ", ")));
 
-        Collection<SSTableReader> sstables = baseCfs.markCurrentSSTablesReferenced();
-        try
+        try (Refs<SSTableReader> sstables = baseCfs.selectAndReference(ColumnFamilyStore.ALL_SSTABLES).refs)
         {
             SecondaryIndexBuilder builder = new SecondaryIndexBuilder(baseCfs,
                                                                       Collections.singleton(getIndexName()),
@@ -212,10 +212,6 @@ public abstract class SecondaryIndex
             FBUtilities.waitOnFuture(future);
             forceBlockingFlush();
             setIndexBuilt();
-        }
-        finally
-        {
-            SSTableReader.releaseReferences(sstables);
         }
         logger.info("Index build of {} complete", getIndexName());
     }

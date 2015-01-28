@@ -25,6 +25,7 @@ import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Multimap;
 import com.google.common.collect.Sets;
 
@@ -33,7 +34,6 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.concurrent.JMXConfigurableThreadPoolExecutor;
 import org.apache.cassandra.concurrent.NamedThreadFactory;
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.dht.Bounds;
@@ -56,6 +56,10 @@ import org.apache.cassandra.repair.messages.SyncComplete;
 import org.apache.cassandra.repair.messages.ValidationComplete;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.UUIDGen;
+import org.apache.cassandra.utils.concurrent.Ref;
+import org.apache.cassandra.utils.concurrent.RefCounted;
+
+import org.apache.cassandra.utils.concurrent.Refs;
 
 /**
  * ActiveRepairService is the starting point for manual "active" repairs.
@@ -376,7 +380,7 @@ public class ActiveRepairService
         List<Future<?>> futures = new ArrayList<>();
         for (Map.Entry<UUID, ColumnFamilyStore> columnFamilyStoreEntry : prs.columnFamilyStores.entrySet())
         {
-            Collection<SSTableReader> sstables = new HashSet<>(prs.getAndReferenceSSTables(columnFamilyStoreEntry.getKey()));
+            Refs<SSTableReader> sstables = prs.getAndReferenceSSTables(columnFamilyStoreEntry.getKey());
             ColumnFamilyStore cfs = columnFamilyStoreEntry.getValue();
             futures.add(CompactionManager.instance.submitAntiCompaction(cfs, prs.ranges, sstables, prs.repairedAt));
         }
@@ -422,10 +426,11 @@ public class ActiveRepairService
             this.repairedAt = repairedAt;
         }
 
-        public Collection<SSTableReader> getAndReferenceSSTables(UUID cfId)
+        public synchronized Refs<SSTableReader> getAndReferenceSSTables(UUID cfId)
         {
             Set<SSTableReader> sstables = sstableMap.get(cfId);
             Iterator<SSTableReader> sstableIterator = sstables.iterator();
+            ImmutableMap.Builder<SSTableReader, Ref> references = ImmutableMap.builder();
             while (sstableIterator.hasNext())
             {
                 SSTableReader sstable = sstableIterator.next();
@@ -435,11 +440,14 @@ public class ActiveRepairService
                 }
                 else
                 {
-                    if (!sstable.acquireReference())
+                    Ref ref = sstable.tryRef();
+                    if (ref == null)
                         sstableIterator.remove();
+                    else
+                        references.put(sstable, ref);
                 }
             }
-            return sstables;
+            return new Refs<>(references.build());
         }
 
         @Override

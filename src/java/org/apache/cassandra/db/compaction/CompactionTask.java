@@ -214,7 +214,14 @@ public class CompactionTask extends AbstractCompactionTask
                 }
                 catch (Throwable t)
                 {
-                    writer.abort();
+                    try
+                    {
+                        writer.abort();
+                    }
+                    catch (Throwable t2)
+                    {
+                        t.addSuppressed(t2);
+                    }
                     throw t;
                 }
                 finally

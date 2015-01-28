@@ -82,6 +82,8 @@ import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.concurrent.OpOrder;
 import org.apache.cassandra.utils.*;
 
+import org.apache.cassandra.utils.concurrent.Refs;
+
 /**
  * A singleton which manages a private executor of ongoing compactions.
  * <p/>
@@ -370,7 +372,7 @@ public class CompactionManager implements CompactionManagerMBean
 
     public Future<?> submitAntiCompaction(final ColumnFamilyStore cfs,
                                           final Collection<Range<Token>> ranges,
-                                          final Collection<SSTableReader> sstables,
+                                          final Refs<SSTableReader> sstables,
                                           final long repairedAt)
     {
         Runnable runnable = new WrappedRunnable() {
@@ -381,18 +383,12 @@ public class CompactionManager implements CompactionManagerMBean
                 while (!success)
                 {
                     for (SSTableReader compactingSSTable : cfs.getDataTracker().getCompacting())
-                    {
-                        if (sstables.remove(compactingSSTable))
-                            SSTableReader.releaseReferences(Arrays.asList(compactingSSTable));
-                    }
+                        sstables.releaseIfHolds(compactingSSTable);
                     Set<SSTableReader> compactedSSTables = new HashSet<>();
                     for (SSTableReader sstable : sstables)
-                    {
                         if (sstable.isMarkedCompacted())
                             compactedSSTables.add(sstable);
-                    }
-                    sstables.removeAll(compactedSSTables);
-                    SSTableReader.releaseReferences(compactedSSTables);
+                    sstables.release(compactedSSTables);
                     success = sstables.isEmpty() || cfs.getDataTracker().markCompacting(sstables);
                 }
                 performAnticompaction(cfs, ranges, sstables, repairedAt);
@@ -413,7 +409,7 @@ public class CompactionManager implements CompactionManagerMBean
      */
     public void performAnticompaction(ColumnFamilyStore cfs,
                                       Collection<Range<Token>> ranges,
-                                      Collection<SSTableReader> validatedForRepair,
+                                      Refs<SSTableReader> validatedForRepair,
                                       long repairedAt) throws InterruptedException, ExecutionException, IOException
     {
         logger.info("Starting anticompaction for {}.{} on {}/{} sstables", cfs.keyspace.getName(), cfs.getColumnFamilyName(), validatedForRepair.size(), cfs.getSSTables().size());
@@ -454,13 +450,13 @@ public class CompactionManager implements CompactionManagerMBean
             }
             cfs.getDataTracker().notifySSTableRepairedStatusChanged(mutatedRepairStatuses);
             cfs.getDataTracker().unmarkCompacting(Sets.union(nonAnticompacting, mutatedRepairStatuses));
-            SSTableReader.releaseReferences(Sets.union(nonAnticompacting, mutatedRepairStatuses));
+            validatedForRepair.release(Sets.union(nonAnticompacting, mutatedRepairStatuses));
             if (!sstables.isEmpty())
                 doAntiCompaction(cfs, ranges, sstables, repairedAt);
         }
         finally
         {
-            SSTableReader.releaseReferences(sstables);
+            validatedForRepair.release();
             cfs.getDataTracker().unmarkCompacting(sstables);
         }
 
@@ -899,7 +895,7 @@ public class CompactionManager implements CompactionManagerMBean
         if (!cfs.isValid())
             return;
 
-        Collection<SSTableReader> sstables = null;
+        Refs<SSTableReader> sstables = null;
         try
         {
 
@@ -924,7 +920,7 @@ public class CompactionManager implements CompactionManagerMBean
                 // we don't mark validating sstables as compacting in DataTracker, so we have to mark them referenced
                 // instead so they won't be cleaned up if they do get compacted during the validation
                 if (validator.desc.parentSessionId == null || ActiveRepairService.instance.getParentRepairSession(validator.desc.parentSessionId) == null)
-                    sstables = cfs.markCurrentSSTablesReferenced();
+                    sstables = cfs.selectAndReference(ColumnFamilyStore.ALL_SSTABLES).refs;
                 else
                     sstables = ActiveRepairService.instance.getParentRepairSession(validator.desc.parentSessionId).getAndReferenceSSTables(cfs.metadata.cfId);
 
@@ -990,7 +986,7 @@ public class CompactionManager implements CompactionManagerMBean
         finally
         {
             if (sstables != null)
-                SSTableReader.releaseReferences(sstables);
+                sstables.release();
         }
     }
 

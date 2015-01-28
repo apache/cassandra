@@ -1,4 +1,5 @@
 2.1.3
+ * Safer Resource Management (CASSANDRA-7705)
  * Make sure we compact highly overlapping cold sstables with
    STCS (CASSANDRA-8635)
  * rpc_interface and listen_interface generate NPE on startup when specified interface doesn't exist (CASSANDRA-8677)
