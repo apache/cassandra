@@ -102,6 +102,9 @@ public class NativeAllocator extends MemtableAllocator
     public long allocate(int size, OpOrder.Group opGroup)
     {
         assert size >= 0;
+        offHeap().allocate(size, opGroup);
+        // satisfy large allocations directly from JVM since they don't cause fragmentation
+        // as badly, and fill up our regions quickly
         if (size > MAX_CLONED_SIZE)
             return allocateOversize(size, opGroup);
 
@@ -148,7 +151,6 @@ public class NativeAllocator extends MemtableAllocator
     {
         // satisfy large allocations directly from JVM since they don't cause fragmentation
         // as badly, and fill up our regions quickly
-        offHeap().allocate(size, opGroup);
         Region region = new Region(allocator.allocate(size), size);
         regions.add(region);
 
