@@ -216,17 +216,17 @@ public class SizeTieredCompactionStrategyTest extends SchemaLoader
 
         for (SSTableReader sstr : sstrs)
             sstr.readMeter = null;
-        filtered = filterColdSSTables(sstrs, 0.05);
+        filtered = filterColdSSTables(sstrs, 0.05, 0);
         assertEquals("when there are no read meters, no sstables should be filtered", sstrs.size(), filtered.size());
 
         for (SSTableReader sstr : sstrs)
             sstr.readMeter = new RestorableMeter(0.0, 0.0);
-        filtered = filterColdSSTables(sstrs, 0.05);
+        filtered = filterColdSSTables(sstrs, 0.05, 0);
         assertEquals("when all read meters are zero, no sstables should be filtered", sstrs.size(), filtered.size());
 
         // leave all read rates at 0 besides one
         sstrs.get(0).readMeter = new RestorableMeter(1000.0, 1000.0);
-        filtered = filterColdSSTables(sstrs, 0.05);
+        filtered = filterColdSSTables(sstrs, 0.05, 0);
         assertEquals("there should only be one hot sstable", 1, filtered.size());
         assertEquals(1000.0, filtered.get(0).readMeter.twoHourRate(), 0.5);
 
@@ -239,20 +239,20 @@ public class SizeTieredCompactionStrategyTest extends SchemaLoader
         sstrs.get(2).readMeter = new RestorableMeter(1.0, 1.0);
         sstrs.get(3).readMeter = new RestorableMeter(1.0, 1.0);
 
-        filtered = filterColdSSTables(sstrs, 0.025);
+        filtered = filterColdSSTables(sstrs, 0.025, 0);
         assertEquals(2, filtered.size());
         assertEquals(98.0, filtered.get(0).readMeter.twoHourRate() + filtered.get(1).readMeter.twoHourRate(), 0.5);
 
         // make sure a threshold of 0.0 doesn't result in any sstables being filtered
         for (SSTableReader sstr : sstrs)
             sstr.readMeter = new RestorableMeter(1.0, 1.0);
-        filtered = filterColdSSTables(sstrs, 0.0);
+        filtered = filterColdSSTables(sstrs, 0.0, 0);
         assertEquals(sstrs.size(), filtered.size());
 
         // just for fun, set a threshold where all sstables are considered cold
         for (SSTableReader sstr : sstrs)
             sstr.readMeter = new RestorableMeter(1.0, 1.0);
-        filtered = filterColdSSTables(sstrs, 1.0);
+        filtered = filterColdSSTables(sstrs, 1.0, 0);
         assertTrue(filtered.isEmpty());
     }
 }

@@ -1,4 +1,6 @@
 2.1.3
+ * Make sure we compact highly overlapping cold sstables with
+   STCS (CASSANDRA-8635)
  * rpc_interface and listen_interface generate NPE on startup when specified interface doesn't exist (CASSANDRA-8677)
  * Fix ArrayIndexOutOfBoundsException in nodetool cfhistograms (CASSANDRA-8514)
  * Switch from yammer metrics for nodetool cf/proxy histograms (CASSANDRA-8662)

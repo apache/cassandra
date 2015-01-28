@@ -24,12 +24,14 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
+import com.google.common.primitives.Longs;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.cql3.statements.CFPropDefs;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.io.sstable.ColumnNameHelper;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.utils.Pair;
 
@@ -80,7 +82,7 @@ public class SizeTieredCompactionStrategy extends AbstractCompactionStrategy
         int maxThreshold = cfs.getMaximumCompactionThreshold();
 
         Iterable<SSTableReader> candidates = filterSuspectSSTables(Sets.intersection(cfs.getUncompactingSSTables(), sstables));
-        candidates = filterColdSSTables(Lists.newArrayList(candidates), options.coldReadsToOmit);
+        candidates = filterColdSSTables(Lists.newArrayList(candidates), options.coldReadsToOmit, cfs.getMinimumCompactionThreshold());
 
         List<List<SSTableReader>> buckets = getBuckets(createSSTableAndLengthPairs(candidates), options.bucketHigh, options.bucketLow, options.minSSTableSize);
         logger.debug("Compaction buckets are {}", buckets);
@@ -109,10 +111,11 @@ public class SizeTieredCompactionStrategy extends AbstractCompactionStrategy
      * across all sstables
      * @param sstables all sstables to consider
      * @param coldReadsToOmit the proportion of total reads/sec that will be omitted (0=omit nothing, 1=omit everything)
+     * @param minThreshold min compaction threshold
      * @return a list of sstables with the coldest sstables excluded until the reads they represent reaches coldReadsToOmit
      */
     @VisibleForTesting
-    static List<SSTableReader> filterColdSSTables(List<SSTableReader> sstables, double coldReadsToOmit)
+    static List<SSTableReader> filterColdSSTables(List<SSTableReader> sstables, double coldReadsToOmit, int minThreshold)
     {
         if (coldReadsToOmit == 0.0)
             return sstables;
@@ -167,9 +170,77 @@ public class SizeTieredCompactionStrategy extends AbstractCompactionStrategy
             totalColdReads += reads;
             cutoffIndex++;
         }
+        List<SSTableReader> hotSSTables = new ArrayList<>(sstables.subList(cutoffIndex, sstables.size()));
+        List<SSTableReader> coldSSTables = sstables.subList(0, cutoffIndex);
+        logger.debug("hotSSTables={}, coldSSTables={}", hotSSTables.size(), coldSSTables.size());
+        if (hotSSTables.size() >= minThreshold)
+            return hotSSTables;
+        if (coldSSTables.size() < minThreshold)
+            return Collections.emptyList();
 
-        return sstables.subList(cutoffIndex, sstables.size());
+        Map<SSTableReader, Set<SSTableReader>> overlapMap = new HashMap<>();
+        for (int i = 0; i < coldSSTables.size(); i++)
+        {
+            SSTableReader sstable = coldSSTables.get(i);
+            Set<SSTableReader> overlaps = new HashSet<>();
+            for (int j = 0; j < coldSSTables.size(); j++)
+            {
+                SSTableReader innerSSTable = coldSSTables.get(j);
+                if (ColumnNameHelper.overlaps(sstable.getSSTableMetadata().minColumnNames,
+                                              sstable.getSSTableMetadata().maxColumnNames,
+                                              innerSSTable.getSSTableMetadata().minColumnNames,
+                                              innerSSTable.getSSTableMetadata().maxColumnNames,
+                                              sstable.metadata.comparator))
+                {
+                    overlaps.add(innerSSTable);
+                }
+            }
+            overlapMap.put(sstable, overlaps);
+        }
+        List<Set<SSTableReader>> overlapChains = new ArrayList<>();
+        for (SSTableReader sstable : overlapMap.keySet())
+            overlapChains.add(createOverlapChain(sstable, overlapMap));
+
+        Collections.sort(overlapChains, new Comparator<Set<SSTableReader>>()
+        {
+            @Override
+            public int compare(Set<SSTableReader> o1, Set<SSTableReader> o2)
+            {
+                return Longs.compare(SSTableReader.getTotalBytes(o2), SSTableReader.getTotalBytes(o1));
+            }
+        });
+        for (Set<SSTableReader> overlapping : overlapChains)
+        {
+            // if we are expecting to only keep 70% of the keys after a compaction, run a compaction on these cold sstables:
+            if (SSTableReader.estimateCompactionGain(overlapping) < 0.7)
+                return new ArrayList<>(overlapping);
+        }
+        return Collections.emptyList();
     }
+
+    /**
+     * returns a set with all overlapping sstables starting with s.
+     * if we have 3 sstables, a, b, c where a overlaps with b, but not c and b overlaps with c, all sstables would be returned.
+     *
+     * m contains an sstable -> all overlapping mapping
+     */
+    private static Set<SSTableReader> createOverlapChain(SSTableReader s, Map<SSTableReader, Set<SSTableReader>> m)
+    {
+        Deque<SSTableReader> sstables = new ArrayDeque<>();
+        Set<SSTableReader> overlapChain = new HashSet<>();
+        sstables.push(s);
+        while (!sstables.isEmpty())
+        {
+            SSTableReader sstable = sstables.pop();
+            if (overlapChain.add(sstable))
+            {
+                if (m.containsKey(sstable))
+                    sstables.addAll(m.get(sstable));
+            }
+        }
+        return overlapChain;
+    }
+
 
     /**
      * @param buckets list of buckets from which to return the most interesting, where "interesting" is the total hotness for reads

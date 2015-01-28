@@ -31,6 +31,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.EnumSet;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -54,6 +55,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.clearspring.analytics.stream.cardinality.CardinalityMergeException;
+import com.clearspring.analytics.stream.cardinality.HyperLogLogPlus;
 import com.clearspring.analytics.stream.cardinality.ICardinality;
 import org.apache.cassandra.cache.CachingOptions;
 import org.apache.cassandra.cache.InstrumentingCache;
@@ -270,6 +272,54 @@ public class SSTableReader extends SSTable
                 count += sstable.estimatedKeys();
         }
         return count;
+    }
+
+    /**
+     * Estimates how much of the keys we would keep if the sstables were compacted together
+     */
+    public static double estimateCompactionGain(Set<SSTableReader> overlapping)
+    {
+        Set<ICardinality> cardinalities = new HashSet<>(overlapping.size());
+        for (SSTableReader sstable : overlapping)
+        {
+            try
+            {
+                ICardinality cardinality = ((CompactionMetadata) sstable.descriptor.getMetadataSerializer().deserialize(sstable.descriptor, MetadataType.COMPACTION)).cardinalityEstimator;
+                if (cardinality != null)
+                    cardinalities.add(cardinality);
+                else
+                    logger.debug("Got a null cardinality estimator in: "+sstable.getFilename());
+            }
+            catch (IOException e)
+            {
+                logger.warn("Could not read up compaction metadata for " + sstable, e);
+            }
+        }
+        long totalKeyCountBefore = 0;
+        for (ICardinality cardinality : cardinalities)
+        {
+            totalKeyCountBefore += cardinality.cardinality();
+        }
+        if (totalKeyCountBefore == 0)
+            return 1;
+
+        long totalKeyCountAfter = mergeCardinalities(cardinalities).cardinality();
+        logger.debug("Estimated compaction gain: {}/{}={}", totalKeyCountAfter, totalKeyCountBefore, ((double)totalKeyCountAfter)/totalKeyCountBefore);
+        return ((double)totalKeyCountAfter)/totalKeyCountBefore;
+    }
+
+    private static ICardinality mergeCardinalities(Collection<ICardinality> cardinalities)
+    {
+        ICardinality base = new HyperLogLogPlus(13, 25); // see MetadataCollector.cardinality
+        try
+        {
+            base = base.merge(cardinalities.toArray(new ICardinality[cardinalities.size()]));
+        }
+        catch (CardinalityMergeException e)
+        {
+            logger.warn("Could not merge cardinalities", e);
+        }
+        return base;
     }
 
     public static SSTableReader open(Descriptor descriptor) throws IOException
