@@ -27,6 +27,7 @@ import org.junit.Test;
 import org.apache.cassandra.db.composites.*;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.Int32Type;
+import org.apache.cassandra.io.sstable.ColumnNameHelper;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 import static org.junit.Assert.*;
@@ -343,6 +344,19 @@ public class ColumnSliceTest
 
         slice = new ColumnSlice(composite(0), composite(0, 1, 2));
         assertFalse(slice.intersects(columnNames(1), columnNames(1, 2), nameType, false));
+    }
+    @Test
+    public void testColumnNameHelper()
+    {
+        List<AbstractType<?>> types = new ArrayList<>();
+        types.add(Int32Type.instance);
+        types.add(Int32Type.instance);
+        types.add(Int32Type.instance);
+        CompoundDenseCellNameType nameType = new CompoundDenseCellNameType(types);
+        assertTrue(ColumnNameHelper.overlaps(columnNames(0, 0, 0), columnNames(3, 3, 3), columnNames(1, 1, 1), columnNames(2, 2, 2), nameType));
+        assertFalse(ColumnNameHelper.overlaps(columnNames(0, 0, 0), columnNames(3, 3, 3), columnNames(4, 4, 4), columnNames(5, 5, 5), nameType));
+        assertFalse(ColumnNameHelper.overlaps(columnNames(0, 0, 0), columnNames(3, 3, 3), columnNames(3, 3, 4), columnNames(5, 5, 5), nameType));
+        assertTrue(ColumnNameHelper.overlaps(columnNames(0), columnNames(3, 3, 3), columnNames(1, 1), columnNames(5), nameType));
     }
 
     @Test
