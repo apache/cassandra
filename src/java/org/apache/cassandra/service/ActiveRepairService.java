@@ -25,6 +25,7 @@ import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Multimap;
 import com.google.common.collect.Sets;
@@ -431,13 +432,9 @@ public class ActiveRepairService
         public synchronized Refs<SSTableReader> getAndReferenceSSTablesInRange(UUID cfId, Range<Token> range)
         {
             Refs<SSTableReader> sstables = getAndReferenceSSTables(cfId);
-            for (SSTableReader sstable : new ArrayList<>(sstables))
-            {
-                if (new Bounds<>(sstable.first.getToken(), sstable.last.getToken()).intersects(Arrays.asList(range)))
-                    sstables.add(sstable);
-                else
+            for (SSTableReader sstable : ImmutableList.copyOf(sstables))
+                if (!new Bounds<>(sstable.first.getToken(), sstable.last.getToken()).intersects(Arrays.asList(range)))
                     sstables.release(sstable);
-            }
             return sstables;
         }
 

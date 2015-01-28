@@ -469,6 +469,7 @@ public abstract class SSTableReader extends SSTable implements RefCounted
         reader.ifile = ifile;
         reader.dfile = dfile;
         reader.indexSummary = isummary;
+        reader.tidy.setup(reader);
 
         return reader;
     }
