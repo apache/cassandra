@@ -230,8 +230,8 @@ public class SSTableRewriterTest extends SchemaLoader
 
         s.setReplacedBy(s2);
         s2.markObsolete();
-        s.releaseReference();
-        s2.releaseReference();
+        s.sharedRef().release();
+        s2.sharedRef().release();
 
         writer.abort(false);
 
@@ -731,7 +731,7 @@ public class SSTableRewriterTest extends SchemaLoader
         for (SSTableReader sstable : cfs.getSSTables())
         {
             assertFalse(sstable.isMarkedCompacted());
-            assertEquals(1, sstable.referenceCount());
+            assertEquals(1, sstable.sharedRef().globalCount());
             liveDescriptors.add(sstable.descriptor.generation);
         }
         for (File dir : cfs.directories.getCFDirectories())

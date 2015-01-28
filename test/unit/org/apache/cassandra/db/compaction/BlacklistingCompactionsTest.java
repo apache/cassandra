@@ -27,6 +27,8 @@ import java.util.HashSet;
 import java.util.Set;
 
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.junit.After;
+import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
@@ -47,6 +49,15 @@ public class BlacklistingCompactionsTest
 {
     private static final String KEYSPACE1 = "BlacklistingCompactionsTest";
     private static final String CF_STANDARD1 = "Standard1";
+
+    @After
+    public void leakDetect() throws InterruptedException
+    {
+        System.gc();
+        System.gc();
+        System.gc();
+        Thread.sleep(10);
+    }
 
     @BeforeClass
     public static void defineSchema() throws ConfigurationException

@@ -45,6 +45,10 @@ import org.apache.cassandra.streaming.messages.*;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.Pair;
+import org.apache.cassandra.utils.concurrent.RefCounted;
+
+import org.apache.cassandra.utils.concurrent.Ref;
+import org.apache.cassandra.utils.concurrent.Refs;
 
 /**
  * Handles the streaming a one or more section of one of more sstables to and from a specific
@@ -274,7 +278,7 @@ public class StreamSession implements IEndpointStateChangeSubscriber
         finally
         {
             for (SSTableStreamingSections release : sections)
-                release.sstable.releaseReference();
+                release.ref.release();
         }
     }
 
@@ -296,7 +300,7 @@ public class StreamSession implements IEndpointStateChangeSubscriber
 
     private List<SSTableStreamingSections> getSSTableSectionsForRanges(Collection<Range<Token>> ranges, Collection<ColumnFamilyStore> stores, long overriddenRepairedAt)
     {
-        List<SSTableReader> sstables = new ArrayList<>();
+        Refs<SSTableReader> refs = new Refs<>();
         try
         {
             for (ColumnFamilyStore cfStore : stores)
@@ -304,16 +308,16 @@ public class StreamSession implements IEndpointStateChangeSubscriber
                 List<AbstractBounds<RowPosition>> rowBoundsList = new ArrayList<>(ranges.size());
                 for (Range<Token> range : ranges)
                     rowBoundsList.add(range.toRowBounds());
-                ColumnFamilyStore.ViewFragment view = cfStore.selectAndReference(cfStore.viewFilter(rowBoundsList));
-                sstables.addAll(view.sstables);
+                refs.addAll(cfStore.selectAndReference(cfStore.viewFilter(rowBoundsList)).refs);
             }
-            List<SSTableStreamingSections> sections = new ArrayList<>(sstables.size());
-            for (SSTableReader sstable : sstables)
+
+            List<SSTableStreamingSections> sections = new ArrayList<>(refs.size());
+            for (SSTableReader sstable : refs)
             {
                 long repairedAt = overriddenRepairedAt;
                 if (overriddenRepairedAt == ActiveRepairService.UNREPAIRED_SSTABLE)
                     repairedAt = sstable.getSSTableMetadata().repairedAt;
-                sections.add(new SSTableStreamingSections(sstable,
+                sections.add(new SSTableStreamingSections(sstable, refs.get(sstable),
                                                           sstable.getPositionsForRanges(ranges),
                                                           sstable.estimatedKeysForRanges(ranges),
                                                           repairedAt));
@@ -322,7 +326,7 @@ public class StreamSession implements IEndpointStateChangeSubscriber
         }
         catch (Throwable t)
         {
-            SSTableReader.releaseReferences(sstables);
+            refs.release();
             throw t;
         }
     }
@@ -336,7 +340,7 @@ public class StreamSession implements IEndpointStateChangeSubscriber
             if (details.sections.isEmpty())
             {
                 // A reference was acquired on the sstable and we won't stream it
-                details.sstable.releaseReference();
+                details.ref.release();
                 iter.remove();
                 continue;
             }
@@ -348,7 +352,7 @@ public class StreamSession implements IEndpointStateChangeSubscriber
                 task = new StreamTransferTask(this, cfId);
                 transfers.put(cfId, task);
             }
-            task.addTransferFile(details.sstable, details.estimatedKeys, details.sections, details.repairedAt);
+            task.addTransferFile(details.sstable, details.ref, details.estimatedKeys, details.sections, details.repairedAt);
             iter.remove();
         }
     }
@@ -356,13 +360,15 @@ public class StreamSession implements IEndpointStateChangeSubscriber
     public static class SSTableStreamingSections
     {
         public final SSTableReader sstable;
+        public final Ref ref;
         public final List<Pair<Long, Long>> sections;
         public final long estimatedKeys;
         public final long repairedAt;
 
-        public SSTableStreamingSections(SSTableReader sstable, List<Pair<Long, Long>> sections, long estimatedKeys, long repairedAt)
+        public SSTableStreamingSections(SSTableReader sstable, Ref ref, List<Pair<Long, Long>> sections, long estimatedKeys, long repairedAt)
         {
             this.sstable = sstable;
+            this.ref = ref;
             this.sections = sections;
             this.estimatedKeys = estimatedKeys;
             this.repairedAt = repairedAt;

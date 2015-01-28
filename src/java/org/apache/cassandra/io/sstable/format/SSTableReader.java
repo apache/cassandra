@@ -22,7 +22,6 @@ import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -63,6 +62,8 @@ import org.apache.cassandra.utils.*;
 import org.apache.cassandra.utils.concurrent.OpOrder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.apache.cassandra.utils.concurrent.Ref;
+import org.apache.cassandra.utils.concurrent.RefCounted;
 
 import static org.apache.cassandra.db.Directories.SECONDARY_INDEX_NAME_SEPARATOR;
 
@@ -70,7 +71,7 @@ import static org.apache.cassandra.db.Directories.SECONDARY_INDEX_NAME_SEPARATOR
  * SSTableReaders are open()ed by Keyspace.onStart; after that they are created by SSTableWriter.renameAndOpen.
  * Do not re-call open() on existing SSTable files; use the references kept by ColumnFamilyStore post-start instead.
  */
-public abstract class SSTableReader extends SSTable
+public abstract class SSTableReader extends SSTable implements RefCounted
 {
     private static final Logger logger = LoggerFactory.getLogger(SSTableReader.class);
 
@@ -133,7 +134,6 @@ public abstract class SSTableReader extends SSTable
 
     protected final BloomFilterTracker bloomFilterTracker = new BloomFilterTracker();
 
-    protected final AtomicInteger references = new AtomicInteger(1);
     // technically isCompacted is not necessary since it should never be unreferenced unless it is also compacted,
     // but it seems like a good extra layer of protection against reference counting bugs to not delete data based on that alone
     protected final AtomicBoolean isCompacted = new AtomicBoolean(false);
@@ -145,17 +145,8 @@ public abstract class SSTableReader extends SSTable
     protected final AtomicLong keyCacheHit = new AtomicLong(0);
     protected final AtomicLong keyCacheRequest = new AtomicLong(0);
 
-    /**
-     * To support replacing this sstablereader with another object that represents that same underlying sstable, but with different associated resources,
-     * we build a linked-list chain of replacement, which we synchronise using a shared object to make maintenance of the list across multiple threads simple.
-     * On close we check if any of the closeable resources differ between any chains either side of us; any that are in neither of the adjacent links (if any) are closed.
-     * Once we've made this decision we remove ourselves from the linked list, so that anybody behind/ahead will compare against only other still opened resources.
-     */
-    protected Object replaceLock = new Object();
-    protected SSTableReader replacedBy;
-    private SSTableReader replaces;
-    private SSTableDeletingTask deletingTask;
-    private Runnable runOnClose;
+    private final Tidier tidy = new Tidier();
+    private final RefCounted refCounted = RefCounted.Impl.get(tidy);
 
     @VisibleForTesting
     public RestorableMeter readMeter;
@@ -355,7 +346,7 @@ public abstract class SSTableReader extends SSTable
         sstable.ifile = ibuilder.complete(sstable.descriptor.filenameFor(Component.PRIMARY_INDEX));
         sstable.dfile = dbuilder.complete(sstable.descriptor.filenameFor(Component.DATA));
         sstable.bf = FilterFactory.AlwaysPresent;
-
+        sstable.tidy.setup(sstable);
         return sstable;
     }
 
@@ -400,6 +391,7 @@ public abstract class SSTableReader extends SSTable
         if (sstable.getKeyCache() != null)
             logger.debug("key cache contains {}/{} keys", sstable.getKeyCache().size(), sstable.getKeyCache().getCapacity());
 
+        sstable.tidy.setup(sstable);
         return sstable;
     }
 
@@ -510,7 +502,7 @@ public abstract class SSTableReader extends SSTable
 
         this.rowIndexEntrySerializer = descriptor.version.getSSTableFormat().getIndexSerializer(metadata);
 
-        deletingTask = new SSTableDeletingTask(this);
+        tidy.deletingTask = new SSTableDeletingTask(this);
 
         // Don't track read rates for tables in the system keyspace.  Also don't track reads for special operations (like early open)
         // this is to avoid overflowing the executor queue (see CASSANDRA-8066)
@@ -546,117 +538,6 @@ public abstract class SSTableReader extends SSTable
         return sum;
     }
 
-    private void tidy(boolean release)
-    {
-        if (readMeterSyncFuture != null)
-            readMeterSyncFuture.cancel(false);
-
-        if (references.get() != 0)
-        {
-            throw new IllegalStateException("SSTable is not fully released (" + references.get() + " references)");
-        }
-
-        synchronized (replaceLock)
-        {
-            boolean closeBf = true, closeSummary = true, closeFiles = true, deleteFiles = isCompacted.get();
-
-            if (replacedBy != null)
-            {
-                closeBf = replacedBy.bf != bf;
-                closeSummary = replacedBy.indexSummary != indexSummary;
-                closeFiles = replacedBy.dfile != dfile;
-                // if the replacement sstablereader uses a different path, clean up our paths
-                deleteFiles = !dfile.path.equals(replacedBy.dfile.path);
-            }
-
-            if (replaces != null)
-            {
-                closeBf &= replaces.bf != bf;
-                closeSummary &= replaces.indexSummary != indexSummary;
-                closeFiles &= replaces.dfile != dfile;
-                deleteFiles &= !dfile.path.equals(replaces.dfile.path);
-            }
-
-            boolean deleteAll = false;
-            if (release && isCompacted.get())
-            {
-                assert replacedBy == null;
-                if (replaces != null && !deleteFiles)
-                {
-                    replaces.replacedBy = null;
-                    replaces.deletingTask = deletingTask;
-                    replaces.markObsolete();
-                }
-                else
-                {
-                    deleteAll = true;
-                }
-            }
-            else
-            {
-                if (replaces != null)
-                    replaces.replacedBy = replacedBy;
-                if (replacedBy != null)
-                    replacedBy.replaces = replaces;
-            }
-
-            scheduleTidy(closeBf, closeSummary, closeFiles, deleteFiles, deleteAll);
-        }
-    }
-
-    private void scheduleTidy(final boolean closeBf, final boolean closeSummary, final boolean closeFiles, final boolean deleteFiles, final boolean deleteAll)
-    {
-        if (references.get() != 0)
-            throw new IllegalStateException("SSTable is not fully released (" + references.get() + " references)");
-
-        final ColumnFamilyStore cfs = Schema.instance.getColumnFamilyStoreInstance(metadata.cfId);
-        final OpOrder.Barrier barrier;
-        if (cfs != null)
-        {
-            barrier = cfs.readOrdering.newBarrier();
-            barrier.issue();
-        }
-        else
-            barrier = null;
-
-        ScheduledExecutors.nonPeriodicTasks.execute(new Runnable()
-        {
-            public void run()
-            {
-                if (barrier != null)
-                    barrier.await();
-                if (closeBf)
-                    bf.close();
-                if (closeSummary)
-                    indexSummary.close();
-                if (closeFiles)
-                {
-                    ifile.cleanup();
-                    dfile.cleanup();
-                }
-                if (runOnClose != null)
-                    runOnClose.run();
-                if (deleteAll)
-                {
-                    /**
-                     * Do the OS a favour and suggest (using fadvice call) that we
-                     * don't want to see pages of this SSTable in memory anymore.
-                     *
-                     * NOTE: We can't use madvice in java because it requires the address of
-                     * the mapping, so instead we always open a file and run fadvice(fd, 0, 0) on it
-                     */
-                    dropPageCache();
-                    deletingTask.run();
-                }
-                else if (deleteFiles)
-                {
-                    FileUtils.deleteWithConfirm(new File(dfile.path));
-                    FileUtils.deleteWithConfirm(new File(ifile.path));
-                }
-            }
-        });
-    }
-
     public boolean equals(Object that)
     {
         return that instanceof SSTableReader && ((SSTableReader) that).descriptor.equals(this.descriptor);
@@ -679,7 +560,7 @@ public abstract class SSTableReader extends SSTable
 
     public void setTrackedBy(DataTracker tracker)
     {
-        deletingTask.setTracker(tracker);
+        tidy.deletingTask.setTracker(tracker);
         // under normal operation we can do this at any time, but SSTR is also used outside C* proper,
         // e.g. by BulkLoader, which does not initialize the cache.  As a kludge, we set up the cache
         // here when we know we're being wired into the rest of the server infrastructure.
@@ -751,6 +632,7 @@ public abstract class SSTableReader extends SSTable
         dfile = dbuilder.complete(descriptor.filenameFor(Component.DATA));
         if (saveSummaryIfCreated && (recreateBloomFilter || !summaryLoaded)) // save summary information to disk
             saveSummary(ibuilder, dbuilder);
+        tidy.setup(this);
     }
 
     /**
@@ -904,26 +786,26 @@ public abstract class SSTableReader extends SSTable
 
     public void setReplacedBy(SSTableReader replacement)
     {
-        synchronized (replaceLock)
+        synchronized (tidy.replaceLock)
         {
-            assert replacedBy == null;
-            replacedBy = replacement;
-            replacement.replaces = this;
-            replacement.replaceLock = replaceLock;
+            assert tidy.replacedBy == null;
+            tidy.replacedBy = replacement;
+            replacement.tidy.replaces = this;
+            replacement.tidy.replaceLock = tidy.replaceLock;
         }
     }
 
     public SSTableReader cloneWithNewStart(DecoratedKey newStart, final Runnable runOnClose)
     {
-        synchronized (replaceLock)
+        synchronized (tidy.replaceLock)
         {
-            assert replacedBy == null;
+            assert tidy.replacedBy == null;
 
             if (newStart.compareTo(this.first) > 0)
             {
                 if (newStart.compareTo(this.last) > 0)
                 {
-                    this.runOnClose = new Runnable()
+                    this.tidy.runOnClose = new Runnable()
                     {
                         public void run()
                         {
@@ -937,7 +819,7 @@ public abstract class SSTableReader extends SSTable
                 {
                     final long dataStart = getPosition(newStart, Operator.GE).position;
                     final long indexStart = getIndexScanPosition(newStart);
-                    this.runOnClose = new Runnable()
+                    this.tidy.runOnClose = new Runnable()
                     {
                         public void run()
                         {
@@ -970,9 +852,9 @@ public abstract class SSTableReader extends SSTable
      */
     public SSTableReader cloneWithNewSummarySamplingLevel(ColumnFamilyStore parent, int samplingLevel) throws IOException
     {
-        synchronized (replaceLock)
+        synchronized (tidy.replaceLock)
         {
-            assert replacedBy == null;
+            assert tidy.replacedBy == null;
 
             int minIndexInterval = metadata.getMinIndexInterval();
             int maxIndexInterval = metadata.getMaxIndexInterval();
@@ -1480,36 +1362,6 @@ public abstract class SSTableReader extends SSTable
         return dfile.onDiskLength;
     }
 
-    public boolean acquireReference()
-    {
-        while (true)
-        {
-            int n = references.get();
-            if (n <= 0)
-                return false;
-            if (references.compareAndSet(n, n + 1))
-                return true;
-        }
-    }
-
-    @VisibleForTesting
-    public int referenceCount()
-    {
-        return references.get();
-    }
-
-    /**
-     * Release reference to this SSTableReader.
-     * If there is no one referring to this SSTable, and is marked as compacted,
-     * all resources are cleaned up and files are deleted eventually.
-     */
-    public void releaseReference()
-    {
-        if (references.decrementAndGet() == 0)
-            tidy(true);
-        assert references.get() >= 0 : "Reference counter " +  references.get() + " for " + dfile.path;
-    }
-
     /**
      * Mark the sstable as obsolete, i.e., compacted into newer sstables.
      *
@@ -1524,9 +1376,9 @@ public abstract class SSTableReader extends SSTable
         if (logger.isDebugEnabled())
             logger.debug("Marking {} compacted", getFilename());
 
-        synchronized (replaceLock)
+        synchronized (tidy.replaceLock)
         {
-            assert replacedBy == null : getFilename();
+            assert tidy.replacedBy == null : getFilename();
         }
         return !isCompacted.getAndSet(true);
     }
@@ -1637,13 +1489,13 @@ public abstract class SSTableReader extends SSTable
 
     public SSTableReader getCurrentReplacement()
     {
-        synchronized (replaceLock)
+        synchronized (tidy.replaceLock)
         {
-            SSTableReader cur = this, next = replacedBy;
+            SSTableReader cur = this, next = tidy.replacedBy;
             while (next != null)
             {
                 cur = next;
-                next = next.replacedBy;
+                next = next.tidy.replacedBy;
             }
             return cur;
         }
@@ -1829,76 +1681,6 @@ public abstract class SSTableReader extends SSTable
     }
 
     /**
-     * @param sstables
-     * @return true if all desired references were acquired.  Otherwise, it will unreference any partial acquisition, and return false.
-     */
-    public static boolean acquireReferences(Iterable<SSTableReader> sstables)
-    {
-        SSTableReader failed = null;
-        for (SSTableReader sstable : sstables)
-        {
-            if (!sstable.acquireReference())
-            {
-                failed = sstable;
-                break;
-            }
-        }
-
-        if (failed == null)
-            return true;
-
-        for (SSTableReader sstable : sstables)
-        {
-            if (sstable == failed)
-                break;
-            sstable.releaseReference();
-        }
-        return false;
-    }
-
-    public static void releaseReferences(Iterable<SSTableReader> sstables)
-    {
-        for (SSTableReader sstable : sstables)
-        {
-            sstable.releaseReference();
-        }
-    }
-
-    private void dropPageCache()
-    {
-        dropPageCache(dfile.path);
-        dropPageCache(ifile.path);
-    }
-
-    private void dropPageCache(String filePath)
-    {
-        RandomAccessFile file = null;
-
-        try
-        {
-            file = new RandomAccessFile(filePath, "r");
-
-            int fd = CLibrary.getfd(file.getFD());
-
-            if (fd > 0)
-            {
-                if (logger.isDebugEnabled())
-                    logger.debug(String.format("Dropping page cache of file %s.", filePath));
-
-                CLibrary.trySkipCache(fd, 0, 0);
-            }
-        }
-        catch (IOException e)
-        {
-            // we don't care if cache cleanup fails
-        }
-        finally
-        {
-            FileUtils.closeQuietly(file);
-        }
-    }
-
-    /**
      * Increment the total row read count and read rate for this SSTable.  This should not be incremented for range
      * slice queries, row cache hits, or non-query reads, like compaction.
      */
@@ -1913,6 +1695,201 @@ public abstract class SSTableReader extends SSTable
         public int compare(SSTableReader o1, SSTableReader o2)
         {
             return Longs.compare(o1.onDiskLength(), o2.onDiskLength());
+        }
+    }
+
+    public Ref tryRef()
+    {
+        return refCounted.tryRef();
+    }
+
+    public Ref sharedRef()
+    {
+        return refCounted.sharedRef();
+    }
+
+    private static final class Tidier implements Tidy
+    {
+        private String name;
+        private CFMetaData metadata;
+        // indexfile and datafile: might be null before a call to load()
+        private SegmentedFile ifile;
+        private SegmentedFile dfile;
+
+        private IndexSummary indexSummary;
+        private IFilter bf;
+
+        private AtomicBoolean isCompacted;
+
+        /**
+         * To support replacing this sstablereader with another object that represents that same underlying sstable, but with different associated resources,
+         * we build a linked-list chain of replacement, which we synchronise using a shared object to make maintenance of the list across multiple threads simple.
+         * On close we check if any of the closeable resources differ between any chains either side of us; any that are in neither of the adjacent links (if any) are closed.
+         * Once we've made this decision we remove ourselves from the linked list, so that anybody behind/ahead will compare against only other still opened resources.
+         */
+        private Object replaceLock = new Object();
+        private SSTableReader replacedBy;
+        private SSTableReader replaces;
+        private SSTableDeletingTask deletingTask;
+        private Runnable runOnClose;
+
+        @VisibleForTesting
+        public RestorableMeter readMeter;
+        private volatile ScheduledFuture readMeterSyncFuture;
+
+        private void setup(SSTableReader reader)
+        {
+            name = reader.toString();
+            metadata = reader.metadata;
+            ifile = reader.ifile;
+            dfile = reader.dfile;
+            indexSummary = reader.indexSummary;
+            bf = reader.bf;
+            isCompacted = reader.isCompacted;
+            readMeterSyncFuture = reader.readMeterSyncFuture;
+        }
+
+        public String name()
+        {
+            return name;
+        }
+
+        private void dropPageCache()
+        {
+            dropPageCache(dfile.path);
+            dropPageCache(ifile.path);
+        }
+
+        private void dropPageCache(String filePath)
+        {
+            RandomAccessFile file = null;
+
+            try
+            {
+                file = new RandomAccessFile(filePath, "r");
+
+                int fd = CLibrary.getfd(file.getFD());
+
+                if (fd > 0)
+                {
+                    if (logger.isDebugEnabled())
+                        logger.debug(String.format("Dropping page cache of file %s.", filePath));
+
+                    CLibrary.trySkipCache(fd, 0, 0);
+                }
+            }
+            catch (IOException e)
+            {
+                // we don't care if cache cleanup fails
+            }
+            finally
+            {
+                FileUtils.closeQuietly(file);
+            }
+        }
+
+        public void tidy()
+        {
+            if (readMeterSyncFuture != null)
+                readMeterSyncFuture.cancel(false);
+
+            synchronized (replaceLock)
+            {
+                boolean closeBf = true, closeSummary = true, closeFiles = true, deleteFiles = isCompacted.get();
+
+                if (replacedBy != null)
+                {
+                    closeBf = replacedBy.bf != bf;
+                    closeSummary = replacedBy.indexSummary != indexSummary;
+                    closeFiles = replacedBy.dfile != dfile;
+                    // if the replacement sstablereader uses a different path, clean up our paths
+                    deleteFiles = !dfile.path.equals(replacedBy.dfile.path);
+                }
+
+                if (replaces != null)
+                {
+                    closeBf &= replaces.bf != bf;
+                    closeSummary &= replaces.indexSummary != indexSummary;
+                    closeFiles &= replaces.dfile != dfile;
+                    deleteFiles &= !dfile.path.equals(replaces.dfile.path);
+                }
+
+                boolean deleteAll = false;
+                if (isCompacted.get())
+                {
+                    assert replacedBy == null;
+                    if (replaces != null && !deleteFiles)
+                    {
+                        replaces.tidy.replacedBy = null;
+                        replaces.tidy.deletingTask = deletingTask;
+                        replaces.markObsolete();
+                    }
+                    else
+                    {
+                        deleteAll = true;
+                    }
+                }
+                else
+                {
+                    closeSummary &= indexSummary != null;
+                    if (replaces != null)
+                        replaces.tidy.replacedBy = replacedBy;
+                    if (replacedBy != null)
+                        replacedBy.tidy.replaces = replaces;
+                }
+
+                scheduleTidy(closeBf, closeSummary, closeFiles, deleteFiles, deleteAll);
+            }
+        }
+
+        private void scheduleTidy(final boolean closeBf, final boolean closeSummary, final boolean closeFiles, final boolean deleteFiles, final boolean deleteAll)
+        {
+            final ColumnFamilyStore cfs = Schema.instance.getColumnFamilyStoreInstance(metadata.cfId);
+            final OpOrder.Barrier barrier;
+            if (cfs != null)
+            {
+                barrier = cfs.readOrdering.newBarrier();
+                barrier.issue();
+            }
+            else
+                barrier = null;
+
+            ScheduledExecutors.nonPeriodicTasks.execute(new Runnable()
+            {
+                public void run()
+                {
+                    if (barrier != null)
+                        barrier.await();
+                    if (closeBf)
+                        bf.close();
+                    if (closeSummary)
+                        indexSummary.close();
+                    if (closeFiles)
+                    {
+                        ifile.cleanup();
+                        dfile.cleanup();
+                    }
+                    if (runOnClose != null)
+                        runOnClose.run();
+                    if (deleteAll)
+                    {
+                        /**
+                         * Do the OS a favour and suggest (using fadvice call) that we
+                         * don't want to see pages of this SSTable in memory anymore.
+                         *
+                         * NOTE: We can't use madvice in java because it requires the address of
+                         * the mapping, so instead we always open a file and run fadvice(fd, 0, 0) on it
+                         */
+                        dropPageCache();
+                        deletingTask.run();
+                    }
+                    else if (deleteFiles)
+                    {
+                        FileUtils.deleteWithConfirm(new File(dfile.path));
+                        FileUtils.deleteWithConfirm(new File(ifile.path));
+                    }
+                }
+            });
         }
     }
 

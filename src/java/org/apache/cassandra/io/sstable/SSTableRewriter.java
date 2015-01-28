@@ -178,14 +178,14 @@ public class SSTableRewriter
 
     public void abort()
     {
-        switchWriter(null);
+        switchWriter(null, true);
         moveStarts(null, Functions.forMap(originalStarts), true);
 
         // remove already completed SSTables
         for (SSTableReader sstable : finished)
         {
             sstable.markObsolete();
-            sstable.releaseReference();
+            sstable.sharedRef().release();
         }
 
         // abort the writers
@@ -278,6 +278,11 @@ public class SSTableRewriter
 
     public void switchWriter(SSTableWriter newWriter)
     {
+        switchWriter(newWriter, false);
+    }
+
+    private void switchWriter(SSTableWriter newWriter, boolean abort)
+    {
         if (writer == null)
         {
             writer = newWriter;
@@ -285,7 +290,7 @@ public class SSTableRewriter
         }
 
         // we leave it as a tmp file, but we open it and add it to the dataTracker
-        if (writer.getFilePointer() != 0)
+        if (writer.getFilePointer() != 0 && !abort)
         {
             SSTableReader reader = writer.finish(SSTableWriter.FinishType.EARLY, maxAge, -1);
             replaceEarlyOpenedFile(currentlyOpenedEarly, reader);
@@ -335,7 +340,7 @@ public class SSTableRewriter
     private List<SSTableReader> finishAndMaybeThrow(long repairedAt, boolean throwEarly, boolean throwLate)
     {
         List<SSTableReader> newReaders = new ArrayList<>();
-        switchWriter(null);
+        switchWriter(null, false);
 
         if (throwEarly)
             throw new RuntimeException("exception thrown early in finish, for testing");
@@ -379,7 +384,7 @@ public class SSTableRewriter
             {
                 if (reader.getCurrentReplacement() == null)
                     reader.markObsolete();
-                reader.releaseReference();
+                reader.sharedRef().release();
             }
         }
         else

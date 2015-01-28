@@ -30,6 +30,8 @@ import org.apache.cassandra.streaming.compress.CompressedStreamWriter;
 import org.apache.cassandra.streaming.compress.CompressionInfo;
 import org.apache.cassandra.utils.Pair;
 
+import org.apache.cassandra.utils.concurrent.Ref;
+
 /**
  * OutgoingFileMessage is used to transfer the part(or whole) of a SSTable data file.
  */
@@ -57,13 +59,15 @@ public class OutgoingFileMessage extends StreamMessage
         }
     };
 
-    public FileMessageHeader header;
-    public SSTableReader sstable;
+    public final FileMessageHeader header;
+    public final SSTableReader sstable;
+    public final Ref ref;
 
-    public OutgoingFileMessage(SSTableReader sstable, int sequenceNumber, long estimatedKeys, List<Pair<Long, Long>> sections, long repairedAt, boolean keepSSTableLevel)
+    public OutgoingFileMessage(SSTableReader sstable, Ref ref, int sequenceNumber, long estimatedKeys, List<Pair<Long, Long>> sections, long repairedAt, boolean keepSSTableLevel)
     {
         super(Type.FILE);
         this.sstable = sstable;
+        this.ref = ref;
 
         CompressionInfo compressionInfo = null;
         if (sstable.compression)
