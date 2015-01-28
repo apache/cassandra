@@ -130,6 +130,7 @@
  * Improve JBOD disk utilization (CASSANDRA-7386)
  * Log failed host when preparing incremental repair (CASSANDRA-8228)
  * Force config client mode in CQLSSTableWriter (CASSANDRA-8281)
+ * Fix sstableupgrade throws exception (CASSANDRA-8688)
 Merged from 2.0:
  * Add batch remove iterator to ABSC (CASSANDRA-8414, 8666)
  * Round up time deltas lower than 1ms in BulkLoader (CASSANDRA-8645)

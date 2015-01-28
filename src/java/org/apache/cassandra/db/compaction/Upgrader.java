@@ -92,8 +92,7 @@ public class Upgrader
                 writer.append(row);
             }
 
-            List<SSTableReader> sstables = writer.finish();
-            cfs.getDataTracker().markCompactedSSTablesReplaced(toUpgrade, sstables, OperationType.UPGRADE_SSTABLES);
+            writer.finish();
             outputHandler.output("Upgrade of " + sstable + " complete.");
 
         }
