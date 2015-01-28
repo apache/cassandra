@@ -25,6 +25,10 @@ import org.apache.cassandra.db.IMutation;
 import org.apache.cassandra.net.MessageIn;
 import org.apache.cassandra.net.MessageOut;
 
+/**
+ * a class used only for testing to avoid sending/receiving data from a junit test.
+ * needs to be in the source tree as MessagingService calls it directly.
+ */
 public class SinkManager
 {
     private static final Set<IMessageSink> messageSinks = new CopyOnWriteArraySet<>();
