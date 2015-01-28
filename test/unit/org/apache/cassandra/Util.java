@@ -211,27 +211,6 @@ public class Util
         return cfStore.getColumnFamily(QueryFilter.getIdentityFilter(key, cfName, System.currentTimeMillis()));
     }
 
-    public static byte[] concatByteArrays(byte[] first, byte[]... remaining)
-    {
-        int length = first.length;
-        for (byte[] array : remaining)
-        {
-            length += array.length;
-        }
-
-        byte[] result = new byte[length];
-        System.arraycopy(first, 0, result, 0, first.length);
-        int offset = first.length;
-
-        for (byte[] array : remaining)
-        {
-            System.arraycopy(array, 0, result, offset, array.length);
-            offset += array.length;
-        }
-
-        return result;
-    }
-
     public static boolean equalsCounterId(CounterId n, ByteBuffer context, int offset)
     {
         return CounterId.wrap(context, context.position() + offset).equals(n);
@@ -311,22 +290,6 @@ public class Util
         }
 
         assert thrown : exception.getName() + " not received";
-    }
-
-    public static ByteBuffer serializeForSSTable(ColumnFamily cf)
-    {
-        try
-        {
-            DataOutputBuffer out = new DataOutputBuffer();
-            DeletionTime.serializer.serialize(cf.deletionInfo().getTopLevelDeletion(), out);
-            out.writeInt(cf.getColumnCount());
-            new ColumnIndex.Builder(cf, ByteBufferUtil.EMPTY_BYTE_BUFFER, out).build(cf);
-            return ByteBuffer.wrap(out.toByteArray());
-        }
-        catch (IOException e)
-        {
-            throw new RuntimeException(e);
-        }
     }
 
     public static QueryFilter namesQueryFilter(ColumnFamilyStore cfs, DecoratedKey key)
