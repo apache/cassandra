@@ -167,6 +167,7 @@ public class SSTableSimpleUnsortedWriter extends AbstractSSTableSimpleWriter
 
         checkForWriterException();
 
+        columnFamily = null;
         try
         {
             writeQueue.put(buffer);
@@ -178,6 +179,7 @@ public class SSTableSimpleUnsortedWriter extends AbstractSSTableSimpleWriter
         }
         buffer = new Buffer();
         currentSize = 0;
+        columnFamily = getColumnFamily();
     }
 
     private void checkForWriterException() throws IOException

@@ -549,6 +549,11 @@ public class CQLSSTableWriter implements Closeable
             };
         }
 
+        protected void addColumn(Cell cell) throws IOException
+        {
+            throw new UnsupportedOperationException();
+        }
+
         static class SyncException extends RuntimeException
         {
             SyncException(IOException ioe)
