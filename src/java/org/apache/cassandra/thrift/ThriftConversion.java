@@ -433,7 +433,7 @@ public class ThriftConversion
     throws SyntaxException, ConfigurationException
     {
         if (thriftDefs == null)
-            return Collections.emptyList();
+            return new ArrayList<>();
 
         List<ColumnDefinition> defs = new ArrayList<>(thriftDefs.size());
         for (ColumnDef thriftColumnDef : thriftDefs)

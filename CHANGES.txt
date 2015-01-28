@@ -1,6 +1,4 @@
 3.0
- * rpc_interface and listen_interface generate NPE on startup when specified interface doesn't exist (CASSANDRA-8677)
- * Fix ArrayIndexOutOfBoundsException in nodetool cfhistograms (CASSANDRA-8514)
  * Serializing Row cache alternative, fully off heap (CASSANDRA-7438)
  * Duplicate rows returned when in clause has repeated values (CASSANDRA-6707)
  * Make CassandraException unchecked, extend RuntimeException (CASSANDRA-8560)
@@ -57,9 +55,14 @@
 
 
 2.1.3
+ * Fix schema from Thrift conversion with empty metadata (CASSANDRA-8695)
  * Safer Resource Management (CASSANDRA-7705)
  * Make sure we compact highly overlapping cold sstables with
    STCS (CASSANDRA-8635)
+ * rpc_interface and listen_interface generate NPE on startup when specified
+   interface doesn't exist (CASSANDRA-8677)
+ * Fix ArrayIndexOutOfBoundsException in nodetool cfhistograms (CASSANDRA-8514)
+ * Switch from yammer metrics for nodetool cf/proxy histograms (CASSANDRA-8662)
  * Make sure we don't add tmplink files to the compaction
    strategy (CASSANDRA-8580)
  * (cqlsh) Handle maps with blob keys (CASSANDRA-8372)
