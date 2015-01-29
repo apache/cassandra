@@ -23,6 +23,7 @@ import java.util.Map;
 import java.util.TreeMap;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.SynchronousQueue;
+import java.util.concurrent.TimeUnit;
 
 import com.google.common.base.Throwables;
 
@@ -165,17 +166,21 @@ public class SSTableSimpleUnsortedWriter extends AbstractSSTableSimpleWriter
         if (buffer.isEmpty())
             return;
 
-        checkForWriterException();
-
-        columnFamily = null;
-        try
+        while (true)
         {
-            writeQueue.put(buffer);
-        }
-        catch (InterruptedException e)
-        {
-            throw new RuntimeException(e);
+            checkForWriterException();
 
+            columnFamily = null;
+            try
+            {
+                if (writeQueue.offer(buffer, 1L, TimeUnit.SECONDS))
+                    break;
+            }
+            catch (InterruptedException e)
+            {
+                throw new RuntimeException(e);
+
+            }
         }
         buffer = new Buffer();
         currentSize = 0;
@@ -214,8 +219,15 @@ public class SSTableSimpleUnsortedWriter extends AbstractSSTableSimpleWriter
                         return;
 
                     writer = getWriter();
+                    boolean first = true;
                     for (Map.Entry<DecoratedKey, ColumnFamily> entry : b.entrySet())
-                        writer.append(entry.getKey(), entry.getValue());
+                    {
+                        if (entry.getValue().getColumnCount() > 0)
+                            writer.append(entry.getKey(), entry.getValue());
+                        else if (!first)
+                            throw new AssertionError("Empty partition");
+                        first = false;
+                    }
                     writer.close();
                 }
                 catch (Throwable e)
