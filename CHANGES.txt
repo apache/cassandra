@@ -1,4 +1,5 @@
 2.1.3
+ * Stop compactions before exiting offline tools (CASSANDRA-8623)
  * Update tools/stress/README.txt to match current behaviour (CASSANDRA-7933)
  * Fix schema from Thrift conversion with empty metadata (CASSANDRA-8695)
  * Safer Resource Management (CASSANDRA-7705)

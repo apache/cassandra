@@ -50,6 +50,7 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Multimap;
 import com.google.common.collect.Multiset;
 import com.google.common.collect.Sets;
+import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.RateLimiter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -178,9 +179,13 @@ public class CompactionManager implements CompactionManagerMBean
                      cfs.name,
                      cfs.getCompactionStrategy().getName());
         List<Future<?>> futures = new ArrayList<Future<?>>();
-
         // we must schedule it at least once, otherwise compaction will stop for a CF until next flush
         do {
+            if (executor.isShutdown())
+            {
+                logger.info("Executor has shut down, not submitting background task");
+                return Collections.emptyList();
+            }
             compactingCF.add(cfs);
             futures.add(executor.submit(new BackgroundCompactionTask(cfs)));
             // if we have room for more compactions, then fill up executor
@@ -195,6 +200,12 @@ public class CompactionManager implements CompactionManagerMBean
             if (!cfs.getDataTracker().getCompacting().isEmpty())
                 return true;
         return false;
+    }
+
+    public void finishCompactionsAndShutdown(long timeout, TimeUnit unit) throws InterruptedException
+    {
+        executor.shutdown();
+        executor.awaitTermination(timeout, unit);
     }
 
     // the actual sstables to compact are not determined until we run the BCT; that way, if new sstables
@@ -256,6 +267,12 @@ public class CompactionManager implements CompactionManagerMBean
 
             for (final SSTableReader sstable : sstables)
             {
+                if (executor.isShutdown())
+                {
+                    logger.info("Executor has shut down, not submitting task");
+                    return AllSSTableOpStatus.ABORTED;
+                }
+
                 futures.add(executor.submit(new Callable<Object>()
                 {
                     @Override
@@ -394,6 +411,12 @@ public class CompactionManager implements CompactionManagerMBean
                 performAnticompaction(cfs, ranges, sstables, repairedAt);
             }
         };
+        if (executor.isShutdown())
+        {
+            logger.info("Compaction executor has shut down, not submitting anticompaction");
+            return Futures.immediateCancelledFuture();
+        }
+
         return executor.submit(runnable);
     }
 
@@ -489,6 +512,11 @@ public class CompactionManager implements CompactionManagerMBean
                     task.execute(metrics);
                 }
             };
+            if (executor.isShutdown())
+            {
+                logger.info("Compaction executor has shut down, not submitting task");
+                return Collections.emptyList();
+            }
             futures.add(executor.submit(runnable));
         }
         return futures;
@@ -554,6 +582,12 @@ public class CompactionManager implements CompactionManagerMBean
                 }
             }
         };
+        if (executor.isShutdown())
+        {
+            logger.info("Compaction executor has shut down, not submitting task");
+            return Futures.immediateCancelledFuture();
+        }
+
         return executor.submit(runnable);
     }
 
@@ -1090,6 +1124,11 @@ public class CompactionManager implements CompactionManagerMBean
                 }
             }
         };
+        if (executor.isShutdown())
+        {
+            logger.info("Compaction executor has shut down, not submitting index build");
+            return null;
+        }
 
         return executor.submit(runnable);
     }
@@ -1123,6 +1162,11 @@ public class CompactionManager implements CompactionManagerMBean
                 }
             }
         };
+        if (executor.isShutdown())
+        {
+            logger.info("Executor has shut down, not submitting background task");
+            Futures.immediateCancelledFuture();
+        }
         return executor.submit(runnable);
     }
 

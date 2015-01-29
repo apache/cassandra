@@ -20,6 +20,7 @@ package org.apache.cassandra.tools;
 
 import java.io.File;
 import java.util.*;
+import java.util.concurrent.TimeUnit;
 
 import com.google.common.base.Predicate;
 import com.google.common.base.Predicates;
@@ -33,6 +34,7 @@ import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.compaction.AbstractCompactionStrategy;
+import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.compaction.LeveledCompactionStrategy;
 import org.apache.cassandra.db.compaction.LeveledManifest;
 import org.apache.cassandra.db.compaction.Scrubber;
@@ -131,7 +133,7 @@ public class StandaloneScrubber
 
             // Check (and repair) manifests
             checkManifest(cfs.getCompactionStrategy(), cfs, sstables);
-
+            CompactionManager.instance.finishCompactionsAndShutdown(5, TimeUnit.MINUTES);
             SSTableDeletingTask.waitForDeletions();
             System.exit(0); // We need that to stop non daemonized threads
         }
