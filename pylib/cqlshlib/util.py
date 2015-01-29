@@ -14,7 +14,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import codecs
 from itertools import izip
+
 
 def split_list(items, pred):
     """
@@ -36,6 +38,7 @@ def split_list(items, pred):
             results.append(thisresult)
     return results
 
+
 def find_common_prefix(strs):
     """
     Given a list (iterable) of strings, return the longest common prefix.
@@ -54,6 +57,7 @@ def find_common_prefix(strs):
             break
     return ''.join(common)
 
+
 def list_bifilter(pred, iterable):
     """
     Filter an iterable into two output lists: the first containing all
@@ -70,10 +74,35 @@ def list_bifilter(pred, iterable):
         (yes_s if pred(i) else no_s).append(i)
     return yes_s, no_s
 
+
 def identity(x):
     return x
+
 
 def trim_if_present(s, prefix):
     if s.startswith(prefix):
         return s[len(prefix):]
     return s
+
+
+def get_file_encoding_bomsize(filename):
+    """
+    Checks the beginning of a file for a Unicode BOM.  Based on this check,
+    the encoding that should be used to open the file and the number of
+    bytes that should be skipped (to skip the BOM) are returned.
+    """
+    bom_encodings = ((codecs.BOM_UTF8, 'utf-8-sig'),
+                     (codecs.BOM_UTF16_LE, 'utf-16le'),
+                     (codecs.BOM_UTF16_BE, 'utf-16be'),
+                     (codecs.BOM_UTF32_LE, 'utf-32be'),
+                     (codecs.BOM_UTF32_BE, 'utf-32be'))
+
+    firstbytes = open(filename, 'rb').read(4)
+    for bom, encoding in bom_encodings:
+        if firstbytes.startswith(bom):
+            file_encoding, size = encoding, len(bom)
+            break
+    else:
+        file_encoding, size = "ascii", 0
+
+    return (file_encoding, size)
