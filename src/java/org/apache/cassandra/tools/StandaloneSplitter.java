@@ -20,6 +20,7 @@ package org.apache.cassandra.tools;
 
 import java.io.File;
 import java.util.*;
+import java.util.concurrent.TimeUnit;
 
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
@@ -28,6 +29,7 @@ import org.apache.commons.cli.*;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.compaction.SSTableSplitter;
 import org.apache.cassandra.io.sstable.*;
 import org.apache.cassandra.utils.JVMStabilityInspector;
@@ -108,7 +110,6 @@ public class StandaloneSplitter
             // Do not load sstables since they might be broken
             Keyspace keyspace = Keyspace.openWithoutSSTables(ksName);
             ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(cfName);
-
             String snapshotName = "pre-split-" + System.currentTimeMillis();
 
             List<SSTableReader> sstables = new ArrayList<>();
@@ -159,6 +160,7 @@ public class StandaloneSplitter
                         e.printStackTrace(System.err);
                 }
             }
+            CompactionManager.instance.finishCompactionsAndShutdown(5, TimeUnit.MINUTES);
             SSTableDeletingTask.waitForDeletions();
             System.exit(0); // We need that to stop non daemonized threads
         }
