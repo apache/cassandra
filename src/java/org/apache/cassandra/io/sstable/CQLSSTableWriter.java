@@ -549,7 +549,7 @@ public class CQLSSTableWriter implements Closeable
             };
         }
 
-        protected void addColumn(Cell cell) throws IOException
+        protected void addColumn(Column column) throws IOException
         {
             throw new UnsupportedOperationException();
         }
