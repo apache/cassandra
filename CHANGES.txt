@@ -1,4 +1,5 @@
 3.0
+ * Avoid accessing partitioner through StorageProxy (CASSANDRA-8244, 8268)
  * Upgrade Metrics library and remove depricated metrics (CASSANDRA-5657)
  * Serializing Row cache alternative, fully off heap (CASSANDRA-7438)
  * Duplicate rows returned when in clause has repeated values (CASSANDRA-6707)
@@ -137,8 +138,6 @@
  * Force config client mode in CQLSSTableWriter (CASSANDRA-8281)
  * Fix sstableupgrade throws exception (CASSANDRA-8688)
 Merged from 2.0:
-=======
-2.0.13:
  * Fix SSTableSimpleUnsortedWriter ConcurrentModificationException (CASSANDRA-8619)
  * Round up time deltas lower than 1ms in BulkLoader (CASSANDRA-8645)
  * Add batch remove iterator to ABSC (CASSANDRA-8414, 8666)

@@ -35,6 +35,7 @@ import com.google.common.base.Function;
 import com.google.common.collect.Lists;
 
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -45,7 +46,9 @@ import org.apache.cassandra.concurrent.TracingAwareExecutorService;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.EncryptionOptions.ServerEncryptionOptions;
 import org.apache.cassandra.db.*;
+import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.BootStrapper;
+import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.gms.EchoMessage;
 import org.apache.cassandra.gms.GossipDigestAck;
@@ -1038,5 +1041,16 @@ public final class MessagingService implements MessagingServiceMBean
             result.put(ip, recent);
         }
         return result;
+    }
+
+    public static IPartitioner globalPartitioner()
+    {
+        return DatabaseDescriptor.getPartitioner();
+    }
+
+    public static void validatePartitioner(AbstractBounds<?> bounds)
+    {
+        if (globalPartitioner() != bounds.left.getPartitioner())
+            throw new AssertionError();
     }
 }

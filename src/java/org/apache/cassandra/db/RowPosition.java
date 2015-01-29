@@ -56,7 +56,7 @@ public interface RowPosition extends RingPosition<RowPosition>
     public Kind kind();
     public boolean isMinimum();
 
-    public static class RowPositionSerializer implements ISerializer<RowPosition>
+    public static class RowPositionSerializer implements IPartitionerDependentSerializer<RowPosition>
     {
         /*
          * We need to be able to serialize both Token.KeyBound and
@@ -69,17 +69,17 @@ public interface RowPosition extends RingPosition<RowPosition>
          * token is recreated on the other side). In the other cases, we then
          * serialize the token.
          */
-        public void serialize(RowPosition pos, DataOutputPlus out) throws IOException
+        public void serialize(RowPosition pos, DataOutputPlus out, int version) throws IOException
         {
             Kind kind = pos.kind();
             out.writeByte(kind.ordinal());
             if (kind == Kind.ROW_KEY)
                 ByteBufferUtil.writeWithShortLength(((DecoratedKey)pos).getKey(), out);
             else
-                Token.serializer.serialize(pos.getToken(), out);
+                Token.serializer.serialize(pos.getToken(), out, version);
         }
 
-        public RowPosition deserialize(DataInput in) throws IOException
+        public RowPosition deserialize(DataInput in, IPartitioner p, int version) throws IOException
         {
             Kind kind = Kind.fromOrdinal(in.readByte());
             if (kind == Kind.ROW_KEY)
@@ -89,23 +89,23 @@ public interface RowPosition extends RingPosition<RowPosition>
             }
             else
             {
-                Token t = Token.serializer.deserialize(in);
+                Token t = Token.serializer.deserialize(in, p, version);
                 return kind == Kind.MIN_BOUND ? t.minKeyBound() : t.maxKeyBound();
             }
         }
 
-        public long serializedSize(RowPosition pos, TypeSizes typeSizes)
+        public long serializedSize(RowPosition pos, int version)
         {
             Kind kind = pos.kind();
             int size = 1; // 1 byte for enum
             if (kind == Kind.ROW_KEY)
             {
                 int keySize = ((DecoratedKey)pos).getKey().remaining();
-                size += typeSizes.sizeof((short) keySize) + keySize;
+                size += TypeSizes.NATIVE.sizeof((short) keySize) + keySize;
             }
             else
             {
-                size += Token.serializer.serializedSize(pos.getToken(), typeSizes);
+                size += Token.serializer.serializedSize(pos.getToken(), version);
             }
             return size;
         }

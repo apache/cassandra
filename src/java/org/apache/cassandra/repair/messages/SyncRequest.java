@@ -30,6 +30,7 @@ import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.net.CompactEndpointSerializationHelper;
+import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.repair.RepairJobDesc;
 
 /**
@@ -66,7 +67,10 @@ public class SyncRequest extends RepairMessage
             CompactEndpointSerializationHelper.serialize(message.dst, out);
             out.writeInt(message.ranges.size());
             for (Range<Token> range : message.ranges)
+            {
+                MessagingService.validatePartitioner(range);
                 AbstractBounds.serializer.serialize(range, out, version);
+            }
         }
 
         public SyncRequest deserialize(DataInput in, int version) throws IOException
@@ -78,7 +82,7 @@ public class SyncRequest extends RepairMessage
             int rangesCount = in.readInt();
             List<Range<Token>> ranges = new ArrayList<>(rangesCount);
             for (int i = 0; i < rangesCount; ++i)
-                ranges.add((Range<Token>) AbstractBounds.serializer.deserialize(in, version).toTokenBounds());
+                ranges.add((Range<Token>) AbstractBounds.serializer.deserialize(in, MessagingService.globalPartitioner(), version).toTokenBounds());
             return new SyncRequest(desc, owner, src, dst, ranges);
         }
 

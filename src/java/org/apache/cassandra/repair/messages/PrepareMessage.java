@@ -28,6 +28,7 @@ import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.utils.UUIDSerializer;
 
 
@@ -58,8 +59,11 @@ public class PrepareMessage extends RepairMessage
                 UUIDSerializer.serializer.serialize(cfId, out, version);
             UUIDSerializer.serializer.serialize(message.parentRepairSession, out, version);
             out.writeInt(message.ranges.size());
-            for (Range r : message.ranges)
+            for (Range<Token> r : message.ranges)
+            {
+                MessagingService.validatePartitioner(r);
                 Range.serializer.serialize(r, out, version);
+            }
             out.writeBoolean(message.isIncremental);
         }
 
@@ -73,7 +77,7 @@ public class PrepareMessage extends RepairMessage
             int rangeCount = in.readInt();
             List<Range<Token>> ranges = new ArrayList<>(rangeCount);
             for (int i = 0; i < rangeCount; i++)
-                ranges.add((Range<Token>) Range.serializer.deserialize(in, version).toTokenBounds());
+                ranges.add((Range<Token>) Range.serializer.deserialize(in, MessagingService.globalPartitioner(), version).toTokenBounds());
             boolean isIncremental = in.readBoolean();
             return new PrepareMessage(parentRepairSession, cfIds, ranges, isIncremental);
         }

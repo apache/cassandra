@@ -22,12 +22,10 @@ import java.io.IOException;
 import java.io.Serializable;
 import java.nio.ByteBuffer;
 
-import org.apache.cassandra.exceptions.ConfigurationException;
-import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.RowPosition;
-import org.apache.cassandra.io.ISerializer;
+import org.apache.cassandra.db.TypeSizes;
+import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.util.DataOutputPlus;
-import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 public abstract class Token implements RingPosition<Token>, Serializable
@@ -46,27 +44,26 @@ public abstract class Token implements RingPosition<Token>, Serializable
         public abstract void validate(String token) throws ConfigurationException;
     }
 
-    public static class TokenSerializer implements ISerializer<Token>
+    public static class TokenSerializer implements IPartitionerDependentSerializer<Token>
     {
-        public void serialize(Token token, DataOutputPlus out) throws IOException
+        public void serialize(Token token, DataOutputPlus out, int version) throws IOException
         {
-            IPartitioner p = StorageService.getPartitioner();
+            IPartitioner p = token.getPartitioner();
             ByteBuffer b = p.getTokenFactory().toByteArray(token);
             ByteBufferUtil.writeWithLength(b, out);
         }
 
-        public Token deserialize(DataInput in) throws IOException
+        public Token deserialize(DataInput in, IPartitioner p, int version) throws IOException
         {
-            IPartitioner p = StorageService.getPartitioner();
             int size = in.readInt();
             byte[] bytes = new byte[size];
             in.readFully(bytes);
             return p.getTokenFactory().fromByteArray(ByteBuffer.wrap(bytes));
         }
 
-        public long serializedSize(Token object, TypeSizes typeSizes)
+        public long serializedSize(Token object, int version)
         {
-            IPartitioner p = StorageService.getPartitioner();
+            IPartitioner p = object.getPartitioner();
             ByteBuffer b = p.getTokenFactory().toByteArray(object);
             return TypeSizes.NATIVE.sizeof(b.remaining()) + b.remaining();
         }

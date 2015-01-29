@@ -81,7 +81,7 @@ public abstract class RepairMessage
         return new MessageOut<>(MessagingService.Verb.REPAIR_MESSAGE, this, RepairMessage.serializer);
     }
 
-    public static class RepairMessageSerializer implements IVersionedSerializer<RepairMessage>
+    public static class RepairMessageSerializer implements MessageSerializer<RepairMessage>
     {
         public void serialize(RepairMessage message, DataOutputPlus out, int version) throws IOException
         {
