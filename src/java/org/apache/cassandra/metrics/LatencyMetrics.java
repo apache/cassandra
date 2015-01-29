@@ -102,7 +102,7 @@ public class LatencyMetrics
     {
         // convert to microseconds. 1 millionth
         latency.update(nanos, TimeUnit.NANOSECONDS);
-        totalLatency.inc(nanos);
+        totalLatency.inc(nanos / 1000);
         for(LatencyMetrics parent : parents)
         {
             parent.addNano(nanos);
