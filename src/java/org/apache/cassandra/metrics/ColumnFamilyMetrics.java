@@ -618,7 +618,7 @@ public class ColumnFamilyMetrics
     {
         for(String name : all)
         {
-            allColumnFamilyMetrics.get(name).remove(Metrics.getMetrics().get(factory.createMetricName(name)));
+            allColumnFamilyMetrics.get(name).remove(Metrics.getMetrics().get(factory.createMetricName(name).getMetricName()));
             Metrics.remove(factory.createMetricName(name));
         }
         readLatency.release();
