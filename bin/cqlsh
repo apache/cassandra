@@ -121,7 +121,7 @@ from cqlshlib import cqlhandling, cql3handling, pylexotron, sslhandling, async_i
 from cqlshlib.displaying import (RED, BLUE, CYAN, ANSI_RESET, COLUMN_NAME_COLORS,
                                  FormattedValue, colorme)
 from cqlshlib.formatting import format_by_type, formatter_for, format_value_utype
-from cqlshlib.util import trim_if_present
+from cqlshlib.util import trim_if_present, get_file_encoding_bomsize
 from cqlshlib.tracing import print_trace_session, print_trace
 
 DEFAULT_HOST = '127.0.0.1'
@@ -1623,7 +1623,9 @@ class Shell(cmd.Cmd):
         fname = parsed.get_binding('fname')
         fname = os.path.expanduser(self.cql_unprotect_value(fname))
         try:
-            f = open(fname, 'r')
+            encoding, bom_size = get_file_encoding_bomsize(fname)
+            f = codecs.open(fname, 'r', encoding)
+            f.seek(bom_size)
         except IOError, e:
             self.printerr('Could not open %r: %s' % (fname, e))
             return
@@ -2035,7 +2037,9 @@ def main(options, hostname, port):
         stdin = None
     else:
         try:
-            stdin = open(options.file, 'r')
+            encoding, bom_size = get_file_encoding_bomsize(options.file)
+            stdin = codecs.open(options.file, 'r', encoding)
+            stdin.seek(bom_size)
         except IOError, e:
             sys.exit("Can't open %r: %s" % (options.file, e))
 
