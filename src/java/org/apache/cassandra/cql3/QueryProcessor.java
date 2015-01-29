@@ -517,6 +517,7 @@ public class QueryProcessor implements QueryHandler
     {
         private void removeInvalidPreparedStatements(String ksName, String cfName)
         {
+            removeInvalidPreparedStatements(internalStatements.values().iterator(), ksName, cfName);
             removeInvalidPreparedStatements(preparedStatements.values().iterator(), ksName, cfName);
             removeInvalidPreparedStatements(thriftPreparedStatements.values().iterator(), ksName, cfName);
         }
