@@ -31,6 +31,11 @@ public class CounterColumnType extends AbstractCommutativeType
 
     CounterColumnType() {} // singleton
 
+    public boolean isCounter()
+    {
+        return true;
+    }
+
     public int compare(ByteBuffer o1, ByteBuffer o2)
     {
         if (o1 == null)

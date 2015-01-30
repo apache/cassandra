@@ -138,6 +138,11 @@ public class CFPropDefs extends PropertyDefinitions
         return compressionOptions;
     }
 
+    public Integer getDefaultTimeToLive() throws SyntaxException
+    {
+        return getInt(KW_DEFAULT_TIME_TO_LIVE, 0);
+    }
+
     public void applyToCFMetadata(CFMetaData cfm) throws ConfigurationException, SyntaxException
     {
         if (hasProperty(KW_COMMENT))

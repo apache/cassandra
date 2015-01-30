@@ -2192,6 +2192,11 @@ public final class CFMetaData
         return true;
     }
 
+    public boolean isCounter()
+    {
+        return defaultValidator.isCounter();
+    }
+
     public boolean hasStaticColumns()
     {
         return !staticColumns.isEmpty();

@@ -212,6 +212,11 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>
         return false;
     }
 
+    public boolean isCounter()
+    {
+        return false;
+    }
+
     public static AbstractType<?> parseDefaultParameters(AbstractType<?> baseType, TypeParser parser) throws SyntaxException
     {
         Map<String, String> parameters = parser.getKeyValueParameters();
