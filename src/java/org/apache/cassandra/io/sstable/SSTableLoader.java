@@ -131,8 +131,10 @@ public class SSTableLoader implements StreamEventHandler
 
                         List<Pair<Long, Long>> sstableSections = sstable.getPositionsForRanges(tokenRanges);
                         long estimatedKeys = sstable.estimatedKeysForRanges(tokenRanges);
-
-                        StreamSession.SSTableStreamingSections details = new StreamSession.SSTableStreamingSections(sstable, sstable.sharedRef(), sstableSections, estimatedKeys, ActiveRepairService.UNREPAIRED_SSTABLE);
+                        Ref ref = sstable.tryRef();
+                        if (ref == null)
+                            throw new IllegalStateException("Could not acquire ref for "+sstable);
+                        StreamSession.SSTableStreamingSections details = new StreamSession.SSTableStreamingSections(sstable, ref, sstableSections, estimatedKeys, ActiveRepairService.UNREPAIRED_SSTABLE);
                         streamingDetails.put(endpoint, details);
                     }
 
@@ -178,34 +180,39 @@ public class SSTableLoader implements StreamEventHandler
                 continue;
 
             List<StreamSession.SSTableStreamingSections> endpointDetails = new LinkedList<>();
-            List<Ref> refs = new ArrayList<>();
-            try
-            {
-                // transferSSTables assumes references have been acquired
-                for (StreamSession.SSTableStreamingSections details : streamingDetails.get(remote))
-                {
-                    Ref ref = details.sstable.tryRef();
-                    if (ref == null)
-                        throw new IllegalStateException();
 
-                    refs.add(ref);
-                    endpointDetails.add(details);
-                }
-
-                plan.transferFiles(remote, endpointDetails);
-            }
-            finally
+            // references are acquired when constructing the SSTableStreamingSections above
+            for (StreamSession.SSTableStreamingSections details : streamingDetails.get(remote))
             {
-                for (Ref ref : refs)
-                    ref.release();
+                endpointDetails.add(details);
             }
+
+            plan.transferFiles(remote, endpointDetails);
         }
         plan.listeners(this, listeners);
         return plan.execute();
     }
 
-    public void onSuccess(StreamState finalState) {}
-    public void onFailure(Throwable t) {}
+    public void onSuccess(StreamState finalState)
+    {
+        releaseReferences();
+    }
+    public void onFailure(Throwable t)
+    {
+        releaseReferences();
+    }
+
+    /**
+     * releases the shared reference for all sstables, we acquire this when opening the sstable
+     */
+    private void releaseReferences()
+    {
+        for (SSTableReader sstable : sstables)
+        {
+            sstable.sharedRef().release();
+            assert sstable.sharedRef().globalCount() == 0;
+        }
+    }
 
     public void handleStreamEvent(StreamEvent event)
     {
