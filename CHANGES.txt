@@ -57,6 +57,7 @@
 
 
 2.1.3
+ * Don't use the shared ref in sstableloader (CASSANDRA-8704)
  * Purge internal prepared statements if related tables or
    keyspaces are dropped (CASSANDRA-8693)
  * (cqlsh) Handle unicode BOM at start of files (CASSANDRA-8638)
