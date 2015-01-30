@@ -211,7 +211,7 @@ public class CommitLogArchiver
                     descriptor = fromHeader;
                 else descriptor = fromName;
 
-                if (descriptor.version > CommitLogDescriptor.VERSION_21)
+                if (descriptor.version > CommitLogDescriptor.VERSION_30)
                     throw new IllegalStateException("Unsupported commit log version: " + descriptor.version);
 
                 File toFile = new File(DatabaseDescriptor.getCommitLogLocation(), descriptor.fileName());
