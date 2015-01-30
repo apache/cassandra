@@ -203,11 +203,6 @@ public final class SingleColumnRelation extends Relation
 
         if (isIN())
         {
-            // For partition keys we only support IN for the last name so far
-            checkFalse(columnDef.isPartitionKey() && !isLastPartitionKey(cfm, columnDef),
-                      "Partition KEY part %s cannot be restricted by IN relation (only the last part of the partition key can)",
-                      columnDef.name);
-
             // We only allow IN on the row key and the clustering key so far, never on non-PK columns, and this even if
             // there's an index
             // Note: for backward compatibility reason, we conside a IN of 1 value the same as a EQ, so we let that
@@ -262,7 +257,7 @@ public final class SingleColumnRelation extends Relation
         return Collections.singletonList(receiver);
     }
 
-    private ColumnSpecification makeCollectionReceiver(ColumnSpecification receiver, boolean forKey)
+    private static ColumnSpecification makeCollectionReceiver(ColumnSpecification receiver, boolean forKey)
     {
         return ((CollectionType<?>) receiver.type).makeCollectionReceiver(receiver, forKey);
     }
@@ -275,19 +270,6 @@ public final class SingleColumnRelation extends Relation
     private boolean isMapEntryEquality()
     {
         return mapKey != null && isEQ();
-    }
-
-    /**
-     * Checks if the specified column is the last column of the partition key.
-     *
-     * @param cfm the column family meta data
-     * @param columnDef the column to check
-     * @return <code>true</code> if the specified column is the last column of the partition key, <code>false</code>
-     * otherwise.
-     */
-    private static boolean isLastPartitionKey(CFMetaData cfm, ColumnDefinition columnDef)
-    {
-        return columnDef.position() == cfm.partitionKeyColumns().size() - 1;
     }
 
     private boolean canHaveOnlyOneValue()

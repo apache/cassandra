@@ -33,6 +33,7 @@
  * Remove cassandra-cli (CASSANDRA-7920)
  * Accept dollar quoted strings in CQL (CASSANDRA-7769)
  * Make assassinate a first class command (CASSANDRA-7935)
+ * Support IN clause on any partition key column (CASSANDRA-7855)
  * Support IN clause on any clustering column (CASSANDRA-4762)
  * Improve compaction logging (CASSANDRA-7818)
  * Remove YamlFileNetworkTopologySnitch (CASSANDRA-7917)
