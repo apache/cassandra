@@ -377,7 +377,7 @@
           <dependency groupId="com.clearspring.analytics" artifactId="stream" version="2.5.2" />
           <dependency groupId="com.datastax.cassandra" artifactId="cassandra-driver-core" version="2.1.2" />
           <dependency groupId="org.javassist" artifactId="javassist" version="3.18.2-GA" />
-          <dependency groupId="org.caffinitas.ohc" artifactId="ohc-core" version="0.3.1" />
+          <dependency groupId="org.caffinitas.ohc" artifactId="ohc-core" version="0.3.2" />
           <dependency groupId="net.sf.supercsv" artifactId="super-csv" version="2.1.0" />
 	      <dependency groupId="net.ju-n.compile-command-annotations" artifactId="compile-command-annotations" version="1.2.0" />
           <dependency groupId="org.fusesource" artifactId="sigar" version="1.6.4">
