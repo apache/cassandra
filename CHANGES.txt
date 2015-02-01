@@ -5,6 +5,7 @@
    (CASSANDRA-8619)
  * Round up time deltas lower than 1ms in BulkLoader (CASSANDRA-8645)
  * Add batch remove iterator to ABSC (CASSANDRA-8414, 8666)
+ * Fix isClientMode check in Keyspace (CASSANDRA-8687)
 
 
 2.0.12:
