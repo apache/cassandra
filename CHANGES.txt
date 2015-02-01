@@ -90,7 +90,7 @@ Merged from 2.0:
    (CASSANDRA-8619)
  * Round up time deltas lower than 1ms in BulkLoader (CASSANDRA-8645)
  * Add batch remove iterator to ABSC (CASSANDRA-8414, 8666)
- * Round up time deltas lower than 1ms in BulkLoader (CASSANDRA-8645)
+ * Fix isClientMode check in Keyspace (CASSANDRA-8687)
  * Use more efficient slice size for querying internal secondary
    index tables (CASSANDRA-8550)
  * Fix potentially returning deleted rows with range tombstone (CASSANDRA-8558)

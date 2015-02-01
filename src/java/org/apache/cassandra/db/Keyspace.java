@@ -35,10 +35,7 @@ import com.google.common.collect.Iterables;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.config.KSMetaData;
-import org.apache.cassandra.config.Schema;
+import org.apache.cassandra.config.*;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.commitlog.ReplayPosition;
 import org.apache.cassandra.db.filter.QueryFilter;
@@ -68,7 +65,7 @@ public class Keyspace
     // proper directories here as well as in CassandraDaemon.
     static
     {
-        if (!StorageService.instance.isClientMode())
+        if (!(Config.isClientMode() || StorageService.instance.isClientMode()))
             DatabaseDescriptor.createAllDirectories();
     }
 
