@@ -121,6 +121,9 @@ public class ActiveRepairService
         if (endpoints.isEmpty())
             return null;
 
+        if (cfnames.length == 0)
+            return null;
+
         final RepairSession session = new RepairSession(parentRepairSession, UUIDGen.getTimeUUID(), range, keyspace, parallelismDegree, endpoints, repairedAt, cfnames);
 
         sessions.put(session.getId(), session);

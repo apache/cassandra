@@ -140,6 +140,7 @@
  * Log failed host when preparing incremental repair (CASSANDRA-8228)
  * Force config client mode in CQLSSTableWriter (CASSANDRA-8281)
  * Fix sstableupgrade throws exception (CASSANDRA-8688)
+ * Fix hang when repairing empty keyspace (CASSANDRA-8694)
 Merged from 2.0:
  * Prevent non-zero default_time_to_live on tables with counters
    (CASSANDRA-8678)
