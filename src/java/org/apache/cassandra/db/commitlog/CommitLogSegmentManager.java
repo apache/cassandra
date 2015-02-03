@@ -93,10 +93,15 @@ public class CommitLogSegmentManager
      */
     private volatile boolean createReserveSegments = false;
 
-    private final Thread managerThread;
+    private Thread managerThread;
     private volatile boolean run = true;
 
     public CommitLogSegmentManager()
+    {
+        start();
+    }
+
+    private void start()
     {
         // The run loop for the manager thread
         Runnable runnable = new WrappedRunnable()
@@ -168,6 +173,8 @@ public class CommitLogSegmentManager
                 }
             }
         };
+
+        run = true;
 
         managerThread = new Thread(runnable, "COMMIT-LOG-ALLOCATOR");
         managerThread.start();
@@ -453,9 +460,10 @@ public class CommitLogSegmentManager
 
     private long unusedCapacity()
     {
+        long total = DatabaseDescriptor.getTotalCommitlogSpaceInMB() * 1024 * 1024;
         long currentSize = size.get();
-        logger.debug("Total active commitlog segment space used is {}", currentSize);
-        return DatabaseDescriptor.getTotalCommitlogSpaceInMB() * 1024 * 1024 - currentSize;
+        logger.debug("Total active commitlog segment space used is {} out of {}", currentSize, total);
+        return total - currentSize;
     }
 
     /**
@@ -518,6 +526,16 @@ public class CommitLogSegmentManager
         while (!segmentManagementTasks.isEmpty())
             Thread.yield();
 
+        shutdown();
+        try
+        {
+            awaitTermination();
+        }
+        catch (InterruptedException e)
+        {
+            throw new RuntimeException(e);
+        }
+
         for (CommitLogSegment segment : activeSegments)
             segment.close();
         activeSegments.clear();
@@ -527,6 +545,14 @@ public class CommitLogSegmentManager
         availableSegments.clear();
 
         allocatingFrom = null;
+
+        size.set(0L);
+
+        logger.debug("Done with closing and clearing existing commit log segments.");
+
+        start();
+
+        wakeManager();
     }
 
     /**
