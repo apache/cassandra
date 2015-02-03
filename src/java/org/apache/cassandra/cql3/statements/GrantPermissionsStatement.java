@@ -19,7 +19,7 @@ package org.apache.cassandra.cql3.statements;
 
 import java.util.Set;
 
-import org.apache.cassandra.auth.DataResource;
+import org.apache.cassandra.auth.IResource;
 import org.apache.cassandra.auth.Permission;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.RoleName;
@@ -28,9 +28,9 @@ import org.apache.cassandra.exceptions.RequestValidationException;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.transport.messages.ResultMessage;
 
-public class GrantStatement extends PermissionAlteringStatement
+public class GrantPermissionsStatement extends PermissionsManagementStatement
 {
-    public GrantStatement(Set<Permission> permissions, DataResource resource, RoleName grantee)
+    public GrantPermissionsStatement(Set<Permission> permissions, IResource resource, RoleName grantee)
     {
         super(permissions, resource, grantee);
     }

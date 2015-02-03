@@ -167,37 +167,37 @@ public class CassandraRoleManager implements IRoleManager
         return alterableOptions;
     }
 
-    public void createRole(AuthenticatedUser performer, String role, Map<Option, Object> options)
+    public void createRole(AuthenticatedUser performer, RoleResource role, Map<Option, Object> options)
     throws RequestValidationException, RequestExecutionException
     {
         String insertCql = options.containsKey(Option.PASSWORD)
                             ? String.format("INSERT INTO %s.%s (role, is_superuser, can_login, salted_hash) VALUES ('%s', %s, %s, '%s')",
                                             AuthKeyspace.NAME,
                                             AuthKeyspace.ROLES,
-                                            escape(role),
+                                            escape(role.getRoleName()),
                                             options.get(Option.SUPERUSER),
                                             options.get(Option.LOGIN),
                                             escape(hashpw(options.get(Option.PASSWORD).toString())))
                             : String.format("INSERT INTO %s.%s (role, is_superuser, can_login) VALUES ('%s', %s, %s)",
                                             AuthKeyspace.NAME,
                                             AuthKeyspace.ROLES,
-                                            escape(role),
+                                            escape(role.getRoleName()),
                                             options.get(Option.SUPERUSER),
                                             options.get(Option.LOGIN));
-        process(insertCql, consistencyForRole(role));
+        process(insertCql, consistencyForRole(role.getRoleName()));
     }
 
-    public void dropRole(AuthenticatedUser performer, String role) throws RequestValidationException, RequestExecutionException
+    public void dropRole(AuthenticatedUser performer, RoleResource role) throws RequestValidationException, RequestExecutionException
     {
         process(String.format("DELETE FROM %s.%s WHERE role = '%s'",
                               AuthKeyspace.NAME,
                               AuthKeyspace.ROLES,
-                              escape(role)),
-                consistencyForRole(role));
-        removeAllMembers(role);
+                              escape(role.getRoleName())),
+                consistencyForRole(role.getRoleName()));
+        removeAllMembers(role.getRoleName());
     }
 
-    public void alterRole(AuthenticatedUser performer, String role, Map<Option, Object> options)
+    public void alterRole(AuthenticatedUser performer, RoleResource role, Map<Option, Object> options)
     throws RequestValidationException, RequestExecutionException
     {
         // Unlike most of the other data access methods here, this does not use a
@@ -211,84 +211,90 @@ public class CassandraRoleManager implements IRoleManager
                                                  AuthKeyspace.NAME,
                                                  AuthKeyspace.ROLES,
                                                  assignments,
-                                                 escape(role)),
-                                   consistencyForRole(role));
+                                                 escape(role.getRoleName())),
+                                   consistencyForRole(role.getRoleName()));
         }
     }
 
-    public void grantRole(AuthenticatedUser performer, String role, String grantee)
+    public void grantRole(AuthenticatedUser performer, RoleResource role, RoleResource grantee)
     throws RequestValidationException, RequestExecutionException
     {
         if (getRoles(grantee, true).contains(role))
-            throw new InvalidRequestException(String.format("%s is a member of %s", grantee, role));
+            throw new InvalidRequestException(String.format("%s is a member of %s",
+                                                            grantee.getRoleName(),
+                                                            role.getRoleName()));
         if (getRoles(role, true).contains(grantee))
-            throw new InvalidRequestException(String.format("%s is a member of %s", role, grantee));
+            throw new InvalidRequestException(String.format("%s is a member of %s",
+                                                            role.getRoleName(),
+                                                            grantee.getRoleName()));
 
-        modifyRoleMembership(grantee, role, "+");
+        modifyRoleMembership(grantee.getRoleName(), role.getRoleName(), "+");
         process(String.format("INSERT INTO %s.%s (role, member) values ('%s', '%s')",
                               AuthKeyspace.NAME,
                               AuthKeyspace.ROLE_MEMBERS,
-                              escape(role),
-                              escape(grantee)),
-                consistencyForRole(role));
+                              escape(role.getRoleName()),
+                              escape(grantee.getRoleName())),
+                consistencyForRole(role.getRoleName()));
     }
 
-    public void revokeRole(AuthenticatedUser performer, String role, String revokee)
+    public void revokeRole(AuthenticatedUser performer, RoleResource role, RoleResource revokee)
     throws RequestValidationException, RequestExecutionException
     {
         if (!getRoles(revokee, false).contains(role))
-            throw new InvalidRequestException(String.format("%s is not a member of %s", revokee, role));
+            throw new InvalidRequestException(String.format("%s is not a member of %s",
+                                                            revokee.getRoleName(),
+                                                            role.getRoleName()));
 
-        modifyRoleMembership(revokee, role, "-");
+        modifyRoleMembership(revokee.getRoleName(), role.getRoleName(), "-");
         process(String.format("DELETE FROM %s.%s WHERE role = '%s' and member = '%s'",
                               AuthKeyspace.NAME,
                               AuthKeyspace.ROLE_MEMBERS,
-                              escape(role),
-                              escape(revokee)),
-                consistencyForRole(role));
+                              escape(role.getRoleName()),
+                              escape(revokee.getRoleName())),
+                consistencyForRole(role.getRoleName()));
     }
 
-    public Set<String> getRoles(String grantee, boolean includeInherited) throws RequestValidationException, RequestExecutionException
+    public Set<RoleResource> getRoles(RoleResource grantee, boolean includeInherited) throws RequestValidationException, RequestExecutionException
     {
-        Set<String> roles = new HashSet<>();
-        Role role = getRole(grantee);
+        Set<RoleResource> roles = new HashSet<>();
+        Role role = getRole(grantee.getRoleName());
         if (!role.equals(NULL_ROLE))
         {
-            roles.add(role.name);
+            roles.add(RoleResource.role(role.name));
             collectRoles(role, roles, includeInherited);
         }
         return roles;
     }
 
-    public Set<String> getAllRoles() throws RequestValidationException, RequestExecutionException
+    public Set<RoleResource> getAllRoles() throws RequestValidationException, RequestExecutionException
     {
         UntypedResultSet rows = QueryProcessor.process(String.format("SELECT role from %s.%s",
                                                                      AuthKeyspace.NAME,
                                                                      AuthKeyspace.ROLES),
                                                        ConsistencyLevel.QUORUM);
-        Iterable<String> roles = Iterables.transform(rows, new Function<UntypedResultSet.Row, String>()
+        Iterable<RoleResource> roles = Iterables.transform(rows, new Function<UntypedResultSet.Row, RoleResource>()
         {
-            public String apply(UntypedResultSet.Row row)
+            public RoleResource apply(UntypedResultSet.Row row)
             {
-                return row.getString("role");
+                return RoleResource.role(row.getString("role"));
             }
         });
-        return ImmutableSet.<String>builder().addAll(roles).build();
+        return ImmutableSet.<RoleResource>builder().addAll(roles).build();
     }
 
-    public boolean isSuper(String role)
+    public boolean isSuper(RoleResource role)
     {
-        return getRole(role).isSuper;
+        return getRole(role.getRoleName()).isSuper;
     }
 
-    public boolean canLogin(String role)
+    public boolean canLogin(RoleResource role)
     {
-        return getRole(role).canLogin;
+        return getRole(role.getRoleName()).canLogin;
     }
 
-    public boolean isExistingRole(String role)
+    public boolean isExistingRole(RoleResource role)
     {
-        return getRole(role) != NULL_ROLE;
+        return getRole(role.getRoleName()) != NULL_ROLE;
     }
 
     public Set<? extends IResource> protectedResources()
@@ -364,7 +370,7 @@ public class CassandraRoleManager implements IRoleManager
                     Map<Option, Object> options = new HashMap<>();
                     options.put(Option.SUPERUSER, row.getBoolean("super"));
                     options.put(Option.LOGIN, true);
-                    createRole(null, row.getString("name"), options);
+                    createRole(null, RoleResource.role(row.getString("name")), options);
                 }
                 logger.info("Completed conversion of legacy users");
             }
@@ -411,14 +417,14 @@ public class CassandraRoleManager implements IRoleManager
      * Retrieve all roles granted to the given role. includeInherited specifies
      * whether to include only those roles granted directly or all inherited roles.
      */
-    private void collectRoles(Role role, Set<String> collected, boolean includeInherited) throws RequestValidationException, RequestExecutionException
+    private void collectRoles(Role role, Set<RoleResource> collected, boolean includeInherited) throws RequestValidationException, RequestExecutionException
     {
         for (String memberOf : role.memberOf)
         {
             Role granted = getRole(memberOf);
             if (role.equals(NULL_ROLE))
                 continue;
-            collected.add(granted.name);
+            collected.add(RoleResource.role(granted.name));
             if (includeInherited)
                 collectRoles(granted, collected, true);
         }

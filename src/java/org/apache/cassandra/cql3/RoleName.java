@@ -28,6 +28,11 @@ public class RoleName
         this.name = keepCase ? name : name.toLowerCase(Locale.US);
     }
 
+    public boolean hasName()
+    {
+        return name != null;
+    }
+
     public String getName()
     {
         return name;

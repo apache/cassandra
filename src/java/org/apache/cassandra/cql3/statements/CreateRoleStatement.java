@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.cql3.statements;
 
+import org.apache.cassandra.auth.*;
 import org.apache.cassandra.auth.IRoleManager.Option;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.RoleName;
@@ -25,37 +26,41 @@ import org.apache.cassandra.exceptions.*;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.transport.messages.ResultMessage;
 
-public class CreateRoleStatement extends AuthorizationStatement
+public class CreateRoleStatement extends AuthenticationStatement
 {
-    private final String role;
+    private final RoleResource role;
     private final RoleOptions opts;
     private final boolean ifNotExists;
 
     public CreateRoleStatement(RoleName name, RoleOptions options, boolean ifNotExists)
     {
-        this.role = name.getName();
+        this.role = RoleResource.role(name.getName());
         this.opts = options;
         this.ifNotExists = ifNotExists;
     }
 
-    public void checkAccess(ClientState state) throws UnauthorizedException, InvalidRequestException
+    public void checkAccess(ClientState state) throws UnauthorizedException
     {
-        if (!state.getUser().isSuper())
-            throw new UnauthorizedException("Only superusers are allowed to perform CREATE [ROLE|USER] queries");
+        super.checkPermission(state, Permission.CREATE, RoleResource.root());
+        if (opts.getOptions().containsKey(Option.SUPERUSER))
+        {
+            if ((Boolean)opts.getOptions().get(Option.SUPERUSER) && !state.getUser().isSuper())
+                throw new UnauthorizedException("Only superusers can create a role with superuser status");
+        }
     }
 
     public void validate(ClientState state) throws RequestValidationException
     {
         opts.validate();
 
-        if (role.isEmpty())
+        if (role.getRoleName().isEmpty())
             throw new InvalidRequestException("Role name can't be an empty string");
 
         // validate login here before checkAccess to avoid leaking role existence to anonymous users.
         state.ensureNotAnonymous();
 
         if (!ifNotExists && DatabaseDescriptor.getRoleManager().isExistingRole(role))
-            throw new InvalidRequestException(String.format("%s already exists", role));
+            throw new InvalidRequestException(String.format("%s already exists", role.getRoleName()));
 
         for (Option option : opts.getOptions().keySet())
         {

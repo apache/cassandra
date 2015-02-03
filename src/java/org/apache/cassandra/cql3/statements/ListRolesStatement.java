@@ -24,8 +24,7 @@ import java.util.Set;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 
-import org.apache.cassandra.auth.AuthKeyspace;
-import org.apache.cassandra.auth.IRoleManager;
+import org.apache.cassandra.auth.*;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.db.marshal.BooleanType;
@@ -45,7 +44,7 @@ public class ListRolesStatement extends AuthorizationStatement
                         new ColumnSpecification(KS, CF, new ColumnIdentifier("super", true), BooleanType.instance),
                         new ColumnSpecification(KS, CF, new ColumnIdentifier("login", true), BooleanType.instance));
 
-    private final String grantee;
+    private final RoleResource grantee;
     private final boolean recursive;
 
     public ListRolesStatement()
@@ -55,7 +54,7 @@ public class ListRolesStatement extends AuthorizationStatement
 
     public ListRolesStatement(RoleName grantee, boolean recursive)
     {
-        this.grantee = grantee.getName();
+        this.grantee = grantee.hasName() ? RoleResource.role(grantee.getName()) : null;
         this.recursive = recursive;
     }
 
@@ -73,7 +72,11 @@ public class ListRolesStatement extends AuthorizationStatement
 
     public ResultMessage execute(ClientState state) throws RequestValidationException, RequestExecutionException
     {
-        if (state.getUser().isSuper())
+        // If the executing user has DESCRIBE permission on the root roles resource, let them list any and all roles
+        boolean hasRootLevelSelect = DatabaseDescriptor.getAuthorizer()
+                                                       .authorize(state.getUser(), RoleResource.root())
+                                                       .contains(Permission.DESCRIBE);
+        if (hasRootLevelSelect)
         {
             if (grantee == null)
                 return resultMessage(DatabaseDescriptor.getRoleManager().getAllRoles());
@@ -82,34 +85,35 @@ public class ListRolesStatement extends AuthorizationStatement
         }
         else
         {
+            RoleResource currentUser = RoleResource.role(state.getUser().getName());
             if (grantee == null)
-                return resultMessage(DatabaseDescriptor.getRoleManager().getRoles(state.getUser().getName(), recursive));
-            if (DatabaseDescriptor.getRoleManager().getRoles(state.getUser().getName(), true).contains(grantee))
+                return resultMessage(DatabaseDescriptor.getRoleManager().getRoles(currentUser, recursive));
+            if (DatabaseDescriptor.getRoleManager().getRoles(currentUser, true).contains(grantee))
                 return resultMessage(DatabaseDescriptor.getRoleManager().getRoles(grantee, recursive));
             else
-                throw new UnauthorizedException(String.format("You are not authorized to view roles granted to %s ", grantee));
+                throw new UnauthorizedException(String.format("You are not authorized to view roles granted to %s ", grantee.getRoleName()));
         }
     }
 
-    private ResultMessage resultMessage(Set<String> roles)
+    private ResultMessage resultMessage(Set<RoleResource> roles)
     {
         if (roles.isEmpty())
             return new ResultMessage.Void();
 
-        List<String> sorted = Lists.newArrayList(roles);
+        List<RoleResource> sorted = Lists.newArrayList(roles);
         Collections.sort(sorted);
         return formatResults(sorted);
     }
 
     // overridden in ListUsersStatement to include legacy metadata
-    protected ResultMessage formatResults(List<String> sortedRoles)
+    protected ResultMessage formatResults(List<RoleResource> sortedRoles)
     {
         ResultSet result = new ResultSet(metadata);
 
         IRoleManager roleManager = DatabaseDescriptor.getRoleManager();
-        for (String role : sortedRoles)
+        for (RoleResource role : sortedRoles)
         {
-            result.addColumnValue(UTF8Type.instance.decompose(role));
+            result.addColumnValue(UTF8Type.instance.decompose(role.getRoleName()));
             result.addColumnValue(BooleanType.instance.decompose(roleManager.isSuper(role)));
             result.addColumnValue(BooleanType.instance.decompose(roleManager.canLogin(role)));
         }

@@ -29,27 +29,27 @@ public class AllowAllAuthorizer implements IAuthorizer
         return Permission.ALL;
     }
 
-    public void grant(AuthenticatedUser performer, Set<Permission> permissions, IResource resource, String to)
+    public void grant(AuthenticatedUser performer, Set<Permission> permissions, IResource resource, RoleResource to)
     throws InvalidRequestException
     {
         throw new InvalidRequestException("GRANT operation is not supported by AllowAllAuthorizer");
     }
 
-    public void revoke(AuthenticatedUser performer, Set<Permission> permissions, IResource resource, String from)
+    public void revoke(AuthenticatedUser performer, Set<Permission> permissions, IResource resource, RoleResource from)
     throws InvalidRequestException
     {
         throw new InvalidRequestException("REVOKE operation is not supported by AllowAllAuthorizer");
     }
 
-    public void revokeAll(String droppedUser)
+    public void revokeAllFrom(RoleResource droppedRole)
     {
     }
 
-    public void revokeAll(IResource droppedResource)
+    public void revokeAllOn(IResource droppedResource)
     {
     }
 
-    public Set<PermissionDetails> list(AuthenticatedUser performer, Set<Permission> permissions, IResource resource, String of)
+    public Set<PermissionDetails> list(AuthenticatedUser performer, Set<Permission> permissions, IResource resource, RoleResource of)
     throws InvalidRequestException
     {
         throw new InvalidRequestException("LIST PERMISSIONS operation is not supported by AllowAllAuthorizer");

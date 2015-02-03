@@ -23,6 +23,7 @@ import com.google.common.collect.ImmutableList;
 
 import org.apache.cassandra.auth.AuthKeyspace;
 import org.apache.cassandra.auth.IRoleManager;
+import org.apache.cassandra.auth.RoleResource;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.ColumnSpecification;
@@ -42,16 +43,16 @@ public class ListUsersStatement extends ListRolesStatement
                          new ColumnSpecification(KS, CF, new ColumnIdentifier("super", true), BooleanType.instance));
 
     @Override
-    protected ResultMessage formatResults(List<String> sortedRoles)
+    protected ResultMessage formatResults(List<RoleResource> sortedRoles)
     {
         ResultSet result = new ResultSet(metadata);
 
         IRoleManager roleManager = DatabaseDescriptor.getRoleManager();
-        for (String role : sortedRoles)
+        for (RoleResource role : sortedRoles)
         {
             if (!roleManager.canLogin(role))
                 continue;
-            result.addColumnValue(UTF8Type.instance.decompose(role));
+            result.addColumnValue(UTF8Type.instance.decompose(role.getRoleName()));
             result.addColumnValue(BooleanType.instance.decompose(roleManager.isSuper(role)));
         }
         return new ResultMessage.Rows(result);

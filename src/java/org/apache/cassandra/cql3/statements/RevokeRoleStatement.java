@@ -36,5 +36,4 @@ public class RevokeRoleStatement extends RoleManagementStatement
         DatabaseDescriptor.getRoleManager().revokeRole(state.getUser(), role, grantee);
         return null;
     }
-
 }

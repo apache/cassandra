@@ -17,7 +17,10 @@
  */
 package org.apache.cassandra.auth;
 
+import java.util.Set;
+
 import com.google.common.base.Objects;
+import com.google.common.collect.Sets;
 import org.apache.commons.lang3.StringUtils;
 
 import org.apache.cassandra.config.Schema;
@@ -37,6 +40,19 @@ public class DataResource implements IResource
         ROOT, KEYSPACE, TABLE
     }
 
+    // permissions which may be granted on tables
+    private static final Set<Permission> TABLE_LEVEL_PERMISSIONS = Sets.immutableEnumSet(Permission.ALTER,
+                                                                                         Permission.DROP,
+                                                                                         Permission.SELECT,
+                                                                                         Permission.MODIFY,
+                                                                                         Permission.AUTHORIZE);
+    // permissions which may be granted on one or all keyspaces
+    private static final Set<Permission> KEYSPACE_LEVEL_PERMISSIONS = Sets.immutableEnumSet(Permission.CREATE,
+                                                                                            Permission.ALTER,
+                                                                                            Permission.DROP,
+                                                                                            Permission.SELECT,
+                                                                                            Permission.MODIFY,
+                                                                                            Permission.AUTHORIZE);
     private static final String ROOT_NAME = "data";
     private static final DataResource ROOT_RESOURCE = new DataResource();
 
@@ -175,6 +191,7 @@ public class DataResource implements IResource
     }
 
     /**
+     @Override
      * @return column family of the resource. Throws IllegalStateException if it's not a table-level resource.
      */
     public String getTable()
@@ -187,7 +204,6 @@ public class DataResource implements IResource
     /**
      * @return Whether or not the resource has a parent in the hierarchy.
      */
-    @Override
     public boolean hasParent()
     {
         return level != Level.ROOT;
@@ -196,7 +212,6 @@ public class DataResource implements IResource
     /**
      * @return Whether or not the resource exists in Cassandra.
      */
-    @Override
     public boolean exists()
     {
         switch (level)
@@ -207,6 +222,19 @@ public class DataResource implements IResource
                 return Schema.instance.getKeyspaces().contains(keyspace);
             case TABLE:
                 return Schema.instance.getCFMetaData(keyspace, table) != null;
+        }
+        throw new AssertionError();
+    }
+
+    public Set<Permission> applicablePermissions()
+    {
+        switch (level)
+        {
+            case ROOT:
+            case KEYSPACE:
+                return KEYSPACE_LEVEL_PERMISSIONS;
+            case TABLE:
+                return TABLE_LEVEL_PERMISSIONS;
         }
         throw new AssertionError();
     }

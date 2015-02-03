@@ -49,7 +49,7 @@ public class AuthenticatedUser
     public static final AuthenticatedUser ANONYMOUS_USER = new AuthenticatedUser(ANONYMOUS_USERNAME);
 
     // User-level roles cache
-    private static final LoadingCache<String, Set<String>> rolesCache = initRolesCache();
+    private static final LoadingCache<RoleResource, Set<RoleResource>> rolesCache = initRolesCache();
 
     // User-level permissions cache.
     private static final PermissionsCache permissionsCache = new PermissionsCache(DatabaseDescriptor.getPermissionsValidity(),
@@ -58,15 +58,23 @@ public class AuthenticatedUser
                                                                                   DatabaseDescriptor.getAuthorizer());
 
     private final String name;
+    // primary Role of the logged in user
+    private final RoleResource role;
 
     public AuthenticatedUser(String name)
     {
         this.name = name;
+        this.role = RoleResource.role(name);
     }
 
     public String getName()
     {
         return name;
+    }
+
+    public RoleResource getPrimaryRole()
+    {
+        return role;
     }
 
     /**
@@ -83,7 +91,7 @@ public class AuthenticatedUser
     private boolean hasSuperuserRole()
     {
         IRoleManager roleManager = DatabaseDescriptor.getRoleManager();
-        for (String role : getRoles())
+        for (RoleResource role : getRoles())
             if (roleManager.isSuper(role))
                 return true;
         return false;
@@ -102,14 +110,14 @@ public class AuthenticatedUser
      *
      * @return a list of roles that have been granted to the user
      */
-    public Set<String> getRoles()
+    public Set<RoleResource> getRoles()
     {
         if (rolesCache == null)
-            return loadRoles(name);
+            return loadRoles(role);
 
         try
         {
-            return rolesCache.get(name);
+            return rolesCache.get(role);
         }
         catch (Exception e)
         {
@@ -122,11 +130,11 @@ public class AuthenticatedUser
         return permissionsCache.getPermissions(user, resource);
     }
 
-    private static Set<String> loadRoles(String name)
+    private static Set<RoleResource> loadRoles(RoleResource primary)
     {
         try
         {
-            return DatabaseDescriptor.getRoleManager().getRoles(name, true);
+            return DatabaseDescriptor.getRoleManager().getRoles(primary, true);
         }
         catch (RequestValidationException e)
         {
@@ -138,7 +146,7 @@ public class AuthenticatedUser
         }
     }
     
-    private static LoadingCache<String, Set<String>> initRolesCache()
+    private static LoadingCache<RoleResource, Set<RoleResource>> initRolesCache()
     {
         if (DatabaseDescriptor.getAuthenticator() instanceof AllowAllAuthenticator)
             return null;
@@ -149,20 +157,20 @@ public class AuthenticatedUser
 
         return CacheBuilder.newBuilder()
                            .refreshAfterWrite(validityPeriod, TimeUnit.MILLISECONDS)
-                           .build(new CacheLoader<String, Set<String>>()
+                           .build(new CacheLoader<RoleResource, Set<RoleResource>>()
                            {
-                               public Set<String> load(String name)
+                               public Set<RoleResource> load(RoleResource primary)
                                {
-                                   return loadRoles(name);
+                                   return loadRoles(primary);
                                }
 
-                               public ListenableFuture<Set<String>> reload(final String name, Set<String> oldValue)
+                               public ListenableFuture<Set<RoleResource>> reload(final RoleResource primary, Set<RoleResource> oldValue)
                                {
-                                   ListenableFutureTask<Set<String>> task = ListenableFutureTask.create(new Callable<Set<String>>()
+                                   ListenableFutureTask<Set<RoleResource>> task = ListenableFutureTask.create(new Callable<Set<RoleResource>>()
                                    {
-                                       public Set<String> call()
+                                       public Set<RoleResource> call()
                                        {
-                                           return loadRoles(name);
+                                           return loadRoles(primary);
                                        }
                                    });
                                    ScheduledExecutors.optionalTasks.execute(task);

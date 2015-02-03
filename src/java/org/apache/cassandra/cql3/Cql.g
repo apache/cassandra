@@ -37,10 +37,7 @@ options {
     import java.util.Map;
     import java.util.Set;
 
-    import org.apache.cassandra.auth.Permission;
-    import org.apache.cassandra.auth.DataResource;
-    import org.apache.cassandra.auth.IResource;
-    import org.apache.cassandra.auth.IRoleManager;
+    import org.apache.cassandra.auth.*;
     import org.apache.cassandra.cql3.*;
     import org.apache.cassandra.cql3.statements.*;
     import org.apache.cassandra.cql3.selection.*;
@@ -165,6 +162,17 @@ options {
         }
         operations.add(Pair.create(key, update));
     }
+
+    public Set<Permission> filterPermissions(Set<Permission> permissions, IResource resource)
+    {
+        Set<Permission> filtered = new HashSet<>(permissions);
+        filtered.retainAll(resource.applicablePermissions());
+        if (filtered.isEmpty())
+            addRecognitionError("Resource type " + resource.getClass().getSimpleName() +
+                                    " does not support any of the requested permissions");
+
+        return filtered;
+    }
 }
 
 @lexer::header {
@@ -232,8 +240,8 @@ cqlStatement returns [ParsedStatement stmt]
     | st13=dropIndexStatement          { $stmt = st13; }
     | st14=alterTableStatement         { $stmt = st14; }
     | st15=alterKeyspaceStatement      { $stmt = st15; }
-    | st16=grantStatement              { $stmt = st16; }
-    | st17=revokeStatement             { $stmt = st17; }
+    | st16=grantPermissionsStatement   { $stmt = st16; }
+    | st17=revokePermissionsStatement  { $stmt = st17; }
     | st18=listPermissionsStatement    { $stmt = st18; }
     | st19=createUserStatement         { $stmt = st19; }
     | st20=alterUserStatement          { $stmt = st20; }
@@ -813,27 +821,27 @@ truncateStatement returns [TruncateStatement stmt]
 /**
  * GRANT <permission> ON <resource> TO <rolename>
  */
-grantStatement returns [GrantStatement stmt]
+grantPermissionsStatement returns [GrantPermissionsStatement stmt]
     : K_GRANT
           permissionOrAll
       K_ON
           resource
       K_TO
           grantee=userOrRoleName
-      { $stmt = new GrantStatement($permissionOrAll.perms, (DataResource) $resource.res, grantee); }
+      { $stmt = new GrantPermissionsStatement(filterPermissions($permissionOrAll.perms, $resource.res), $resource.res, grantee); }
     ;
 
 /**
  * REVOKE <permission> ON <resource> FROM <rolename>
  */
-revokeStatement returns [RevokeStatement stmt]
+revokePermissionsStatement returns [RevokePermissionsStatement stmt]
     : K_REVOKE
           permissionOrAll
       K_ON
           resource
       K_FROM
           revokee=userOrRoleName
-      { $stmt = new RevokeStatement($permissionOrAll.perms, (DataResource) $resource.res, revokee); }
+      { $stmt = new RevokePermissionsStatement(filterPermissions($permissionOrAll.perms, $resource.res), $resource.res, revokee); }
     ;
 
 /**
@@ -869,21 +877,22 @@ listPermissionsStatement returns [ListPermissionsStatement stmt]
       ( K_ON resource { resource = $resource.res; } )?
       ( K_OF roleName[grantee] )?
       ( K_NORECURSIVE { recursive = false; } )?
-      { $stmt = new ListPermissionsStatement($permissionOrAll.perms, (DataResource) resource, grantee, recursive); }
+      { $stmt = new ListPermissionsStatement($permissionOrAll.perms, resource, grantee, recursive); }
     ;
 
 permission returns [Permission perm]
-    : p=(K_CREATE | K_ALTER | K_DROP | K_SELECT | K_MODIFY | K_AUTHORIZE)
+    : p=(K_CREATE | K_ALTER | K_DROP | K_SELECT | K_MODIFY | K_AUTHORIZE | K_DESCRIBE)
     { $perm = Permission.valueOf($p.text.toUpperCase()); }
     ;
 
 permissionOrAll returns [Set<Permission> perms]
-    : K_ALL ( K_PERMISSIONS )?       { $perms = Permission.ALL_DATA; }
+    : K_ALL ( K_PERMISSIONS )?       { $perms = Permission.ALL; }
     | p=permission ( K_PERMISSION )? { $perms = EnumSet.of($p.perm); }
     ;
 
 resource returns [IResource res]
-    : r=dataResource { $res = $r.res; }
+    : d=dataResource { $res = $d.res; }
+    | r=roleResource { $res = $r.res; }
     ;
 
 dataResource returns [DataResource res]
@@ -891,6 +900,11 @@ dataResource returns [DataResource res]
     | K_KEYSPACE ks = keyspaceName { $res = DataResource.keyspace($ks.id); }
     | ( K_COLUMNFAMILY )? cf = columnFamilyName
       { $res = DataResource.table($cf.name.getKeyspace(), $cf.name.getColumnFamily()); }
+    ;
+
+roleResource  returns [RoleResource res]
+    : K_ALL K_ROLES { $res = RoleResource.root(); }
+    | K_ROLE role = userOrRoleName { $res = RoleResource.role($role.name.getName()); }
     ;
 
 /**
@@ -1529,6 +1543,7 @@ K_OF:          O F;
 K_REVOKE:      R E V O K E;
 K_MODIFY:      M O D I F Y;
 K_AUTHORIZE:   A U T H O R I Z E;
+K_DESCRIBE:    D E S C R I B E;
 K_NORECURSIVE: N O R E C U R S I V E;
 
 K_USER:        U S E R;

@@ -60,12 +60,12 @@ public interface IRoleManager
      * options are guaranteed to be a subset of supportedOptions().
      *
      * @param performer User issuing the create role statement.
-     * @param role Name of the role being created
+     * @param role Rolei being created
      * @param options Options the role will be created with
      * @throws RequestValidationException
      * @throws RequestExecutionException
      */
-    void createRole(AuthenticatedUser performer, String role, Map<Option, Object> options)
+    void createRole(AuthenticatedUser performer, RoleResource role, Map<Option, Object> options)
     throws RequestValidationException, RequestExecutionException;
 
     /**
@@ -73,11 +73,11 @@ public interface IRoleManager
      * this implies that we want to revoke this role from all other roles that it has been granted to.
      *
      * @param performer User issuing the drop role statement.
-     * @param role The name of the role to be dropped.
+     * @param role Role to be dropped.
      * @throws RequestValidationException
      * @throws RequestExecutionException
      */
-    void dropRole(AuthenticatedUser performer, String role) throws RequestValidationException, RequestExecutionException;
+    void dropRole(AuthenticatedUser performer, RoleResource role) throws RequestValidationException, RequestExecutionException;
 
     /**
      * Called during execution of ALTER ROLE statement.
@@ -86,12 +86,12 @@ public interface IRoleManager
      * Keep the body of the method blank if your implementation doesn't support modification of any options.
      *
      * @param performer User issuing the alter role statement.
-     * @param role Name of the role that will be altered.
+     * @param role Role that will be altered.
      * @param options Options to alter.
      * @throws RequestValidationException
      * @throws RequestExecutionException
      */
-    void alterRole(AuthenticatedUser performer, String role, Map<Option, Object> options)
+    void alterRole(AuthenticatedUser performer, RoleResource role, Map<Option, Object> options)
     throws RequestValidationException, RequestExecutionException;
 
     /**
@@ -100,12 +100,12 @@ public interface IRoleManager
      * permissions of the granted role.
      *
      * @param performer User issuing the grant statement.
-     * @param role The name of the role to be granted to the grantee.
-     * @param grantee The name of the role acting as the grantee.
+     * @param role Role to be granted to the grantee.
+     * @param grantee Role acting as the grantee.
      * @throws RequestValidationException
      * @throws RequestExecutionException
      */
-    void grantRole(AuthenticatedUser performer, String role, String grantee)
+    void grantRole(AuthenticatedUser performer, RoleResource role, RoleResource grantee)
     throws RequestValidationException, RequestExecutionException;
 
     /**
@@ -114,25 +114,25 @@ public interface IRoleManager
      * revoked.
      *
      * @param performer User issuing the revoke statement.
-     * @param role The name of the role to be revoked.
-     * @param revokee The name of the role from which the granted role is to be revoked.
+     * @param role Role to be revoked.
+     * @param revokee Role from which the granted role is to be revoked.
      * @throws RequestValidationException
      * @throws RequestExecutionException
      */
-    void revokeRole(AuthenticatedUser performer, String role, String revokee)
+    void revokeRole(AuthenticatedUser performer, RoleResource role, RoleResource revokee)
     throws RequestValidationException, RequestExecutionException;
 
     /**
      * Called during execution of a LIST ROLES query.
      * Returns a set of roles that have been granted to the grantee using GRANT ROLE.
      *
-     * @param grantee Name of the role whose granted roles will be listed.
+     * @param grantee Role whose granted roles will be listed.
      * @param includeInherited if True will list inherited roles as well as those directly granted to the grantee.
      * @return A list containing the granted roles for the user.
      * @throws RequestValidationException
      * @throws RequestExecutionException
      */
-    Set<String> getRoles(String grantee, boolean includeInherited) throws RequestValidationException, RequestExecutionException;
+    Set<RoleResource> getRoles(RoleResource grantee, boolean includeInherited) throws RequestValidationException, RequestExecutionException;
 
     /**
      * Called during the execution of an unqualified LIST ROLES query.
@@ -142,7 +142,7 @@ public interface IRoleManager
      * @throws RequestValidationException
      * @throws RequestExecutionException
      */
-    Set<String> getAllRoles() throws RequestValidationException, RequestExecutionException;
+    Set<RoleResource> getAllRoles() throws RequestValidationException, RequestExecutionException;
 
     /**
      * Return true if there exists a Role with the given name that also has
@@ -151,11 +151,11 @@ public interface IRoleManager
      * Role, or any other Role it is transitively granted has superuser
      * status.
      *
-     * @param role name of the role
+     * @param role Role whose superuser status to verify
      * @return true if the role exists and has superuser status, either
      * directly or transitively, otherwise false.
      */
-    boolean isSuper(String role);
+    boolean isSuper(RoleResource role);
 
     /**
      * Return true if there exists a Role with the given name which has login
@@ -163,19 +163,19 @@ public interface IRoleManager
      * and so must be directly granted to the named Role with the LOGIN option
      * of CREATE ROLE or ALTER ROLE
      *
-     * @param role name of the Role
+     * @param role Role whose login privileges to verify
      * @return true if the role exists and is permitted to login, otherwise false
      */
-    boolean canLogin(String role);
+    boolean canLogin(RoleResource role);
 
     /**
      * Return true is a Role with the given name exists in the system.
      *
-     * @param role name of the Role.
+     * @param role Role whose existence to verify
      * @return true if the name identifies an extant Role in the system,
      * otherwise false
      */
-    boolean isExistingRole(String role);
+    boolean isExistingRole(RoleResource role);
 
     /**
      * Set of resources that should be made inaccessible to users and only accessible internally.

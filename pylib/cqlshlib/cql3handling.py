@@ -1210,7 +1210,7 @@ syntax_rules += r'''
 '''
 
 syntax_rules += r'''
-<grantStatement> ::= "GRANT" <permissionExpr> "ON" <resource> "TO" <rolename>
+<grantStatement> ::= "GRANT" <permissionExpr> "ON" <resource>  "TO" <rolename>
                    ;
 
 <revokeStatement> ::= "REVOKE" <permissionExpr> "ON" <resource> "FROM" <rolename>
@@ -1226,6 +1226,7 @@ syntax_rules += r'''
                | "DROP"
                | "SELECT"
                | "MODIFY"
+               | "DESCRIBE"
                ;
 
 <permissionExpr> ::= ( <permission> "PERMISSION"? )
@@ -1233,11 +1234,16 @@ syntax_rules += r'''
                    ;
 
 <resource> ::= <dataResource>
+             | <roleResource>
              ;
 
 <dataResource> ::= ( "ALL" "KEYSPACES" )
                  | ( "KEYSPACE" <keyspaceName> )
                  | ( "TABLE"? <columnFamilyName> )
+                 ;
+
+<roleResource> ::= ("ALL" "ROLES")
+                 | ("ROLE" <rolename>)
                  ;
 '''
 

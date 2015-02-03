@@ -26,6 +26,10 @@ New features
      even when auth is handled by an external system has been removed, so
      authentication & authorization can be delegated to such systems in their
      entirety.
+   - In addition to the above, Roles are also first class resources and can be the
+     subject of permissions. Users (roles) can now be granted permissions on other
+     roles, including CREATE, ALTER, DROP & AUTHORIZE, which removesthe need for
+     superuser privileges in order to perform user/role management operations.
    - SSTable file name is changed. Now you don't have Keyspace/CF name
      in file name. Also, secondary index has its own directory under parent's
      directory.

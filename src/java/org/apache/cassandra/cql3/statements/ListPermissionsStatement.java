@@ -47,16 +47,16 @@ public class ListPermissionsStatement extends AuthorizationStatement
     }
 
     protected final Set<Permission> permissions;
-    protected DataResource resource;
+    protected IResource resource;
     protected final boolean recursive;
-    private final String grantee;
+    private final RoleResource grantee;
 
-    public ListPermissionsStatement(Set<Permission> permissions, DataResource resource, RoleName grantee, boolean recursive)
+    public ListPermissionsStatement(Set<Permission> permissions, IResource resource, RoleName grantee, boolean recursive)
     {
         this.permissions = permissions;
         this.resource = resource;
         this.recursive = recursive;
-        this.grantee = grantee.getName();
+        this.grantee = grantee.hasName()? RoleResource.role(grantee.getName()) : null;
     }
 
     public void validate(ClientState state) throws RequestValidationException
