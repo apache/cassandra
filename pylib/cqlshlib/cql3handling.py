@@ -754,7 +754,7 @@ syntax_rules += r'''
                                   ( "AND" [updateopt]=<usingOption> )* )?
                         "SET" <assignment> ( "," <assignment> )*
                         "WHERE" <whereClause>
-                        ( "IF" <conditions> )?
+                        ( "IF" ( "EXISTS" | <conditions> ))?
                     ;
 <assignment> ::= updatecol=<cident>
                     ( "=" update_rhs=( <term> | <cident> )
