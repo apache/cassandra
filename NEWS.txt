@@ -58,6 +58,14 @@ Upgrading
      in the normal order and not anymore in the order in which the column values were
      specified in the IN restriction.
 
+2.1.3
+=====
+
+Upgrading
+---------
+    - Prepending a list to a list collection was erroneously resulting in
+      the prepended list being reversed upon insertion.  If you were depending
+      on this buggy behavior, note that it has been corrected.
 
 2.1.2
 =====
