@@ -328,6 +328,7 @@ Table creation supports the following other @<property>@:
 |@compaction@                 | _map_    | _see below_ | The compaction options to use, see below.|
 |@compression@                | _map_    | _see below_ | Compression options, see below. |
 |@caching@                    | _simple_ | keys_only   | Whether to cache keys ("key cache") and/or rows ("row cache") for this table. Valid values are: @all@, @keys_only@, @rows_only@ and @none@. |
+|@default_time_to_live@       | _simple_ | 0           | The default expiration time ("TTL") in seconds for a table.|
 
 
 h4(#compactionOptions). @compaction@ options
