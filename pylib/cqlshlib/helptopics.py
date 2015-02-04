@@ -562,7 +562,8 @@ class CQL3HelpTopics(CQLHelpTopics):
         UPDATE [<keyspace>.]<columnFamily>
                               [USING [TIMESTAMP <timestamp>]
                                 [AND TTL <timeToLive>]]
-               SET name1 = value1, name2 = value2 WHERE <keycol> = keyval;
+               SET name1 = value1, name2 = value2 WHERE <keycol> = keyval
+               [IF EXISTS];
 
         An UPDATE is used to write one or more columns to a record in a table.
         No results are returned. The record's primary key must be completely

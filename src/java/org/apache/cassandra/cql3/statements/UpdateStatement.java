@@ -198,14 +198,16 @@ public class UpdateStatement extends ModificationStatement
          * @param attrs additional attributes for statement (timestamp, timeToLive)
          * @param updates a map of column operations to perform
          * @param whereClause the where clause
-         */
+         * @param ifExists flag to check if row exists
+         * */
         public ParsedUpdate(CFName name,
                             Attributes.Raw attrs,
                             List<Pair<ColumnIdentifier.Raw, Operation.RawUpdate>> updates,
                             List<Relation> whereClause,
-                            List<Pair<ColumnIdentifier.Raw, ColumnCondition.Raw>> conditions)
+                            List<Pair<ColumnIdentifier.Raw, ColumnCondition.Raw>> conditions,
+                            boolean ifExists)
         {
-            super(name, attrs, conditions, false, false);
+            super(name, attrs, conditions, false, ifExists);
             this.updates = updates;
             this.whereClause = whereClause;
         }
