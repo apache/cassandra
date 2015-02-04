@@ -15,7 +15,6 @@
 # limitations under the License.
 
 import re
-from warnings import warn
 from .cqlhandling import CqlParsingRuleSet, Hint
 from cql.cqltypes import (cql_types, lookup_casstype, CompositeType, UTF8Type,
                           ColumnToCollectionType, CounterColumnType, DateType)
@@ -715,6 +714,7 @@ syntax_rules += r'''
                                   ( "AND" [updateopt]=<usingOption> )* )?
                         "SET" <assignment> ( "," <assignment> )*
                         "WHERE" <whereClause>
+                        ( "IF" "EXISTS" )?
                     ;
 <assignment> ::= updatecol=<cident>
                     ( "=" update_rhs=( <value> | <cident> )
