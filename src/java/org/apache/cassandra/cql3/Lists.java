@@ -385,9 +385,9 @@ public abstract class Lists
 
             List<ByteBuffer> toAdd = ((Lists.Value)value).elements;
             ColumnNameBuilder column = maybeUpdatePrefix(cf.metadata(), prefix).add(columnName.key);
-            for (int i = 0; i < toAdd.size(); i++)
+            for (int i = toAdd.size() - 1; i >= 0; i--)
             {
-                ColumnNameBuilder b = i == toAdd.size() - 1 ? column : column.copy();
+                ColumnNameBuilder b = i == 0 ? column : column.copy();
                 PrecisionTime pt = PrecisionTime.getNext(time);
                 ByteBuffer uuid = ByteBuffer.wrap(UUIDGen.getTimeUUIDBytes(pt.millis, pt.nanos));
                 ByteBuffer cellName = b.add(uuid).build();
