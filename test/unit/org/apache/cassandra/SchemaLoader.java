@@ -429,11 +429,11 @@ public class SchemaLoader
 
     public static void cleanupAndLeaveDirs()
     {
-        CommitLog.instance.resetUnsafe(); // unmap CLS before attempting to delete or Windows complains
+        CommitLog.instance.allocator.stopUnsafe(); // unmap CLS before attempting to delete or Windows complains
         mkdirs();
         cleanup();
         mkdirs();
-        CommitLog.instance.resetUnsafe(); // cleanup screws w/ CommitLog, this brings it back to safe state
+        CommitLog.instance.allocator.startUnsafe(); // cleanup screws w/ CommitLog, this brings it back to safe state
     }
 
     public static void cleanup()

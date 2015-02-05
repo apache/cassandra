@@ -521,6 +521,15 @@ public class CommitLogSegmentManager
      */
     public void resetUnsafe()
     {
+        stopUnsafe();
+        startUnsafe();
+    }
+
+    /**
+     * Stops CL, for testing purposes. DO NOT USE THIS OUTSIDE OF TESTS.
+     */
+    public void stopUnsafe()
+    {
         logger.debug("Closing and clearing existing commit log segments...");
 
         while (!segmentManagementTasks.isEmpty())
@@ -549,7 +558,13 @@ public class CommitLogSegmentManager
         size.set(0L);
 
         logger.debug("Done with closing and clearing existing commit log segments.");
+    }
 
+    /**
+     * Starts CL, for testing purposes. DO NOT USE THIS OUTSIDE OF TESTS.
+     */
+    public void startUnsafe()
+    {
         start();
 
         wakeManager();
