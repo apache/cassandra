@@ -38,8 +38,10 @@ import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.db.compaction.CompactionHistoryTabularData;
 import org.apache.cassandra.db.commitlog.ReplayPosition;
 import org.apache.cassandra.db.compaction.LeveledCompactionStrategy;
+import org.apache.cassandra.db.composites.Composite;
 import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.db.marshal.*;
+import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
@@ -75,6 +77,7 @@ public final class SystemKeyspace
     public static final String COMPACTIONS_IN_PROGRESS = "compactions_in_progress";
     public static final String COMPACTION_HISTORY = "compaction_history";
     public static final String SSTABLE_ACTIVITY = "sstable_activity";
+    public static final String SIZE_ESTIMATES = "size_estimates";
 
     public static final CFMetaData Hints =
         compile(HINTS,
@@ -212,6 +215,18 @@ public final class SystemKeyspace
                 + "rate_15m double,"
                 + "PRIMARY KEY ((keyspace_name, columnfamily_name, generation)))");
 
+    private static final CFMetaData SizeEstimates =
+        compile(SIZE_ESTIMATES,
+                "per-table primary range size estimates",
+                "CREATE TABLE %S ("
+                + "keyspace_name text,"
+                + "table_name text,"
+                + "range_start text,"
+                + "range_end text,"
+                + "mean_partition_size bigint,"
+                + "partitions_count bigint,"
+                + "PRIMARY KEY ((keyspace_name), table_name, range_start, range_end))");
+
     private static CFMetaData compile(String name, String description, String schema)
     {
         return CFMetaData.compile(String.format(schema, name), NAME)
@@ -232,7 +247,8 @@ public final class SystemKeyspace
                                            RangeXfers,
                                            CompactionsInProgress,
                                            CompactionHistory,
-                                           SSTableActivity));
+                                           SSTableActivity,
+                                           SizeEstimates));
         return new KSMetaData(NAME, LocalStrategy.class, Collections.<String, String>emptyMap(), true, tables);
     }
 
@@ -898,5 +914,43 @@ public final class SystemKeyspace
     {
         String cql = "DELETE FROM system.%s WHERE keyspace_name=? AND columnfamily_name=? and generation=?";
         executeInternal(String.format(cql, SSTABLE_ACTIVITY), keyspace, table, generation);
+    }
+
+    /**
+     * Writes the current partition count and size estimates into SIZE_ESTIMATES_CF
+     */
+    public static void updateSizeEstimates(String keyspace, String table, Map<Range<Token>, Pair<Long, Long>> estimates)
+    {
+        long timestamp = FBUtilities.timestampMicros();
+        Mutation mutation = new Mutation(NAME, UTF8Type.instance.decompose(keyspace));
+
+        // delete all previous values with a single range tombstone.
+        mutation.deleteRange(SIZE_ESTIMATES,
+                             SizeEstimates.comparator.make(table).start(),
+                             SizeEstimates.comparator.make(table).end(),
+                             timestamp - 1);
+
+        // add a CQL row for each primary token range.
+        ColumnFamily cells = mutation.addOrGet(SizeEstimates);
+        for (Map.Entry<Range<Token>, Pair<Long, Long>> entry : estimates.entrySet())
+        {
+            Range<Token> range = entry.getKey();
+            Pair<Long, Long> values = entry.getValue();
+            Composite prefix = SizeEstimates.comparator.make(table, range.left.toString(), range.right.toString());
+            CFRowAdder adder = new CFRowAdder(cells, prefix, timestamp);
+            adder.add("partitions_count", values.left)
+                 .add("mean_partition_size", values.right);
+        }
+
+        mutation.apply();
+    }
+
+    /**
+     * Clears size estimates for a table (on table drop)
+     */
+    public static void clearSizeEstimates(String keyspace, String table)
+    {
+        String cql = String.format("DELETE FROM %s.%s WHERE keyspace_name = ? AND table_name = ?", NAME, SIZE_ESTIMATES);
+        executeInternal(cql, keyspace, table);
     }
 }
