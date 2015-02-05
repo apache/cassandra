@@ -1463,7 +1463,8 @@ public class DatabaseDescriptor
 
     public static int getSSTablePreempiveOpenIntervalInMB()
     {
-        return conf.sstable_preemptive_open_interval_in_mb;
+        //return conf.sstable_preemptive_open_interval_in_mb;
+        return -1;
     }
 
     public static boolean getTrickleFsync()
