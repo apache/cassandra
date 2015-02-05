@@ -29,6 +29,7 @@ import org.apache.cassandra.service.MigrationListener;
 import org.apache.cassandra.service.MigrationManager;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.Pair;
+import org.apache.cassandra.utils.concurrent.Refs;
 
 /**
  * A very simplistic/crude partition count/size estimator.
@@ -71,8 +72,13 @@ public class SizeEstimatesRecorder extends MigrationListener implements Runnable
         for (Range<Token> range : localRanges)
         {
             // filter sstables that have partitions in this range.
-            List<SSTableReader> sstables = table.viewFilter(range.toRowBounds()).apply(table.getDataTracker().getView());
-            SSTableReader.acquireReferences(sstables);
+            List<SSTableReader> sstables = null;
+            Refs<SSTableReader> refs = null;
+            while (refs == null)
+            {
+                sstables = table.viewFilter(range.toRowBounds()).apply(table.getDataTracker().getView());
+                refs = Refs.tryRef(sstables);
+            }
 
             long partitionsCount, meanPartitionSize;
             try
@@ -83,7 +89,7 @@ public class SizeEstimatesRecorder extends MigrationListener implements Runnable
             }
             finally
             {
-                SSTableReader.releaseReferences(sstables);
+                refs.release();
             }
 
             estimates.put(range, Pair.create(partitionsCount, meanPartitionSize));
