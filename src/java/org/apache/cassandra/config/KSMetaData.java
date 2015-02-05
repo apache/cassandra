@@ -104,7 +104,8 @@ public final class KSMetaData
                                                 CFMetaData.CompactionLogCf,
                                                 CFMetaData.CompactionHistoryCf,
                                                 CFMetaData.PaxosCf,
-                                                CFMetaData.SSTableActivityCF);
+                                                CFMetaData.SSTableActivityCF,
+                                                CFMetaData.SizeEstimatesCf);
         return new KSMetaData(Keyspace.SYSTEM_KS, LocalStrategy.class, Collections.<String, String>emptyMap(), true, cfDefs);
     }
 

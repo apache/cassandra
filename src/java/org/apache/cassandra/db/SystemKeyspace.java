@@ -84,6 +84,7 @@ public class SystemKeyspace
     public static final String PAXOS_CF = "paxos";
     public static final String SSTABLE_ACTIVITY_CF = "sstable_activity";
     public static final String COMPACTION_HISTORY_CF = "compaction_history";
+    public static final String SIZE_ESTIMATES_CF = "size_estimates";
 
     private static final String LOCAL_KEY = "local";
 
@@ -940,5 +941,46 @@ public class SystemKeyspace
     {
         String cql = "DELETE FROM system.%s WHERE keyspace_name=? AND columnfamily_name=? and generation=?";
         executeInternal(String.format(cql, SSTABLE_ACTIVITY_CF), keyspace, table, generation);
+    }
+
+    /**
+     * Writes the current partition count and size estimates into SIZE_ESTIMATES_CF
+     */
+    public static void updateSizeEstimates(String keyspace, String table, Map<Range<Token>, Pair<Long, Long>> estimates)
+    {
+        long timestamp = FBUtilities.timestampMicros();
+        CFMetaData estimatesTable = CFMetaData.SizeEstimatesCf;
+        Mutation mutation = new Mutation(Keyspace.SYSTEM_KS, UTF8Type.instance.decompose(keyspace));
+
+        // delete all previous values with a single range tombstone.
+        mutation.deleteRange(SIZE_ESTIMATES_CF,
+                             estimatesTable.comparator.make(table).start(),
+                             estimatesTable.comparator.make(table).end(),
+                             timestamp - 1);
+
+        // add a CQL row for each primary token range.
+        ColumnFamily cells = mutation.addOrGet(estimatesTable);
+        for (Map.Entry<Range<Token>, Pair<Long, Long>> entry : estimates.entrySet())
+        {
+            Range<Token> range = entry.getKey();
+            Pair<Long, Long> values = entry.getValue();
+            Composite prefix = estimatesTable.comparator.make(table, range.left.toString(), range.right.toString());
+            CFRowAdder adder = new CFRowAdder(cells, prefix, timestamp);
+            adder.add("partitions_count", values.left)
+                 .add("mean_partition_size", values.right);
+        }
+
+        mutation.apply();
+    }
+
+    /**
+     * Clears size estimates for a table (on table drop)
+     */
+    public static void clearSizeEstimates(String keyspace, String table)
+    {
+        String cql = String.format("DELETE FROM %s.%s WHERE keyspace_name = ? AND table_name = ?",
+                                   Keyspace.SYSTEM_KS,
+                                   SIZE_ESTIMATES_CF);
+        executeInternal(cql, keyspace, table);
     }
 }

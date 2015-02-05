@@ -290,6 +290,16 @@ public final class CFMetaData
                                                                  + "PRIMARY KEY (id)"
                                                                  + ") WITH COMMENT='show all compaction history' AND DEFAULT_TIME_TO_LIVE=604800");
 
+    public static final CFMetaData SizeEstimatesCf = compile("CREATE TABLE " + SystemKeyspace.SIZE_ESTIMATES_CF + " ("
+                                                             + "keyspace_name text,"
+                                                             + "table_name text,"
+                                                             + "range_start text,"
+                                                             + "range_end text,"
+                                                             + "mean_partition_size bigint,"
+                                                             + "partitions_count bigint,"
+                                                             + "PRIMARY KEY ((keyspace_name), table_name, range_start, range_end)"
+                                                             + ") WITH COMMENT='per-table primary range size estimates'");
+
 
     public static class SpeculativeRetry
     {
