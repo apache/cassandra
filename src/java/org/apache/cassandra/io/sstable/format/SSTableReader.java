@@ -1524,7 +1524,7 @@ public abstract class SSTableReader extends SSTable implements RefCounted
 
         final static class GreaterThanOrEqualTo extends Operator
         {
-            public int apply(int comparison) { return comparison >= 0 ? 0 : -comparison; }
+            public int apply(int comparison) { return comparison >= 0 ? 0 : 1; }
         }
 
         final static class GreaterThan extends Operator
