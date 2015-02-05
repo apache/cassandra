@@ -75,7 +75,10 @@ public class SizeEstimatesRecorder extends MigrationListener implements Runnable
             List<SSTableReader> sstables = null;
             Refs<SSTableReader> refs = null;
             while (refs == null)
-                refs = Refs.tryRef(table.viewFilter(range.toRowBounds()).apply(table.getDataTracker().getView()));
+            {
+                sstables = table.viewFilter(range.toRowBounds()).apply(table.getDataTracker().getView());
+                refs = Refs.tryRef(sstables);
+            }
 
             long partitionsCount, meanPartitionSize;
             try
