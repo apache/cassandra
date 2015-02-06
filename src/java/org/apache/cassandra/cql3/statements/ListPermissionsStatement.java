@@ -102,7 +102,14 @@ public class ListPermissionsStatement extends AuthorizationStatement
     private Set<PermissionDetails> list(ClientState state, IResource resource)
     throws RequestValidationException, RequestExecutionException
     {
-        return DatabaseDescriptor.getAuthorizer().list(state.getUser(), permissions, resource, grantee);
+        try
+        {
+            return DatabaseDescriptor.getAuthorizer().list(state.getUser(), permissions, resource, grantee);
+        }
+        catch (UnsupportedOperationException e)
+        {
+            throw new InvalidRequestException(e.getMessage());
+        }
     }
 
     private ResultMessage resultMessage(List<PermissionDetails> details)

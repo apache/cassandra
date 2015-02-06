@@ -30,6 +30,9 @@ New features
      subject of permissions. Users (roles) can now be granted permissions on other
      roles, including CREATE, ALTER, DROP & AUTHORIZE, which removesthe need for
      superuser privileges in order to perform user/role management operations.
+   - Creators of database resources (Keyspaces, Tables, Roles) are now automatically
+     granted all permissions on them (if the IAuthorizer implementation supports
+     this).
    - SSTable file name is changed. Now you don't have Keyspace/CF name
      in file name. Also, secondary index has its own directory under parent's
      directory.

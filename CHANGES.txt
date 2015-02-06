@@ -1,5 +1,5 @@
 3.0
- * Add role based access control (CASSANDRA-7653, 8650)
+ * Add role based access control (CASSANDRA-7653, 8650, 7216)
  * Avoid accessing partitioner through StorageProxy (CASSANDRA-8244, 8268)
  * Upgrade Metrics library and remove depricated metrics (CASSANDRA-5657)
  * Serializing Row cache alternative, fully off heap (CASSANDRA-7438)

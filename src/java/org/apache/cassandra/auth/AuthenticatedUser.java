@@ -27,8 +27,6 @@ import com.google.common.cache.CacheLoader;
 import com.google.common.cache.LoadingCache;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.ListenableFutureTask;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -43,7 +41,8 @@ import org.apache.cassandra.exceptions.RequestValidationException;
  */
 public class AuthenticatedUser
 {
-    private static final Logger logger = LoggerFactory.getLogger(AuthenticatedUser.class);
+    public static final String SYSTEM_USERNAME = "system";
+    public static final AuthenticatedUser SYSTEM_USER = new AuthenticatedUser(SYSTEM_USERNAME);
 
     public static final String ANONYMOUS_USERNAME = "anonymous";
     public static final AuthenticatedUser ANONYMOUS_USER = new AuthenticatedUser(ANONYMOUS_USERNAME);
@@ -103,6 +102,16 @@ public class AuthenticatedUser
     public boolean isAnonymous()
     {
         return this == ANONYMOUS_USER;
+    }
+
+    /**
+     * Some internal operations are performed on behalf of Cassandra itself, in those cases
+     * the system user should be used where an identity is required
+     * see CreateRoleStatement#execute() and overrides of SchemaAlteringStatement#grantPermissionsToCreator()
+     */
+    public boolean isSystem()
+    {
+        return this == SYSTEM_USER;
     }
 
     /**

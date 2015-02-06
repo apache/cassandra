@@ -17,8 +17,10 @@
  */
 package org.apache.cassandra.cql3.statements;
 
-import org.apache.cassandra.auth.*;
+import org.apache.cassandra.auth.AuthenticatedUser;
 import org.apache.cassandra.auth.IRoleManager.Option;
+import org.apache.cassandra.auth.Permission;
+import org.apache.cassandra.auth.RoleResource;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.RoleName;
 import org.apache.cassandra.cql3.RoleOptions;
@@ -76,6 +78,35 @@ public class CreateRoleStatement extends AuthenticationStatement
             return null;
 
         DatabaseDescriptor.getRoleManager().createRole(state.getUser(), role, opts.getOptions());
+        grantPermissionsToCreator(state);
         return null;
+    }
+
+    /**
+     * Grant all applicable permissions on the newly created role to the user performing the request
+     * see also: SchemaAlteringStatement#grantPermissionsToCreator and the overridden implementations
+     * of it in subclasses CreateKeyspaceStatement & CreateTableStatement.
+     * @param state
+     */
+    private void grantPermissionsToCreator(ClientState state)
+    {
+        // The creator of a Role automatically gets ALTER/DROP/AUTHORIZE permissions on it if:
+        // * the user is not anonymous
+        // * the configured IAuthorizer supports granting of permissions (not all do, AllowAllAuthorizer doesn't and
+        //   custom external implementations may not)
+        if (!state.getUser().isAnonymous())
+        {
+            try
+            {
+                DatabaseDescriptor.getAuthorizer().grant(AuthenticatedUser.SYSTEM_USER,
+                                                         role.applicablePermissions(),
+                                                         role,
+                                                         RoleResource.role(state.getUser().getName()));
+            }
+            catch (UnsupportedOperationException e)
+            {
+                // not a problem, grant is an optional method on IAuthorizer
+            }
+        }
     }
 }
