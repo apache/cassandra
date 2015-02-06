@@ -70,6 +70,8 @@ Upgrading
     - Prepending a list to a list collection was erroneously resulting in
       the prepended list being reversed upon insertion.  If you were depending
       on this buggy behavior, note that it has been corrected.
+    - Incremental replacement of compacted SSTables has been disabled for this
+      release.
 
 2.1.2
 =====
