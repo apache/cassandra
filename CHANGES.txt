@@ -1,4 +1,5 @@
 2.0.13:
+ * Fix IllegalArgumentException in dynamic snitch (CASSANDRA-8448)
  * Add support for UPDATE ... IF EXISTS (CASSANDRA-8610)
  * Fix reversal of list prepends (CASSANDRA-8733)
  * Prevent non-zero default_time_to_live on tables with counters

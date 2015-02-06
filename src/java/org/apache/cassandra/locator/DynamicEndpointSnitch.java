@@ -53,7 +53,7 @@ public class DynamicEndpointSnitch extends AbstractEndpointSnitch implements ILa
     private String mbeanName;
     private boolean registered = false;
 
-    private final ConcurrentHashMap<InetAddress, Double> scores = new ConcurrentHashMap<InetAddress, Double>();
+    private volatile HashMap<InetAddress, Double> scores = new HashMap<InetAddress, Double>();
     private final ConcurrentHashMap<InetAddress, ExponentiallyDecayingSample> samples = new ConcurrentHashMap<InetAddress, ExponentiallyDecayingSample>();
 
     public final IEndpointSnitch subsnitch;
@@ -243,6 +243,7 @@ public class DynamicEndpointSnitch extends AbstractEndpointSnitch implements ILa
         double maxLatency = 1;
         // We're going to weight the latency for each host against the worst one we see, to
         // arrive at sort of a 'badness percentage' for them. First, find the worst for each:
+        HashMap<InetAddress, Double> newScores = new HashMap<>();
         for (Map.Entry<InetAddress, ExponentiallyDecayingSample> entry : samples.entrySet())
         {
             double mean = entry.getValue().getSnapshot().getMedian();
@@ -257,8 +258,9 @@ public class DynamicEndpointSnitch extends AbstractEndpointSnitch implements ILa
             // "Severity" is basically a measure of compaction activity (CASSANDRA-3722).
             score += StorageService.instance.getSeverity(entry.getKey());
             // lowest score (least amount of badness) wins.
-            scores.put(entry.getKey(), score);            
+            newScores.put(entry.getKey(), score);
         }
+        scores = newScores;
     }
 
 
