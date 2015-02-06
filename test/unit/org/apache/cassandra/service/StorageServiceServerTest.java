@@ -476,8 +476,6 @@ public class StorageServiceServerTest
         metadata.updateNormalToken(new LongToken(3000L), InetAddress.getByName("127.0.0.3"));
         metadata.updateNormalToken(new LongToken(4000L), InetAddress.getByName("127.0.0.4"));
 
-        Map<String, String> configOptions = new HashMap<String, String>();
-        configOptions.put("replication_factor", "3");
         Collection<Range<Token>> repairRangeFrom = StorageService.instance.createRepairRangeFrom("1500", "3700");
         assert repairRangeFrom.size() == 3;
         assert repairRangeFrom.contains(new Range<Token>(new LongToken(1500L), new LongToken(2000L)));
