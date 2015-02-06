@@ -1023,8 +1023,8 @@ roleOptions[RoleOptions opts]
     ;
 
 roleOption[RoleOptions opts]
-    :  k=K_PASSWORD v=STRING_LITERAL { opts.put($k.text, $v.text); }
-    |  k=K_OPTIONS  m=mapLiteral { opts.put(IRoleManager.Option.OPTIONS.name(), convertPropertyMap(m)); }
+    :  k=K_PASSWORD '='? v=STRING_LITERAL { opts.put($k.text, $v.text); }
+    |  k=K_OPTIONS '='? m=mapLiteral { opts.put(IRoleManager.Option.OPTIONS.name(), convertPropertyMap(m)); }
     ;
 
 /** DEFINITIONS **/

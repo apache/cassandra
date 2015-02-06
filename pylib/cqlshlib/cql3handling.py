@@ -1191,8 +1191,8 @@ syntax_rules += r'''
                               ( "SUPERUSER" | "NOSUPERUSER" )?
                               ( "LOGIN" | "NOLOGIN" )?
                        ;
-<roleProperty> ::= "PASSWORD" <stringLiteral>
-                 | "OPTIONS" <mapLiteral>
+<roleProperty> ::= "PASSWORD" "="? <stringLiteral>
+                 | "OPTIONS" "="? <mapLiteral>
                  ;
 
 <dropRoleStatement> ::= "DROP" "ROLE" <rolename>
