@@ -366,7 +366,7 @@ public class CassandraDaemon
             waitForGossipToSettle();
 
         // schedule periodic dumps of table size estimates into SystemKeyspace.SIZE_ESTIMATES_CF
-        ScheduledExecutors.optionalTasks.scheduleWithFixedDelay(SizeEstimatesRecorder.instance, 30, 5 * 60, TimeUnit.SECONDS);
+        // ScheduledExecutors.optionalTasks.scheduleWithFixedDelay(SizeEstimatesRecorder.instance, 30, 5 * 60, TimeUnit.SECONDS);
 
         // Thrift
         InetAddress rpcAddr = DatabaseDescriptor.getRpcAddress();
