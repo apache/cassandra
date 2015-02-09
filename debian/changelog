@@ -1,8 +1,14 @@
-cassandra (2.1.2) UNRELEASED; urgency=medium
+cassandra (2.1.3) unstable; urgency=medium
 
   * New release 
 
- -- Jake Luciani <jake@ubuntuosx>  Wed, 05 Nov 2014 15:51:26 -0500
+ -- Jake Luciani <jake@apache.org>  Mon, 09 Feb 2015 10:31:35 -0500
+
+cassandra (2.1.2) unstable; urgency=medium
+
+  * New release 
+
+ -- Jake Luciani <jake@apache.org>  Wed, 05 Nov 2014 15:51:26 -0500 
 
 cassandra (2.1.1) unstable; urgency=medium
 
