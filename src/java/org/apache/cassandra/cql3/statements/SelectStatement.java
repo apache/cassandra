@@ -87,8 +87,10 @@ public class SelectStatement implements CQLStatement
     /** Restrictions on non-primary key columns (i.e. secondary index restrictions) */
     private final Map<ColumnIdentifier, Restriction> metadataRestrictions = new HashMap<ColumnIdentifier, Restriction>();
 
-    // All restricted columns not covered by the key or index filter
-    private final Set<ColumnDefinition> restrictedColumns = new HashSet<ColumnDefinition>();
+    // The map keys are the name of the columns that must be converted into IndexExpressions if a secondary index need
+    // to be used. The value specify if the column has an index that can be used to for the relation in which the column
+    // is specified.
+    private final Map<ColumnDefinition, Boolean> restrictedColumns = new HashMap<ColumnDefinition, Boolean>();
     private Restriction.Slice sliceRestriction;
 
     private boolean isReversed;
@@ -1059,7 +1061,7 @@ public class SelectStatement implements CQLStatement
             return Collections.emptyList();
 
         List<IndexExpression> expressions = new ArrayList<IndexExpression>();
-        for (ColumnDefinition def : restrictedColumns)
+        for (ColumnDefinition def : restrictedColumns.keySet())
         {
             Restriction restriction;
             switch (def.kind)
@@ -1113,12 +1115,22 @@ public class SelectStatement implements CQLStatement
             }
             else
             {
-                List<ByteBuffer> values = restriction.values(options);
+                ByteBuffer value;
+                if (restriction.isMultiColumn())
+                {
+                    List<ByteBuffer> values = restriction.values(options);
+                    value = values.get(def.position());
+                }
+                else
+                {
+                    List<ByteBuffer> values = restriction.values(options);
+                    if (values.size() != 1)
+                        throw new InvalidRequestException("IN restrictions are not supported on indexed columns");
 
-                if (values.size() != 1)
-                    throw new InvalidRequestException("IN restrictions are not supported on indexed columns");
+                    value = values.get(0);
+                }
 
-                ByteBuffer value = validateIndexedValue(def, values.get(0));
+                validateIndexedValue(def, value);
                 expressions.add(new IndexExpression(def.name.bytes, Operator.EQ, value));
             }
         }
@@ -1503,7 +1515,7 @@ public class SelectStatement implements CQLStatement
             // All (or none) of the partition key columns have been specified;
             // hence there is no need to turn these restrictions into index expressions.
             if (!stmt.usesSecondaryIndexing)
-                stmt.restrictedColumns.removeAll(cfm.partitionKeyColumns());
+                stmt.restrictedColumns.keySet().removeAll(cfm.partitionKeyColumns());
 
             if (stmt.selectsOnlyStaticColumns && stmt.hasClusteringColumnsRestriction())
                 throw new InvalidRequestException("Cannot restrict clustering columns when selecting only static columns");
@@ -1514,21 +1526,15 @@ public class SelectStatement implements CQLStatement
             if (stmt.isKeyRange && hasQueriableClusteringColumnIndex)
                 stmt.usesSecondaryIndexing = true;
 
-            if (!stmt.usesSecondaryIndexing)
+            for (ColumnDefinition def : cfm.clusteringColumns())
             {
-                for (ColumnDefinition def : cfm.clusteringColumns())
-                {
-                    // Remove clustering column restrictions that can be handled by slices; the remainder will be
-                    // handled by filters (which may require a secondary index).
-                    Restriction restriction = stmt.columnRestrictions[def.position()];
-                    if (restriction != null)
-                    {
-                        if (restriction.canEvaluateWithSlices())
-                            stmt.restrictedColumns.remove(def);
-                        else
-                            stmt.usesSecondaryIndexing = true;
-                    }
-                }
+                // Remove clustering column restrictions that can be handled by slices; the remainder will be
+                // handled by filters (which may require a secondary index).
+                Boolean indexed = stmt.restrictedColumns.get(def);
+                if (indexed == null)
+                    break;
+                if (!indexed && stmt.columnRestrictions[def.position()].canEvaluateWithSlices())
+                    stmt.restrictedColumns.remove(def);
             }
 
             // Even if usesSecondaryIndexing is false at this point, we'll still have to use one if
@@ -1560,12 +1566,14 @@ public class SelectStatement implements CQLStatement
             if (def == null)
                 handleUnrecognizedEntity(entity, relation);
 
-            stmt.restrictedColumns.add(def);
-
             SecondaryIndex index = indexManager.getIndexForColumn(def.name.bytes);
             if (index != null && index.supportsOperator(relation.operator()))
+            {
+                stmt.restrictedColumns.put(def, Boolean.TRUE);
                 return new boolean[]{true, def.kind == ColumnDefinition.Kind.CLUSTERING_COLUMN};
+            }
 
+            stmt.restrictedColumns.put(def, Boolean.FALSE);
             return new boolean[]{false, false};
         }
 
@@ -2146,7 +2154,7 @@ public class SelectStatement implements CQLStatement
             return stmt.restrictedColumns.size() > 1
                     || (stmt.restrictedColumns.isEmpty() && !stmt.columnFilterIsIdentity())
                     || (!stmt.restrictedColumns.isEmpty()
-                            && stmt.isRestrictedByMultipleContains(Iterables.getOnlyElement(stmt.restrictedColumns)));
+                            && stmt.isRestrictedByMultipleContains(Iterables.getOnlyElement(stmt.restrictedColumns.keySet())));
         }
 
         private int indexOf(ColumnDefinition def, Selection selection)
