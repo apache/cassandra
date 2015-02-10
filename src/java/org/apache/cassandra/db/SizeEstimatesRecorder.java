@@ -18,6 +18,7 @@
 package org.apache.cassandra.db;
 
 import java.util.*;
+import java.util.concurrent.TimeUnit;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -61,8 +62,18 @@ public class SizeEstimatesRecorder extends MigrationListener implements Runnable
         Collection<Range<Token>> localRanges = StorageService.instance.getTokenMetadata().getPrimaryRangesFor(localTokens);
 
         for (Keyspace keyspace : Keyspace.nonSystem())
+        {
             for (ColumnFamilyStore table : keyspace.getColumnFamilyStores())
+            {
+                long start = System.nanoTime();
                 recordSizeEstimates(table, localRanges);
+                long passed = System.nanoTime() - start;
+                logger.debug("Spent {} milliseconds on estimating {}.{} size",
+                             TimeUnit.NANOSECONDS.toMillis(passed),
+                             table.metadata.ksName,
+                             table.metadata.cfName);
+            }
+        }
     }
 
     private void recordSizeEstimates(ColumnFamilyStore table, Collection<Range<Token>> localRanges)
@@ -72,20 +83,19 @@ public class SizeEstimatesRecorder extends MigrationListener implements Runnable
         for (Range<Token> range : localRanges)
         {
             // filter sstables that have partitions in this range.
-            List<SSTableReader> sstables = null;
             Refs<SSTableReader> refs = null;
             while (refs == null)
             {
-                sstables = table.viewFilter(range.toRowBounds()).apply(table.getDataTracker().getView());
-                refs = Refs.tryRef(sstables);
+                ColumnFamilyStore.ViewFragment view = table.select(table.viewFilter(range.toRowBounds()));
+                refs = Refs.tryRef(view.sstables);
             }
 
             long partitionsCount, meanPartitionSize;
             try
             {
                 // calculate the estimates.
-                partitionsCount = estimatePartitionsCount(sstables, range);
-                meanPartitionSize = estimateMeanPartitionSize(sstables);
+                partitionsCount = estimatePartitionsCount(refs, range);
+                meanPartitionSize = estimateMeanPartitionSize(refs);
             }
             finally
             {

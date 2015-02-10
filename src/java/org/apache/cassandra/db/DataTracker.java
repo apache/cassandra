@@ -758,6 +758,8 @@ public class DataTracker
 
         public List<SSTableReader> sstablesInBounds(AbstractBounds<RowPosition> rowBounds)
         {
+            if (intervalTree.isEmpty())
+                return Collections.emptyList();
             RowPosition stopInTree = rowBounds.right.isMinimum() ? intervalTree.max() : rowBounds.right;
             return intervalTree.search(Interval.<RowPosition, SSTableReader>create(rowBounds.left, stopInTree));
         }
