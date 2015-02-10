@@ -61,6 +61,9 @@
  * Write partition size estimates into a system table (CASSANDRA-7688)
  * cqlsh: Fix keys() and full() collection indexes in DESCRIBE output
    (CASSANDRA-8154)
+Merged from 2.0:
+ * Fix some multi-column relations with indexes on some clustering
+   columns (CASSANDRA-8275)
 
 
 2.1.3

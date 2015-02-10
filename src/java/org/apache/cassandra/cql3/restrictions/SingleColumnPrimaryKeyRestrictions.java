@@ -292,9 +292,31 @@ final class SingleColumnPrimaryKeyRestrictions extends AbstractPrimaryKeyRestric
     }
 
     @Override
-    public void addIndexExpressionTo(List<IndexExpression> expressions, QueryOptions options) throws InvalidRequestException
+    public void addIndexExpressionTo(List<IndexExpression> expressions,
+                                     SecondaryIndexManager indexManager,
+                                     QueryOptions options) throws InvalidRequestException
     {
-        restrictions.addIndexExpressionTo(expressions, options);
+        Boolean clusteringColumns = null;
+        int position = 0;
+
+        for (ColumnDefinition columnDef : restrictions.getColumnDefs())
+        {
+            // SingleColumnPrimaryKeyRestrictions contains only one kind of column, either partition key or clustering columns.
+            // Therefore we only need to check the column kind once. All the other columns will be of the same kind.
+            if (clusteringColumns == null)
+                clusteringColumns = columnDef.isClusteringColumn() ? Boolean.TRUE : Boolean.FALSE;
+
+            Restriction restriction = restrictions.getRestriction(columnDef);
+
+            // We ignore all the clustering columns that can be handled by slices.
+            if (clusteringColumns && !restriction.isContains()&& position == columnDef.position())
+            {
+                position++;
+                if (!restriction.hasSupportingIndex(indexManager))
+                    continue;
+            }
+            restriction.addIndexExpressionTo(expressions, indexManager, options);
+        }
     }
 
     @Override

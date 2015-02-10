@@ -77,7 +77,9 @@ public abstract class TokenRestriction extends AbstractPrimaryKeyRestrictions
     }
 
     @Override
-    public void addIndexExpressionTo(List<IndexExpression> expressions, QueryOptions options)
+    public final void addIndexExpressionTo(List<IndexExpression> expressions,
+                                     SecondaryIndexManager indexManager,
+                                     QueryOptions options)
     {
         throw new UnsupportedOperationException("Index expression cannot be created for token restriction");
     }

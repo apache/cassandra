@@ -61,10 +61,11 @@ final class SingleColumnRestrictions implements Restrictions
 
     @Override
     public final void addIndexExpressionTo(List<IndexExpression> expressions,
+                                           SecondaryIndexManager indexManager,
                                            QueryOptions options) throws InvalidRequestException
     {
         for (Restriction restriction : restrictions.values())
-            restriction.addIndexExpressionTo(expressions, options);
+            restriction.addIndexExpressionTo(expressions, indexManager, options);
     }
 
     @Override

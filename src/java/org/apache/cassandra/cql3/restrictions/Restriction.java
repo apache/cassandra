@@ -87,11 +87,13 @@ public interface Restriction
      * Adds to the specified list the <code>IndexExpression</code>s corresponding to this <code>Restriction</code>.
      *
      * @param expressions the list to add the <code>IndexExpression</code>s to
+     * @param indexManager the secondary index manager
      * @param options the query options
      * @throws InvalidRequestException if this <code>Restriction</code> cannot be converted into 
      * <code>IndexExpression</code>s
      */
     public void addIndexExpressionTo(List<IndexExpression> expressions,
+                                     SecondaryIndexManager indexManager,
                                      QueryOptions options)
                                      throws InvalidRequestException;
 }

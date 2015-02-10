@@ -536,10 +536,11 @@ public class SelectStatement implements CQLStatement
         if (!restrictions.usesSecondaryIndexing())
             return Collections.emptyList();
 
-        List<IndexExpression> expressions = restrictions.getIndexExpressions(options);
-
         ColumnFamilyStore cfs = Keyspace.open(keyspace()).getColumnFamilyStore(columnFamily());
         SecondaryIndexManager secondaryIndexManager = cfs.indexManager;
+
+        List<IndexExpression> expressions = restrictions.getIndexExpressions(secondaryIndexManager, options);
+
         secondaryIndexManager.validateIndexSearchersForQuery(expressions);
 
         return expressions;

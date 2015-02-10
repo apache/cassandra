@@ -61,6 +61,7 @@ public abstract class SingleColumnRestriction extends AbstractRestriction
 
     @Override
     public void addIndexExpressionTo(List<IndexExpression> expressions,
+                                     SecondaryIndexManager indexManager,
                                      QueryOptions options) throws InvalidRequestException
     {
         List<ByteBuffer> values = values(options);
@@ -102,6 +103,7 @@ public abstract class SingleColumnRestriction extends AbstractRestriction
             return usesFunction(value, ksName, functionName);
         }
 
+        @Override
         public boolean isEQ()
         {
             return true;
@@ -206,6 +208,7 @@ public abstract class SingleColumnRestriction extends AbstractRestriction
             return false;
         }
 
+        @Override
         public List<ByteBuffer> values(QueryOptions options) throws InvalidRequestException
         {
             Term.MultiItemTerminal lval = (Term.MultiItemTerminal) marker.bind(options);
@@ -238,6 +241,7 @@ public abstract class SingleColumnRestriction extends AbstractRestriction
                     || (slice.hasBound(Bound.END) && usesFunction(slice.bound(Bound.END), ksName, functionName));
         }
 
+        @Override
         public boolean isSlice()
         {
             return true;
@@ -288,6 +292,7 @@ public abstract class SingleColumnRestriction extends AbstractRestriction
 
         @Override
         public void addIndexExpressionTo(List<IndexExpression> expressions,
+                                         SecondaryIndexManager indexManager,
                                          QueryOptions options) throws InvalidRequestException
         {
             for (Bound b : Bound.values())
@@ -377,6 +382,7 @@ public abstract class SingleColumnRestriction extends AbstractRestriction
 
         @Override
         public void addIndexExpressionTo(List<IndexExpression> expressions,
+                                         SecondaryIndexManager indexManager,
                                          QueryOptions options)
                                          throws InvalidRequestException
         {

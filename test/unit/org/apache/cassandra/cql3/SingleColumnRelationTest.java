@@ -438,4 +438,71 @@ public class SingleColumnRelationTest extends CQLTester
         assertRows(execute("SELECT * FROM %s WHERE k=? AND c IN ?", 0, inValues),
                 row(0, 0, 0));
     }
+
+    @Test
+    public void testMultiplePartitionKeyWithIndex() throws Throwable
+    {
+        createTable("CREATE TABLE %s (a int, b int, c int, d int, e int, f int, PRIMARY KEY ((a, b), c, d, e))");
+        createIndex("CREATE INDEX ON %s (c)");
+        createIndex("CREATE INDEX ON %s (f)");
+
+        execute("INSERT INTO %s (a, b, c, d, e, f) VALUES (?, ?, ?, ?, ?, ?)", 0, 0, 0, 0, 0, 0);
+        execute("INSERT INTO %s (a, b, c, d, e, f) VALUES (?, ?, ?, ?, ?, ?)", 0, 0, 0, 1, 0, 1);
+        execute("INSERT INTO %s (a, b, c, d, e, f) VALUES (?, ?, ?, ?, ?, ?)", 0, 0, 0, 1, 1, 2);
+
+        execute("INSERT INTO %s (a, b, c, d, e, f) VALUES (?, ?, ?, ?, ?, ?)", 0, 0, 1, 0, 0, 3);
+        execute("INSERT INTO %s (a, b, c, d, e, f) VALUES (?, ?, ?, ?, ?, ?)", 0, 0, 1, 1, 0, 4);
+        execute("INSERT INTO %s (a, b, c, d, e, f) VALUES (?, ?, ?, ?, ?, ?)", 0, 0, 1, 1, 1, 5);
+
+        execute("INSERT INTO %s (a, b, c, d, e, f) VALUES (?, ?, ?, ?, ?, ?)", 0, 0, 2, 0, 0, 5);
+
+        assertInvalidMessage("Cannot execute this query as it might involve data filtering",
+                             "SELECT * FROM %s WHERE a = ? AND c = ?", 0, 1);
+        assertRows(execute("SELECT * FROM %s WHERE a = ? AND c = ? ALLOW FILTERING", 0, 1),
+                   row(0, 0, 1, 0, 0, 3),
+                   row(0, 0, 1, 1, 0, 4),
+                   row(0, 0, 1, 1, 1, 5));
+
+        assertInvalidMessage("Cannot execute this query as it might involve data filtering",
+                             "SELECT * FROM %s WHERE a = ? AND c = ? AND d = ?", 0, 1, 1);
+        assertRows(execute("SELECT * FROM %s WHERE a = ? AND c = ? AND d = ? ALLOW FILTERING", 0, 1, 1),
+                   row(0, 0, 1, 1, 0, 4),
+                   row(0, 0, 1, 1, 1, 5));
+
+        assertInvalidMessage("Partition key parts: b must be restricted as other parts are",
+                             "SELECT * FROM %s WHERE a = ? AND c IN (?) AND  d IN (?) ALLOW FILTERING", 0, 1, 1);
+
+        assertInvalidMessage("Partition key parts: b must be restricted as other parts are",
+                             "SELECT * FROM %s WHERE a = ? AND (c, d) >= (?, ?) ALLOW FILTERING", 0, 1, 1);
+
+        assertInvalidMessage("Cannot execute this query as it might involve data filtering",
+                             "SELECT * FROM %s WHERE a = ? AND c IN (?) AND f = ?", 0, 1, 5);
+        assertRows(execute("SELECT * FROM %s WHERE a = ? AND c IN (?) AND f = ? ALLOW FILTERING", 0, 1, 5),
+                   row(0, 0, 1, 1, 1, 5));
+
+        assertInvalidMessage("Cannot execute this query as it might involve data filtering",
+                             "SELECT * FROM %s WHERE a = ? AND c IN (?, ?) AND f = ?", 0, 1, 2, 5);
+        assertRows(execute("SELECT * FROM %s WHERE a = ? AND c IN (?, ?) AND f = ? ALLOW FILTERING", 0, 1, 2, 5),
+                   row(0, 0, 1, 1, 1, 5),
+                   row(0, 0, 2, 0, 0, 5));
+
+        assertInvalidMessage("Cannot execute this query as it might involve data filtering",
+                             "SELECT * FROM %s WHERE a = ? AND c IN (?) AND d IN (?) AND f = ?", 0, 1, 0, 3);
+        assertRows(execute("SELECT * FROM %s WHERE a = ? AND c IN (?) AND d IN (?) AND f = ? ALLOW FILTERING", 0, 1, 0, 3),
+                   row(0, 0, 1, 0, 0, 3));
+
+        assertInvalidMessage("Partition key parts: b must be restricted as other parts are",
+                             "SELECT * FROM %s WHERE a = ? AND c >= ? ALLOW FILTERING", 0, 1);
+
+        assertInvalidMessage("Cannot execute this query as it might involve data filtering",
+                             "SELECT * FROM %s WHERE a = ? AND c >= ? AND f = ?", 0, 1, 5);
+        assertRows(execute("SELECT * FROM %s WHERE a = ? AND c >= ? AND f = ? ALLOW FILTERING", 0, 1, 5),
+                   row(0, 0, 1, 1, 1, 5),
+                   row(0, 0, 2, 0, 0, 5));
+
+        assertInvalidMessage("Cannot execute this query as it might involve data filtering",
+                             "SELECT * FROM %s WHERE a = ? AND c = ? AND d >= ? AND f = ?", 0, 1, 1, 5);
+        assertRows(execute("SELECT * FROM %s WHERE a = ? AND c = ? AND d >= ? AND f = ? ALLOW FILTERING", 0, 1, 1, 5),
+                   row(0, 0, 1, 1, 1, 5));
+    }
 }

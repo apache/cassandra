@@ -116,8 +116,35 @@ public abstract class MultiColumnRestriction extends AbstractPrimaryKeyRestricti
         return false;
     }
 
+    @Override
+    public final void addIndexExpressionTo(List<IndexExpression> expressions,
+                                           SecondaryIndexManager indexManager,
+                                           QueryOptions options) throws InvalidRequestException
+    {
+        for (ColumnDefinition columnDef : columnDefs)
+        {
+            SecondaryIndex index = indexManager.getIndexForColumn(columnDef.name.bytes);
+            if (index != null && isSupportedBy(index))
+                expressions.add(getIndexExpression(columnDef, options));
+        }
+    }
+
     /**
-     * Check if this type of restriction is supported for the specified column by the specified index.
+     * Returns the <code>IndexExpression</code> for the specified column.
+     *
+     * @param columnDef the column definition
+     * @param options the query options
+     * @return the <code>IndexExpression</code> for the specified column
+     */
+    protected IndexExpression getIndexExpression(ColumnDefinition columnDef,
+                                                 QueryOptions options) throws InvalidRequestException
+    {
+        // Except for EQ this operation is not supported
+        throw new UnsupportedOperationException();
+    }
+
+    /**
+     * Check if this type of restriction is supported for by the specified index.
      * @param index the Secondary index
      *
      * @return <code>true</code> this type of restriction is supported by the specified index,
@@ -192,17 +219,13 @@ public abstract class MultiColumnRestriction extends AbstractPrimaryKeyRestricti
         }
 
         @Override
-        public final void addIndexExpressionTo(List<IndexExpression> expressions,
-                                               QueryOptions options) throws InvalidRequestException
+        protected final IndexExpression getIndexExpression(ColumnDefinition columnDef,
+                                                           QueryOptions options) throws InvalidRequestException
         {
             Tuples.Value t = ((Tuples.Value) value.bind(options));
             List<ByteBuffer> values = t.getElements();
-            for (int i = 0; i < values.size(); i++)
-            {
-                ColumnDefinition columnDef = columnDefs.get(i);
-                ByteBuffer component = validateIndexedValue(columnDef, values.get(i));
-                expressions.add(new IndexExpression(columnDef.name.bytes, Operator.EQ, component));
-            }
+            ByteBuffer component = validateIndexedValue(columnDef, values.get(columnDef.position()));
+            return new IndexExpression(columnDef.name.bytes, Operator.EQ, component);
         }
     }
 
@@ -245,21 +268,6 @@ public abstract class MultiColumnRestriction extends AbstractPrimaryKeyRestricti
                              : prefix);
             }
             return new ArrayList<>(inValues);
-        }
-
-        @Override
-        public void addIndexExpressionTo(List<IndexExpression> expressions,
-                                         QueryOptions options) throws InvalidRequestException
-        {
-            List<List<ByteBuffer>> splitInValues = splitValues(options);
-            checkTrue(splitInValues.size() == 1, "IN restrictions are not supported on indexed columns");
-
-            List<ByteBuffer> values = splitInValues.get(0);
-            checkTrue(values.size() == 1, "IN restrictions are not supported on indexed columns");
-
-            ColumnDefinition columnDef = columnDefs.get(0);
-            ByteBuffer component = validateIndexedValue(columnDef, values.get(0));
-            expressions.add(new IndexExpression(columnDef.name.bytes, Operator.EQ, component));
         }
 
         public IN(CType ctype, List<ColumnDefinition> columnDefs)
@@ -433,13 +441,6 @@ public abstract class MultiColumnRestriction extends AbstractPrimaryKeyRestricti
             }
             Composite.EOC eoc =  eocFor(this, bound, firstComponentBound);
             return Collections.singletonList(builder.build().withEOC(eoc));
-        }
-
-        @Override
-        public void addIndexExpressionTo(List<IndexExpression> expressions,
-                                         QueryOptions options) throws InvalidRequestException
-        {
-            throw invalidRequest("Slice restrictions are not supported on indexed columns which are part of a multi column relation");
         }
 
         @Override

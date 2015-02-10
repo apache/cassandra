@@ -150,35 +150,11 @@ public final class StatementRestrictions
         if (isKeyRange && hasQueriableClusteringColumnIndex)
             usesSecondaryIndexing = true;
 
+        usesSecondaryIndexing = usesSecondaryIndexing || clusteringColumnsRestrictions.isContains();
+
         if (usesSecondaryIndexing)
-        {
             indexRestrictions.add(clusteringColumnsRestrictions);
-        }
-        else if (clusteringColumnsRestrictions.isContains())
-        {
-            indexRestrictions.add(new ForwardingPrimaryKeyRestrictions() {
 
-                @Override
-                protected PrimaryKeyRestrictions getDelegate()
-                {
-                    return clusteringColumnsRestrictions;
-                }
-
-                @Override
-                public void addIndexExpressionTo(List<IndexExpression> expressions, QueryOptions options) throws InvalidRequestException
-                {
-                    List<IndexExpression> list = new ArrayList<>();
-                    super.addIndexExpressionTo(list, options);
-
-                    for (IndexExpression expression : list)
-                    {
-                        if (expression.isContains() || expression.isContainsKey())
-                            expressions.add(expression);
-                    }
-                }
-            });
-            usesSecondaryIndexing = true;
-        }
         // Even if usesSecondaryIndexing is false at this point, we'll still have to use one if
         // there is restrictions not covered by the PK.
         if (!nonPrimaryKeyRestrictions.isEmpty())
@@ -337,14 +313,15 @@ public final class StatementRestrictions
             usesSecondaryIndexing = true;
     }
 
-    public List<IndexExpression> getIndexExpressions(QueryOptions options) throws InvalidRequestException
+    public List<IndexExpression> getIndexExpressions(SecondaryIndexManager indexManager,
+                                                     QueryOptions options) throws InvalidRequestException
     {
         if (!usesSecondaryIndexing || indexRestrictions.isEmpty())
             return Collections.emptyList();
 
         List<IndexExpression> expressions = new ArrayList<>();
         for (Restrictions restrictions : indexRestrictions)
-            restrictions.addIndexExpressionTo(expressions, options);
+            restrictions.addIndexExpressionTo(expressions, indexManager, options);
 
         return expressions;
     }

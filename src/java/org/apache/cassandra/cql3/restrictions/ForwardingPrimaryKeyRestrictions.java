@@ -152,8 +152,9 @@ abstract class ForwardingPrimaryKeyRestrictions implements PrimaryKeyRestriction
 
     @Override
     public void addIndexExpressionTo(List<IndexExpression> expressions,
+                                     SecondaryIndexManager indexManager,
                                      QueryOptions options) throws InvalidRequestException
     {
-        getDelegate().addIndexExpressionTo(expressions, options);
+        getDelegate().addIndexExpressionTo(expressions, indexManager, options);
     }
 }
