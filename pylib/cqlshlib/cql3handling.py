@@ -1001,7 +1001,7 @@ syntax_rules += r'''
                                cf=<columnFamilyName> "(" (
                                    col=<cident> |
                                    "keys(" col=<cident> ")" |
-                                   "fullCollection(" col=<cident> ")"
+                                   "full(" col=<cident> ")"
                                ) ")"
                                ( "USING" <stringLiteral> ( "WITH" "OPTIONS" "=" <mapLiteral> )? )?
                          ;
