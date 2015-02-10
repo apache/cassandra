@@ -298,7 +298,8 @@ public final class CFMetaData
                                                              + "mean_partition_size bigint,"
                                                              + "partitions_count bigint,"
                                                              + "PRIMARY KEY ((keyspace_name), table_name, range_start, range_end)"
-                                                             + ") WITH COMMENT='per-table primary range size estimates'");
+                                                             + ") WITH COMMENT='per-table primary range size estimates' "
+                                                             + "AND gc_grace_seconds=0");
 
 
     public static class SpeculativeRetry
