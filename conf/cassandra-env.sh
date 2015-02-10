@@ -162,6 +162,7 @@ fi
 
 # Specifies the default port over which Cassandra will be available for
 # JMX connections.
+# For security reasons, you should not expose this port to the internet.  Firewall it if needed.
 JMX_PORT="7199"
 
 

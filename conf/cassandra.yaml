@@ -414,6 +414,7 @@ listen_address: localhost
 # same as the rpc_address. The port however is different and specified below.
 start_native_transport: true
 # port for the CQL native transport to listen for clients on
+# For security reasons, you should not expose this port to the internet.  Firewall it if needed.
 native_transport_port: 9042
 # The maximum threads for handling requests when the native transport is used.
 # This is similar to rpc_max_threads though the default differs slightly (and
@@ -439,6 +440,8 @@ start_rpc: true
 #
 # Note that unlike listen_address, you can specify 0.0.0.0, but you must also
 # set broadcast_rpc_address to a value other than 0.0.0.0.
+#
+# For security reasons, you should not expose this port to the internet.  Firewall it if needed.
 rpc_address: localhost
 # rpc_interface: eth1
 
