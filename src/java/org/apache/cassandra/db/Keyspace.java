@@ -425,8 +425,8 @@ public class Keyspace
     public List<Future<?>> flush()
     {
         List<Future<?>> futures = new ArrayList<>(columnFamilyStores.size());
-        for (UUID cfId : columnFamilyStores.keySet())
-            futures.add(columnFamilyStores.get(cfId).forceFlush());
+        for (ColumnFamilyStore cfs : columnFamilyStores.values())
+            futures.add(cfs.forceFlush());
         return futures;
     }
 
