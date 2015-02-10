@@ -35,7 +35,6 @@ import org.apache.cassandra.cql3.CFDefinition.Name.Kind;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.*;
-import org.apache.cassandra.db.context.CounterContext;
 import org.apache.cassandra.db.filter.*;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.dht.*;
@@ -83,8 +82,10 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
     /** Restrictions on non-primary key columns (i.e. secondary index restrictions) */
     private final Map<CFDefinition.Name, Restriction> metadataRestrictions = new HashMap<CFDefinition.Name, Restriction>();
 
-    // The name of all restricted names not covered by the key or index filter
-    private final Set<CFDefinition.Name> restrictedNames = new HashSet<CFDefinition.Name>();
+    // The map keys are the name of the columns that must be converted into IndexExpressions if a secondary index need
+    // to be used. The value specify if the column has an index that can be used to for the relation in which the column
+    // is specified.
+    private final Map<CFDefinition.Name, Boolean> restrictedNames = new HashMap<CFDefinition.Name, Boolean>();
     private Restriction.Slice sliceRestriction;
 
     private boolean isReversed;
@@ -1027,7 +1028,7 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
             return Collections.emptyList();
 
         List<IndexExpression> expressions = new ArrayList<IndexExpression>();
-        for (CFDefinition.Name name : restrictedNames)
+        for (CFDefinition.Name name : restrictedNames.keySet())
         {
             Restriction restriction;
             switch (name.kind)
@@ -1068,12 +1069,21 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
             }
             else
             {
-                List<ByteBuffer> values = restriction.values(variables);
+                ByteBuffer value;
+                if (restriction.isMultiColumn())
+                {
+                    List<ByteBuffer> values = restriction.values(variables);
+                    value = values.get(name.position);
+                }
+                else
+                {
+                    List<ByteBuffer> values = restriction.values(variables);
+                    if (values.size() != 1)
+                        throw new InvalidRequestException("IN restrictions are not supported on indexed columns");
 
-                if (values.size() != 1)
-                    throw new InvalidRequestException("IN restrictions are not supported on indexed columns");
+                    value = values.get(0);
+                }
 
-                ByteBuffer value = values.get(0);
                 validateIndexExpressionValue(value, name);
                 expressions.add(new IndexExpression(name.name.key, IndexOperator.EQ, value));
             }
@@ -1496,7 +1506,7 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
             // All (or none) of the partition key columns have been specified;
             // hence there is no need to turn these restrictions into index expressions.
             if (!stmt.usesSecondaryIndexing)
-                stmt.restrictedNames.removeAll(cfDef.partitionKeys());
+                stmt.restrictedNames.keySet().removeAll(cfDef.partitionKeys());
 
             if (stmt.selectsOnlyStaticColumns && stmt.hasClusteringColumnsRestriction())
                 throw new InvalidRequestException("Cannot restrict clustering columns when selecting only static columns");
@@ -1507,8 +1517,17 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
             if (stmt.isKeyRange && hasQueriableClusteringColumnIndex)
                 stmt.usesSecondaryIndexing = true;
 
-            if (!stmt.usesSecondaryIndexing)
-                stmt.restrictedNames.removeAll(cfDef.clusteringColumns());
+            // The clustering columns that can be used to perform a slice filtering on the secondary index do not
+            // need to be converted into IndexExpressions. Therefore, if they are not indexed by an index that support
+            // the relation in which they have been specified, we can removes them from the restrictedNames map.
+            for (Name clusteringColumn : cfDef.clusteringColumns())
+            {
+                Boolean indexed = stmt.restrictedNames.get(clusteringColumn);
+                if (indexed == null)
+                    break;
+                if (!indexed)
+                    stmt.restrictedNames.remove(clusteringColumn);
+            }
 
             // Even if usesSecondaryIndexing is false at this point, we'll still have to use one if
             // there is restrictions not covered by the PK.
@@ -1540,9 +1559,12 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
             if (name == null)
                 handleUnrecognizedEntity(entity, relation);
 
-            stmt.restrictedNames.add(name);
             if (cfDef.cfm.getColumnDefinition(name.name.key).isIndexed() && relation.operator() == Relation.Type.EQ)
+            {
+                stmt.restrictedNames.put(name, Boolean.TRUE);
                 return new boolean[]{true, name.kind == CFDefinition.Name.Kind.COLUMN_ALIAS};
+            }
+            stmt.restrictedNames.put(name, Boolean.FALSE);
             return new boolean[]{false, false};
         }
 

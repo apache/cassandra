@@ -76,6 +76,15 @@ public class MultiColumnRelationTest
                     "CREATE TABLE IF NOT EXISTS %s.multiple_clustering_reversed" + tableSuffix +
                         "(a int, b int, c int, d int, PRIMARY KEY (a, b, c, d)) WITH " + compactOption + " CLUSTERING ORDER BY (b DESC, c ASC, d DESC)");
         }
+
+        executeSchemaChange("CREATE TABLE IF NOT EXISTS %s.multiple_clustering_with_indices (a int, b int, c int, d int, e int, PRIMARY KEY (a, b, c, d))");
+        executeSchemaChange("CREATE INDEX ON %s.multiple_clustering_with_indices (b)");
+        executeSchemaChange("CREATE INDEX ON %s.multiple_clustering_with_indices (e)");
+
+        executeSchemaChange("CREATE TABLE IF NOT EXISTS %s.partition_with_indices (a int, b int, c int, d int, e int, f int, PRIMARY KEY ((a, b), c, d, e))");
+        executeSchemaChange("CREATE INDEX ON %s.partition_with_indices (c)");
+        executeSchemaChange("CREATE INDEX ON %s.partition_with_indices (f)");
+
         clientState = ClientState.forInternalCalls();
     }
 
@@ -1176,6 +1185,119 @@ public class MultiColumnRelationTest
                     options(list()));
             assertTrue(results.isEmpty());
         }
+    }
+
+    @Test
+    public void testMultipleClusteringWithIndex() throws Throwable
+    {
+        execute("INSERT INTO %s.multiple_clustering_with_indices (a, b, c, d, e) VALUES (0, 0, 0, 0, 0)");
+        execute("INSERT INTO %s.multiple_clustering_with_indices (a, b, c, d, e) VALUES (0, 0, 1, 0, 1)");
+        execute("INSERT INTO %s.multiple_clustering_with_indices (a, b, c, d, e) VALUES (0, 0, 1, 1, 2)");
+        execute("INSERT INTO %s.multiple_clustering_with_indices (a, b, c, d, e) VALUES (0, 1, 0, 0, 0)");
+        execute("INSERT INTO %s.multiple_clustering_with_indices (a, b, c, d, e) VALUES (0, 1, 1, 0, 1)");
+        execute("INSERT INTO %s.multiple_clustering_with_indices (a, b, c, d, e) VALUES (0, 1, 1, 1, 2)");
+        execute("INSERT INTO %s.multiple_clustering_with_indices (a, b, c, d, e) VALUES (0, 2, 0, 0, 0)");
+
+        UntypedResultSet results = execute("SELECT * FROM %s.multiple_clustering_with_indices WHERE (b) = (1)");
+        assertEquals(3, results.size());
+        checkRow(0, results, 0, 1, 0, 0, 0);
+        checkRow(1, results, 0, 1, 1, 0, 1);
+        checkRow(2, results, 0, 1, 1, 1, 2);
+
+        results = execute("SELECT * FROM %s.multiple_clustering_with_indices  WHERE (b, c) = (1, 1) ALLOW FILTERING");
+        assertEquals(2, results.size());
+        checkRow(0, results, 0, 1, 1, 0, 1);
+        checkRow(1, results, 0, 1, 1, 1, 2);
+
+        results = execute("SELECT * FROM %s.multiple_clustering_with_indices  WHERE (b, c) = (1, 1) AND e = 2 ALLOW FILTERING");
+        assertEquals(1, results.size());
+        checkRow(0, results, 0, 1, 1, 1, 2);
+
+        results = execute("SELECT * FROM %s.multiple_clustering_with_indices  WHERE (b) IN ((1)) AND e = 2 ALLOW FILTERING");
+        assertEquals(1, results.size());
+        checkRow(0, results, 0, 1, 1, 1, 2);
+
+        results = execute("SELECT * FROM %s.multiple_clustering_with_indices  WHERE (b) IN ((0), (1)) AND e = 2 ALLOW FILTERING");
+        assertEquals(2, results.size());
+        checkRow(0, results, 0, 0, 1, 1, 2);
+        checkRow(1, results, 0, 1, 1, 1, 2);
+
+        results = execute("SELECT * FROM %s.multiple_clustering_with_indices  WHERE (b, c) IN ((0, 1)) AND e = 2 ALLOW FILTERING");
+        assertEquals(1, results.size());
+        checkRow(0, results, 0, 0, 1, 1, 2);
+
+        results = execute("SELECT * FROM %s.multiple_clustering_with_indices  WHERE (b, c) IN ((0, 1), (1, 1)) AND e = 2 ALLOW FILTERING");
+        assertEquals(2, results.size());
+        checkRow(0, results, 0, 0, 1, 1, 2);
+        checkRow(1, results, 0, 1, 1, 1, 2);
+
+        results = execute("SELECT * FROM %s.multiple_clustering_with_indices  WHERE (b) >= (1) AND e = 2 ALLOW FILTERING");
+        assertEquals(1, results.size());
+        checkRow(0, results, 0, 1, 1, 1, 2);
+
+        results = execute("SELECT * FROM %s.multiple_clustering_with_indices  WHERE (b, c) >= (1, 1) AND e = 2 ALLOW FILTERING");
+        assertEquals(1, results.size());
+        checkRow(0, results, 0, 1, 1, 1, 2);
+    }
+
+    @Test
+    public void testPartitionWithIndex() throws Throwable
+    {
+        execute("INSERT INTO %s.partition_with_indices (a, b, c, d, e, f) VALUES (0, 0, 0, 0, 0, 0)");
+        execute("INSERT INTO %s.partition_with_indices (a, b, c, d, e, f) VALUES (0, 0, 0, 1, 0, 1)");
+        execute("INSERT INTO %s.partition_with_indices (a, b, c, d, e, f) VALUES (0, 0, 0, 1, 1, 2)");
+
+        execute("INSERT INTO %s.partition_with_indices (a, b, c, d, e, f) VALUES (0, 0, 1, 0, 0, 3)");
+        execute("INSERT INTO %s.partition_with_indices (a, b, c, d, e, f) VALUES (0, 0, 1, 1, 0, 4)");
+        execute("INSERT INTO %s.partition_with_indices (a, b, c, d, e, f) VALUES (0, 0, 1, 1, 1, 5)");
+
+        execute("INSERT INTO %s.partition_with_indices (a, b, c, d, e, f) VALUES (0, 0, 2, 0, 0, 5)");
+
+        UntypedResultSet results = execute("SELECT * FROM %s.partition_with_indices WHERE a = 0 AND (c) = (1) ALLOW FILTERING");
+        assertEquals(3, results.size());
+        checkRow(0, results, 0, 0, 1, 0, 0, 3);
+        checkRow(1, results, 0, 0, 1, 1, 0, 4);
+        checkRow(2, results, 0, 0, 1, 1, 1, 5);
+
+        results = execute("SELECT * FROM %s.partition_with_indices WHERE a = 0 AND (c, d) = (1, 1) ALLOW FILTERING");
+        assertEquals(2, results.size());
+        checkRow(0, results, 0, 0, 1, 1, 0, 4);
+        checkRow(1, results, 0, 0, 1, 1, 1, 5);
+
+        results = execute("SELECT * FROM %s.partition_with_indices WHERE a = 0  AND (c) IN ((1)) AND f = 5 ALLOW FILTERING");
+        assertEquals(1, results.size());
+        checkRow(0, results, 0, 0, 1, 1, 1, 5);
+
+        results = execute("SELECT * FROM %s.partition_with_indices WHERE a = 0 AND (c) IN ((1), (2)) AND f = 5 ALLOW FILTERING");
+        assertEquals(2, results.size());
+        checkRow(0, results, 0, 0, 1, 1, 1, 5);
+        checkRow(1, results, 0, 0, 2, 0, 0, 5);
+
+        results = execute("SELECT * FROM %s.partition_with_indices WHERE a = 0  AND (c, d) IN ((1, 0)) AND f = 3 ALLOW FILTERING");
+        assertEquals(1, results.size());
+        checkRow(0, results, 0, 0, 1, 0, 0, 3);
+
+        results = execute("SELECT * FROM %s.partition_with_indices WHERE a = 0 AND (c) >= (1) AND f = 5 ALLOW FILTERING");
+        assertEquals(2, results.size());
+        checkRow(0, results, 0, 0, 1, 1, 1, 5);
+        checkRow(1, results, 0, 0, 2, 0, 0, 5);
+
+        results = execute("SELECT * FROM %s.partition_with_indices WHERE a = 0 AND (c, d) >= (1, 1) AND f = 5 ALLOW FILTERING");
+        assertEquals(2, results.size());
+        checkRow(0, results, 0, 0, 1, 1, 1, 5);
+        checkRow(1, results, 0, 0, 2, 0, 0, 5);
+    }
+
+    @Test(expected=InvalidRequestException.class)
+    public void testMissingPartitionComponentWithInRestrictionOnIndexedColumn() throws Throwable
+    {
+        execute("SELECT * FROM %s.partition_with_indices WHERE a = 0 AND (c, d) IN ((1, 1)) ALLOW FILTERING");
+    }
+
+    @Test(expected=InvalidRequestException.class)
+    public void testMissingPartitionComponentWithSliceRestrictionOnIndexedColumn() throws Throwable
+    {
+        execute("SELECT * FROM %s.partition_with_indices WHERE a = 0 AND (c, d) >= (1, 1) ALLOW FILTERING");
     }
 
     @Test(expected=InvalidRequestException.class)
