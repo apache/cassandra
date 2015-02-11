@@ -169,7 +169,8 @@ public abstract class SSTableReader extends SSTable implements RefCounted<SSTabl
         NORMAL,
         EARLY,
         METADATA_CHANGE,
-        MOVED_START
+        MOVED_START,
+        SHADOWED // => MOVED_START past end
     }
 
     public final OpenReason openReason;
@@ -826,42 +827,54 @@ public abstract class SSTableReader extends SSTable implements RefCounted<SSTabl
         synchronized (tidy.global)
         {
             assert openReason != OpenReason.EARLY;
-
-            if (newStart.compareTo(this.first) > 0)
+            SSTableReader replacement = internalOpen(descriptor, components, metadata, partitioner, ifile.sharedCopy(),
+                                                          dfile.sharedCopy(), indexSummary.sharedCopy(), bf.sharedCopy(),
+                                                          maxDataAge, sstableMetadata, OpenReason.MOVED_START);
+            // TODO: make data/index start accurate for compressed files
+            // TODO: merge with caller's firstKeyBeyond() work,to save time
+            if (newStart.compareTo(first) > 0)
             {
-                if (newStart.compareTo(this.last) > 0)
+                final long dataStart = getPosition(newStart, Operator.EQ).position;
+                final long indexStart = getIndexScanPosition(newStart);
+                this.tidy.runOnClose = new Runnable()
                 {
-                    this.tidy.runOnClose = new Runnable()
+                    public void run()
                     {
-                        public void run()
-                        {
-                            CLibrary.trySkipCache(dfile.path, 0, 0);
-                            CLibrary.trySkipCache(ifile.path, 0, 0);
+                        CLibrary.trySkipCache(dfile.path, 0, dataStart);
+                        CLibrary.trySkipCache(ifile.path, 0, indexStart);
+                        if (runOnClose != null)
                             runOnClose.run();
-                        }
-                    };
-                }
-                else
-                {
-                    final long dataStart = getPosition(newStart, Operator.GE).position;
-                    final long indexStart = getIndexScanPosition(newStart);
-                    this.tidy.runOnClose = new Runnable()
-                    {
-                        public void run()
-                        {
-                            CLibrary.trySkipCache(dfile.path, 0, dataStart);
-                            CLibrary.trySkipCache(ifile.path, 0, indexStart);
-                            runOnClose.run();
-                        }
-                    };
-                }
+                    }
+                };
             }
 
-            SSTableReader replacement = internalOpen(descriptor, components, metadata, partitioner, ifile.sharedCopy(),
-                                                     dfile.sharedCopy(), indexSummary.sharedCopy(), bf.sharedCopy(),
-                                                     maxDataAge, sstableMetadata, OpenReason.MOVED_START);
-            replacement.first = this.last.compareTo(newStart) > 0 ? newStart : this.last;
+            replacement.first = newStart;
             replacement.last = this.last;
+            setReplacedBy(replacement);
+            return replacement;
+        }
+    }
+
+    public SSTableReader cloneAsShadowed(final Runnable runOnClose)
+    {
+        synchronized (tidy.global)
+        {
+            assert openReason != OpenReason.EARLY;
+            this.tidy.runOnClose = new Runnable()
+            {
+                public void run()
+                {
+                    CLibrary.trySkipCache(dfile.path, 0, 0);
+                    CLibrary.trySkipCache(ifile.path, 0, 0);
+                    runOnClose.run();
+                }
+            };
+
+            SSTableReader replacement = internalOpen(descriptor, components, metadata, partitioner, ifile.sharedCopy(),
+                                                          dfile.sharedCopy(), indexSummary.sharedCopy(), bf.sharedCopy(),
+                                                          maxDataAge, sstableMetadata, OpenReason.SHADOWED);
+            replacement.first = first;
+            replacement.last = last;
             setReplacedBy(replacement);
             return replacement;
         }
