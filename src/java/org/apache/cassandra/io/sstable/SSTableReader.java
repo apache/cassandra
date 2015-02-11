@@ -215,7 +215,8 @@ public class SSTableReader extends SSTable implements RefCounted<SSTableReader>
         NORMAL,
         EARLY,
         METADATA_CHANGE,
-        MOVED_START
+        MOVED_START,
+        SHADOWED // => MOVED_START past end
     }
 
     public final OpenReason openReason;
@@ -884,42 +885,54 @@ public class SSTableReader extends SSTable implements RefCounted<SSTableReader>
         synchronized (tidy.global)
         {
             assert openReason != OpenReason.EARLY;
-
-            if (newStart.compareTo(this.first) > 0)
-            {
-                if (newStart.compareTo(this.last) > 0)
-                {
-                    this.tidy.runOnClose = new Runnable()
-                    {
-                        public void run()
-                        {
-                            CLibrary.trySkipCache(dfile.path, 0, 0);
-                            CLibrary.trySkipCache(ifile.path, 0, 0);
-                            runOnClose.run();
-                        }
-                    };
-                }
-                else
-                {
-                    final long dataStart = getPosition(newStart, Operator.GE).position;
-                    final long indexStart = getIndexScanPosition(newStart);
-                    this.tidy.runOnClose = new Runnable()
-                    {
-                        public void run()
-                        {
-                            CLibrary.trySkipCache(dfile.path, 0, dataStart);
-                            CLibrary.trySkipCache(ifile.path, 0, indexStart);
-                            runOnClose.run();
-                        }
-                    };
-                }
-            }
-
             SSTableReader replacement = new SSTableReader(descriptor, components, metadata, partitioner, ifile.sharedCopy(),
                                                           dfile.sharedCopy(), indexSummary.sharedCopy(), bf.sharedCopy(),
                                                           maxDataAge, sstableMetadata, OpenReason.MOVED_START);
-            replacement.first = this.last.compareTo(newStart) > 0 ? newStart : this.last;
+            // TODO: make data/index start accurate for compressed files
+            // TODO: merge with caller's firstKeyBeyond() work,to save time
+            if (newStart.compareTo(first) > 0)
+            {
+                final long dataStart = getPosition(newStart, Operator.EQ).position;
+                final long indexStart = getIndexScanPosition(newStart);
+                this.tidy.runOnClose = new Runnable()
+                {
+                    public void run()
+                    {
+                        CLibrary.trySkipCache(dfile.path, 0, dataStart);
+                        CLibrary.trySkipCache(ifile.path, 0, indexStart);
+                        if (runOnClose != null)
+                            runOnClose.run();
+                    }
+                };
+            }
+
+            replacement.first = newStart;
             replacement.last = this.last;
+            setReplacedBy(replacement);
+            return replacement;
+        }
+    }
+
+    public SSTableReader cloneAsShadowed(final Runnable runOnClose)
+    {
+        synchronized (tidy.global)
+        {
+            assert openReason != OpenReason.EARLY;
+            this.tidy.runOnClose = new Runnable()
+            {
+                public void run()
+                {
+                    CLibrary.trySkipCache(dfile.path, 0, 0);
+                    CLibrary.trySkipCache(ifile.path, 0, 0);
+                    runOnClose.run();
+                }
+            };
+
+            SSTableReader replacement = new SSTableReader(descriptor, components, metadata, partitioner, ifile.sharedCopy(),
+                                                          dfile.sharedCopy(), indexSummary.sharedCopy(), bf.sharedCopy(),
+                                                          maxDataAge, sstableMetadata, OpenReason.SHADOWED);
+            replacement.first = first;
+            replacement.last = last;
             setReplacedBy(replacement);
             return replacement;
         }

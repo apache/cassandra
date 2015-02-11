@@ -20,8 +20,8 @@ package org.apache.cassandra.io.sstable;
 import java.util.*;
 
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.base.Function;
 import com.google.common.base.Functions;
+import com.google.common.collect.ImmutableList;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
@@ -168,7 +168,7 @@ public class SSTableRewriter
                     replaceEarlyOpenedFile(currentlyOpenedEarly, reader);
                     currentlyOpenedEarly = reader;
                     currentlyOpenedEarlyAt = writer.getFilePointer();
-                    moveStarts(reader, Functions.constant(reader.last), false);
+                    moveStarts(reader, reader.last, false);
                 }
             }
         }
@@ -177,7 +177,7 @@ public class SSTableRewriter
     public void abort()
     {
         switchWriter(null, true);
-        moveStarts(null, Functions.forMap(originalStarts), true);
+        moveStarts(null, null, true);
 
         // remove already completed SSTables
         for (SSTableReader sstable : finished)
@@ -213,10 +213,10 @@ public class SSTableRewriter
      * instance, we would get exceptions.
      *
      * @param newReader the rewritten reader that replaces them for this region
-     * @param newStarts a function mapping a reader's descriptor to their new start value
+     * @param lowerbound if !reset, must be non-null, and marks the exclusive lowerbound of the start for each sstable
      * @param reset true iff we are restoring earlier starts (increasing the range over which they are valid)
      */
-    private void moveStarts(SSTableReader newReader, Function<? super Descriptor, DecoratedKey> newStarts, boolean reset)
+    private void moveStarts(SSTableReader newReader, DecoratedKey lowerbound, boolean reset)
     {
         if (isOffline)
             return;
@@ -229,31 +229,56 @@ public class SSTableRewriter
             for (Map.Entry<DecoratedKey, RowIndexEntry> cacheKey : cachedKeys.entrySet())
                 newReader.cacheKey(cacheKey.getKey(), cacheKey.getValue());
         }
+
         cachedKeys = new HashMap<>();
-        for (final SSTableReader sstable : rewriting)
+        for (SSTableReader sstable : ImmutableList.copyOf(rewriting))
         {
-            DecoratedKey newStart = newStarts.apply(sstable.descriptor);
-            assert newStart != null;
-            if (sstable.first.compareTo(newStart) < 0 || (reset && newStart != sstable.first))
+            // we call getCurrentReplacement() to support multiple rewriters operating over the same source readers at once.
+            // note: only one such writer should be written to at any moment
+            final SSTableReader latest = sstable.getCurrentReplacement();
+            SSTableReader replacement;
+            if (reset)
             {
-                toReplace.add(sstable);
-                // we call getCurrentReplacement() to support multiple rewriters operating over the same source readers at once.
-                // note: only one such writer should be written to at any moment
-                replaceWith.add(sstable.getCurrentReplacement().cloneWithNewStart(newStart, new Runnable()
+                DecoratedKey newStart = originalStarts.get(sstable.descriptor);
+                replacement = latest.cloneWithNewStart(newStart, null);
+            }
+            else
+            {
+                // skip any sstables that we know to already be shadowed
+                if (latest.openReason == SSTableReader.OpenReason.SHADOWED)
+                    continue;
+                if (latest.first.compareTo(lowerbound) > 0)
+                    continue;
+
+                final Runnable runOnClose = new Runnable()
                 {
                     public void run()
                     {
                         // this is somewhat racey, in that we could theoretically be closing this old reader
                         // when an even older reader is still in use, but it's not likely to have any major impact
                         for (DecoratedKey key : invalidateKeys)
-                            sstable.invalidateCacheKey(key);
+                            latest.invalidateCacheKey(key);
                     }
-                }));
+                };
+
+                if (lowerbound.compareTo(latest.last) >= 0)
+                {
+                    replacement = latest.cloneAsShadowed(runOnClose);
+                }
+                else
+                {
+                    DecoratedKey newStart = latest.firstKeyBeyond(lowerbound);
+                    assert newStart != null;
+                    replacement = latest.cloneWithNewStart(newStart, runOnClose);
+                }
             }
+
+            toReplace.add(latest);
+            replaceWith.add(replacement);
+            rewriting.remove(sstable);
+            rewriting.add(replacement);
         }
         cfs.getDataTracker().replaceWithNewInstances(toReplace, replaceWith);
-        rewriting.removeAll(toReplace);
-        rewriting.addAll(replaceWith);
     }
 
     private void replaceEarlyOpenedFile(SSTableReader toReplace, SSTableReader replaceWith)
@@ -292,7 +317,7 @@ public class SSTableRewriter
         {
             SSTableReader reader = writer.finish(SSTableWriter.FinishType.EARLY, maxAge, -1);
             replaceEarlyOpenedFile(currentlyOpenedEarly, reader);
-            moveStarts(reader, Functions.constant(reader.last), false);
+            moveStarts(reader, reader.last, false);
             finishedEarly.add(new Finished(writer, reader));
         }
         else

@@ -147,15 +147,14 @@ public class SSTableRewriterTest extends SchemaLoader
                         if (sstable.openReason == SSTableReader.OpenReason.EARLY)
                         {
                             SSTableReader c = sstables.iterator().next();
-                            long lastKeySize = sstable.getPosition(sstable.last, SSTableReader.Operator.GT).position - sstable.getPosition(sstable.last, SSTableReader.Operator.EQ).position;
                             Collection<Range<Token>> r = Arrays.asList(new Range<>(cfs.partitioner.getMinimumToken(), cfs.partitioner.getMinimumToken()));
                             List<Pair<Long, Long>> tmplinkPositions = sstable.getPositionsForRanges(r);
                             List<Pair<Long, Long>> compactingPositions = c.getPositionsForRanges(r);
                             assertEquals(1, tmplinkPositions.size());
                             assertEquals(1, compactingPositions.size());
                             assertEquals(0, tmplinkPositions.get(0).left.longValue());
-                            // make sure we have one key overlap between the early opened file and the compacting one:
-                            assertEquals(tmplinkPositions.get(0).right.longValue(), compactingPositions.get(0).left + lastKeySize);
+                            // make sure we have no overlap between the early opened file and the compacting one:
+                            assertEquals(tmplinkPositions.get(0).right.longValue(), compactingPositions.get(0).left.longValue());
                             assertEquals(c.uncompressedLength(), compactingPositions.get(0).right.longValue());
                         }
                     }
@@ -288,9 +287,11 @@ public class SSTableRewriterTest extends SchemaLoader
         }
         List<SSTableReader> sstables = rewriter.finish();
         assertEquals(files, sstables.size());
-        assertEquals(files + 1, cfs.getSSTables().size());
+        assertEquals(files, cfs.getSSTables().size());
+        assertEquals(1, cfs.getDataTracker().getView().shadowed.size());
         cfs.getDataTracker().markCompactedSSTablesReplaced(compacting, sstables, OperationType.COMPACTION);
         assertEquals(files, cfs.getSSTables().size());
+        assertEquals(0, cfs.getDataTracker().getView().shadowed.size());
         Thread.sleep(1000);
         assertFileCounts(s.descriptor.directory.list(), 0, 0);
         validateCFS(cfs);
