@@ -89,7 +89,8 @@ public class MmappedSegmentedFile extends SegmentedFile
             return new MappedFileDataInput(segment.right, path, segment.left, (int) (position - segment.left));
         }
 
-        // not mmap'd: open a braf covering the segment
+        // we can have single cells or partitions larger than 2Gb, which is our maximum addressable range in a single segment;
+        // in this case we open as a normal random access reader
         // FIXME: brafs are unbounded, so this segment will cover the rest of the file, rather than just the row
         RandomAccessReader file = RandomAccessReader.open(new File(path));
         file.seek(position);
@@ -152,7 +153,7 @@ public class MmappedSegmentedFile extends SegmentedFile
         public Builder()
         {
             super();
-            boundaries = new ArrayList<Long>();
+            boundaries = new ArrayList<>();
             boundaries.add(0L);
         }
 

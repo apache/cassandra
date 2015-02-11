@@ -47,6 +47,10 @@ public class CompressedRandomAccessReader extends RandomAccessReader
 {
     private static final boolean useMmap = DatabaseDescriptor.getDiskAccessMode() == Config.DiskAccessMode.mmap;
 
+    public static CompressedRandomAccessReader open(String dataFilePath, CompressionMetadata metadata)
+    {
+        return open(dataFilePath, metadata, null);
+    }
     public static CompressedRandomAccessReader open(String path, CompressionMetadata metadata, CompressedPoolingSegmentedFile owner)
     {
         try
@@ -59,17 +63,6 @@ public class CompressedRandomAccessReader extends RandomAccessReader
         }
     }
 
-    public static CompressedRandomAccessReader open(String dataFilePath, CompressionMetadata metadata)
-    {
-        try
-        {
-            return new CompressedRandomAccessReader(dataFilePath, metadata, null);
-        }
-        catch (FileNotFoundException e)
-        {
-            throw new RuntimeException(e);
-        }
-    }
 
     private TreeMap<Long, MappedByteBuffer> chunkSegments;
     private int MAX_SEGMENT_SIZE = Integer.MAX_VALUE;

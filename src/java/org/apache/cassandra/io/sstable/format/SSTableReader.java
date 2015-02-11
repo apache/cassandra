@@ -47,7 +47,6 @@ import org.apache.cassandra.db.composites.CellName;
 import org.apache.cassandra.db.filter.ColumnSlice;
 import org.apache.cassandra.db.index.SecondaryIndex;
 import org.apache.cassandra.dht.*;
-import org.apache.cassandra.io.compress.CompressedRandomAccessReader;
 import org.apache.cassandra.io.compress.CompressedThrottledReader;
 import org.apache.cassandra.io.compress.CompressionMetadata;
 import org.apache.cassandra.io.sstable.*;
@@ -1674,21 +1673,17 @@ public abstract class SSTableReader extends SSTable implements RefCounted<SSTabl
     public RandomAccessReader openDataReader(RateLimiter limiter)
     {
         assert limiter != null;
-        return compression
-                ? CompressedThrottledReader.open(getFilename(), getCompressionMetadata(), limiter)
-                : ThrottledReader.open(new File(getFilename()), limiter);
+        return dfile.createThrottledReader(limiter);
     }
 
     public RandomAccessReader openDataReader()
     {
-        return compression
-                ? CompressedRandomAccessReader.open(getFilename(), getCompressionMetadata())
-                : RandomAccessReader.open(new File(getFilename()));
+        return dfile.createReader();
     }
 
     public RandomAccessReader openIndexReader()
     {
-        return RandomAccessReader.open(new File(getIndexFilename()));
+        return ifile.createReader();
     }
 
     /**

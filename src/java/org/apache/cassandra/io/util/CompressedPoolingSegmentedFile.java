@@ -17,8 +17,11 @@
 */
 package org.apache.cassandra.io.util;
 
+import com.google.common.util.concurrent.RateLimiter;
+
 import org.apache.cassandra.io.compress.CompressedRandomAccessReader;
 import org.apache.cassandra.io.compress.CompressedSequentialWriter;
+import org.apache.cassandra.io.compress.CompressedThrottledReader;
 import org.apache.cassandra.io.compress.CompressionMetadata;
 import org.apache.cassandra.io.sstable.format.SSTableWriter;
 
@@ -70,7 +73,18 @@ public class CompressedPoolingSegmentedFile extends PoolingSegmentedFile impleme
             return new CompressedPoolingSegmentedFile(path, metadata(path, finishType));
         }
     }
-    protected RandomAccessReader createReader(String path)
+
+    public RandomAccessReader createReader()
+    {
+        return CompressedRandomAccessReader.open(path, metadata, null);
+    }
+
+    public RandomAccessReader createThrottledReader(RateLimiter limiter)
+    {
+        return CompressedThrottledReader.open(path, metadata, limiter);
+    }
+
+    protected RandomAccessReader createPooledReader()
     {
         return CompressedRandomAccessReader.open(path, metadata, this);
     }
