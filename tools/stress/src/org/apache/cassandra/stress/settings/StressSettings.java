@@ -239,8 +239,8 @@ public class StressSettings implements Serializable
             first = false;
         }
         return sb.toString()
-                 .replaceAll("\s+([,=()])", "$1")
-                 .replaceAll("([,=(])\s+", "$1")
+                 .replaceAll("\\s+([,=()])", "$1")
+                 .replaceAll("([,=(])\\s+", "$1")
                  .split(" +");
     }
 
