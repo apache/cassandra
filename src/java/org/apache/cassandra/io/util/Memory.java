@@ -55,6 +55,8 @@ public class Memory implements AutoCloseable
     {
         size = bytes;
         peer = allocator.allocate(size);
+        if (size != 0 && peer == 0)
+            throw new OutOfMemoryError();
     }
 
     public static Memory allocate(long bytes)
