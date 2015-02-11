@@ -47,7 +47,6 @@ import org.apache.cassandra.db.composites.CellName;
 import org.apache.cassandra.db.filter.ColumnSlice;
 import org.apache.cassandra.db.index.SecondaryIndex;
 import org.apache.cassandra.dht.*;
-import org.apache.cassandra.io.compress.CompressedThrottledReader;
 import org.apache.cassandra.io.compress.CompressionMetadata;
 import org.apache.cassandra.io.sstable.*;
 import org.apache.cassandra.io.sstable.metadata.*;
@@ -1006,17 +1005,20 @@ public abstract class SSTableReader extends SSTable implements RefCounted<SSTabl
 
     /**
      * Gets the position in the index file to start scanning to find the given key (at most indexInterval keys away,
-     * modulo downsampling of the index summary).
+     * modulo downsampling of the index summary). Always returns a value >= 0
      */
     public long getIndexScanPosition(RowPosition key)
     {
+        if (openReason == OpenReason.MOVED_START && key.compareTo(first) < 0)
+            key = first;
+
         return getIndexScanPositionFromBinarySearchResult(indexSummary.binarySearch(key), indexSummary);
     }
 
     protected static long getIndexScanPositionFromBinarySearchResult(int binarySearchResult, IndexSummary referencedIndexSummary)
     {
         if (binarySearchResult == -1)
-            return -1;
+            return 0;
         else
             return referencedIndexSummary.getPosition(getIndexSummaryIndexFromBinarySearchResult(binarySearchResult));
     }
@@ -1258,7 +1260,7 @@ public abstract class SSTableReader extends SSTable implements RefCounted<SSTabl
                          ? (openReason == OpenReason.EARLY
                             // if opened early, we overlap with the old sstables by one key, so we know that the last
                             // (and further) key(s) will be streamed from these if necessary
-                            ? getPosition(last.getToken().maxKeyBound(), Operator.GT).position
+                            ? getPosition(last, Operator.GT, false, true).position
                             : uncompressedLength())
                          : getPosition(rightBound, Operator.GT).position;
 
@@ -1327,9 +1329,13 @@ public abstract class SSTableReader extends SSTable implements RefCounted<SSTabl
      */
     public RowIndexEntry getPosition(RowPosition key, Operator op)
     {
-        return getPosition(key, op, true);
+        return getPosition(key, op, true, false);
     }
 
+    public RowIndexEntry getPosition(RowPosition key, Operator op, boolean updateCacheAndStats)
+    {
+        return getPosition(key, op, updateCacheAndStats, false);
+    }
     /**
      * @param key The key to apply as the rhs to the given Operator. A 'fake' key is allowed to
      * allow key selection by token bounds but only if op != * EQ
@@ -1337,7 +1343,7 @@ public abstract class SSTableReader extends SSTable implements RefCounted<SSTabl
      * @param updateCacheAndStats true if updating stats and cache
      * @return The index entry corresponding to the key, or null if the key is not present
      */
-    public abstract RowIndexEntry getPosition(RowPosition key, Operator op, boolean updateCacheAndStats);
+    protected abstract RowIndexEntry getPosition(RowPosition key, Operator op, boolean updateCacheAndStats, boolean permitMatchPastLast);
 
     //Corresponds to a name column
     public abstract OnDiskAtomIterator iterator(DecoratedKey key, SortedSet<CellName> columns);
@@ -1352,9 +1358,10 @@ public abstract class SSTableReader extends SSTable implements RefCounted<SSTabl
      */
     public DecoratedKey firstKeyBeyond(RowPosition token)
     {
+        if (token.compareTo(first) < 0)
+            return first;
+
         long sampledPosition = getIndexScanPosition(token);
-        if (sampledPosition == -1)
-            sampledPosition = 0;
 
         Iterator<FileDataInput> segments = ifile.iterator(sampledPosition);
         while (segments.hasNext())

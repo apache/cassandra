@@ -21,6 +21,7 @@ import java.io.IOException;
 import java.util.*;
 
 import com.google.common.collect.AbstractIterator;
+import com.google.common.collect.Ordering;
 import com.google.common.util.concurrent.RateLimiter;
 
 import org.apache.cassandra.db.DataRange;
@@ -87,16 +88,31 @@ public class BigTableScanner implements ISSTableScanner
         this.rowIndexEntrySerializer = sstable.descriptor.version.getSSTableFormat().getIndexSerializer(sstable.metadata);
 
         List<AbstractBounds<RowPosition>> boundsList = new ArrayList<>(2);
-        if (dataRange.isWrapAround() && !dataRange.stopKey().isMinimum())
+        // we enforce the first/last keys of the sstablereader
+        if (dataRange.isWrapAround())
         {
-            // split the wrapping range into two parts: 1) the part that starts at the beginning of the sstable, and
-            // 2) the part that comes before the wrap-around
-            boundsList.add(new Bounds<>(sstable.partitioner.getMinimumToken().minKeyBound(), dataRange.stopKey()));
-            boundsList.add(new Bounds<>(dataRange.startKey(), sstable.partitioner.getMinimumToken().maxKeyBound()));
+            if (dataRange.stopKey().isMinimum()
+                || dataRange.stopKey().compareTo(sstable.last) >= 0
+                || dataRange.startKey().compareTo(sstable.first) <= 0)
+            {
+                boundsList.add(new Bounds<RowPosition>(sstable.first, sstable.last));
+            }
+            else
+            {
+                if (dataRange.startKey().compareTo(sstable.last) <= 0)
+                    boundsList.add(new Bounds<>(dataRange.startKey(), sstable.last));
+                if (dataRange.stopKey().compareTo(sstable.first) >= 0)
+                    boundsList.add(new Bounds<>(sstable.first, dataRange.stopKey()));
+            }
         }
         else
         {
-            boundsList.add(new Bounds<>(dataRange.startKey(), dataRange.stopKey()));
+            assert dataRange.startKey().compareTo(dataRange.stopKey()) <= 0 || dataRange.stopKey().isMinimum();
+            RowPosition left = Ordering.natural().max(dataRange.startKey(), sstable.first);
+            // apparently isWrapAround() doesn't count Bounds that extend to the limit (min) as wrapping
+            RowPosition right = dataRange.stopKey().isMinimum() ? sstable.last : Ordering.natural().min(dataRange.stopKey(), sstable.last);
+            if (left.compareTo(right) <= 0)
+                boundsList.add(new Bounds<>(left, right));
         }
         this.rangeIterator = boundsList.iterator();
     }
@@ -118,28 +134,30 @@ public class BigTableScanner implements ISSTableScanner
 
         List<Range<Token>> normalized = Range.normalize(tokenRanges);
         List<AbstractBounds<RowPosition>> boundsList = new ArrayList<>(normalized.size());
+        // we enforce the first/last keys of the sstablereader
         for (Range<Token> range : normalized)
-            boundsList.add(new Range<RowPosition>(range.left.maxKeyBound(), range.right.maxKeyBound()));
+        {
+            // cap our ranges by the start/end of the sstable
+            RowPosition right = range.right.maxKeyBound();
+            if (right.compareTo(sstable.last) > 0)
+                right = sstable.last;
+
+            RowPosition left = range.left.maxKeyBound();
+            if (left.compareTo(sstable.first) < 0)
+            {
+                if (sstable.first.compareTo(right) <= 0)
+                    boundsList.add(new Bounds<>(sstable.first, right));
+            }
+            else if (left.compareTo(right) < 0)
+                boundsList.add(new Range<>(left, right));
+        }
 
         this.rangeIterator = boundsList.iterator();
     }
 
     private void seekToCurrentRangeStart()
     {
-        if (currentRange.left.isMinimum())
-            return;
-
         long indexPosition = sstable.getIndexScanPosition(currentRange.left);
-        // -1 means the key is before everything in the sstable. So just start from the beginning.
-        if (indexPosition == -1)
-        {
-            // Note: this method shouldn't assume we're at the start of the sstable already (see #6638) and
-            // the seeks are no-op anyway if we are.
-            ifile.seek(0);
-            dfile.seek(0);
-            return;
-        }
-
         ifile.seek(indexPosition);
         try
         {
@@ -148,10 +166,7 @@ public class BigTableScanner implements ISSTableScanner
             {
                 indexPosition = ifile.getFilePointer();
                 DecoratedKey indexDecoratedKey = sstable.partitioner.decorateKey(ByteBufferUtil.readWithShortLength(ifile));
-                int comparison = indexDecoratedKey.compareTo(currentRange.left);
-                // because our range start may be inclusive or exclusive, we need to also contains()
-                // instead of just checking (comparison >= 0)
-                if (comparison > 0 || currentRange.contains(indexDecoratedKey))
+                if (indexDecoratedKey.compareTo(currentRange.left) > 0 || currentRange.contains(indexDecoratedKey))
                 {
                     // Found, just read the dataPosition and seek into index and data files
                     long dataPosition = ifile.readLong();

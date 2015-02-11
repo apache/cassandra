@@ -58,6 +58,7 @@
 
 
 2.1.4
+ * Enforce SSTableReader.first/last (CASSANDRA-8744)
  * Cleanup SegmentedFile API (CASSANDRA-8749)
  * Avoid overlap with early compaction replacement (CASSANDRA-8683)
  * Safer Resource Management++ (CASSANDRA-8707)
