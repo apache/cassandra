@@ -55,14 +55,17 @@ public abstract class SSTableWriter extends SSTable
 
     public static enum FinishType
     {
-        NORMAL(SSTableReader.OpenReason.NORMAL),
-        EARLY(SSTableReader.OpenReason.EARLY), // no renaming
-        FINISH_EARLY(SSTableReader.OpenReason.NORMAL); // tidy up an EARLY finish
+        CLOSE(null, true),
+        NORMAL(SSTableReader.OpenReason.NORMAL, true),
+        EARLY(SSTableReader.OpenReason.EARLY, false), // no renaming
+        FINISH_EARLY(SSTableReader.OpenReason.NORMAL, true); // tidy up an EARLY finish
         public final SSTableReader.OpenReason openReason;
 
-        FinishType(SSTableReader.OpenReason openReason)
+        public final boolean isFinal;
+        FinishType(SSTableReader.OpenReason openReason, boolean isFinal)
         {
             this.openReason = openReason;
+            this.isFinal = isFinal;
         }
     }
 
@@ -200,12 +203,7 @@ public abstract class SSTableWriter extends SSTable
     /**
      * After failure, attempt to close the index writer and data file before deleting all temp components for the sstable
      */
-    public void abort()
-    {
-        abort(true);
-    }
-
-    public abstract void abort(boolean closeBf);
+    public abstract void abort();
 
 
     public static abstract class Factory

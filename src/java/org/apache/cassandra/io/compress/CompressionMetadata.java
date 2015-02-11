@@ -326,18 +326,15 @@ public class CompressionMetadata
         public CompressionMetadata open(long dataLength, long compressedLength, SSTableWriter.FinishType finishType)
         {
             RefCountedMemory offsets;
-            switch (finishType)
+            if (finishType.isFinal)
             {
-                case EARLY:
-                    offsets = this.offsets;
-                    break;
-                case NORMAL:
-                case FINISH_EARLY:
-                    offsets = this.offsets.copy(count * 8L);
-                    this.offsets.unreference();
-                    break;
-                default:
-                    throw new AssertionError();
+                // we now know how many offsets we have and can resize the offsets properly
+                offsets = this.offsets.copy(count * 8L);
+                this.offsets.unreference();
+            }
+            else
+            {
+                offsets = this.offsets;
             }
             return new CompressionMetadata(filePath, parameters, offsets, count * 8L, dataLength, compressedLength);
         }

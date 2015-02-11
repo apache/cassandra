@@ -25,7 +25,24 @@ public class BufferedSegmentedFile extends SegmentedFile
 {
     public BufferedSegmentedFile(String path, long length)
     {
-        super(path, length);
+        super(new Cleanup(path), path, length);
+    }
+
+    private BufferedSegmentedFile(BufferedSegmentedFile copy)
+    {
+        super(copy);
+    }
+
+    private static class Cleanup extends SegmentedFile.Cleanup
+    {
+        protected Cleanup(String path)
+        {
+            super(path);
+        }
+        public void tidy() throws Exception
+        {
+
+        }
     }
 
     public static class Builder extends SegmentedFile.Builder
@@ -49,7 +66,8 @@ public class BufferedSegmentedFile extends SegmentedFile
         return reader;
     }
 
-    public void cleanup()
+    public BufferedSegmentedFile sharedCopy()
     {
+        return new BufferedSegmentedFile(this);
     }
 }

@@ -61,7 +61,7 @@ public class OutgoingFileMessage extends StreamMessage
 
     public final FileMessageHeader header;
     public final SSTableReader sstable;
-    public final Ref ref;
+    public final Ref<SSTableReader> ref;
 
     public OutgoingFileMessage(SSTableReader sstable, Ref ref, int sequenceNumber, long estimatedKeys, List<Pair<Long, Long>> sections, long repairedAt, boolean keepSSTableLevel)
     {

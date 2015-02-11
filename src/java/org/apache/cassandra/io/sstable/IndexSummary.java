@@ -17,21 +17,19 @@
  */
 package org.apache.cassandra.io.sstable;
 
-import java.io.Closeable;
 import java.io.DataInputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.cache.RefCountedMemory;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.RowPosition;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.io.util.Memory;
 import org.apache.cassandra.io.util.MemoryOutputStream;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.concurrent.WrappedSharedCloseable;
 
 import static org.apache.cassandra.io.sstable.Downsampling.BASE_SAMPLING_LEVEL;
 
@@ -45,10 +43,8 @@ import static org.apache.cassandra.io.sstable.Downsampling.BASE_SAMPLING_LEVEL;
  *     (This is necessary because keys can have different lengths.)
  *  2.  A sequence of (DecoratedKey, position) pairs, where position is the offset into the actual index file.
  */
-public class IndexSummary implements Closeable
+public class IndexSummary extends WrappedSharedCloseable
 {
-    private static final Logger logger = LoggerFactory.getLogger(IndexSummary.class);
-
     public static final IndexSummarySerializer serializer = new IndexSummarySerializer();
 
     /**
@@ -60,7 +56,7 @@ public class IndexSummary implements Closeable
     private final IPartitioner partitioner;
     private final int summarySize;
     private final int sizeAtFullSampling;
-    private final RefCountedMemory bytes;
+    private final Memory bytes;
 
     /**
      * A value between 1 and BASE_SAMPLING_LEVEL that represents how many of the original
@@ -70,15 +66,27 @@ public class IndexSummary implements Closeable
      */
     private final int samplingLevel;
 
-    public IndexSummary(IPartitioner partitioner, RefCountedMemory memory, int summarySize, int sizeAtFullSampling,
+    public IndexSummary(IPartitioner partitioner, Memory bytes, int summarySize, int sizeAtFullSampling,
                         int minIndexInterval, int samplingLevel)
     {
+        super(bytes);
         this.partitioner = partitioner;
         this.minIndexInterval = minIndexInterval;
         this.summarySize = summarySize;
         this.sizeAtFullSampling = sizeAtFullSampling;
-        this.bytes = memory;
+        this.bytes = bytes;
         this.samplingLevel = samplingLevel;
+    }
+
+    private IndexSummary(IndexSummary copy)
+    {
+        super(copy);
+        this.partitioner = copy.partitioner;
+        this.minIndexInterval = copy.minIndexInterval;
+        this.summarySize = copy.summarySize;
+        this.sizeAtFullSampling = copy.sizeAtFullSampling;
+        this.bytes = copy.bytes;
+        this.samplingLevel = copy.samplingLevel;
     }
 
     // binary search is notoriously more difficult to get right than it looks; this is lifted from
@@ -137,7 +145,7 @@ public class IndexSummary implements Closeable
         long start = getPositionInSummary(index);
         long end = calculateEnd(index);
         byte[] entry = new byte[(int)(end - start)];
-        bytes.getBytes(start, entry, 0, (int)(end - start));
+        bytes.getBytes(start, entry, 0, (int) (end - start));
         return entry;
     }
 
@@ -206,6 +214,11 @@ public class IndexSummary implements Closeable
         return Downsampling.getEffectiveIndexIntervalAfterIndex(index, samplingLevel, minIndexInterval);
     }
 
+    public IndexSummary sharedCopy()
+    {
+        return new IndexSummary(this);
+    }
+
     public static class IndexSummarySerializer
     {
         public void serialize(IndexSummary t, DataOutputPlus out, boolean withSamplingLevel) throws IOException
@@ -255,17 +268,5 @@ public class IndexSummary implements Closeable
             FBUtilities.copy(in, new MemoryOutputStream(memory), offheapSize);
             return new IndexSummary(partitioner, memory, summarySize, fullSamplingSummarySize, minIndexInterval, samplingLevel);
         }
-    }
-
-    @Override
-    public void close()
-    {
-        bytes.unreference();
-    }
-
-    public IndexSummary readOnlyClone()
-    {
-        bytes.reference();
-        return this;
     }
 }

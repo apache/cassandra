@@ -267,9 +267,9 @@ public class IndexSummaryManager implements IndexSummaryManagerMBean
         double totalReadsPerSec = 0.0;
         for (SSTableReader sstable : nonCompacting)
         {
-            if (sstable.readMeter != null)
+            if (sstable.getReadMeter() != null)
             {
-                Double readRate = sstable.readMeter.fifteenMinuteRate();
+                Double readRate = sstable.getReadMeter().fifteenMinuteRate();
                 totalReadsPerSec += readRate;
                 readRates.put(sstable, readRate);
             }
@@ -315,7 +315,7 @@ public class IndexSummaryManager implements IndexSummaryManagerMBean
             int minIndexInterval = sstable.metadata.getMinIndexInterval();
             int maxIndexInterval = sstable.metadata.getMaxIndexInterval();
 
-            double readsPerSec = sstable.readMeter == null ? 0.0 : sstable.readMeter.fifteenMinuteRate();
+            double readsPerSec = sstable.getReadMeter() == null ? 0.0 : sstable.getReadMeter().fifteenMinuteRate();
             long idealSpace = Math.round(remainingSpace * (readsPerSec / totalReadsPerSec));
 
             // figure out how many entries our idealSpace would buy us, and pick a new sampling level based on that

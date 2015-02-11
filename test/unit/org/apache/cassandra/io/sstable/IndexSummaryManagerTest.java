@@ -113,7 +113,7 @@ public class IndexSummaryManagerTest
     private static List<SSTableReader> resetSummaries(List<SSTableReader> sstables, long originalOffHeapSize) throws IOException
     {
         for (SSTableReader sstable : sstables)
-            sstable.readMeter = new RestorableMeter(100.0, 100.0);
+            sstable.overrideReadMeter(new RestorableMeter(100.0, 100.0));
 
         sstables = redistributeSummaries(Collections.EMPTY_LIST, sstables, originalOffHeapSize * sstables.size());
         for (SSTableReader sstable : sstables)
@@ -140,7 +140,7 @@ public class IndexSummaryManagerTest
     {
         public int compare(SSTableReader o1, SSTableReader o2)
         {
-            return Double.compare(o1.readMeter.fifteenMinuteRate(), o2.readMeter.fifteenMinuteRate());
+            return Double.compare(o1.getReadMeter().fifteenMinuteRate(), o2.getReadMeter().fifteenMinuteRate());
         }
     };
 
@@ -195,7 +195,7 @@ public class IndexSummaryManagerTest
 
         List<SSTableReader> sstables = new ArrayList<>(cfs.getSSTables());
         for (SSTableReader sstable : sstables)
-            sstable.readMeter = new RestorableMeter(100.0, 100.0);
+            sstable.overrideReadMeter(new RestorableMeter(100.0, 100.0));
 
         for (SSTableReader sstable : sstables)
             assertEquals(cfs.metadata.getMinIndexInterval(), sstable.getEffectiveIndexInterval(), 0.001);
@@ -267,7 +267,7 @@ public class IndexSummaryManagerTest
 
         List<SSTableReader> sstables = new ArrayList<>(cfs.getSSTables());
         for (SSTableReader sstable : sstables)
-            sstable.readMeter = new RestorableMeter(100.0, 100.0);
+            sstable.overrideReadMeter(new RestorableMeter(100.0, 100.0));
 
         IndexSummaryManager.redistributeSummaries(Collections.EMPTY_LIST, sstables, 1);
         sstables = new ArrayList<>(cfs.getSSTables());
@@ -309,7 +309,7 @@ public class IndexSummaryManagerTest
 
         List<SSTableReader> sstables = new ArrayList<>(cfs.getSSTables());
         for (SSTableReader sstable : sstables)
-            sstable.readMeter = new RestorableMeter(100.0, 100.0);
+            sstable.overrideReadMeter(new RestorableMeter(100.0, 100.0));
 
         long singleSummaryOffHeapSpace = sstables.get(0).getIndexSummaryOffHeapSize();
 
@@ -348,8 +348,8 @@ public class IndexSummaryManagerTest
 
         // make two of the four sstables cold, only leave enough space for three full index summaries,
         // so the two cold sstables should get downsampled to be half of their original size
-        sstables.get(0).readMeter = new RestorableMeter(50.0, 50.0);
-        sstables.get(1).readMeter = new RestorableMeter(50.0, 50.0);
+        sstables.get(0).overrideReadMeter(new RestorableMeter(50.0, 50.0));
+        sstables.get(1).overrideReadMeter(new RestorableMeter(50.0, 50.0));
         sstables = redistributeSummaries(Collections.EMPTY_LIST, sstables, (singleSummaryOffHeapSpace * 3));
         Collections.sort(sstables, hotnessComparator);
         assertEquals(BASE_SAMPLING_LEVEL / 2, sstables.get(0).getIndexSummarySamplingLevel());
@@ -361,8 +361,8 @@ public class IndexSummaryManagerTest
         // small increases or decreases in the read rate don't result in downsampling or upsampling
         double lowerRate = 50.0 * (DOWNSAMPLE_THESHOLD + (DOWNSAMPLE_THESHOLD * 0.10));
         double higherRate = 50.0 * (UPSAMPLE_THRESHOLD - (UPSAMPLE_THRESHOLD * 0.10));
-        sstables.get(0).readMeter = new RestorableMeter(lowerRate, lowerRate);
-        sstables.get(1).readMeter = new RestorableMeter(higherRate, higherRate);
+        sstables.get(0).overrideReadMeter(new RestorableMeter(lowerRate, lowerRate));
+        sstables.get(1).overrideReadMeter(new RestorableMeter(higherRate, higherRate));
         sstables = redistributeSummaries(Collections.EMPTY_LIST, sstables, (singleSummaryOffHeapSpace * 3));
         Collections.sort(sstables, hotnessComparator);
         assertEquals(BASE_SAMPLING_LEVEL / 2, sstables.get(0).getIndexSummarySamplingLevel());
@@ -373,10 +373,10 @@ public class IndexSummaryManagerTest
 
         // reset, and then this time, leave enough space for one of the cold sstables to not get downsampled
         sstables = resetSummaries(sstables, singleSummaryOffHeapSpace);
-        sstables.get(0).readMeter = new RestorableMeter(1.0, 1.0);
-        sstables.get(1).readMeter = new RestorableMeter(2.0, 2.0);
-        sstables.get(2).readMeter = new RestorableMeter(1000.0, 1000.0);
-        sstables.get(3).readMeter = new RestorableMeter(1000.0, 1000.0);
+        sstables.get(0).overrideReadMeter(new RestorableMeter(1.0, 1.0));
+        sstables.get(1).overrideReadMeter(new RestorableMeter(2.0, 2.0));
+        sstables.get(2).overrideReadMeter(new RestorableMeter(1000.0, 1000.0));
+        sstables.get(3).overrideReadMeter(new RestorableMeter(1000.0, 1000.0));
 
         sstables = redistributeSummaries(Collections.EMPTY_LIST, sstables, (singleSummaryOffHeapSpace * 3) + 50);
         Collections.sort(sstables, hotnessComparator);
@@ -395,10 +395,10 @@ public class IndexSummaryManagerTest
         // coldest sstables will get downsampled to 4/128 of their size, leaving us with 1 and 92/128th index
         // summaries worth of space.  The hottest sstable should get a full index summary, and the one in the middle
         // should get the remainder.
-        sstables.get(0).readMeter = new RestorableMeter(0.0, 0.0);
-        sstables.get(1).readMeter = new RestorableMeter(0.0, 0.0);
-        sstables.get(2).readMeter = new RestorableMeter(92, 92);
-        sstables.get(3).readMeter = new RestorableMeter(128.0, 128.0);
+        sstables.get(0).overrideReadMeter(new RestorableMeter(0.0, 0.0));
+        sstables.get(1).overrideReadMeter(new RestorableMeter(0.0, 0.0));
+        sstables.get(2).overrideReadMeter(new RestorableMeter(92, 92));
+        sstables.get(3).overrideReadMeter(new RestorableMeter(128.0, 128.0));
         sstables = redistributeSummaries(Collections.EMPTY_LIST, sstables, (long) (singleSummaryOffHeapSpace + (singleSummaryOffHeapSpace * (92.0 / BASE_SAMPLING_LEVEL))));
         Collections.sort(sstables, hotnessComparator);
         assertEquals(1, sstables.get(0).getIndexSummarySize());  // at the min sampling level
@@ -444,10 +444,13 @@ public class IndexSummaryManagerTest
         SSTableReader sstable = original;
         for (int samplingLevel = 1; samplingLevel < BASE_SAMPLING_LEVEL; samplingLevel++)
         {
+            SSTableReader prev = sstable;
             sstable = sstable.cloneWithNewSummarySamplingLevel(cfs, samplingLevel);
             assertEquals(samplingLevel, sstable.getIndexSummarySamplingLevel());
             int expectedSize = (numRows * samplingLevel) / (sstable.metadata.getMinIndexInterval() * BASE_SAMPLING_LEVEL);
             assertEquals(expectedSize, sstable.getIndexSummarySize(), 1);
+            if (prev != original)
+                prev.selfRef().release();
         }
 
         // don't leave replaced SSTRs around to break other tests

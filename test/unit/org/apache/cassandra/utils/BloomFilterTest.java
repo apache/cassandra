@@ -29,10 +29,7 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Set;
 
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.Ignore;
-import org.junit.Test;
+import org.junit.*;
 
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.util.DataOutputStreamAndChannel;
@@ -44,7 +41,7 @@ public class BloomFilterTest
 
     public BloomFilterTest()
     {
-        bf = FilterFactory.getFilter(10000L, FilterTestHelper.MAX_FAILURE_RATE, true);
+
     }
 
     public static IFilter testSerialize(IFilter f) throws IOException
@@ -63,9 +60,15 @@ public class BloomFilterTest
 
 
     @Before
-    public void clear()
+    public void setup()
     {
-        bf.clear();
+        bf = FilterFactory.getFilter(10000L, FilterTestHelper.MAX_FAILURE_RATE, true);
+    }
+
+    @After
+    public void destroy()
+    {
+        bf.close();
     }
 
     @Test(expected = UnsupportedOperationException.class)
@@ -113,12 +116,13 @@ public class BloomFilterTest
         FilterTestHelper.testFalsePositives(bf2,
                                             new KeyGenerator.WordGenerator(skipEven, 2),
                                             new KeyGenerator.WordGenerator(1, 2));
+        bf2.close();
     }
 
     @Test
     public void testSerialize() throws IOException
     {
-        BloomFilterTest.testSerialize(bf);
+        BloomFilterTest.testSerialize(bf).close();
     }
 
     public void testManyHashes(Iterator<ByteBuffer> keys)
@@ -136,6 +140,7 @@ public class BloomFilterTest
                 hashes.add(hashIndex);
             }
             collisions += (MAX_HASH_COUNT - hashes.size());
+            bf.close();
         }
         assert collisions <= 100;
     }
@@ -166,6 +171,7 @@ public class BloomFilterTest
         FilterFactory.serialize(filter, out);
         filter.bitset.serialize(out);
         out.close();
+        filter.close();
         
         DataInputStream in = new DataInputStream(new FileInputStream(file));
         BloomFilter filter2 = (BloomFilter) FilterFactory.deserialize(in, true);

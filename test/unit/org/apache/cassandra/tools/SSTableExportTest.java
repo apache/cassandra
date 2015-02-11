@@ -224,6 +224,7 @@ public class SSTableExportTest
         qf = Util.namesQueryFilter(cfs, Util.dk("rowExclude"), "name");
         cf = qf.getSSTableColumnIterator(reader).getColumnFamily();
         assert cf == null;
+        reader.selfRef().release();
     }
 
     @Test

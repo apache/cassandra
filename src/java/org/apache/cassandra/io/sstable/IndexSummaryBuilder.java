@@ -28,6 +28,7 @@ import org.apache.cassandra.cache.RefCountedMemory;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.dht.IPartitioner;
+import org.apache.cassandra.io.util.Memory;
 
 import static org.apache.cassandra.io.sstable.Downsampling.BASE_SAMPLING_LEVEL;
 import static org.apache.cassandra.io.sstable.SSTable.getMinimalKey;
@@ -148,7 +149,7 @@ public class IndexSummaryBuilder
 
         // first we write out the position in the *summary* for each key in the summary,
         // then we write out (key, actual index position) pairs
-        RefCountedMemory memory = new RefCountedMemory(offheapSize + (length * 4));
+        Memory memory = Memory.allocate(offheapSize + (length * 4));
         int idxPosition = 0;
         int keyPosition = length * 4;
         for (int i = 0; i < length; i++)

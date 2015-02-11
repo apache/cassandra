@@ -12,16 +12,16 @@ import com.google.common.collect.Iterators;
  *
  * All of the java.util.Collection operations that modify the collection are unsupported.
  */
-public final class Refs<T extends RefCounted> extends AbstractCollection<T> implements AutoCloseable
+public final class Refs<T extends RefCounted<T>> extends AbstractCollection<T> implements AutoCloseable
 {
-    private final Map<T, Ref> references;
+    private final Map<T, Ref<T>> references;
 
     public Refs()
     {
         this.references = new HashMap<>();
     }
 
-    public Refs(Map<T, Ref> references)
+    public Refs(Map<T, Ref<T>> references)
     {
         this.references = new HashMap<>(references);
     }
@@ -88,11 +88,11 @@ public final class Refs<T extends RefCounted> extends AbstractCollection<T> impl
      */
     public void release(Collection<T> release)
     {
-        List<Ref> refs = new ArrayList<>();
+        List<Ref<T>> refs = new ArrayList<>();
         List<T> notPresent = null;
         for (T obj : release)
         {
-            Ref ref = references.remove(obj);
+            Ref<T> ref = references.remove(obj);
             if (ref == null)
             {
                 if (notPresent == null)
@@ -132,7 +132,7 @@ public final class Refs<T extends RefCounted> extends AbstractCollection<T> impl
      */
     public boolean tryRef(T t)
     {
-        Ref ref = t.tryRef();
+        Ref<T> ref = t.tryRef();
         if (ref == null)
             return false;
         ref = references.put(t, ref);
@@ -156,8 +156,8 @@ public final class Refs<T extends RefCounted> extends AbstractCollection<T> impl
      */
     public Refs<T> addAll(Refs<T> add)
     {
-        List<Ref> overlap = new ArrayList<>();
-        for (Map.Entry<T, Ref> e : add.references.entrySet())
+        List<Ref<T>> overlap = new ArrayList<>();
+        for (Map.Entry<T, Ref<T>> e : add.references.entrySet())
         {
             if (this.references.containsKey(e.getKey()))
                 overlap.add(e.getValue());
@@ -172,12 +172,12 @@ public final class Refs<T extends RefCounted> extends AbstractCollection<T> impl
     /**
      * Acquire a reference to all of the provided objects, or none
      */
-    public static <T extends RefCounted> Refs<T> tryRef(Iterable<T> reference)
+    public static <T extends RefCounted<T>> Refs<T> tryRef(Iterable<T> reference)
     {
-        HashMap<T, Ref> refs = new HashMap<>();
+        HashMap<T, Ref<T>> refs = new HashMap<>();
         for (T rc : reference)
         {
-            Ref ref = rc.tryRef();
+            Ref<T> ref = rc.tryRef();
             if (ref == null)
             {
                 release(refs.values());
@@ -188,7 +188,7 @@ public final class Refs<T extends RefCounted> extends AbstractCollection<T> impl
         return new Refs<T>(refs);
     }
 
-    public static <T extends RefCounted> Refs<T> ref(Iterable<T> reference)
+    public static <T extends RefCounted<T>> Refs<T> ref(Iterable<T> reference)
     {
         Refs<T> refs = tryRef(reference);
         if (refs != null)
@@ -196,7 +196,7 @@ public final class Refs<T extends RefCounted> extends AbstractCollection<T> impl
         throw new IllegalStateException();
     }
 
-    private static void release(Iterable<Ref> refs)
+    private static void release(Iterable<? extends Ref<?>> refs)
     {
         Throwable fail = null;
         for (Ref ref : refs)

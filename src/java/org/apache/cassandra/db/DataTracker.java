@@ -367,7 +367,7 @@ public class DataTracker
         while (!view.compareAndSet(currentView, newView));
         for (SSTableReader sstable : currentView.sstables)
             if (!remaining.contains(sstable))
-                sstable.sharedRef().release();
+                sstable.selfRef().release();
         notifySSTablesChanged(remaining, Collections.<SSTableReader>emptySet(), OperationType.UNKNOWN);
     }
 
@@ -406,7 +406,7 @@ public class DataTracker
             sstable.setTrackedBy(this);
 
         for (SSTableReader sstable : oldSSTables)
-            sstable.sharedRef().release();
+            sstable.selfRef().release();
     }
 
     private void removeSSTablesFromTracker(Collection<SSTableReader> oldSSTables)
@@ -467,7 +467,7 @@ public class DataTracker
         {
             boolean firstToCompact = sstable.markObsolete();
             assert tolerateCompacted || firstToCompact : sstable + " was already marked compacted";
-            sstable.sharedRef().release();
+            sstable.selfRef().release();
         }
     }
 

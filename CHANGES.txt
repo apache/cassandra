@@ -58,6 +58,7 @@
 
 
 2.1.4
+ * Safer Resource Management++ (CASSANDRA-8707)
  * Write partition size estimates into a system table (CASSANDRA-7688)
  * cqlsh: Fix keys() and full() collection indexes in DESCRIBE output
    (CASSANDRA-8154)

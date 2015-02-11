@@ -360,7 +360,7 @@ public class StreamSession implements IEndpointStateChangeSubscriber
     public static class SSTableStreamingSections
     {
         public final SSTableReader sstable;
-        public final Ref ref;
+        public final Ref<SSTableReader> ref;
         public final List<Pair<Long, Long>> sections;
         public final long estimatedKeys;
         public final long repairedAt;

@@ -412,7 +412,7 @@ public class ActiveRepairService
         {
             Set<SSTableReader> sstables = sstableMap.get(cfId);
             Iterator<SSTableReader> sstableIterator = sstables.iterator();
-            ImmutableMap.Builder<SSTableReader, Ref> references = ImmutableMap.builder();
+            ImmutableMap.Builder<SSTableReader, Ref<SSTableReader>> references = ImmutableMap.builder();
             while (sstableIterator.hasNext())
             {
                 SSTableReader sstable = sstableIterator.next();
@@ -422,7 +422,7 @@ public class ActiveRepairService
                 }
                 else
                 {
-                    Ref ref = sstable.tryRef();
+                    Ref<SSTableReader> ref = sstable.tryRef();
                     if (ref == null)
                         sstableIterator.remove();
                     else

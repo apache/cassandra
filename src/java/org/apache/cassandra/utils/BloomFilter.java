@@ -21,9 +21,10 @@ import java.nio.ByteBuffer;
 
 import com.google.common.annotations.VisibleForTesting;
 
+import org.apache.cassandra.utils.concurrent.WrappedSharedCloseable;
 import org.apache.cassandra.utils.obs.IBitSet;
 
-public abstract class BloomFilter implements IFilter
+public abstract class BloomFilter extends WrappedSharedCloseable implements IFilter
 {
     private static final ThreadLocal<long[]> reusableIndexes = new ThreadLocal<long[]>()
     {
@@ -36,10 +37,18 @@ public abstract class BloomFilter implements IFilter
     public final IBitSet bitset;
     public final int hashCount;
 
-    BloomFilter(int hashes, IBitSet bitset)
+    BloomFilter(int hashCount, IBitSet bitset)
     {
-        this.hashCount = hashes;
+        super(bitset);
+        this.hashCount = hashCount;
         this.bitset = bitset;
+    }
+
+    BloomFilter(BloomFilter copy)
+    {
+        super(copy);
+        this.hashCount = copy.hashCount;
+        this.bitset = copy.bitset;
     }
 
     // Murmur is faster than an SHA-based approach and provides as-good collision
@@ -109,10 +118,5 @@ public abstract class BloomFilter implements IFilter
     public void clear()
     {
         bitset.clear();
-    }
-
-    public void close()
-    {
-        bitset.close();
     }
 }

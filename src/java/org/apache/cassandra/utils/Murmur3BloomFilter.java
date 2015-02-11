@@ -26,14 +26,24 @@ public class Murmur3BloomFilter extends BloomFilter
 {
     public static final Murmur3BloomFilterSerializer serializer = new Murmur3BloomFilterSerializer();
 
-    public Murmur3BloomFilter(int hashes, IBitSet bs)
+    public Murmur3BloomFilter(int hashCount, IBitSet bs)
     {
-        super(hashes, bs);
+        super(hashCount, bs);
+    }
+
+    protected Murmur3BloomFilter(Murmur3BloomFilter copy)
+    {
+        super(copy);
     }
 
     public long serializedSize()
     {
         return serializer.serializedSize(this, TypeSizes.NATIVE);
+    }
+
+    public IFilter sharedCopy()
+    {
+        return new Murmur3BloomFilter(this);
     }
 
     @Override

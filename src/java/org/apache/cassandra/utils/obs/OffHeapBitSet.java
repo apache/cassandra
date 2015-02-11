@@ -172,4 +172,9 @@ public class OffHeapBitSet implements IBitSet
         }
         return (int) ((h >> 32) ^ h) + 0x98761234;
     }
+
+    public String toString()
+    {
+        return "[OffHeapBitSet]";
+    }
 }

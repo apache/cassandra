@@ -41,31 +41,42 @@ public class SSTableDeletingTask implements Runnable
     // and delete will fail (on Windows) until it is (we only force the unmapping on SUN VMs).
     // Additionally, we need to make sure to delete the data file first, so on restart the others
     // will be recognized as GCable.
-    private static final Set<SSTableDeletingTask> failedTasks = new CopyOnWriteArraySet<SSTableDeletingTask>();
+    private static final Set<SSTableDeletingTask> failedTasks = new CopyOnWriteArraySet<>();
 
     private final SSTableReader referent;
     private final Descriptor desc;
     private final Set<Component> components;
     private DataTracker tracker;
 
-    public SSTableDeletingTask(SSTableReader referent)
+    /**
+     * realDescriptor is the actual descriptor for the sstable, the descriptor inside
+     * referent can be 'faked' as FINAL for early opened files. We need the real one
+     * to be able to remove the files.
+     */
+    public SSTableDeletingTask(Descriptor realDescriptor, SSTableReader referent)
     {
         this.referent = referent;
-        if (referent.openReason == SSTableReader.OpenReason.EARLY)
+        this.desc = realDescriptor;
+        switch (desc.type)
         {
-            this.desc = referent.descriptor.asType(Descriptor.Type.TEMPLINK);
-            this.components = Sets.newHashSet(Component.DATA, Component.PRIMARY_INDEX);
-        }
-        else
-        {
-            this.desc = referent.descriptor;
-            this.components = referent.components;
+            case FINAL:
+                this.components = referent.components;
+                break;
+            case TEMPLINK:
+                this.components = Sets.newHashSet(Component.DATA, Component.PRIMARY_INDEX);
+                break;
+            default:
+                throw new IllegalStateException();
         }
     }
 
     public void setTracker(DataTracker tracker)
     {
-        this.tracker = tracker;
+        // the tracker is used only to notify listeners of deletion of the sstable;
+        // since deletion of a non-final file is not really deletion of the sstable,
+        // we don't want to notify the listeners in this event
+        if (desc.type == Descriptor.Type.FINAL)
+            this.tracker = tracker;
     }
 
     public void schedule()
@@ -79,9 +90,6 @@ public class SSTableDeletingTask implements Runnable
 
         if (tracker != null)
             tracker.notifyDeleting(referent);
-
-        if (referent.readMeter != null)
-            SystemKeyspace.clearSSTableReadMeter(referent.getKeyspaceName(), referent.getColumnFamilyName(), referent.descriptor.generation);
 
         // If we can't successfully delete the DATA component, set the task to be retried later: see above
         File datafile = new File(desc.filenameFor(Component.DATA));

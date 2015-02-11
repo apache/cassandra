@@ -21,15 +21,35 @@ import org.apache.cassandra.service.FileCacheService;
 
 public abstract class PoolingSegmentedFile extends SegmentedFile
 {
-    final FileCacheService.CacheKey cacheKey = new FileCacheService.CacheKey();
-    protected PoolingSegmentedFile(String path, long length)
+    final FileCacheService.CacheKey cacheKey;
+    protected PoolingSegmentedFile(Cleanup cleanup, String path, long length)
     {
-        super(path, length);
+        this(cleanup, path, length, length);
     }
 
-    protected PoolingSegmentedFile(String path, long length, long onDiskLength)
+    protected PoolingSegmentedFile(Cleanup cleanup, String path, long length, long onDiskLength)
     {
-        super(path, length, onDiskLength);
+        super(cleanup, path, length, onDiskLength);
+        cacheKey = cleanup.cacheKey;
+    }
+
+    public PoolingSegmentedFile(PoolingSegmentedFile copy)
+    {
+        super(copy);
+        cacheKey = copy.cacheKey;
+    }
+
+    protected static class Cleanup extends SegmentedFile.Cleanup
+    {
+        final FileCacheService.CacheKey cacheKey = new FileCacheService.CacheKey();
+        protected Cleanup(String path)
+        {
+            super(path);
+        }
+        public void tidy() throws Exception
+        {
+            FileCacheService.instance.invalidate(cacheKey, path);
+        }
     }
 
     public FileDataInput getSegment(long position)
@@ -48,10 +68,5 @@ public abstract class PoolingSegmentedFile extends SegmentedFile
     public void recycle(RandomAccessReader reader)
     {
         FileCacheService.instance.put(cacheKey, reader);
-    }
-
-    public void cleanup()
-    {
-        FileCacheService.instance.invalidate(cacheKey, path);
     }
 }
