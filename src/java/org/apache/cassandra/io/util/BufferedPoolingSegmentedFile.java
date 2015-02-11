@@ -51,9 +51,4 @@ public class BufferedPoolingSegmentedFile extends PoolingSegmentedFile
             return new BufferedPoolingSegmentedFile(path, length);
         }
     }
-
-    protected RandomAccessReader createReader(String path)
-    {
-        return RandomAccessReader.open(new File(path), this);
-    }
 }

@@ -77,8 +77,6 @@ import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.LocalPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.io.compress.CompressedRandomAccessReader;
-import org.apache.cassandra.io.compress.CompressedThrottledReader;
 import org.apache.cassandra.io.compress.CompressionMetadata;
 import org.apache.cassandra.io.sstable.metadata.CompactionMetadata;
 import org.apache.cassandra.io.sstable.metadata.MetadataComponent;
@@ -93,7 +91,6 @@ import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.io.util.ICompressedFile;
 import org.apache.cassandra.io.util.RandomAccessReader;
 import org.apache.cassandra.io.util.SegmentedFile;
-import org.apache.cassandra.io.util.ThrottledReader;
 import org.apache.cassandra.metrics.RestorableMeter;
 import org.apache.cassandra.metrics.StorageMetrics;
 import org.apache.cassandra.service.ActiveRepairService;
@@ -1852,21 +1849,17 @@ public class SSTableReader extends SSTable implements RefCounted<SSTableReader>
     public RandomAccessReader openDataReader(RateLimiter limiter)
     {
         assert limiter != null;
-        return compression
-               ? CompressedThrottledReader.open(getFilename(), getCompressionMetadata(), limiter)
-               : ThrottledReader.open(new File(getFilename()), limiter);
+        return dfile.createThrottledReader(limiter);
     }
 
     public RandomAccessReader openDataReader()
     {
-        return compression
-               ? CompressedRandomAccessReader.open(getFilename(), getCompressionMetadata())
-               : RandomAccessReader.open(new File(getFilename()));
+        return dfile.createReader();
     }
 
     public RandomAccessReader openIndexReader()
     {
-        return RandomAccessReader.open(new File(getIndexFilename()));
+        return ifile.createReader();
     }
 
     /**

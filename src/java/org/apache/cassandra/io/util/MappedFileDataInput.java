@@ -31,15 +31,6 @@ public class MappedFileDataInput extends AbstractDataInput implements FileDataIn
     private final long segmentOffset;
     private int position;
 
-    public MappedFileDataInput(FileInputStream stream, String filename, long segmentOffset, int position) throws IOException
-    {
-        FileChannel channel = stream.getChannel();
-        buffer = channel.map(FileChannel.MapMode.READ_ONLY, position, channel.size());
-        this.filename = filename;
-        this.segmentOffset = segmentOffset;
-        this.position = position;
-    }
-
     public MappedFileDataInput(MappedByteBuffer buffer, String filename, long segmentOffset, int position)
     {
         assert buffer != null;

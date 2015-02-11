@@ -25,6 +25,8 @@ import java.nio.MappedByteBuffer;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
 
+import com.google.common.util.concurrent.RateLimiter;
+
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.FSReadError;
@@ -92,6 +94,24 @@ public abstract class SegmentedFile extends SharedCloseableImpl
 
     public abstract SegmentedFile sharedCopy();
 
+    public RandomAccessReader createReader()
+    {
+        return RandomAccessReader.open(new File(path));
+    }
+
+    public RandomAccessReader createThrottledReader(RateLimiter limiter)
+    {
+        assert limiter != null;
+        return ThrottledReader.open(new File(path), limiter);
+    }
+
+    public FileDataInput getSegment(long position)
+    {
+        RandomAccessReader reader = createReader();
+        reader.seek(position);
+        return reader;
+    }
+
     /**
      * @return A SegmentedFile.Builder.
      */
@@ -111,8 +131,6 @@ public abstract class SegmentedFile extends SharedCloseableImpl
     {
         return new CompressedPoolingSegmentedFile.Builder(writer);
     }
-
-    public abstract FileDataInput getSegment(long position);
 
     /**
      * @return An Iterator over segments, beginning with the segment containing the given position: each segment must be closed after use.

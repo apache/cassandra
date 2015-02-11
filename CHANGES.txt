@@ -1,4 +1,5 @@
 2.1.4
+ * Cleanup SegmentedFile API (CASSANDRA-8749)
  * Avoid overlap with early compaction replacement (CASSANDRA-8683)
  * Safer Resource Management++ (CASSANDRA-8707)
  * Write partition size estimates into a system table (CASSANDRA-7688)

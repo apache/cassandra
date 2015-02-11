@@ -17,6 +17,8 @@
  */
 package org.apache.cassandra.io.util;
 
+import java.io.File;
+
 import org.apache.cassandra.service.FileCacheService;
 
 public abstract class PoolingSegmentedFile extends SegmentedFile
@@ -57,13 +59,16 @@ public abstract class PoolingSegmentedFile extends SegmentedFile
         RandomAccessReader reader = FileCacheService.instance.get(cacheKey);
 
         if (reader == null)
-            reader = createReader(path);
+            reader = createPooledReader();
 
         reader.seek(position);
         return reader;
     }
 
-    protected abstract RandomAccessReader createReader(String path);
+    protected RandomAccessReader createPooledReader()
+    {
+        return RandomAccessReader.open(new File(path), this);
+    }
 
     public void recycle(RandomAccessReader reader)
     {
