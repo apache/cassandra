@@ -183,14 +183,14 @@ public class SSTableRewriter
         for (SSTableReader sstable : finished)
         {
             sstable.markObsolete();
-            sstable.sharedRef().release();
+            sstable.selfRef().release();
         }
 
         // abort the writers
         for (Finished finished : finishedEarly)
         {
             boolean opened = finished.reader != null;
-            finished.writer.abort(!opened);
+            finished.writer.abort();
             if (opened)
             {
                 // if we've already been opened, add ourselves to the discard pile
@@ -361,7 +361,7 @@ public class SSTableRewriter
             }
             else
             {
-                f.writer.abort(true);
+                f.writer.abort();
                 assert f.reader == null;
             }
         }
@@ -380,9 +380,9 @@ public class SSTableRewriter
         {
             for (SSTableReader reader : discard)
             {
-                if (reader.getCurrentReplacement() == null)
+                if (reader.getCurrentReplacement() == reader)
                     reader.markObsolete();
-                reader.sharedRef().release();
+                reader.selfRef().release();
             }
         }
         else

@@ -47,8 +47,19 @@ public class MmappedSegmentedFile extends SegmentedFile
 
     public MmappedSegmentedFile(String path, long length, Segment[] segments)
     {
-        super(path, length);
+        super(new Cleanup(path, segments), path, length);
         this.segments = segments;
+    }
+
+    private MmappedSegmentedFile(MmappedSegmentedFile copy)
+    {
+        super(copy);
+        this.segments = copy.segments;
+    }
+
+    public MmappedSegmentedFile sharedCopy()
+    {
+        return new MmappedSegmentedFile(this);
     }
 
     /**
@@ -85,31 +96,41 @@ public class MmappedSegmentedFile extends SegmentedFile
         return file;
     }
 
-    public void cleanup()
+    private static final class Cleanup extends SegmentedFile.Cleanup
     {
-        if (!FileUtils.isCleanerAvailable())
-            return;
+        final Segment[] segments;
+        protected Cleanup(String path, Segment[] segments)
+        {
+            super(path);
+            this.segments = segments;
+        }
+
+        public void tidy()
+        {
+            if (!FileUtils.isCleanerAvailable())
+                return;
 
         /*
          * Try forcing the unmapping of segments using undocumented unsafe sun APIs.
          * If this fails (non Sun JVM), we'll have to wait for the GC to finalize the mapping.
          * If this works and a thread tries to access any segment, hell will unleash on earth.
          */
-        try
-        {
-            for (Segment segment : segments)
+            try
             {
-                if (segment.right == null)
-                    continue;
-                FileUtils.clean(segment.right);
+                for (Segment segment : segments)
+                {
+                    if (segment.right == null)
+                        continue;
+                    FileUtils.clean(segment.right);
+                }
+                logger.debug("All segments have been unmapped successfully");
             }
-            logger.debug("All segments have been unmapped successfully");
-        }
-        catch (Exception e)
-        {
-            JVMStabilityInspector.inspectThrowable(e);
-            // This is not supposed to happen
-            logger.error("Error while unmapping segments", e);
+            catch (Exception e)
+            {
+                JVMStabilityInspector.inspectThrowable(e);
+                // This is not supposed to happen
+                logger.error("Error while unmapping segments", e);
+            }
         }
     }
 

@@ -17,10 +17,11 @@
  */
 package org.apache.cassandra.utils;
 
-import java.io.Closeable;
 import java.nio.ByteBuffer;
 
-public interface IFilter extends Closeable
+import org.apache.cassandra.utils.concurrent.SharedCloseable;
+
+public interface IFilter extends SharedCloseable
 {
     void add(ByteBuffer key);
 
@@ -31,6 +32,8 @@ public interface IFilter extends Closeable
     long serializedSize();
 
     void close();
+
+    IFilter sharedCopy();
 
     /**
      * Returns the amount of memory in bytes used off heap.

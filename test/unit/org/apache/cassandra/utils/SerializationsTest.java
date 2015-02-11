@@ -39,6 +39,7 @@ public class SerializationsTest extends AbstractSerializationsTester
         DataOutputStreamAndChannel out = getOutput("utils.BloomFilter.bin");
         FilterFactory.serialize(bf, out);
         out.close();
+        bf.close();
     }
 
     @Test
@@ -48,7 +49,9 @@ public class SerializationsTest extends AbstractSerializationsTester
             testBloomFilterWrite(true);
 
         DataInputStream in = getInput("utils.BloomFilter.bin");
-        assert FilterFactory.deserialize(in, true) != null;
+        IFilter bf = FilterFactory.deserialize(in, true);
+        assert bf != null;
+        bf.close();
         in.close();
     }
 

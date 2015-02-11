@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.io.util;
 
+import java.io.Closeable;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 
@@ -30,7 +31,7 @@ import sun.nio.ch.DirectBuffer;
 /**
  * An off-heap region of memory that must be manually free'd when no longer needed.
  */
-public class Memory
+public class Memory implements AutoCloseable
 {
     private static final Unsafe unsafe = NativeAllocator.unsafe;
     private static final IAllocator allocator = DatabaseDescriptor.getoffHeapMemoryAllocator();
@@ -300,6 +301,11 @@ public class Memory
         assert peer != 0;
         allocator.free(peer);
         peer = 0;
+    }
+
+    public void close() throws Exception
+    {
+        free();
     }
 
     public long size()

@@ -25,7 +25,17 @@ public class BufferedPoolingSegmentedFile extends PoolingSegmentedFile
 {
     public BufferedPoolingSegmentedFile(String path, long length)
     {
-        super(path, length);
+        super(new Cleanup(path), path, length);
+    }
+
+    private BufferedPoolingSegmentedFile(BufferedPoolingSegmentedFile copy)
+    {
+        super(copy);
+    }
+
+    public BufferedPoolingSegmentedFile sharedCopy()
+    {
+        return new BufferedPoolingSegmentedFile(this);
     }
 
     public static class Builder extends SegmentedFile.Builder

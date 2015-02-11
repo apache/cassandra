@@ -203,15 +203,15 @@ public class SSTableReaderTest extends SchemaLoader
         store.forceBlockingFlush();
 
         SSTableReader sstable = store.getSSTables().iterator().next();
-        assertEquals(0, sstable.readMeter.count());
+        assertEquals(0, sstable.getReadMeter().count());
 
         DecoratedKey key = sstable.partitioner.decorateKey(ByteBufferUtil.bytes("4"));
         store.getColumnFamily(key, Composites.EMPTY, Composites.EMPTY, false, 100, 100);
-        assertEquals(1, sstable.readMeter.count());
+        assertEquals(1, sstable.getReadMeter().count());
         store.getColumnFamily(key, cellname("0"), cellname("0"), false, 100, 100);
-        assertEquals(2, sstable.readMeter.count());
+        assertEquals(2, sstable.getReadMeter().count());
         store.getColumnFamily(Util.namesQueryFilter(store, key, cellname("0")));
-        assertEquals(3, sstable.readMeter.count());
+        assertEquals(3, sstable.getReadMeter().count());
     }
 
     @Test
@@ -334,6 +334,7 @@ public class SSTableReaderTest extends SchemaLoader
         Assert.assertArrayEquals(ByteBufferUtil.getArray(firstKey.getKey()), target.getIndexSummaryKey(0));
         assert target.first.equals(firstKey);
         assert target.last.equals(lastKey);
+        target.selfRef().release();
     }
 
     @Test
@@ -360,6 +361,7 @@ public class SSTableReaderTest extends SchemaLoader
 
         SSTableReader reopened = SSTableReader.open(sstable.descriptor);
         assert reopened.first.getToken() instanceof LocalToken;
+        reopened.selfRef().release();
     }
 
     /** see CASSANDRA-5407 */
@@ -417,6 +419,7 @@ public class SSTableReaderTest extends SchemaLoader
         SSTableReader bulkLoaded = SSTableReader.openForBatch(sstable.descriptor, components, store.metadata, sstable.partitioner);
         sections = bulkLoaded.getPositionsForRanges(ranges);
         assert sections.size() == 1 : "Expected to find range in sstable opened for bulk loading";
+        bulkLoaded.selfRef().release();
     }
 
     @Test
