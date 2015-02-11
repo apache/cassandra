@@ -1062,17 +1062,20 @@ public class SSTableReader extends SSTable implements RefCounted<SSTableReader>
 
     /**
      * Gets the position in the index file to start scanning to find the given key (at most indexInterval keys away,
-     * modulo downsampling of the index summary).
+     * modulo downsampling of the index summary). Always returns a value >= 0
      */
     public long getIndexScanPosition(RowPosition key)
     {
+        if (openReason == OpenReason.MOVED_START && key.compareTo(first) < 0)
+            key = first;
+
         return getIndexScanPositionFromBinarySearchResult(indexSummary.binarySearch(key), indexSummary);
     }
 
     private static long getIndexScanPositionFromBinarySearchResult(int binarySearchResult, IndexSummary referencedIndexSummary)
     {
         if (binarySearchResult == -1)
-            return -1;
+            return 0;
         else
             return referencedIndexSummary.getPosition(getIndexSummaryIndexFromBinarySearchResult(binarySearchResult));
     }
@@ -1314,7 +1317,7 @@ public class SSTableReader extends SSTable implements RefCounted<SSTableReader>
                          ? (openReason == OpenReason.EARLY
                             // if opened early, we overlap with the old sstables by one key, so we know that the last
                             // (and further) key(s) will be streamed from these if necessary
-                            ? getPosition(last.getToken().maxKeyBound(), Operator.GT).position
+                            ? getPosition(last, Operator.GT, false, true).position
                             : uncompressedLength())
                          : getPosition(rightBound, Operator.GT).position;
 
@@ -1395,6 +1398,10 @@ public class SSTableReader extends SSTable implements RefCounted<SSTableReader>
      */
     public RowIndexEntry getPosition(RowPosition key, Operator op, boolean updateCacheAndStats)
     {
+        return getPosition(key, op, updateCacheAndStats, false);
+    }
+    private RowIndexEntry getPosition(RowPosition key, Operator op, boolean updateCacheAndStats, boolean permitMatchPastLast)
+    {
         // first, check bloom filter
         if (op == Operator.EQ)
         {
@@ -1420,24 +1427,35 @@ public class SSTableReader extends SSTable implements RefCounted<SSTableReader>
         }
 
         // check the smallest and greatest keys in the sstable to see if it can't be present
-        if (first.compareTo(key) > 0 || last.compareTo(key) < 0)
+        boolean skip = false;
+        if (key.compareTo(first) < 0)
+        {
+            if (op == Operator.EQ)
+                skip = true;
+            else
+                key = first;
+
+            op = Operator.EQ;
+        }
+        else
+        {
+            int l = last.compareTo(key);
+            // l <= 0  => we may be looking past the end of the file; we then narrow our behaviour to:
+            //             1) skipping if strictly greater for GE and EQ;
+            //             2) skipping if equal and searching GT, and we aren't permitting matching past last
+            skip = l <= 0 && (l < 0 || (!permitMatchPastLast && op == Operator.GT));
+        }
+        if (skip)
         {
             if (op == Operator.EQ && updateCacheAndStats)
                 bloomFilterTracker.addFalsePositive();
-
-            if (op.apply(1) < 0)
-            {
-                Tracing.trace("Check against min and max keys allows skipping sstable {}", descriptor.generation);
-                return null;
-            }
+            Tracing.trace("Check against min and max keys allows skipping sstable {}", descriptor.generation);
+            return null;
         }
 
         int binarySearchResult = indexSummary.binarySearch(key);
         long sampledPosition = getIndexScanPositionFromBinarySearchResult(binarySearchResult, indexSummary);
         int sampledIndex = getIndexSummaryIndexFromBinarySearchResult(binarySearchResult);
-
-        // if we matched the -1th position, we'll start at the first position
-        sampledPosition = sampledPosition == -1 ? 0 : sampledPosition;
 
         int effectiveInterval = indexSummary.getEffectiveIndexIntervalAfterIndex(sampledIndex);
 
@@ -1535,9 +1553,10 @@ public class SSTableReader extends SSTable implements RefCounted<SSTableReader>
      */
     public DecoratedKey firstKeyBeyond(RowPosition token)
     {
+        if (token.compareTo(first) < 0)
+            return first;
+
         long sampledPosition = getIndexScanPosition(token);
-        if (sampledPosition == -1)
-            sampledPosition = 0;
 
         Iterator<FileDataInput> segments = ifile.iterator(sampledPosition);
         while (segments.hasNext())
