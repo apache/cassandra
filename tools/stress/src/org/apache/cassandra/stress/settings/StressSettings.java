@@ -211,6 +211,7 @@ public class StressSettings implements Serializable
     {
         try
         {
+            args = repairParams(args);
             final Map<String, String[]> clArgs = parseMap(args);
             if (clArgs.containsKey("legacy"))
                 return Legacy.build(Arrays.copyOfRange(args, 1, args.length));
@@ -224,6 +225,23 @@ public class StressSettings implements Serializable
             System.exit(1);
             throw new AssertionError();
         }
+    }
+
+    private static String[] repairParams(String[] args)
+    {
+        StringBuilder sb = new StringBuilder();
+        boolean first = true;
+        for (String arg : args)
+        {
+            if (!first)
+                sb.append(" ");
+            sb.append(arg);
+            first = false;
+        }
+        return sb.toString()
+                 .replaceAll("\s+([,=()])", "$1")
+                 .replaceAll("([,=(])\s+", "$1")
+                 .split(" +");
     }
 
     public static StressSettings get(Map<String, String[]> clArgs)
