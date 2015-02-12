@@ -20,6 +20,8 @@ package org.apache.cassandra.io.sstable;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Map;
+import java.util.TreeMap;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -45,6 +47,41 @@ public class IndexSummaryBuilder
     private long keysWritten = 0;
     private long indexIntervalMatches = 0;
     private long offheapSize = 0;
+    private long nextSamplePosition;
+
+    // for each ReadableBoundary, we map its dataLength property to itself, permitting us to lookup the
+    // last readable boundary from the perspective of the data file
+    // [data file position limit] => [ReadableBoundary]
+    private TreeMap<Long, ReadableBoundary> lastReadableByData = new TreeMap<>();
+    // for each ReadableBoundary, we map its indexLength property to itself, permitting us to lookup the
+    // last readable boundary from the perspective of the index file
+    // [index file position limit] => [ReadableBoundary]
+    private TreeMap<Long, ReadableBoundary> lastReadableByIndex = new TreeMap<>();
+    // the last synced data file position
+    private long dataSyncPosition;
+    // the last synced index file position
+    private long indexSyncPosition;
+
+    // the last summary interval boundary that is fully readable in both data and index files
+    private ReadableBoundary lastReadableBoundary;
+
+    /**
+     * Represents a boundary that is guaranteed fully readable in the summary, index file and data file.
+     * The key contained is the last key readable if the index and data files have been flushed to the
+     * stored lengths.
+     */
+    public static class ReadableBoundary
+    {
+        public final DecoratedKey lastKey;
+        public final long indexLength;
+        public final long dataLength;
+        public ReadableBoundary(DecoratedKey lastKey, long indexLength, long dataLength)
+        {
+            this.lastKey = lastKey;
+            this.indexLength = indexLength;
+            this.dataLength = dataLength;
+        }
+    }
 
     public IndexSummaryBuilder(long expectedKeys, int minIndexInterval, int samplingLevel)
     {
@@ -71,57 +108,95 @@ public class IndexSummaryBuilder
         maxExpectedEntries = (maxExpectedEntries * samplingLevel) / BASE_SAMPLING_LEVEL;
         positions = new ArrayList<>((int)maxExpectedEntries);
         keys = new ArrayList<>((int)maxExpectedEntries);
+        // if we're downsampling we may not use index 0
+        setNextSamplePosition(-minIndexInterval);
     }
 
-    // finds the last (-offset) decorated key that can be guaranteed to occur fully in the index file before the provided file position
-    public DecoratedKey getMaxReadableKey(long position, int offset)
+    // the index file has been flushed to the provided position; stash it and use that to recalculate our max readable boundary
+    public void markIndexSynced(long upToPosition)
     {
-        int i = Collections.binarySearch(positions, position);
-        if (i < 0)
+        indexSyncPosition = upToPosition;
+        refreshReadableBoundary();
+    }
+
+    // the data file has been flushed to the provided position; stash it and use that to recalculate our max readable boundary
+    public void markDataSynced(long upToPosition)
+    {
+        dataSyncPosition = upToPosition;
+        refreshReadableBoundary();
+    }
+
+    private void refreshReadableBoundary()
+    {
+        // grab the readable boundary prior to the given position in either the data or index file
+        Map.Entry<?, ReadableBoundary> byData = lastReadableByData.floorEntry(dataSyncPosition);
+        Map.Entry<?, ReadableBoundary> byIndex = lastReadableByIndex.floorEntry(indexSyncPosition);
+        if (byData == null || byIndex == null)
+            return;
+
+        // take the lowest of the two, and stash it
+        lastReadableBoundary = byIndex.getValue().indexLength < byData.getValue().indexLength
+                               ? byIndex.getValue() : byData.getValue();
+
+        // clear our data prior to this, since we no longer need it
+        lastReadableByData.headMap(lastReadableBoundary.dataLength, false).clear();
+        lastReadableByIndex.headMap(lastReadableBoundary.indexLength, false).clear();
+    }
+
+    public ReadableBoundary getLastReadableBoundary()
+    {
+        return lastReadableBoundary;
+    }
+
+    public IndexSummaryBuilder maybeAddEntry(DecoratedKey decoratedKey, long indexStart)
+    {
+        return maybeAddEntry(decoratedKey, indexStart, 0, 0);
+    }
+
+    /**
+     *
+     * @param decoratedKey the key for this record
+     * @param indexStart the position in the index file this record begins
+     * @param indexEnd the position in the index file we need to be able to read to (exclusive) to read this record
+     * @param dataEnd the position in the data file we need to be able to read to (exclusive) to read this record
+     *                a value of 0 indicates we are not tracking readable boundaries
+     */
+    public IndexSummaryBuilder maybeAddEntry(DecoratedKey decoratedKey, long indexStart, long indexEnd, long dataEnd)
+    {
+        if (keysWritten == nextSamplePosition)
         {
-            i = -1 - i;
-            if (i == positions.size())
-                i -= 2;
-            else
-                i -= 1;
+            keys.add(getMinimalKey(decoratedKey));
+            offheapSize += decoratedKey.getKey().remaining();
+            positions.add(indexStart);
+            offheapSize += TypeSizes.NATIVE.sizeof(indexStart);
+            setNextSamplePosition(keysWritten);
         }
-        else
-            i -= 1;
-        i -= offset;
-        // we don't want to return any key if there's only 1 item in the summary, to make sure the sstable range is non-empty
-        if (i <= 0)
-            return null;
-        return keys.get(i);
-    }
-
-    public IndexSummaryBuilder maybeAddEntry(DecoratedKey decoratedKey, long indexPosition)
-    {
-        if (keysWritten % minIndexInterval == 0)
+        else if (dataEnd != 0 && keysWritten + 1 == nextSamplePosition)
         {
-            // see if we should skip this key based on our sampling level
-            boolean shouldSkip = false;
-            for (int start : startPoints)
-            {
-                if ((indexIntervalMatches - start) % BASE_SAMPLING_LEVEL == 0)
-                {
-                    shouldSkip = true;
-                    break;
-                }
-            }
-
-            if (!shouldSkip)
-            {
-                keys.add(getMinimalKey(decoratedKey));
-                offheapSize += decoratedKey.getKey().remaining();
-                positions.add(indexPosition);
-                offheapSize += TypeSizes.NATIVE.sizeof(indexPosition);
-            }
-
-            indexIntervalMatches++;
+            // this is the last key in this summary interval, so stash it
+            ReadableBoundary boundary = new ReadableBoundary(decoratedKey, indexEnd, dataEnd);
+            lastReadableByData.put(dataEnd, boundary);
+            lastReadableByIndex.put(indexEnd, boundary);
         }
         keysWritten++;
 
         return this;
+    }
+
+    // calculate the next key we will store to our summary
+    private void setNextSamplePosition(long position)
+    {
+        tryAgain: while (true)
+        {
+            position += minIndexInterval;
+            long test = indexIntervalMatches++;
+            for (int start : startPoints)
+                if ((test - start) % BASE_SAMPLING_LEVEL == 0)
+                    continue tryAgain;
+
+            nextSamplePosition = position;
+            return;
+        }
     }
 
     public IndexSummary build(IPartitioner partitioner)
@@ -129,16 +204,17 @@ public class IndexSummaryBuilder
         return build(partitioner, null);
     }
 
-    public IndexSummary build(IPartitioner partitioner, DecoratedKey exclusiveUpperBound)
+    // lastIntervalKey should come from getLastReadableBoundary().lastKey
+    public IndexSummary build(IPartitioner partitioner, DecoratedKey lastIntervalKey)
     {
         assert keys.size() > 0;
         assert keys.size() == positions.size();
 
         int length;
-        if (exclusiveUpperBound == null)
+        if (lastIntervalKey == null)
             length = keys.size();
-        else
-            length = Collections.binarySearch(keys, exclusiveUpperBound);
+        else // since it's an inclusive upper bound, this should never match exactly
+            length = -1 -Collections.binarySearch(keys, lastIntervalKey);
 
         assert length > 0;
 

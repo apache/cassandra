@@ -138,6 +138,8 @@ public class CompressedSequentialWriter extends SequentialWriter
 
         // next chunk should be written right after current + length of the checksum (int)
         chunkOffset += compressedLength + 4;
+        if (runPostFlush != null)
+            runPostFlush.run();
     }
 
     public CompressionMetadata open(SSTableWriter.FinishType finishType)

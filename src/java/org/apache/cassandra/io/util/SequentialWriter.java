@@ -69,6 +69,8 @@ public class SequentialWriter extends OutputStream implements WritableByteChanne
     public final DataOutputPlus stream;
     protected long lastFlushOffset;
 
+    protected Runnable runPostFlush;
+
     public SequentialWriter(File file, int bufferSize)
     {
         try
@@ -304,6 +306,12 @@ public class SequentialWriter extends OutputStream implements WritableByteChanne
         }
     }
 
+    public void setPostFlushListener(Runnable runPostFlush)
+    {
+        assert this.runPostFlush == null;
+        this.runPostFlush = runPostFlush;
+    }
+
     /**
      * Override this method instead of overriding flush()
      * @throws FSWriteError on any I/O error.
@@ -319,6 +327,8 @@ public class SequentialWriter extends OutputStream implements WritableByteChanne
         {
             throw new FSWriteError(e, getPath());
         }
+        if (runPostFlush != null)
+            runPostFlush.run();
     }
 
     public long getFilePointer()

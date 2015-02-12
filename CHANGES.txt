@@ -58,6 +58,7 @@
 
 
 2.1.4
+ * Make SSTableWriter.openEarly more robust and obvious (CASSANDRA-8747)
  * Enforce SSTableReader.first/last (CASSANDRA-8744)
  * Cleanup SegmentedFile API (CASSANDRA-8749)
  * Avoid overlap with early compaction replacement (CASSANDRA-8683)
