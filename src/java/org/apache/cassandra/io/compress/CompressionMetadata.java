@@ -352,6 +352,7 @@ public class CompressionMetadata
                         this.offsets.unreference();
                     }
                     // null out our reference to the original shared data to catch accidental reuse
+                    // note that since noone is writing to this Writer while we open it, null:ing out this.offsets is safe
                     this.offsets = null;
                     if (type == OpenType.SHARED_FINAL)
                     {
