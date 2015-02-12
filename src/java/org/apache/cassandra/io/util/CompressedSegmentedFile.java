@@ -73,17 +73,18 @@ public class CompressedSegmentedFile extends SegmentedFile implements ICompresse
             // only one segment in a standard-io file
         }
 
-        protected CompressionMetadata metadata(String path, SSTableWriter.FinishType finishType)
+        protected CompressionMetadata metadata(String path, long overrideLength, boolean isFinal)
         {
             if (writer == null)
                 return CompressionMetadata.create(path);
 
-            return writer.open(finishType);
+            return writer.open(overrideLength, isFinal);
         }
 
-        public SegmentedFile complete(String path, SSTableWriter.FinishType finishType)
+        public SegmentedFile complete(String path, long overrideLength, boolean isFinal)
         {
-            return new CompressedSegmentedFile(path, metadata(path, finishType));
+            assert !isFinal || overrideLength <= 0;
+            return new CompressedSegmentedFile(path, metadata(path, overrideLength, isFinal));
         }
     }
 

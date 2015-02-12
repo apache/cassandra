@@ -53,10 +53,9 @@ public class RandomAccessReader extends AbstractDataInput implements FileDataInp
 
     protected RandomAccessReader(File file, int bufferSize, PoolingSegmentedFile owner) throws FileNotFoundException
     {
-        this(file, bufferSize, false, owner);
+        this(file, bufferSize, -1, false, owner);
     }
-
-    protected RandomAccessReader(File file, int bufferSize, boolean useDirectBuffer, PoolingSegmentedFile owner) throws FileNotFoundException
+    protected RandomAccessReader(File file, int bufferSize, long overrideLength, boolean useDirectBuffer, PoolingSegmentedFile owner) throws FileNotFoundException
     {
         this.owner = owner;
 
@@ -76,14 +75,19 @@ public class RandomAccessReader extends AbstractDataInput implements FileDataInp
             throw new IllegalArgumentException("bufferSize must be positive");
 
         // we can cache file length in read-only mode
-        try
+        long fileLength = overrideLength;
+        if (fileLength <= 0)
         {
-            fileLength = channel.size();
+            try
+            {
+                fileLength = channel.size();
+            }
+            catch (IOException e)
+            {
+                throw new FSReadError(e, filePath);
+            }
         }
-        catch (IOException e)
-        {
-            throw new FSReadError(e, filePath);
-        }
+        this.fileLength = fileLength;
         buffer = allocateBuffer(bufferSize, useDirectBuffer);
         buffer.limit(0);
     }
@@ -96,22 +100,32 @@ public class RandomAccessReader extends AbstractDataInput implements FileDataInp
                 : ByteBuffer.allocateDirect(size);
     }
 
-    public static RandomAccessReader open(File file, PoolingSegmentedFile owner)
+    public static RandomAccessReader open(File file, long overrideSize, PoolingSegmentedFile owner)
     {
-        return open(file, DEFAULT_BUFFER_SIZE, owner);
+        return open(file, DEFAULT_BUFFER_SIZE, overrideSize, owner);
     }
 
     public static RandomAccessReader open(File file)
     {
-        return open(file, DEFAULT_BUFFER_SIZE, null);
+        return open(file, -1L);
+    }
+
+    public static RandomAccessReader open(File file, long overrideSize)
+    {
+        return open(file, DEFAULT_BUFFER_SIZE, overrideSize, null);
     }
 
     @VisibleForTesting
     static RandomAccessReader open(File file, int bufferSize, PoolingSegmentedFile owner)
     {
+        return open(file, bufferSize, -1L, owner);
+    }
+
+    private static RandomAccessReader open(File file, int bufferSize, long overrideSize, PoolingSegmentedFile owner)
+    {
         try
         {
-            return new RandomAccessReader(file, bufferSize, owner);
+            return new RandomAccessReader(file, bufferSize, overrideSize, false, owner);
         }
         catch (IOException e)
         {
@@ -143,12 +157,16 @@ public class RandomAccessReader extends AbstractDataInput implements FileDataInp
         try
         {
             channel.position(bufferOffset); // setting channel position
-            while (buffer.hasRemaining())
+            long limit = bufferOffset;
+            while (buffer.hasRemaining() && limit < fileLength)
             {
                 int n = channel.read(buffer);
                 if (n < 0)
                     break;
+                limit = bufferOffset + buffer.position();
             }
+            if (limit > fileLength)
+                buffer.position((int)(fileLength - bufferOffset));
             buffer.flip();
         }
         catch (IOException e)

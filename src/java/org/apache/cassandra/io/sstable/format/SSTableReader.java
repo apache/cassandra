@@ -1257,11 +1257,7 @@ public abstract class SSTableReader extends SSTable implements RefCounted<SSTabl
 
             long left = getPosition(leftBound, Operator.GT).position;
             long right = (rightBound.compareTo(last) > 0)
-                         ? (openReason == OpenReason.EARLY
-                            // if opened early, we overlap with the old sstables by one key, so we know that the last
-                            // (and further) key(s) will be streamed from these if necessary
-                            ? getPosition(last, Operator.GT, false, true).position
-                            : uncompressedLength())
+                         ? uncompressedLength()
                          : getPosition(rightBound, Operator.GT).position;
 
             if (left == right)

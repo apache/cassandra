@@ -323,18 +323,56 @@ public class CompressionMetadata
             }
         }
 
-        public CompressionMetadata open(long dataLength, long compressedLength, SSTableWriter.FinishType finishType)
+        static enum OpenType
         {
-            RefCountedMemory offsets;
-            if (finishType.isFinal)
+            // i.e. FinishType == EARLY; we will use the RefCountedMemory in possibly multiple instances
+            SHARED,
+            // i.e. FinishType == EARLY, but the sstable has been completely written, so we can
+            // finalise the contents and size of the memory, but must retain a reference to it
+            SHARED_FINAL,
+            // i.e. FinishType == NORMAL or FINISH_EARLY, i.e. we have actually finished writing the table
+            // and will never need to open the metadata again, so we can release any references to it here
+            FINAL
+        }
+
+        public CompressionMetadata open(long dataLength, long compressedLength, OpenType type)
+        {
+            RefCountedMemory offsets = this.offsets;
+            int count = this.count;
+            switch (type)
             {
-                // we now know how many offsets we have and can resize the offsets properly
-                offsets = this.offsets.copy(count * 8L);
-                this.offsets.unreference();
-            }
-            else
-            {
-                offsets = this.offsets;
+                case FINAL: case SHARED_FINAL:
+                    // maybe resize the data
+                    if (this.offsets.size() != count * 8L)
+                    {
+                        offsets = this.offsets.copy(count * 8L);
+                        // release our reference to the original shared data;
+                        // we don't do this if not resizing since we must pass out existing
+                        // reference onto our caller
+                        this.offsets.unreference();
+                    }
+                    // null out our reference to the original shared data to catch accidental reuse
+                    this.offsets = null;
+                    if (type == OpenType.SHARED_FINAL)
+                    {
+                        // we will use the data again, so stash our resized data back, and take an extra reference to it
+                        this.offsets = offsets;
+                        this.offsets.reference();
+                    }
+                    break;
+
+                case SHARED:
+
+                    // we should only be opened on a compression data boundary; truncate our size to this boundary
+                    assert dataLength % parameters.chunkLength() == 0;
+                    count = (int) (dataLength / parameters.chunkLength());
+                    // grab our actual compressed length from the next offset from our the position we're opened to
+                    if (count < this.count)
+                        compressedLength = offsets.getLong(count * 8);
+                    break;
+
+                default:
+                    throw new AssertionError();
             }
             return new CompressionMetadata(filePath, parameters, offsets, count * 8L, dataLength, compressedLength);
         }

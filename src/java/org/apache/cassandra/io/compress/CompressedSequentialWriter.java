@@ -33,6 +33,10 @@ import org.apache.cassandra.io.util.DataIntegrityMetadata;
 import org.apache.cassandra.io.util.FileMark;
 import org.apache.cassandra.io.util.SequentialWriter;
 
+import static org.apache.cassandra.io.compress.CompressionMetadata.Writer.OpenType.FINAL;
+import static org.apache.cassandra.io.compress.CompressionMetadata.Writer.OpenType.SHARED;
+import static org.apache.cassandra.io.compress.CompressionMetadata.Writer.OpenType.SHARED_FINAL;
+
 public class CompressedSequentialWriter extends SequentialWriter
 {
     private final DataIntegrityMetadata.ChecksumWriter crcMetadata;
@@ -142,10 +146,11 @@ public class CompressedSequentialWriter extends SequentialWriter
             runPostFlush.run();
     }
 
-    public CompressionMetadata open(SSTableWriter.FinishType finishType)
+    public CompressionMetadata open(long overrideLength, boolean isFinal)
     {
-        assert finishType != SSTableWriter.FinishType.NORMAL || current == originalSize;
-        return metadataWriter.open(originalSize, chunkOffset, finishType);
+        if (overrideLength <= 0)
+            return metadataWriter.open(originalSize, chunkOffset, isFinal ? FINAL : SHARED_FINAL);
+        return metadataWriter.open(overrideLength, chunkOffset, SHARED);
     }
 
     @Override

@@ -30,9 +30,9 @@ public class ThrottledReader extends RandomAccessReader
 {
     private final RateLimiter limiter;
 
-    protected ThrottledReader(File file, RateLimiter limiter) throws FileNotFoundException
+    protected ThrottledReader(File file, long overrideLength, RateLimiter limiter) throws FileNotFoundException
     {
-        super(file, RandomAccessReader.DEFAULT_BUFFER_SIZE, null);
+        super(file, RandomAccessReader.DEFAULT_BUFFER_SIZE, overrideLength, false, null);
         this.limiter = limiter;
     }
 
@@ -42,11 +42,11 @@ public class ThrottledReader extends RandomAccessReader
         super.reBuffer();
     }
 
-    public static ThrottledReader open(File file, RateLimiter limiter)
+    public static ThrottledReader open(File file, long overrideLength, RateLimiter limiter)
     {
         try
         {
-            return new ThrottledReader(file, limiter);
+            return new ThrottledReader(file, overrideLength, limiter);
         }
         catch (FileNotFoundException e)
         {
