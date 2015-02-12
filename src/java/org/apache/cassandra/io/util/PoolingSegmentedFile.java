@@ -67,7 +67,7 @@ public abstract class PoolingSegmentedFile extends SegmentedFile
 
     protected RandomAccessReader createPooledReader()
     {
-        return RandomAccessReader.open(new File(path), this);
+        return RandomAccessReader.open(new File(path), length, this);
     }
 
     public void recycle(RandomAccessReader reader)

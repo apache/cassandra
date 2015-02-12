@@ -55,6 +55,10 @@ public class RandomAccessReader extends RandomAccessFile implements FileDataInpu
 
     protected RandomAccessReader(File file, int bufferSize, PoolingSegmentedFile owner) throws FileNotFoundException
     {
+        this(file, bufferSize, -1, owner);
+    }
+    protected RandomAccessReader(File file, int bufferSize, long overrideLength, PoolingSegmentedFile owner) throws FileNotFoundException
+    {
         super(file, "r");
 
         this.owner = owner;
@@ -69,33 +73,49 @@ public class RandomAccessReader extends RandomAccessFile implements FileDataInpu
         buffer = new byte[bufferSize];
 
         // we can cache file length in read-only mode
-        try
+        long fileLength = overrideLength;
+        if (fileLength <= 0)
         {
-            fileLength = channel.size();
+            try
+            {
+                fileLength = channel.size();
+            }
+            catch (IOException e)
+            {
+                throw new FSReadError(e, filePath);
+            }
         }
-        catch (IOException e)
-        {
-            throw new FSReadError(e, filePath);
-        }
+
+        this.fileLength = fileLength;
         validBufferBytes = -1; // that will trigger reBuffer() on demand by read/seek operations
     }
 
-    public static RandomAccessReader open(File file, PoolingSegmentedFile owner)
+    public static RandomAccessReader open(File file, long overrideSize, PoolingSegmentedFile owner)
     {
-        return open(file, DEFAULT_BUFFER_SIZE, owner);
+        return open(file, DEFAULT_BUFFER_SIZE, overrideSize, owner);
     }
 
     public static RandomAccessReader open(File file)
     {
-        return open(file, DEFAULT_BUFFER_SIZE, null);
+        return open(file, -1L);
+    }
+
+    public static RandomAccessReader open(File file, long overrideSize)
+    {
+        return open(file, DEFAULT_BUFFER_SIZE, overrideSize, null);
     }
 
     @VisibleForTesting
     static RandomAccessReader open(File file, int bufferSize, PoolingSegmentedFile owner)
     {
+        return open(file, bufferSize, -1L, owner);
+    }
+
+    private static RandomAccessReader open(File file, int bufferSize, long overrideSize, PoolingSegmentedFile owner)
+    {
         try
         {
-            return new RandomAccessReader(file, bufferSize, owner);
+            return new RandomAccessReader(file, bufferSize, overrideSize, owner);
         }
         catch (FileNotFoundException e)
         {
@@ -118,22 +138,27 @@ public class RandomAccessReader extends RandomAccessFile implements FileDataInpu
 
         try
         {
-            if (bufferOffset >= channel.size())
-                return;
+            int read = buffer.length;
+            if (bufferOffset + read > fileLength)
+            {
+                if (bufferOffset >= fileLength)
+                    return;
+                read = (int) (fileLength - bufferOffset);
+            }
 
             channel.position(bufferOffset); // setting channel position
 
-            int read = 0;
-
-            while (read < buffer.length)
+            int offset = 0;
+            while (read > 0)
             {
-                int n = super.read(buffer, read, buffer.length - read);
+                int n = super.read(buffer, offset, read);
                 if (n < 0)
-                    break;
-                read += n;
+                    throw new IllegalStateException();
+                read -= n;
+                offset += n;
             }
 
-            validBufferBytes = read;
+            validBufferBytes = offset;
         }
         catch (IOException e)
         {

@@ -45,9 +45,10 @@ public class BufferedPoolingSegmentedFile extends PoolingSegmentedFile
             // only one segment in a standard-io file
         }
 
-        public SegmentedFile complete(String path, SSTableWriter.FinishType finishType)
+        public SegmentedFile complete(String path, long overrideLength, boolean isFinal)
         {
-            long length = new File(path).length();
+            assert !isFinal || overrideLength <= 0;
+            long length = overrideLength > 0 ? overrideLength : new File(path).length();
             return new BufferedPoolingSegmentedFile(path, length);
         }
     }

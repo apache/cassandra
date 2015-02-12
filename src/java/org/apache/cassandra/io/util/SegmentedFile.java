@@ -31,7 +31,6 @@ import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.FSReadError;
 import org.apache.cassandra.io.compress.CompressedSequentialWriter;
-import org.apache.cassandra.io.sstable.SSTableWriter;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.concurrent.RefCounted;
 import org.apache.cassandra.utils.concurrent.SharedCloseableImpl;
@@ -96,13 +95,13 @@ public abstract class SegmentedFile extends SharedCloseableImpl
 
     public RandomAccessReader createReader()
     {
-        return RandomAccessReader.open(new File(path));
+        return RandomAccessReader.open(new File(path), length);
     }
 
     public RandomAccessReader createThrottledReader(RateLimiter limiter)
     {
         assert limiter != null;
-        return ThrottledReader.open(new File(path), limiter);
+        return ThrottledReader.open(new File(path), length, limiter);
     }
 
     public FileDataInput getSegment(long position)
@@ -156,11 +155,21 @@ public abstract class SegmentedFile extends SharedCloseableImpl
          * Called after all potential boundaries have been added to apply this Builder to a concrete file on disk.
          * @param path The file on disk.
          */
-        public abstract SegmentedFile complete(String path, SSTableWriter.FinishType openType);
+        protected abstract SegmentedFile complete(String path, long overrideLength, boolean isFinal);
 
         public SegmentedFile complete(String path)
         {
-            return complete(path, SSTableWriter.FinishType.NORMAL);
+            return complete(path, -1, true);
+        }
+
+        public SegmentedFile complete(String path, boolean isFinal)
+        {
+            return complete(path, -1, isFinal);
+        }
+
+        public SegmentedFile complete(String path, long overrideLength)
+        {
+            return complete(path, overrideLength, false);
         }
 
         public void serializeBounds(DataOutput out) throws IOException

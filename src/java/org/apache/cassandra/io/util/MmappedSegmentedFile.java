@@ -183,31 +183,38 @@ public class MmappedSegmentedFile extends SegmentedFile
             }
         }
 
-        public SegmentedFile complete(String path, SSTableWriter.FinishType finishType)
+        public SegmentedFile complete(String path, long overrideLength, boolean isFinal)
         {
-            long length = new File(path).length();
+            assert !isFinal || overrideLength <= 0;
+            long length = overrideLength > 0 ? overrideLength : new File(path).length();
             // create the segments
-            return new MmappedSegmentedFile(path, length, createSegments(path));
+            return new MmappedSegmentedFile(path, length, createSegments(path, length));
         }
 
-        private Segment[] createSegments(String path)
+        private Segment[] createSegments(String path, long length)
         {
             RandomAccessFile raf;
-            long length;
             try
             {
                 raf = new RandomAccessFile(path, "r");
-                length = raf.length();
             }
             catch (IOException e)
             {
                 throw new RuntimeException(e);
             }
 
+            // if we're early finishing a range that doesn't span multiple segments, but the finished file now does,
+            // we remove these from the end (we loop incase somehow this spans multiple segments, but that would
+            // be a loco dataset
+            while (length < boundaries.get(boundaries.size() - 1))
+                boundaries.remove(boundaries.size() -1);
+
             // add a sentinel value == length
             List<Long> boundaries = new ArrayList<>(this.boundaries);
             if (length != boundaries.get(boundaries.size() - 1))
                 boundaries.add(length);
+
+
             int segcount = boundaries.size() - 1;
             Segment[] segments = new Segment[segcount];
 
