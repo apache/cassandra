@@ -131,7 +131,6 @@ public class SSTableWriter extends SSTable
               metadata,
               partitioner);
         this.repairedAt = repairedAt;
-        iwriter = new IndexWriter(keyCount);
 
         if (compression)
         {
@@ -146,6 +145,7 @@ public class SSTableWriter extends SSTable
             dataFile = SequentialWriter.open(new File(getFilename()), new File(descriptor.filenameFor(Component.CRC)));
             dbuilder = SegmentedFile.getBuilder(DatabaseDescriptor.getDiskAccessMode());
         }
+        iwriter = new IndexWriter(keyCount, dataFile);
 
         this.sstableMetadataCollector = sstableMetadataCollector;
     }
@@ -183,7 +183,7 @@ public class SSTableWriter extends SSTable
 
         if (logger.isTraceEnabled())
             logger.trace("wrote " + decoratedKey + " at " + dataPosition);
-        iwriter.append(decoratedKey, index);
+        iwriter.append(decoratedKey, index, dataPosition);
         dbuilder.addPotentialBoundary(dataPosition);
     }
 
@@ -193,11 +193,11 @@ public class SSTableWriter extends SSTable
      */
     public RowIndexEntry append(AbstractCompactedRow row)
     {
-        long currentPosition = beforeAppend(row.key);
+        long startPosition = beforeAppend(row.key);
         RowIndexEntry entry;
         try
         {
-            entry = row.write(currentPosition, dataFile.stream);
+            entry = row.write(startPosition, dataFile.stream);
             if (entry == null)
                 return null;
         }
@@ -205,8 +205,9 @@ public class SSTableWriter extends SSTable
         {
             throw new FSWriteError(e, dataFile.getPath());
         }
-        sstableMetadataCollector.update(dataFile.getFilePointer() - currentPosition, row.columnStats());
-        afterAppend(row.key, currentPosition, entry);
+        long endPosition = dataFile.getFilePointer();
+        sstableMetadataCollector.update(endPosition - startPosition, row.columnStats());
+        afterAppend(row.key, endPosition, entry);
         return entry;
     }
 
@@ -390,10 +391,11 @@ public class SSTableWriter extends SSTable
                                                   repairedAt).get(MetadataType.STATS);
 
         // find the max (exclusive) readable key
-        DecoratedKey exclusiveUpperBoundOfReadableIndex = iwriter.getMaxReadableKey(0);
-        if (exclusiveUpperBoundOfReadableIndex == null)
+        IndexSummaryBuilder.ReadableBoundary boundary = iwriter.getMaxReadable();
+        if (boundary == null)
             return null;
 
+        assert boundary.indexLength > 0 && boundary.dataLength > 0;
         Descriptor link = makeTmpLinks();
         // open the reader early, giving it a FINAL descriptor type so that it is indistinguishable for other consumers
         SegmentedFile ifile = iwriter.builder.complete(link.filenameFor(Component.PRIMARY_INDEX), FinishType.EARLY);
@@ -401,33 +403,12 @@ public class SSTableWriter extends SSTable
         SSTableReader sstable = SSTableReader.internalOpen(descriptor.asType(Descriptor.Type.FINAL),
                                                            components, metadata,
                                                            partitioner, ifile,
-                                                           dfile, iwriter.summary.build(partitioner, exclusiveUpperBoundOfReadableIndex),
+                                                           dfile, iwriter.summary.build(partitioner, boundary.lastKey),
                                                            iwriter.bf.sharedCopy(), maxDataAge, sstableMetadata, SSTableReader.OpenReason.EARLY);
 
         // now it's open, find the ACTUAL last readable key (i.e. for which the data file has also been flushed)
         sstable.first = getMinimalKey(first);
-        sstable.last = getMinimalKey(exclusiveUpperBoundOfReadableIndex);
-        DecoratedKey inclusiveUpperBoundOfReadableData = iwriter.getMaxReadableKey(1);
-        if (inclusiveUpperBoundOfReadableData == null)
-        {
-            // Prevent leaving tmplink files on disk
-            sstable.selfRef().release();
-            return null;
-        }
-        int offset = 2;
-        while (true)
-        {
-            RowIndexEntry indexEntry = sstable.getPosition(inclusiveUpperBoundOfReadableData, SSTableReader.Operator.GT);
-            if (indexEntry != null && indexEntry.position <= dataFile.getLastFlushOffset())
-                break;
-            inclusiveUpperBoundOfReadableData = iwriter.getMaxReadableKey(offset++);
-            if (inclusiveUpperBoundOfReadableData == null)
-            {
-                sstable.selfRef().release();
-                return null;
-            }
-        }
-        sstable.last = getMinimalKey(inclusiveUpperBoundOfReadableData);
+        sstable.last = getMinimalKey(boundary.lastKey);
         return sstable;
     }
 
@@ -593,25 +574,39 @@ public class SSTableWriter extends SSTable
         public final IFilter bf;
         private FileMark mark;
 
-        IndexWriter(long keyCount)
+        IndexWriter(long keyCount, final SequentialWriter dataFile)
         {
             indexFile = SequentialWriter.open(new File(descriptor.filenameFor(Component.PRIMARY_INDEX)));
             builder = SegmentedFile.getBuilder(DatabaseDescriptor.getIndexAccessMode());
             summary = new IndexSummaryBuilder(keyCount, metadata.getMinIndexInterval(), Downsampling.BASE_SAMPLING_LEVEL);
             bf = FilterFactory.getFilter(keyCount, metadata.getBloomFilterFpChance(), true);
+            // register listeners to be alerted when the data files are flushed
+            indexFile.setPostFlushListener(new Runnable()
+            {
+                public void run()
+                {
+                    summary.markIndexSynced(indexFile.getLastFlushOffset());
+                }
+            });
+            dataFile.setPostFlushListener(new Runnable()
+            {
+                public void run()
+                {
+                    summary.markDataSynced(dataFile.getLastFlushOffset());
+                }
+            });
         }
 
         // finds the last (-offset) decorated key that can be guaranteed to occur fully in the flushed portion of the index file
-        DecoratedKey getMaxReadableKey(int offset)
+        IndexSummaryBuilder.ReadableBoundary getMaxReadable()
         {
-            long maxIndexLength = indexFile.getLastFlushOffset();
-            return summary.getMaxReadableKey(maxIndexLength, offset);
+            return summary.getLastReadableBoundary();
         }
 
-        public void append(DecoratedKey key, RowIndexEntry indexEntry)
+        public void append(DecoratedKey key, RowIndexEntry indexEntry, long dataEnd)
         {
             bf.add(key.getKey());
-            long indexPosition = indexFile.getFilePointer();
+            long indexStart = indexFile.getFilePointer();
             try
             {
                 ByteBufferUtil.writeWithShortLength(key.getKey(), indexFile.stream);
@@ -621,12 +616,13 @@ public class SSTableWriter extends SSTable
             {
                 throw new FSWriteError(e, indexFile.getPath());
             }
+            long indexEnd = indexFile.getFilePointer();
 
             if (logger.isTraceEnabled())
-                logger.trace("wrote index entry: " + indexEntry + " at " + indexPosition);
+                logger.trace("wrote index entry: " + indexEntry + " at " + indexStart);
 
-            summary.maybeAddEntry(key, indexPosition);
-            builder.addPotentialBoundary(indexPosition);
+            summary.maybeAddEntry(key, indexStart, indexEnd, dataEnd);
+            builder.addPotentialBoundary(indexStart);
         }
 
         public void abort()
