@@ -150,6 +150,8 @@ public class CompressedSequentialWriter extends SequentialWriter
     {
         if (overrideLength <= 0)
             return metadataWriter.open(originalSize, chunkOffset, isFinal ? FINAL : SHARED_FINAL);
+        // we are early opening the file, make sure we open metadata with the correct size
+        assert !isFinal;
         return metadataWriter.open(overrideLength, chunkOffset, SHARED);
     }
 
