@@ -482,7 +482,7 @@ def auto_format_udts():
     make_udt_class = cassandra.cqltypes.UserType.make_udt_class
     def new_make_udt_class(cls, *args, **kwargs):
         udt_class = make_udt_class(*args, **kwargs)
-        formatter_for(udt_class.typename)(format_value_utype)
+        formatter_for(udt_class.tuple_type.__name__)(format_value_utype)
         return udt_class
 
     cassandra.cqltypes.UserType.make_udt_class = classmethod(new_make_udt_class)
