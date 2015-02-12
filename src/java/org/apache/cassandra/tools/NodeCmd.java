@@ -28,6 +28,7 @@ import java.util.*;
 import java.util.Map.Entry;
 import java.util.concurrent.ExecutionException;
 
+import javax.management.AttributeNotFoundException;
 import javax.management.openmbean.TabularData;
 
 import com.google.common.base.Joiner;
@@ -660,7 +661,16 @@ public class NodeCmd
         outs.printf("%-23s: %.2f / %.2f%n", "Heap Memory (MB)", memUsed, memMax);
 
         // Off heap memory usage
-        outs.printf("%-23s: %.2f%n", "Off Heap Memory (MB)", getOffHeapMemoryUsed());
+        try
+        {
+            outs.printf("%-23s: %.2f%n", "Off Heap Memory (MB)", getOffHeapMemoryUsed());
+        }
+        catch (RuntimeException e)
+        {
+            // offheap-metrics introduced in 2.1.3 - older versions do not have the appropriate mbeans
+            if (!(e.getCause() instanceof AttributeNotFoundException))
+                throw e;
+        }
 
         // Data Center/Rack
         outs.printf("%-23s: %s%n", "Data Center", probe.getDataCenter());
@@ -977,15 +987,33 @@ public class NodeCmd
                     }
                 }
 
-                long bloomFilterOffHeapSize = cfstore.getBloomFilterOffHeapMemoryUsed();
-                long indexSummaryOffHeapSize = cfstore.getIndexSummaryOffHeapMemoryUsed();
-                long compressionMetadataOffHeapSize = cfstore.getCompressionMetadataOffHeapMemoryUsed();
+                boolean hasOffHeapSizes;
+                long bloomFilterOffHeapSize = 0L;
+                long indexSummaryOffHeapSize = 0L;
+                long compressionMetadataOffHeapSize = 0L;
+                long offHeapSize = 0L;
+                try
+                {
+                    bloomFilterOffHeapSize = cfstore.getBloomFilterOffHeapMemoryUsed();
+                    indexSummaryOffHeapSize = cfstore.getIndexSummaryOffHeapMemoryUsed();
+                    compressionMetadataOffHeapSize = cfstore.getCompressionMetadataOffHeapMemoryUsed();
 
-                long offHeapSize = bloomFilterOffHeapSize + indexSummaryOffHeapSize + compressionMetadataOffHeapSize;
+                    offHeapSize = bloomFilterOffHeapSize + indexSummaryOffHeapSize + compressionMetadataOffHeapSize;
+
+                    hasOffHeapSizes = true;
+                }
+                catch (RuntimeException e)
+                {
+                    // offheap-metrics introduced in 2.1.3 - older versions do not have the appropriate mbeans
+                    if (!(e.getCause() instanceof AttributeNotFoundException))
+                        throw e;
+                    hasOffHeapSizes = false;
+                }
 
                 outs.println("\t\tSpace used (live), bytes: " + cfstore.getLiveDiskSpaceUsed());
                 outs.println("\t\tSpace used (total), bytes: " + cfstore.getTotalDiskSpaceUsed());
-                outs.println("\t\tOff heap memory used (total), bytes: " + offHeapSize);
+                if (hasOffHeapSizes)
+                    outs.println("\t\tOff heap memory used (total), bytes: " + offHeapSize);
                 outs.println("\t\tSSTable Compression Ratio: " + cfstore.getCompressionRatio());
                 outs.println("\t\tNumber of keys (estimate): " + cfstore.estimateKeys());
                 outs.println("\t\tMemtable cell count: " + cfstore.getMemtableColumnsCount());
@@ -999,9 +1027,12 @@ public class NodeCmd
                 outs.println("\t\tBloom filter false positives: " + cfstore.getBloomFilterFalsePositives());
                 outs.println("\t\tBloom filter false ratio: " + String.format("%01.5f", cfstore.getRecentBloomFilterFalseRatio()));
                 outs.println("\t\tBloom filter space used, bytes: " + cfstore.getBloomFilterDiskSpaceUsed());
-                outs.println("\t\tBloom filter off heap memory used, bytes: " + bloomFilterOffHeapSize);
-                outs.println("\t\tIndex summary off heap memory used, bytes: " + indexSummaryOffHeapSize);
-                outs.println("\t\tCompression metadata off heap memory used, bytes: " + compressionMetadataOffHeapSize);
+                if (hasOffHeapSizes)
+                {
+                    outs.println("\t\tBloom filter off heap memory used, bytes: " + bloomFilterOffHeapSize);
+                    outs.println("\t\tIndex summary off heap memory used, bytes: " + indexSummaryOffHeapSize);
+                    outs.println("\t\tCompression metadata off heap memory used, bytes: " + compressionMetadataOffHeapSize);
+                }
                 outs.println("\t\tCompacted partition minimum bytes: " + cfstore.getMinRowSize());
                 outs.println("\t\tCompacted partition maximum bytes: " + cfstore.getMaxRowSize());
                 outs.println("\t\tCompacted partition mean bytes: " + cfstore.getMeanRowSize());
