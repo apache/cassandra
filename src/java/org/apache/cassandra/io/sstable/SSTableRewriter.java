@@ -372,7 +372,7 @@ public class SSTableRewriter
 
         while (!finishedEarly.isEmpty())
         {
-            Finished f = finishedEarly.poll();
+            Finished f = finishedEarly.peek();
             if (f.writer.getFilePointer() > 0)
             {
                 if (f.reader != null)
@@ -391,6 +391,7 @@ public class SSTableRewriter
                 f.writer.abort();
                 assert f.reader == null;
             }
+            finishedEarly.poll();
         }
 
         if (throwLate)
