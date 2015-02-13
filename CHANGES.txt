@@ -1,4 +1,5 @@
 2.0.13:
+ * Fix memory leak in SSTableSimple*Writer and SSTableReader.validate() (CASSANDRA-8748)
  * Throw OOM if allocating memory fails to return a valid pointer (CASSANDRA-8726)
  * Fix SSTableSimpleUnsortedWriter ConcurrentModificationException (CASSANDRA-8619)
  * Round up time deltas lower than 1ms in BulkLoader (CASSANDRA-8645)
