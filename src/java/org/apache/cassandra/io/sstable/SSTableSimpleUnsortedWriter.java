@@ -228,7 +228,7 @@ public class SSTableSimpleUnsortedWriter extends AbstractSSTableSimpleWriter
                             throw new AssertionError("Empty partition");
                         first = false;
                     }
-                    writer.close();
+                    writer.close(true);
                 }
                 catch (Throwable e)
                 {
