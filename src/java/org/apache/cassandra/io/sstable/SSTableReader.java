@@ -593,7 +593,10 @@ public class SSTableReader extends SSTable implements Closeable
     private void validate()
     {
         if (this.first.compareTo(this.last) > 0)
+        {
+            releaseReference();
             throw new IllegalStateException(String.format("SSTable first key %s > last key %s", this.first, this.last));
+        }
     }
 
     /** get the position in the index file to start scanning to find the given key (at most indexInterval keys away) */

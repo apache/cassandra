@@ -363,11 +363,18 @@ public class SSTableWriter extends SSTable
         return sstable;
     }
 
-    // Close the writer and return the descriptor to the new sstable and it's metadata
     public Pair<Descriptor, SSTableMetadata> close()
+    {
+        return close(false);
+    }
+
+    // Close the writer and return the descriptor to the new sstable and it's metadata
+    public Pair<Descriptor, SSTableMetadata> close(boolean closeBf)
     {
         // index and filter
         iwriter.close();
+        if (closeBf)
+            iwriter.bf.close();
         // main data, close will truncate if necessary
         dataFile.close();
         // write sstable statistics
