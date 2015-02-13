@@ -53,6 +53,7 @@ import org.apache.cassandra.io.sstable.format.SSTableWriter;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.io.util.Memory;
+import org.apache.cassandra.io.util.SafeMemory;
 import org.apache.cassandra.utils.Pair;
 
 /**
@@ -135,14 +136,13 @@ public class CompressionMetadata
         this.chunkOffsetsSize = chunkOffsets.size();
     }
 
-    private CompressionMetadata(String filePath, CompressionParameters parameters, RefCountedMemory offsets, long offsetsSize, long dataLength, long compressedLength)
+    private CompressionMetadata(String filePath, CompressionParameters parameters, SafeMemory offsets, long offsetsSize, long dataLength, long compressedLength)
     {
         this.indexFilePath = filePath;
         this.parameters = parameters;
         this.dataLength = dataLength;
         this.compressedFileLength = compressedLength;
         this.chunkOffsets = offsets;
-        offsets.reference();
         this.chunkOffsetsSize = offsetsSize;
     }
 
@@ -260,10 +260,7 @@ public class CompressionMetadata
 
     public void close()
     {
-        if (chunkOffsets instanceof RefCountedMemory)
-            ((RefCountedMemory) chunkOffsets).unreference();
-        else
-            chunkOffsets.free();
+        chunkOffsets.close();
     }
 
     public static class Writer
@@ -272,7 +269,7 @@ public class CompressionMetadata
         private final CompressionParameters parameters;
         private final String filePath;
         private int maxCount = 100;
-        private RefCountedMemory offsets = new RefCountedMemory(maxCount * 8);
+        private SafeMemory offsets = new SafeMemory(maxCount * 8);
         private int count = 0;
         private Version latestVersion =  DatabaseDescriptor.getSSTableFormat().info.getLatestVersion();
 
@@ -292,8 +289,8 @@ public class CompressionMetadata
         {
             if (count == maxCount)
             {
-                RefCountedMemory newOffsets = offsets.copy((maxCount *= 2) * 8);
-                offsets.unreference();
+                SafeMemory newOffsets = offsets.copy((maxCount *= 2) * 8);
+                offsets.close();
                 offsets = newOffsets;
             }
             offsets.setLong(8 * count++, offset);
@@ -337,7 +334,7 @@ public class CompressionMetadata
 
         public CompressionMetadata open(long dataLength, long compressedLength, OpenType type)
         {
-            RefCountedMemory offsets = this.offsets;
+            SafeMemory offsets = this.offsets;
             int count = this.count;
             switch (type)
             {
@@ -349,17 +346,14 @@ public class CompressionMetadata
                         // release our reference to the original shared data;
                         // we don't do this if not resizing since we must pass out existing
                         // reference onto our caller
-                        this.offsets.unreference();
+                        this.offsets.free();
                     }
                     // null out our reference to the original shared data to catch accidental reuse
                     // note that since noone is writing to this Writer while we open it, null:ing out this.offsets is safe
                     this.offsets = null;
                     if (type == OpenType.SHARED_FINAL)
-                    {
                         // we will use the data again, so stash our resized data back, and take an extra reference to it
-                        this.offsets = offsets;
-                        this.offsets.reference();
-                    }
+                        this.offsets = offsets.sharedCopy();
                     break;
 
                 case SHARED:
@@ -420,11 +414,7 @@ public class CompressionMetadata
 
         public void abort()
         {
-            if (offsets != null)
-            {
-                offsets.unreference();
-                offsets = null;
-            }
+            offsets.close();
         }
     }
 
