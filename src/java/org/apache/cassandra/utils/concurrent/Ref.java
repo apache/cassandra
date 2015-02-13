@@ -107,6 +107,16 @@ public final class Ref<T> implements RefCounted<T>, AutoCloseable
         return ref;
     }
 
+    public String printDebugInfo()
+    {
+        if (DEBUG_ENABLED)
+        {
+            state.debug.log(state.toString());
+            return "Memory was freed by " + state.debug.deallocateThread;
+        }
+        return "Memory was freed";
+    }
+
     /**
      * A convenience method for reporting:
      * @return the number of currently extant references globally, including the shared reference

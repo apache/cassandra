@@ -22,6 +22,7 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 
 import com.sun.jna.Native;
+import net.nicoulaj.compilecommand.annotations.Inline;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.utils.FastByteOperations;
 import org.apache.cassandra.utils.memory.MemoryUtil;
@@ -34,7 +35,7 @@ import sun.nio.ch.DirectBuffer;
 public class Memory implements AutoCloseable
 {
     private static final Unsafe unsafe = NativeAllocator.unsafe;
-    private static final IAllocator allocator = DatabaseDescriptor.getoffHeapMemoryAllocator();
+    static final IAllocator allocator = DatabaseDescriptor.getoffHeapMemoryAllocator();
     private static final long BYTE_ARRAY_BASE_OFFSET = unsafe.arrayBaseOffset(byte[].class);
 
     private static final boolean bigEndian = ByteOrder.nativeOrder().equals(ByteOrder.BIG_ENDIAN);
@@ -49,7 +50,7 @@ public class Memory implements AutoCloseable
 
     protected long peer;
     // size of the memory region
-    private final long size;
+    protected final long size;
 
     protected Memory(long bytes)
     {
@@ -57,6 +58,14 @@ public class Memory implements AutoCloseable
         peer = allocator.allocate(size);
         if (size != 0 && peer == 0)
             throw new OutOfMemoryError();
+    }
+
+    // create a memory object that references the exacy same memory location as the one provided.
+    // this should ONLY be used by SafeMemory
+    protected Memory(Memory copyOf)
+    {
+        size = copyOf.size;
+        peer = copyOf.peer;
     }
 
     public static Memory allocate(long bytes)
@@ -280,7 +289,8 @@ public class Memory implements AutoCloseable
         FastByteOperations.UnsafeOperations.copy(null, peer + memoryOffset, buffer, bufferOffset, count);
     }
 
-    private void checkPosition(long offset)
+    @Inline
+    protected void checkPosition(long offset)
     {
         assert peer != 0 : "Memory was freed";
         assert offset >= 0 && offset < size : "Illegal offset: " + offset + ", size: " + size;
@@ -305,7 +315,7 @@ public class Memory implements AutoCloseable
         peer = 0;
     }
 
-    public void close() throws Exception
+    public void close()
     {
         free();
     }
@@ -344,5 +354,15 @@ public class Memory implements AutoCloseable
         }
         result[result.length - 1] = MemoryUtil.getByteBuffer(peer + offset, (int) (size() - offset));
         return result;
+    }
+
+    public String toString()
+    {
+        return toString(peer, size);
+    }
+
+    protected static String toString(long peer, long size)
+    {
+        return String.format("Memory@[%x..%x)", peer, peer + size);
     }
 }

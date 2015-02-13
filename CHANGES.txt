@@ -1,4 +1,5 @@
 2.1.4
+ * Introduce SafeMemory for CompressionMetadata.Writer (CASSANDRA-8758)
  * 'nodetool info' prints exception against older node (CASSANDRA-8796)
  * Ensure SSTableReader.last corresponds exactly with the file end (CASSANDRA-8750)
  * Make SSTableWriter.openEarly more robust and obvious (CASSANDRA-8747)
