@@ -37,8 +37,8 @@ Table of Contents
       4.2.7. AUTH_CHALLENGE
       4.2.8. AUTH_SUCCESS
   5. Compression
-  6. Collection types
-  7. User Defined and tuple types
+  6. Data Type Serialization Formats
+  7. User Defined Type Serialization
   8. Result paging
   9. Error codes
   10. Changes from v2
@@ -737,37 +737,148 @@ Table of Contents
       avaivable on some installation.
 
 
-6. Collection types
+6. Data Type Serialization Formats
 
-  This section describe the serialization format for the collection types:
-  list, map and set. This serialization format is both useful to decode values
-  returned in RESULT messages but also to encode values for EXECUTE ones.
+  This sections describes the serialization formats for all CQL data types
+  supported by Cassandra through the native protocol.  These serialization
+  formats should be used by client drivers to encode values for EXECUTE
+  messages.  Cassandra will use these formats when returning values in
+  RESULT messages.
 
-  The serialization formats are:
-     List: a [int] n indicating the size of the list, followed by n elements.
-           Each element is [bytes] representing the serialized element
-           value.
-     Map: a [int] n indicating the size of the map, followed by n entries.
-          Each entry is composed of two [bytes] representing the key and
-          the value of the entry map.
-     Set: a [int] n indicating the size of the set, followed by n elements.
-          Each element is [bytes] representing the serialized element
-          value.
+  All values are represented as [bytes] in EXECUTE and RESULT messages.
+  The [bytes] format includes an int prefix denoting the length of the value.
+  For that reason, the serialization formats described here will not include
+  a length component.
+
+  For legacy compatibility reasons, note that most non-string types support
+  "empty" values (i.e. a value with zero length).  An empty value is distinct
+  from NULL, which is encoded with a negative length.
+
+  As with the rest of the native protocol, all encodings are big-endian.
+
+6.1. ascii
+
+  A sequence of bytes in the ASCII range [0, 127].  Bytes with values outside of
+  this range will result in a validation error.
+
+6.2 bigint
+
+  An eight-byte two's complement integer.
+
+6.3 blob
+
+  Any sequence of bytes.
+
+6.4 boolean
+
+  A single byte.  A value of 0 denotes "false"; any other value denotes "true".
+  (However, it is recommended that a value of 1 be used to represent "true".)
+
+6.5 decimal
+
+  The decimal format represents an arbitrary-precision number.  It contains an
+  [int] "scale" component followed by a varint encoding (see section 6.17)
+  of the unscaled value.  The encoded value represents "<unscaled>E<-scale>".
+  In other words, "<unscaled> * 10 ^ (-1 * <scale>)".
+
+6.6 double
+
+  An eight-byte floating point number in the IEEE 754 binary64 format.
+
+6.7 float
+
+  An four-byte floating point number in the IEEE 754 binary32 format.
+
+6.8 inet
+
+  A 4 byte or 16 byte sequence denoting an IPv4 or IPv6 address, respectively.
+
+6.9 int
+
+  A four-byte two's complement integer.
+
+6.10 list
+
+  A [int] n indicating the number of elements in the list, followed by n
+  elements.  Each element is [bytes] representing the serialized value.
+
+6.11 map
+
+  A [int] n indicating the number of key/value pairs in the map, followed by
+  n entries.  Each entry is composed of two [bytes] representing the key
+  and value.
+
+6.12 set
+
+  A [int] n indicating the number of elements in the set, followed by n
+  elements.  Each element is [bytes] representing the serialized value.
+
+6.13 text
+
+  A sequence of bytes conforming to the UTF-8 specifications.
+
+6.14 timestamp
+
+  An eight-byte two's complement integer representing a millisecond-precision
+  offset from the unix epoch (00:00:00, January 1st, 1970).  Negative values
+  represent a negative offset from the epoch.
+
+6.15 uuid
+
+  A 16 byte sequence representing any valid UUID as defined by RFC 4122.
+
+6.16 varchar
+
+  An alias of the "text" type.
+
+6.17 varint
+
+  A variable-length two's complement encoding of a signed integer.
+
+  The following examples may help implementors of this spec:
+
+  Value | Encoding
+  ------|---------
+      0 |     0x00
+      1 |     0x01
+    127 |     0x7F
+    128 |   0x0080
+    129 |   0x0081
+     -1 |     0xFF
+   -128 |     0x80
+   -129 |   0xFF7F
+
+  Note that positive numbers must use a most-significant byte with a value
+  less than 0x80, because a most-significant bit of 1 indicates a negative
+  value.  Implementors should pad positive values that have a MSB >= 0x80
+  with a leading 0x00 byte.
+
+6.18 timeuuid
+
+  A 16 byte sequence representing a version 1 UUID as defined by RFC 4122.
+
+6.19 tuple
+
+  A sequence of [bytes] values representing the items in a tuple.  The encoding
+  of each element depends on the data type for that position in the tuple.
+  Null values may be represented by using length -1 for the [bytes]
+  representation of an element.
+
+  Within a tuple, all data types should use the v3 protocol serialization format.
 
 
-7. User defined and tuple types
+7. User Defined Types
 
-  This section describes the serialization format for User defined types (UDT) and
-  tuple values. UDT (resp. tuple) values are the values of the User Defined Types
-  (resp. tuple type) as defined in section 4.2.5.2.
+  This section describes the serialization format for User defined types (UDT),
+  as described in section 4.2.5.2.
 
   A UDT value is composed of successive [bytes] values, one for each field of the UDT
   value (in the order defined by the type). A UDT value will generally have one value
   for each field of the type it represents, but it is allowed to have less values than
   the type has fields.
 
-  A tuple value has the exact same serialization format, i.e. a succession of
-  [bytes] values representing the components of the tuple.
+  Within a user-defined type value, all data types should use the v3 protocol
+  serialization format.
 
 
 8. Result paging
