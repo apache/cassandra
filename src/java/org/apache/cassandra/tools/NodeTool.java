@@ -2066,7 +2066,7 @@ public class NodeTool
             
             StringBuffer errors = new StringBuffer();
 
-            Map<InetAddress, Float> ownerships;
+            Map<InetAddress, Float> ownerships = null;
             try
             {
                 ownerships = probe.effectiveOwnership(keyspace);
@@ -2079,7 +2079,7 @@ public class NodeTool
             catch (IllegalArgumentException ex)
             {
                 System.out.printf("%nError: " + ex.getMessage() + "%n");
-                return;
+                System.exit(1);
             }
 
             Map<String, SetHostStat> dcs = getOwnershipByDc(probe, resolveIp, tokensToEndpoints, ownerships);
