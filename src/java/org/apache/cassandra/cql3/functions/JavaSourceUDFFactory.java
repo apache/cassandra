@@ -248,7 +248,7 @@ public final class JavaSourceUDFFactory
                     // handle OutOfMemoryError and other fatals not here!
                     "    if (t instanceof VirtualMachineError)\n" +
                     "      throw (VirtualMachineError)t;\n" +
-                    "    throw org.apache.cassandra.exceptions.FunctionExecutionException.build(this, t);\n" +
+                    "    throw org.apache.cassandra.exceptions.FunctionExecutionException.create(this, t);\n" +
                     "  }\n" +
                     "}");
 
