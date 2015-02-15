@@ -27,6 +27,10 @@ import org.apache.commons.lang3.time.DateUtils;
 import org.junit.Assert;
 import org.junit.Test;
 
+import org.apache.cassandra.cql3.functions.Functions;
+import org.apache.cassandra.cql3.functions.UDAggregate;
+import org.apache.cassandra.exceptions.FunctionExecutionException;
+import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.transport.Event;
 import org.apache.cassandra.transport.messages.ResultMessage;
@@ -88,9 +92,9 @@ public class AggregationTest extends CQLTester
         execute("INSERT INTO %s (a, b, c) VALUES (1, 3, 8)");
 
         assertInvalidSyntax("SELECT max(b), max(c) FROM %s WHERE max(a) = 1");
-        assertInvalid("SELECT max(b), c FROM %s");
-        assertInvalid("SELECT b, max(c) FROM %s");
-        assertInvalid("SELECT max(sum(c)) FROM %s");
+        assertInvalidMessage("only aggregates or no aggregate", "SELECT max(b), c FROM %s");
+        assertInvalidMessage("only aggregates or no aggregate", "SELECT b, max(c) FROM %s");
+        assertInvalidMessage("aggregate functions cannot be used as arguments of aggregate functions", "SELECT max(sum(c)) FROM %s");
         assertInvalidSyntax("SELECT COUNT(2) FROM %s");
     }
 
@@ -129,8 +133,8 @@ public class AggregationTest extends CQLTester
         assertRows(execute("SELECT " + copySign + "(max(c), min(c)) FROM %s"), row(-1.4));
         assertRows(execute("SELECT " + copySign + "(c, d) FROM %s"), row(1.2), row(-1.3), row(1.4));
         assertRows(execute("SELECT max(" + copySign + "(c, d)) FROM %s"), row(1.4));
-        assertInvalid("SELECT " + copySign + "(c, max(c)) FROM %s");
-        assertInvalid("SELECT " + copySign + "(max(c), c) FROM %s");
+        assertInvalidMessage("must be either all aggregates or no aggregates", "SELECT " + copySign + "(c, max(c)) FROM %s");
+        assertInvalidMessage("must be either all aggregates or no aggregates", "SELECT " + copySign + "(max(c), c) FROM %s");
     }
 
     @Test
@@ -203,8 +207,8 @@ public class AggregationTest extends CQLTester
                                "AS '\"string\";';");
 
         // DROP AGGREGATE must not succeed against a scalar
-        assertInvalid("DROP AGGREGATE " + f);
-        assertInvalid("DROP AGGREGATE " + f + "(double, double)");
+        assertInvalidMessage("matches multiple function definitions", "DROP AGGREGATE " + f);
+        assertInvalidMessage("non existing", "DROP AGGREGATE " + f + "(double, double)");
 
         String a = createAggregate(KEYSPACE,
                                    "double",
@@ -218,12 +222,12 @@ public class AggregationTest extends CQLTester
                                 "STYPE int");
 
         // DROP FUNCTION must not succeed against an aggregate
-        assertInvalid("DROP FUNCTION " + a);
-        assertInvalid("DROP FUNCTION " + a + "(double)");
+        assertInvalidMessage("matches multiple function definitions", "DROP FUNCTION " + a);
+        assertInvalidMessage("non existing function", "DROP FUNCTION " + a + "(double)");
 
         // ambigious
-        assertInvalid("DROP AGGREGATE " + a);
-        assertInvalid("DROP AGGREGATE IF EXISTS " + a);
+        assertInvalidMessage("matches multiple function definitions", "DROP AGGREGATE " + a);
+        assertInvalidMessage("matches multiple function definitions", "DROP AGGREGATE IF EXISTS " + a);
 
         execute("DROP AGGREGATE IF EXISTS " + KEYSPACE + ".non_existing");
         execute("DROP AGGREGATE IF EXISTS " + a + "(int, text)");
@@ -250,7 +254,7 @@ public class AggregationTest extends CQLTester
                                    "STYPE double");
 
         // DROP FUNCTION must not succeed because the function is still referenced by the aggregate
-        assertInvalid("DROP FUNCTION " + f);
+        assertInvalidMessage("still referenced by", "DROP FUNCTION " + f);
 
         execute("DROP AGGREGATE " + a + "(double)");
     }
@@ -289,7 +293,7 @@ public class AggregationTest extends CQLTester
 
         execute("DROP AGGREGATE " + a + "(int)");
 
-        assertInvalid("SELECT " + a + "(b) FROM %s");
+        assertInvalidMessage("Unknown function", "SELECT " + a + "(b) FROM %s");
     }
 
     @Test
@@ -327,7 +331,7 @@ public class AggregationTest extends CQLTester
 
         execute("DROP AGGREGATE " + a + "(int)");
 
-        assertInvalid("SELECT " + a + "(b) FROM %s");
+        assertInvalidMessage("Unknown function", "SELECT " + a + "(b) FROM %s");
     }
 
     @Test
@@ -347,11 +351,12 @@ public class AggregationTest extends CQLTester
                                        "LANGUAGE java " +
                                        "AS 'return a.toString();'");
 
-        assertInvalid("CREATE AGGREGATE " + KEYSPACE + ".aggrInvalid(int)" +
-                      "SFUNC " + shortFunctionName(fState) + " " +
-                      "STYPE int " +
-                      "FINALFUNC " + shortFunctionName(fFinal) + " " +
-                      "INITCOND 'foobar'");
+        assertInvalidMessage("Invalid STRING constant (foobar)",
+                             "CREATE AGGREGATE " + KEYSPACE + ".aggrInvalid(int)" +
+                             "SFUNC " + shortFunctionName(fState) + " " +
+                             "STYPE int " +
+                             "FINALFUNC " + shortFunctionName(fFinal) + " " +
+                             "INITCOND 'foobar'");
     }
 
     @Test
@@ -385,34 +390,41 @@ public class AggregationTest extends CQLTester
                                         "LANGUAGE java " +
                                         "AS 'return a.toString();'");
 
-        assertInvalid("CREATE AGGREGATE " + KEYSPACE + ".aggrInvalid(double)" +
-                      "SFUNC " + shortFunctionName(fState) + " " +
-                      "STYPE double " +
-                      "FINALFUNC " + shortFunctionName(fFinal));
-        assertInvalid("CREATE AGGREGATE " + KEYSPACE + ".aggrInvalid(int)" +
-                      "SFUNC " + shortFunctionName(fState) + " " +
-                      "STYPE double " +
-                      "FINALFUNC " + shortFunctionName(fFinal));
-        assertInvalid("CREATE AGGREGATE " + KEYSPACE + ".aggrInvalid(double)" +
-                      "SFUNC " + shortFunctionName(fState) + " " +
-                      "STYPE int " +
-                      "FINALFUNC " + shortFunctionName(fFinal));
-        assertInvalid("CREATE AGGREGATE " + KEYSPACE + ".aggrInvalid(double)" +
-                      "SFUNC " + shortFunctionName(fState) + " " +
-                      "STYPE int");
-        assertInvalid("CREATE AGGREGATE " + KEYSPACE + ".aggrInvalid(int)" +
-                      "SFUNC " + shortFunctionName(fState) + " " +
-                      "STYPE double");
+        assertInvalidMessage("does not exist or is not a scalar function",
+                             "CREATE AGGREGATE " + KEYSPACE + ".aggrInvalid(double)" +
+                             "SFUNC " + shortFunctionName(fState) + " " +
+                             "STYPE double " +
+                             "FINALFUNC " + shortFunctionName(fFinal));
+        assertInvalidMessage("does not exist or is not a scalar function",
+                             "CREATE AGGREGATE " + KEYSPACE + ".aggrInvalid(int)" +
+                             "SFUNC " + shortFunctionName(fState) + " " +
+                             "STYPE double " +
+                             "FINALFUNC " + shortFunctionName(fFinal));
+        assertInvalidMessage("does not exist or is not a scalar function",
+                             "CREATE AGGREGATE " + KEYSPACE + ".aggrInvalid(double)" +
+                             "SFUNC " + shortFunctionName(fState) + " " +
+                             "STYPE int " +
+                             "FINALFUNC " + shortFunctionName(fFinal));
+        assertInvalidMessage("does not exist or is not a scalar function",
+                             "CREATE AGGREGATE " + KEYSPACE + ".aggrInvalid(double)" +
+                             "SFUNC " + shortFunctionName(fState) + " " +
+                             "STYPE int");
+        assertInvalidMessage("does not exist or is not a scalar function",
+                             "CREATE AGGREGATE " + KEYSPACE + ".aggrInvalid(int)" +
+                             "SFUNC " + shortFunctionName(fState) + " " +
+                             "STYPE double");
 
-        assertInvalid("CREATE AGGREGATE " + KEYSPACE + ".aggrInvalid(double)" +
-                      "SFUNC " + shortFunctionName(fState2) + " " +
-                      "STYPE double " +
-                      "FINALFUNC " + shortFunctionName(fFinal));
+        assertInvalidMessage("does not exist or is not a scalar function",
+                             "CREATE AGGREGATE " + KEYSPACE + ".aggrInvalid(double)" +
+                             "SFUNC " + shortFunctionName(fState2) + " " +
+                             "STYPE double " +
+                             "FINALFUNC " + shortFunctionName(fFinal));
 
-        assertInvalid("CREATE AGGREGATE " + KEYSPACE + ".aggrInvalid(double)" +
-                      "SFUNC " + shortFunctionName(fState) + " " +
-                      "STYPE double " +
-                      "FINALFUNC " + shortFunctionName(fFinal2));
+        assertInvalidMessage("does not exist or is not a scalar function",
+                             "CREATE AGGREGATE " + KEYSPACE + ".aggrInvalid(double)" +
+                             "SFUNC " + shortFunctionName(fState) + " " +
+                             "STYPE double " +
+                             "FINALFUNC " + shortFunctionName(fFinal2));
     }
 
     @Test
@@ -432,15 +444,17 @@ public class AggregationTest extends CQLTester
                                        "LANGUAGE java " +
                                        "AS 'return a.toString();'");
 
-        assertInvalid("CREATE AGGREGATE " + KEYSPACE + ".aggrInvalid(int)" +
-                      "SFUNC " + shortFunctionName(fState) + "_not_there " +
-                      "STYPE int " +
-                      "FINALFUNC " + shortFunctionName(fFinal));
+        assertInvalidMessage("does not exist or is not a scalar function",
+                             "CREATE AGGREGATE " + KEYSPACE + ".aggrInvalid(int)" +
+                             "SFUNC " + shortFunctionName(fState) + "_not_there " +
+                             "STYPE int " +
+                             "FINALFUNC " + shortFunctionName(fFinal));
 
-        assertInvalid("CREATE AGGREGATE " + KEYSPACE + ".aggrInvalid(int)" +
-                      "SFUNC " + shortFunctionName(fState) + " " +
-                      "STYPE int " +
-                      "FINALFUNC " + shortFunctionName(fFinal) + "_not_there");
+        assertInvalidMessage("does not exist or is not a scalar function",
+                             "CREATE AGGREGATE " + KEYSPACE + ".aggrInvalid(int)" +
+                             "SFUNC " + shortFunctionName(fState) + " " +
+                             "STYPE int " +
+                             "FINALFUNC " + shortFunctionName(fFinal) + "_not_there");
 
         execute("CREATE AGGREGATE " + KEYSPACE + ".aggrInvalid(int)" +
                 "SFUNC " + shortFunctionName(fState) + " " +
@@ -507,17 +521,18 @@ public class AggregationTest extends CQLTester
                                     "FINALFUNC " + shortFunctionName(fFinalOK) + " " +
                                     "INITCOND null");
 
-        assertInvalid("SELECT " + a0 + "(b) FROM %s");
-        assertInvalid("SELECT " + a1 + "(b) FROM %s");
+        assertInvalidThrowMessage("java.lang.RuntimeException", FunctionExecutionException.class, "SELECT " + a0 + "(b) FROM %s");
+        assertInvalidThrowMessage("java.lang.RuntimeException", FunctionExecutionException.class, "SELECT " + a1 + "(b) FROM %s");
         assertRows(execute("SELECT " + a2 + "(b) FROM %s"), row("foobar"));
     }
 
     @Test
     public void testJavaAggregateWithoutStateOrFinal() throws Throwable
     {
-        assertInvalid("CREATE AGGREGATE " + KEYSPACE + ".jSumFooNE1(int) " +
-                      "SFUNC jSumFooNEstate " +
-                      "STYPE int");
+        assertInvalidMessage("does not exist or is not a scalar function",
+                             "CREATE AGGREGATE " + KEYSPACE + ".jSumFooNE1(int) " +
+                             "SFUNC jSumFooNEstate " +
+                             "STYPE int");
 
         String f = createFunction(KEYSPACE,
                                   "int, int",
@@ -526,10 +541,11 @@ public class AggregationTest extends CQLTester
                                   "LANGUAGE java " +
                                   "AS 'return Integer.valueOf((a!=null?a.intValue():0) + b.intValue());'");
 
-        assertInvalid("CREATE AGGREGATE " + KEYSPACE + ".jSumFooNE2(int) " +
-                      "SFUNC " + shortFunctionName(f) + " " +
-                      "STYPE int " +
-                      "FINALFUNC jSumFooNEfinal");
+        assertInvalidMessage("does not exist or is not a scalar function",
+                             "CREATE AGGREGATE " + KEYSPACE + ".jSumFooNE2(int) " +
+                             "SFUNC " + shortFunctionName(f) + " " +
+                             "STYPE int " +
+                             "FINALFUNC jSumFooNEfinal");
 
         execute("DROP FUNCTION " + f + "(int, int)");
     }
@@ -572,7 +588,7 @@ public class AggregationTest extends CQLTester
         execute("DROP FUNCTION " + fFinal + "(int)");
         execute("DROP FUNCTION " + fState + "(int, int)");
 
-        assertInvalid("SELECT " + a + "(b) FROM %s");
+        assertInvalidMessage("Unknown function", "SELECT " + a + "(b) FROM %s");
     }
 
     @Test
@@ -603,7 +619,7 @@ public class AggregationTest extends CQLTester
 
         execute("DROP FUNCTION " + fState + "(int, int)");
 
-        assertInvalid("SELECT " + a + "(b) FROM %s");
+        assertInvalidMessage("Unknown function", "SELECT " + a + "(b) FROM %s");
     }
 
     @Test
@@ -691,7 +707,7 @@ public class AggregationTest extends CQLTester
         execute("DROP FUNCTION " + fFinal + "(int)");
         execute("DROP FUNCTION " + fState + "(int, int)");
 
-        assertInvalid("SELECT " + a + "(b) FROM %s");
+        assertInvalidMessage("Unknown function", "SELECT " + a + "(b) FROM %s");
     }
 
     @Test
@@ -722,7 +738,7 @@ public class AggregationTest extends CQLTester
 
         execute("DROP FUNCTION " + fState + "(int, int)");
 
-        assertInvalid("SELECT " + a + "(b) FROM %s");
+        assertInvalidMessage("Unknown function", "SELECT " + a + "(b) FROM %s");
     }
 
     @Test
@@ -785,18 +801,49 @@ public class AggregationTest extends CQLTester
                                        "AS 'a + b;'");
 
         String a = createAggregate(KEYSPACE,
-                                   "int, int",
+                                   "int",
                                    "CREATE AGGREGATE %s(int) " +
                                    "SFUNC " + shortFunctionName(fState) + " " +
                                    "STYPE int ");
 
-        assertInvalid("CREATE AGGREGATE " + KEYSPACE + ".aggInv(int) " +
-                      "SFUNC " + shortFunctionName(a) + " " +
-                      "STYPE int ");
+        assertInvalidMessage("does not exist or is not a scalar function",
+                             "CREATE AGGREGATE " + KEYSPACE + ".aggInv(int) " +
+                             "SFUNC " + shortFunctionName(a) + " " +
+                             "STYPE int ");
 
-        assertInvalid("CREATE AGGREGATE " + KEYSPACE + ".aggInv(int) " +
-                      "SFUNC " + shortFunctionName(fState) + " " +
-                      "STYPE int " +
-                      "FINALFUNC " + shortFunctionName(a));
+        assertInvalidMessage("does not exist or is not a scalar function",
+                             "CREATE AGGREGATE " + KEYSPACE + ".aggInv(int) " +
+                             "SFUNC " + shortFunctionName(fState) + " " +
+                             "STYPE int " +
+                             "FINALFUNC " + shortFunctionName(a));
     }
+
+    @Test
+    public void testBrokenAggregate() throws Throwable
+    {
+        createTable("CREATE TABLE %s (key int primary key, val int)");
+        execute("INSERT INTO %s (key, val) VALUES (?, ?)", 1, 1);
+
+        String fState = createFunction(KEYSPACE,
+                                       "int, int",
+                                       "CREATE FUNCTION %s(a int, b int) " +
+                                       "RETURNS int " +
+                                       "LANGUAGE javascript " +
+                                       "AS 'a + b;'");
+
+        String a = createAggregate(KEYSPACE,
+                                   "int",
+                                   "CREATE AGGREGATE %s(int) " +
+                                   "SFUNC " + shortFunctionName(fState) + " " +
+                                   "STYPE int ");
+
+        UDAggregate f = (UDAggregate) Functions.find(parseFunctionName(a)).get(0);
+
+        Functions.replaceFunction(UDAggregate.createBroken(f.name(), f.argTypes(), f.returnType(),
+                                                           null, new InvalidRequestException("foo bar is broken")));
+
+        assertInvalidThrowMessage("foo bar is broken", InvalidRequestException.class,
+                                  "SELECT " + a + "(val) FROM %s");
+    }
+
 }

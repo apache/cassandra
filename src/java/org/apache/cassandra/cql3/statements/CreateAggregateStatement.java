@@ -132,7 +132,7 @@ public final class CreateAggregateStatement extends SchemaAlteringStatement
             finalFuncName = new FunctionName(functionName.keyspace, finalFunc);
             f = Functions.find(finalFuncName, Collections.<AbstractType<?>>singletonList(stateType));
             if (!(f instanceof ScalarFunction))
-                throw new InvalidRequestException("Final function " + finalFuncName + "(" + stateTypeRaw + ") does not exist");
+                throw new InvalidRequestException("Final function " + finalFuncName + "(" + stateTypeRaw + ") does not exist or is not a scalar function");
             fFinal = (ScalarFunction) f;
             returnType = fFinal.returnType();
         }

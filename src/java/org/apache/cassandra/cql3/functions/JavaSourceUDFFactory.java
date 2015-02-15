@@ -205,7 +205,7 @@ public final class JavaSourceUDFFactory
      *         logger.error("Invocation of function '{}' failed", this, t);
      *         if (t instanceof VirtualMachineError)
      *             throw (VirtualMachineError)t;
-     *         throw new org.apache.cassandra.exceptions.InvalidRequestException("Invocation of function '" + this + "' failed: " + t);
+     *         throw org.apache.cassandra.exceptions.FunctionExecutionException.build(this, t);
      *     }
      * }
      * </pre></code>
@@ -248,7 +248,7 @@ public final class JavaSourceUDFFactory
                     // handle OutOfMemoryError and other fatals not here!
                     "    if (t instanceof VirtualMachineError)\n" +
                     "      throw (VirtualMachineError)t;\n" +
-                    "    throw new org.apache.cassandra.exceptions.InvalidRequestException(\"Invocation of function '\" + this + \"' failed: \" + t);\n" +
+                    "    throw org.apache.cassandra.exceptions.FunctionExecutionException.build(this, t);\n" +
                     "  }\n" +
                     "}");
 

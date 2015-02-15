@@ -446,7 +446,7 @@ public abstract class Selection
             this.factories = factories;
 
             if (factories.doesAggregation() && !factories.containsOnlyAggregateFunctions())
-                throw new InvalidRequestException("the select clause must either contains only aggregates or none");
+                throw new InvalidRequestException("the select clause must either contain only aggregates or no aggregate");
         }
 
         @Override

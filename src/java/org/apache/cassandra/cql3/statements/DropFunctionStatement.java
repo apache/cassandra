@@ -136,7 +136,7 @@ public final class DropFunctionStatement extends SchemaAlteringStatement
 
         List<Function> references = Functions.getReferencesTo(old);
         if (!references.isEmpty())
-            throw new InvalidRequestException(String.format("Function '%s' still referenced by %s", functionName, references));
+            throw new InvalidRequestException(String.format("Function '%s' still referenced by %s", old, references));
 
         this.old = old;
 

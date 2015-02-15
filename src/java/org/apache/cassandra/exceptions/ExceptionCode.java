@@ -40,6 +40,7 @@ public enum ExceptionCode
     WRITE_TIMEOUT   (0x1100),
     READ_TIMEOUT    (0x1200),
     READ_FAILURE    (0x1300),
+    FUNCTION_FAILURE(0x1400),
 
     // 2xx: problem validating the request
     SYNTAX_ERROR    (0x2000),
@@ -50,7 +51,7 @@ public enum ExceptionCode
     UNPREPARED      (0x2500);
 
     public final int value;
-    private static final Map<Integer, ExceptionCode> valueToCode = new HashMap<Integer, ExceptionCode>(ExceptionCode.values().length);
+    private static final Map<Integer, ExceptionCode> valueToCode = new HashMap<>(ExceptionCode.values().length);
     static
     {
         for (ExceptionCode code : ExceptionCode.values())

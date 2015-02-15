@@ -17,12 +17,15 @@
  */
 package org.apache.cassandra.transport.messages;
 
+import java.util.List;
+
 import io.netty.buffer.ByteBuf;
 import io.netty.handler.codec.CodecException;
 import com.google.common.base.Predicate;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.cql3.functions.FunctionName;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.WriteType;
 import org.apache.cassandra.exceptions.*;
@@ -98,6 +101,12 @@ public class ErrorMessage extends Message.Response
                         te = new ReadTimeoutException(cl, received, blockFor, dataPresent != 0);
                     }
                     break;
+                case FUNCTION_FAILURE:
+                    String fKeyspace = CBUtil.readString(body);
+                    String fName = CBUtil.readString(body);
+                    List<String> argTypes = CBUtil.readStringList(body);
+                    te = new FunctionExecutionException(new FunctionName(fKeyspace, fName), argTypes, msg);
+                    break;
                 case UNPREPARED:
                     {
                         MD5Digest id = MD5Digest.wrap(CBUtil.readBytes(body));
@@ -166,6 +175,12 @@ public class ErrorMessage extends Message.Response
                     else
                         dest.writeByte((byte)(((ReadTimeoutException)rte).dataPresent ? 1 : 0));
                     break;
+                case FUNCTION_FAILURE:
+                    FunctionExecutionException fee = (FunctionExecutionException)msg.error;
+                    CBUtil.writeString(fee.functionName.keyspace, dest);
+                    CBUtil.writeString(fee.functionName.name, dest);
+                    CBUtil.writeStringList(fee.argTypes, dest);
+                    break;
                 case UNPREPARED:
                     PreparedQueryNotFoundException pqnfe = (PreparedQueryNotFoundException)err;
                     CBUtil.writeBytes(pqnfe.id.bytes, dest);
@@ -201,6 +216,12 @@ public class ErrorMessage extends Message.Response
                     size += CBUtil.sizeOfConsistencyLevel(rte.consistency) + 8;
                     size += isWrite ? CBUtil.sizeOfString(((WriteTimeoutException)rte).writeType.toString()) : 1;
                     break;
+                case FUNCTION_FAILURE:
+                    FunctionExecutionException fee = (FunctionExecutionException)msg.error;
+                    size += CBUtil.sizeOfString(fee.functionName.keyspace);
+                    size += CBUtil.sizeOfString(fee.functionName.name);
+                    size += CBUtil.sizeOfStringList(fee.argTypes);
+                    break;
                 case UNPREPARED:
                     PreparedQueryNotFoundException pqnfe = (PreparedQueryNotFoundException)err;
                     size += CBUtil.sizeOfBytes(pqnfe.id.bytes);
@@ -217,10 +238,16 @@ public class ErrorMessage extends Message.Response
 
     private static TransportException getBackwardsCompatibleException(ErrorMessage msg, int version)
     {
-        if (msg.error.code() == ExceptionCode.READ_FAILURE && version < Server.VERSION_4)
+        if (version < Server.VERSION_4)
         {
-            ReadFailureException rfe = (ReadFailureException) msg.error;
-            return new ReadTimeoutException(rfe.consistency, rfe.received, rfe.blockFor, rfe.dataPresent);
+            switch (msg.error.code())
+            {
+                case READ_FAILURE:
+                    ReadFailureException rfe = (ReadFailureException) msg.error;
+                    return new ReadTimeoutException(rfe.consistency, rfe.received, rfe.blockFor, rfe.dataPresent);
+                case FUNCTION_FAILURE:
+                    return new InvalidRequestException(msg.toString());
+            }
         }
 
         return msg.error;

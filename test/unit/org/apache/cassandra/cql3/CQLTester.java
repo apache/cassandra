@@ -619,7 +619,7 @@ public abstract class CQLTester
 
     protected void assertEmpty(UntypedResultSet result) throws Throwable
     {
-        if (result != null && result.size() != 0)
+        if (result != null && !result.isEmpty())
             throw new AssertionError(String.format("Expected empty result but got %d rows", result.size()));
     }
 
@@ -630,6 +630,16 @@ public abstract class CQLTester
 
     protected void assertInvalidMessage(String errorMessage, String query, Object... values) throws Throwable
     {
+        assertInvalidThrowMessage(errorMessage, null, query, values);
+    }
+
+    protected void assertInvalidThrow(Class<? extends Throwable> exception, String query, Object... values) throws Throwable
+    {
+        assertInvalidThrowMessage(null, exception, query, values);
+    }
+
+    protected void assertInvalidThrowMessage(String errorMessage, Class<? extends Throwable> exception, String query, Object... values) throws Throwable
+    {
         try
         {
             execute(query, values);
@@ -638,13 +648,26 @@ public abstract class CQLTester
                      : replaceValues(query, values);
             Assert.fail("Query should be invalid but no error was thrown. Query is: " + q);
         }
-        catch (InvalidRequestException e)
+        catch (CassandraException e)
         {
+            if (exception != null && !exception.isAssignableFrom(e.getClass()))
+            {
+                Assert.fail("Query should be invalid but wrong error was thrown. " +
+                            "Expected: " + exception.getName() + ", got: " + e.getClass().getName() + ". " +
+                            "Query is: " + queryInfo(query, values));
+            }
             if (errorMessage != null)
             {
                 assertMessageContains(errorMessage, e);
             }
         }
+    }
+
+    private static String queryInfo(String query, Object[] values)
+    {
+        return USE_PREPARED_VALUES
+               ? query + " (values: " + formatAllValues(values) + ")"
+               : replaceValues(query, values);
     }
 
     protected void assertInvalidSyntax(String query, Object... values) throws Throwable
@@ -657,10 +680,7 @@ public abstract class CQLTester
         try
         {
             execute(query, values);
-            String q = USE_PREPARED_VALUES
-                     ? query + " (values: " + formatAllValues(values) + ")"
-                     : replaceValues(query, values);
-            Assert.fail("Query should have invalid syntax but no error was thrown. Query is: " + q);
+            Assert.fail("Query should have invalid syntax but no error was thrown. Query is: " + queryInfo(query, values));
         }
         catch (SyntaxException e)
         {

@@ -1006,6 +1006,14 @@ Table of Contents
                 <data_present> is a single byte. If its value is 0, it means
                                the replica that was asked for data had not
                                responded. Otherwise, the value is != 0.
+    0x1400    Function_failure: A (user defined) function failed during execution.
+              The rest of the ERROR message body will be
+                <keyspace><function><arg_types>
+              where:
+                <keyspace> is the keyspace [string] of the failed function
+                <function> is the name [string] of the failed function
+                <arg_types> [string list] one string for each argument type (as CQL type) of the failed function
+
     0x2000    Syntax_error: The submitted query has a syntax error.
     0x2100    Unauthorized: The logged user doesn't have the right to perform
               the query.
@@ -1031,4 +1039,4 @@ Table of Contents
   * The format of "SCHEMA_CHANGE" events (Section 4.2.6) (and implicitly "Schema_change" results (Section 4.2.5.5))
     has been modified, and now includes changes related to user defined functions and user defined aggregates.
   * Read_failure error code was added.
-
+  * Function_failure error code was added.

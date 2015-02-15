@@ -48,7 +48,7 @@ abstract class AbstractFunctionSelector<T extends Function> extends Selector
         else
         {
             if (factories.doesAggregation() && !factories.containsOnlyAggregateFunctions())
-                throw new InvalidRequestException(String.format("the %s function arguments must be either all aggregates or all none aggregates",
+                throw new InvalidRequestException(String.format("arguments of function %s must be either all aggregates or no aggregates",
                                                                 fun.name()));
         }
 
