@@ -25,7 +25,7 @@ import org.apache.cassandra.exceptions.ConfigurationException;
 public final class DateTieredCompactionStrategyOptions
 {
     protected static final TimeUnit DEFAULT_TIMESTAMP_RESOLUTION = TimeUnit.MICROSECONDS;
-    protected static final long DEFAULT_MAX_SSTABLE_AGE_DAYS = 365;
+    protected static final double DEFAULT_MAX_SSTABLE_AGE_DAYS = 365;
     protected static final long DEFAULT_BASE_TIME_SECONDS = 60;
     protected static final String TIMESTAMP_RESOLUTION_KEY = "timestamp_resolution";
     protected static final String MAX_SSTABLE_AGE_KEY = "max_sstable_age_days";
@@ -39,14 +39,15 @@ public final class DateTieredCompactionStrategyOptions
         String optionValue = options.get(TIMESTAMP_RESOLUTION_KEY);
         TimeUnit timestampResolution = optionValue == null ? DEFAULT_TIMESTAMP_RESOLUTION : TimeUnit.valueOf(optionValue);
         optionValue = options.get(MAX_SSTABLE_AGE_KEY);
-        maxSSTableAge = timestampResolution.convert(optionValue == null ? DEFAULT_MAX_SSTABLE_AGE_DAYS : Long.parseLong(optionValue), TimeUnit.DAYS);
+        double fractionalDays = optionValue == null ? DEFAULT_MAX_SSTABLE_AGE_DAYS : Double.parseDouble(optionValue);
+        maxSSTableAge = Math.round(fractionalDays * timestampResolution.convert(1, TimeUnit.DAYS));
         optionValue = options.get(BASE_TIME_KEY);
         baseTime = timestampResolution.convert(optionValue == null ? DEFAULT_BASE_TIME_SECONDS : Long.parseLong(optionValue), TimeUnit.SECONDS);
     }
 
     public DateTieredCompactionStrategyOptions()
     {
-        maxSSTableAge = DEFAULT_TIMESTAMP_RESOLUTION.convert(DEFAULT_MAX_SSTABLE_AGE_DAYS, TimeUnit.DAYS);
+        maxSSTableAge = Math.round(DEFAULT_MAX_SSTABLE_AGE_DAYS * DEFAULT_TIMESTAMP_RESOLUTION.convert(1, TimeUnit.DAYS));
         baseTime = DEFAULT_TIMESTAMP_RESOLUTION.convert(DEFAULT_BASE_TIME_SECONDS, TimeUnit.SECONDS);
     }
 
@@ -66,10 +67,10 @@ public final class DateTieredCompactionStrategyOptions
         optionValue = options.get(MAX_SSTABLE_AGE_KEY);
         try
         {
-            long maxSStableAge = optionValue == null ? DEFAULT_MAX_SSTABLE_AGE_DAYS : Long.parseLong(optionValue);
+            double maxSStableAge = optionValue == null ? DEFAULT_MAX_SSTABLE_AGE_DAYS : Double.parseDouble(optionValue);
             if (maxSStableAge < 0)
             {
-                throw new ConfigurationException(String.format("%s must be non-negative: %d", MAX_SSTABLE_AGE_KEY, maxSStableAge));
+                throw new ConfigurationException(String.format("%s must be non-negative: %.2f", MAX_SSTABLE_AGE_KEY, maxSStableAge));
             }
         }
         catch (NumberFormatException e)
