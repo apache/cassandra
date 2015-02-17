@@ -12,6 +12,7 @@
  * cqlsh: Fix keys() and full() collection indexes in DESCRIBE output
    (CASSANDRA-8154)
 Merged from 2.0:
+ * Make it possible to set max_sstable_age to fractional days (CASSANDRA-8406)
  * Fix some multi-column relations with indexes on some clustering
    columns (CASSANDRA-8275)
  * Fix memory leak in SSTableSimple*Writer and SSTableReader.validate() (CASSANDRA-8748)
