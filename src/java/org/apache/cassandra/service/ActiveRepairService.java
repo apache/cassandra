@@ -305,38 +305,16 @@ public class ActiveRepairService
 
     public synchronized void registerParentRepairSession(UUID parentRepairSession, List<ColumnFamilyStore> columnFamilyStores, Collection<Range<Token>> ranges)
     {
-        Map<UUID, Set<SSTableReader>> sstablesToRepair = new HashMap<>();
-        for (ColumnFamilyStore cfs : columnFamilyStores)
-        {
-            Set<SSTableReader> sstables = new HashSet<>();
-            Set<SSTableReader> currentlyRepairing = currentlyRepairing(cfs.metadata.cfId);
-            for (SSTableReader sstable : cfs.getSSTables())
-            {
-                if (new Bounds<>(sstable.first.getToken(), sstable.last.getToken()).intersects(ranges))
-                {
-                    if (!sstable.isRepaired())
-                    {
-                        if (currentlyRepairing.contains(sstable))
-                        {
-                            logger.error("Already repairing "+sstable+", can not continue.");
-                            throw new RuntimeException("Already repairing "+sstable+", can not continue.");
-                        }
-                        sstables.add(sstable);
-                    }
-                }
-            }
-            sstablesToRepair.put(cfs.metadata.cfId, sstables);
-        }
-        parentRepairSessions.put(parentRepairSession, new ParentRepairSession(columnFamilyStores, ranges, sstablesToRepair, System.currentTimeMillis()));
+        parentRepairSessions.put(parentRepairSession, new ParentRepairSession(columnFamilyStores, ranges, System.currentTimeMillis()));
     }
 
-    private Set<SSTableReader> currentlyRepairing(UUID cfId)
+    public Set<SSTableReader> currentlyRepairing(UUID cfId, UUID parentRepairSession)
     {
         Set<SSTableReader> repairing = new HashSet<>();
         for (Map.Entry<UUID, ParentRepairSession> entry : parentRepairSessions.entrySet())
         {
             Collection<SSTableReader> sstables = entry.getValue().sstableMap.get(cfId);
-            if (sstables != null)
+            if (sstables != null && !entry.getKey().equals(parentRepairSession))
                 repairing.addAll(sstables);
         }
         return repairing;
@@ -419,12 +397,12 @@ public class ActiveRepairService
         public final Map<UUID, Set<SSTableReader>> sstableMap;
         public final long repairedAt;
 
-        public ParentRepairSession(List<ColumnFamilyStore> columnFamilyStores, Collection<Range<Token>> ranges, Map<UUID, Set<SSTableReader>> sstables, long repairedAt)
+        public ParentRepairSession(List<ColumnFamilyStore> columnFamilyStores, Collection<Range<Token>> ranges, long repairedAt)
         {
             for (ColumnFamilyStore cfs : columnFamilyStores)
                 this.columnFamilyStores.put(cfs.metadata.cfId, cfs);
             this.ranges = ranges;
-            this.sstableMap = sstables;
+            this.sstableMap = new HashMap<>();
             this.repairedAt = repairedAt;
         }
 
@@ -450,6 +428,15 @@ public class ActiveRepairService
                 }
             }
             return new Refs<>(references.build());
+        }
+
+        public void addSSTables(UUID cfId, Collection<SSTableReader> sstables)
+        {
+            Set<SSTableReader> existingSSTables = this.sstableMap.get(cfId);
+            if (existingSSTables == null)
+                existingSSTables = new HashSet<>();
+            existingSSTables.addAll(sstables);
+            this.sstableMap.put(cfId, existingSSTables);
         }
 
         @Override
