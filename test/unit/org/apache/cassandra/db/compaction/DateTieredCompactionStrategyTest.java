@@ -19,6 +19,7 @@ package org.apache.cassandra.db.compaction;
 
 import java.nio.ByteBuffer;
 import java.util.*;
+import java.util.concurrent.TimeUnit;
 
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -102,6 +103,36 @@ public class DateTieredCompactionStrategyTest extends SchemaLoader
         options.put("bad_option", "1.0");
         unvalidated = validateOptions(options);
         assertTrue(unvalidated.containsKey("bad_option"));
+    }
+
+    @Test
+    public void testTimeConversions()
+    {
+        Map<String, String> options = new HashMap<>();
+        options.put(DateTieredCompactionStrategyOptions.BASE_TIME_KEY, "30");
+        options.put(DateTieredCompactionStrategyOptions.TIMESTAMP_RESOLUTION_KEY, "SECONDS");
+
+        DateTieredCompactionStrategyOptions opts = new DateTieredCompactionStrategyOptions(options);
+        assertEquals(opts.maxSSTableAge, TimeUnit.SECONDS.convert(365, TimeUnit.DAYS));
+
+        options.put(DateTieredCompactionStrategyOptions.TIMESTAMP_RESOLUTION_KEY, "MILLISECONDS");
+        opts = new DateTieredCompactionStrategyOptions(options);
+        assertEquals(opts.maxSSTableAge, TimeUnit.MILLISECONDS.convert(365, TimeUnit.DAYS));
+
+        options.put(DateTieredCompactionStrategyOptions.TIMESTAMP_RESOLUTION_KEY, "MICROSECONDS");
+        options.put(DateTieredCompactionStrategyOptions.MAX_SSTABLE_AGE_KEY, "10");
+        opts = new DateTieredCompactionStrategyOptions(options);
+        assertEquals(opts.maxSSTableAge, TimeUnit.MICROSECONDS.convert(10, TimeUnit.DAYS));
+
+        options.put(DateTieredCompactionStrategyOptions.MAX_SSTABLE_AGE_KEY, "0.5");
+        opts = new DateTieredCompactionStrategyOptions(options);
+        assertEquals(opts.maxSSTableAge, TimeUnit.MICROSECONDS.convert(1, TimeUnit.DAYS) / 2);
+
+        options.put(DateTieredCompactionStrategyOptions.TIMESTAMP_RESOLUTION_KEY, "HOURS");
+        options.put(DateTieredCompactionStrategyOptions.MAX_SSTABLE_AGE_KEY, "0.5");
+        opts = new DateTieredCompactionStrategyOptions(options);
+        assertEquals(opts.maxSSTableAge, 12);
+
     }
 
     @Test
