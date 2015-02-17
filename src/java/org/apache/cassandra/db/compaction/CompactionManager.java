@@ -539,9 +539,10 @@ public class CompactionManager implements CompactionManagerMBean
 
         for (SSTableReader sstable : sstables)
         {
+            Set<SSTableReader> sstableAsSet = Collections.singleton(sstable);
             if (!hasIndexes && !new Bounds<Token>(sstable.first.token, sstable.last.token).intersects(ranges))
             {
-                cfs.replaceCompactedSSTables(Arrays.asList(sstable), Collections.<SSTableReader>emptyList(), OperationType.CLEANUP);
+                cfs.replaceCompactedSSTables(sstableAsSet, Collections.<SSTableReader>emptyList(), OperationType.CLEANUP);
                 continue;
             }
             if (!needsCleanup(sstable, ranges))
@@ -550,18 +551,18 @@ public class CompactionManager implements CompactionManagerMBean
                 continue;
             }
 
-            CompactionController controller = new CompactionController(cfs, Collections.singleton(sstable), getDefaultGcBefore(cfs));
+            CompactionController controller = new CompactionController(cfs, sstableAsSet, getDefaultGcBefore(cfs));
             long start = System.nanoTime();
 
             long totalkeysWritten = 0;
 
             int expectedBloomFilterSize = Math.max(cfs.metadata.getIndexInterval(),
-                                                   (int) (SSTableReader.getApproximateKeyCount(Arrays.asList(sstable), cfs.metadata)));
+                                                   (int) (SSTableReader.getApproximateKeyCount(sstableAsSet, cfs.metadata)));
             if (logger.isDebugEnabled())
                 logger.debug("Expected bloom filter size : " + expectedBloomFilterSize);
 
             logger.info("Cleaning up " + sstable);
-            File compactionFileLocation = cfs.directories.getWriteableLocationAsFile(cfs.getExpectedCompactedFileSize(sstables, OperationType.CLEANUP));
+            File compactionFileLocation = cfs.directories.getWriteableLocationAsFile(cfs.getExpectedCompactedFileSize(sstableAsSet, OperationType.CLEANUP));
             if (compactionFileLocation == null)
                 throw new IOException("disk full");
 

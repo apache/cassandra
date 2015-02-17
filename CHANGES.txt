@@ -1,4 +1,5 @@
 2.0.13:
+ * AssertionError: "Memory was freed" when running cleanup (CASSANDRA-8716)
  * Make it possible to set max_sstable_age to fractional days (CASSANDRA-8406)
  * Fix memory leak in SSTableSimple*Writer and SSTableReader.validate() (CASSANDRA-8748)
  * Fix some multi-column relations with indexes on some clustering
