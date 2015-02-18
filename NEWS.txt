@@ -36,6 +36,8 @@ New features
    - SSTable file name is changed. Now you don't have Keyspace/CF name
      in file name. Also, secondary index has its own directory under parent's
      directory.
+   - Support for user-defined functions and user-defined aggregates have
+     been added to CQL.
 
 
 Upgrading

@@ -1,6 +1,6 @@
 <link rel="StyleSheet" href="CQL.css" type="text/css" media="screen">
 
-h1. Cassandra Query Language (CQL) v3.2.0
+h1. Cassandra Query Language (CQL) v3.3.0
 
 
  <span id="tableOfContents">
@@ -124,6 +124,15 @@ p. A @<tablename>@ will be used to identify a table. This is an identifier repre
 
 p. For supported @<function>@, see the section on "functions":#functions.
 
+p. Strings can be either enclosed with single quotes or two dollar characters. The second syntax has been introduced to allow strings that contain single quotes. Typical candidates for such strings are source code fragments for user-defined functions.
+
+__Sample:__
+
+bc(sample).. 
+  'some string value'
+
+  $$double-dollar string can contain single ' quotes$$
+p. 
 
 h3(#preparedStatement). Prepared Statement
 
@@ -565,7 +574,6 @@ __Syntax:__
 bc(syntax).. 
 <drop-trigger-stmt> ::= DROP TRIGGER ( IF EXISTS )? ( <triggername> )?
                             ON <tablename>
-
 p. 
 __Sample:__
 
@@ -573,6 +581,157 @@ bc(sample).
 DROP TRIGGER myTrigger ON myTable;
 
 @DROP TRIGGER@ statement removes the registration of a trigger created using @CREATE TRIGGER@.
+
+h3(#createFunctionStmt). CREATE FUNCTION
+
+__Syntax:__
+
+bc(syntax).. 
+<create-function-stmt> ::= CREATE ( OR REPLACE )? 
+                            ( ( NON )? DETERMINISTIC )?
+                            FUNCTION ( IF NOT EXISTS )?
+                            ( ( <keyspace> '.' )? <function-name> )?
+                            '(' <arg-name> <arg-type> ( ',' <arg-name> <arg-type> )* ')'
+                            RETURNS <type>
+                            LANGUAGE <language>
+                            AS <body>
+p. 
+__Sample:__
+
+bc(sample). 
+CREATE OR REPLACE FUNCTION somefunction
+    ( somearg int, anotherarg text, complexarg frozen<someUDT>, listarg list<bigint> )
+    RETURNS text
+    LANGUAGE java
+    AS $$
+       // some Java code
+    $$;
+CREATE FUNCTION akeyspace.fname IF NOT EXISTS
+    ( someArg int )
+    RETURNS text
+    LANGUAGE java
+    AS $$
+       // some Java code
+    $$;
+
+@CREATE FUNCTION@ creates or replaces a user-defined function.
+
+Functions are either @DETERMINISTIC@ or @NON DETERMINISTIC@. A deterministic function always returns the same value for the same input values. A non-deterministic function may not. Examples of deterministic functions are math functions like _add_ or _sin_. Examples of non-deterministic functions are: _now_ or _random_. Functions are assumed to be deterministic by default.
+
+h4(#functionSignature). Function Signature
+
+Signatures are used to distinguish individual functions. The signature consists of:
+
+# The fully qualified function name - i.e _keyspace_ plus _function-name_
+# The concatenated list of all argument types
+
+Note that keyspace names, function names and argument types are subject to the default naming conventions and case-sensitivity rules.
+
+@CREATE FUNCTION@ with the optional @OR REPLACE@ keywords either creates a function or replaces an existing one with the same signature. A @CREATE FUNCTION@ without @OR REPLACE@ fails if a function with the same signature already exists.
+
+If the optional @IF NOT EXISTS@ keywords are used, the function will only be created if another function with the same signature does not exist.
+
+@OR REPLACE@ and @IF NOT EXIST@ cannot be used together.
+
+Functions belong to a keyspace. If no keyspace is specified in @<function-name>@, the current keyspace is used (i.e. the keyspace specified using the "@USE@":#useStmt statement). It is not possible to create a user-defined function in one of the system keyspaces.
+
+See the section on "user-defined functions":#udfs for more information.
+
+h3(#dropFunctionStmt). DROP FUNCTION
+
+__Syntax:__
+
+bc(syntax).. 
+<drop-function-stmt> ::= DROP FUNCTION ( IF EXISTS )?
+                         ( ( <keyspace> '.' )? <function-name> )?
+                         ( '(' <arg-type> ( ',' <arg-type> )* ')' )?
+
+p. 
+__Sample:__
+
+bc(sample). 
+DROP FUNCTION myfunction;
+DROP FUNCTION mykeyspace.afunction;
+DROP FUNCTION afunction ( int );
+DROP FUNCTION afunction ( text );
+
+@DROP FUNCTION@ statement removes a function created using @CREATE FUNCTION@.
+You must specify the argument types ("signature":#functionSignature) of the function to drop if there are multiple functions with the same name but a different signature (overloaded functions).
+
+@DROP FUNCTION@ with the optional @IF EXISTS@ keywords drops a function if it exists.
+
+h3(#createAggregateStmt). CREATE AGGREGATE
+
+__Syntax:__
+
+bc(syntax).. 
+<create-aggregate-stmt> ::= CREATE ( OR REPLACE )? 
+                            AGGREGATE ( IF NOT EXISTS )?
+                            ( ( <keyspace> '.' )? <aggregate-name> )?
+                            '(' <arg-type> ( ',' <arg-type> )* ')'
+                            SFUNC ( <keyspace> '.' )? <state-functionname>
+                            STYPE <state-type>
+                            ( FINALFUNC ( <keyspace> '.' )? <final-functionname> )?
+                            ( INITCOND <init-cond> )?
+p. 
+__Sample:__
+
+bc(sample). 
+CREATE AGGREGATE myaggregate ( val text )
+  SFUNC myaggregate_state
+  STYPE text
+  FINALFUNC myaggregate_final
+  INITCOND 'foo';
+
+See the section on "user-defined aggregates":#udas for a complete example.
+
+@CREATE AGGREGATE@ creates or replaces a user-defined aggregate.
+
+@CREATE AGGREGATE@ with the optional @OR REPLACE@ keywords either creates an aggregate or replaces an existing one with the same signature. A @CREATE AGGREGATE@ without @OR REPLACE@ fails if an aggregate with the same signature already exists.
+
+@CREATE AGGREGATE@ with the optional @IF NOT EXISTS@ keywords either creates an aggregate if it does not already exist.
+
+@OR REPLACE@ and @IF NOT EXIST@ cannot be used together.
+
+Aggregates belong to a keyspace. If no keyspace is specified in @<aggregate-name>@, the current keyspace is used (i.e. the keyspace specified using the "@USE@":#useStmt statement). It is not possible to create a user-defined aggregate in one of the system keyspaces.
+
+Signatures for user-defined aggregates follow the "same rules":#functionSignature as for user-defined functions.
+
+@STYPE@ defines the type of the state value and must be specified.
+
+The optional @INITCOND@ defines the initial state value for the aggregate. It defaults to @null@.
+
+@SFUNC@ references an existing function to be used as the state modifying function. The type of first argument of the state function must match @STYPE@. The remaining argument types of the state function must match the argument types of the aggregate function.
+
+The optional @FINALFUNC@ is called just before the aggregate result is returned. It must take only one argument with type @STYPE@. The return type of the @FINALFUNC@ may be a different type.
+
+If no @FINALFUNC@ is defined, the overall return type of the aggregate function is @STYPE@.  If a @FINALFUNC@ is defined, it is the return type of that function.
+
+See the section on "user-defined aggregates":#udas for more information.
+
+h3(#dropAggregateStmt). DROP AGGREGATE
+
+__Syntax:__
+
+bc(syntax).. 
+<drop-function-stmt> ::= DROP AGGREGATE ( IF EXISTS )?
+                         ( ( <keyspace> '.' )? <functionname> )?
+                         ( '(' <arg-type> ( ',' <arg-type> )* ')' )?
+p. 
+
+__Sample:__
+
+bc(sample). 
+DROP AGGREGATE myAggregate;
+DROP AGGREGATE myKeyspace.anAggregate;
+DROP AGGREGATE someAggregate ( int );
+DROP AGGREGATE someAggregate ( text );
+
+The @DROP AGGREGATE@ statement removes an aggregate created using @CREATE AGGREGATE@.  You must specify the argument types of the aggregate to drop if there are multiple aggregates with the same name but a different signature (overloaded aggregates).
+
+@DROP AGGREGATE@ with the optional @IF EXISTS@ keywords drops an aggregate if it exists, and does nothing if a function with the signature does not exist.
+
+Signatures for user-defined aggregates follow the "same rules":#functionSignature as for user-defined functions.
 
 h2(#dataManipulation). Data Manipulation
 
@@ -820,7 +979,7 @@ h4(#selectSelection). @<select-clause>@
 
 The @<select-clause>@ determines which columns needs to be queried and returned in the result-set. It consists of either the comma-separated list of <selector> or the wildcard character (@*@) to select all the columns defined for the table.
 
-A @<selector>@ is either a column name to retrieve, or a @<function>@ of one or multiple column names. The functions allows are the same that for @<term>@ and are describe in the "function section":#function. In addition to these generic functions, the @WRITETIME@ (resp. @TTL@) function allows to select the timestamp of when the column was inserted (resp. the time to live (in seconds) for the column (or null if the column has no expiration set)).
+A @<selector>@ is either a column name to retrieve or a @<function>@ of one or more @<term>@s. The function allowed are the same as for @<term>@ and are described in the "function section":#functions. In addition to these generic functions, the @WRITETIME@ (resp. @TTL@) function allows to select the timestamp of when the column was inserted (resp. the time to live (in seconds) for the column (or null if the column has no expiration set)).
 
 Any @<selector>@ can be aliased using @AS@ keyword (see examples). Please note that @<where-clause>@ and @<order-by>@ clause should refer to the columns by their original names and not by their aliases.
 
@@ -1141,7 +1300,7 @@ As with "maps":#map, TTLs if used only apply to the newly inserted/updated _valu
 
 h2(#functions). Functions
 
-CQL3 supports a few functions (more to come). Currently, it only support functions on values (functions that transform one or more column values into a new value) and in particular aggregation functions are not supported. The functions supported are described below:
+CQL3 distinguishes between built-in functions (so called 'native functions') and "user-defined functions":#udfs.  CQL3 includes several native functions, described below:
 
 h3(#tokenFun). Token
 
@@ -1197,6 +1356,99 @@ h3(#blobFun). Blob conversion functions
 
 A number of functions are provided to "convert" the native types into binary data (@blob@). For every @<native-type>@ @type@ supported by CQL3 (a notable exceptions is @blob@, for obvious reasons), the function @typeAsBlob@ takes a argument of type @type@ and return it as a @blob@.  Conversely, the function @blobAsType@ takes a 64-bit @blob@ argument and convert it to a @bigint@ value.  And so for instance, @bigintAsBlob(3)@ is @0x0000000000000003@ and @blobAsBigint(0x0000000000000003)@ is @3@.
 
+h2(#udfs). User-Defined Functions
+
+User-defined functions allow execution of user-provided code in Cassandra. By default, Cassandra supports defining functions in _Java_ and _JavaScript_. Support for other JSR 223 compliant scripting languages (such as Python, Ruby, and Scala) can be added by adding a JAR to the classpath.
+
+UDFs are part of the Cassandra schema.  As such, they are automatically propagated to all nodes in the cluster.
+
+UDFs can be _overloaded_ - i.e. multiple UDFs with different argument types but the same function name. Example:
+
+bc(sample). 
+CREATE FUNCTION sample ( arg int ) ...;
+CREATE FUNCTION sample ( arg text ) ...;
+
+User-defined functions are susceptible to all of the normal problems with the chosen programming language.  Accordingly, implementations should be safe against null pointer exceptions, illegal arguments, or any other potential source of exceptions.  An exception during function execution will result in the entire statement failing.
+
+It is valid to use _complex_ types like collections, tuple types and user-defined types as argument and return types. Tuple types and user-defined types are handled by the conversion functions of the DataStax Java Driver. Please see the documentation of the Java Driver for details on handling tuple types and user-defined types.
+
+Arguments for functions can be literals or terms. Prepared statement placeholders can be used, too.
+
+Note that you can use the double-quoted string syntax to enclose the UDF source code. For example:
+
+bc(sample).. 
+CREATE FUNCTION some_function ( arg int )
+  RETURNS int
+  LANGUAGE java
+  AS $$ return arg; $$;
+
+SELECT some_function(column) FROM atable ...;
+UPDATE atable SET col = some_function(?) ...;
+p. 
+
+bc(sample). 
+CREATE TYPE custom_type (txt text, i int);
+CREATE FUNCTION fct_using_udt ( udtarg frozen<customType> )
+  RETURNS text
+  LANGUAGE java
+  AS $$ return udtarg.getString("txt"); $$;
+
+User-defined functions can be used in "@SELECT@":#selectStmt, "@INSERT@":#insertStmt and "@UPDATE@":#updateStmt statements.
+
+See "@CREATE FUNCTION@":#createFunctionStmt and "@DROP FUNCTION@":#dropFunctionStmt.
+
+h2(#udas). User-Defined Aggregates
+
+User-defined aggregates allow creation of custom aggregate functions using "UDFs":#udfs. Common examples of aggregate functions are _count_, _min_, and _max_.
+
+Each aggregate requires an _initial state_ (@INITCOND@, which defaults to @null@) of type @STYPE@. The first argument of the state function must have type @STYPE@. The remaining arguments of the state function must match the types of the user-defined aggregate arguments. The state function is called once for each row, and the value returned by the state function becomes the new state. After all rows are processed, the optional @FINALFUNC@ is executed with last state value as its argument.
+
+@STYPE@ is mandatory in order to be able to distinguish possibly overloaded versions of the state and/or final function (since the overload can appear after creation of the aggregate).
+
+User-defined aggregates can be used in "@SELECT@":#selectStmt statement.
+
+A complete working example for user-defined aggregates (assuming that a keyspace has been selected using the "@USE@":#useStmt statement):
+
+bc(sample).. 
+CREATE FUNCTION averageState ( state tuple<int,bigint>, val int )
+  RETURNS tuple<int,bigint>
+  LANGUAGE java
+  AS '
+    if (val != null) {
+      state.setInt(0, state.getInt(0)+1);
+      state.setLong(1, state.getLong(1)+val.intValue());
+    }
+    return state;
+  ';
+
+CREATE FUNCTION averageFinal ( state tuple<int,bigint> )
+  RETURNS double
+  LANGUAGE java
+  AS '
+    double r = 0;
+    if (state.getInt(0) == 0) return null;
+    r = state.getLong(1);
+    r /= state.getInt(0);
+    return Double.valueOf(r);
+  ';
+
+CREATE AGGREGATE average ( int )
+  SFUNC averageState
+  STYPE tuple<int,bigint>
+  FINALFUNC averageFinal
+  INITCOND (0, 0);
+
+CREATE TYPE atable (
+  pk int PRIMARY KEY,
+  val int);
+INSERT INTO atable (pk, val) VALUES (1,1);
+INSERT INTO atable (pk, val) VALUES (2,2);
+INSERT INTO atable (pk, val) VALUES (3,3);
+INSERT INTO atable (pk, val) VALUES (4,4);
+SELECT average(val) FROM atable;
+p. 
+
+See "@CREATE AGGREGATE@":#createAggregateStmt and "@DROP AGGREGATE@":#dropAggregateStmt.
 
 h2(#appendixA). Appendix A: CQL Keywords
 
@@ -1204,6 +1456,7 @@ CQL distinguishes between _reserved_ and _non-reserved_ keywords. Reserved keywo
 
 |_. Keyword      |_. Reserved? |
 | @ADD@          | yes |
+| @AGGREGATE@    | no  |
 | @ALL@          | no  |
 | @ALTER@        | yes |
 | @AND@          | yes |
@@ -1229,41 +1482,52 @@ CQL distinguishes between _reserved_ and _non-reserved_ keywords. Reserved keywo
 | @DECIMAL@      | no  |
 | @DELETE@       | yes |
 | @DESC@         | yes |
+| @DETERMINISTIC@ | no  |
 | @DOUBLE@       | no  |
 | @DROP@         | yes |
 | @EACH_QUORUM@  | yes |
+| @FUNCTION@     | no  |
+| @FINALFUNC@    | no  |
 | @FLOAT@        | no  |
 | @FROM@         | yes |
 | @GRANT@        | yes |
 | @IN@           | yes |
 | @INDEX@        | yes |
 | @CUSTOM@       | no  |
+| @INITCOND@     | no  |
 | @INSERT@       | yes |
 | @INT@          | no  |
 | @INTO@         | yes |
 | @KEY@          | no  |
 | @KEYSPACE@     | yes |
+| @LANGUAGE@     | no  |
 | @LEVEL@        | no  |
 | @LIMIT@        | yes |
 | @LOCAL_ONE@    | yes |
 | @LOCAL_QUORUM@ | yes |
 | @MODIFY@       | yes |
 | @NORECURSIVE@  | yes |
+| @NON@          | no  |
 | @NOSUPERUSER@  | no  |
 | @OF@           | yes |
 | @ON@           | yes |
 | @ONE@          | yes |
+| @OR@           | yes |
 | @ORDER@        | yes |
 | @PASSWORD@     | no  |
 | @PERMISSION@   | no  |
 | @PERMISSIONS@  | no  |
 | @PRIMARY@      | yes |
 | @QUORUM@       | yes |
+| @REPLACE@      | yes |
+| @RETURNS@      | no  |
 | @REVOKE@       | yes |
 | @SCHEMA@       | yes |
 | @SELECT@       | yes |
 | @SET@          | yes |
+| @SFUNC@        | no  |
 | @STORAGE@      | no  |
+| @STYPE@        | no  |
 | @SUPERUSER@    | no  |
 | @TABLE@        | yes |
 | @TEXT@         | no  |
@@ -1306,6 +1570,12 @@ The following type names are not currently used by CQL, but are reserved for pot
 h2(#changes). Changes
 
 The following describes the changes in each version of CQL.
+
+h3. 3.3.0
+
+* User-defined functions are now supported through "@CREATE FUNCTION@":#createFunctionStmt and "@DROP FUNCTION@":#dropFunctionStmt, 
+* User-defined aggregates are now supported through "@CREATE AGGREGATE@":#createAggregateStmt and "@DROP AGGREGATE@":#dropAggregateStmt.
+* Allows double-dollar enclosed strings literals as an alternative to single-quote enclosed strings.
 
 h3. 3.2.0
 
