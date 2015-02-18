@@ -1,4 +1,6 @@
 2.0.13:
+ * Fix AssertionError when querying a DESC clustering ordered
+   table with ASC ordering and paging (CASSANDRA-8767)
  * AssertionError: "Memory was freed" when running cleanup (CASSANDRA-8716)
  * Make it possible to set max_sstable_age to fractional days (CASSANDRA-8406)
  * Fix memory leak in SSTableSimple*Writer and SSTableReader.validate() (CASSANDRA-8748)
