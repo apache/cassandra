@@ -259,7 +259,7 @@ public interface StorageServiceMBean extends NotificationEmitter
      * You can track repair progress by subscribing JMX notification sent from this StorageServiceMBean.
      * Notification format is:
      *   type: "repair"
-     *   userObject: int array of length 2, [0]=command number, [1]=ordinal of AntiEntropyService.Status
+     *   userObject: int array of length 2, [0]=command number, [1]=ordinal of ActiveRepairService.Status
      *
      * @param keyspace Keyspace name to repair. Should not be null.
      * @param options repair option.
@@ -275,7 +275,7 @@ public interface StorageServiceMBean extends NotificationEmitter
      * You can track repair progress by subscribing JMX notification sent from this StorageServiceMBean.
      * Notification format is:
      *   type: "repair"
-     *   userObject: int array of length 2, [0]=command number, [1]=ordinal of AntiEntropyService.Status
+     *   userObject: int array of length 2, [0]=command number, [1]=ordinal of ActiveRepairService.Status
      *
      * @param parallelismDegree 0: sequential, 1: parallel, 2: DC parallel
      * @return Repair command number, or 0 if nothing to repair
