@@ -138,7 +138,7 @@ public class CommitLogTest
     @Test
     public void testDontDeleteIfDirty() throws Exception
     {
-        CommitLog.instance.resetUnsafe();
+        CommitLog.instance.resetUnsafe(true);
         // Roughly 32 MB mutation
         Mutation rm = new Mutation(KEYSPACE1, bytes("k"));
         rm.add(CF1, Util.cellname("c1"), ByteBuffer.allocate(DatabaseDescriptor.getCommitLogSegmentSize()/4), 0);
@@ -168,7 +168,7 @@ public class CommitLogTest
     public void testDeleteIfNotDirty() throws Exception
     {
         DatabaseDescriptor.getCommitLogSegmentSize();
-        CommitLog.instance.resetUnsafe();
+        CommitLog.instance.resetUnsafe(true);
         // Roughly 32 MB mutation
         Mutation rm = new Mutation(KEYSPACE1, bytes("k"));
         rm.add(CF1, Util.cellname("c1"), ByteBuffer.allocate((DatabaseDescriptor.getCommitLogSegmentSize()/4) - 1), 0);
@@ -226,7 +226,7 @@ public class CommitLogTest
     @Test
     public void testEqualRecordLimit() throws Exception
     {
-        CommitLog.instance.resetUnsafe();
+        CommitLog.instance.resetUnsafe(true);
 
         Mutation rm = new Mutation(KEYSPACE1, bytes("k"));
         rm.add(CF1, Util.cellname("c1"), ByteBuffer.allocate(getMaxRecordDataSize()), 0);
@@ -236,7 +236,7 @@ public class CommitLogTest
     @Test
     public void testExceedRecordLimit() throws Exception
     {
-        CommitLog.instance.resetUnsafe();
+        CommitLog.instance.resetUnsafe(true);
         try
         {
             Mutation rm = new Mutation(KEYSPACE1, bytes("k"));
@@ -345,7 +345,7 @@ public class CommitLogTest
     @Test
     public void testTruncateWithoutSnapshot()
     {
-        CommitLog.instance.resetUnsafe();
+        CommitLog.instance.resetUnsafe(true);
         boolean prev = DatabaseDescriptor.isAutoSnapshot();
         DatabaseDescriptor.setAutoSnapshot(false);
         ColumnFamilyStore cfs1 = Keyspace.open(KEYSPACE1).getColumnFamilyStore("Standard1");
@@ -374,7 +374,7 @@ public class CommitLogTest
     @Test
     public void testTruncateWithoutSnapshotNonDurable()
     {
-        CommitLog.instance.resetUnsafe();
+        CommitLog.instance.resetUnsafe(true);
         boolean prevAutoSnapshot = DatabaseDescriptor.isAutoSnapshot();
         DatabaseDescriptor.setAutoSnapshot(false);
         Keyspace notDurableKs = Keyspace.open(KEYSPACE2);

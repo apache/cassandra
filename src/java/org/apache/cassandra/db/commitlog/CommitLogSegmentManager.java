@@ -45,6 +45,7 @@ import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.Mutation;
+import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.utils.Pair;
@@ -517,20 +518,12 @@ public class CommitLogSegmentManager
     }
 
     /**
-     * Resets all the segments, for testing purposes. DO NOT USE THIS OUTSIDE OF TESTS.
-     */
-    public void resetUnsafe()
-    {
-        stopUnsafe();
-        startUnsafe();
-    }
-
-    /**
      * Stops CL, for testing purposes. DO NOT USE THIS OUTSIDE OF TESTS.
+     * Only call this after the AbstractCommitLogService is shut down.
      */
-    public void stopUnsafe()
+    public void stopUnsafe(boolean deleteSegments)
     {
-        logger.debug("Closing and clearing existing commit log segments...");
+        logger.debug("CLSM closing and clearing existing commit log segments...");
 
         while (!segmentManagementTasks.isEmpty())
             Thread.yield();
@@ -546,18 +539,36 @@ public class CommitLogSegmentManager
         }
 
         for (CommitLogSegment segment : activeSegments)
-            segment.close();
+            closeAndDeleteSegmentUnsafe(segment, deleteSegments);
         activeSegments.clear();
 
         for (CommitLogSegment segment : availableSegments)
-            segment.close();
+            closeAndDeleteSegmentUnsafe(segment, deleteSegments);
         availableSegments.clear();
 
         allocatingFrom = null;
 
+        segmentManagementTasks.clear();
+
         size.set(0L);
 
-        logger.debug("Done with closing and clearing existing commit log segments.");
+        logger.debug("CLSM done with closing and clearing existing commit log segments.");
+    }
+
+    private static void closeAndDeleteSegmentUnsafe(CommitLogSegment segment, boolean delete)
+    {
+        segment.close();
+        if (!delete)
+            return;
+
+        try
+        {
+            segment.delete();
+        }
+        catch (AssertionError ignored)
+        {
+            // segment file does not exit
+        }
     }
 
     /**
@@ -566,7 +577,6 @@ public class CommitLogSegmentManager
     public void startUnsafe()
     {
         start();
-
         wakeManager();
     }
 

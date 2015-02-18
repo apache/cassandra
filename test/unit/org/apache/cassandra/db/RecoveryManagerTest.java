@@ -71,14 +71,14 @@ public class RecoveryManagerTest
     @Test
     public void testNothingToRecover() throws IOException
     {
-        CommitLog.instance.resetUnsafe();
+        CommitLog.instance.resetUnsafe(true);
         CommitLog.instance.recover();
     }
 
     @Test
     public void testOne() throws IOException
     {
-        CommitLog.instance.resetUnsafe();
+        CommitLog.instance.resetUnsafe(true);
         Keyspace keyspace1 = Keyspace.open(KEYSPACE1);
         Keyspace keyspace2 = Keyspace.open(KEYSPACE2);
 
@@ -99,7 +99,7 @@ public class RecoveryManagerTest
         keyspace1.getColumnFamilyStore("Standard1").clearUnsafe();
         keyspace2.getColumnFamilyStore("Standard3").clearUnsafe();
 
-        CommitLog.instance.resetUnsafe(); // disassociate segments from live CL
+        CommitLog.instance.resetUnsafe(false); // disassociate segments from live CL
         CommitLog.instance.recover();
 
         assertColumns(Util.getColumnFamily(keyspace1, dk, "Standard1"), "col1");
@@ -109,7 +109,7 @@ public class RecoveryManagerTest
     @Test
     public void testRecoverCounter() throws IOException
     {
-        CommitLog.instance.resetUnsafe();
+        CommitLog.instance.resetUnsafe(true);
         Keyspace keyspace1 = Keyspace.open(KEYSPACE1);
 
         Mutation rm;
@@ -126,7 +126,7 @@ public class RecoveryManagerTest
 
         keyspace1.getColumnFamilyStore("Counter1").clearUnsafe();
 
-        CommitLog.instance.resetUnsafe(); // disassociate segments from live CL
+        CommitLog.instance.resetUnsafe(false); // disassociate segments from live CL
         CommitLog.instance.recover();
 
         cf = Util.getColumnFamily(keyspace1, dk, "Counter1");
@@ -141,7 +141,7 @@ public class RecoveryManagerTest
     @Test
     public void testRecoverPIT() throws Exception
     {
-        CommitLog.instance.resetUnsafe();
+        CommitLog.instance.resetUnsafe(true);
         Date date = CommitLogArchiver.format.parse("2112:12:12 12:12:12");
         long timeMS = date.getTime() - 5000;
 
@@ -156,7 +156,7 @@ public class RecoveryManagerTest
             rm.apply();
         }
         keyspace1.getColumnFamilyStore("Standard1").clearUnsafe();
-        CommitLog.instance.resetUnsafe(); // disassociate segments from live CL
+        CommitLog.instance.resetUnsafe(false); // disassociate segments from live CL
         CommitLog.instance.recover();
 
         ColumnFamily cf = Util.getColumnFamily(keyspace1, dk, "Standard1");
@@ -167,7 +167,7 @@ public class RecoveryManagerTest
     @Test
     public void testRecoverPITUnordered() throws Exception
     {
-        CommitLog.instance.resetUnsafe();
+        CommitLog.instance.resetUnsafe(true);
         Date date = CommitLogArchiver.format.parse("2112:12:12 12:12:12");
         long timeMS = date.getTime();
 
@@ -193,7 +193,7 @@ public class RecoveryManagerTest
         Assert.assertEquals(10, cf.getColumnCount());
 
         keyspace1.getColumnFamilyStore("Standard1").clearUnsafe();
-        CommitLog.instance.resetUnsafe(); // disassociate segments from live CL
+        CommitLog.instance.resetUnsafe(false); // disassociate segments from live CL
         CommitLog.instance.recover();
 
         cf = Util.getColumnFamily(keyspace1, dk, "Standard1");
