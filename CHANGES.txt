@@ -71,6 +71,8 @@
  * cqlsh: Fix keys() and full() collection indexes in DESCRIBE output
    (CASSANDRA-8154)
 Merged from 2.0:
+ * Make CFS.markReferenced() resistant to bad refcounting (CASSANDRA-8829)
+ * Fix StreamTransferTask abort/complete bad refcounting (CASSANDRA-8815)
  * Fix AssertionError when querying a DESC clustering ordered
    table with ASC ordering and paging (CASSANDRA-8767)
  * AssertionError: "Memory was freed" when running cleanup (CASSANDRA-8716)

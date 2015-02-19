@@ -22,6 +22,9 @@ import java.util.concurrent.*;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import com.google.common.base.Throwables;
+import com.google.common.collect.Iterables;
+
 import org.apache.cassandra.concurrent.NamedThreadFactory;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.streaming.messages.OutgoingFileMessage;
@@ -93,8 +96,22 @@ public class StreamTransferTask extends StreamTask
             future.cancel(false);
         timeoutTasks.clear();
 
+        Throwable fail = null;
         for (OutgoingFileMessage file : files.values())
-            file.ref.release();
+        {
+            try
+            {
+                file.ref.release();
+            }
+            catch (Throwable t)
+            {
+                if (fail == null) fail = t;
+                else fail.addSuppressed(t);
+            }
+        }
+        files.clear();
+        if (fail != null)
+            Throwables.propagate(fail);
     }
 
     public synchronized int getTotalNumberOfFiles()
