@@ -90,9 +90,9 @@ public class SafeMemory extends Memory implements SharedCloseable
     }
 
     @Inline
-    protected void checkPosition(long offset)
+    protected void checkBounds(long start, long end)
     {
         assert peer != 0 || size == 0 : ref.printDebugInfo();
-        super.checkPosition(offset);
+        super.checkBounds(start, end);
     }
 }
