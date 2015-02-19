@@ -23,6 +23,9 @@ Merged from 2.0:
  * Fix memory leak in SSTableSimple*Writer and SSTableReader.validate() (CASSANDRA-8748)
  * Throw OOM if allocating memory fails to return a valid pointer (CASSANDRA-8726)
  * Fix SSTableSimpleUnsortedWriter ConcurrentModificationException (CASSANDRA-8619)
+ * 'nodetool info' prints exception against older node (CASSANDRA-8796)
+ * Ensure SSTableSimpleUnsortedWriter.close() terminates if
+   disk writer has crashed (CASSANDRA-8807)
 
 
 2.1.3
