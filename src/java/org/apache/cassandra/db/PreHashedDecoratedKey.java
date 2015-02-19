@@ -15,28 +15,28 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package java.util.zip;
+package org.apache.cassandra.db;
 
 import java.nio.ByteBuffer;
 
-/**
- * A fake implementation of java.util.zip.CRC32 with the additonal JDK 8 methods so
- * that when compiling using Java 7 we can link against those new methods and then
- * avoid calling them at runtime if running with Java 7.
- */
-public class CRC32 implements Checksum
+import org.apache.cassandra.dht.Token;
+
+public class PreHashedDecoratedKey extends BufferDecoratedKey
 {
-    public CRC32() {}
+    final long hash0;
+    final long hash1;
 
-    public void update(int b) {}
+    public PreHashedDecoratedKey(Token token, ByteBuffer key, long hash0, long hash1)
+    {
+        super(token, key);
+        this.hash0 = hash0;
+        this.hash1 = hash1;
+    }
 
-    public void update(byte[] b, int off, int len) {}
-
-    public void update(byte[] b) {}
-
-    public void update(ByteBuffer buffer) {}
-
-    public void reset() {}
-
-    public long getValue() { return 0L; }
+    @Override
+    public void filterHash(long[] dest)
+    {
+        dest[0] = hash0;
+        dest[1] = hash1;
+    }
 }
