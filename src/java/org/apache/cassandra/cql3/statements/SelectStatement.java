@@ -1906,8 +1906,12 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
             Iterator<Name> iter = Iterators.cycle(cfDef.partitionKeys());
             for (Relation relation : whereClause)
             {
+                if (!relation.isOnToken())
+                    continue;
+
+                assert !relation.isMultiColumn() : "Unexpectedly got multi-column token relation";
                 SingleColumnRelation singleColumnRelation = (SingleColumnRelation) relation;
-                if (singleColumnRelation.onToken && !cfDef.get(singleColumnRelation.getEntity().prepare(cfDef.cfm)).equals(iter.next()))
+                if (!cfDef.get(singleColumnRelation.getEntity().prepare(cfDef.cfm)).equals(iter.next()))
                     throw new InvalidRequestException(String.format("The token function arguments must be in the partition key order: %s",
                                                                     Joiner.on(',').join(cfDef.partitionKeys())));
             }

@@ -1,4 +1,6 @@
 2.0.13:
+ * Fix combining token() function with multi-column relations on
+   clustering columns (CASSANDRA-8797)
  * Make CFS.markReferenced() resistant to bad refcounting (CASSANDRA-8829)
  * Fix StreamTransferTask abort/complete bad refcounting (CASSANDRA-8815)
  * Fix AssertionError when querying a DESC clustering ordered
