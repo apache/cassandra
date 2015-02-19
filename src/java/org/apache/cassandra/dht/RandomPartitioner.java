@@ -24,7 +24,7 @@ import java.util.*;
 
 import com.google.common.annotations.VisibleForTesting;
 
-import org.apache.cassandra.db.BufferDecoratedKey;
+import org.apache.cassandra.db.CachedHashDecoratedKey;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.marshal.AbstractType;
@@ -50,7 +50,7 @@ public class RandomPartitioner implements IPartitioner
 
     public DecoratedKey decorateKey(ByteBuffer key)
     {
-        return new BufferDecoratedKey(getToken(key), key);
+        return new CachedHashDecoratedKey(getToken(key), key);
     }
 
     public Token midpoint(Token ltoken, Token rtoken)

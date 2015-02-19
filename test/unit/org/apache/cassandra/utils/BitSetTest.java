@@ -20,15 +20,15 @@ package org.apache.cassandra.utils;
 import java.io.ByteArrayInputStream;
 import java.io.DataInputStream;
 import java.io.IOException;
-import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.Random;
 
 import com.google.common.collect.Lists;
-import org.junit.Test;
 
+import org.junit.Test;
 import org.junit.Assert;
 import org.apache.cassandra.io.util.DataOutputBuffer;
+import org.apache.cassandra.utils.IFilter.FilterKey;
 import org.apache.cassandra.utils.KeyGenerator.RandomStringGenerator;
 import org.apache.cassandra.utils.obs.IBitSet;
 import org.apache.cassandra.utils.obs.OffHeapBitSet;
@@ -54,7 +54,7 @@ public class BitSetTest
 
         while (gen1.hasNext())
         {
-            ByteBuffer key = gen1.next();
+            FilterKey key = FilterTestHelper.wrap(gen1.next());
             bf2.add(key);
             bf3.add(key);
         }
@@ -100,7 +100,7 @@ public class BitSetTest
         }
     }
 
-    private void compare(IBitSet bs, IBitSet newbs)
+    static void compare(IBitSet bs, IBitSet newbs)
     {
         assertEquals(bs.capacity(), newbs.capacity());
         for (long i = 0; i < bs.capacity(); i++)

@@ -37,12 +37,12 @@ public class FilterFactory
 
     public static void serialize(IFilter bf, DataOutputPlus output) throws IOException
     {
-        Murmur3BloomFilter.serializer.serialize((Murmur3BloomFilter) bf, output);
+        BloomFilter.serializer.serialize((BloomFilter) bf, output);
     }
 
     public static IFilter deserialize(DataInput input, boolean offheap) throws IOException
     {
-        return Murmur3BloomFilter.serializer.deserialize(input, offheap);
+        return BloomFilter.serializer.deserialize(input, offheap);
     }
 
     /**
@@ -82,6 +82,6 @@ public class FilterFactory
     {
         long numBits = (numElements * bucketsPer) + BITSET_EXCESS;
         IBitSet bitset = offheap ? new OffHeapBitSet(numBits) : new OpenBitSet(numBits);
-        return new Murmur3BloomFilter(hash, bitset);
+        return new BloomFilter(hash, bitset);
     }
 }

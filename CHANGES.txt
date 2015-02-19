@@ -56,6 +56,8 @@
  * Fail on very large batch sizes (CASSANDRA-8011)
  * Improve concurrency of repair (CASSANDRA-6455, 8208)
  * Select optimal CRC32 implementation at runtime (CASSANDRA-8614)
+ * Evaluate MurmurHash of Token once per query (CASSANDRA-7096)
+
 
 2.1.4
  * Fix CommitLog.forceRecycleAllSegments() memory access error (CASSANDRA-8812)

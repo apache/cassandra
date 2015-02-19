@@ -20,6 +20,11 @@ package org.apache.cassandra.utils;
 
 import java.nio.ByteBuffer;
 
+import org.apache.cassandra.db.BufferDecoratedKey;
+import org.apache.cassandra.db.CachedHashDecoratedKey;
+import org.apache.cassandra.dht.Murmur3Partitioner.LongToken;
+import org.apache.cassandra.utils.IFilter.FilterKey;
+
 public class FilterTestHelper
 {
     // used by filter subclass tests
@@ -27,6 +32,21 @@ public class FilterTestHelper
     static final double MAX_FAILURE_RATE = 0.1;
     public static final BloomCalculations.BloomSpecification spec = BloomCalculations.computeBloomSpec(15, MAX_FAILURE_RATE);
     static final int ELEMENTS = 10000;
+
+    static final FilterKey bytes(String s)
+    {
+        return new BufferDecoratedKey(new LongToken(0L), ByteBufferUtil.bytes(s));
+    }
+    
+    static final FilterKey wrap(ByteBuffer buf)
+    {
+        return new BufferDecoratedKey(new LongToken(0L), buf);
+    }
+
+    static final FilterKey wrapCached(ByteBuffer buf)
+    {
+        return new CachedHashDecoratedKey(new LongToken(0L), buf);
+    }
 
     static final ResetableIterator<ByteBuffer> intKeys()
     {
@@ -49,13 +69,13 @@ public class FilterTestHelper
 
         while (keys.hasNext())
         {
-            f.add(keys.next());
+            f.add(wrap(keys.next()));
         }
 
         int fp = 0;
         while (otherkeys.hasNext())
         {
-            if (f.isPresent(otherkeys.next()))
+            if (f.isPresent(wrap(otherkeys.next())))
             {
                 fp++;
             }

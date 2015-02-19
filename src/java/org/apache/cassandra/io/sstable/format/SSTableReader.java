@@ -699,7 +699,7 @@ public abstract class SSTableReader extends SSTable implements RefCounted<SSTabl
                 last = decoratedKey;
 
                 if (recreateBloomFilter)
-                    bf.add(decoratedKey.getKey());
+                    bf.add(decoratedKey);
 
                 // if summary was already read from disk we don't want to re-populate it using primary index
                 if (!summaryLoaded)

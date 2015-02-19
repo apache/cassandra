@@ -26,8 +26,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ThreadLocalRandom;
 
-import org.apache.cassandra.db.BufferDecoratedKey;
 import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.PreHashedDecoratedKey;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.LongType;
 import org.apache.cassandra.exceptions.ConfigurationException;
@@ -51,7 +51,8 @@ public class Murmur3Partitioner implements IPartitioner
 
     public DecoratedKey decorateKey(ByteBuffer key)
     {
-        return new BufferDecoratedKey(getToken(key), key);
+        long[] hash = getHash(key);
+        return new PreHashedDecoratedKey(getToken(key, hash), key, hash[0], hash[1]);
     }
 
     public Token midpoint(Token lToken, Token rToken)
@@ -149,12 +150,22 @@ public class Murmur3Partitioner implements IPartitioner
      */
     public LongToken getToken(ByteBuffer key)
     {
+        return getToken(key, getHash(key));
+    }
+
+    private LongToken getToken(ByteBuffer key, long[] hash)
+    {
         if (key.remaining() == 0)
             return MINIMUM;
 
+        return new LongToken(normalize(hash[0]));
+    }
+
+    private long[] getHash(ByteBuffer key)
+    {
         long[] hash = new long[2];
         MurmurHash.hash3_x64_128(key, key.position(), key.remaining(), 0, hash);
-        return new LongToken(normalize(hash[0]));
+        return hash;
     }
 
     public LongToken getRandomToken()

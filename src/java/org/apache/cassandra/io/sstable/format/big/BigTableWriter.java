@@ -511,7 +511,7 @@ public class BigTableWriter extends SSTableWriter
 
         public void append(DecoratedKey key, RowIndexEntry indexEntry, long dataEnd)
         {
-            bf.add(key.getKey());
+            bf.add(key);
             long indexStart = indexFile.getFilePointer();
             try
             {
