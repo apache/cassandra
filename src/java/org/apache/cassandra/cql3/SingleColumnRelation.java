@@ -84,6 +84,11 @@ public class SingleColumnRelation extends Relation
         return false;
     }
 
+    public boolean isOnToken()
+    {
+        return onToken;
+    }
+
     public SingleColumnRelation withNonStrictOperator()
     {
         switch (relationType)

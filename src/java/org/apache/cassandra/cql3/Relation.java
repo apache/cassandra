@@ -27,4 +27,9 @@ public abstract class Relation {
     }
 
     public abstract boolean isMultiColumn();
+
+    public boolean isOnToken()
+    {
+        return false;
+    }
 }

@@ -1941,8 +1941,12 @@ public class SelectStatement implements CQLStatement
             Iterator<ColumnDefinition> iter = Iterators.cycle(cfm.partitionKeyColumns());
             for (Relation relation : whereClause)
             {
+                if (!relation.isOnToken())
+                    continue;
+
+                assert !relation.isMultiColumn() : "Unexpectedly got multi-column token relation";
                 SingleColumnRelation singleColumnRelation = (SingleColumnRelation) relation;
-                if (singleColumnRelation.onToken && !cfm.getColumnDefinition(singleColumnRelation.getEntity().prepare(cfm)).equals(iter.next()))
+                if (!cfm.getColumnDefinition(singleColumnRelation.getEntity().prepare(cfm)).equals(iter.next()))
                     throw new InvalidRequestException(String.format("The token function arguments must be in the partition key order: %s",
                                                                     Joiner.on(',').join(cfm.partitionKeyColumns())));
             }
