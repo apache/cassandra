@@ -54,9 +54,13 @@ public class Memory implements AutoCloseable
 
     protected Memory(long bytes)
     {
+        if (bytes <= 0)
+            throw new AssertionError();
         size = bytes;
         peer = allocator.allocate(size);
-        if (size != 0 && peer == 0)
+        // we permit a 0 peer iff size is zero, since such an allocation makes no sense, and an allocator would be
+        // justified in returning a null pointer (and permitted to do so: http://www.cplusplus.com/reference/cstdlib/malloc)
+        if (peer == 0)
             throw new OutOfMemoryError();
     }
 
@@ -78,20 +82,20 @@ public class Memory implements AutoCloseable
 
     public void setByte(long offset, byte b)
     {
-        checkPosition(offset);
+        checkBounds(offset, offset + 1);
         unsafe.putByte(peer + offset, b);
     }
 
     public void setMemory(long offset, long bytes, byte b)
     {
+        checkBounds(offset, offset + bytes);
         // check if the last element will fit into the memory
-        checkPosition(offset + bytes - 1);
         unsafe.setMemory(peer + offset, bytes, b);
     }
 
     public void setLong(long offset, long l)
     {
-        checkPosition(offset);
+        checkBounds(offset, offset + 8);
         if (unaligned)
         {
             unsafe.putLong(peer + offset, l);
@@ -130,7 +134,7 @@ public class Memory implements AutoCloseable
 
     public void setInt(long offset, int l)
     {
-        checkPosition(offset);
+        checkBounds(offset, offset + 4);
         if (unaligned)
         {
             unsafe.putInt(peer + offset, l);
@@ -165,7 +169,8 @@ public class Memory implements AutoCloseable
             throw new NullPointerException();
         else if (buffer.remaining() == 0)
             return;
-        checkPosition(memoryOffset + buffer.remaining());
+
+        checkBounds(memoryOffset, memoryOffset + buffer.remaining());
         if (buffer.hasArray())
         {
             setBytes(memoryOffset, buffer.array(), buffer.arrayOffset() + buffer.position(), buffer.remaining());
@@ -196,22 +201,21 @@ public class Memory implements AutoCloseable
         else if (count == 0)
             return;
 
-        checkPosition(memoryOffset);
         long end = memoryOffset + count;
-        checkPosition(end - 1);
+        checkBounds(memoryOffset, end);
 
         unsafe.copyMemory(buffer, BYTE_ARRAY_BASE_OFFSET + bufferOffset, null, peer + memoryOffset, count);
     }
 
     public byte getByte(long offset)
     {
-        checkPosition(offset);
+        checkBounds(offset, offset + 1);
         return unsafe.getByte(peer + offset);
     }
 
     public long getLong(long offset)
     {
-        checkPosition(offset);
+        checkBounds(offset, offset + 8);
         if (unaligned) {
             return unsafe.getLong(peer + offset);
         } else {
@@ -243,7 +247,7 @@ public class Memory implements AutoCloseable
 
     public int getInt(long offset)
     {
-        checkPosition(offset);
+        checkBounds(offset, offset + 4);
         if (unaligned) {
             return unsafe.getInt(peer + offset);
         } else {
@@ -282,18 +286,15 @@ public class Memory implements AutoCloseable
         else if (count == 0)
             return;
 
-        checkPosition(memoryOffset);
-        long end = memoryOffset + count;
-        checkPosition(end - 1);
-
+        checkBounds(memoryOffset, memoryOffset + count);
         FastByteOperations.UnsafeOperations.copy(null, peer + memoryOffset, buffer, bufferOffset, count);
     }
 
     @Inline
-    protected void checkPosition(long offset)
+    protected void checkBounds(long start, long end)
     {
         assert peer != 0 : "Memory was freed";
-        assert offset >= 0 && offset < size : "Illegal offset: " + offset + ", size: " + size;
+        assert start >= 0 && end <= size && start <= end : "Illegal bounds [" + start + ".." + end + "); size: " + size;
     }
 
     public void put(long trgOffset, Memory memory, long srcOffset, long size)
@@ -310,8 +311,8 @@ public class Memory implements AutoCloseable
 
     public void free()
     {
-        assert peer != 0;
-        allocator.free(peer);
+        if (peer != 0) allocator.free(peer);
+        else assert size == 0;
         peer = 0;
     }
 
@@ -365,4 +366,5 @@ public class Memory implements AutoCloseable
     {
         return String.format("Memory@[%x..%x)", peer, peer + size);
     }
+
 }
