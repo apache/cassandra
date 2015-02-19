@@ -1,4 +1,5 @@
 2.1.4
+ * Fix CommitLog.forceRecycleAllSegments() memory access error (CASSANDRA-8812)
  * Improve assertions in Memory (CASSANDRA-8792)
  * Fix SSTableRewriter cleanup (CASSANDRA-8802)
  * Introduce SafeMemory for CompressionMetadata.Writer (CASSANDRA-8758)
