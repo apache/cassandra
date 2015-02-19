@@ -1452,7 +1452,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     private ViewFragment markReferenced(Function<DataTracker.View, List<SSTableReader>> filter)
     {
-        List<SSTableReader> sstables;
+        List<SSTableReader> sstables = null;
+        List<SSTableReader> prevSstables = null;
         DataTracker.View view;
 
         while (true)
@@ -1466,9 +1467,18 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             }
 
             sstables = filter.apply(view);
+
+            if (null != prevSstables)
+            {
+                // we're trying again so verify we're acquiring something different
+                assert (!new HashSet<>(sstables).containsAll(prevSstables)) : "Next attempt at acquiring " +
+                        "references is trying the same files. There is probably a reference counting bug somewhere.";
+            }
+
             if (SSTableReader.acquireReferences(sstables))
                 break;
             // retry w/ new view
+            prevSstables = sstables;
         }
 
         return new ViewFragment(sstables, Iterables.concat(Collections.singleton(view.memtable), view.memtablesPendingFlush));
