@@ -334,7 +334,7 @@ public class CommitLogSegment
 
             CLibrary.trySkipCache(fd, offset, nextMarker);
             if (close)
-                close();
+                internalClose();
         }
         catch (Exception e) // MappedByteBuffer.force() does not declare IOException but can actually throw it
         {
@@ -421,7 +421,15 @@ public class CommitLogSegment
     /**
      * Close the segment file.
      */
-    void close()
+    synchronized void close()
+    {
+        discardUnusedTail();
+        waitForModifications();
+        lastSyncedOffset = buffer.capacity();
+        internalClose();
+    }
+
+    void internalClose()
     {
         try
         {
