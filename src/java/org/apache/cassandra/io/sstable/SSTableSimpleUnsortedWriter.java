@@ -148,17 +148,15 @@ public class SSTableSimpleUnsortedWriter extends AbstractSSTableSimpleWriter
     public void close() throws IOException
     {
         sync();
+        put(SENTINEL);
         try
         {
-            writeQueue.put(SENTINEL);
             diskWriter.join();
         }
         catch (InterruptedException e)
         {
             throw new RuntimeException(e);
         }
-
-        checkForWriterException();
     }
 
     private void sync() throws IOException
@@ -166,25 +164,28 @@ public class SSTableSimpleUnsortedWriter extends AbstractSSTableSimpleWriter
         if (buffer.isEmpty())
             return;
 
+        columnFamily = null;
+        put(buffer);
+        buffer = new Buffer();
+        currentSize = 0;
+        columnFamily = getColumnFamily();
+    }
+
+    private void put(Buffer buffer) throws IOException
+    {
         while (true)
         {
             checkForWriterException();
-
-            columnFamily = null;
             try
             {
-                if (writeQueue.offer(buffer, 1L, TimeUnit.SECONDS))
+                if (writeQueue.offer(buffer, 1, TimeUnit.SECONDS))
                     break;
             }
             catch (InterruptedException e)
             {
                 throw new RuntimeException(e);
-
             }
         }
-        buffer = new Buffer();
-        currentSize = 0;
-        columnFamily = getColumnFamily();
     }
 
     private void checkForWriterException() throws IOException
