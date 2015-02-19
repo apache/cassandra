@@ -34,7 +34,7 @@ import java.util.zip.Checksum;
  * This class is copied from hadoop-commons project and retains that formatting.
  * (The initial patch added PureJavaCrc32 was HADOOP-6148)
  */
-public class PureJavaCrc32 implements Checksum {
+public class PureJavaCrc32 implements ICRC32 {
 
   /** the current CRC value, bit-flipped */
   private int crc;
