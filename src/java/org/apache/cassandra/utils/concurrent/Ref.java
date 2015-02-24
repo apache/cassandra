@@ -153,7 +153,11 @@ public final class Ref<T> implements RefCounted<T>, AutoCloseable
         void ensureReleased()
         {
             if (releasedUpdater.getAndSet(this, 1) == 0)
+            {
                 globalState.release(this);
+                if (DEBUG_ENABLED)
+                    debug.deallocate();
+            }
         }
 
         void release(boolean leak)
