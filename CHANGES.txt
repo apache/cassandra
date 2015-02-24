@@ -60,6 +60,7 @@
 
 
 2.1.4
+ * Check if the filtered sstables is non-empty in STCS (CASSANDRA-8843)
  * Upgrade java-driver used for cassandra-stress (CASSANDRA-8842)
  * Fix CommitLog.forceRecycleAllSegments() memory access error (CASSANDRA-8812)
  * Improve assertions in Memory (CASSANDRA-8792)
