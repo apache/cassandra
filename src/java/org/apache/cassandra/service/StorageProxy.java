@@ -1797,7 +1797,7 @@ public class StorageProxy implements StorageProxyMBean
                     }
                     else
                     {
-                        actualRowsPerRange = i / fetchedRows;
+                        actualRowsPerRange = fetchedRows / i;
                         concurrencyFactor = Math.max(1, Math.min(ranges.size() - i, Math.round(remainingRows / actualRowsPerRange)));
                     }
                     logger.debug("Didn't get enough response rows; actual rows per range: {}; remaining rows: {}, new concurrent requests: {}",
