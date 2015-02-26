@@ -218,6 +218,6 @@ public abstract class AbstractCommitLogService
 
     public long getPendingTasks()
     {
-        return pending.incrementAndGet();
+        return pending.get();
     }
 }
