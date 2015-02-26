@@ -17,9 +17,13 @@
  */
 package org.apache.cassandra.utils;
 import java.nio.ByteBuffer;
-import java.util.zip.Checksum;
+
+import com.github.tjake.ICRC32;
 
 /**
+ * NOTE: You should be using CRCFactory class because it will pick a better
+ * version based on your JDK version
+ *
  * A pure-java implementation of the CRC32 checksum that uses
  * the same polynomial as the built-in native CRC32.
  *
@@ -34,7 +38,8 @@ import java.util.zip.Checksum;
  * This class is copied from hadoop-commons project and retains that formatting.
  * (The initial patch added PureJavaCrc32 was HADOOP-6148)
  */
-public class PureJavaCrc32 implements ICRC32 {
+public class PureJavaCrc32 implements ICRC32
+{
 
   /** the current CRC value, bit-flipped */
   private int crc;

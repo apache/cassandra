@@ -31,6 +31,7 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.commons.lang3.StringUtils;
 
+import com.github.tjake.ICRC32;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.*;
@@ -39,8 +40,8 @@ import org.apache.cassandra.io.util.DataOutputByteBuffer;
 import org.apache.cassandra.metrics.CommitLogMetrics;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.utils.CRC32Factory;
 import org.apache.cassandra.utils.JVMStabilityInspector;
-import org.apache.cassandra.utils.PureJavaCrc32;
 
 import static org.apache.cassandra.db.commitlog.CommitLogSegment.*;
 
@@ -225,7 +226,7 @@ public class CommitLog implements CommitLogMBean
         Allocation alloc = allocator.allocate(mutation, (int) totalSize);
         try
         {
-            PureJavaCrc32 checksum = new PureJavaCrc32();
+            ICRC32 checksum = CRC32Factory.instance.create();
             final ByteBuffer buffer = alloc.getBuffer();
             DataOutputByteBuffer dos = new DataOutputByteBuffer(buffer);
 

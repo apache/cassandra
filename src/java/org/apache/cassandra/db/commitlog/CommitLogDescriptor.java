@@ -29,9 +29,11 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import com.google.common.annotations.VisibleForTesting;
+
+import com.github.tjake.ICRC32;
 import org.apache.cassandra.io.FSReadError;
 import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.utils.PureJavaCrc32;
+import org.apache.cassandra.utils.CRC32Factory;
 
 public class CommitLogDescriptor
 {
@@ -73,7 +75,7 @@ public class CommitLogDescriptor
     {
         out.putInt(0, descriptor.version);
         out.putLong(4, descriptor.id);
-        PureJavaCrc32 crc = new PureJavaCrc32();
+        ICRC32 crc = CRC32Factory.instance.create();
         crc.updateInt(descriptor.version);
         crc.updateInt((int) (descriptor.id & 0xFFFFFFFFL));
         crc.updateInt((int) (descriptor.id >>> 32));
@@ -88,7 +90,7 @@ public class CommitLogDescriptor
             int version = raf.readInt();
             long id = raf.readLong();
             int crc = raf.readInt();
-            PureJavaCrc32 checkcrc = new PureJavaCrc32();
+            ICRC32 checkcrc = CRC32Factory.instance.create();
             checkcrc.updateInt(version);
             checkcrc.updateInt((int) (id & 0xFFFFFFFFL));
             checkcrc.updateInt((int) (id >>> 32));

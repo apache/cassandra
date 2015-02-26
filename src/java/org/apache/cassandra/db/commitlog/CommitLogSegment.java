@@ -35,6 +35,8 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import com.github.tjake.ICRC32;
+import org.apache.cassandra.utils.CRC32Factory;
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -47,7 +49,6 @@ import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.utils.CLibrary;
-import org.apache.cassandra.utils.PureJavaCrc32;
 import org.apache.cassandra.utils.concurrent.OpOrder;
 import org.apache.cassandra.utils.concurrent.WaitQueue;
 
@@ -309,7 +310,7 @@ public class CommitLogSegment
             // write previous sync marker to point to next sync marker
             // we don't chain the crcs here to ensure this method is idempotent if it fails
             int offset = lastSyncedOffset;
-            final PureJavaCrc32 crc = new PureJavaCrc32();
+            final ICRC32 crc = CRC32Factory.instance.create();
             crc.updateInt((int) (id & 0xFFFFFFFFL));
             crc.updateInt((int) (id >>> 32));
             crc.updateInt(offset);

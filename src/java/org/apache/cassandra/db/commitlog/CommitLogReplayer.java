@@ -32,6 +32,7 @@ import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.github.tjake.ICRC32;
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.concurrent.StageManager;
 import org.apache.cassandra.config.Schema;
@@ -55,7 +56,7 @@ public class CommitLogReplayer
     private final AtomicInteger replayedCount;
     private final Map<UUID, ReplayPosition> cfPositions;
     private final ReplayPosition globalPosition;
-    private final PureJavaCrc32 checksum;
+    private final ICRC32 checksum;
     private byte[] buffer;
 
     public CommitLogReplayer()
@@ -66,7 +67,7 @@ public class CommitLogReplayer
         this.invalidMutations = new HashMap<UUID, AtomicInteger>();
         // count the number of replayed mutation. We don't really care about atomicity, but we need it to be a reference.
         this.replayedCount = new AtomicInteger();
-        this.checksum = new PureJavaCrc32();
+        this.checksum = CRC32Factory.instance.create();
 
         // compute per-CF and global replay positions
         cfPositions = new HashMap<UUID, ReplayPosition>();
@@ -122,7 +123,7 @@ public class CommitLogReplayer
             return -1;
         }
         reader.seek(offset);
-        PureJavaCrc32 crc = new PureJavaCrc32();
+        ICRC32 crc = CRC32Factory.instance.create();
         crc.updateInt((int) (descriptor.id & 0xFFFFFFFFL));
         crc.updateInt((int) (descriptor.id >>> 32));
         crc.updateInt((int) reader.getPosition());

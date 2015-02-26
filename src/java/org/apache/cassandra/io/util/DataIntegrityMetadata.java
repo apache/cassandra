@@ -33,7 +33,7 @@ import com.google.common.base.Charsets;
 import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
-import org.apache.cassandra.utils.PureJavaCrc32;
+import org.apache.cassandra.utils.CRC32Factory;
 
 public class DataIntegrityMetadata
 {
@@ -52,7 +52,7 @@ public class DataIntegrityMetadata
         public ChecksumValidator(Descriptor descriptor) throws IOException
         {
             this.descriptor = descriptor;
-            checksum = descriptor.version.hasAllAdlerChecksums() ? new Adler32() : new PureJavaCrc32();
+            checksum = descriptor.version.hasAllAdlerChecksums() ? new Adler32() : CRC32Factory.instance.create();
             reader = RandomAccessReader.open(new File(descriptor.filenameFor(Component.CRC)));
             chunkSize = reader.readInt();
         }
