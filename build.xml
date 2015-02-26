@@ -1226,6 +1226,9 @@
     </antcall>
   </target>
 
+  <!-- Use this with an FQDN for test class, and a csv list of methods like this:
+    ant testsome -Dtest.name=org.apache.cassandra.service.StorageServiceServerTest -Dtest.methods=testRegularMode,testGetAllRangesEmpty
+  -->
   <target name="testsome" depends="build-test" description="Execute specific unit tests" >
     <testmacro suitename="unit" inputdir="${test.unit.src}" exclude="**/pig/*.java" timeout="${test.timeout}">
       <test name="${test.name}" methods="${test.methods}"/>
