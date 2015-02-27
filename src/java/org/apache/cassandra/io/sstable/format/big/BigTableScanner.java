@@ -267,19 +267,16 @@ public class BigTableScanner implements ISSTableScanner
                     currentEntry = nextEntry;
                 }
 
-                long readEnd;
                 if (ifile.isEOF())
                 {
                     nextEntry = null;
                     nextKey = null;
-                    readEnd = dfile.length();
                 }
                 else
                 {
                     // we need the position of the start of the next key, regardless of whether it falls in the current range
                     nextKey = sstable.partitioner.decorateKey(ByteBufferUtil.readWithShortLength(ifile));
                     nextEntry = rowIndexEntrySerializer.deserialize(ifile, sstable.descriptor.version);
-                    readEnd = nextEntry.position;
 
                     if (!currentRange.contains(nextKey))
                     {
