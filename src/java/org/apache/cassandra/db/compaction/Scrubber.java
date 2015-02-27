@@ -136,7 +136,6 @@ public class Scrubber implements Closeable
                 outputHandler.debug("Reading row at " + rowStart);
 
                 DecoratedKey key = null;
-                long dataSize = -1;
                 try
                 {
                     key = sstable.partitioner.decorateKey(ByteBufferUtil.readWithShortLength(dataFile));
@@ -170,7 +169,7 @@ public class Scrubber implements Closeable
                                         : rowStart + 2 + currentIndexKey.remaining();
                 long dataSizeFromIndex = nextRowPositionFromIndex - dataStartFromIndex;
 
-                dataSize = dataSizeFromIndex;
+                long dataSize = dataSizeFromIndex;
                 // avoid an NPE if key is null
                 String keyName = key == null ? "(unreadable key)" : ByteBufferUtil.bytesToHex(key.getKey());
                 outputHandler.debug(String.format("row %s is %s bytes", keyName, dataSize));
