@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.transport.messages;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Predicate;
 import org.jboss.netty.buffer.ChannelBuffer;
 import org.slf4j.Logger;
@@ -243,7 +244,8 @@ public class ErrorMessage extends Message.Response
         return new WrappedException(t, streamId);
     }
 
-    private static class WrappedException extends RuntimeException
+    @VisibleForTesting
+    public static class WrappedException extends RuntimeException
     {
         private final int streamId;
 
@@ -251,6 +253,11 @@ public class ErrorMessage extends Message.Response
         {
             super(cause);
             this.streamId = streamId;
+        }
+
+        public int getStreamId()
+        {
+            return this.streamId;
         }
     }
 

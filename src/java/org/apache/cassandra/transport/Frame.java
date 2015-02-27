@@ -166,14 +166,22 @@ public class Frame
             int streamId = buffer.getByte(idx + 2);
 
             // This throws a protocol exceptions if the opcode is unknown
-            Message.Type type = Message.Type.fromOpcode(buffer.getByte(idx + 3), direction);
+            Message.Type type;
+            try
+            {
+                type = Message.Type.fromOpcode(buffer.getByte(idx + 3), direction);
+            }
+            catch (ProtocolException e)
+            {
+                throw ErrorMessage.wrap(e, streamId);
+            }
 
             long bodyLength = buffer.getUnsignedInt(idx + Header.BODY_LENGTH_OFFSET);
 
             if (bodyLength < 0)
             {
                 buffer.skipBytes(Header.LENGTH);
-                throw new ProtocolException("Invalid frame body length: " + bodyLength);
+                throw ErrorMessage.wrap(new ProtocolException("Invalid frame body length: " + bodyLength), streamId);
             }
 
             long frameLength = bodyLength + Header.LENGTH;
@@ -207,7 +215,11 @@ public class Frame
             }
             else if (connection.getVersion() != version)
             {
-                throw new ProtocolException(String.format("Invalid message version. Got %d but previous messages on this connection had version %d", version, connection.getVersion()));
+                throw ErrorMessage.wrap(
+                        new ProtocolException(String.format(
+                                "Invalid message version. Got %d but previous messages on this connection had version %d",
+                                version, connection.getVersion())),
+                        streamId);
             }
 
             return new Frame(new Header(version, flags, streamId, type), body);
