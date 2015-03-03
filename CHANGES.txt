@@ -27,6 +27,8 @@
  * 'nodetool info' prints exception against older node (CASSANDRA-8796)
  * Ensure SSTableSimpleUnsortedWriter.close() terminates if
    disk writer has crashed (CASSANDRA-8807)
+ * Fix CQLSSTableWriter throwing exception and spawning threads
+   (CASSANDRA-8808)
 
 2.0.12:
  * Use more efficient slice size for querying internal secondary

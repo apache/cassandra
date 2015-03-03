@@ -50,6 +50,15 @@ public class UpdateStatement extends ModificationStatement
     public void addUpdateForKey(ColumnFamily cf, ByteBuffer key, ColumnNameBuilder builder, UpdateParameters params)
     throws InvalidRequestException
     {
+        addUpdateForKey(cf, key, builder, params, true);
+    }
+
+    public void addUpdateForKey(ColumnFamily cf,
+                                ByteBuffer key,
+                                ColumnNameBuilder builder,
+                                UpdateParameters params,
+                                boolean validateIndexedColumns) throws InvalidRequestException
+    {
         CFDefinition cfDef = cfm.getCfDef();
 
         if (builder.getLength() > FBUtilities.MAX_UNSIGNED_SHORT)
@@ -106,6 +115,20 @@ public class UpdateStatement extends ModificationStatement
                 update.execute(key, cf, builder.copy(), params);
         }
 
+        // validateIndexedColumns trigger a call to Keyspace.open() which we want to be able to avoid in some case
+        //(e.g. when using CQLSSTableWriter)
+        if (validateIndexedColumns)
+            validateIndexedColumns(cf);
+    }
+
+    /**
+     * Checks that the value of the indexed columns is valid.
+     *
+     * @param cf the column family
+     * @throws InvalidRequestException if one of the values is invalid
+     */
+    private void validateIndexedColumns(ColumnFamily cf) throws InvalidRequestException
+    {
         SecondaryIndexManager indexManager = Keyspace.open(cfm.ksName).getColumnFamilyStore(cfm.cfId).indexManager;
         if (indexManager.hasIndexes())
         {
