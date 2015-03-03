@@ -30,10 +30,12 @@ import java.util.Arrays;
 public class MD5Digest
 {
     public final byte[] bytes;
+    private final int hashCode;
 
     private MD5Digest(byte[] bytes)
     {
         this.bytes = bytes;
+        hashCode = Arrays.hashCode(bytes);
     }
 
     public static MD5Digest wrap(byte[] digest)
@@ -54,7 +56,7 @@ public class MD5Digest
     @Override
     public final int hashCode()
     {
-        return Arrays.hashCode(bytes);
+        return hashCode;
     }
 
     @Override
