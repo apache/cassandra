@@ -415,12 +415,14 @@ public class CacheService implements CacheServiceMBean
             RowIndexEntry entry = CacheService.instance.keyCache.get(key);
             if (entry == null)
                 return;
-            ByteBufferUtil.writeWithLength(key.key, out);
-            Descriptor desc = key.desc;
-            out.writeInt(desc.generation);
-            out.writeBoolean(true);
-            CFMetaData cfm = Schema.instance.getCFMetaData(key.desc.ksname, key.desc.cfname);
 
+            CFMetaData cfm = Schema.instance.getCFMetaData(key.cfId);
+            if (cfm == null)
+                return; // the table no longer exists.
+
+            ByteBufferUtil.writeWithLength(key.key, out);
+            out.writeInt(key.desc.generation);
+            out.writeBoolean(true);
             key.desc.getFormat().getIndexSerializer(cfm).serialize(entry, out);
         }
 
