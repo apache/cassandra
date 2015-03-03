@@ -75,17 +75,49 @@ public class EstimatedHistogramTest
     @Test
     public void testPercentile()
     {
-        EstimatedHistogram histogram = new EstimatedHistogram();
-        // percentile of empty histogram is 0
-        assertEquals(0, histogram.percentile(0.99));
+        {
+            EstimatedHistogram histogram = new EstimatedHistogram();
+            // percentile of empty histogram is 0
+            assertEquals(0, histogram.percentile(0.99));
 
-        histogram.add(1);
-        // percentile of histogram with just one value will return 0 except 100th
-        assertEquals(0, histogram.percentile(0.99));
-        assertEquals(1, histogram.percentile(1.00));
+            histogram.add(1);
+            // percentile of a histogram with one element should be that element
+            assertEquals(1, histogram.percentile(0.99));
 
-        histogram.add(10);
-        assertEquals(1, histogram.percentile(0.99));
-        assertEquals(10, histogram.percentile(1.00));
+            histogram.add(10);
+            assertEquals(10, histogram.percentile(0.99));
+        }
+
+        {
+            EstimatedHistogram histogram = new EstimatedHistogram();
+
+            histogram.add(1);
+            histogram.add(2);
+            histogram.add(3);
+            histogram.add(4);
+            histogram.add(5);
+
+            assertEquals(0, histogram.percentile(0.00));
+            assertEquals(3, histogram.percentile(0.50));
+            assertEquals(3, histogram.percentile(0.60));
+            assertEquals(5, histogram.percentile(1.00));
+        }
+
+        {
+            EstimatedHistogram histogram = new EstimatedHistogram();
+
+            for (int i = 11; i <= 20; i++)
+                histogram.add(i);
+
+            // Right now the histogram looks like:
+            //    10   12   14   17   20
+            //     0    2    2    3    3
+            // %:  0   20   40   70  100
+            assertEquals(12, histogram.percentile(0.01));
+            assertEquals(14, histogram.percentile(0.30));
+            assertEquals(17, histogram.percentile(0.50));
+            assertEquals(17, histogram.percentile(0.60));
+            assertEquals(20, histogram.percentile(0.80));
+        }
     }
 }

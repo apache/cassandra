@@ -178,7 +178,7 @@ public class EstimatedHistogram
         if (buckets.get(lastBucket) > 0)
             throw new IllegalStateException("Unable to compute when histogram overflowed");
 
-        long pcount = (long) Math.floor(count() * percentile);
+        long pcount = (long) Math.ceil(count() * percentile);
         if (pcount == 0)
             return 0;
 
