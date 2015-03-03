@@ -432,15 +432,6 @@ public class ActiveRepairService
             return new Refs<>(references.build());
         }
 
-        public synchronized Refs<SSTableReader> getAndReferenceSSTablesInRange(UUID cfId, Range<Token> range)
-        {
-            Refs<SSTableReader> sstables = getAndReferenceSSTables(cfId);
-            for (SSTableReader sstable : ImmutableList.copyOf(sstables))
-                if (!new Bounds<>(sstable.first.getToken(), sstable.last.getToken()).intersects(Arrays.asList(range)))
-                    sstables.release(sstable);
-            return sstables;
-        }
-
         @Override
         public String toString()
         {

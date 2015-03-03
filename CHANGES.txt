@@ -60,6 +60,7 @@
 
 
 2.1.4
+ * Pick sstables for validation as late as possible inc repairs (CASSANDRA-8366)
  * Fix commitlog getPendingTasks to not increment (CASSANDRA-8856)
  * Fix parallelism adjustment in range and secondary index queries
    when the first fetch does not satisfy the limit (CASSANDRA-8856)
