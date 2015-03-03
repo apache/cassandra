@@ -327,6 +327,6 @@ public class ClientState
 
     private Set<Permission> authorize(IResource resource)
     {
-        return AuthenticatedUser.getPermissions(user, resource);
+        return user.getPermissions(resource);
     }
 }

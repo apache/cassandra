@@ -21,9 +21,7 @@ import java.util.List;
 
 import com.google.common.collect.ImmutableList;
 
-import org.apache.cassandra.auth.AuthKeyspace;
-import org.apache.cassandra.auth.IRoleManager;
-import org.apache.cassandra.auth.RoleResource;
+import org.apache.cassandra.auth.*;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.ColumnSpecification;
@@ -53,7 +51,7 @@ public class ListUsersStatement extends ListRolesStatement
             if (!roleManager.canLogin(role))
                 continue;
             result.addColumnValue(UTF8Type.instance.decompose(role.getRoleName()));
-            result.addColumnValue(BooleanType.instance.decompose(roleManager.isSuper(role)));
+            result.addColumnValue(BooleanType.instance.decompose(Roles.hasSuperuserStatus(role)));
         }
         return new ResultMessage.Rows(result);
     }

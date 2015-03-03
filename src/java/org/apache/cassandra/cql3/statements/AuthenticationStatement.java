@@ -17,11 +17,8 @@
  */
 package org.apache.cassandra.cql3.statements;
 
-
-import org.apache.cassandra.auth.IRoleManager;
 import org.apache.cassandra.auth.Permission;
 import org.apache.cassandra.auth.RoleResource;
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLStatement;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.exceptions.RequestExecutionException;
@@ -72,22 +69,5 @@ public abstract class AuthenticationStatement extends ParsedStatement implements
                                                           state.getUser().getName()));
         }
     }
-
-    protected boolean hasSuperuserStatus(RoleResource role)
-    {
-        IRoleManager roleManager = DatabaseDescriptor.getRoleManager();
-        try
-        {
-            for (RoleResource r : roleManager.getRoles(role, true))
-                if (roleManager.isSuper(r))
-                    return true;
-            return false;
-        }
-        catch(RequestValidationException | RequestExecutionException e)
-        {
-            throw new RuntimeException(e);
-        }
-    }
-
 }
 

@@ -640,6 +640,18 @@ public class DatabaseDescriptor
         return conf.roles_validity_in_ms;
     }
 
+    public static int getRolesCacheMaxEntries()
+    {
+        return conf.roles_cache_max_entries;
+    }
+
+    public static int getRolesUpdateInterval()
+    {
+        return conf.roles_update_interval_in_ms == -1
+             ? conf.roles_validity_in_ms
+             : conf.roles_update_interval_in_ms;
+    }
+
     public static int getThriftFramedTransportSize()
     {
         return conf.thrift_framed_transport_size_in_mb * 1024 * 1024;

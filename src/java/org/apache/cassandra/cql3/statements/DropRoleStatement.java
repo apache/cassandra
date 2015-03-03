@@ -17,9 +17,7 @@
  */
 package org.apache.cassandra.cql3.statements;
 
-import org.apache.cassandra.auth.AuthenticatedUser;
-import org.apache.cassandra.auth.Permission;
-import org.apache.cassandra.auth.RoleResource;
+import org.apache.cassandra.auth.*;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.RoleName;
 import org.apache.cassandra.exceptions.*;
@@ -40,7 +38,7 @@ public class DropRoleStatement extends AuthenticationStatement
     public void checkAccess(ClientState state) throws UnauthorizedException
     {
         super.checkPermission(state, Permission.DROP, role);
-        if (hasSuperuserStatus(role) && !state.getUser().isSuper())
+        if (Roles.hasSuperuserStatus(role) && !state.getUser().isSuper())
             throw new UnauthorizedException("Only superusers can drop a role with superuser status");
     }
 
