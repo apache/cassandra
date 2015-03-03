@@ -488,8 +488,8 @@ Table of Contents
       Currently, events are sent when new nodes are added to the cluster, and
       when nodes are removed. The body of the message (after the event type)
       consists of a [string] and an [inet], corresponding respectively to the
-      type of change ("NEW_NODE" or "REMOVED_NODE") followed by the address of
-      the new/removed node.
+      type of change ("NEW_NODE", "REMOVED_NODE", or "MOVED_NODE") followed
+      by the address of the new/removed/moved node.
     - "STATUS_CHANGE": events related to change of node status. Currently,
       up/down events are sent. The body of the message (after the event type)
       consists of a [string] and an [inet], corresponding respectively to the
@@ -514,6 +514,9 @@ Table of Contents
   should be enough), otherwise they may experience a connection refusal at
   first.
 
+  It is possible for the same event to be sent multiple times. Therefore,
+  a client library should ignore the same event if it has already been notified
+  of a change.
 
 5. Compression
 
