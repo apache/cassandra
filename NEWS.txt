@@ -13,6 +13,14 @@ restore snapshots created with the previous major version using the
 'sstableloader' tool. You can upgrade the file format of your snapshots
 using the provided 'sstableupgrade' tool.
 
+2.1.4
+=====
+Upgrading
+---------
+    - The option to omit cold sstables with size tiered compaction has been
+      removed - it is almost always better to use date tiered compaction for
+      workloads that have cold data. 
+
 2.1.3
 =====
 
