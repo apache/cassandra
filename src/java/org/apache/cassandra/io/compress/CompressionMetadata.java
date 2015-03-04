@@ -38,7 +38,6 @@ import java.util.TreeSet;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.primitives.Longs;
 
-import org.apache.cassandra.cache.RefCountedMemory;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.exceptions.ConfigurationException;
@@ -49,7 +48,6 @@ import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.CorruptSSTableException;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.format.Version;
-import org.apache.cassandra.io.sstable.format.SSTableWriter;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.io.util.Memory;
@@ -180,7 +178,7 @@ public class CompressionMetadata
             if (chunkCount <= 0)
                 throw new IOException("Compressed file with 0 chunks encountered: " + input);
 
-            Memory offsets = Memory.allocate(chunkCount * 8);
+            Memory offsets = Memory.allocate(chunkCount * 8L);
 
             for (int i = 0; i < chunkCount; i++)
             {
@@ -247,7 +245,7 @@ public class CompressionMetadata
             endIndex = section.right % parameters.chunkLength() == 0 ? endIndex - 1 : endIndex;
             for (int i = startIndex; i <= endIndex; i++)
             {
-                long offset = i * 8;
+                long offset = i * 8L;
                 long chunkOffset = chunkOffsets.getLong(offset);
                 long nextChunkOffset = offset + 8 == chunkOffsetsSize
                                      ? compressedFileLength
@@ -269,9 +267,8 @@ public class CompressionMetadata
         private final CompressionParameters parameters;
         private final String filePath;
         private int maxCount = 100;
-        private SafeMemory offsets = new SafeMemory(maxCount * 8);
+        private SafeMemory offsets = new SafeMemory(maxCount * 8L);
         private int count = 0;
-        private Version latestVersion =  DatabaseDescriptor.getSSTableFormat().info.getLatestVersion();
 
 
         private Writer(CompressionParameters parameters, String path)
@@ -289,11 +286,11 @@ public class CompressionMetadata
         {
             if (count == maxCount)
             {
-                SafeMemory newOffsets = offsets.copy((maxCount *= 2) * 8);
+                SafeMemory newOffsets = offsets.copy((maxCount *= 2L) * 8);
                 offsets.close();
                 offsets = newOffsets;
             }
-            offsets.setLong(8 * count++, offset);
+            offsets.setLong(8L * count++, offset);
         }
 
         private void writeHeader(DataOutput out, long dataLength, int chunks)
@@ -363,7 +360,7 @@ public class CompressionMetadata
                     count = (int) (dataLength / parameters.chunkLength());
                     // grab our actual compressed length from the next offset from our the position we're opened to
                     if (count < this.count)
-                        compressedLength = offsets.getLong(count * 8);
+                        compressedLength = offsets.getLong(count * 8L);
                     break;
 
                 default:
@@ -404,7 +401,7 @@ public class CompressionMetadata
 	            assert chunks == count;
 	            writeHeader(out, dataLength, chunks);
                 for (int i = 0 ; i < count ; i++)
-                    out.writeLong(offsets.getLong(i * 8));
+                    out.writeLong(offsets.getLong(i * 8L));
             }
             finally
             {
