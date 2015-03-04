@@ -219,6 +219,7 @@ public class SSTableRewriterTest extends SchemaLoader
             for (int i = 0; i < 1000; i++)
                 writer.append(StorageService.getPartitioner().decorateKey(random(i, 10)), cf);
             SSTableReader s = writer.openEarly(1000);
+            assert s != null;
             assertFileCounts(dir.list(), 2, 2);
             for (int i = 1000; i < 2000; i++)
                 writer.append(StorageService.getPartitioner().decorateKey(random(i, 10)), cf);
@@ -817,7 +818,7 @@ public class SSTableRewriterTest extends SchemaLoader
         {
             if (f.endsWith("-CRC.db"))
                 continue;
-            if (f.contains("-tmplink-"))
+            if (f.contains("tmplink-"))
                 tmplinkcount++;
             else if (f.contains("tmp-"))
                 tmpcount++;
