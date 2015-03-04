@@ -18,26 +18,34 @@
 */
 package org.apache.cassandra.utils.concurrent;
 
+import java.util.Arrays;
+
 /**
  * An implementation of SharedCloseable that wraps a normal AutoCloseable,
  * ensuring its close method is only called when all instances of SharedCloseable have been
  */
 public abstract class WrappedSharedCloseable extends SharedCloseableImpl
 {
-    final AutoCloseable wrapped;
+    final AutoCloseable[] wrapped;
 
     public WrappedSharedCloseable(final AutoCloseable closeable)
+    {
+        this(new AutoCloseable[] { closeable});
+    }
+
+    public WrappedSharedCloseable(final AutoCloseable[] closeable)
     {
         super(new RefCounted.Tidy()
         {
             public void tidy() throws Exception
             {
-                closeable.close();
+                for (AutoCloseable c : closeable)
+                    c.close();
             }
 
             public String name()
             {
-                return closeable.toString();
+                return Arrays.toString(closeable);
             }
         });
         wrapped = closeable;

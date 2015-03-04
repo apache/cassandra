@@ -90,39 +90,43 @@ public class IndexSummaryTest
     @Test
     public void testAddEmptyKey() throws Exception
     {
-        IPartitioner p = RandomPartitioner.instance;
-        IndexSummaryBuilder builder = new IndexSummaryBuilder(1, 1, BASE_SAMPLING_LEVEL);
-        builder.maybeAddEntry(p.decorateKey(ByteBufferUtil.EMPTY_BYTE_BUFFER), 0);
-        IndexSummary summary = builder.build(p);
-        assertEquals(1, summary.size());
-        assertEquals(0, summary.getPosition(0));
-        assertArrayEquals(new byte[0], summary.getKey(0));
+        IPartitioner p = new RandomPartitioner();
+        try (IndexSummaryBuilder builder = new IndexSummaryBuilder(1, 1, BASE_SAMPLING_LEVEL))
+        {
+            builder.maybeAddEntry(p.decorateKey(ByteBufferUtil.EMPTY_BYTE_BUFFER), 0);
+            IndexSummary summary = builder.build(p);
+            assertEquals(1, summary.size());
+            assertEquals(0, summary.getPosition(0));
+            assertArrayEquals(new byte[0], summary.getKey(0));
 
-        DataOutputBuffer dos = new DataOutputBuffer();
-        IndexSummary.serializer.serialize(summary, dos, false);
-        DataInputStream dis = new DataInputStream(new ByteArrayInputStream(dos.toByteArray()));
-        IndexSummary loaded = IndexSummary.serializer.deserialize(dis, p, false, 1, 1);
+            DataOutputBuffer dos = new DataOutputBuffer();
+            IndexSummary.serializer.serialize(summary, dos, false);
+            DataInputStream dis = new DataInputStream(new ByteArrayInputStream(dos.toByteArray()));
+            IndexSummary loaded = IndexSummary.serializer.deserialize(dis, p, false, 1, 1);
 
-        assertEquals(1, loaded.size());
-        assertEquals(summary.getPosition(0), loaded.getPosition(0));
-        assertArrayEquals(summary.getKey(0), summary.getKey(0));
+            assertEquals(1, loaded.size());
+            assertEquals(summary.getPosition(0), loaded.getPosition(0));
+            assertArrayEquals(summary.getKey(0), summary.getKey(0));
+        }
     }
 
     private Pair<List<DecoratedKey>, IndexSummary> generateRandomIndex(int size, int interval)
     {
         List<DecoratedKey> list = Lists.newArrayList();
-        IndexSummaryBuilder builder = new IndexSummaryBuilder(list.size(), interval, BASE_SAMPLING_LEVEL);
-        for (int i = 0; i < size; i++)
+        try (IndexSummaryBuilder builder = new IndexSummaryBuilder(list.size(), interval, BASE_SAMPLING_LEVEL))
         {
-            UUID uuid = UUID.randomUUID();
-            DecoratedKey key = DatabaseDescriptor.getPartitioner().decorateKey(ByteBufferUtil.bytes(uuid));
-            list.add(key);
+            for (int i = 0; i < size; i++)
+            {
+                UUID uuid = UUID.randomUUID();
+                DecoratedKey key = DatabaseDescriptor.getPartitioner().decorateKey(ByteBufferUtil.bytes(uuid));
+                list.add(key);
+            }
+            Collections.sort(list);
+            for (int i = 0; i < size; i++)
+                builder.maybeAddEntry(list.get(i), i);
+            IndexSummary summary = builder.build(DatabaseDescriptor.getPartitioner());
+            return Pair.create(list, summary);
         }
-        Collections.sort(list);
-        for (int i = 0; i < size; i++)
-            builder.maybeAddEntry(list.get(i), i);
-        IndexSummary summary = builder.build(DatabaseDescriptor.getPartitioner());
-        return Pair.create(list, summary);
     }
 
     @Test
