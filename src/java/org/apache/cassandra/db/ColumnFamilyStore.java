@@ -1179,7 +1179,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         Memtable mt = data.getMemtableFor(opGroup, replayPosition);
         final long timeDelta = mt.put(key, columnFamily, indexer, opGroup);
         maybeUpdateRowCache(key);
-        metric.samplers.get(Sampler.WRITES).addSample(key.getKey());
+        metric.samplers.get(Sampler.WRITES).addSample(key.getKey(), key.hashCode(), 1);
         metric.writeLatency.addNano(System.nanoTime() - start);
         if(timeDelta < Long.MAX_VALUE)
             metric.colUpdateTimeDeltaHistogram.update(timeDelta);
@@ -1915,7 +1915,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             columns = controller.getTopLevelColumns(Memtable.MEMORY_POOL.needToCopyOnHeap());
         }
         if (columns != null)
-            metric.samplers.get(Sampler.READS).addSample(filter.key.getKey());
+            metric.samplers.get(Sampler.READS).addSample(filter.key.getKey(), filter.key.hashCode(), 1);
         metric.updateSSTableIterated(controller.getSstablesIterated());
         return columns;
     }

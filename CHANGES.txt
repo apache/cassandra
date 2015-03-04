@@ -1,4 +1,5 @@
 2.1.4
+ * Fix top partitions reporting wrong cardinality (CASSANDRA-8834)
  * Fix rare NPE in KeyCacheSerializer (CASSANDRA-8067)
  * Pick sstables for validation as late as possible inc repairs (CASSANDRA-8366)
  * Fix commitlog getPendingTasks to not increment (CASSANDRA-8856)

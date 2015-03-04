@@ -81,7 +81,7 @@ public class TopKSampler<T>
 
     public void addSample(T item)
     {
-        addSample(item, 1);
+        addSample(item, item.hashCode(), 1);
     }
 
     /**
@@ -89,7 +89,7 @@ public class TopKSampler<T>
      * use the "Sampler" thread pool to record results if the sampler is enabled.  If not
      * sampling this is a NOOP
      */
-    public void addSample(final T item, final int value)
+    public void addSample(final T item, final long hash, final int value)
     {
         if (enabled)
         {
@@ -107,7 +107,7 @@ public class TopKSampler<T>
                             try
                             {
                                 summary.offer(item, value);
-                                hll.offer(item);
+                                hll.offerHashed(hash);
                             } catch (Exception e)
                             {
                                 logger.debug("Failure to offer sample", e);
