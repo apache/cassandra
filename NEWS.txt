@@ -67,6 +67,14 @@ Upgrading
      in the normal order and not anymore in the order in which the column values were
      specified in the IN restriction.
 
+2.1.4
+=====
+Upgrading
+---------
+    - The option to omit cold sstables with size tiered compaction has been
+      removed - it is almost always better to use date tiered compaction for
+      workloads that have cold data. 
+
 2.1.3
 =====
 

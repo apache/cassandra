@@ -60,6 +60,7 @@
 
 
 2.1.4
+ * Remove cold_reads_to_omit from STCS (CASSANDRA-8860)
  * Make EstimatedHistogram#percentile() use ceil instead of floor (CASSANDRA-8883)
  * Fix top partitions reporting wrong cardinality (CASSANDRA-8834)
  * Fix rare NPE in KeyCacheSerializer (CASSANDRA-8067)
