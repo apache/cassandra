@@ -27,6 +27,8 @@
  * Show progress of streaming in nodetool netstats (CASSANDRA-8886)
  * IndexSummaryBuilder utilises offheap memory, and shares data between
    each IndexSummary opened from it (CASSANDRA-8757)
+ * markCompacting only succeeds if the exact SSTableReader instances being 
+   marked are in the live set (CASSANDRA-8689)
 Merged from 2.0:
  * Add offline tool to relevel sstables (CASSANDRA-8301)
  * Preserve stream ID for more protocol errors (CASSANDRA-8848)

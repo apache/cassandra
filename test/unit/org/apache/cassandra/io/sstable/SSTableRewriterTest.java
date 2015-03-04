@@ -540,7 +540,7 @@ public class SSTableRewriterTest extends SchemaLoader
         cfs.truncateBlocking();
         cfs.disableAutoCompaction();
         SSTableReader s = writeFile(cfs, 1000);
-        cfs.getDataTracker().markCompacting(Arrays.asList(s));
+        cfs.getDataTracker().markCompacting(Arrays.asList(s), true);
         SSTableSplitter splitter = new SSTableSplitter(cfs, s, 10);
         splitter.split();
         Thread.sleep(1000);
@@ -584,6 +584,7 @@ public class SSTableRewriterTest extends SchemaLoader
         if (!offline)
             cfs.addSSTable(s);
         Set<SSTableReader> compacting = Sets.newHashSet(s);
+        cfs.getDataTracker().markCompacting(compacting);
         SSTableRewriter.overrideOpenInterval(10000000);
         SSTableRewriter rewriter = new SSTableRewriter(cfs, compacting, 1000, offline);
         SSTableWriter w = getWriter(cfs, s.descriptor.directory);
@@ -607,6 +608,10 @@ public class SSTableRewriterTest extends SchemaLoader
             {
                 rewriter.abort();
             }
+        }
+        finally
+        {
+            cfs.getDataTracker().unmarkCompacting(compacting);
         }
         Thread.sleep(1000);
         int filecount = assertFileCounts(s.descriptor.directory.list(), 0, 0);
