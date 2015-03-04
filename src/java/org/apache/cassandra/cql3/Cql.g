@@ -390,6 +390,7 @@ usingClauseObjective[Attributes.Raw attrs]
  * USING TIMESTAMP <long>
  * SET name1 = value1, name2 = value2
  * WHERE key = value;
+ * [IF (EXISTS | name = value, ...)];
  */
 updateStatement returns [UpdateStatement.ParsedUpdate expr]
     @init {
