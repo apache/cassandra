@@ -55,6 +55,9 @@ public class CRC32FactoryTest
 
     private void testOnce()
     {
+        if (Float.parseFloat(System.getProperty("java.version").substring(0, 3)) < 1.8)
+            return;
+
         final long seed = System.nanoTime();
         System.out.println("Seed is " + seed);
         Random r = new java.util.Random(seed);
@@ -112,9 +115,9 @@ public class CRC32FactoryTest
     @Test
     public void jdkDetection()
     {
-        if (System.getProperty("java.version").startsWith("1.7"))
-            assertFalse(CRC32Factory.create() instanceof CRC32Factory.CRC32Ex);
-        else
+        if (Float.parseFloat(System.getProperty("java.version").substring(0, 3)) >= 1.8)
             assertTrue(CRC32Factory.create() instanceof CRC32Factory.CRC32Ex);
+        else
+            assertFalse(CRC32Factory.create() instanceof CRC32Factory.CRC32Ex);
     }
 }
