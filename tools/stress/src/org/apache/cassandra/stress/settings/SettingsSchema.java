@@ -125,7 +125,7 @@ public class SettingsSchema implements Serializable
             /* end */
 
             System.out.println(String.format("Created keyspaces. Sleeping %ss for propagation.", settings.node.nodes.size()));
-            Thread.sleep(settings.node.nodes.size() * 1000); // seconds
+            Thread.sleep(settings.node.nodes.size() * 1000L); // seconds
         }
         catch (InvalidRequestException e)
         {
