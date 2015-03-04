@@ -107,7 +107,7 @@ public class SettingsPopulation implements Serializable
     private static final class SequentialOptions extends GenerateOptions
     {
         final OptionSimple populate;
-        final OptionDistribution lookback = new OptionDistribution("read-lookback=", "fixed(1)", "Select read seeds from the recently visited write seeds");
+        final OptionDistribution lookback = new OptionDistribution("read-lookback=", null, "Select read seeds from the recently visited write seeds");
         final OptionSimple nowrap = new OptionSimple("no-wrap", "", null, "Terminate the stress test once all seeds in the range have been visited", false);
 
         public SequentialOptions(String defaultLimit)
