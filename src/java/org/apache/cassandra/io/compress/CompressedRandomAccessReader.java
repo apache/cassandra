@@ -137,6 +137,10 @@ public class CompressedRandomAccessReader extends RandomAccessReader
 
         // buffer offset is always aligned
         bufferOffset = current & ~(buffer.length - 1);
+        // the length() can be provided at construction time, to override the true (uncompressed) length of the file;
+        // this is permitted to occur within a compressed segment, so we truncate validBufferBytes if we cross the imposed length
+        if (bufferOffset + validBufferBytes > length())
+            validBufferBytes = (int)(length() - bufferOffset);
     }
 
     private int checksum(CompressionMetadata.Chunk chunk) throws IOException
