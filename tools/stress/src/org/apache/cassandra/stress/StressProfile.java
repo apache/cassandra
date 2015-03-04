@@ -481,8 +481,9 @@ public class StressProfile implements Serializable
                 case INET:
                     return new Inets(name, config);
                 case INT:
-                case VARINT:
                     return new Integers(name, config);
+                case VARINT:
+                    return new BigIntegers(name, config);
                 case TIMESTAMP:
                     return new Dates(name, config);
                 case UUID:
