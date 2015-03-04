@@ -23,6 +23,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicReference;
 
 import com.google.common.base.Predicate;
+import com.google.common.base.Predicates;
 import com.google.common.collect.*;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.db.commitlog.ReplayPosition;
@@ -191,30 +192,32 @@ public class DataTracker
      * unmarkCompacting, but since we will never call markObsolete on a sstable marked
      * as compacting (unless there is a serious bug), we can skip this.
      */
-    public boolean markCompacting(Iterable<SSTableReader> sstables)
+    public boolean markCompacting(Collection<SSTableReader> sstables)
+    {
+        return markCompacting(sstables, false);
+    }
+    public boolean markCompacting(Collection<SSTableReader> sstables, boolean newTables)
     {
         assert sstables != null && !Iterables.isEmpty(sstables);
         while (true)
         {
-            View currentView = view.get();
-            Set<SSTableReader> set = ImmutableSet.copyOf(sstables);
-            Set<SSTableReader> inactive = Sets.difference(set, currentView.compacting);
-            if (inactive.size() < set.size())
+            final View currentView = view.get();
+            if (Iterables.any(sstables, Predicates.in(currentView.compacting)))
                 return false;
 
-            if (Iterables.any(set, new Predicate<SSTableReader>()
+            Predicate live = new Predicate<SSTableReader>()
             {
-                @Override
                 public boolean apply(SSTableReader sstable)
                 {
-                    return sstable.isMarkedCompacted();
+                    return currentView.sstablesMap.get(sstable) == sstable && !sstable.isMarkedCompacted();
                 }
-            }))
-            {
+            };
+            if (newTables)
+                assert !Iterables.any(sstables, Predicates.in(currentView.sstables));
+            else if (!Iterables.all(sstables, live))
                 return false;
-            }
 
-            View newView = currentView.markCompacting(set);
+            View newView = currentView.markCompacting(sstables);
             if (view.compareAndSet(currentView, newView))
                 return true;
         }
@@ -376,12 +379,12 @@ public class DataTracker
     void init()
     {
         view.set(new View(
-                ImmutableList.of(new Memtable(cfstore)),
-                ImmutableList.<Memtable>of(),
-                Collections.<SSTableReader>emptySet(),
-                Collections.<SSTableReader>emptySet(),
-                Collections.<SSTableReader>emptySet(),
-                SSTableIntervalTree.empty()));
+                         ImmutableList.of(new Memtable(cfstore)),
+                         ImmutableList.<Memtable>of(),
+                         Collections.<SSTableReader, SSTableReader>emptyMap(),
+                         Collections.<SSTableReader>emptySet(),
+                         Collections.<SSTableReader>emptySet(),
+                         SSTableIntervalTree.empty()));
     }
 
     /**
@@ -613,12 +616,17 @@ public class DataTracker
         private final List<Memtable> flushingMemtables;
         public final Set<SSTableReader> compacting;
         public final Set<SSTableReader> sstables;
+        // we use a Map here so that we can easily perform identity checks as well as equality checks.
+        // When marking compacting, we now  indicate if we expect the sstables to be present (by default we do),
+        // and we then check that not only are they all present in the live set, but that the exact instance present is
+        // the one we made our decision to compact against.
+        public final Map<SSTableReader, SSTableReader> sstablesMap;
 
         // all sstables that are still in the live set, but have been completely shadowed by a replacement sstable
         public final Set<SSTableReader> shadowed;
         public final SSTableIntervalTree intervalTree;
 
-        View(List<Memtable> liveMemtables, List<Memtable> flushingMemtables, Set<SSTableReader> sstables, Set<SSTableReader> compacting, Set<SSTableReader> shadowed, SSTableIntervalTree intervalTree)
+        View(List<Memtable> liveMemtables, List<Memtable> flushingMemtables, Map<SSTableReader, SSTableReader> sstables, Set<SSTableReader> compacting, Set<SSTableReader> shadowed, SSTableIntervalTree intervalTree)
         {
             this.shadowed = shadowed;
             assert liveMemtables != null;
@@ -629,7 +637,9 @@ public class DataTracker
 
             this.liveMemtables = liveMemtables;
             this.flushingMemtables = flushingMemtables;
-            this.sstables = sstables;
+
+            this.sstablesMap = sstables;
+            this.sstables = sstablesMap.keySet();
             this.compacting = compacting;
             this.intervalTree = intervalTree;
         }
@@ -669,7 +679,7 @@ public class DataTracker
         View switchMemtable(Memtable newMemtable)
         {
             List<Memtable> newLiveMemtables = ImmutableList.<Memtable>builder().addAll(liveMemtables).add(newMemtable).build();
-            return new View(newLiveMemtables, flushingMemtables, sstables, compacting, shadowed, intervalTree);
+            return new View(newLiveMemtables, flushingMemtables, sstablesMap, compacting, shadowed, intervalTree);
         }
 
         View markFlushing(Memtable toFlushMemtable)
@@ -696,7 +706,7 @@ public class DataTracker
                                                       .addAll(flushing.subList(i, flushing.size()))
                                                       .build();
 
-            return new View(newLive, newFlushing, sstables, compacting, shadowed, intervalTree);
+            return new View(newLive, newFlushing, sstablesMap, compacting, shadowed, intervalTree);
         }
 
         View replaceFlushed(Memtable flushedMemtable, SSTableReader newSSTable)
@@ -706,14 +716,15 @@ public class DataTracker
                                                              .addAll(flushingMemtables.subList(0, index))
                                                              .addAll(flushingMemtables.subList(index + 1, flushingMemtables.size()))
                                                              .build();
-            Set<SSTableReader> newSSTables = sstables;
+            Map<SSTableReader, SSTableReader> newSSTables = sstablesMap;
             SSTableIntervalTree intervalTree = this.intervalTree;
             if (newSSTable != null)
             {
                 assert !sstables.contains(newSSTable);
                 assert !shadowed.contains(newSSTable);
-                newSSTables = ImmutableSet.<SSTableReader>builder().addAll(sstables).add(newSSTable).build();
-                intervalTree = buildIntervalTree(newSSTables);
+                newSSTables = ImmutableMap.<SSTableReader, SSTableReader>builder()
+                                          .putAll(sstablesMap).put(newSSTable, newSSTable).build();
+                intervalTree = buildIntervalTree(newSSTables.keySet());
             }
             return new View(liveMemtables, newQueuedMemtables, newSSTables, compacting, shadowed, intervalTree);
         }
@@ -723,12 +734,12 @@ public class DataTracker
             ImmutableSet<SSTableReader> oldSet = ImmutableSet.copyOf(oldSSTables);
             int newSSTablesSize = shadowed.size() + sstables.size() - oldSSTables.size() + Iterables.size(replacements);
             assert newSSTablesSize >= Iterables.size(replacements) : String.format("Incoherent new size %d replacing %s by %s in %s", newSSTablesSize, oldSSTables, replacements, this);
-            Set<SSTableReader> newSSTables = new HashSet<>(newSSTablesSize);
+            Map<SSTableReader, SSTableReader> newSSTables = new HashMap<>(newSSTablesSize);
             Set<SSTableReader> newShadowed = new HashSet<>(shadowed.size());
 
             for (SSTableReader sstable : sstables)
                 if (!oldSet.contains(sstable))
-                    newSSTables.add(sstable);
+                    newSSTables.put(sstable, sstable);
 
             for (SSTableReader sstable : shadowed)
                 if (!oldSet.contains(sstable))
@@ -739,28 +750,28 @@ public class DataTracker
                 if (replacement.openReason == SSTableReader.OpenReason.SHADOWED)
                     newShadowed.add(replacement);
                 else
-                    newSSTables.add(replacement);
+                    newSSTables.put(replacement, replacement);
             }
 
             assert newSSTables.size() + newShadowed.size() == newSSTablesSize :
                 String.format("Expecting new size of %d, got %d while replacing %s by %s in %s",
                           newSSTablesSize, newSSTables.size() + newShadowed.size(), oldSSTables, replacements, this);
-            newSSTables = ImmutableSet.copyOf(newSSTables);
             newShadowed = ImmutableSet.copyOf(newShadowed);
-            SSTableIntervalTree intervalTree = buildIntervalTree(newSSTables);
+            newSSTables = ImmutableMap.copyOf(newSSTables);
+            SSTableIntervalTree intervalTree = buildIntervalTree(newSSTables.keySet());
             return new View(liveMemtables, flushingMemtables, newSSTables, compacting, newShadowed, intervalTree);
         }
 
         View markCompacting(Collection<SSTableReader> tomark)
         {
             Set<SSTableReader> compactingNew = ImmutableSet.<SSTableReader>builder().addAll(compacting).addAll(tomark).build();
-            return new View(liveMemtables, flushingMemtables, sstables, compactingNew, shadowed, intervalTree);
+            return new View(liveMemtables, flushingMemtables, sstablesMap, compactingNew, shadowed, intervalTree);
         }
 
         View unmarkCompacting(Iterable<SSTableReader> tounmark)
         {
             Set<SSTableReader> compactingNew = ImmutableSet.copyOf(Sets.difference(compacting, ImmutableSet.copyOf(tounmark)));
-            return new View(liveMemtables, flushingMemtables, sstables, compactingNew, shadowed, intervalTree);
+            return new View(liveMemtables, flushingMemtables, sstablesMap, compactingNew, shadowed, intervalTree);
         }
 
         private Set<SSTableReader> newSSTables(Collection<SSTableReader> oldSSTables, Iterable<SSTableReader> replacements)

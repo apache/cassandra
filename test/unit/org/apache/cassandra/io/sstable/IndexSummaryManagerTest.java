@@ -20,28 +20,33 @@ package org.apache.cassandra.io.sstable;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.*;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Future;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
+import org.junit.runner.RunWith;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import junit.framework.Assert;
+import org.apache.cassandra.OrderedJUnit4ClassRunner;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.cache.CachingOptions;
 import org.apache.cassandra.config.KSMetaData;
 import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.locator.SimpleStrategy;
 import org.apache.cassandra.metrics.RestorableMeter;
+import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.concurrent.OpOrder;
 
 import static org.apache.cassandra.io.sstable.Downsampling.BASE_SAMPLING_LEVEL;
 import static org.apache.cassandra.io.sstable.IndexSummaryManager.DOWNSAMPLE_THESHOLD;
@@ -52,7 +57,8 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
-public class IndexSummaryManagerTest
+@RunWith(OrderedJUnit4ClassRunner.class)
+public class IndexSummaryManagerTest extends SchemaLoader
 {
     private static final Logger logger = LoggerFactory.getLogger(IndexSummaryManagerTest.class);
 
@@ -106,7 +112,6 @@ public class IndexSummaryManagerTest
         long total = 0;
         for (SSTableReader sstable : sstables)
             total += sstable.getIndexSummaryOffHeapSize();
-
         return total;
     }
 
@@ -515,6 +520,75 @@ public class IndexSummaryManagerTest
         {
             if (entry.getKey().contains(CF_STANDARDLOWiINTERVAL))
                 assertTrue(entry.getValue() >= cfs.metadata.getMinIndexInterval());
+        }
+    }
+
+    //This test runs last, since cleaning up compactions and tp is a pain
+    @Test
+    public void testCompactionRace() throws InterruptedException, ExecutionException
+    {
+        String ksname = "Keyspace1";
+        String cfname = "StandardRace"; // index interval of 8, no key caching
+        Keyspace keyspace = Keyspace.open(ksname);
+        ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(cfname);
+        int numSSTables = 20;
+        int numRows = 28;
+        createSSTables(ksname, cfname, numSSTables, numRows);
+
+        List<SSTableReader> sstables = new ArrayList<>(cfs.getSSTables());
+
+        ExecutorService tp = Executors.newFixedThreadPool(2);
+
+        final AtomicBoolean failed = new AtomicBoolean(false);
+
+        for (int i = 0; i < 2; i++)
+        {
+            tp.submit(new Runnable()
+            {
+                @Override
+                public void run()
+                {
+                    while(!failed.get())
+                    {
+                        try
+                        {
+                            IndexSummaryManager.instance.redistributeSummaries();
+                        } catch (Throwable e)
+                        {
+                            failed.set(true);
+                        }
+                    }
+                }
+            });
+        }
+
+        while ( cfs.getSSTables().size() != 1 )
+            cfs.forceMajorCompaction();
+
+        try
+        {
+            Assert.assertFalse(failed.get());
+
+            for (SSTableReader sstable : sstables)
+            {
+                Assert.assertEquals(true, sstable.isMarkedCompacted());
+            }
+
+            Assert.assertEquals(20, sstables.size());
+
+            try
+            {
+                totalOffHeapSize(sstables);
+                Assert.fail("This should have failed");
+            } catch (AssertionError e)
+            {
+
+            }
+        }
+        finally
+        {
+            tp.shutdownNow();
+            CompactionManager.instance.finishCompactionsAndShutdown(10, TimeUnit.SECONDS);
         }
     }
 }
