@@ -204,6 +204,10 @@ public class CompressedRandomAccessReader extends RandomAccessReader
             // buffer offset is always aligned
             bufferOffset = position & ~(buffer.capacity() - 1);
             buffer.position((int) (position - bufferOffset));
+            // the length() can be provided at construction time, to override the true (uncompressed) length of the file;
+            // this is permitted to occur within a compressed segment, so we truncate validBufferBytes if we cross the imposed length
+            if (bufferOffset + buffer.limit() > length())
+                buffer.limit((int)(length() - bufferOffset));
         }
         catch (CorruptBlockException e)
         {
@@ -269,6 +273,10 @@ public class CompressedRandomAccessReader extends RandomAccessReader
             // buffer offset is always aligned
             bufferOffset = position & ~(buffer.capacity() - 1);
             buffer.position((int) (position - bufferOffset));
+            // the length() can be provided at construction time, to override the true (uncompressed) length of the file;
+            // this is permitted to occur within a compressed segment, so we truncate validBufferBytes if we cross the imposed length
+            if (bufferOffset + buffer.limit() > length())
+                buffer.limit((int)(length() - bufferOffset));
         }
         catch (CorruptBlockException e)
         {

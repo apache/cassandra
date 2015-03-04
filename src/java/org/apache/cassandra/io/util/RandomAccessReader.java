@@ -47,6 +47,8 @@ public class RandomAccessReader extends AbstractDataInput implements FileDataInp
     // channel linked with the file, used to retrieve data and force updates.
     protected final FileChannel channel;
 
+    // this can be overridden at construction to a value shorter than the true length of the file;
+    // if so, it acts as an imposed limit on reads, rather than a convenience property
     private final long fileLength;
 
     protected final PoolingSegmentedFile owner;
