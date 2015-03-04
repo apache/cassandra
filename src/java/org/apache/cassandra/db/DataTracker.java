@@ -38,6 +38,7 @@ import org.apache.cassandra.notifications.*;
 import org.apache.cassandra.utils.Interval;
 import org.apache.cassandra.utils.IntervalTree;
 import org.apache.cassandra.utils.concurrent.OpOrder;
+import org.apache.cassandra.utils.concurrent.Refs;
 
 public class DataTracker
 {
@@ -406,8 +407,7 @@ public class DataTracker
         for (SSTableReader sstable : newSSTables)
             sstable.setTrackedBy(this);
 
-        for (SSTableReader sstable : oldSSTables)
-            sstable.selfRef().release();
+        Refs.release(Refs.selfRefs(oldSSTables));
     }
 
     private void removeSSTablesFromTracker(Collection<SSTableReader> oldSSTables)

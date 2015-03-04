@@ -2,8 +2,14 @@ package org.apache.cassandra.utils.concurrent;
 
 import java.util.*;
 
+import javax.annotation.Nullable;
+
+import com.google.common.base.Function;
 import com.google.common.base.Throwables;
+import com.google.common.collect.Iterables;
 import com.google.common.collect.Iterators;
+
+import static org.apache.cassandra.utils.Throwables.merge;
 
 /**
  * A collection of managed Ref references to RefCounted objects, and the objects they are referencing.
@@ -196,7 +202,7 @@ public final class Refs<T extends RefCounted<T>> extends AbstractCollection<T> i
         throw new IllegalStateException();
     }
 
-    private static void release(Iterable<? extends Ref<?>> refs)
+    public static void release(Iterable<? extends Ref<?>> refs)
     {
         Throwable fail = null;
         for (Ref ref : refs)
@@ -207,13 +213,22 @@ public final class Refs<T extends RefCounted<T>> extends AbstractCollection<T> i
             }
             catch (Throwable t)
             {
-                if (fail == null)
-                    fail = t;
-                else
-                    fail.addSuppressed(t);
+                fail = merge(fail, t);
             }
         }
         if (fail != null)
             throw Throwables.propagate(fail);
+    }
+
+    public static <T extends SelfRefCounted<T>> Iterable<Ref<T>> selfRefs(Iterable<T> refs)
+    {
+        return Iterables.transform(refs, new Function<T, Ref<T>>()
+        {
+            @Nullable
+            public Ref<T> apply(T t)
+            {
+                return t.selfRef();
+            }
+        });
     }
 }
