@@ -50,7 +50,7 @@ import org.apache.cassandra.concurrent.NamedThreadFactory;
 public final class Ref<T> implements RefCounted<T>, AutoCloseable
 {
     static final Logger logger = LoggerFactory.getLogger(Ref.class);
-    static final boolean DEBUG_ENABLED = System.getProperty("cassandra.debugrefcount", "false").equalsIgnoreCase("true");
+    public static final boolean DEBUG_ENABLED = System.getProperty("cassandra.debugrefcount", "false").equalsIgnoreCase("true");
 
     final State state;
     final T referent;

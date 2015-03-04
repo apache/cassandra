@@ -27,6 +27,5 @@ public interface DataOutputPlus extends DataOutput
     // write the buffer without modifying its position
     void write(ByteBuffer buffer) throws IOException;
 
-    void write(Memory memory) throws IOException;
-
+    void write(Memory memory, long offset, long length) throws IOException;
 }

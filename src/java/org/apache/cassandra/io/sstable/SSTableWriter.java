@@ -403,7 +403,7 @@ public class SSTableWriter extends SSTable
         SSTableReader sstable = SSTableReader.internalOpen(descriptor.asType(Descriptor.Type.FINAL),
                                                            components, metadata,
                                                            partitioner, ifile,
-                                                           dfile, iwriter.summary.build(partitioner, boundary.lastKey),
+                                                           dfile, iwriter.summary.build(partitioner, boundary),
                                                            iwriter.bf.sharedCopy(), maxDataAge, sstableMetadata, SSTableReader.OpenReason.EARLY);
 
         // now it's open, find the ACTUAL last readable key (i.e. for which the data file has also been flushed)
@@ -470,6 +470,7 @@ public class SSTableWriter extends SSTable
         if (finishType.isFinal)
         {
             iwriter.bf.close();
+            iwriter.summary.close();
             // try to save the summaries to disk
             sstable.saveSummary(iwriter.builder, dbuilder);
             iwriter = null;
@@ -627,6 +628,7 @@ public class SSTableWriter extends SSTable
 
         public void abort()
         {
+            summary.close();
             indexFile.abort();
             bf.close();
         }

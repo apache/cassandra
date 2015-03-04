@@ -321,9 +321,9 @@ public abstract class AbstractDataOutput extends OutputStream implements DataOut
         }
     }
 
-    public void write(Memory memory) throws IOException
+    public void write(Memory memory, long offset, long length) throws IOException
     {
-        for (ByteBuffer buffer : memory.asByteBuffers())
+        for (ByteBuffer buffer : memory.asByteBuffers(offset, length))
             write(buffer);
     }
 }
