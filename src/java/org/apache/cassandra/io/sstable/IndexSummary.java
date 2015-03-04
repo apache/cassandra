@@ -218,7 +218,7 @@ public class IndexSummary extends WrappedSharedCloseable
         return entries;
     }
 
-    long getOffHeapSize()
+    public long getOffHeapSize()
     {
         return offsetCount * 4 + entriesLength;
     }

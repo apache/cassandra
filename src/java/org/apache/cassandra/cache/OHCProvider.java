@@ -266,7 +266,7 @@ public class OHCProvider implements CacheProvider<RowCacheKey, IRowCacheEntry>
                 throw new UnsupportedOperationException("IMPLEMENT ME");
         }
 
-        public void write(Memory memory) throws IOException
+        public void write(Memory memory, long offset, long length) throws IOException
         {
             throw new UnsupportedOperationException("IMPLEMENT ME");
         }

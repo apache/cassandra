@@ -69,11 +69,11 @@ public class IndexSummaryBuilder implements AutoCloseable
      */
     public static class ReadableBoundary
     {
-        final DecoratedKey lastKey;
-        final long indexLength;
-        final long dataLength;
-        final int summaryCount;
-        final long entriesLength;
+        public final DecoratedKey lastKey;
+        public final long indexLength;
+        public final long dataLength;
+        public final int summaryCount;
+        public final long entriesLength;
         public ReadableBoundary(DecoratedKey lastKey, long indexLength, long dataLength, int summaryCount, long entriesLength)
         {
             this.lastKey = lastKey;
