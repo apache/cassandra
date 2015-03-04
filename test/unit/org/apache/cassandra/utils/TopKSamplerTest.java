@@ -10,6 +10,7 @@ import junit.framework.Assert;
 import org.apache.cassandra.utils.TopKSampler.SamplerResult;
 import org.junit.Test;
 
+import com.clearspring.analytics.hash.MurmurHash;
 import com.clearspring.analytics.stream.Counter;
 import com.google.common.collect.Maps;
 import com.google.common.util.concurrent.Uninterruptibles;
@@ -30,10 +31,12 @@ public class TopKSamplerTest
         sampler2.beginSampling(10);
         for(int i = 1; i <= 10; i++)
         {
-           sampler2.addSample("item" + i, i);
+           String key = "item" + i;
+           sampler2.addSample(key, MurmurHash.hash64(key), i);
         }
         waitForEmpty(1000);
         Assert.assertEquals(countMap(single.topK), countMap(sampler2.finishSampling(10).topK));
+        Assert.assertEquals(sampler2.hll.cardinality(), 10);
         Assert.assertEquals(sampler.hll.cardinality(), sampler2.hll.cardinality());
     }
 
@@ -114,7 +117,8 @@ public class TopKSamplerTest
         {
             for(int j = 0; j < i; j++)
             {
-                sampler.addSample("item" + i);
+                String key = "item" + i;
+                sampler.addSample(key, MurmurHash.hash64(key), 1);
             }
         }
     }
