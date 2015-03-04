@@ -58,7 +58,7 @@ import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 @RunWith(OrderedJUnit4ClassRunner.class)
-public class IndexSummaryManagerTest extends SchemaLoader
+public class IndexSummaryManagerTest
 {
     private static final Logger logger = LoggerFactory.getLogger(IndexSummaryManagerTest.class);
 
@@ -69,6 +69,7 @@ public class IndexSummaryManagerTest extends SchemaLoader
     private static final String KEYSPACE1 = "IndexSummaryManagerTest";
     // index interval of 8, no key caching
     private static final String CF_STANDARDLOWiINTERVAL = "StandardLowIndexInterval";
+    private static final String CF_STANDARDRACE = "StandardRace";
 
     @BeforeClass
     public static void defineSchema() throws ConfigurationException
@@ -80,7 +81,12 @@ public class IndexSummaryManagerTest extends SchemaLoader
                                     SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARDLOWiINTERVAL)
                                                 .minIndexInterval(8)
                                                 .maxIndexInterval(256)
-                                                .caching(CachingOptions.NONE));
+                                                .caching(CachingOptions.NONE),
+                                    SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARDRACE)
+                                                .minIndexInterval(8)
+                                                .maxIndexInterval(256)
+                                                .caching(CachingOptions.NONE)
+                                    );
     }
 
     @Before
@@ -527,8 +533,8 @@ public class IndexSummaryManagerTest extends SchemaLoader
     @Test
     public void testCompactionRace() throws InterruptedException, ExecutionException
     {
-        String ksname = "Keyspace1";
-        String cfname = "StandardRace"; // index interval of 8, no key caching
+        String ksname = KEYSPACE1;
+        String cfname = CF_STANDARDRACE; // index interval of 8, no key caching
         Keyspace keyspace = Keyspace.open(ksname);
         ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(cfname);
         int numSSTables = 20;
