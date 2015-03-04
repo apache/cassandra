@@ -20,6 +20,7 @@ package org.apache.cassandra.service;
 import java.net.InetAddress;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -37,8 +38,7 @@ public class DatacenterSyncWriteResponseHandler extends AbstractWriteResponseHan
 {
     private static final IEndpointSnitch snitch = DatabaseDescriptor.getEndpointSnitch();
 
-    private final NetworkTopologyStrategy strategy;
-    private final HashMap<String, AtomicInteger> responses = new HashMap<String, AtomicInteger>();
+    private final Map<String, AtomicInteger> responses = new HashMap<String, AtomicInteger>();
     private final AtomicInteger acks = new AtomicInteger(0);
 
     public DatacenterSyncWriteResponseHandler(Collection<InetAddress> naturalEndpoints,
@@ -52,7 +52,7 @@ public class DatacenterSyncWriteResponseHandler extends AbstractWriteResponseHan
         super(keyspace, naturalEndpoints, pendingEndpoints, consistencyLevel, callback, writeType);
         assert consistencyLevel == ConsistencyLevel.EACH_QUORUM;
 
-        strategy = (NetworkTopologyStrategy) keyspace.getReplicationStrategy();
+        NetworkTopologyStrategy strategy = (NetworkTopologyStrategy) keyspace.getReplicationStrategy();
 
         for (String dc : strategy.getDatacenters())
         {
