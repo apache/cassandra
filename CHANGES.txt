@@ -1,4 +1,5 @@
 2.0.13:
+ * Add ability to limit number of native connections (CASSANDRA-8086)
  * Add offline tool to relevel sstables (CASSANDRA-8301)
  * Preserve stream ID for more protocol errors (CASSANDRA-8848)
  * Fix combining token() function with multi-column relations on

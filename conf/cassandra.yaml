@@ -332,6 +332,14 @@ native_transport_port: 9042
 # be rejected as invalid. The default is 256MB.
 # native_transport_max_frame_size_in_mb: 256
 
+# The maximum number of concurrent client connections.
+# The default is -1, which means unlimited.
+# native_transport_max_concurrent_connections: -1
+
+# The maximum number of concurrent client connections per source ip.
+# The default is -1, which means unlimited.
+# native_transport_max_concurrent_connections_per_ip: -1
+
 # Whether to start the thrift rpc server.
 start_rpc: true
 
