@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.cql3.restrictions;
 
+import java.nio.ByteBuffer;
 import java.util.List;
 
 import org.apache.cassandra.cql3.QueryOptions;
@@ -30,11 +31,14 @@ import org.apache.cassandra.exceptions.InvalidRequestException;
  */
 interface PrimaryKeyRestrictions extends Restriction, Restrictions
 {
-
     @Override
     public PrimaryKeyRestrictions mergeWith(Restriction restriction) throws InvalidRequestException;
 
+    public List<ByteBuffer> values(QueryOptions options) throws InvalidRequestException;
+
     public List<Composite> valuesAsComposites(QueryOptions options) throws InvalidRequestException;
+
+    public List<ByteBuffer> bounds(Bound b, QueryOptions options) throws InvalidRequestException;
 
     public List<Composite> boundsAsComposites(Bound bound, QueryOptions options) throws InvalidRequestException;
 }

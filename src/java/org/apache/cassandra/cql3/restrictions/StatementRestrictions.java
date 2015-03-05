@@ -68,7 +68,7 @@ public final class StatementRestrictions
     /**
      * Restriction on non-primary key columns (i.e. secondary index restrictions)
      */
-    private SingleColumnRestrictions nonPrimaryKeyRestrictions;
+    private RestrictionSet nonPrimaryKeyRestrictions;
 
     /**
      * The restrictions used to build the index expressions
@@ -99,9 +99,9 @@ public final class StatementRestrictions
     private StatementRestrictions(CFMetaData cfm)
     {
         this.cfm = cfm;
-        this.partitionKeyRestrictions = new SingleColumnPrimaryKeyRestrictions(cfm.getKeyValidatorAsCType());
-        this.clusteringColumnsRestrictions = new SingleColumnPrimaryKeyRestrictions(cfm.comparator);
-        this.nonPrimaryKeyRestrictions = new SingleColumnRestrictions();
+        this.partitionKeyRestrictions = new PrimaryKeyRestrictionSet(cfm.getKeyValidatorAsCType());
+        this.clusteringColumnsRestrictions = new PrimaryKeyRestrictionSet(cfm.comparator);
+        this.nonPrimaryKeyRestrictions = new RestrictionSet();
     }
 
     public StatementRestrictions(CFMetaData cfm,
@@ -111,9 +111,9 @@ public final class StatementRestrictions
             boolean selectACollection) throws InvalidRequestException
     {
         this.cfm = cfm;
-        this.partitionKeyRestrictions = new SingleColumnPrimaryKeyRestrictions(cfm.getKeyValidatorAsCType());
-        this.clusteringColumnsRestrictions = new SingleColumnPrimaryKeyRestrictions(cfm.comparator);
-        this.nonPrimaryKeyRestrictions = new SingleColumnRestrictions();
+        this.partitionKeyRestrictions = new PrimaryKeyRestrictionSet(cfm.getKeyValidatorAsCType());
+        this.clusteringColumnsRestrictions = new PrimaryKeyRestrictionSet(cfm.comparator);
+        this.nonPrimaryKeyRestrictions = new RestrictionSet();
 
         /*
          * WHERE clause. For a given entity, rules are: - EQ relation conflicts with anything else (including a 2nd EQ)
@@ -186,7 +186,7 @@ public final class StatementRestrictions
 
     private void addSingleColumnRestriction(SingleColumnRestriction restriction) throws InvalidRequestException
     {
-        ColumnDefinition def = restriction.getColumnDef();
+        ColumnDefinition def = restriction.columnDef;
         if (def.isPartitionKey())
             partitionKeyRestrictions = partitionKeyRestrictions.mergeWith(restriction);
         else if (def.isClusteringColumn())

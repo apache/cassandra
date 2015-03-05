@@ -18,34 +18,31 @@
 package org.apache.cassandra.cql3.restrictions;
 
 import java.nio.ByteBuffer;
-import java.util.*;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
 
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.statements.Bound;
 import org.apache.cassandra.db.IndexExpression;
-import org.apache.cassandra.db.composites.CBuilder;
-import org.apache.cassandra.db.composites.CType;
-import org.apache.cassandra.db.composites.Composite;
+import org.apache.cassandra.db.composites.*;
 import org.apache.cassandra.db.composites.Composite.EOC;
-import org.apache.cassandra.db.composites.Composites;
-import org.apache.cassandra.db.composites.CompositesBuilder;
 import org.apache.cassandra.db.index.SecondaryIndexManager;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkFalse;
-import static org.apache.cassandra.cql3.statements.RequestValidations.checkNotNull;
-import static org.apache.cassandra.cql3.statements.RequestValidations.checkTrue;
+import static org.apache.cassandra.cql3.statements.RequestValidations.invalidRequest;
 
 /**
  * A set of single column restrictions on a primary key part (partition key or clustering key).
  */
-final class SingleColumnPrimaryKeyRestrictions extends AbstractPrimaryKeyRestrictions
+final class PrimaryKeyRestrictionSet extends AbstractPrimaryKeyRestrictions
 {
     /**
      * The restrictions.
      */
-    private final SingleColumnRestrictions restrictions;
+    private final RestrictionSet restrictions;
 
     /**
      * <code>true</code> if the restrictions are corresponding to an EQ, <code>false</code> otherwise.
@@ -67,34 +64,33 @@ final class SingleColumnPrimaryKeyRestrictions extends AbstractPrimaryKeyRestric
      */
     private boolean contains;
 
-    public SingleColumnPrimaryKeyRestrictions(CType ctype)
+    public PrimaryKeyRestrictionSet(CType ctype)
     {
         super(ctype);
-        this.restrictions = new SingleColumnRestrictions();
+        this.restrictions = new RestrictionSet();
         this.eq = true;
     }
 
-    private SingleColumnPrimaryKeyRestrictions(SingleColumnPrimaryKeyRestrictions primaryKeyRestrictions,
-                                               SingleColumnRestriction restriction) throws InvalidRequestException
+    private PrimaryKeyRestrictionSet(PrimaryKeyRestrictionSet primaryKeyRestrictions,
+                                               Restriction restriction) throws InvalidRequestException
     {
         super(primaryKeyRestrictions.ctype);
         this.restrictions = primaryKeyRestrictions.restrictions.addRestriction(restriction);
 
         if (!primaryKeyRestrictions.isEmpty())
         {
-            ColumnDefinition lastColumn = primaryKeyRestrictions.restrictions.lastColumn();
-            ColumnDefinition newColumn = restriction.getColumnDef();
+            ColumnDefinition lastRestrictionStart = primaryKeyRestrictions.restrictions.lastRestriction().getFirstColumn();
+            ColumnDefinition newRestrictionStart = restriction.getFirstColumn();
 
-            checkFalse(primaryKeyRestrictions.isSlice() && newColumn.position() > lastColumn.position(),
+            checkFalse(primaryKeyRestrictions.isSlice() && newRestrictionStart.position() > lastRestrictionStart.position(),
                        "Clustering column \"%s\" cannot be restricted (preceding column \"%s\" is restricted by a non-EQ relation)",
-                       newColumn.name,
-                       lastColumn.name);
+                       newRestrictionStart.name,
+                       lastRestrictionStart.name);
 
-            if (newColumn.position() < lastColumn.position())
-                checkFalse(restriction.isSlice(),
-                           "PRIMARY KEY column \"%s\" cannot be restricted (preceding column \"%s\" is restricted by a non-EQ relation)",
-                           restrictions.nextColumn(newColumn).name,
-                           newColumn.name);
+            if (newRestrictionStart.position() < lastRestrictionStart.position() && restriction.isSlice())
+                throw invalidRequest("PRIMARY KEY column \"%s\" cannot be restricted (preceding column \"%s\" is restricted by a non-EQ relation)",
+                                     restrictions.nextColumn(newRestrictionStart).name,
+                                     newRestrictionStart.name);
         }
 
         if (restriction.isSlice() || primaryKeyRestrictions.isSlice())
@@ -152,13 +148,6 @@ final class SingleColumnPrimaryKeyRestrictions extends AbstractPrimaryKeyRestric
     @Override
     public PrimaryKeyRestrictions mergeWith(Restriction restriction) throws InvalidRequestException
     {
-        if (restriction.isMultiColumn())
-        {
-            checkTrue(isEmpty(),
-                      "Mixing single column relations and multi column relations on clustering columns is not allowed");
-            return (PrimaryKeyRestrictions) restriction;
-        }
-
         if (restriction.isOnToken())
         {
             if (isEmpty())
@@ -167,51 +156,52 @@ final class SingleColumnPrimaryKeyRestrictions extends AbstractPrimaryKeyRestric
             return new TokenFilter(this, (TokenRestriction) restriction);
         }
 
-        return new SingleColumnPrimaryKeyRestrictions(this, (SingleColumnRestriction) restriction);
+        return new PrimaryKeyRestrictionSet(this, restriction);
     }
 
     @Override
     public List<Composite> valuesAsComposites(QueryOptions options) throws InvalidRequestException
     {
-        CompositesBuilder builder = new CompositesBuilder(ctype.builder(), ctype);
-        for (ColumnDefinition def : restrictions.getColumnDefs())
+        return appendTo(new CompositesBuilder(ctype), options).build();
+    }
+
+    @Override
+    public CompositesBuilder appendTo(CompositesBuilder builder, QueryOptions options)
+    {
+        for (Restriction r : restrictions)
         {
-            Restriction r = restrictions.getRestriction(def);
-            assert !r.isSlice();
-
-            List<ByteBuffer> values = r.values(options);
-
-            if (values.isEmpty())
-                return Collections.emptyList();
-
-            builder.addEachElementToAll(values);
-            checkFalse(builder.containsNull(), "Invalid null value for column %s", def.name);
+            r.appendTo(builder, options);
+            if (builder.hasMissingElements())
+                break;
         }
+        return builder;
+    }
 
-        return builder.build();
+    @Override
+    public CompositesBuilder appendBoundTo(CompositesBuilder builder, Bound bound, QueryOptions options)
+    {
+        throw new UnsupportedOperationException();
     }
 
     @Override
     public List<Composite> boundsAsComposites(Bound bound, QueryOptions options) throws InvalidRequestException
     {
-        CBuilder builder = ctype.builder();
-        List<ColumnDefinition> defs = new ArrayList<>(restrictions.getColumnDefs());
-
-        CompositesBuilder compositeBuilder = new CompositesBuilder(builder, ctype);
+        CompositesBuilder builder = new CompositesBuilder(ctype);
         // The end-of-component of composite doesn't depend on whether the
         // component type is reversed or not (i.e. the ReversedType is applied
         // to the component comparator but not to the end-of-component itself),
         // it only depends on whether the slice is reversed
         int keyPosition = 0;
-        for (ColumnDefinition def : defs)
+        for (Restriction r : restrictions)
         {
+            ColumnDefinition def = r.getFirstColumn();
+
             // In a restriction, we always have Bound.START < Bound.END for the "base" comparator.
             // So if we're doing a reverse slice, we must inverse the bounds when giving them as start and end of the slice filter.
             // But if the actual comparator itself is reversed, we must inversed the bounds too.
             Bound b = !def.isReversedType() ? bound : bound.reverse();
-            Restriction r = restrictions.getRestriction(def);
             if (keyPosition != def.position() || r.isContains())
-                return compositeBuilder.buildWithEOC(bound.isEnd() ? EOC.END : EOC.START);
+                break;
 
             if (r.isSlice())
             {
@@ -220,24 +210,20 @@ final class SingleColumnPrimaryKeyRestrictions extends AbstractPrimaryKeyRestric
                     // There wasn't any non EQ relation on that key, we select all records having the preceding component as prefix.
                     // For composites, if there was preceding component and we're computing the end, we must change the last component
                     // End-Of-Component, otherwise we would be selecting only one record.
-                    return compositeBuilder.buildWithEOC(bound.isEnd() ? EOC.END : EOC.START);
+                    return builder.buildWithEOC(bound.isEnd() ? EOC.END : EOC.START);
                 }
 
-                ByteBuffer value = checkNotNull(r.bounds(b, options).get(0), "Invalid null clustering key part %s", r);
-                compositeBuilder.addElementToAll(value);
+                r.appendBoundTo(builder, b, options);
                 Composite.EOC eoc = eocFor(r, bound, b);
-                return compositeBuilder.buildWithEOC(eoc);
+                return builder.buildWithEOC(eoc);
             }
 
-            List<ByteBuffer> values = r.values(options);
+            r.appendBoundTo(builder, b, options);
 
-            if (values.isEmpty())
+            if (builder.hasMissingElements())
                 return Collections.emptyList();
 
-            compositeBuilder.addEachElementToAll(values);
-
-            checkFalse(compositeBuilder.containsNull(), "Invalid null clustering key part %s", def.name);
-            keyPosition++;
+            keyPosition = r.getLastColumn().position() + 1;
         }
         // Means no relation at all or everything was an equal
         // Note: if the builder is "full", there is no need to use the end-of-component bit. For columns selection,
@@ -245,8 +231,8 @@ final class SingleColumnPrimaryKeyRestrictions extends AbstractPrimaryKeyRestric
         // with 2ndary index is done, and with the the partition provided with an EQ, we'll end up here, and in that
         // case using the eoc would be bad, since for the random partitioner we have no guarantee that
         // prefix.end() will sort after prefix (see #5240).
-        EOC eoc = !compositeBuilder.hasRemaining() ? EOC.NONE : (bound.isEnd() ? EOC.END : EOC.START);
-        return compositeBuilder.buildWithEOC(eoc);
+        EOC eoc = !builder.hasRemaining() ? EOC.NONE : (bound.isEnd() ? EOC.END : EOC.START);
+        return builder.buildWithEOC(eoc);
     }
 
     @Override
@@ -299,19 +285,19 @@ final class SingleColumnPrimaryKeyRestrictions extends AbstractPrimaryKeyRestric
         Boolean clusteringColumns = null;
         int position = 0;
 
-        for (ColumnDefinition columnDef : restrictions.getColumnDefs())
+        for (Restriction restriction : restrictions)
         {
-            // SingleColumnPrimaryKeyRestrictions contains only one kind of column, either partition key or clustering columns.
+            ColumnDefinition columnDef = restriction.getFirstColumn();
+
+            // PrimaryKeyRestrictionSet contains only one kind of column, either partition key or clustering columns.
             // Therefore we only need to check the column kind once. All the other columns will be of the same kind.
             if (clusteringColumns == null)
                 clusteringColumns = columnDef.isClusteringColumn() ? Boolean.TRUE : Boolean.FALSE;
 
-            Restriction restriction = restrictions.getRestriction(columnDef);
-
             // We ignore all the clustering columns that can be handled by slices.
             if (clusteringColumns && !restriction.isContains()&& position == columnDef.position())
             {
-                position++;
+                position = restriction.getLastColumn().position() + 1;
                 if (!restriction.hasSupportingIndex(indexManager))
                     continue;
             }
@@ -323,5 +309,17 @@ final class SingleColumnPrimaryKeyRestrictions extends AbstractPrimaryKeyRestric
     public Collection<ColumnDefinition> getColumnDefs()
     {
         return restrictions.getColumnDefs();
+    }
+
+    @Override
+    public ColumnDefinition getFirstColumn()
+    {
+        return restrictions.firstColumn();
+    }
+
+    @Override
+    public ColumnDefinition getLastColumn()
+    {
+        return restrictions.lastColumn();
     }
 }

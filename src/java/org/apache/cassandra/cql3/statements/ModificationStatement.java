@@ -22,6 +22,7 @@ import java.util.*;
 
 import com.google.common.base.Function;
 import com.google.common.collect.Iterables;
+import com.google.common.collect.Lists;
 
 import org.apache.cassandra.auth.Permission;
 import org.apache.cassandra.config.CFMetaData;
@@ -31,8 +32,9 @@ import org.apache.cassandra.cql3.restrictions.Restriction;
 import org.apache.cassandra.cql3.restrictions.SingleColumnRestriction;
 import org.apache.cassandra.cql3.selection.Selection;
 import org.apache.cassandra.db.*;
-import org.apache.cassandra.db.composites.CBuilder;
 import org.apache.cassandra.db.composites.Composite;
+import org.apache.cassandra.db.composites.Composites;
+import org.apache.cassandra.db.composites.CompositesBuilder;
 import org.apache.cassandra.db.filter.ColumnSlice;
 import org.apache.cassandra.db.filter.SliceQueryFilter;
 import org.apache.cassandra.db.marshal.BooleanType;
@@ -43,6 +45,12 @@ import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.thrift.ThriftValidation;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.utils.Pair;
+
+import static org.apache.cassandra.cql3.statements.RequestValidations.checkFalse;
+
+import static org.apache.cassandra.cql3.statements.RequestValidations.invalidRequest;
+
+import static org.apache.cassandra.cql3.statements.RequestValidations.checkNotNull;
 
 /*
  * Abstract parent class of individual modifications, i.e. INSERT, UPDATE and DELETE.
@@ -287,38 +295,23 @@ public abstract class ModificationStatement implements CQLStatement
     public List<ByteBuffer> buildPartitionKeyNames(QueryOptions options)
     throws InvalidRequestException
     {
-        CBuilder keyBuilder = cfm.getKeyValidatorAsCType().builder();
-        List<ByteBuffer> keys = new ArrayList<ByteBuffer>();
+        CompositesBuilder keyBuilder = new CompositesBuilder(cfm.getKeyValidatorAsCType());
         for (ColumnDefinition def : cfm.partitionKeyColumns())
         {
-            Restriction r = processedKeys.get(def.name);
-            if (r == null)
-                throw new InvalidRequestException(String.format("Missing mandatory PRIMARY KEY part %s", def.name));
-
-            List<ByteBuffer> values = r.values(options);
-
-            if (keyBuilder.remainingCount() == 1)
-            {
-                for (ByteBuffer val : values)
-                {
-                    if (val == null)
-                        throw new InvalidRequestException(String.format("Invalid null value for partition key part %s", def.name));
-                    ByteBuffer key = keyBuilder.buildWith(val).toByteBuffer();
-                    ThriftValidation.validateKey(cfm, key);
-                    keys.add(key);
-                }
-            }
-            else
-            {
-                if (values.size() != 1)
-                    throw new InvalidRequestException("IN is only supported on the last column of the partition key");
-                ByteBuffer val = values.get(0);
-                if (val == null)
-                    throw new InvalidRequestException(String.format("Invalid null value for partition key part %s", def.name));
-                keyBuilder.add(val);
-            }
+            Restriction r = checkNotNull(processedKeys.get(def.name), "Missing mandatory PRIMARY KEY part %s", def.name);
+            r.appendTo(keyBuilder, options);
         }
-        return keys;
+
+        return Lists.transform(keyBuilder.build(), new Function<Composite, ByteBuffer>()
+        {
+            @Override
+            public ByteBuffer apply(Composite composite)
+            {
+                ByteBuffer byteBuffer = composite.toByteBuffer();
+                ThriftValidation.validateKey(cfm, byteBuffer);
+                return byteBuffer;
+            }
+        });
     }
 
     public Composite createClusteringPrefix(QueryOptions options)
@@ -359,7 +352,7 @@ public abstract class ModificationStatement implements CQLStatement
     private Composite createClusteringPrefixBuilderInternal(QueryOptions options)
     throws InvalidRequestException
     {
-        CBuilder builder = cfm.comparator.prefixBuilder();
+        CompositesBuilder builder = new CompositesBuilder(cfm.comparator);
         ColumnDefinition firstEmptyKey = null;
         for (ColumnDefinition def : cfm.clusteringColumns())
         {
@@ -367,24 +360,19 @@ public abstract class ModificationStatement implements CQLStatement
             if (r == null)
             {
                 firstEmptyKey = def;
-                if (requireFullClusteringKey() && !cfm.comparator.isDense() && cfm.comparator.isCompound())
-                    throw new InvalidRequestException(String.format("Missing mandatory PRIMARY KEY part %s", def.name));
+                checkFalse(requireFullClusteringKey() && !cfm.comparator.isDense() && cfm.comparator.isCompound(), 
+                           "Missing mandatory PRIMARY KEY part %s", def.name);
             }
             else if (firstEmptyKey != null)
             {
-                throw new InvalidRequestException(String.format("Missing PRIMARY KEY part %s since %s is set", firstEmptyKey.name, def.name));
+                throw invalidRequest("Missing PRIMARY KEY part %s since %s is set", firstEmptyKey.name, def.name);
             }
             else
             {
-                List<ByteBuffer> values = r.values(options);
-                assert values.size() == 1; // We only allow IN for row keys so far
-                ByteBuffer val = values.get(0);
-                if (val == null)
-                    throw new InvalidRequestException(String.format("Invalid null value for clustering key part %s", def.name));
-                builder.add(val);
+                r.appendTo(builder, options);
             }
         }
-        return builder.build();
+        return builder.build().get(0); // We only allow IN for row keys so far
     }
 
     protected ColumnDefinition getFirstEmptyKey()

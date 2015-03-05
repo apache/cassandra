@@ -69,9 +69,9 @@ interface Restrictions
                                      throws InvalidRequestException;
 
     /**
-     * Checks if this <code>SingleColumnPrimaryKeyRestrictions</code> is empty or not.
+     * Checks if this <code>PrimaryKeyRestrictionSet</code> is empty or not.
      *
-     * @return <code>true</code> if this <code>SingleColumnPrimaryKeyRestrictions</code> is empty, <code>false</code> otherwise.
+     * @return <code>true</code> if this <code>PrimaryKeyRestrictionSet</code> is empty, <code>false</code> otherwise.
      */
     boolean isEmpty();
 

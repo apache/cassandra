@@ -27,9 +27,12 @@ import org.apache.cassandra.db.index.SecondaryIndexManager;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 
 /**
- * Sets of single column restrictions.
+ * Sets of column restrictions.
+ *
+ * <p>This class is immutable in order to be use within {@link PrimaryKeyRestrictionSet} which as
+ * an implementation of {@link Restriction} need to be immutable.
  */
-final class SingleColumnRestrictions implements Restrictions
+final class RestrictionSet implements Restrictions, Iterable<Restriction>
 {
     /**
      * The comparator used to sort the <code>Restriction</code>s.
@@ -49,12 +52,12 @@ final class SingleColumnRestrictions implements Restrictions
      */
     protected final TreeMap<ColumnDefinition, Restriction> restrictions;
 
-    public SingleColumnRestrictions()
+    public RestrictionSet()
     {
         this(new TreeMap<ColumnDefinition, Restriction>(COLUMN_DEFINITION_COMPARATOR));
     }
 
-    protected SingleColumnRestrictions(TreeMap<ColumnDefinition, Restriction> restrictions)
+    private RestrictionSet(TreeMap<ColumnDefinition, Restriction> restrictions)
     {
         this.restrictions = restrictions;
     }
@@ -72,17 +75,6 @@ final class SingleColumnRestrictions implements Restrictions
     public final Set<ColumnDefinition> getColumnDefs()
     {
         return restrictions.keySet();
-    }
-
-    /**
-     * Returns the restriction associated to the specified column.
-     *
-     * @param columnDef the column definition
-     * @return the restriction associated to the specified column
-     */
-    public Restriction getRestriction(ColumnDefinition columnDef)
-    {
-        return restrictions.get(columnDef);
     }
 
     @Override
@@ -114,21 +106,55 @@ final class SingleColumnRestrictions implements Restrictions
      * @return the new set of restrictions
      * @throws InvalidRequestException if the new restriction cannot be added
      */
-    public SingleColumnRestrictions addRestriction(SingleColumnRestriction restriction) throws InvalidRequestException
+    public RestrictionSet addRestriction(Restriction restriction) throws InvalidRequestException
     {
+        // RestrictionSet is immutable so we need to clone the restrictions map.
         TreeMap<ColumnDefinition, Restriction> newRestrictions = new TreeMap<>(this.restrictions);
-        return new SingleColumnRestrictions(mergeRestrictions(newRestrictions, restriction));
+        return new RestrictionSet(mergeRestrictions(newRestrictions, restriction));
     }
 
-    private static TreeMap<ColumnDefinition, Restriction> mergeRestrictions(TreeMap<ColumnDefinition, Restriction> restrictions,
-                                                                            Restriction restriction)
-                                                                            throws InvalidRequestException
+    private TreeMap<ColumnDefinition, Restriction> mergeRestrictions(TreeMap<ColumnDefinition, Restriction> restrictions,
+                                                                     Restriction restriction)
+                                                                     throws InvalidRequestException
     {
-        ColumnDefinition def = ((SingleColumnRestriction) restriction).getColumnDef();
-        Restriction existing = restrictions.get(def);
-        Restriction newRestriction = mergeRestrictions(existing, restriction);
-        restrictions.put(def, newRestriction);
+        Collection<ColumnDefinition> columnDefs = restriction.getColumnDefs();
+        Set<Restriction> existingRestrictions = getRestrictions(columnDefs);
+
+        if (existingRestrictions.isEmpty())
+        {
+            for (ColumnDefinition columnDef : columnDefs)
+                restrictions.put(columnDef, restriction);
+        }
+        else
+        {
+            for (Restriction existing : existingRestrictions)
+            {
+                Restriction newRestriction = mergeRestrictions(existing, restriction);
+
+                for (ColumnDefinition columnDef : columnDefs)
+                    restrictions.put(columnDef, newRestriction);
+            }
+        }
+
         return restrictions;
+    }
+
+    /**
+     * Returns all the restrictions applied to the specified columns.
+     *
+     * @param columnDefs the column definitions
+     * @return all the restrictions applied to the specified columns
+     */
+    private Set<Restriction> getRestrictions(Collection<ColumnDefinition> columnDefs)
+    {
+        Set<Restriction> set = new HashSet<>();
+        for (ColumnDefinition columnDef : columnDefs)
+        {
+            Restriction existing = restrictions.get(columnDef);
+            if (existing != null)
+                set.add(existing);
+        }
+        return set;
     }
 
     @Override
@@ -151,6 +177,16 @@ final class SingleColumnRestrictions implements Restrictions
     ColumnDefinition nextColumn(ColumnDefinition columnDef)
     {
         return restrictions.tailMap(columnDef, false).firstKey();
+    }
+
+    /**
+     * Returns the definition of the first column.
+     *
+     * @return the definition of the first column.
+     */
+    ColumnDefinition firstColumn()
+    {
+        return isEmpty() ? null : this.restrictions.firstKey();
     }
 
     /**
@@ -206,5 +242,11 @@ final class SingleColumnRestrictions implements Restrictions
             }
         }
         return numberOfContains > 1;
+    }
+
+    @Override
+    public Iterator<Restriction> iterator()
+    {
+        return new LinkedHashSet<>(restrictions.values()).iterator();
     }
 }

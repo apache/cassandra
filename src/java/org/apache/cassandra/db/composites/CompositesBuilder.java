@@ -18,12 +18,7 @@
 package org.apache.cassandra.db.composites;
 
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Set;
-import java.util.TreeSet;
+import java.util.*;
 
 import org.apache.cassandra.db.composites.Composite.EOC;
 
@@ -35,14 +30,9 @@ import static java.util.Collections.singletonList;
 public final class CompositesBuilder
 {
     /**
-     * The builder used to build the <code>Composite</code>s.
+     * The composite type.
      */
-    private final CBuilder builder;
-
-    /**
-     * The comparator used to sort the returned <code>Composite</code>s.
-     */
-    private final Comparator<Composite> comparator;
+    private final CType ctype;
 
     /**
      * The elements of the composites
@@ -50,9 +40,9 @@ public final class CompositesBuilder
     private final List<List<ByteBuffer>> elementsList = new ArrayList<>();
 
     /**
-     * The number of elements that still can be added.
+     * The number of elements that have been added.
      */
-    private int remaining;
+    private int size;
 
     /**
      * <code>true</code> if the composites have been build, <code>false</code> otherwise.
@@ -64,11 +54,14 @@ public final class CompositesBuilder
      */
     private boolean containsNull;
 
-    public CompositesBuilder(CBuilder builder, Comparator<Composite> comparator)
+    /**
+     * <code>true</code> if some empty collection have been added.
+     */
+    private boolean hasMissingElements;
+
+    public CompositesBuilder(CType ctype)
     {
-        this.builder = builder;
-        this.comparator = comparator;
-        this.remaining = builder.remainingCount();
+        this.ctype = ctype;
     }
 
     /**
@@ -95,7 +88,7 @@ public final class CompositesBuilder
 
             elementsList.get(i).add(value);
         }
-        remaining--;
+        size++;
         return this;
     }
 
@@ -116,25 +109,31 @@ public final class CompositesBuilder
         if (isEmpty())
             elementsList.add(new ArrayList<ByteBuffer>());
 
-        for (int i = 0, m = elementsList.size(); i < m; i++)
+        if (values.isEmpty())
         {
-            List<ByteBuffer> oldComposite = elementsList.remove(0);
-
-            for (int j = 0, n = values.size(); j < n; j++)
+            hasMissingElements = true;
+        }
+        else
+        {
+            for (int i = 0, m = elementsList.size(); i < m; i++)
             {
-                List<ByteBuffer> newComposite = new ArrayList<>(oldComposite);
-                elementsList.add(newComposite);
+                List<ByteBuffer> oldComposite = elementsList.remove(0);
 
-                ByteBuffer value = values.get(j);
+                for (int j = 0, n = values.size(); j < n; j++)
+                {
+                    List<ByteBuffer> newComposite = new ArrayList<>(oldComposite);
+                    elementsList.add(newComposite);
 
-                if (value == null)
-                    containsNull = true;
+                    ByteBuffer value = values.get(j);
 
-                newComposite.add(values.get(j));
+                    if (value == null)
+                        containsNull = true;
+
+                    newComposite.add(values.get(j));
+                }
             }
         }
-
-        remaining--;
+        size++;
         return this;
     }
 
@@ -151,31 +150,39 @@ public final class CompositesBuilder
      */
     public CompositesBuilder addAllElementsToAll(List<List<ByteBuffer>> values)
     {
-        assert !values.isEmpty();
         checkUpdateable();
 
         if (isEmpty())
             elementsList.add(new ArrayList<ByteBuffer>());
 
-        for (int i = 0, m = elementsList.size(); i < m; i++)
+        if (values.isEmpty())
         {
-            List<ByteBuffer> oldComposite = elementsList.remove(0);
-
-            for (int j = 0, n = values.size(); j < n; j++)
-            {
-                List<ByteBuffer> newComposite = new ArrayList<>(oldComposite);
-                elementsList.add(newComposite);
-
-                List<ByteBuffer> value = values.get(j);
-
-                if (value.contains(null))
-                    containsNull = true;
-
-                newComposite.addAll(value);
-            }
+            hasMissingElements = true;
         }
+        else
+        {
+            for (int i = 0, m = elementsList.size(); i < m; i++)
+            {
+                List<ByteBuffer> oldComposite = elementsList.remove(0);
 
-        remaining -= values.get(0).size();
+                for (int j = 0, n = values.size(); j < n; j++)
+                {
+                    List<ByteBuffer> newComposite = new ArrayList<>(oldComposite);
+                    elementsList.add(newComposite);
+
+                    List<ByteBuffer> value = values.get(j);
+
+                    if (value.isEmpty())
+                        hasMissingElements = true;
+
+                    if (value.contains(null))
+                        containsNull = true;
+
+                    newComposite.addAll(value);
+                }
+            }
+            size += values.get(0).size();
+        }
         return this;
     }
 
@@ -186,7 +193,7 @@ public final class CompositesBuilder
      */
     public int remainingCount()
     {
-        return remaining;
+        return ctype.size() - size;
     }
 
     /**
@@ -196,7 +203,7 @@ public final class CompositesBuilder
      */
     public boolean hasRemaining()
     {
-        return remaining > 0;
+        return remainingCount() > 0;
     }
 
     /**
@@ -220,6 +227,15 @@ public final class CompositesBuilder
     }
 
     /**
+     * Checks if some empty list of values have been added
+     * @return <code>true</code> if the composites have some missing elements, <code>false</code> otherwise.
+     */
+    public boolean hasMissingElements()
+    {
+        return hasMissingElements;
+    }
+
+    /**
      * Builds the <code>Composites</code>.
      *
      * @return the composites
@@ -237,6 +253,11 @@ public final class CompositesBuilder
     public List<Composite> buildWithEOC(EOC eoc)
     {
         built = true;
+
+        if (hasMissingElements)
+            return Collections.emptyList();
+
+        CBuilder builder = ctype.builder();
 
         if (elementsList.isEmpty())
             return singletonList(builder.build().withEOC(eoc));
@@ -260,7 +281,7 @@ public final class CompositesBuilder
      */
     private Set<Composite> newSet()
     {
-        return comparator == null ? new LinkedHashSet<Composite>() : new TreeSet<Composite>(comparator);
+        return new TreeSet<>(ctype);
     }
 
     private void checkUpdateable()
