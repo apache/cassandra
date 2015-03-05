@@ -37,7 +37,7 @@ public class ChecksummedSequentialWriter extends SequentialWriter
     protected void flushData()
     {
         super.flushData();
-        crcMetadata.append(buffer, 0, validBufferBytes);
+        crcMetadata.append(buffer, 0, validBufferBytes, false);
     }
 
     public void writeFullChecksum(Descriptor descriptor)

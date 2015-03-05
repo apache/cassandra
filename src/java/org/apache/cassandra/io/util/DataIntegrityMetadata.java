@@ -23,6 +23,7 @@ import java.io.DataOutput;
 import java.io.File;
 import java.io.IOError;
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.nio.file.Files;
 import java.util.zip.Adler32;
 import java.util.zip.Checksum;
@@ -107,15 +108,32 @@ public class DataIntegrityMetadata
             }
         }
 
-        public void append(byte[] buffer, int start, int end)
+        // checksumIncrementalResult indicates if the checksum we compute for this buffer should itself be
+        // included in the full checksum, translating to if the partial checksum is serialized along with the
+        // data it checksums (in which case the file checksum as calculated by external tools would mismatch if
+        // we did not include it), or independently.
+
+        // CompressedSequentialWriters serialize the partial checksums inline with the compressed data chunks they
+        // corroborate, whereas ChecksummedSequentialWriters serialize them to a different file.
+        public void append(byte[] buffer, int start, int end, boolean checksumIncrementalResult)
         {
             try
             {
+                int incrementalChecksumValue;
+
                 incrementalChecksum.update(buffer, start, end);
-                incrementalOut.writeInt((int) incrementalChecksum.getValue());
+                incrementalChecksumValue = (int) incrementalChecksum.getValue();
+                incrementalOut.writeInt((int) incrementalChecksumValue);
                 incrementalChecksum.reset();
 
                 fullChecksum.update(buffer, start, end);
+
+                if (checksumIncrementalResult)
+                {
+                    ByteBuffer byteBuffer = ByteBuffer.allocate(4);
+                    byteBuffer.putInt((int) incrementalChecksumValue);
+                    fullChecksum.update(byteBuffer.array(), 0, byteBuffer.array().length);
+                }
             }
             catch (IOException e)
             {
