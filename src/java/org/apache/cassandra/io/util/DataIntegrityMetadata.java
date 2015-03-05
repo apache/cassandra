@@ -123,7 +123,7 @@ public class DataIntegrityMetadata
 
                 incrementalChecksum.update(buffer, start, end);
                 incrementalChecksumValue = (int) incrementalChecksum.getValue();
-                incrementalOut.writeInt((int) incrementalChecksumValue);
+                incrementalOut.writeInt(incrementalChecksumValue);
                 incrementalChecksum.reset();
 
                 fullChecksum.update(buffer, start, end);
@@ -131,7 +131,7 @@ public class DataIntegrityMetadata
                 if (checksumIncrementalResult)
                 {
                     ByteBuffer byteBuffer = ByteBuffer.allocate(4);
-                    byteBuffer.putInt((int) incrementalChecksumValue);
+                    byteBuffer.putInt(incrementalChecksumValue);
                     fullChecksum.update(byteBuffer.array(), 0, byteBuffer.array().length);
                 }
             }
