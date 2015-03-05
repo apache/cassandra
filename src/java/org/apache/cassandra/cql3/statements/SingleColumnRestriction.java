@@ -87,9 +87,9 @@ public abstract class SingleColumnRestriction implements Restriction
 
     public static class InWithValues extends SingleColumnRestriction implements Restriction.IN
     {
-        protected final List<Term> values;
+        protected final List<? extends Term> values;
 
-        public InWithValues(List<Term> values)
+        public InWithValues(List<? extends Term> values)
         {
             this.values = values;
         }
@@ -292,7 +292,8 @@ public abstract class SingleColumnRestriction implements Restriction
             throw new AssertionError();
         }
 
-        public void setBound(ColumnIdentifier name, Operator operator, Term t) throws InvalidRequestException
+        @Override
+        public final void setBound(Operator operator, Term t) throws InvalidRequestException
         {
             Bound b;
             boolean inclusive;
@@ -318,9 +319,7 @@ public abstract class SingleColumnRestriction implements Restriction
                     throw new AssertionError();
             }
 
-            if (bounds[b.idx] != null)
-                throw new InvalidRequestException(String.format(
-                        "More than one restriction was found for the %s bound on %s", b.name().toLowerCase(), name));
+            assert bounds[b.idx] == null;
 
             bounds[b.idx] = t;
             boundInclusive[b.idx] = inclusive;

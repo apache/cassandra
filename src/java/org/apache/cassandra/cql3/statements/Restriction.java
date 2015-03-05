@@ -72,6 +72,6 @@ public interface Restriction
 
         public Operator getIndexOperator(Bound b);
 
-        public void setBound(ColumnIdentifier name, Operator type, Term t) throws InvalidRequestException;
+        public void setBound(Operator type, Term t) throws InvalidRequestException;
     }
 }

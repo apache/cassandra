@@ -20,6 +20,7 @@ package org.apache.cassandra.cql3.statements;
 import java.nio.ByteBuffer;
 import java.util.*;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Joiner;
 import com.google.common.base.Objects;
 import com.google.common.base.Predicate;
@@ -716,18 +717,38 @@ public class SelectStatement implements CQLStatement
         assert !isColumnRange();
 
         CBuilder builder = cfm.comparator.prefixBuilder();
-        Iterator<ColumnDefinition> idIter = cfm.clusteringColumns().iterator();
-        for (Restriction r : columnRestrictions)
+
+        Iterator<ColumnDefinition> columnIter = cfm.clusteringColumns().iterator();
+        while (columnIter.hasNext())
         {
-            ColumnDefinition def = idIter.next();
+            ColumnDefinition def = columnIter.next();
+            Restriction r = columnRestrictions[def.position()];
             assert r != null && !r.isSlice();
 
             if (r.isEQ())
             {
-                ByteBuffer val = r.values(options).get(0);
-                if (val == null)
-                    throw new InvalidRequestException(String.format("Invalid null value for clustering key part %s", def.name));
-                builder.add(val);
+                List<ByteBuffer> values = r.values(options);
+                if (r.isMultiColumn())
+                {
+                    for (int i = 0, m = values.size(); i < m; i++)
+                    {
+                        ByteBuffer val = values.get(i);
+
+                        if (i != 0)
+                            columnIter.next();
+
+                        if (val == null)
+                            throw new InvalidRequestException(String.format("Invalid null value for clustering key part %s", def.name));
+                        builder.add(val);
+                    }
+                }
+                else
+                {
+                    ByteBuffer val = r.values(options).get(0);
+                    if (val == null)
+                        throw new InvalidRequestException(String.format("Invalid null value for clustering key part %s", def.name));
+                    builder.add(val);
+                }
             }
             else
             {
@@ -752,22 +773,21 @@ public class SelectStatement implements CQLStatement
                     }
                     return columns;
                 }
-                else
-                {
-                    // we have a multi-column IN restriction
-                    List<List<ByteBuffer>> values = ((MultiColumnRestriction.IN) r).splitValues(options);
-                    TreeSet<CellName> inValues = new TreeSet<>(cfm.comparator);
-                    for (List<ByteBuffer> components : values)
-                    {
-                        for (int i = 0; i < components.size(); i++)
-                            if (components.get(i) == null)
-                                throw new InvalidRequestException("Invalid null value in condition for column " + cfm.clusteringColumns().get(i + def.position()));
 
-                        Composite prefix = builder.buildWith(components);
-                        inValues.addAll(addSelectedColumns(prefix));
-                    }
-                    return inValues;
+                // we have a multi-column IN restriction
+                List<List<ByteBuffer>> values = ((MultiColumnRestriction.IN) r).splitValues(options);
+                TreeSet<CellName> inValues = new TreeSet<>(cfm.comparator);
+                for (List<ByteBuffer> components : values)
+                {
+                    for (int i = 0; i < components.size(); i++)
+                        if (components.get(i) == null)
+                            throw new InvalidRequestException("Invalid null value in condition for column "
+                                    + cfm.clusteringColumns().get(i + def.position()).name);
+
+                    Composite prefix = builder.buildWith(components);
+                    inValues.addAll(addSelectedColumns(prefix));
                 }
+                return inValues;
             }
         }
 
@@ -827,38 +847,24 @@ public class SelectStatement implements CQLStatement
         return false;
     }
 
-    private static List<Composite> buildBound(Bound bound,
-                                              List<ColumnDefinition> defs,
-                                              Restriction[] restrictions,
-                                              boolean isReversed,
-                                              CType type,
-                                              QueryOptions options) throws InvalidRequestException
+    @VisibleForTesting
+    static List<Composite> buildBound(Bound bound,
+                                      List<ColumnDefinition> defs,
+                                      Restriction[] restrictions,
+                                      boolean isReversed,
+                                      CType type,
+                                      QueryOptions options) throws InvalidRequestException
     {
         CBuilder builder = type.builder();
-
-        // check the first restriction to see if we're dealing with a multi-column restriction
-        if (!defs.isEmpty())
-        {
-            Restriction firstRestriction = restrictions[0];
-            if (firstRestriction != null && firstRestriction.isMultiColumn())
-            {
-                if (firstRestriction.isSlice())
-                    return buildMultiColumnSliceBound(bound, defs, (MultiColumnRestriction.Slice) firstRestriction, isReversed, builder, options);
-                else if (firstRestriction.isIN())
-                    return buildMultiColumnInBound(bound, defs, (MultiColumnRestriction.IN) firstRestriction, isReversed, builder, type, options);
-                else
-                    return buildMultiColumnEQBound(bound, defs, (MultiColumnRestriction.EQ) firstRestriction, isReversed, builder, options);
-            }
-        }
 
         // The end-of-component of composite doesn't depend on whether the
         // component type is reversed or not (i.e. the ReversedType is applied
         // to the component comparator but not to the end-of-component itself),
         // it only depends on whether the slice is reversed
         Bound eocBound = isReversed ? Bound.reverse(bound) : bound;
-        for (Iterator<ColumnDefinition> iter = defs.iterator(); iter.hasNext();)
+        for (int i = 0, m = defs.size(); i < m; i++)
         {
-            ColumnDefinition def = iter.next();
+            ColumnDefinition def = defs.get(i);
 
             // In a restriction, we always have Bound.START < Bound.END for the "base" comparator.
             // So if we're doing a reverse slice, we must inverse the bounds when giving them as start and end of the slice filter.
@@ -875,36 +881,82 @@ public class SelectStatement implements CQLStatement
             }
             if (r.isSlice())
             {
-                builder.add(getSliceValue(r, b, options));
+                if (r.isMultiColumn())
+                {
+                    MultiColumnRestriction.Slice slice = (MultiColumnRestriction.Slice) r;
+
+                    if (!slice.hasBound(b))
+                    {
+                        Composite prefix = builder.build();
+                        return Collections.singletonList(builder.remainingCount() > 0 && eocBound == Bound.END
+                                ? prefix.end()
+                                : prefix);
+                    }
+
+                    List<ByteBuffer> vals = slice.componentBounds(b, options);
+
+                    for (int j = 0, n = vals.size(); j < n; j++)
+                        addValue(builder, defs.get(i + j), vals.get(j)) ;
+                }
+                else
+                {
+                    builder.add(getSliceValue(r, b, options));
+                }
                 Operator relType = ((Restriction.Slice)r).getRelation(eocBound, b);
                 return Collections.singletonList(builder.build().withEOC(eocForRelation(relType)));
             }
-            else
+
+            if (r.isIN())
             {
-                // IN or EQ
+                // The IN query might not have listed the values in comparator order, so we need to re-sort
+                // the bounds lists to make sure the slices works correctly (also, to avoid duplicates).
+                TreeSet<Composite> inValues = new TreeSet<>(isReversed ? type.reverseComparator() : type);
+
+                if (r.isMultiColumn())
+                {
+                    List<List<ByteBuffer>> splitInValues = ((MultiColumnRestriction.IN) r).splitValues(options);
+
+                    for (List<ByteBuffer> components : splitInValues)
+                    {
+                        for (int j = 0; j < components.size(); j++)
+                            if (components.get(j) == null)
+                                throw new InvalidRequestException("Invalid null value in condition for column " + defs.get(i + j).name);
+
+                        Composite prefix = builder.buildWith(components);
+                        inValues.add(builder.remainingCount() == 0 ? prefix : addEOC(prefix, eocBound));
+                    }
+                    return new ArrayList<>(inValues);
+                }
+
                 List<ByteBuffer> values = r.values(options);
                 if (values.size() != 1)
                 {
                     // IN query, we only support it on the clustering columns
                     assert def.position() == defs.size() - 1;
-                    // The IN query might not have listed the values in comparator order, so we need to re-sort
-                    // the bounds lists to make sure the slices works correctly (also, to avoid duplicates).
-                    TreeSet<Composite> s = new TreeSet<>(isReversed ? type.reverseComparator() : type);
                     for (ByteBuffer val : values)
                     {
                         if (val == null)
-                            throw new InvalidRequestException(String.format("Invalid null clustering key part %s", def.name));
+                            throw new InvalidRequestException(String.format("Invalid null value in condition for column %s",
+                                                                            def.name));
                         Composite prefix = builder.buildWith(val);
                         // See below for why this
-                        s.add(builder.remainingCount() == 0 ? prefix : (eocBound == Bound.END ? prefix.end() : prefix.start()));
+                        inValues.add(builder.remainingCount() == 0 ? prefix : addEOC(prefix, eocBound));
                     }
-                    return new ArrayList<>(s);
+                    return new ArrayList<>(inValues);
                 }
+            }
 
-                ByteBuffer val = values.get(0);
-                if (val == null)
-                    throw new InvalidRequestException(String.format("Invalid null clustering key part %s", def.name));
-                builder.add(val);
+            List<ByteBuffer> values = r.values(options);
+
+            if (r.isMultiColumn())
+            {
+                for (int j = 0; j < values.size(); j++)
+                    addValue(builder, defs.get(i + j), values.get(j));
+                i += values.size() - 1; // skips the processed columns
+            }
+            else
+            {
+                addValue(builder, def, values.get(0));
             }
         }
         // Means no relation at all or everything was an equal
@@ -914,7 +966,34 @@ public class SelectStatement implements CQLStatement
         // case using the eoc would be bad, since for the random partitioner we have no guarantee that
         // prefix.end() will sort after prefix (see #5240).
         Composite prefix = builder.build();
-        return Collections.singletonList(builder.remainingCount() == 0 ? prefix : (eocBound == Bound.END ? prefix.end() : prefix.start()));
+        return Collections.singletonList(builder.remainingCount() == 0 ? prefix : addEOC(prefix, eocBound));
+    }
+
+    /**
+     * Adds an EOC to the specified Composite.
+     *
+     * @param composite the composite
+     * @param eocBound the EOC bound
+     * @return a new <code>Composite</code> with the EOC corresponding to the eocBound
+     */
+    private static Composite addEOC(Composite composite, Bound eocBound)
+    {
+        return eocBound == Bound.END ? composite.end() : composite.start();
+    }
+
+    /**
+     * Adds the specified value to the specified builder
+     *
+     * @param builder the CBuilder to which the value must be added
+     * @param def the column associated to the value
+     * @param value the value to add
+     * @throws InvalidRequestException if the value is null
+     */
+    private static void addValue(CBuilder builder, ColumnDefinition def, ByteBuffer value) throws InvalidRequestException
+    {
+        if (value == null)
+            throw new InvalidRequestException(String.format("Invalid null value in condition for column %s", def.name));
+        builder.add(value);
     }
 
     private static Composite.EOC eocForRelation(Operator op)
@@ -934,104 +1013,6 @@ public class SelectStatement implements CQLStatement
                 // = X => using X
                 return Composite.EOC.NONE;
         }
-    }
-
-    private static List<Composite> buildMultiColumnSliceBound(Bound bound,
-                                                              List<ColumnDefinition> defs,
-                                                              MultiColumnRestriction.Slice slice,
-                                                              boolean isReversed,
-                                                              CBuilder builder,
-                                                              QueryOptions options) throws InvalidRequestException
-    {
-        Bound eocBound = isReversed ? Bound.reverse(bound) : bound;
-
-        Iterator<ColumnDefinition> iter = defs.iterator();
-        ColumnDefinition firstName = iter.next();
-        // A hack to preserve pre-6875 behavior for tuple-notation slices where the comparator mixes ASCENDING
-        // and DESCENDING orders.  This stores the bound for the first component; we will re-use it for all following
-        // components, even if they don't match the first component's reversal/non-reversal.  Note that this does *not*
-        // guarantee correct query results, it just preserves the previous behavior.
-        Bound firstComponentBound = isReversed == isReversedType(firstName) ? bound : Bound.reverse(bound);
-
-        if (!slice.hasBound(firstComponentBound))
-        {
-            Composite prefix = builder.build();
-            return Collections.singletonList(builder.remainingCount() > 0 && eocBound == Bound.END
-                    ? prefix.end()
-                    : prefix);
-        }
-
-        List<ByteBuffer> vals = slice.componentBounds(firstComponentBound, options);
-
-        ByteBuffer v = vals.get(firstName.position());
-        if (v == null)
-            throw new InvalidRequestException("Invalid null value in condition for column " + firstName.name);
-        builder.add(v);
-
-        while (iter.hasNext())
-        {
-            ColumnDefinition def = iter.next();
-            if (def.position() >= vals.size())
-                break;
-
-            v = vals.get(def.position());
-            if (v == null)
-                throw new InvalidRequestException("Invalid null value in condition for column " + def.name);
-            builder.add(v);
-        }
-        Operator relType = slice.getRelation(eocBound, firstComponentBound);
-        return Collections.singletonList(builder.build().withEOC(eocForRelation(relType)));
-    }
-
-    private static List<Composite> buildMultiColumnInBound(Bound bound,
-                                                           List<ColumnDefinition> defs,
-                                                           MultiColumnRestriction.IN restriction,
-                                                           boolean isReversed,
-                                                           CBuilder builder,
-                                                           CType type,
-                                                           QueryOptions options) throws InvalidRequestException
-    {
-        List<List<ByteBuffer>> splitInValues = restriction.splitValues(options);
-        Bound eocBound = isReversed ? Bound.reverse(bound) : bound;
-
-        // The IN query might not have listed the values in comparator order, so we need to re-sort
-        // the bounds lists to make sure the slices works correctly (also, to avoid duplicates).
-        TreeSet<Composite> inValues = new TreeSet<>(isReversed ? type.reverseComparator() : type);
-        for (List<ByteBuffer> components : splitInValues)
-        {
-            for (int i = 0; i < components.size(); i++)
-                if (components.get(i) == null)
-                    throw new InvalidRequestException("Invalid null value in condition for column " + defs.get(i));
-
-            Composite prefix = builder.buildWith(components);
-            inValues.add(eocBound == Bound.END && builder.remainingCount() - components.size() > 0
-                         ? prefix.end()
-                         : prefix);
-        }
-        return new ArrayList<>(inValues);
-    }
-
-    private static List<Composite> buildMultiColumnEQBound(Bound bound,
-                                                           List<ColumnDefinition> defs,
-                                                           MultiColumnRestriction.EQ restriction,
-                                                           boolean isReversed,
-                                                           CBuilder builder,
-                                                           QueryOptions options) throws InvalidRequestException
-    {
-        Bound eocBound = isReversed ? Bound.reverse(bound) : bound;
-        List<ByteBuffer> values = restriction.values(options);
-        for (int i = 0; i < values.size(); i++)
-        {
-            ByteBuffer component = values.get(i);
-            if (component == null)
-                throw new InvalidRequestException("Invalid null value in condition for column " + defs.get(i));
-            builder.add(component);
-        }
-
-        Composite prefix = builder.build();
-        return Collections.singletonList(builder.remainingCount() > 0 && eocBound == Bound.END
-                                         ? prefix.end()
-                                         : prefix);
     }
 
     private static boolean isNullRestriction(Restriction r, Bound b)
@@ -1470,8 +1451,6 @@ public class SelectStatement implements CQLStatement
              */
             boolean hasQueriableIndex = false;
             boolean hasQueriableClusteringColumnIndex = false;
-            boolean hasSingleColumnRelations = false;
-            boolean hasMultiColumnRelations = false;
 
             ColumnFamilyStore cfs = Keyspace.open(keyspace()).getColumnFamilyStore(columnFamily());
             SecondaryIndexManager indexManager = cfs.indexManager;
@@ -1490,7 +1469,6 @@ public class SelectStatement implements CQLStatement
                         hasQueriableIndex |= queriable[0];
                         hasQueriableClusteringColumnIndex |= queriable[1];
                         names.add(def);
-                        hasMultiColumnRelations |= ColumnDefinition.Kind.CLUSTERING_COLUMN.equals(def.kind);
                     }
                     updateRestrictionsForRelation(stmt, names, rel, boundNames);
                 }
@@ -1502,12 +1480,9 @@ public class SelectStatement implements CQLStatement
                     boolean[] queriable = processRelationEntity(stmt, indexManager, relation, entity, def);
                     hasQueriableIndex |= queriable[0];
                     hasQueriableClusteringColumnIndex |= queriable[1];
-                    hasSingleColumnRelations |= ColumnDefinition.Kind.CLUSTERING_COLUMN.equals(def.kind);
                     updateRestrictionsForRelation(stmt, def, rel, boundNames);
                 }
             }
-            if (hasSingleColumnRelations && hasMultiColumnRelations)
-                throw new InvalidRequestException("Mixing single column relations and multi column relations on clustering columns is not allowed");
 
              // At this point, the select statement if fully constructed, but we still have a few things to validate
             processPartitionKeyRestrictions(stmt, hasQueriableIndex, cfm);
@@ -1601,16 +1576,19 @@ public class SelectStatement implements CQLStatement
         {
             List<ColumnDefinition> restrictedColumns = new ArrayList<>();
             Set<ColumnDefinition> seen = new HashSet<>();
+            Restriction existing = null;
 
-            int previousPosition = -1;
-            for (ColumnDefinition def : defs)
+            int previousPosition = defs.get(0).position() - 1;
+            for (int i = 0, m = defs.size(); i < m; i++)
             {
+                ColumnDefinition def = defs.get(i);
+
                 // ensure multi-column restriction only applies to clustering columns
                 if (def.kind != ColumnDefinition.Kind.CLUSTERING_COLUMN)
-                    throw new InvalidRequestException(String.format("Multi-column relations can only be applied to clustering columns: %s", def));
+                    throw new InvalidRequestException(String.format("Multi-column relations can only be applied to clustering columns: %s", def.name));
 
                 if (seen.contains(def))
-                    throw new InvalidRequestException(String.format("Column \"%s\" appeared twice in a relation: %s", def, relation));
+                    throw new InvalidRequestException(String.format("Column \"%s\" appeared twice in a relation: %s", def.name, relation));
                 seen.add(def);
 
                 // check that no clustering columns were skipped
@@ -1620,20 +1598,53 @@ public class SelectStatement implements CQLStatement
                         throw new InvalidRequestException(String.format(
                                 "Clustering columns may not be skipped in multi-column relations. " +
                                 "They should appear in the PRIMARY KEY order. Got %s", relation));
-                    else
-                        throw new InvalidRequestException(String.format(
-                                "Clustering columns must appear in the PRIMARY KEY order in multi-column relations: %s", relation));
+
+                    throw new InvalidRequestException(String.format(
+                                "Clustering columns must appear in the PRIMARY KEY order in multi-column relations: %s",
+                                 relation));
                 }
                 previousPosition++;
 
-                Restriction existing = getExistingRestriction(stmt, def);
+                Restriction previous = existing;
+                existing = getExistingRestriction(stmt, def);
                 Operator operator = relation.operator();
                 if (existing != null)
                 {
                     if (operator == Operator.EQ || operator == Operator.IN)
-                        throw new InvalidRequestException(String.format("Column \"%s\" cannot be restricted by more than one relation if it is in an %s relation", def, relation.operator()));
+                    {
+                        throw new InvalidRequestException(String.format(
+                                "Column \"%s\" cannot be restricted by more than one relation if it is in an %s relation",
+                                def.name, operator));
+                    }
                     else if (!existing.isSlice())
-                        throw new InvalidRequestException(String.format("Column \"%s\" cannot be restricted by an equality relation and an inequality relation", def));
+                    {
+                        throw new InvalidRequestException(String.format(
+                                "Column \"%s\" cannot be restricted by an equality relation and an inequality relation",
+                                def.name));
+                    }
+                    else
+                    {
+                        if (!existing.isMultiColumn())
+                        {
+                            throw new InvalidRequestException(String.format(
+                                    "Column \"%s\" cannot have both tuple-notation inequalities and single-column inequalities: %s",
+                                    def.name, relation));
+                        }
+
+                        boolean existingRestrictionStartBefore =
+                            (i == 0 && def.position() != 0 && stmt.columnRestrictions[def.position() - 1] == existing);
+
+                        boolean existingRestrictionStartAfter = (i != 0 && previous != existing);
+
+                        if (existingRestrictionStartBefore || existingRestrictionStartAfter)
+                        {
+                            throw new InvalidRequestException(String.format(
+                                    "Column \"%s\" cannot be restricted by two tuple-notation inequalities not starting with the same column: %s",
+                                    def.name, relation));
+                        }
+
+                        checkBound(existing, def, operator);
+                    }
                 }
                 restrictedColumns.add(def);
             }
@@ -1685,14 +1696,13 @@ public class SelectStatement implements CQLStatement
                 {
                     Term t = relation.getValue().prepare(keyspace(), defs);
                     t.collectMarkerSpecification(boundNames);
+                    Restriction.Slice restriction = (Restriction.Slice)getExistingRestriction(stmt, defs.get(0));
+                    if (restriction == null)
+                        restriction = new MultiColumnRestriction.Slice(false);
+                    restriction.setBound(relation.operator(), t);
+
                     for (ColumnDefinition def : defs)
                     {
-                        Restriction.Slice restriction = (Restriction.Slice)getExistingRestriction(stmt, def);
-                        if (restriction == null)
-                            restriction = new MultiColumnRestriction.Slice(false);
-                        else if (!restriction.isMultiColumn())
-                            throw new InvalidRequestException(String.format("Column \"%s\" cannot have both tuple-notation inequalities and single-column inequalities: %s", def.name, relation));
-                        restriction.setBound(def.name, relation.operator(), t);
                         stmt.columnRestrictions[def.position()] = restriction;
                     }
                     break;
@@ -1702,7 +1712,28 @@ public class SelectStatement implements CQLStatement
             }
         }
 
-        private Restriction getExistingRestriction(SelectStatement stmt, ColumnDefinition def)
+        /**
+         * Checks that the operator for the specified column is compatible with the bounds of the existing restriction.
+         *
+         * @param existing the existing restriction
+         * @param def the column definition
+         * @param operator the operator
+         * @throws InvalidRequestException if the operator is not compatible with the bounds of the existing restriction
+         */
+        private static void checkBound(Restriction existing, ColumnDefinition def, Operator operator) throws InvalidRequestException
+        {
+            Restriction.Slice existingSlice = (Restriction.Slice) existing;
+
+            if (existingSlice.hasBound(Bound.START) && (operator == Operator.GT || operator == Operator.GTE))
+                throw new InvalidRequestException(String.format(
+                            "More than one restriction was found for the start bound on %s", def.name));
+
+            if (existingSlice.hasBound(Bound.END) && (operator == Operator.LT || operator == Operator.LTE))
+                throw new InvalidRequestException(String.format(
+                            "More than one restriction was found for the end bound on %s", def.name));
+        }
+
+        private static Restriction getExistingRestriction(SelectStatement stmt, ColumnDefinition def)
         {
             switch (def.kind)
             {
@@ -1817,9 +1848,11 @@ public class SelectStatement implements CQLStatement
                             // and the new one isn't since that would bypass that later test.
                             throw new InvalidRequestException("Only EQ and IN relation are supported on the partition key (unless you use the token() function)");
 
+                        checkBound(existingRestriction, def, newRel.operator());
+
                         Term t = newRel.getValue().prepare(keyspace(), receiver);
                         t.collectMarkerSpecification(boundNames);
-                        ((SingleColumnRestriction.Slice)existingRestriction).setBound(def.name, newRel.operator(), t);
+                        ((SingleColumnRestriction.Slice)existingRestriction).setBound(newRel.operator(), t);
                     }
                     break;
                 case CONTAINS_KEY:
@@ -1959,7 +1992,7 @@ public class SelectStatement implements CQLStatement
             // the column is indexed that is.
             boolean canRestrictFurtherComponents = true;
             ColumnDefinition previous = null;
-            boolean previousIsSlice = false;
+            Restriction previousRestriction = null;
             Iterator<ColumnDefinition> iter = cfm.clusteringColumns().iterator();
             for (int i = 0; i < stmt.columnRestrictions.length; i++)
             {
@@ -1969,30 +2002,36 @@ public class SelectStatement implements CQLStatement
                 if (restriction == null)
                 {
                     canRestrictFurtherComponents = false;
-                    previousIsSlice = false;
                 }
                 else if (!canRestrictFurtherComponents)
                 {
-                    // We're here if the previous clustering column was either not restricted or was a slice.
-                    // We can't restrict the current column unless:
-                    //   1) we're in the special case of the 'tuple' notation from #4851 which we expand as multiple
-                    //      consecutive slices: in which case we're good with this restriction and we continue
-                    //   2) we have a 2ndary index, in which case we have to use it but can skip more validation
-                    if (!(previousIsSlice && restriction.isSlice() && restriction.isMultiColumn()))
+                    // We're here if the previous clustering column was either not restricted, was a slice or an IN tulpe-notation.
+
+                    // we can continue if we are in the special case of a slice 'tuple' notation from #4851
+                    if (restriction != previousRestriction)
                     {
+                        // if we have a 2ndary index, we need to use it
                         if (hasQueriableIndex)
                         {
-                            stmt.usesSecondaryIndexing = true; // handle gaps and non-keyrange cases.
+                            stmt.usesSecondaryIndexing = true;
                             break;
                         }
+
+                        if (previousRestriction == null)
+                            throw new InvalidRequestException(String.format(
+                                "PRIMARY KEY column \"%s\" cannot be restricted (preceding column \"%s\" is not restricted)", cdef.name, previous.name));
+
+                        if (previousRestriction.isMultiColumn() && previousRestriction.isIN())
+                            throw new InvalidRequestException(String.format(
+                                     "PRIMARY KEY column \"%s\" cannot be restricted (preceding column \"%s\" is restricted by an IN tuple notation)", cdef.name, previous.name));
+
                         throw new InvalidRequestException(String.format(
-                                "PRIMARY KEY column \"%s\" cannot be restricted (preceding column \"%s\" is either not restricted or by a non-EQ relation)", cdef.name, previous.name));
+                                "PRIMARY KEY column \"%s\" cannot be restricted (preceding column \"%s\" is restricted by a non-EQ relation)", cdef.name, previous.name));
                     }
                 }
                 else if (restriction.isSlice())
                 {
                     canRestrictFurtherComponents = false;
-                    previousIsSlice = true;
                     Restriction.Slice slice = (Restriction.Slice)restriction;
                     // For non-composite slices, we don't support internally the difference between exclusive and
                     // inclusive bounds, so we deal with it manually.
@@ -2003,8 +2042,12 @@ public class SelectStatement implements CQLStatement
                 {
                     if (!restriction.isMultiColumn() && i != stmt.columnRestrictions.length - 1)
                         throw new InvalidRequestException(String.format("Clustering column \"%s\" cannot be restricted by an IN relation", cdef.name));
-                    else if (stmt.selectACollection())
+
+                    if (stmt.selectACollection())
                         throw new InvalidRequestException(String.format("Cannot restrict column \"%s\" by IN relation as a collection is selected by the query", cdef.name));
+
+                    if (restriction.isMultiColumn())
+                        canRestrictFurtherComponents = false;
                 }
                 else if (restriction.isContains())
                 {
@@ -2014,6 +2057,7 @@ public class SelectStatement implements CQLStatement
                 }
 
                 previous = cdef;
+                previousRestriction = restriction;
             }
         }
 

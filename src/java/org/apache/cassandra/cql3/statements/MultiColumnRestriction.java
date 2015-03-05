@@ -59,7 +59,7 @@ public interface MultiColumnRestriction extends Restriction
      */
     public static class InWithValues extends SingleColumnRestriction.InWithValues implements MultiColumnRestriction.IN
     {
-        public InWithValues(List<Term> values)
+        public InWithValues(List<? extends Term> values)
         {
             super(values);
         }
