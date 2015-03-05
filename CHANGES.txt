@@ -1,4 +1,6 @@
 2.0.13:
+ * Fix regression in mixed single and multi-column relation support for
+   SELECT statements (CASSANDRA-8613)
  * Add ability to limit number of native connections (CASSANDRA-8086)
  * Add offline tool to relevel sstables (CASSANDRA-8301)
  * Preserve stream ID for more protocol errors (CASSANDRA-8848)
