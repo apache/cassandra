@@ -22,7 +22,9 @@ import java.nio.Buffer;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 
+import com.sun.jna.Native;
 import sun.misc.Unsafe;
+import sun.nio.ch.DirectBuffer;
 
 public abstract class MemoryUtil
 {
@@ -62,6 +64,16 @@ public abstract class MemoryUtil
         {
             throw new AssertionError(e);
         }
+    }
+
+    public static long allocate(long size)
+    {
+        return Native.malloc(size);
+    }
+
+    public static void free(long peer)
+    {
+        Native.free(peer);
     }
 
     public static void setByte(long address, byte b)
@@ -240,7 +252,7 @@ public abstract class MemoryUtil
             return;
 
         if (buffer.isDirect())
-            setBytes(unsafe.getLong(buffer, DIRECT_BYTE_BUFFER_ADDRESS_OFFSET) + start, address, count);
+            setBytes(((DirectBuffer)buffer).address() + start, address, count);
         else
             setBytes(address, buffer.array(), buffer.arrayOffset() + start, count);
     }

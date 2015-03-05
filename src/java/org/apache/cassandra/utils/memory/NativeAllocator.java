@@ -25,7 +25,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.Cell;
 import org.apache.cassandra.db.CounterCell;
 import org.apache.cassandra.db.DecoratedKey;
@@ -36,7 +35,6 @@ import org.apache.cassandra.db.NativeCounterCell;
 import org.apache.cassandra.db.NativeDecoratedKey;
 import org.apache.cassandra.db.NativeDeletedCell;
 import org.apache.cassandra.db.NativeExpiringCell;
-import org.apache.cassandra.io.util.IAllocator;
 import org.apache.cassandra.utils.concurrent.OpOrder;
 
 public class NativeAllocator extends MemtableAllocator
@@ -45,8 +43,6 @@ public class NativeAllocator extends MemtableAllocator
     private final static int MAX_CLONED_SIZE = 128 * 1024; // bigger than this don't go in the region
     private final static int MIN_REGION_SIZE = 8 * 1024;
 
-    private static final IAllocator allocator = DatabaseDescriptor.getoffHeapMemoryAllocator();
-    
     // globally stash any Regions we allocate but are beaten to using, and use these up before allocating any more
     private static final Map<Integer, RaceAllocated> RACE_ALLOCATED = new HashMap<>();
 
@@ -137,21 +133,21 @@ public class NativeAllocator extends MemtableAllocator
 
         // if there are none, we allocate one
         if (next == null)
-            next = new Region(allocator.allocate(size), size);
+            next = new Region(MemoryUtil.allocate(size), size);
 
         // we try to swap in the region we've obtained;
         // if we fail to swap the region, we try to stash it for repurposing later; if we're out of stash room, we free it
         if (currentRegion.compareAndSet(current, next))
             regions.add(next);
         else if (!raceAllocated.stash(next))
-            allocator.free(next.peer);
+            MemoryUtil.free(next.peer);
     }
 
     private long allocateOversize(int size, OpOrder.Group opGroup)
     {
         // satisfy large allocations directly from JVM since they don't cause fragmentation
         // as badly, and fill up our regions quickly
-        Region region = new Region(allocator.allocate(size), size);
+        Region region = new Region(MemoryUtil.allocate(size), size);
         regions.add(region);
 
         long peer;
@@ -164,7 +160,7 @@ public class NativeAllocator extends MemtableAllocator
     public void setDiscarded()
     {
         for (Region region : regions)
-            allocator.free(region.peer);
+            MemoryUtil.free(region.peer);
         super.setDiscarded();
     }
 

@@ -39,7 +39,6 @@ import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.util.FileUtils;
-import org.apache.cassandra.io.util.IAllocator;
 import org.apache.cassandra.locator.*;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.scheduler.IRequestScheduler;
@@ -48,7 +47,6 @@ import org.apache.cassandra.service.CacheService;
 import org.apache.cassandra.thrift.ThriftServer;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.memory.*;
 
 public class DatabaseDescriptor
@@ -89,7 +87,6 @@ public class DatabaseDescriptor
 
     private static long keyCacheSizeInMB;
     private static long counterCacheSizeInMB;
-    private static IAllocator memoryAllocator;
     private static long indexSummaryCapacityInMB;
 
     private static String localDC;
@@ -561,8 +558,6 @@ public class DatabaseDescriptor
         if (indexSummaryCapacityInMB < 0)
             throw new ConfigurationException("index_summary_capacity_in_mb option was set incorrectly to '"
                     + conf.index_summary_capacity_in_mb + "', it should be a non-negative integer.", false);
-
-        memoryAllocator = FBUtilities.newOffHeapAllocator(conf.memory_allocator);
 
         if(conf.encryption_options != null)
         {
@@ -1489,11 +1484,6 @@ public class DatabaseDescriptor
     public static void setCounterCacheKeysToSave(int counterCacheKeysToSave)
     {
         conf.counter_cache_keys_to_save = counterCacheKeysToSave;
-    }
-
-    public static IAllocator getoffHeapMemoryAllocator()
-    {
-        return memoryAllocator;
     }
 
     public static int getStreamingSocketTimeout()

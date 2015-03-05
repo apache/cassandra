@@ -28,8 +28,6 @@ import com.google.common.collect.Sets;
 import org.apache.cassandra.config.EncryptionOptions.ClientEncryptionOptions;
 import org.apache.cassandra.config.EncryptionOptions.ServerEncryptionOptions;
 import org.apache.cassandra.exceptions.ConfigurationException;
-import org.apache.cassandra.io.util.NativeAllocator;
-import org.apache.cassandra.utils.FBUtilities;
 import org.supercsv.io.CsvListReader;
 import org.supercsv.prefs.CsvPreference;
 
@@ -205,7 +203,8 @@ public class Config
     public volatile int counter_cache_save_period = 7200;
     public volatile int counter_cache_keys_to_save = Integer.MAX_VALUE;
 
-    public String memory_allocator = NativeAllocator.class.getSimpleName();
+    @Deprecated
+    public String memory_allocator;
 
     public Integer file_cache_size_in_mb;
 

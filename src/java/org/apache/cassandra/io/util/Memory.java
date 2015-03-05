@@ -17,12 +17,11 @@
  */
 package org.apache.cassandra.io.util;
 
+import java.lang.reflect.Field;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 
-import com.sun.jna.Native;
 import net.nicoulaj.compilecommand.annotations.Inline;
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.utils.FastByteOperations;
 import org.apache.cassandra.utils.concurrent.Ref;
 import org.apache.cassandra.utils.memory.MemoryUtil;
@@ -34,12 +33,27 @@ import sun.nio.ch.DirectBuffer;
  */
 public class Memory implements AutoCloseable
 {
-    private static final Unsafe unsafe = NativeAllocator.unsafe;
-    static final IAllocator allocator = DatabaseDescriptor.getoffHeapMemoryAllocator();
+    private static final Unsafe unsafe;
+    static
+    {
+        try
+        {
+            Field field = sun.misc.Unsafe.class.getDeclaredField("theUnsafe");
+            field.setAccessible(true);
+            unsafe = (sun.misc.Unsafe) field.get(null);
+        }
+        catch (Exception e)
+        {
+            throw new AssertionError(e);
+        }
+    }
+
     private static final long BYTE_ARRAY_BASE_OFFSET = unsafe.arrayBaseOffset(byte[].class);
 
     private static final boolean bigEndian = ByteOrder.nativeOrder().equals(ByteOrder.BIG_ENDIAN);
     private static final boolean unaligned;
+
+    public static final ByteBuffer[] NO_BYTE_BUFFERS = new ByteBuffer[0];
 
     static
     {
@@ -57,7 +71,7 @@ public class Memory implements AutoCloseable
         if (bytes <= 0)
             throw new AssertionError();
         size = bytes;
-        peer = allocator.allocate(size);
+        peer = MemoryUtil.allocate(size);
         // we permit a 0 peer iff size is zero, since such an allocation makes no sense, and an allocator would be
         // justified in returning a null pointer (and permitted to do so: http://www.cplusplus.com/reference/cstdlib/malloc)
         if (peer == 0)
@@ -341,7 +355,7 @@ public class Memory implements AutoCloseable
 
     public void free()
     {
-        if (peer != 0) allocator.free(peer);
+        if (peer != 0) MemoryUtil.free(peer);
         else assert size == 0;
         peer = 0;
     }
@@ -373,7 +387,7 @@ public class Memory implements AutoCloseable
     public ByteBuffer[] asByteBuffers(long offset, long length)
     {
         if (size() == 0)
-            return new ByteBuffer[0];
+            return NO_BYTE_BUFFERS;
 
         ByteBuffer[] result = new ByteBuffer[(int) (length / Integer.MAX_VALUE) + 1];
         int size = (int) (size() / result.length);
