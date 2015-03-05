@@ -113,6 +113,8 @@ Merged from 2.0:
  * 'nodetool info' prints exception against older node (CASSANDRA-8796)
  * Ensure SSTableSimpleUnsortedWriter.close() terminates if
    disk writer has crashed (CASSANDRA-8807)
+ * Fix CQLSSTableWriter throwing exception and spawning threads
+   (CASSANDRA-8808)
 
 
 2.1.3

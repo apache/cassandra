@@ -30,6 +30,8 @@ import org.apache.cassandra.exceptions.*;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.Pair;
 
+import static org.apache.cassandra.cql3.statements.RequestValidations.invalidRequest;
+
 /**
  * An <code>UPDATE</code> statement parsed from a CQL query statement.
  *
@@ -48,8 +50,19 @@ public class UpdateStatement extends ModificationStatement
         return true;
     }
 
-    public void addUpdateForKey(ColumnFamily cf, ByteBuffer key, Composite prefix, UpdateParameters params)
-    throws InvalidRequestException
+    public void addUpdateForKey(ColumnFamily cf,
+                                ByteBuffer key,
+                                Composite prefix,
+                                UpdateParameters params) throws InvalidRequestException
+    {
+        addUpdateForKey(cf, key, prefix, params, true);
+    }
+
+    public void addUpdateForKey(ColumnFamily cf,
+                                ByteBuffer key,
+                                Composite prefix,
+                                UpdateParameters params,
+                                boolean validateIndexedColumns) throws InvalidRequestException
     {
         // Inserting the CQL row marker (see #4361)
         // We always need to insert a marker for INSERT, because of the following situation:
@@ -98,6 +111,20 @@ public class UpdateStatement extends ModificationStatement
                 update.execute(key, cf, prefix, params);
         }
 
+        // validateIndexedColumns trigger a call to Keyspace.open() which we want to be able to avoid in some case
+        //(e.g. when using CQLSSTableWriter)
+        if (validateIndexedColumns)
+            validateIndexedColumns(cf);
+    }
+
+    /**
+     * Checks if the values of the indexed columns are valid.
+     *
+     * @param cf the column family
+     * @throws InvalidRequestException if one of the values of the indexed columns is not valid
+     */
+    private void validateIndexedColumns(ColumnFamily cf)
+    {
         SecondaryIndexManager indexManager = Keyspace.open(cfm.ksName).getColumnFamilyStore(cfm.cfId).indexManager;
         if (indexManager.hasIndexes())
         {
@@ -105,11 +132,11 @@ public class UpdateStatement extends ModificationStatement
             {
                 // Indexed values must be validated by any applicable index. See CASSANDRA-3057/4240/8081 for more details
                 if (!indexManager.validate(cell))
-                    throw new InvalidRequestException(String.format("Can't index column value of size %d for index %s on %s.%s",
-                                                                    cell.value().remaining(),
-                                                                    cfm.getColumnDefinition(cell.name()).getIndexName(),
-                                                                    cfm.ksName,
-                                                                    cfm.cfName));
+                    throw invalidRequest("Can't index column value of size %d for index %s on %s.%s",
+                                         cell.value().remaining(),
+                                         cfm.getColumnDefinition(cell.name()).getIndexName(),
+                                         cfm.ksName,
+                                         cfm.cfName);
             }
         }
     }

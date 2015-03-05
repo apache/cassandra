@@ -95,9 +95,19 @@ public class DatabaseDescriptor
     public static void forceStaticInitialization() {}
     static
     {
+        // In client mode, we use a default configuration. Note that the fields of this class will be
+        // left unconfigured however (the partitioner or localDC will be null for instance) so this
+        // should be used with care.
         try
         {
-            applyConfig(loadConfig());
+            if (Config.isClientMode())
+            {
+                conf = new Config();
+            }
+            else
+            {
+                applyConfig(loadConfig());
+            }
         }
         catch (Exception e)
         {

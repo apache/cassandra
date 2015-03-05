@@ -208,6 +208,8 @@ public class Config
     @Deprecated
     public String memory_allocator;
 
+    private static boolean isClientMode = false;
+
     public Integer file_cache_size_in_mb;
 
     public boolean inter_dc_tcp_nodelay = true;
@@ -237,6 +239,16 @@ public class Config
     public static void setOutboundBindAny(boolean value)
     {
         outboundBindAny = value;
+    }
+
+    public static boolean isClientMode()
+    {
+        return isClientMode;
+    }
+
+    public static void setClientMode(boolean clientMode)
+    {
+        isClientMode = clientMode;
     }
 
     public void configHintedHandoff() throws ConfigurationException

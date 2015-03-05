@@ -26,6 +26,7 @@ import java.util.*;
 import com.google.common.collect.ImmutableMap;
 
 import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.KSMetaData;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.cql3.*;
@@ -35,8 +36,6 @@ import org.apache.cassandra.cql3.statements.UpdateStatement;
 import org.apache.cassandra.db.ArrayBackedSortedColumns;
 import org.apache.cassandra.db.Cell;
 import org.apache.cassandra.db.ColumnFamily;
-import org.apache.cassandra.db.Keyspace;
-import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.composites.Composite;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.dht.IPartitioner;
@@ -82,7 +81,7 @@ public class CQLSSTableWriter implements Closeable
 {
     static
     {
-        Keyspace.setInitialized();
+        Config.setClientMode(true);
     }
 
     private final AbstractSSTableSimpleWriter writer;
@@ -224,7 +223,7 @@ public class CQLSSTableWriter implements Closeable
             {
                 if (writer.currentKey() == null || !key.equals(writer.currentKey().getKey()))
                     writer.newRow(key);
-                insert.addUpdateForKey(writer.currentColumnFamily(), key, clusteringPrefix, params);
+                insert.addUpdateForKey(writer.currentColumnFamily(), key, clusteringPrefix, params, false);
             }
             return this;
         }
@@ -272,14 +271,6 @@ public class CQLSSTableWriter implements Closeable
     public void close() throws IOException
     {
         writer.close();
-        try
-        {
-            CommitLog.instance.shutdownBlocking();
-        }
-        catch (InterruptedException e)
-        {
-            Thread.currentThread().interrupt();
-        }
     }
 
     /**
@@ -364,19 +355,11 @@ public class CQLSSTableWriter implements Closeable
                     KSMetaData ksm = Schema.instance.getKSMetaData(this.schema.ksName);
                     if (ksm == null)
                     {
-                        ksm = KSMetaData.newKeyspace(this.schema.ksName,
-                                                     AbstractReplicationStrategy.getClass("org.apache.cassandra.locator.SimpleStrategy"),
-                                                     ImmutableMap.of("replication_factor", "1"),
-                                                     true,
-                                                     Collections.singleton(this.schema));
-                        Schema.instance.load(ksm);
+                        createKeyspaceWithTable(this.schema);
                     }
                     else if (Schema.instance.getCFMetaData(this.schema.ksName, this.schema.cfName) == null)
                     {
-                        Schema.instance.load(this.schema);
-                        ksm = ksm.cloneWithTableAdded(this.schema);
-                        Schema.instance.setKeyspaceDefinition(ksm);
-                        Keyspace.open(ksm.name).initCf(this.schema.cfId, this.schema.cfName, false);
+                        addTableToKeyspace(ksm, this.schema);
                     }
                     return this;
                 }
@@ -385,6 +368,35 @@ public class CQLSSTableWriter implements Closeable
             {
                 throw new IllegalArgumentException(e.getMessage(), e);
             }
+        }
+
+        /**
+         * Creates the keyspace with the specified table.
+         *
+         * @param the table the table that must be created.
+         */
+        private static void createKeyspaceWithTable(CFMetaData table)
+        {
+            KSMetaData ksm;
+            ksm = KSMetaData.newKeyspace(table.ksName,
+                                         AbstractReplicationStrategy.getClass("org.apache.cassandra.locator.SimpleStrategy"),
+                                         ImmutableMap.of("replication_factor", "1"),
+                                         true,
+                                         Collections.singleton(table));
+            Schema.instance.load(ksm);
+        }
+
+        /**
+         * Adds the table to the to the specified keyspace.
+         *
+         * @param keyspace the keyspace to add to
+         * @param table the table to add
+         */
+        private static void addTableToKeyspace(KSMetaData keyspace, CFMetaData table)
+        {
+            KSMetaData clone = keyspace.cloneWithTableAdded(table);
+            Schema.instance.load(table);
+            Schema.instance.setKeyspaceDefinition(clone);
         }
 
         /**
