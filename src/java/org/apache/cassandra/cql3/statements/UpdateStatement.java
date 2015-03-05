@@ -48,8 +48,19 @@ public class UpdateStatement extends ModificationStatement
         return true;
     }
 
-    public void addUpdateForKey(ColumnFamily cf, ByteBuffer key, Composite prefix, UpdateParameters params)
-    throws InvalidRequestException
+    public void addUpdateForKey(ColumnFamily cf,
+                                ByteBuffer key,
+                                Composite prefix,
+                                UpdateParameters params) throws InvalidRequestException
+    {
+        addUpdateForKey(cf, key, prefix, params, true);
+    }
+
+    public void addUpdateForKey(ColumnFamily cf,
+                                ByteBuffer key,
+                                Composite prefix,
+                                UpdateParameters params,
+                                boolean validateIndexedColumns) throws InvalidRequestException
     {
         // Inserting the CQL row marker (see #4361)
         // We always need to insert a marker for INSERT, because of the following situation:
@@ -98,6 +109,20 @@ public class UpdateStatement extends ModificationStatement
                 update.execute(key, cf, prefix, params);
         }
 
+        // validateIndexedColumns trigger a call to Keyspace.open() which we want to be able to avoid in some case
+        //(e.g. when using CQLSSTableWriter)
+        if (validateIndexedColumns)
+            validateIndexedColumns(cf);
+    }
+
+    /**
+     * Checks that the value of the indexed columns is valid.
+     *
+     * @param cf the column family
+     * @throws InvalidRequestException if one of the values is invalid
+     */
+    private void validateIndexedColumns(ColumnFamily cf) throws InvalidRequestException
+    {
         SecondaryIndexManager indexManager = Keyspace.open(cfm.ksName).getColumnFamilyStore(cfm.cfId).indexManager;
         if (indexManager.hasIndexes())
         {

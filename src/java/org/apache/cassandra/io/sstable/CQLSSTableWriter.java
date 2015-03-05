@@ -34,11 +34,11 @@ import org.apache.cassandra.cql3.statements.*;
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.config.*;
 import org.apache.cassandra.db.*;
-import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.composites.Composite;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Murmur3Partitioner;
+import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.RequestValidationException;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
@@ -79,8 +79,7 @@ public class CQLSSTableWriter implements Closeable
 {
     static
     {
-        // The Keyspace need to be initialized before we can call Keyspace.open
-        Keyspace.setInitialized();
+        Config.setClientMode(true);
     }
 
     private final AbstractSSTableSimpleWriter writer;
@@ -222,7 +221,7 @@ public class CQLSSTableWriter implements Closeable
             {
                 if (writer.currentKey() == null || !key.equals(writer.currentKey().getKey()))
                     writer.newRow(key);
-                insert.addUpdateForKey(writer.currentColumnFamily(), key, clusteringPrefix, params);
+                insert.addUpdateForKey(writer.currentColumnFamily(), key, clusteringPrefix, params, false);
             }
             return this;
         }
@@ -270,14 +269,6 @@ public class CQLSSTableWriter implements Closeable
     public void close() throws IOException
     {
         writer.close();
-        try
-        {
-            CommitLog.instance.shutdownBlocking();
-        }
-        catch (InterruptedException e)
-        {
-            Thread.currentThread().interrupt();
-        }
     }
 
     /**
@@ -360,19 +351,11 @@ public class CQLSSTableWriter implements Closeable
                     KSMetaData ksm = Schema.instance.getKSMetaData(this.schema.ksName);
                     if (ksm == null)
                     {
-                        ksm = KSMetaData.newKeyspace(this.schema.ksName,
-                                AbstractReplicationStrategy.getClass("org.apache.cassandra.locator.SimpleStrategy"),
-                                ImmutableMap.of("replication_factor", "1"),
-                                true,
-                                Collections.singleton(this.schema));
-                        Schema.instance.load(ksm);
+                        createKeyspaceWithTable(this.schema);
                     }
                     else if (Schema.instance.getCFMetaData(this.schema.ksName, this.schema.cfName) == null)
                     {
-                        Schema.instance.load(this.schema);
-                        ksm = KSMetaData.cloneWith(ksm, Iterables.concat(ksm.cfMetaData().values(), Collections.singleton(this.schema)));
-                        Schema.instance.setKeyspaceDefinition(ksm);
-                        Keyspace.open(ksm.name).initCf(this.schema.cfId, this.schema.cfName, false);
+                        addTableToKeyspace(ksm, this.schema);
                     }
                     return this;
                 }
@@ -381,6 +364,35 @@ public class CQLSSTableWriter implements Closeable
             {
                 throw new IllegalArgumentException(e.getMessage(), e);
             }
+        }
+
+        /**
+         * Adds the specified column family to the specified keyspace.
+         *
+         * @param ksm the keyspace meta data
+         * @param cfm the column family meta data
+         */
+        private static void addTableToKeyspace(KSMetaData ksm, CFMetaData cfm)
+        {
+            ksm = KSMetaData.cloneWith(ksm, Iterables.concat(ksm.cfMetaData().values(), Collections.singleton(cfm)));
+            Schema.instance.load(cfm);
+            Schema.instance.setKeyspaceDefinition(ksm);
+        }
+
+        /**
+         * Creates a keyspace for the specified column family.
+         *
+         * @param cfm the column family
+         * @throws ConfigurationException if a problem occurs while creating the keyspace.
+         */
+        private static void createKeyspaceWithTable(CFMetaData cfm) throws ConfigurationException
+        {
+            KSMetaData ksm = KSMetaData.newKeyspace(cfm.ksName,
+                                                    AbstractReplicationStrategy.getClass("org.apache.cassandra.locator.SimpleStrategy"),
+                                                    ImmutableMap.of("replication_factor", "1"),
+                                                    true,
+                                                    Collections.singleton(cfm));
+            Schema.instance.load(ksm);
         }
 
         /**
