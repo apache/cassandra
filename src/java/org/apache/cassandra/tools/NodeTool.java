@@ -133,6 +133,8 @@ public class NodeTool
                 StatusBinary.class,
                 StatusGossip.class,
                 StatusThrift.class,
+                StatusBackup.class,
+                StatusHandoff.class,
                 Stop.class,
                 StopDaemon.class,
                 Version.class,
@@ -2388,6 +2390,32 @@ public class NodeTool
         {
             System.out.println(
                     probe.isThriftServerRunning()
+                    ? "running"
+                    : "not running");
+        }
+    }
+
+    @Command(name = "statusbackup", description = "Status of incremental backup")
+    public static class StatusBackup extends NodeToolCmd
+    {
+        @Override
+        public void execute(NodeProbe probe)
+        {
+            System.out.println(
+                    probe.isIncrementalBackupsEnabled()
+                    ? "running"
+                    : "not running");
+        }
+    }
+
+    @Command(name = "statushandoff", description = "Status of storing future hints on the current node")
+    public static class StatusHandoff extends NodeToolCmd
+    {
+        @Override
+        public void execute(NodeProbe probe)
+        {
+            System.out.println(
+                    probe.isHandoffEnabled()
                     ? "running"
                     : "not running");
         }

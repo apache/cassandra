@@ -558,6 +558,11 @@ public class NodeProbe implements AutoCloseable
         ssProxy.setIncrementalBackupsEnabled(enabled);
     }
 
+    public boolean isIncrementalBackupsEnabled()
+    {
+        return ssProxy.isIncrementalBackupsEnabled();
+    }
+
     public void setCacheCapacities(int keyCacheCapacity, int rowCacheCapacity, int counterCacheCapacity)
     {
         try
@@ -759,6 +764,11 @@ public class NodeProbe implements AutoCloseable
     public void enableHintedHandoff()
     {
         spProxy.setHintedHandoffEnabled(true);
+    }
+
+    public boolean isHandoffEnabled()
+    {
+        return spProxy.getHintedHandoffEnabled();
     }
 
     public void enableHintedHandoff(String dcNames)

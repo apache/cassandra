@@ -93,6 +93,7 @@
    marked are in the live set (CASSANDRA-8689)
  * cassandra-stress support for varint (CASSANDRA-8882)
  * Fix Adler32 digest for compressed sstables (CASSANDRA-8778)
+ * Add nodetool statushandoff/statusbackup (CASSANDRA-8912)
 Merged from 2.0:
  * Fix regression in mixed single and multi-column relation support for
    SELECT statements (CASSANDRA-8613)
