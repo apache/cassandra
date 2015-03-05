@@ -97,6 +97,9 @@ public interface StorageProxyMBean
     public Long getTruncateRpcTimeout();
     public void setTruncateRpcTimeout(Long timeoutInMillis);
 
+    public void setNativeTransportMaxConcurrentConnections(Long nativeTransportMaxConcurrentConnections);
+    public Long getNativeTransportMaxConcurrentConnections();
+
     public void reloadTriggerClasses();
 
     public long getReadRepairAttempted();
