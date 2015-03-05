@@ -203,7 +203,7 @@ ALTER KEYSPACE Excelsior
           WITH replication = {'class': 'SimpleStrategy', 'replication_factor' : 4};
 
 p. 
-The @ALTER KEYSPACE@ statement alter the properties of an existing keyspace. The supported @<properties>@ are the same that for the "@CREATE TABLE@":#createKeyspaceStmt statement.
+The @ALTER KEYSPACE@ statement alters the properties of an existing keyspace. The supported @<properties>@ are the same as for the "@CREATE KEYSPACE@":#createKeyspaceStmt statement.
 
 
 h3(#dropKeyspaceStmt). DROP KEYSPACE
