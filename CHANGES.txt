@@ -1,4 +1,5 @@
 2.1.4
+ * Use long for key count in cfstats (CASSANDRA-8913)
  * Make SSTableRewriter.abort() more robust to failure (CASSANDRA-8832)
  * Remove cold_reads_to_omit from STCS (CASSANDRA-8860)
  * Make EstimatedHistogram#percentile() use ceil instead of floor (CASSANDRA-8883)
