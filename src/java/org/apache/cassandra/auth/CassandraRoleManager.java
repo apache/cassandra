@@ -292,6 +292,11 @@ public class CassandraRoleManager implements IRoleManager
         return getRole(role.getRoleName()).canLogin;
     }
 
+    public Map<String, String> getCustomOptions(RoleResource role)
+    {
+        return Collections.emptyMap();
+    }
+
     public boolean isExistingRole(RoleResource role)
     {
         return getRole(role.getRoleName()) != NULL_ROLE;

@@ -1,6 +1,6 @@
 3.0
- * use preloaded jemalloc w/ Unsafe (CASSANDRA-8714)
- * Add role based access control (CASSANDRA-7653, 8650, 7216, 8760, 8849)
+ * Use preloaded jemalloc w/ Unsafe (CASSANDRA-8714)
+ * Add role based access control (CASSANDRA-7653, 8650, 7216, 8760, 8849, 8761)
  * Avoid accessing partitioner through StorageProxy (CASSANDRA-8244, 8268)
  * Upgrade Metrics library and remove depricated metrics (CASSANDRA-5657)
  * Serializing Row cache alternative, fully off heap (CASSANDRA-7438)

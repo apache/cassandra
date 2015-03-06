@@ -169,6 +169,17 @@ public interface IRoleManager
     boolean canLogin(RoleResource role);
 
     /**
+     * Where an implementation supports OPTIONS in CREATE and ALTER operations
+     * this method should return the Map<String, String> representing the custom
+     * options associated with the role, as supplied to CREATE or ALTER.
+     * It should never return null; if the implementation does not support
+     * OPTIONS or if none were supplied then it should return an empty map.
+     * @param role Role whose custom options are required
+     * @return Key/Value pairs representing the custom options for the Role
+     */
+    Map<String, String> getCustomOptions(RoleResource role);
+
+    /**
      * Return true is a Role with the given name exists in the system.
      *
      * @param role Role whose existence to verify

@@ -28,6 +28,7 @@ import org.apache.cassandra.auth.*;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.db.marshal.BooleanType;
+import org.apache.cassandra.db.marshal.MapType;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.exceptions.*;
 import org.apache.cassandra.service.ClientState;
@@ -39,10 +40,12 @@ public class ListRolesStatement extends AuthorizationStatement
     private static final String KS = AuthKeyspace.NAME;
     private static final String CF = AuthKeyspace.ROLES;
 
+    private static final MapType optionsType = MapType.getInstance(UTF8Type.instance, UTF8Type.instance, false);
     private static final List<ColumnSpecification> metadata =
-       ImmutableList.of(new ColumnSpecification(KS, CF, new ColumnIdentifier("role", true), UTF8Type.instance),
-                        new ColumnSpecification(KS, CF, new ColumnIdentifier("super", true), BooleanType.instance),
-                        new ColumnSpecification(KS, CF, new ColumnIdentifier("login", true), BooleanType.instance));
+        ImmutableList.of(new ColumnSpecification(KS, CF, new ColumnIdentifier("role", true), UTF8Type.instance),
+                         new ColumnSpecification(KS, CF, new ColumnIdentifier("super", true), BooleanType.instance),
+                         new ColumnSpecification(KS, CF, new ColumnIdentifier("login", true), BooleanType.instance),
+                         new ColumnSpecification(KS, CF, new ColumnIdentifier("options", true), optionsType));
 
     private final RoleResource grantee;
     private final boolean recursive;
@@ -116,6 +119,7 @@ public class ListRolesStatement extends AuthorizationStatement
             result.addColumnValue(UTF8Type.instance.decompose(role.getRoleName()));
             result.addColumnValue(BooleanType.instance.decompose(roleManager.isSuper(role)));
             result.addColumnValue(BooleanType.instance.decompose(roleManager.canLogin(role)));
+            result.addColumnValue(optionsType.decompose(roleManager.getCustomOptions(role)));
         }
         return new ResultMessage.Rows(result);
     }
