@@ -42,6 +42,10 @@ New features
    - Row-cache is now fully off-heap.
    - jemalloc is now automatically preloaded and used on Linux and OS-X if
      installed.
+   - Please ensure on Unix platforms that there is no libjnadispath.so
+     installed which is accessible by Cassandra. Old versions of
+     libjna packages (< 4.0.0) will cause problems - e.g. Debian Wheezy
+     contains libjna versin 3.2.x.
 
 
 Upgrading
