@@ -35,3 +35,4 @@ public interface TypeSerializer<T>
 
     public Class<T> getType();
 }
+

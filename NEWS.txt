@@ -85,6 +85,11 @@ Upgrading
       removed - it is almost always better to use date tiered compaction for
       workloads that have cold data. 
 
+New features
+------------
+    - New `SimpleDateType` (cql date). 4-byte unsigned integer w/out timestamp
+    - New `TimeType` (cql time). 8-byte long nano-second resolution timestamp
+
 2.1.3
 =====
 

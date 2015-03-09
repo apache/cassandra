@@ -60,6 +60,11 @@ public final class IntegerType extends AbstractType<BigInteger>
 
     public int compare(ByteBuffer lhs, ByteBuffer rhs)
     {
+        return IntegerType.compareIntegers(lhs, rhs);
+    }
+
+    public static int compareIntegers(ByteBuffer lhs, ByteBuffer rhs)
+    {
         int lhsLen = lhs.remaining();
         int rhsLen = rhs.remaining();
 

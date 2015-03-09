@@ -49,6 +49,8 @@ public enum DataType implements OptionCodec.Codecable<DataType>
     VARINT   (14, IntegerType.instance),
     TIMEUUID (15, TimeUUIDType.instance),
     INET     (16, InetAddressType.instance),
+    DATE     (17, DateType.instance),
+    TIME     (18, TimeType.instance),
     LIST     (32, null),
     MAP      (33, null),
     SET      (34, null),

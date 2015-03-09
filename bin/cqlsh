@@ -122,6 +122,10 @@ from cqlshlib.displaying import (RED, BLUE, CYAN, ANSI_RESET, COLUMN_NAME_COLORS
                                  FormattedValue, colorme)
 from cqlshlib.formatting import format_by_type, formatter_for, format_value_utype
 from cqlshlib.util import trim_if_present, get_file_encoding_bomsize
+from cqlshlib.formatting import DateTimeFormat
+from cqlshlib.formatting import DEFAULT_TIMESTAMP_FORMAT
+from cqlshlib.formatting import DEFAULT_DATE_FORMAT
+from cqlshlib.formatting import DEFAULT_NANOTIME_FORMAT
 from cqlshlib.tracing import print_trace_session, print_trace
 
 DEFAULT_HOST = '127.0.0.1'
@@ -129,7 +133,6 @@ DEFAULT_PORT = 9042
 DEFAULT_CQLVER = '3.2.0'
 DEFAULT_PROTOCOL_VERSION = 3
 
-DEFAULT_TIME_FORMAT = '%Y-%m-%d %H:%M:%S%z'
 DEFAULT_FLOAT_PRECISION = 5
 DEFAULT_MAX_TRACE_WAIT = 10
 
@@ -431,7 +434,7 @@ def full_cql_version(ver):
     vertuple = tuple(map(int, ver_parts[0].split('.')) + [ver_parts[1]])
     return ver, vertuple
 
-def format_value(val, output_encoding, addcolor=False, time_format=None,
+def format_value(val, output_encoding, addcolor=False, date_time_format=None,
                  float_precision=None, colormap=None, nullval=None):
     if isinstance(val, DecodeError):
         if addcolor:
@@ -439,7 +442,7 @@ def format_value(val, output_encoding, addcolor=False, time_format=None,
         else:
             return FormattedValue(repr(val.thebytes))
     return format_by_type(type(val), val, output_encoding, colormap=colormap,
-                          addcolor=addcolor, nullval=nullval, time_format=time_format,
+                          addcolor=addcolor, nullval=nullval, date_time_format=date_time_format,
                           float_precision=float_precision)
 
 def show_warning_without_quoting_line(message, category, filename, lineno, file=None, line=None):
@@ -529,7 +532,9 @@ class Shell(cmd.Cmd):
                  completekey=DEFAULT_COMPLETEKEY, use_conn=None,
                  cqlver=DEFAULT_CQLVER, keyspace=None,
                  tracing_enabled=False, expand_enabled=False,
-                 display_time_format=DEFAULT_TIME_FORMAT,
+                 display_nanotime_format=DEFAULT_NANOTIME_FORMAT,
+                 display_timestamp_format=DEFAULT_TIMESTAMP_FORMAT,
+                 display_date_format=DEFAULT_DATE_FORMAT,
                  display_float_precision=DEFAULT_FLOAT_PRECISION,
                  max_trace_wait=DEFAULT_MAX_TRACE_WAIT,
                  ssl=False,
@@ -564,7 +569,11 @@ class Shell(cmd.Cmd):
             self.session = self.conn.connect()
 
         self.color = color
-        self.display_time_format = display_time_format
+
+        self.display_nanotime_format = display_nanotime_format
+        self.display_timestamp_format = display_timestamp_format
+        self.display_date_format = display_date_format
+
         self.display_float_precision = display_float_precision
 
         # Workaround for CASSANDRA-8521 until PYTHON-205 is resolved.
@@ -587,6 +596,10 @@ class Shell(cmd.Cmd):
         self.get_connection_versions()
 
         self.current_keyspace = keyspace
+
+        self.display_timestamp_format = display_timestamp_format
+        self.display_nanotime_format = display_nanotime_format
+        self.display_date_format = display_date_format
 
         self.max_trace_wait = max_trace_wait
         self.session.max_trace_wait = max_trace_wait
@@ -634,8 +647,10 @@ class Shell(cmd.Cmd):
         if isinstance(val, DecodeError):
             self.decoding_errors.append(val)
         try:
+            dtformats = DateTimeFormat(timestamp_format=self.display_timestamp_format,
+                                       date_format=self.display_date_format, nanotime_format=self.display_nanotime_format)
             return format_value(val, self.output_codec.name,
-                                addcolor=self.color, time_format=self.display_time_format,
+                                addcolor=self.color, date_time_format=dtformats,
                                 float_precision=self.display_float_precision, **kwargs)
         except Exception, e:
             err = FormatError(val, e)
@@ -1480,7 +1495,7 @@ class Shell(cmd.Cmd):
             cqltype = table_meta.columns[name].typestring
 
             if value != nullval:
-                if cqltype in ('ascii', 'text', 'timestamp', 'inet'):
+                if cqltype in ('ascii', 'text', 'timestamp', 'date', 'time', 'inet'):
                     rowmap[name] = protect_value(value)
                 else:
                     rowmap[name] = value
@@ -1542,7 +1557,7 @@ class Shell(cmd.Cmd):
                 return 0
         wmeter = meter.Meter()
         try:
-
+            dtformats = DateTimeFormat(self.display_timestamp_format, self.display_date_format, self.display_nanotime_format)
             dump = self.prep_export_dump(ks, cf, columns)
             writer = csv.writer(csvdest, **dialect_options)
             if header:
@@ -1550,7 +1565,7 @@ class Shell(cmd.Cmd):
             for row in dump:
                 fmt = lambda v: \
                     format_value(v, output_encoding=encoding, nullval=nullval,
-                                 time_format=self.display_time_format,
+                                 date_time_format=dtformats,
                                  float_precision=self.display_float_precision).strval
                 writer.writerow(map(fmt, row.values()))
                 wmeter.mark_written()
@@ -1632,7 +1647,9 @@ class Shell(cmd.Cmd):
         subshell = Shell(self.hostname, self.port,
                          color=self.color, encoding=self.encoding, stdin=f,
                          tty=False, use_conn=self.conn, cqlver=self.cql_version,
-                         display_time_format=self.display_time_format,
+                         display_timestamp_format=self.display_timestamp_format,
+                         display_date_format=self.display_date_format,
+                         display_nanotime_format=self.display_nanotime_format,
                          display_float_precision=self.display_float_precision,
                          max_trace_wait=self.max_trace_wait)
         subshell.cmdloop()
@@ -1940,7 +1957,11 @@ def read_options(cmdlineargs, environment):
                                                 DEFAULT_COMPLETEKEY)
     optvalues.color = option_with_default(configs.getboolean, 'ui', 'color')
     optvalues.time_format = raw_option_with_default(configs, 'ui', 'time_format',
-                                                    DEFAULT_TIME_FORMAT)
+                                                    DEFAULT_TIMESTAMP_FORMAT)
+    optvalues.nanotime_format = raw_option_with_default(configs, 'ui', 'nanotime_format',
+                                                    DEFAULT_NANOTIME_FORMAT)
+    optvalues.date_format = raw_option_with_default(configs, 'ui', 'date_format',
+                                                    DEFAULT_DATE_FORMAT)
     optvalues.float_precision = option_with_default(configs.getint, 'ui', 'float_precision',
                                                     DEFAULT_FLOAT_PRECISION)
     optvalues.max_trace_wait = option_with_default(configs.getfloat, 'tracing', 'max_trace_wait',
@@ -2057,7 +2078,9 @@ def main(options, hostname, port):
                       completekey=options.completekey,
                       cqlver=options.cqlversion,
                       keyspace=options.keyspace,
-                      display_time_format=options.time_format,
+                      display_timestamp_format=options.time_format,
+                      display_nanotime_format=options.nanotime_format,
+                      display_date_format=options.date_format,
                       display_float_precision=options.float_precision,
                       max_trace_wait=options.max_trace_wait,
                       ssl=options.ssl,
