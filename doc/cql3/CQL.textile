@@ -944,12 +944,14 @@ bc(syntax)..
                 | blob
                 | boolean
                 | counter
+                | date
                 | decimal
                 | double
                 | float
                 | inet
                 | int
                 | text
+                | time
                 | timestamp
                 | timeuuid
                 | uuid
@@ -970,13 +972,15 @@ p. The following table gives additional informations on the native data types, a
 |@blob@     |   blobs              |Arbitrary bytes (no validation)|
 |@boolean@  |   booleans           |true or false|
 |@counter@  |   integers           |Counter column (64-bit signed value). See "Counters":#counters for details|
+|@date@     |   integers, strings  |A date (with no corresponding time value).  See "Working with dates":#usingdates below for more information.|
 |@decimal@  |   integers, floats   |Variable-precision decimal|
 |@double@   |   integers           |64-bit IEEE-754 floating point|
 |@float@    |   integers, floats   |32-bit IEEE-754 floating point|
 |@inet@     |   strings            |An IP address. It can be either 4 bytes long (IPv4) or 16 bytes long (IPv6). There is no @inet@ constant, IP address should be inputed as strings|
 |@int@      |   integers           |32-bit signed int|
 |@text@     |   strings            |UTF8 encoded string|
-|@timestamp@|   integers, strings  |A timestamp. Strings constant are allow to input timestamps as dates, see "Working with dates":#usingdates below for more information.|
+|@time@     |   integers, strings  |A time with nanosecond precision.  See "Working with time":#usingtime below for more information.|
+|@timestamp@|   integers, strings  |A timestamp. Strings constant are allow to input timestamps as dates, see "Working with timestamps":#usingtimestamps below for more information.|
 |@timeuuid@ |   uuids              |Type 1 UUID. This is generally used as a "conflict-free" timestamp. Also see the "functions on Timeuuid":#timeuuidFun|
 |@uuid@     |   uuids              |Type 1 or type 4 UUID|
 |@varchar@  |   strings            |UTF8 encoded string|
@@ -984,7 +988,7 @@ p. The following table gives additional informations on the native data types, a
 
 For more information on how to use the collection types, see the "Working with collections":#collections section below.
 
-h3(#usingdates). Working with dates
+h3(#usingtimestamps). Working with timestamps
 
 Values of the @timestamp@ type are encoded as 64-bit signed integers representing a number of milliseconds since the standard base time known as "the epoch": January 1 1970 at 00:00:00 GMT.
 
@@ -1016,6 +1020,31 @@ The time of day may also be omitted, if the date is the only piece that matters:
 * @2011-02-03+0000@
 
 In that case, the time of day will default to 00:00:00, in the specified or default time zone.
+
+
+h3(#usingdates). Working with dates
+
+Values of the @date@ type are encoded as 32-bit unsigned integers representing a number of days with "the epoch" at the center of the range (2^31). Epoch is January 1st, 1970
+
+A date can be input in CQL as an unsigned integer as defined above.
+
+They can also be input as string literals in the following format:
+
+* @2014-01-01@
+
+
+h3(#usingtime). Working with time
+
+Values of the @time@ type are encoded as 64-bit signed integers representing the number of nanoseconds since midnight.
+
+A time can be input in CQL as simple long integers, giving the number of nanoseconds since midnight.
+
+They can also be input as string literals in any of the following formats:
+
+* @08:12:54@
+* @08:12:54.123@
+* @08:12:54.123456@
+* @08:12:54.123456789@
 
 
 h3(#counters). Counters
@@ -1182,7 +1211,7 @@ will never return any result by design, since the value returned by @now()@ is g
 
 h4. @minTimeuuid@ and @maxTimeuuid@
 
-The @minTimeuuid@ (resp. @maxTimeuuid@) function takes a @timestamp@ value @t@ (which can be "either a timestamp or a date string":#usingdates) and return a _fake_ @timeuuid@ corresponding to the _smallest_ (resp. _biggest_) possible @timeuuid@ having for timestamp @t@. So for instance:
+The @minTimeuuid@ (resp. @maxTimeuuid@) function takes a @timestamp@ value @t@ (which can be "either a timestamp or a date string":#usingtimestamps) and return a _fake_ @timeuuid@ corresponding to the _smallest_ (resp. _biggest_) possible @timeuuid@ having for timestamp @t@. So for instance:
  
 bc(sample). 
 SELECT * FROM myTable WHERE t > maxTimeuuid('2013-01-01 00:05+0000') AND t < minTimeuuid('2013-02-02 10:00+0000')
@@ -1290,6 +1319,8 @@ CQL distinguishes between _reserved_ and _non-reserved_ keywords. Reserved keywo
 | @WITH@         | yes |
 | @WRITETIME@    | no  |
 | @DISTINCT@     | no  |
+| @DATE@         | no  |
+| @TIME@         | no  |
 
 h2(#appendixB). Appendix B: CQL Reserved Types
 
@@ -1338,7 +1369,7 @@ h3. 3.1.4
 
 h3. 3.1.3
 
-* Millisecond precision formats have been added to the timestamp parser (see "working with dates":#usingdates).
+* Millisecond precision formats have been added to the timestamp parser (see "working with dates":#usingtimestamps).
 
 h3. 3.1.2
 
@@ -1378,7 +1409,7 @@ h3. 3.0.2
 
 h3. 3.0.1
 
-* "Date strings":#usingdates (and timestamps) are no longer accepted as valid @timeuuid@ values. Doing so was a bug in the sense that date string are not valid @timeuuid@, and it was thus resulting in "confusing behaviors":https://issues.apache.org/jira/browse/CASSANDRA-4936.  However, the following new methods have been added to help working with @timeuuid@: @now@, @minTimeuuid@, @maxTimeuuid@ , @dateOf@ and @unixTimestampOf@. See the "section dedicated to these methods":#usingtimeuuid for more detail.
+* "Date strings":#usingtimestamps (and timestamps) are no longer accepted as valid @timeuuid@ values. Doing so was a bug in the sense that date string are not valid @timeuuid@, and it was thus resulting in "confusing behaviors":https://issues.apache.org/jira/browse/CASSANDRA-4936.  However, the following new methods have been added to help working with @timeuuid@: @now@, @minTimeuuid@, @maxTimeuuid@ , @dateOf@ and @unixTimestampOf@. See the "section dedicated to these methods":#usingtimeuuid for more detail.
 * "Float constants"#constants now support the exponent notation. In other words, @4.2E10@ is now a valid floating point value.
 
 

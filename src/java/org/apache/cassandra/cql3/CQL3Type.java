@@ -38,22 +38,24 @@ public interface CQL3Type
 
     public enum Native implements CQL3Type
     {
-        ASCII    (AsciiType.instance),
-        BIGINT   (LongType.instance),
-        BLOB     (BytesType.instance),
-        BOOLEAN  (BooleanType.instance),
-        COUNTER  (CounterColumnType.instance),
-        DECIMAL  (DecimalType.instance),
-        DOUBLE   (DoubleType.instance),
-        FLOAT    (FloatType.instance),
-        INET     (InetAddressType.instance),
-        INT      (Int32Type.instance),
-        TEXT     (UTF8Type.instance),
-        TIMESTAMP(TimestampType.instance),
-        UUID     (UUIDType.instance),
-        VARCHAR  (UTF8Type.instance),
-        VARINT   (IntegerType.instance),
-        TIMEUUID (TimeUUIDType.instance);
+        ASCII       (AsciiType.instance),
+        BIGINT      (LongType.instance),
+        BLOB        (BytesType.instance),
+        BOOLEAN     (BooleanType.instance),
+        COUNTER     (CounterColumnType.instance),
+        DECIMAL     (DecimalType.instance),
+        DOUBLE      (DoubleType.instance),
+        FLOAT       (FloatType.instance),
+        INET        (InetAddressType.instance),
+        INT         (Int32Type.instance),
+        TEXT        (UTF8Type.instance),
+        TIMESTAMP   (TimestampType.instance),
+        UUID        (UUIDType.instance),
+        VARCHAR     (UTF8Type.instance),
+        VARINT      (IntegerType.instance),
+        TIMEUUID    (TimeUUIDType.instance),
+        DATE        (SimpleDateType.instance),
+        TIME        (TimeType.instance);
 
         private final AbstractType<?> type;
 
