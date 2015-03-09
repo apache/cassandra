@@ -593,6 +593,10 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             {
                 throw new FSReadError(e, desc.filenameFor(Component.STATS));
             }
+            catch (NullPointerException e)
+            {
+                throw new FSReadError(e, "Failed to remove unfinished compaction leftovers (file: " + desc.filenameFor(Component.STATS) + ").  See log for details.");
+            }
 
             if (!ancestors.isEmpty()
                 && unfinishedGenerations.containsAll(ancestors)
