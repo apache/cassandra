@@ -26,6 +26,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
+import org.apache.cassandra.stress.util.Timing;
 import org.apache.commons.math3.distribution.EnumeratedDistribution;
 import org.apache.commons.math3.util.Pair;
 
@@ -48,12 +49,13 @@ public abstract class SampledOpDistributionFactory<T> implements OpDistributionF
     protected abstract Operation get(Timer timer, PartitionGenerator generator, T key);
     protected abstract PartitionGenerator newGenerator();
 
-    public OpDistribution get(Timer timer)
+    public OpDistribution get(Timing timing, int sampleCount)
     {
         PartitionGenerator generator = newGenerator();
         List<Pair<Operation, Double>> operations = new ArrayList<>();
         for (Map.Entry<T, Double> ratio : ratios.entrySet())
-            operations.add(new Pair<>(get(timer, generator, ratio.getKey()), ratio.getValue()));
+            operations.add(new Pair<>(get(timing.newTimer(ratio.getKey().toString(), sampleCount), generator, ratio.getKey()),
+                                      ratio.getValue()));
         return new SampledOpDistribution(new EnumeratedDistribution<>(operations), clustering.get());
     }
 
@@ -72,9 +74,9 @@ public abstract class SampledOpDistributionFactory<T> implements OpDistributionF
         {
             out.add(new OpDistributionFactory()
             {
-                public OpDistribution get(Timer timer)
+                public OpDistribution get(Timing timing, int sampleCount)
                 {
-                    return new FixedOpDistribution(SampledOpDistributionFactory.this.get(timer, newGenerator(), ratio.getKey()));
+                    return new FixedOpDistribution(SampledOpDistributionFactory.this.get(timing.newTimer(ratio.getKey().toString(), sampleCount), newGenerator(), ratio.getKey()));
                 }
 
                 public String desc()

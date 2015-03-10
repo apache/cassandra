@@ -89,6 +89,11 @@ public class SettingsCommandUser extends SettingsCommand
         };
     }
 
+    public void truncateTables(StressSettings settings)
+    {
+        profile.truncateTable(settings);
+    }
+
     static final class Options extends GroupedOptions
     {
         final SettingsCommand.Options parent;

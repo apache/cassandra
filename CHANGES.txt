@@ -63,6 +63,7 @@
  * Evaluate MurmurHash of Token once per query (CASSANDRA-7096)
 
 2.1.4
+ * cassandra-stress reports per-operation statistics, plus misc (CASSANDRA-8769)
  * Add SimpleDate (cql date) and Time (cql time) types (CASSANDRA-7523)
  * Use long for key count in cfstats (CASSANDRA-8913)
  * Make SSTableRewriter.abort() more robust to failure (CASSANDRA-8832)

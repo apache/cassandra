@@ -32,6 +32,7 @@ abstract class Option
     abstract String longDisplay();
     abstract List<String> multiLineDisplay();
     abstract boolean setByUser();
+    abstract boolean present();
 
     public int hashCode()
     {

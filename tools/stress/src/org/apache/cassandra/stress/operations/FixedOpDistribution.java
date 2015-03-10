@@ -36,4 +36,14 @@ public class FixedOpDistribution implements OpDistribution
     {
         return operation;
     }
+
+    public void initTimers()
+    {
+        operation.timer.init();
+    }
+
+    public void closeTimers()
+    {
+        operation.timer.close();
+    }
 }

@@ -25,6 +25,7 @@ import org.apache.commons.math3.distribution.EnumeratedDistribution;
 
 import org.apache.cassandra.stress.Operation;
 import org.apache.cassandra.stress.generate.Distribution;
+import org.apache.commons.math3.util.Pair;
 
 public class SampledOpDistribution implements OpDistribution
 {
@@ -49,5 +50,21 @@ public class SampledOpDistribution implements OpDistribution
         }
         remaining--;
         return cur;
+    }
+
+    public void initTimers()
+    {
+        for (Pair<Operation, Double> op : operations.getPmf())
+        {
+            op.getFirst().timer.init();
+        }
+    }
+
+    public void closeTimers()
+    {
+        for (Pair<Operation, Double> op : operations.getPmf())
+        {
+            op.getFirst().timer.close();
+        }
     }
 }

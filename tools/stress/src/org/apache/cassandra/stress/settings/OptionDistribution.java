@@ -134,6 +134,11 @@ public class OptionDistribution extends Option
         return spec != null;
     }
 
+    boolean present()
+    {
+        return setByUser() || defaultSpec != null;
+    }
+
     @Override
     public String shortDisplay()
     {
@@ -209,7 +214,7 @@ public class OptionDistribution extends Option
                     stdev = ((max - min) / 2d) / stdevsToEdge;
                 }
                 return new GaussianFactory(min, max, mean, stdev);
-            } catch (Exception e)
+            } catch (Exception ignore)
             {
                 throw new IllegalArgumentException("Invalid parameter list for uniform distribution: " + params);
             }
@@ -233,7 +238,7 @@ public class OptionDistribution extends Option
                 // over entire range, but this results in overly skewed distribution, so take sqrt
                 final double mean = (max - min) / findBounds.inverseCumulativeProbability(1d - Math.sqrt(1d/(max-min)));
                 return new ExpFactory(min, max, mean);
-            } catch (Exception e)
+            } catch (Exception ignore)
             {
                 throw new IllegalArgumentException("Invalid parameter list for uniform distribution: " + params);
             }
@@ -258,7 +263,7 @@ public class OptionDistribution extends Option
                 // over entire range, but this results in overly skewed distribution, so take sqrt
                 final double scale = (max - min) / findBounds.inverseCumulativeProbability(1d - Math.sqrt(1d/(max-min)));
                 return new ExtremeFactory(min, max, shape, scale);
-            } catch (Exception e)
+            } catch (Exception ignore)
             {
                 throw new IllegalArgumentException("Invalid parameter list for extreme (Weibull) distribution: " + params);
             }
@@ -284,7 +289,7 @@ public class OptionDistribution extends Option
                 // over entire range, but this results in overly skewed distribution, so take sqrt
                 final double scale = (max - min) / findBounds.inverseCumulativeProbability(1d - Math.sqrt(1d/(max-min)));
                 return new QuantizedExtremeFactory(min, max, shape, scale, quantas);
-            } catch (Exception e)
+            } catch (Exception ignore)
             {
                 throw new IllegalArgumentException("Invalid parameter list for quantized extreme (Weibull) distribution: " + params);
             }
@@ -305,7 +310,7 @@ public class OptionDistribution extends Option
                 final long min = parseLong(bounds[0]);
                 final long max = parseLong(bounds[1]);
                 return new UniformFactory(min, max);
-            } catch (Exception e)
+            } catch (Exception ignore)
             {
                 throw new IllegalArgumentException("Invalid parameter list for uniform distribution: " + params);
             }
@@ -324,7 +329,7 @@ public class OptionDistribution extends Option
             {
                 final long key = parseLong(params.get(0));
                 return new FixedFactory(key);
-            } catch (Exception e)
+            } catch (Exception ignore)
             {
                 throw new IllegalArgumentException("Invalid parameter list for uniform distribution: " + params);
             }
