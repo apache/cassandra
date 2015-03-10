@@ -124,6 +124,13 @@ public abstract class MemoryUtil
 
     public static ByteBuffer getByteBuffer(long address, int length)
     {
+        ByteBuffer instance = getHollowDirectByteBuffer();
+        setByteBuffer(instance, address, length);
+        return instance;
+    }
+
+    public static ByteBuffer getHollowDirectByteBuffer()
+    {
         ByteBuffer instance;
         try
         {
@@ -133,12 +140,15 @@ public abstract class MemoryUtil
         {
             throw new AssertionError(e);
         }
+        instance.order(ByteOrder.nativeOrder());
+        return instance;
+    }
 
+    public static void setByteBuffer(ByteBuffer instance, long address, int length)
+    {
         unsafe.putLong(instance, DIRECT_BYTE_BUFFER_ADDRESS_OFFSET, address);
         unsafe.putInt(instance, DIRECT_BYTE_BUFFER_CAPACITY_OFFSET, length);
         unsafe.putInt(instance, DIRECT_BYTE_BUFFER_LIMIT_OFFSET, length);
-        instance.order(ByteOrder.nativeOrder());
-        return instance;
     }
 
     public static long getLongByByte(long address)

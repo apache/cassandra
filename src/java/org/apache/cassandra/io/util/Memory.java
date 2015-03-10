@@ -182,7 +182,7 @@ public class Memory implements AutoCloseable
 
     public void setShort(long offset, short l)
     {
-        checkBounds(offset, offset + 4);
+        checkBounds(offset, offset + 2);
         if (unaligned)
         {
             unsafe.putShort(peer + offset, l);
@@ -245,9 +245,7 @@ public class Memory implements AutoCloseable
         else if (count == 0)
             return;
 
-        long end = memoryOffset + count;
-        checkBounds(memoryOffset, end);
-
+        checkBounds(memoryOffset, memoryOffset + count);
         unsafe.copyMemory(buffer, BYTE_ARRAY_BASE_OFFSET + bufferOffset, null, peer + memoryOffset, count);
     }
 
@@ -343,6 +341,8 @@ public class Memory implements AutoCloseable
 
     public void put(long trgOffset, Memory memory, long srcOffset, long size)
     {
+        checkBounds(trgOffset, trgOffset + size);
+        memory.checkBounds(srcOffset, srcOffset + size);
         unsafe.copyMemory(memory.peer + srcOffset, peer + trgOffset, size);
     }
 
@@ -399,6 +399,19 @@ public class Memory implements AutoCloseable
         }
         result[result.length - 1] = MemoryUtil.getByteBuffer(peer + offset, (int) length);
         return result;
+    }
+
+    public ByteBuffer asByteBuffer(long offset, int length)
+    {
+        checkBounds(offset, offset + length);
+        return MemoryUtil.getByteBuffer(peer + offset, length);
+    }
+
+    // MUST provide a buffer created via MemoryUtil.getHollowDirectByteBuffer()
+    public void setByteBuffer(ByteBuffer buffer, long offset, int length)
+    {
+        checkBounds(offset, offset + length);
+        MemoryUtil.setByteBuffer(buffer, peer + offset, length);
     }
 
     public String toString()
