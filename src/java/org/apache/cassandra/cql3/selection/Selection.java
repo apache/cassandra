@@ -54,7 +54,7 @@ public abstract class Selection
 
     private final CFMetaData cfm;
     private final Collection<ColumnDefinition> columns;
-    private final ResultSet.Metadata metadata;
+    private final ResultSet.ResultMetadata metadata;
     private final boolean collectTimestamps;
     private final boolean collectTTLs;
 
@@ -66,7 +66,7 @@ public abstract class Selection
     {
         this.cfm = cfm;
         this.columns = columns;
-        this.metadata = new ResultSet.Metadata(metadata);
+        this.metadata = new ResultSet.ResultMetadata(metadata);
         this.collectTimestamps = collectTimestamps;
         this.collectTTLs = collectTTLs;
     }
@@ -147,7 +147,7 @@ public abstract class Selection
            });
     }
 
-    public ResultSet.Metadata getResultMetadata()
+    public ResultSet.ResultMetadata getResultMetadata()
     {
         return metadata;
     }

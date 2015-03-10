@@ -181,7 +181,8 @@ public class Frame
             int version = firstByte & 0x7F;
 
             if (version > Server.CURRENT_VERSION)
-                throw new ProtocolException("Invalid or unsupported protocol version: " + version);
+                throw new ProtocolException(String.format("Invalid or unsupported protocol version (%d); highest supported is %d ",
+                                                          version, Server.CURRENT_VERSION));
 
             // Wait until we have the complete V3+ header
             if (version >= Server.VERSION_3 && buffer.readableBytes() < Header.MODERN_LENGTH)

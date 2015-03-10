@@ -1,4 +1,6 @@
 3.0
+ * Indicate partition key columns in response metadata for prepared
+   statements (CASSANDRA-7660)
  * Merge UUIDType and TimeUUIDType parse logic (CASSANDRA-8759)
  * Avoid memory allocation when searching index summary (CASSANDRA-8793)
  * Optimise (Time)?UUIDType Comparisons (CASSANDRA-8730)
