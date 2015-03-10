@@ -37,44 +37,58 @@ public class TimeUUIDType extends AbstractType<UUID>
     {
     } // singleton
 
-    public int compare(ByteBuffer o1, ByteBuffer o2)
+    public int compare(ByteBuffer b1, ByteBuffer b2)
     {
-        if (!o1.hasRemaining() || !o2.hasRemaining())
-            return o1.hasRemaining() ? 1 : o2.hasRemaining() ? -1 : 0;
+        // Compare for length
+        int s1 = b1.position(), s2 = b2.position();
+        int l1 = b1.limit(), l2 = b2.limit();
 
-        int res = compareTimestampBytes(o1, o2);
-        if (res != 0)
-            return res;
-        return o1.compareTo(o2);
+        // should we assert exactly 16 bytes (or 0)? seems prudent
+        boolean p1 = l1 - s1 == 16, p2 = l2 - s2 == 16;
+        if (!(p1 & p2))
+        {
+            assert p1 | (l1 == s1);
+            assert p2 | (l2 == s2);
+            return p1 ? 1 : p2 ? -1 : 0;
+        }
+
+        long msb1 = b1.getLong(s1);
+        long msb2 = b2.getLong(s2);
+        msb1 = reorderTimestampBytes(msb1);
+        msb2 = reorderTimestampBytes(msb2);
+
+        assert (msb1 & topbyte(0xf0L)) == topbyte(0x10L);
+        assert (msb2 & topbyte(0xf0L)) == topbyte(0x10L);
+
+        int c = Long.compare(msb1, msb2);
+        if (c != 0)
+            return c;
+
+        // this has to be a signed per-byte comparison for compatibility
+        // so we transform the bytes so that a simple long comparison is equivalent
+        long lsb1 = signedBytesToNativeLong(b1.getLong(s1 + 8));
+        long lsb2 = signedBytesToNativeLong(b2.getLong(s2 + 8));
+        return Long.compare(lsb1, lsb2);
     }
 
-    private static int compareTimestampBytes(ByteBuffer o1, ByteBuffer o2)
+    // takes as input 8 signed bytes in native machine order
+    // returns the first byte unchanged, and the following 7 bytes converted to an unsigned representation
+    // which is the same as a 2's complement long in native format
+    private static long signedBytesToNativeLong(long signedBytes)
     {
-        int o1Pos = o1.position();
-        int o2Pos = o2.position();
+        return signedBytes ^ 0x0080808080808080L;
+    }
 
-        int d = (o1.get(o1Pos + 6) & 0xF) - (o2.get(o2Pos + 6) & 0xF);
-        if (d != 0) return d;
+    private static long topbyte(long topbyte)
+    {
+        return topbyte << 56;
+    }
 
-        d = (o1.get(o1Pos + 7) & 0xFF) - (o2.get(o2Pos + 7) & 0xFF);
-        if (d != 0) return d;
-
-        d = (o1.get(o1Pos + 4) & 0xFF) - (o2.get(o2Pos + 4) & 0xFF);
-        if (d != 0) return d;
-
-        d = (o1.get(o1Pos + 5) & 0xFF) - (o2.get(o2Pos + 5) & 0xFF);
-        if (d != 0) return d;
-
-        d = (o1.get(o1Pos) & 0xFF) - (o2.get(o2Pos) & 0xFF);
-        if (d != 0) return d;
-
-        d = (o1.get(o1Pos + 1) & 0xFF) - (o2.get(o2Pos + 1) & 0xFF);
-        if (d != 0) return d;
-
-        d = (o1.get(o1Pos + 2) & 0xFF) - (o2.get(o2Pos + 2) & 0xFF);
-        if (d != 0) return d;
-
-        return (o1.get(o1Pos + 3) & 0xFF) - (o2.get(o2Pos + 3) & 0xFF);
+    protected static long reorderTimestampBytes(long input)
+    {
+        return    (input <<  48)
+                  | ((input <<  16) & 0xFFFF00000000L)
+                  |  (input >>> 32);
     }
 
     public ByteBuffer fromString(String source) throws MarshalException
