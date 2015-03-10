@@ -447,6 +447,10 @@ public class Range<T extends RingPosition<T>> extends AbstractBounds<T> implemen
         return output;
     }
 
+    public AbstractBounds<T> withNewRight(T newRight)
+    {
+        return new Range<T>(left, newRight);
+    }
 
     /**
      * Compute a range of keys corresponding to a given range of token.
@@ -456,20 +460,8 @@ public class Range<T extends RingPosition<T>> extends AbstractBounds<T> implemen
         return new Range<RowPosition>(left.maxKeyBound(), right.maxKeyBound());
     }
 
-    @SuppressWarnings("unchecked")
-    public AbstractBounds<RowPosition> toRowBounds()
+    public static Range<RowPosition> makeRowRange(Range<Token> tokenBounds)
     {
-        return (left instanceof Token) ? makeRowRange((Token)left, (Token)right) : (Range<RowPosition>)this;
-    }
-
-    @SuppressWarnings("unchecked")
-    public AbstractBounds<Token> toTokenBounds()
-    {
-        return (left instanceof RowPosition) ? new Range<Token>(((RowPosition)left).getToken(), ((RowPosition)right).getToken()) : (Range<Token>)this;
-    }
-
-    public AbstractBounds<T> withNewRight(T newRight)
-    {
-        return new Range<T>(left, newRight);
+        return makeRowRange(tokenBounds.left, tokenBounds.right);
     }
 }

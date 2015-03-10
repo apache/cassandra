@@ -32,7 +32,10 @@ import org.apache.cassandra.utils.Pair;
 public abstract class AbstractBounds<T extends RingPosition<T>> implements Serializable
 {
     private static final long serialVersionUID = 1L;
-    public static final AbstractBoundsSerializer serializer = new AbstractBoundsSerializer();
+    public static final IPartitionerDependentSerializer<AbstractBounds<Token>> tokenSerializer =
+            new AbstractBoundsSerializer<Token>(Token.serializer);
+    public static final IPartitionerDependentSerializer<AbstractBounds<RowPosition>> rowPositionSerializer =
+            new AbstractBoundsSerializer<RowPosition>(RowPosition.serializer);
 
     private enum Type
     {
@@ -107,42 +110,13 @@ public abstract class AbstractBounds<T extends RingPosition<T>> implements Seria
     protected abstract String getOpeningString();
     protected abstract String getClosingString();
 
-    /**
-     * Transform this abstract bounds to equivalent covering bounds of row positions.
-     * If this abstract bounds was already an abstractBounds of row positions, this is a noop.
-     */
-    public abstract AbstractBounds<RowPosition> toRowBounds();
-
-    /**
-     * Transform this abstract bounds to a token abstract bounds.
-     * If this abstract bounds was already an abstractBounds of token, this is a noop, otherwise this use the row position tokens.
-     */
-    public abstract AbstractBounds<Token> toTokenBounds();
-
     public abstract AbstractBounds<T> withNewRight(T newRight);
 
-    public static class AbstractBoundsSerializer implements IPartitionerDependentSerializer<AbstractBounds<?>>
+    public static class AbstractBoundsSerializer<T extends RingPosition<T>> implements IPartitionerDependentSerializer<AbstractBounds<T>>
     {
-        public void serialize(AbstractBounds<?> range, DataOutputPlus out, int version) throws IOException
-        {
-            /*
-             * The first int tells us if it's a range or bounds (depending on the value) _and_ if it's tokens or keys (depending on the
-             * sign). We use negative kind for keys so as to preserve the serialization of token from older version.
-             */
-            out.writeInt(kindInt(range));
-            if (range.left instanceof Token)
-            {
-                Token.serializer.serialize((Token) range.left, out, version);
-                Token.serializer.serialize((Token) range.right, out, version);
-            }
-            else
-            {
-                RowPosition.serializer.serialize((RowPosition) range.left, out, version);
-                RowPosition.serializer.serialize((RowPosition) range.right, out, version);
-            }
-        }
+        IPartitionerDependentSerializer<T> serializer;
 
-        private int kindInt(AbstractBounds<?> ab)
+        private static int kindInt(AbstractBounds<?> ab)
         {
             int kind = ab instanceof Range ? Type.RANGE.ordinal() : Type.BOUNDS.ordinal();
             if (!(ab.left instanceof Token))
@@ -150,43 +124,43 @@ public abstract class AbstractBounds<T extends RingPosition<T>> implements Seria
             return kind;
         }
 
-        public AbstractBounds<?> deserialize(DataInput in, IPartitioner p, int version) throws IOException
+        public AbstractBoundsSerializer(IPartitionerDependentSerializer<T> serializer)
+        {
+            this.serializer = serializer;
+        }
+
+        public void serialize(AbstractBounds<T> range, DataOutputPlus out, int version) throws IOException
+        {
+            /*
+             * The first int tells us if it's a range or bounds (depending on the value) _and_ if it's tokens or keys (depending on the
+             * sign). We use negative kind for keys so as to preserve the serialization of token from older version.
+             */
+            out.writeInt(kindInt(range));
+            serializer.serialize(range.left, out, version);
+            serializer.serialize(range.right, out, version);
+        }
+
+        public AbstractBounds<T> deserialize(DataInput in, IPartitioner p, int version) throws IOException
         {
             int kind = in.readInt();
             boolean isToken = kind >= 0;
             if (!isToken)
                 kind = -(kind+1);
 
-            RingPosition<?> left, right;
-            if (isToken)
-            {
-                left = Token.serializer.deserialize(in, p, version);
-                right = Token.serializer.deserialize(in, p, version);
-            }
-            else
-            {
-                left = RowPosition.serializer.deserialize(in, p, version);
-                right = RowPosition.serializer.deserialize(in, p, version);
-            }
+            T left = serializer.deserialize(in, p, version);
+            T right = serializer.deserialize(in, p, version);
+            assert isToken == left instanceof Token;
 
             if (kind == Type.RANGE.ordinal())
-                return new Range(left, right);
-            return new Bounds(left, right);
+                return new Range<T>(left, right);
+            return new Bounds<T>(left, right);
         }
 
-        public long serializedSize(AbstractBounds<?> ab, int version)
+        public long serializedSize(AbstractBounds<T> ab, int version)
         {
             int size = TypeSizes.NATIVE.sizeof(kindInt(ab));
-            if (ab.left instanceof Token)
-            {
-                size += Token.serializer.serializedSize((Token) ab.left, version);
-                size += Token.serializer.serializedSize((Token) ab.right, version);
-            }
-            else
-            {
-                size += RowPosition.serializer.serializedSize((RowPosition) ab.left, version);
-                size += RowPosition.serializer.serializedSize((RowPosition) ab.right, version);
-            }
+            size += serializer.serializedSize(ab.left, version);
+            size += serializer.serializedSize(ab.right, version);
             return size;
         }
     }

@@ -69,7 +69,7 @@ public class SyncRequest extends RepairMessage
             for (Range<Token> range : message.ranges)
             {
                 MessagingService.validatePartitioner(range);
-                AbstractBounds.serializer.serialize(range, out, version);
+                AbstractBounds.tokenSerializer.serialize(range, out, version);
             }
         }
 
@@ -82,7 +82,7 @@ public class SyncRequest extends RepairMessage
             int rangesCount = in.readInt();
             List<Range<Token>> ranges = new ArrayList<>(rangesCount);
             for (int i = 0; i < rangesCount; ++i)
-                ranges.add((Range<Token>) AbstractBounds.serializer.deserialize(in, MessagingService.globalPartitioner(), version).toTokenBounds());
+                ranges.add((Range<Token>) AbstractBounds.tokenSerializer.deserialize(in, MessagingService.globalPartitioner(), version));
             return new SyncRequest(desc, owner, src, dst, ranges);
         }
 
@@ -92,7 +92,7 @@ public class SyncRequest extends RepairMessage
             size += 3 * CompactEndpointSerializationHelper.serializedSize(message.initiator);
             size += TypeSizes.NATIVE.sizeof(message.ranges.size());
             for (Range<Token> range : message.ranges)
-                size += AbstractBounds.serializer.serializedSize(range, version);
+                size += AbstractBounds.tokenSerializer.serializedSize(range, version);
             return size;
         }
     }

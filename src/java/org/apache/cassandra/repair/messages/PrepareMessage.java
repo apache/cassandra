@@ -62,7 +62,7 @@ public class PrepareMessage extends RepairMessage
             for (Range<Token> r : message.ranges)
             {
                 MessagingService.validatePartitioner(r);
-                Range.serializer.serialize(r, out, version);
+                Range.tokenSerializer.serialize(r, out, version);
             }
             out.writeBoolean(message.isIncremental);
         }
@@ -77,7 +77,7 @@ public class PrepareMessage extends RepairMessage
             int rangeCount = in.readInt();
             List<Range<Token>> ranges = new ArrayList<>(rangeCount);
             for (int i = 0; i < rangeCount; i++)
-                ranges.add((Range<Token>) Range.serializer.deserialize(in, MessagingService.globalPartitioner(), version).toTokenBounds());
+                ranges.add((Range<Token>) Range.tokenSerializer.deserialize(in, MessagingService.globalPartitioner(), version));
             boolean isIncremental = in.readBoolean();
             return new PrepareMessage(parentRepairSession, cfIds, ranges, isIncremental);
         }
@@ -91,8 +91,8 @@ public class PrepareMessage extends RepairMessage
                 size += UUIDSerializer.serializer.serializedSize(cfId, version);
             size += UUIDSerializer.serializer.serializedSize(message.parentRepairSession, version);
             size += sizes.sizeof(message.ranges.size());
-            for (Range r : message.ranges)
-                size += Range.serializer.serializedSize(r, version);
+            for (Range<Token> r : message.ranges)
+                size += Range.tokenSerializer.serializedSize(r, version);
             size += sizes.sizeof(message.isIncremental);
             return size;
         }

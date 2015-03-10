@@ -181,7 +181,7 @@ public class Util
                                : new SliceQueryFilter(SuperColumns.startOf(superColumn), SuperColumns.endOf(superColumn), false, Integer.MAX_VALUE);
 
         Token min = StorageService.getPartitioner().getMinimumToken();
-        return cfs.getRangeSlice(new Bounds<Token>(min, min).toRowBounds(), null, filter, 10000);
+        return cfs.getRangeSlice(Bounds.makeRowBounds(min, min), null, filter, 10000);
     }
 
     /**

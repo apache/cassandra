@@ -173,7 +173,7 @@ class RangeSliceCommandSerializer implements IVersionedSerializer<RangeSliceComm
             }
         }
         MessagingService.validatePartitioner(sliceCommand.keyRange);
-        AbstractBounds.serializer.serialize(sliceCommand.keyRange, out, version);
+        AbstractBounds.rowPositionSerializer.serialize(sliceCommand.keyRange, out, version);
         out.writeInt(sliceCommand.maxResults);
         out.writeBoolean(sliceCommand.countCQL3Rows);
         out.writeBoolean(sliceCommand.isPaging);
@@ -196,7 +196,7 @@ class RangeSliceCommandSerializer implements IVersionedSerializer<RangeSliceComm
         {
             rowFilter.add(IndexExpression.readFrom(in));
         }
-        AbstractBounds<RowPosition> range = AbstractBounds.serializer.deserialize(in, MessagingService.globalPartitioner(), version).toRowBounds();
+        AbstractBounds<RowPosition> range = AbstractBounds.rowPositionSerializer.deserialize(in, MessagingService.globalPartitioner(), version);
 
         int maxResults = in.readInt();
         boolean countCQL3Rows = in.readBoolean();
@@ -230,7 +230,7 @@ class RangeSliceCommandSerializer implements IVersionedSerializer<RangeSliceComm
                 size += TypeSizes.NATIVE.sizeofWithShortLength(expr.value);
             }
         }
-        size += AbstractBounds.serializer.serializedSize(rsc.keyRange, version);
+        size += AbstractBounds.rowPositionSerializer.serializedSize(rsc.keyRange, version);
         size += TypeSizes.NATIVE.sizeof(rsc.maxResults);
         size += TypeSizes.NATIVE.sizeof(rsc.countCQL3Rows);
         size += TypeSizes.NATIVE.sizeof(rsc.isPaging);

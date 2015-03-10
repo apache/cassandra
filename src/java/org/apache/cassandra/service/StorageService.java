@@ -1228,7 +1228,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
         for (Map.Entry<Range<Token>, List<InetAddress>> entry : rangeToAddressMap.entrySet())
         {
-            Range range = entry.getKey();
+            Range<Token> range = entry.getKey();
             List<InetAddress> addresses = entry.getValue();
             List<String> endpoints = new ArrayList<>(addresses.size());
             List<String> rpc_endpoints = new ArrayList<>(addresses.size());
@@ -4006,10 +4006,10 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         Set<Range<Token>> toFetch  = new HashSet<>();
 
 
-        for (Range r1 : current)
+        for (Range<Token> r1 : current)
         {
             boolean intersect = false;
-            for (Range r2 : updated)
+            for (Range<Token> r2 : updated)
             {
                 if (r1.intersects(r2))
                 {
@@ -4024,10 +4024,10 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             }
         }
 
-        for (Range r2 : updated)
+        for (Range<Token> r2 : updated)
         {
             boolean intersect = false;
-            for (Range r1 : current)
+            for (Range<Token> r1 : current)
             {
                 if (r2.intersects(r1))
                 {

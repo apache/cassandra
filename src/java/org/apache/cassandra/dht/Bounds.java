@@ -100,18 +100,6 @@ public class Bounds<T extends RingPosition<T>> extends AbstractBounds<T>
         return new Bounds<RowPosition>(left.minKeyBound(), right.maxKeyBound());
     }
 
-    @SuppressWarnings("unchecked")
-    public AbstractBounds<RowPosition> toRowBounds()
-    {
-        return (left instanceof Token) ? makeRowBounds((Token)left, (Token)right) : (Bounds<RowPosition>)this;
-    }
-
-    @SuppressWarnings("unchecked")
-    public AbstractBounds<Token> toTokenBounds()
-    {
-        return (left instanceof RowPosition) ? new Bounds<Token>(((RowPosition)left).getToken(), ((RowPosition)right).getToken()) : (Bounds<Token>)this;
-    }
-
     public AbstractBounds<T> withNewRight(T newRight)
     {
         return new Bounds<T>(left, newRight);

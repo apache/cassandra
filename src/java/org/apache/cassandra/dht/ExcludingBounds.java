@@ -20,7 +20,6 @@ package org.apache.cassandra.dht;
 import java.util.Collections;
 import java.util.List;
 
-import org.apache.cassandra.db.RowPosition;
 import org.apache.cassandra.utils.Pair;
 
 /**
@@ -79,26 +78,6 @@ public class ExcludingBounds<T extends RingPosition<T>> extends AbstractBounds<T
     protected String getClosingString()
     {
         return ")";
-    }
-
-    /**
-     * Compute a bounds of keys corresponding to a given bounds of token.
-     */
-    private static ExcludingBounds<RowPosition> makeRowBounds(Token left, Token right)
-    {
-        return new ExcludingBounds<RowPosition>(left.maxKeyBound(), right.minKeyBound());
-    }
-
-    @SuppressWarnings("unchecked")
-    public AbstractBounds<RowPosition> toRowBounds()
-    {
-        return (left instanceof Token) ? makeRowBounds((Token)left, (Token)right) : (ExcludingBounds<RowPosition>)this;
-    }
-
-    @SuppressWarnings("unchecked")
-    public AbstractBounds<Token> toTokenBounds()
-    {
-        return (left instanceof RowPosition) ? new ExcludingBounds<Token>(((RowPosition)left).getToken(), ((RowPosition)right).getToken()) : (ExcludingBounds<Token>)this;
     }
 
     public AbstractBounds<T> withNewRight(T newRight)

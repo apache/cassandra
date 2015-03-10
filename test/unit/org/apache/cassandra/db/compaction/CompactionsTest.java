@@ -19,10 +19,8 @@
 package org.apache.cassandra.db.compaction;
 
 import java.io.File;
-import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.*;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
 import org.apache.cassandra.OrderedJUnit4ClassRunner;
@@ -188,7 +186,7 @@ public class CompactionsTest
 
         // check that the shadowed column is gone
         SSTableReader sstable = cfs.getSSTables().iterator().next();
-        Range keyRange = new Range<RowPosition>(key, sstable.partitioner.getMinimumToken().maxKeyBound());
+        Range<RowPosition> keyRange = new Range<RowPosition>(key, sstable.partitioner.getMinimumToken().maxKeyBound());
         ISSTableScanner scanner = sstable.getScanner(DataRange.forKeyRange(keyRange));
         OnDiskAtomIterator iter = scanner.next();
         assertEquals(key, iter.getKey());

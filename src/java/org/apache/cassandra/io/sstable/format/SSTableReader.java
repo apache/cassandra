@@ -1249,7 +1249,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
         {
             assert !range.isWrapAround() || range.right.isMinimum();
             // truncate the range so it at most covers the sstable
-            AbstractBounds<RowPosition> bounds = range.toRowBounds();
+            AbstractBounds<RowPosition> bounds = Range.makeRowRange(range);
             RowPosition leftBound = bounds.left.compareTo(first) > 0 ? bounds.left : first.getToken().minKeyBound();
             RowPosition rightBound = bounds.right.isMinimum() ? last.getToken().maxKeyBound() : bounds.right;
 
