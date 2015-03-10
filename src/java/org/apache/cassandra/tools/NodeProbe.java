@@ -258,8 +258,6 @@ public class NodeProbe implements AutoCloseable
             jmxc.addConnectionNotificationListener(runner, null, null);
             ssProxy.addNotificationListener(runner, null, null);
             runner.run();
-            if (!runner.get())
-                failed = true;
         }
         catch (Exception e)
         {

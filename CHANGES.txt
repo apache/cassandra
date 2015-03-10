@@ -62,6 +62,7 @@
  * Improve concurrency of repair (CASSANDRA-6455, 8208)
  * Select optimal CRC32 implementation at runtime (CASSANDRA-8614)
  * Evaluate MurmurHash of Token once per query (CASSANDRA-7096)
+ * Generalize progress reporting (CASSANDRA-8901)
 
 2.1.4
  * cassandra-stress reports per-operation statistics, plus misc (CASSANDRA-8769)
