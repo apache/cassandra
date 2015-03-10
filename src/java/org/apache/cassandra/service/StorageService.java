@@ -51,9 +51,7 @@ import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.index.SecondaryIndex;
 import org.apache.cassandra.dht.*;
 import org.apache.cassandra.dht.Range;
-import org.apache.cassandra.exceptions.ConfigurationException;
-import org.apache.cassandra.exceptions.InvalidRequestException;
-import org.apache.cassandra.exceptions.UnavailableException;
+import org.apache.cassandra.exceptions.*;
 import org.apache.cassandra.gms.*;
 import org.apache.cassandra.io.sstable.SSTableDeletingTask;
 import org.apache.cassandra.io.sstable.SSTableLoader;
@@ -807,7 +805,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
         // if we don't have system_traces keyspace at this point, then create it manually
         if (Schema.instance.getKSMetaData(TraceKeyspace.NAME) == null)
-            MigrationManager.announceNewKeyspace(TraceKeyspace.definition(), 0, false);
+            maybeAddKeyspace(TraceKeyspace.definition());
 
         if (!isSurveyMode)
         {
@@ -872,14 +870,14 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             // the ks exists with the only the legacy tables defined
             if (Schema.instance.getKSMetaData(AuthKeyspace.NAME) == null)
             {
-                MigrationManager.announceNewKeyspace(AuthKeyspace.definition(), 0, false);
+                maybeAddKeyspace(AuthKeyspace.definition());
             }
             else
             {
                 for (Map.Entry<String, CFMetaData> table : AuthKeyspace.definition().cfMetaData().entrySet())
                 {
                     if (Schema.instance.getCFMetaData(AuthKeyspace.NAME, table.getKey()) == null)
-                        MigrationManager.announceNewColumnFamily(table.getValue());
+                        maybeAddTable(table.getValue());
                 }
             }
         }
@@ -892,6 +890,30 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         DatabaseDescriptor.getAuthenticator().setup();
         DatabaseDescriptor.getAuthorizer().setup();
         MigrationManager.instance.register(new AuthMigrationListener());
+    }
+
+    private void maybeAddTable(CFMetaData cfm)
+    {
+        try
+        {
+            MigrationManager.announceNewColumnFamily(cfm);
+        }
+        catch (AlreadyExistsException e)
+        {
+            logger.debug("Attempted to create new table {}, but it already exists", cfm.cfName);
+        }
+    }
+
+    private void maybeAddKeyspace(KSMetaData ksm)
+    {
+        try
+        {
+            MigrationManager.announceNewKeyspace(ksm, 0, false);
+        }
+        catch (AlreadyExistsException e)
+        {
+            logger.debug("Attempted to create new keyspace {}, but it already exists", ksm.name);
+        }
     }
 
     public boolean isJoined()
