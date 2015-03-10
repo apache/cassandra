@@ -38,6 +38,8 @@ Merged from 2.0:
  * Fix regression in mixed single and multi-column relation support for
    SELECT statements (CASSANDRA-8613)
  * Add ability to limit number of native connections (CASSANDRA-8086)
+ * Fix CQLSSTableWriter throwing exception and spawning threads
+   (CASSANDRA-8808)
  * Add offline tool to relevel sstables (CASSANDRA-8301)
  * Preserve stream ID for more protocol errors (CASSANDRA-8848)
  * Fix combining token() function with multi-column relations on
@@ -57,8 +59,6 @@ Merged from 2.0:
  * 'nodetool info' prints exception against older node (CASSANDRA-8796)
  * Ensure SSTableSimpleUnsortedWriter.close() terminates if
    disk writer has crashed (CASSANDRA-8807)
- * Fix CQLSSTableWriter throwing exception and spawning threads
-   (CASSANDRA-8808)
 
 
 2.1.3
@@ -159,6 +159,9 @@ Merged from 2.0:
  * Round up time deltas lower than 1ms in BulkLoader (CASSANDRA-8645)
  * Add batch remove iterator to ABSC (CASSANDRA-8414, 8666)
  * Fix isClientMode check in Keyspace (CASSANDRA-8687)
+ * 'nodetool info' prints exception against older node (CASSANDRA-8796)
+ * Ensure SSTableSimpleUnsortedWriter.close() terminates if
+   disk writer has crashed (CASSANDRA-8807)
  * Use more efficient slice size for querying internal secondary
    index tables (CASSANDRA-8550)
  * Fix potentially returning deleted rows with range tombstone (CASSANDRA-8558)
@@ -211,6 +214,7 @@ Merged from 2.0:
  * Add DC-aware sequential repair (CASSANDRA-8193)
  * Use live sstables in snapshot repair if possible (CASSANDRA-8312)
  * Fix hints serialized size calculation (CASSANDRA-8587)
+
 
 2.1.2
  * (cqlsh) parse_for_table_meta errors out on queries with undefined
