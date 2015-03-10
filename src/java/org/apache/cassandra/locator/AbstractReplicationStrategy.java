@@ -18,6 +18,7 @@
 package org.apache.cassandra.locator;
 
 import java.lang.reflect.Constructor;
+import java.lang.reflect.InvocationTargetException;
 import java.net.InetAddress;
 import java.util.*;
 
@@ -237,6 +238,11 @@ public abstract class AbstractReplicationStrategy
         {
             Constructor<? extends AbstractReplicationStrategy> constructor = strategyClass.getConstructor(parameterTypes);
             strategy = constructor.newInstance(keyspaceName, tokenMetadata, snitch, strategyOptions);
+        }
+        catch (InvocationTargetException e)
+        {
+            Throwable targetException = e.getTargetException();
+            throw new ConfigurationException(targetException.getMessage(), targetException);
         }
         catch (Exception e)
         {

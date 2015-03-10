@@ -98,6 +98,9 @@
  * Fix Adler32 digest for compressed sstables (CASSANDRA-8778)
  * Add nodetool statushandoff/statusbackup (CASSANDRA-8912)
 Merged from 2.0:
+2.0.14:
+ * Provide better exceptions for invalid replication strategy parameters
+   (CASSANDRA-8909)
  * Fix regression in mixed single and multi-column relation support for
    SELECT statements (CASSANDRA-8613)
  * Add ability to limit number of native connections (CASSANDRA-8086)
