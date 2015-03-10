@@ -19,19 +19,15 @@ package org.apache.cassandra.db.marshal;
 
 import java.nio.ByteBuffer;
 import java.util.UUID;
-import java.util.regex.Pattern;
 
 import org.apache.cassandra.cql3.CQL3Type;
 import org.apache.cassandra.serializers.TypeSerializer;
 import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.serializers.TimeUUIDSerializer;
-import org.apache.cassandra.utils.ByteBufferUtil;
 
 public class TimeUUIDType extends AbstractType<UUID>
 {
     public static final TimeUUIDType instance = new TimeUUIDType();
-
-    static final Pattern regexPattern = Pattern.compile("[A-Fa-f0-9]{8}\\-[A-Fa-f0-9]{4}\\-[A-Fa-f0-9]{4}\\-[A-Fa-f0-9]{4}\\-[A-Fa-f0-9]{12}");
 
     TimeUUIDType()
     {
@@ -93,35 +89,15 @@ public class TimeUUIDType extends AbstractType<UUID>
 
     public ByteBuffer fromString(String source) throws MarshalException
     {
-        // Return an empty ByteBuffer for an empty string.
-        if (source.isEmpty())
-            return ByteBufferUtil.EMPTY_BYTE_BUFFER;
-
-        ByteBuffer idBytes = null;
-
-        // ffffffff-ffff-ffff-ffff-ffffffffff
-        if (regexPattern.matcher(source).matches())
-        {
-            UUID uuid = null;
-            try
-            {
-                uuid = UUID.fromString(source);
-                idBytes = decompose(uuid);
-            }
-            catch (IllegalArgumentException e)
-            {
-                throw new MarshalException(String.format("Unable to make UUID from '%s'", source), e);
-            }
-
-            if (uuid.version() != 1)
-                throw new MarshalException("TimeUUID supports only version 1 UUIDs");
-        } else
-        {
+        ByteBuffer parsed = UUIDType.parse(source);
+        if (parsed == null)
             throw new MarshalException(String.format("Unknown timeuuid representation: %s", source));
-        }
-        return idBytes;
+        if (parsed.remaining() == 16 && UUIDType.version(parsed) != 1)
+            throw new MarshalException("TimeUUID supports only version 1 UUIDs");
+        return parsed;
     }
 
+    @Override
     public CQL3Type asCQL3Type()
     {
         return CQL3Type.Native.TIMEUUID;

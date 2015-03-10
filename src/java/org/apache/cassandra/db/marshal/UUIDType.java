@@ -19,6 +19,7 @@ package org.apache.cassandra.db.marshal;
 
 import java.nio.ByteBuffer;
 import java.util.UUID;
+import java.util.regex.Pattern;
 
 import com.google.common.primitives.UnsignedLongs;
 
@@ -93,34 +94,23 @@ public class UUIDType extends AbstractType<UUID>
     }
 
     @Override
-    public ByteBuffer fromString(String source) throws MarshalException
+    public boolean isValueCompatibleWithInternal(AbstractType<?> otherType)
     {
-        // Return an empty ByteBuffer for an empty string.
-        if (source.isEmpty())
-            return ByteBufferUtil.EMPTY_BYTE_BUFFER;
-
-        // ffffffff-ffff-ffff-ffff-ffffffffff
-        if (TimeUUIDType.regexPattern.matcher(source).matches())
-        {
-            try
-            {
-                return ByteBuffer.wrap(UUIDGen.decompose(UUID.fromString(source)));
-            }
-            catch (IllegalArgumentException e)
-            {
-                throw new MarshalException(String.format("unable to make UUID from '%s'", source), e);
-            }
-        }
-
-        throw new MarshalException(String.format("unable to coerce '%s' to version 1 UUID", source));
+        return otherType instanceof UUIDType || otherType instanceof TimeUUIDType;
     }
 
     @Override
-    public boolean isValueCompatibleWithInternal(AbstractType<?> otherType)
+    public ByteBuffer fromString(String source) throws MarshalException
     {
-        return this == otherType || otherType == TimeUUIDType.instance;
+        // Return an empty ByteBuffer for an empty string.
+        ByteBuffer parsed = parse(source);
+        if (parsed != null)
+            return parsed;
+
+        throw new MarshalException(String.format("unable to coerce '%s' to UUID", source));
     }
 
+    @Override
     public CQL3Type asCQL3Type()
     {
         return CQL3Type.Native.UUID;
@@ -131,4 +121,29 @@ public class UUIDType extends AbstractType<UUID>
         return UUIDSerializer.instance;
     }
 
+    static final Pattern regexPattern = Pattern.compile("[A-Fa-f0-9]{8}\\-[A-Fa-f0-9]{4}\\-[A-Fa-f0-9]{4}\\-[A-Fa-f0-9]{4}\\-[A-Fa-f0-9]{12}");
+
+    static ByteBuffer parse(String source)
+    {
+        if (source.isEmpty())
+            return ByteBufferUtil.EMPTY_BYTE_BUFFER;
+
+        if (regexPattern.matcher(source).matches())
+        {
+            try
+            {
+                return ByteBuffer.wrap(UUIDGen.decompose(UUID.fromString(source)));
+            }
+            catch (IllegalArgumentException e)
+            {
+                throw new MarshalException(String.format("unable to make UUID from '%s'", source), e);
+            }
+        }
+        return null;
+    }
+
+    static int version(ByteBuffer uuid)
+    {
+        return (uuid.get(6) & 0xf0) >> 4;
+    }
 }
