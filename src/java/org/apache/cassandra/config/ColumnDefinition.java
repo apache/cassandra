@@ -313,7 +313,7 @@ public class ColumnDefinition extends ColumnSpecification
      */
     public boolean hasIndexOption(String name)
     {
-        return indexOptions.containsKey(name);
+        return indexOptions != null && indexOptions.containsKey(name);
     }
 
     /**
