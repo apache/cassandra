@@ -21,13 +21,11 @@ package org.apache.cassandra.stress.operations;
  */
 
 
-import org.apache.cassandra.stress.util.Timer;
+import org.apache.cassandra.stress.util.Timing;
 
 public interface OpDistributionFactory
 {
-
-    public OpDistribution get(Timer timer);
+    public OpDistribution get(Timing timing, int sampleCount);
     public String desc();
     Iterable<OpDistributionFactory> each();
-
 }

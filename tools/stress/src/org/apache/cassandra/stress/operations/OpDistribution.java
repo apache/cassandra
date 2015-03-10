@@ -28,4 +28,6 @@ public interface OpDistribution
 
     Operation next();
 
+    public void initTimers();
+    public void closeTimers();
 }

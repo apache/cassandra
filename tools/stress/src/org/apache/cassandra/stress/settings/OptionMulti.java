@@ -182,6 +182,11 @@ abstract class OptionMulti extends Option
         {
             return !options.isEmpty();
         }
+
+        boolean present()
+        {
+            return !options.isEmpty();
+        }
     }
 
     List<Option> optionsSetByUser()
@@ -197,7 +202,7 @@ abstract class OptionMulti extends Option
     {
         List<Option> r = new ArrayList<>();
         for (Option option : delegate.options())
-            if (!option.setByUser() && option.happy())
+            if (!option.setByUser() && option.present())
                 r.add(option);
         return r;
     }
@@ -206,6 +211,14 @@ abstract class OptionMulti extends Option
     {
         for (Option option : delegate.options())
             if (option.setByUser())
+                return true;
+        return false;
+    }
+
+    boolean present()
+    {
+        for (Option option : delegate.options())
+            if (option.present())
                 return true;
         return false;
     }

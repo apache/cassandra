@@ -24,18 +24,16 @@ package org.apache.cassandra.stress;
 import java.io.PrintStream;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ThreadFactory;
 
+import org.apache.cassandra.stress.util.*;
 import org.apache.commons.lang3.time.DurationFormatUtils;
 
 import org.apache.cassandra.concurrent.NamedThreadFactory;
 import org.apache.cassandra.stress.settings.StressSettings;
-import org.apache.cassandra.stress.util.JmxCollector;
-import org.apache.cassandra.stress.util.Timing;
-import org.apache.cassandra.stress.util.TimingInterval;
-import org.apache.cassandra.stress.util.Uncertainty;
 
 public class StressMetrics
 {
@@ -51,10 +49,12 @@ public class StressMetrics
     private final Timing timing;
     private final Callable<JmxCollector.GcStats> gcStatsCollector;
     private volatile JmxCollector.GcStats totalGcStats;
+    private final StressSettings settings;
 
     public StressMetrics(PrintStream output, final long logIntervalMillis, StressSettings settings)
     {
         this.output = output;
+        this.settings = settings;
         Callable<JmxCollector.GcStats> gcStatsCollector;
         totalGcStats = new JmxCollector.GcStats(0);
         try
@@ -93,7 +93,9 @@ public class StressMetrics
                     {
                         try
                         {
-                            long sleep = timing.getHistory().endMillis() + logIntervalMillis - System.currentTimeMillis();
+                            long sleepNanos = timing.getHistory().endNanos() - System.nanoTime();
+                            long sleep = (sleepNanos / 1000000) + logIntervalMillis;
+
                             if (sleep < logIntervalMillis >>> 3)
                                 // if had a major hiccup, sleep full interval
                                 Thread.sleep(logIntervalMillis);
@@ -154,9 +156,19 @@ public class StressMetrics
     {
         Timing.TimingResult<JmxCollector.GcStats> result = timing.snap(gcStatsCollector);
         totalGcStats = JmxCollector.GcStats.aggregate(Arrays.asList(totalGcStats, result.extra));
-        if (result.timing.partitionCount != 0)
-            printRow("", result.timing, timing.getHistory(), result.extra, rowRateUncertainty, output);
-        rowRateUncertainty.update(result.timing.adjustedRowRate());
+        TimingInterval current = result.intervals.combine(settings.samples.reportCount);
+        TimingInterval history = timing.getHistory().combine(settings.samples.historyCount);
+        rowRateUncertainty.update(current.adjustedRowRate());
+        if (current.partitionCount != 0)
+        {
+            if (result.intervals.intervals().size() > 1)
+            {
+                for (Map.Entry<String, TimingInterval> type : result.intervals.intervals().entrySet())
+                    printRow("", type.getKey(), type.getValue(), timing.getHistory().get(type.getKey()), result.extra, rowRateUncertainty, output);
+            }
+
+            printRow("", "total", current, history, result.extra, rowRateUncertainty, output);
+        }
         if (timing.done())
             stop = true;
     }
@@ -164,19 +176,19 @@ public class StressMetrics
 
     // PRINT FORMATTING
 
-    public static final String HEADFORMAT = "%-10s,%10s,%8s,%8s,%8s,%8s,%8s,%8s,%8s,%8s,%8s,%7s,%9s,%7s,%8s,%8s,%8s,%8s";
-    public static final String ROWFORMAT =  "%-10d,%10.0f,%8.0f,%8.0f,%8.0f,%8.1f,%8.1f,%8.1f,%8.1f,%8.1f,%8.1f,%7.1f,%9.5f,%7.0f,%8.0f,%8.0f,%8.0f,%8.0f";
+    public static final String HEADFORMAT = "%-10s%10s,%8s,%8s,%8s,%8s,%8s,%8s,%8s,%8s,%8s,%7s,%9s,%7s,%7s,%8s,%8s,%8s,%8s";
+    public static final String ROWFORMAT =  "%-10s%10d,%8.0f,%8.0f,%8.0f,%8.1f,%8.1f,%8.1f,%8.1f,%8.1f,%8.1f,%7.1f,%9.5f,%7d,%7.0f,%8.0f,%8.0f,%8.0f,%8.0f";
 
     private static void printHeader(String prefix, PrintStream output)
     {
-        output.println(prefix + String.format(HEADFORMAT, "total ops","adj row/s","op/s","pk/s","row/s","mean","med",".95",".99",".999","max","time","stderr", "gc: #", "max ms", "sum ms", "sdv ms", "mb"));
+        output.println(prefix + String.format(HEADFORMAT, "type,", "total ops","op/s","pk/s","row/s","mean","med",".95",".99",".999","max","time","stderr", "errors", "gc: #", "max ms", "sum ms", "sdv ms", "mb"));
     }
 
-    private static void printRow(String prefix, TimingInterval interval, TimingInterval total, JmxCollector.GcStats gcStats, Uncertainty opRateUncertainty, PrintStream output)
+    private static void printRow(String prefix, String type, TimingInterval interval, TimingInterval total, JmxCollector.GcStats gcStats, Uncertainty opRateUncertainty, PrintStream output)
     {
         output.println(prefix + String.format(ROWFORMAT,
+                type + ",",
                 total.operationCount,
-                interval.adjustedRowRate(),
                 interval.opRate(),
                 interval.partitionRate(),
                 interval.rowRate(),
@@ -188,6 +200,7 @@ public class StressMetrics
                 interval.maxLatency(),
                 total.runTime() / 1000f,
                 opRateUncertainty.getUncertainty(),
+                interval.errorCount,
                 gcStats.count,
                 gcStats.maxms,
                 gcStats.summs,
@@ -200,16 +213,20 @@ public class StressMetrics
     {
         output.println("\n");
         output.println("Results:");
-        TimingInterval history = timing.getHistory();
-        output.println(String.format("op rate                   : %.0f", history.opRate()));
-        output.println(String.format("partition rate            : %.0f", history.partitionRate()));
-        output.println(String.format("row rate                  : %.0f", history.rowRate()));
-        output.println(String.format("latency mean              : %.1f", history.meanLatency()));
-        output.println(String.format("latency median            : %.1f", history.medianLatency()));
-        output.println(String.format("latency 95th percentile   : %.1f", history.rankLatency(.95f)));
-        output.println(String.format("latency 99th percentile   : %.1f", history.rankLatency(0.99f)));
-        output.println(String.format("latency 99.9th percentile : %.1f", history.rankLatency(0.999f)));
-        output.println(String.format("latency max               : %.1f", history.maxLatency()));
+
+        TimingIntervals opHistory = timing.getHistory();
+        TimingInterval history = opHistory.combine(settings.samples.historyCount);
+        output.println(String.format("op rate                   : %.0f %s", history.opRate(), opHistory.opRates()));
+        output.println(String.format("partition rate            : %.0f %s", history.partitionRate(), opHistory.partitionRates()));
+        output.println(String.format("row rate                  : %.0f %s", history.rowRate(), opHistory.rowRates()));
+        output.println(String.format("latency mean              : %.1f %s", history.meanLatency(), opHistory.meanLatencies()));
+        output.println(String.format("latency median            : %.1f %s", history.medianLatency(), opHistory.medianLatencies()));
+        output.println(String.format("latency 95th percentile   : %.1f %s", history.rankLatency(.95f), opHistory.rankLatencies(0.95f)));
+        output.println(String.format("latency 99th percentile   : %.1f %s", history.rankLatency(0.99f), opHistory.rankLatencies(0.99f)));
+        output.println(String.format("latency 99.9th percentile : %.1f %s", history.rankLatency(0.999f), opHistory.rankLatencies(0.999f)));
+        output.println(String.format("latency max               : %.1f %s", history.maxLatency(), opHistory.maxLatencies()));
+        output.println(String.format("Total partitions          : %d %s",   history.partitionCount, opHistory.partitionCounts()));
+        output.println(String.format("Total errors              : %d %s",   history.errorCount, opHistory.errorCounts()));
         output.println(String.format("total gc count            : %.0f", totalGcStats.count));
         output.println(String.format("total gc mb               : %.0f", totalGcStats.bytes / (1 << 20)));
         output.println(String.format("total gc time (s)         : %.0f", totalGcStats.summs / 1000));
@@ -219,7 +236,7 @@ public class StressMetrics
                 history.runTime(), "HH:mm:ss", true));
     }
 
-    public static void summarise(List<String> ids, List<StressMetrics> summarise, PrintStream out)
+    public static void summarise(List<String> ids, List<StressMetrics> summarise, PrintStream out, int historySampleCount)
     {
         int idLen = 0;
         for (String id : ids)
@@ -227,13 +244,27 @@ public class StressMetrics
         String formatstr = "%" + idLen + "s, ";
         printHeader(String.format(formatstr, "id"), out);
         for (int i = 0 ; i < ids.size() ; i++)
+        {
+            for (Map.Entry<String, TimingInterval> type : summarise.get(i).timing.getHistory().intervals().entrySet())
+            {
+                printRow(String.format(formatstr, ids.get(i)),
+                         type.getKey(),
+                         type.getValue(),
+                         type.getValue(),
+                         summarise.get(i).totalGcStats,
+                         summarise.get(i).rowRateUncertainty,
+                         out);
+            }
+            TimingInterval hist = summarise.get(i).timing.getHistory().combine(historySampleCount);
             printRow(String.format(formatstr, ids.get(i)),
-                    summarise.get(i).timing.getHistory(),
-                    summarise.get(i).timing.getHistory(),
+                    "total",
+                    hist,
+                    hist,
                     summarise.get(i).totalGcStats,
                     summarise.get(i).rowRateUncertainty,
                     out
             );
+        }
     }
 
     public Timing getTiming()
