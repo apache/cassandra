@@ -97,7 +97,7 @@ public class TimingIntervals
     }
     public String rankLatencies(float rank)
     {
-        return str(TimingInterval.TimingParameter.MEDIANLATENCY, rank);
+        return str(TimingInterval.TimingParameter.RANKLATENCY, rank);
     }
     public String errorCounts()
     {
