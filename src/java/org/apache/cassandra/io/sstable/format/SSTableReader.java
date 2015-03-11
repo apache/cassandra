@@ -279,11 +279,11 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
                 if (cardinality != null)
                     cardinalities.add(cardinality);
                 else
-                    logger.debug("Got a null cardinality estimator in: "+sstable.getFilename());
+                    logger.debug("Got a null cardinality estimator in: {}", sstable.getFilename());
             }
             catch (IOException e)
             {
-                logger.warn("Could not read up compaction metadata for " + sstable, e);
+                logger.warn("Could not read up compaction metadata for {}", sstable, e);
             }
         }
         long totalKeyCountBefore = 0;

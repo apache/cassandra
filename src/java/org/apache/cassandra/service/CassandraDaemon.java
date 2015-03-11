@@ -522,7 +522,7 @@ public class CassandraDaemon
             else
             {
                 if (runManaged)
-                    logger.error("Exception encountered during startup: " + e.getMessage());
+                    logger.error("Exception encountered during startup: {}", e.getMessage());
                 // try to warn user on stdout too, if we haven't already detached
                 System.err.println(e.getMessage());
                 exitOrFail(3, "Exception encountered during startup: " + e.getMessage());

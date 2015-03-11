@@ -81,7 +81,7 @@ public class SigarLibrary
         }
         catch (SigarException sigarException)
         {
-            logger.warn("Could not determine if max processes was acceptable. Error message: " + sigarException);
+            logger.warn("Could not determine if max processes was acceptable. Error message: {}", sigarException);
             return false;
         }
     }
@@ -102,7 +102,7 @@ public class SigarLibrary
         }
         catch (SigarException sigarException)
         {
-            logger.warn("Could not determine if max open file handle limit is correctly configured. Error message: " + sigarException);
+            logger.warn("Could not determine if max open file handle limit is correctly configured. Error message: {}", sigarException);
             return false;
         }
     }
@@ -127,7 +127,7 @@ public class SigarLibrary
         }
         catch (SigarException sigarException)
         {
-            logger.warn("Could not determine if VirtualMemoryMax was acceptable. Error message: " + sigarException);
+            logger.warn("Could not determine if VirtualMemoryMax was acceptable. Error message: {}", sigarException);
             return false;
         }
     }
@@ -149,7 +149,7 @@ public class SigarLibrary
         }
         catch (SigarException sigarException)
         {
-            logger.warn("Could not determine if swap configuration is acceptable. Error message: " + sigarException);
+            logger.warn("Could not determine if swap configuration is acceptable. Error message: {}", sigarException);
             return false;
         }
     }
