@@ -197,6 +197,11 @@ public class Tracing
 
     public TraceState begin(final String request, final Map<String, String> parameters)
     {
+        return begin(request, null, parameters);
+    }
+
+    public TraceState begin(final String request, final InetAddress client, final Map<String, String> parameters)
+    {
         assert isTracing();
 
         final TraceState state = this.state.get();
@@ -209,7 +214,7 @@ public class Tracing
         {
             public void run()
             {
-                mutateWithCatch(TraceKeyspace.makeStartSessionMutation(sessionId, parameters, request, startedAt, command, ttl));
+                mutateWithCatch(TraceKeyspace.makeStartSessionMutation(sessionId, client, parameters, request, startedAt, command, ttl));
             }
         });
 

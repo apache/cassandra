@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.thrift;
 
+import java.net.InetSocketAddress;
 import java.net.SocketAddress;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -57,7 +58,7 @@ public class ThriftSessionManager
         ThriftClientState cState = activeSocketSessions.get(socket);
         if (cState == null)
         {
-            cState = new ThriftClientState(socket);
+            cState = new ThriftClientState((InetSocketAddress)socket);
             activeSocketSessions.put(socket, cState);
         }
         return cState;

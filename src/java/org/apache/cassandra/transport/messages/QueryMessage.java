@@ -112,7 +112,7 @@ public class QueryMessage extends Message.Request
                 if (options.getPageSize() > 0)
                     builder.put("page_size", Integer.toString(options.getPageSize()));
 
-                Tracing.instance.begin("Execute CQL3 query", builder.build());
+                Tracing.instance.begin("Execute CQL3 query", state.getClientAddress(), builder.build());
             }
 
             Message.Response response = state.getClientState().getCQLQueryHandler().process(query, state, options);

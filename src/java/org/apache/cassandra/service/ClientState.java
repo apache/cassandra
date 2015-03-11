@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.service;
 
+import java.net.InetSocketAddress;
 import java.net.SocketAddress;
 import java.util.Arrays;
 import java.util.HashSet;
@@ -89,7 +90,7 @@ public class ClientState
         {
             try
             {
-                handler = (QueryHandler)FBUtilities.construct(customHandlerClass, "QueryHandler");
+                handler = FBUtilities.construct(customHandlerClass, "QueryHandler");
                 logger.info("Using {} as query handler for native protocol queries (as requested with -Dcassandra.custom_query_handler_class)", customHandlerClass);
             }
             catch (Exception e)
@@ -106,7 +107,7 @@ public class ClientState
     public final boolean isInternal;
 
     // The remote address of the client - null for internal clients.
-    private final SocketAddress remoteAddress;
+    private final InetSocketAddress remoteAddress;
 
     // The biggest timestamp that was returned by getTimestamp/assigned to a query
     private final AtomicLong lastTimestampMicros = new AtomicLong(0);
@@ -120,7 +121,7 @@ public class ClientState
         this.remoteAddress = null;
     }
 
-    protected ClientState(SocketAddress remoteAddress)
+    protected ClientState(InetSocketAddress remoteAddress)
     {
         this.isInternal = false;
         this.remoteAddress = remoteAddress;
@@ -141,7 +142,7 @@ public class ClientState
      */
     public static ClientState forExternalCalls(SocketAddress remoteAddress)
     {
-        return new ClientState(remoteAddress);
+        return new ClientState((InetSocketAddress)remoteAddress);
     }
 
     /**
@@ -181,7 +182,7 @@ public class ClientState
         return cqlQueryHandler;
     }
 
-    public SocketAddress getRemoteAddress()
+    public InetSocketAddress getRemoteAddress()
     {
         return remoteAddress;
     }

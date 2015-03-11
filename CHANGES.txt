@@ -1,4 +1,5 @@
 3.0
+ * Record client ip address in tracing sessions (CASSANDRA-8162)
  * Indicate partition key columns in response metadata for prepared
    statements (CASSANDRA-7660)
  * Merge UUIDType and TimeUUIDType parse logic (CASSANDRA-8759)
