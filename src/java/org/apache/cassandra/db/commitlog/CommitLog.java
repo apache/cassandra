@@ -299,6 +299,36 @@ public class CommitLog implements CommitLogMBean
         return metrics.totalCommitLogSize.value();
     }
 
+    @Override
+    public String getArchiveCommand()
+    {
+        return archiver.archiveCommand;
+    }
+
+    @Override
+    public String getRestoreCommand()
+    {
+        return archiver.restoreCommand;
+    }
+
+    @Override
+    public String getRestoreDirectories()
+    {
+        return archiver.restoreDirectories;
+    }
+
+    @Override
+    public long getRestorePointInTime()
+    {
+        return archiver.restorePointInTime;
+    }
+
+    @Override
+    public String getRestorePrecision()
+    {
+        return archiver.precision.toString();
+    }
+
     /**
      * Fetches a new segment file from the allocator and activates it.
      *
