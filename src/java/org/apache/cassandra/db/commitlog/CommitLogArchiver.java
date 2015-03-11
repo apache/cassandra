@@ -53,9 +53,9 @@ public class CommitLogArchiver
 
     public final Map<String, Future<?>> archivePending = new ConcurrentHashMap<String, Future<?>>();
     private final ExecutorService executor = new JMXEnabledThreadPoolExecutor("CommitLogArchiver");
-    private final String archiveCommand;
-    private final String restoreCommand;
-    private final String restoreDirectories;
+    final String archiveCommand;
+    final String restoreCommand;
+    final String restoreDirectories;
     public final long restorePointInTime;
     public final TimeUnit precision;
 

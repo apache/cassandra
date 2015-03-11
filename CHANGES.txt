@@ -107,6 +107,7 @@
  * Add nodetool statushandoff/statusbackup (CASSANDRA-8912)
 Merged from 2.0:
 2.0.14:
+ * Expose commit log archive status via JMX (CASSANDRA-8734)
  * Provide better exceptions for invalid replication strategy parameters
    (CASSANDRA-8909)
  * Fix regression in mixed single and multi-column relation support for
