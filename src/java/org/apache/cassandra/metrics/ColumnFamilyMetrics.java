@@ -715,7 +715,7 @@ public class ColumnFamilyMetrics
         return ret;
     }
     
-    public class ColumnFamilyHistogram
+    public static class ColumnFamilyHistogram
     {
         public final Histogram[] all;
         public final Histogram cf;
@@ -734,7 +734,7 @@ public class ColumnFamilyMetrics
         }
     }
     
-    class ColumnFamilyMetricNameFactory implements MetricNameFactory
+    static class ColumnFamilyMetricNameFactory implements MetricNameFactory
     {
         private final String keyspaceName;
         private final String columnFamilyName;

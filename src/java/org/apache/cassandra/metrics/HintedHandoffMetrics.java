@@ -82,7 +82,7 @@ public class HintedHandoffMetrics
         }
     }
 
-    public class DifferencingCounter
+    public static class DifferencingCounter
     {
         private final Counter meter;
         private long reported = 0;

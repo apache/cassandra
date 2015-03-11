@@ -67,7 +67,7 @@ public class EstimatedHistogramReservoir implements Reservoir
         histogram.getBuckets(true);
     }
 
-    class HistogramSnapshot extends UniformSnapshot
+    static class HistogramSnapshot extends UniformSnapshot
     {
         EstimatedHistogram histogram;
 

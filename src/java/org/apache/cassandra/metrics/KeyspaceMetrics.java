@@ -284,7 +284,7 @@ public class KeyspaceMetrics
         });
     }
 
-    class KeyspaceMetricNameFactory implements MetricNameFactory
+    static class KeyspaceMetricNameFactory implements MetricNameFactory
     {
         private final String keyspaceName;
 
