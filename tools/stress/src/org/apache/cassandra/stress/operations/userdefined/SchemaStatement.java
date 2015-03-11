@@ -35,6 +35,7 @@ import org.apache.cassandra.stress.Operation;
 import org.apache.cassandra.stress.generate.Row;
 import org.apache.cassandra.stress.settings.StressSettings;
 import org.apache.cassandra.stress.settings.ValidationType;
+import org.apache.cassandra.stress.util.JavaDriverClient;
 import org.apache.cassandra.stress.util.Timer;
 import org.apache.cassandra.thrift.CqlResult;
 import org.apache.cassandra.transport.SimpleClient;
@@ -62,6 +63,8 @@ public abstract class SchemaStatement extends Operation
         int i = 0;
         for (ColumnDefinitions.Definition definition : statement.getVariables())
             argumentIndex[i++] = spec.partitionGenerator.indexOf(definition.getName());
+
+        statement.setConsistencyLevel(JavaDriverClient.from(cl));
     }
 
     BoundStatement bindRow(Row row)
