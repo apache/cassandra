@@ -914,15 +914,15 @@ roleResource  returns [RoleResource res]
 createUserStatement returns [CreateRoleStatement stmt]
     @init {
         RoleOptions opts = new RoleOptions();
-        opts.put(IRoleManager.Option.LOGIN.name(), true);
+        opts.setOption(IRoleManager.Option.LOGIN, true);
         boolean superuser = false;
         boolean ifNotExists = false;
         RoleName name = new RoleName();
     }
     : K_CREATE K_USER (K_IF K_NOT K_EXISTS { ifNotExists = true; })? u=username { name.setName($u.text, false); }
-      ( K_WITH roleOptions[opts] )?
+      ( K_WITH userPassword[opts] )?
       ( K_SUPERUSER { superuser = true; } | K_NOSUPERUSER { superuser = false; } )?
-      { opts.put(IRoleManager.Option.SUPERUSER.name(), superuser);
+      { opts.setOption(IRoleManager.Option.SUPERUSER, superuser);
         $stmt = new CreateRoleStatement(name, opts, ifNotExists); }
     ;
 
@@ -935,9 +935,9 @@ alterUserStatement returns [AlterRoleStatement stmt]
         RoleName name = new RoleName();
     }
     : K_ALTER K_USER u=username { name.setName($u.text, false); }
-      ( K_WITH roleOptions[opts] )?
-      ( K_SUPERUSER { opts.put(IRoleManager.Option.SUPERUSER.name(), true); }
-        | K_NOSUPERUSER { opts.put(IRoleManager.Option.SUPERUSER.name(), false); } ) ?
+      ( K_WITH userPassword[opts] )?
+      ( K_SUPERUSER { opts.setOption(IRoleManager.Option.SUPERUSER, true); }
+        | K_NOSUPERUSER { opts.setOption(IRoleManager.Option.SUPERUSER, false); } ) ?
       {  $stmt = new AlterRoleStatement(name, opts); }
     ;
 
@@ -960,26 +960,43 @@ listUsersStatement returns [ListRolesStatement stmt]
     ;
 
 /**
- * CREATE ROLE [IF NOT EXISTS] <rolename> [WITH PASSWORD <password>] [SUPERUSER|NOSUPERUSER] [LOGIN|NOLOGIN]
+ * CREATE ROLE [IF NOT EXISTS] <rolename> [ [WITH] option [ [AND] option ]* ]
+ *
+ * where option can be:
+ *  PASSWORD = '<password>'
+ *  SUPERUSER = (true|false)
+ *  LOGIN = (true|false)
+ *  OPTIONS = { 'k1':'v1', 'k2':'v2'}
  */
 createRoleStatement returns [CreateRoleStatement stmt]
     @init {
         RoleOptions opts = new RoleOptions();
-        boolean superuser = false;
-        boolean login = false;
         boolean ifNotExists = false;
     }
     : K_CREATE K_ROLE (K_IF K_NOT K_EXISTS { ifNotExists = true; })? name=userOrRoleName
       ( K_WITH roleOptions[opts] )?
-      ( K_SUPERUSER { superuser = true; } | K_NOSUPERUSER { superuser = false; } )?
-      ( K_LOGIN { login = true; } | K_NOLOGIN { login = false; } )?
-      { opts.put(IRoleManager.Option.SUPERUSER.name(), superuser);
-        opts.put(IRoleManager.Option.LOGIN.name(), login);
-        $stmt = new CreateRoleStatement(name, opts, ifNotExists); }
+      {
+        // set defaults if they weren't explictly supplied
+        if (!opts.getLogin().isPresent())
+        {
+            opts.setOption(IRoleManager.Option.LOGIN, false);
+        }
+        if (!opts.getSuperuser().isPresent())
+        {
+            opts.setOption(IRoleManager.Option.SUPERUSER, false);
+        }
+        $stmt = new CreateRoleStatement(name, opts, ifNotExists);
+      }
     ;
 
 /**
- * ALTER ROLE <rolename> [WITH PASSWORD <password>] [SUPERUSER|NOSUPERUSER]
+ * ALTER ROLE <rolename> [ [WITH] option [ [AND] option ]* ]
+ *
+ * where option can be:
+ *  PASSWORD = '<password>'
+ *  SUPERUSER = (true|false)
+ *  LOGIN = (true|false)
+ *  OPTIONS = { 'k1':'v1', 'k2':'v2'}
  */
 alterRoleStatement returns [AlterRoleStatement stmt]
     @init {
@@ -987,10 +1004,6 @@ alterRoleStatement returns [AlterRoleStatement stmt]
     }
     : K_ALTER K_ROLE name=userOrRoleName
       ( K_WITH roleOptions[opts] )?
-      ( K_SUPERUSER { opts.put(IRoleManager.Option.SUPERUSER.name(), true); }
-        | K_NOSUPERUSER { opts.put(IRoleManager.Option.SUPERUSER.name(), false); } ) ?
-      ( K_LOGIN { opts.put(IRoleManager.Option.LOGIN.name(), true); }
-        | K_NOLOGIN { opts.put(IRoleManager.Option.LOGIN.name(), false); } )?
       {  $stmt = new AlterRoleStatement(name, opts); }
     ;
 
@@ -1024,8 +1037,15 @@ roleOptions[RoleOptions opts]
     ;
 
 roleOption[RoleOptions opts]
-    :  k=K_PASSWORD '='? v=STRING_LITERAL { opts.put($k.text, $v.text); }
-    |  k=K_OPTIONS '='? m=mapLiteral { opts.put(IRoleManager.Option.OPTIONS.name(), convertPropertyMap(m)); }
+    :  K_PASSWORD '=' v=STRING_LITERAL { opts.setOption(IRoleManager.Option.PASSWORD, $v.text); }
+    |  K_OPTIONS '=' m=mapLiteral { opts.setOption(IRoleManager.Option.OPTIONS, convertPropertyMap(m)); }
+    |  K_SUPERUSER '=' b=BOOLEAN { opts.setOption(IRoleManager.Option.SUPERUSER, Boolean.valueOf($b.text)); }
+    |  K_LOGIN '=' b=BOOLEAN { opts.setOption(IRoleManager.Option.LOGIN, Boolean.valueOf($b.text)); }
+    ;
+
+// for backwards compatibility in CREATE/ALTER USER, this has no '='
+userPassword[RoleOptions opts]
+    :  K_PASSWORD v=STRING_LITERAL { opts.setOption(IRoleManager.Option.PASSWORD, $v.text); }
     ;
 
 /** DEFINITIONS **/

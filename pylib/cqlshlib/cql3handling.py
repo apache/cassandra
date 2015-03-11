@@ -1181,17 +1181,16 @@ syntax_rules += r'''
 
 <createRoleStatement> ::= "CREATE" "ROLE" <rolename>
                               ( "WITH" <roleProperty> ("AND" <roleProperty>)*)?
-                              ( "SUPERUSER" | "NOSUPERUSER" )?
-                              ( "LOGIN" | "NOLOGIN" )?
                         ;
 
 <alterRoleStatement> ::= "ALTER" "ROLE" <rolename>
                               ( "WITH" <roleProperty> ("AND" <roleProperty>)*)?
-                              ( "SUPERUSER" | "NOSUPERUSER" )?
-                              ( "LOGIN" | "NOLOGIN" )?
                        ;
-<roleProperty> ::= "PASSWORD" "="? <stringLiteral>
-                 | "OPTIONS" "="? <mapLiteral>
+
+<roleProperty> ::= "PASSWORD" "=" <stringLiteral>
+                 | "OPTIONS" "=" <mapLiteral>
+                 | "SUPERUSER" "=" <boolean>
+                 | "LOGIN" "=" <boolean>
                  ;
 
 <dropRoleStatement> ::= "DROP" "ROLE" <rolename>
