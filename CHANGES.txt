@@ -1,4 +1,5 @@
 2.1.4
+ * Fix AssertionError when binding nested collections in DELETE (CASSANDRA-8900)
  * Check for overlap with non-early sstables in LCS (CASSANDRA-8739)
  * Only calculate max purgable timestamp if we have to (CASSANDRA-8914)
  * (cqlsh) Greatly improve performance of COPY FROM (CASSANDRA-8225)
