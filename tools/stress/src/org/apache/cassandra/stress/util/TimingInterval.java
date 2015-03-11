@@ -20,10 +20,7 @@ package org.apache.cassandra.stress.util;
  * 
  */
 
-
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
+import java.util.*;
 import java.util.concurrent.ThreadLocalRandom;
 
 // represents measurements taken over an interval of time
@@ -42,18 +39,28 @@ public final class TimingInterval
     public final long partitionCount;
     public final long rowCount;
     public final long operationCount;
+    public final long errorCount;
 
     final SampleOfLongs sample;
+
+    public String toString()
+    {
+        return String.format("Start: %d end: %d maxLatency: %d pauseLength: %d pauseStart: %d totalLatency: %d" +
+                             " pCount: %d rcount: %d opCount: %d errors: %d", start, end, maxLatency, pauseLength,
+                             pauseStart, totalLatency, partitionCount, rowCount, operationCount, errorCount);
+    }
 
     TimingInterval(long time)
     {
         start = end = time;
         maxLatency = totalLatency = 0;
-        partitionCount = rowCount = operationCount = 0;
+        partitionCount = rowCount = operationCount = errorCount = 0;
         pauseStart = pauseLength = 0;
         sample = new SampleOfLongs(new long[0], 1d);
     }
-    TimingInterval(long start, long end, long maxLatency, long pauseStart, long pauseLength, long partitionCount, long rowCount, long totalLatency, long operationCount, SampleOfLongs sample)
+
+    TimingInterval(long start, long end, long maxLatency, long pauseStart, long pauseLength, long partitionCount,
+                   long rowCount, long totalLatency, long operationCount, long errorCount, SampleOfLongs sample)
     {
         this.start = start;
         this.end = Math.max(end, start);
@@ -61,6 +68,7 @@ public final class TimingInterval
         this.partitionCount = partitionCount;
         this.rowCount = rowCount;
         this.totalLatency = totalLatency;
+        this.errorCount = errorCount;
         this.operationCount = operationCount;
         this.pauseStart = pauseStart;
         this.pauseLength = pauseLength;
@@ -68,33 +76,41 @@ public final class TimingInterval
     }
 
     // merge multiple timer intervals together
-    static TimingInterval merge(List<TimingInterval> intervals, int maxSamples, long start)
+    static TimingInterval merge(Iterable<TimingInterval> intervals, int maxSamples, long start)
     {
         ThreadLocalRandom rnd = ThreadLocalRandom.current();
-        long operationCount = 0, partitionCount = 0, rowCount = 0;
+        long operationCount = 0, partitionCount = 0, rowCount = 0, errorCount = 0;
         long maxLatency = 0, totalLatency = 0;
         List<SampleOfLongs> latencies = new ArrayList<>();
         long end = 0;
         long pauseStart = 0, pauseEnd = Long.MAX_VALUE;
         for (TimingInterval interval : intervals)
         {
-            end = Math.max(end, interval.end);
-            operationCount += interval.operationCount;
-            maxLatency = Math.max(interval.maxLatency, maxLatency);
-            totalLatency += interval.totalLatency;
-            partitionCount += interval.partitionCount;
-            rowCount += interval.rowCount;
-            latencies.addAll(Arrays.asList(interval.sample));
-            if (interval.pauseLength > 0)
+            if (interval != null)
             {
-                pauseStart = Math.max(pauseStart, interval.pauseStart);
-                pauseEnd = Math.min(pauseEnd, interval.pauseStart + interval.pauseLength);
+                end = Math.max(end, interval.end);
+                operationCount += interval.operationCount;
+                maxLatency = Math.max(interval.maxLatency, maxLatency);
+                totalLatency += interval.totalLatency;
+                partitionCount += interval.partitionCount;
+                rowCount += interval.rowCount;
+                errorCount += interval.errorCount;
+                latencies.addAll(Arrays.asList(interval.sample));
+                if (interval.pauseLength > 0)
+                {
+                    pauseStart = Math.max(pauseStart, interval.pauseStart);
+                    pauseEnd = Math.min(pauseEnd, interval.pauseStart + interval.pauseLength);
+                }
             }
         }
-        if (pauseEnd < pauseStart)
+
+        if (pauseEnd < pauseStart || pauseStart <= 0)
+        {
             pauseEnd = pauseStart = 0;
-        return new TimingInterval(start, end, maxLatency, pauseStart, pauseEnd - pauseStart, partitionCount, rowCount, totalLatency, operationCount,
-                SampleOfLongs.merge(rnd, latencies, maxSamples));
+        }
+
+        return new TimingInterval(start, end, maxLatency, pauseStart, pauseEnd - pauseStart, partitionCount, rowCount,
+                                  totalLatency, operationCount, errorCount, SampleOfLongs.merge(rnd, latencies, maxSamples));
 
     }
 
@@ -128,11 +144,6 @@ public final class TimingInterval
         return maxLatency * 0.000001d;
     }
 
-    public long runTime()
-    {
-        return (end - start) / 1000000;
-    }
-
     public double medianLatency()
     {
         return sample.medianLatency();
@@ -144,19 +155,48 @@ public final class TimingInterval
         return sample.rankLatency(rank);
     }
 
+    public long runTime()
+    {
+        return (end - start) / 1000000;
+    }
+
     public final long endNanos()
     {
         return end;
-    }
-
-    public final long endMillis()
-    {
-        return end / 1000000;
     }
 
     public long startNanos()
     {
         return start;
     }
-}
+
+    public static enum TimingParameter
+    {
+        OPRATE, ROWRATE, ADJROWRATE, PARTITIONRATE, MEANLATENCY, MAXLATENCY, MEDIANLATENCY, RANKLATENCY,
+        ERRORCOUNT, PARTITIONCOUNT
+    }
+
+    String getStringValue(TimingParameter value)
+    {
+        return getStringValue(value, Float.NaN);
+    }
+
+    String getStringValue(TimingParameter value, float rank)
+    {
+        switch (value)
+        {
+            case OPRATE:         return String.format("%.0f", opRate());
+            case ROWRATE:        return String.format("%.0f", rowRate());
+            case ADJROWRATE:     return String.format("%.0f", adjustedRowRate());
+            case PARTITIONRATE:  return String.format("%.0f", partitionRate());
+            case MEANLATENCY:    return String.format("%.1f", meanLatency());
+            case MAXLATENCY:     return String.format("%.1f", maxLatency());
+            case MEDIANLATENCY:  return String.format("%.1f", medianLatency());
+            case RANKLATENCY:    return String.format("%.1f", rankLatency(rank));
+            case ERRORCOUNT:     return String.format("%d", errorCount);
+            case PARTITIONCOUNT: return String.format("%d", partitionCount);
+            default:             throw new IllegalStateException();
+        }
+    }
+ }
 

@@ -27,18 +27,27 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
+import com.google.common.util.concurrent.Uninterruptibles;
+
 import org.apache.cassandra.stress.operations.OpDistributionFactory;
+import org.apache.cassandra.stress.util.JavaDriverClient;
 import org.apache.cassandra.thrift.ConsistencyLevel;
 
 // Generic command settings - common to read/write/etc
 public abstract class SettingsCommand implements Serializable
 {
 
+    public static enum TruncateWhen
+    {
+        NEVER, ONCE, ALWAYS
+    }
+
     public final Command type;
     public final long count;
     public final long duration;
     public final TimeUnit durationUnits;
     public final boolean noWarmup;
+    public final TruncateWhen truncate;
     public final ConsistencyLevel consistencyLevel;
     public final double targetUncertainty;
     public final int minimumUncertaintyMeasurements;
@@ -60,6 +69,8 @@ public abstract class SettingsCommand implements Serializable
         this.type = type;
         this.consistencyLevel = ConsistencyLevel.valueOf(options.consistencyLevel.value().toUpperCase());
         this.noWarmup = options.noWarmup.setByUser();
+        this.truncate = TruncateWhen.valueOf(options.truncate.value().toUpperCase());
+
         if (count != null)
         {
             this.count = OptionDistribution.parseLong(count.count.value());
@@ -107,7 +118,8 @@ public abstract class SettingsCommand implements Serializable
     static abstract class Options extends GroupedOptions
     {
         final OptionSimple noWarmup = new OptionSimple("no-warmup", "", null, "Do not warmup the process", false);
-        final OptionSimple consistencyLevel = new OptionSimple("cl=", "ONE|QUORUM|LOCAL_QUORUM|EACH_QUORUM|ALL|ANY|TWO|THREE|SERIAL|LOCAL_SERIAL|LOCAL_ONE", "ONE", "Consistency level to use", false);
+        final OptionSimple truncate = new OptionSimple("truncate=", "never|once|always", "never", "Truncate the table: never, before performing any work, or before each iteration", false);
+        final OptionSimple consistencyLevel = new OptionSimple("cl=", "ONE|QUORUM|LOCAL_QUORUM|EACH_QUORUM|ALL|ANY", "ONE", "Consistency level to use", false);
     }
 
     static class Count extends Options
@@ -116,7 +128,7 @@ public abstract class SettingsCommand implements Serializable
         @Override
         public List<? extends Option> options()
         {
-            return Arrays.asList(count, noWarmup, consistencyLevel);
+            return Arrays.asList(count, noWarmup, truncate, consistencyLevel);
         }
     }
 
@@ -126,7 +138,7 @@ public abstract class SettingsCommand implements Serializable
         @Override
         public List<? extends Option> options()
         {
-            return Arrays.asList(duration, noWarmup, consistencyLevel);
+            return Arrays.asList(duration, noWarmup, truncate, consistencyLevel);
         }
     }
 
@@ -138,8 +150,24 @@ public abstract class SettingsCommand implements Serializable
         @Override
         public List<? extends Option> options()
         {
-            return Arrays.asList(uncertainty, minMeasurements, maxMeasurements, noWarmup, consistencyLevel);
+            return Arrays.asList(uncertainty, minMeasurements, maxMeasurements, noWarmup, truncate, consistencyLevel);
         }
+    }
+
+    public abstract void truncateTables(StressSettings settings);
+
+    protected void truncateTables(StressSettings settings, String ks, String ... tables)
+    {
+        JavaDriverClient client = settings.getJavaDriverClient(false);
+        assert settings.command.truncate != SettingsCommand.TruncateWhen.NEVER;
+        for (String table : tables)
+        {
+            String cql = String.format("TRUNCATE %s.%s", ks, table);
+            client.execute(cql, org.apache.cassandra.db.ConsistencyLevel.ONE);
+        }
+        System.out.println(String.format("Truncated %s.%s. Sleeping %ss for propagation.",
+                                         ks, Arrays.toString(tables), settings.node.nodes.size()));
+        Uninterruptibles.sleepUninterruptibly(settings.node.nodes.size(), TimeUnit.SECONDS);
     }
 
     // CLI Utility Methods
@@ -170,18 +198,6 @@ public abstract class SettingsCommand implements Serializable
         }
         return null;
     }
-
-/*    static SettingsCommand build(Command type, String[] params)
-    {
-        GroupedOptions options = GroupedOptions.select(params, new Count(), new Duration(), new Uncertainty());
-        if (options == null)
-        {
-            printHelp(type);
-            System.out.println("Invalid " + type + " options provided, see output for valid options");
-            System.exit(1);
-        }
-        return new SettingsCommand(type, options);
-    }*/
 
     static void printHelp(Command type)
     {

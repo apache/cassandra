@@ -37,7 +37,7 @@ import org.apache.cassandra.stress.operations.FixedOpDistribution;
 import org.apache.cassandra.stress.operations.OpDistribution;
 import org.apache.cassandra.stress.operations.OpDistributionFactory;
 import org.apache.cassandra.stress.operations.predefined.PredefinedOperation;
-import org.apache.cassandra.stress.util.Timer;
+import org.apache.cassandra.stress.util.Timing;
 
 // Settings unique to the mixed command type
 public class SettingsCommandPreDefined extends SettingsCommand
@@ -51,9 +51,10 @@ public class SettingsCommandPreDefined extends SettingsCommand
         final SeedManager seeds = new SeedManager(settings);
         return new OpDistributionFactory()
         {
-            public OpDistribution get(Timer timer)
+            public OpDistribution get(Timing timing, int sampleCount)
             {
-                return new FixedOpDistribution(PredefinedOperation.operation(type, timer, newGenerator(settings), seeds, settings, add));
+                return new FixedOpDistribution(PredefinedOperation.operation(type, timing.newTimer(type.toString(), sampleCount),
+                                               newGenerator(settings), seeds, settings, add));
             }
 
             public String desc()
@@ -106,6 +107,11 @@ public class SettingsCommandPreDefined extends SettingsCommand
             return merge(parent.options(), Arrays.asList(add, keysize));
         }
 
+    }
+
+    public void truncateTables(StressSettings settings)
+    {
+        truncateTables(settings, settings.schema.keyspace, "standard1", "counter1", "counter3");
     }
 
     // CLI utility methods
