@@ -297,7 +297,7 @@ public class CqlConfigHelper
         Optional<AuthProvider> authProvider = getAuthProvider(conf);
         Optional<SSLOptions> sslOptions = getSSLOptions(conf);
         Optional<Integer> protocolVersion = getProtocolVersion(conf);
-        LoadBalancingPolicy loadBalancingPolicy = getReadLoadBalancingPolicy(conf, hosts);
+        LoadBalancingPolicy loadBalancingPolicy = getReadLoadBalancingPolicy(hosts);
         SocketOptions socketOptions = getReadSocketOptions(conf);
         QueryOptions queryOptions = getReadQueryOptions(conf);
         PoolingOptions poolingOptions = getReadPoolingOptions(conf);
@@ -488,7 +488,7 @@ public class CqlConfigHelper
         return socketOptions;
     }
 
-    private static LoadBalancingPolicy getReadLoadBalancingPolicy(Configuration conf, final String[] stickHosts)
+    private static LoadBalancingPolicy getReadLoadBalancingPolicy(final String[] stickHosts)
     {
         return new LimitedLocalNodeFirstLocalBalancingPolicy(stickHosts);
     }

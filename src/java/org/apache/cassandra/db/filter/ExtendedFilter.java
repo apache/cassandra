@@ -338,7 +338,7 @@ public abstract class ExtendedFilter
                 {
                     if (def.type.isCollection() && def.type.isMultiCell())
                     {
-                        if (!collectionSatisfies(def, data, prefix, expression, collectionElement))
+                        if (!collectionSatisfies(def, data, prefix, expression))
                             return false;
                         continue;
                     }
@@ -390,7 +390,7 @@ public abstract class ExtendedFilter
             return true;
         }
 
-        private static boolean collectionSatisfies(ColumnDefinition def, ColumnFamily data, Composite prefix, IndexExpression expr, ByteBuffer collectionElement)
+        private static boolean collectionSatisfies(ColumnDefinition def, ColumnFamily data, Composite prefix, IndexExpression expr)
         {
             assert def.type.isCollection() && def.type.isMultiCell();
             CollectionType type = (CollectionType)def.type;
