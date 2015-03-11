@@ -1412,6 +1412,11 @@ public class SelectStatement implements CQLStatement
 
     public static class RawStatement extends CFStatement
     {
+        /**
+         * Checks to ensure that the warning for missing allow filtering is only logged once.
+         */
+        private static volatile boolean hasLoggedMissingAllowFilteringWarning = false;
+
         private final Parameters parameters;
         private final List<RawSelector> selectClause;
         private final List<Relation> whereClause;
@@ -1501,6 +1506,8 @@ public class SelectStatement implements CQLStatement
             if (stmt.isKeyRange && hasQueriableClusteringColumnIndex)
                 stmt.usesSecondaryIndexing = true;
 
+            int numberOfRestrictionsEvaluatedWithSlices = 0;
+
             for (ColumnDefinition def : cfm.clusteringColumns())
             {
                 // Remove clustering column restrictions that can be handled by slices; the remainder will be
@@ -1509,7 +1516,10 @@ public class SelectStatement implements CQLStatement
                 if (indexed == null)
                     break;
                 if (!indexed && stmt.columnRestrictions[def.position()].canEvaluateWithSlices())
+                {
                     stmt.restrictedColumns.remove(def);
+                    numberOfRestrictionsEvaluatedWithSlices++;
+                }
             }
 
             // Even if usesSecondaryIndexing is false at this point, we'll still have to use one if
@@ -1523,7 +1533,7 @@ public class SelectStatement implements CQLStatement
             if (!stmt.parameters.orderings.isEmpty())
                 processOrderingClause(stmt, cfm);
 
-            checkNeedsFiltering(stmt);
+            checkNeedsFiltering(stmt, numberOfRestrictionsEvaluatedWithSlices);
 
             if (parameters.isDistinct)
                 stmt.validateDistinctSelection();
@@ -2157,7 +2167,7 @@ public class SelectStatement implements CQLStatement
         }
 
         /** If ALLOW FILTERING was not specified, this verifies that it is not needed */
-        private void checkNeedsFiltering(SelectStatement stmt) throws InvalidRequestException
+        private void checkNeedsFiltering(SelectStatement stmt, int numberOfRestrictionsEvaluatedWithSlices) throws InvalidRequestException
         {
             // non-key-range non-indexed queries cannot involve filtering underneath
             if (!parameters.allowFiltering && (stmt.isKeyRange || stmt.usesSecondaryIndexing))
@@ -2165,7 +2175,7 @@ public class SelectStatement implements CQLStatement
                 // We will potentially filter data if either:
                 //  - Have more than one IndexExpression
                 //  - Have no index expression and the column filter is not the identity
-                if (needFiltering(stmt))
+                if (needFiltering(stmt, numberOfRestrictionsEvaluatedWithSlices))
                     throw new InvalidRequestException("Cannot execute this query as it might involve data filtering and " +
                                                       "thus may have unpredictable performance. If you want to execute " +
                                                       "this query despite the performance unpredictability, use ALLOW FILTERING");
@@ -2194,15 +2204,34 @@ public class SelectStatement implements CQLStatement
          * Checks if the specified statement will need to filter the data.
          *
          * @param stmt the statement to test.
+         * @param numberOfRestrictionsEvaluatedWithSlices the number of restrictions that can be evaluated with slices
          * @return <code>true</code> if the specified statement will need to filter the data, <code>false</code>
          * otherwise.
          */
-        private static boolean needFiltering(SelectStatement stmt)
+        private static boolean needFiltering(SelectStatement stmt, int numberOfRestrictionsEvaluatedWithSlices)
         {
-            return stmt.restrictedColumns.size() > 1
+            boolean needFiltering = stmt.restrictedColumns.size() > 1
                     || (stmt.restrictedColumns.isEmpty() && !stmt.columnFilterIsIdentity())
                     || (!stmt.restrictedColumns.isEmpty()
                             && stmt.isRestrictedByMultipleContains(Iterables.getOnlyElement(stmt.restrictedColumns.keySet())));
+
+            // For some secondary index queries, that were having some restrictions on non-indexed clustering columns,
+            // were not requiring ALLOW FILTERING as we should. The first time such a query is executed we will log a
+            // warning to notify the user (CASSANDRA-8418)
+            if (!needFiltering
+                    && !hasLoggedMissingAllowFilteringWarning
+                    && (stmt.restrictedColumns.size() + numberOfRestrictionsEvaluatedWithSlices) > 1)
+            {
+                hasLoggedMissingAllowFilteringWarning = true;
+
+                String msg = "Some secondary index queries with restrictions on non-indexed clustering columns "
+                           + "were executed without ALLOW FILTERING. In Cassandra 3.0, these queries will require "
+                           + "ALLOW FILTERING (see CASSANDRA-8418 for details).";
+
+                logger.warn(msg);
+            }
+
+            return needFiltering;
         }
 
         private int indexOf(ColumnDefinition def, Selection selection)
