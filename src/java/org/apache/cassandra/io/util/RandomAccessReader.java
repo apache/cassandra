@@ -309,7 +309,7 @@ public class RandomAccessReader extends AbstractDataInput implements FileDataInp
         if (newPosition >= length()) // it is save to call length() in read-only mode
         {
             if (newPosition > length())
-                throw new IllegalArgumentException(String.format("unable to seek to position %d in %s (%d bytes) in read-only mode",
+                throw new IllegalArgumentException(String.format("Unable to seek to position %d in %s (%d bytes) in read-only mode",
                                                              newPosition, getPath(), length()));
             buffer.limit(0);
             bufferOffset = newPosition;

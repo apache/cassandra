@@ -71,29 +71,34 @@ public class DeflateCompressor implements ICompressor
         return chunkLength;
     }
 
-    public int compress(byte[] input, int inputOffset, int inputLength, ICompressor.WrappedArray output, int outputOffset)
+    public int compress(ByteBuffer src, ICompressor.WrappedByteBuffer dest)
     {
+        assert dest.buffer.hasArray();
+
         Deflater def = deflater.get();
         def.reset();
-        def.setInput(input, inputOffset, inputLength);
+        def.setInput(src.array(), src.position(), src.limit());
         def.finish();
         if (def.needsInput())
             return 0;
 
-        int offs = outputOffset;
+        int startPos = dest.buffer.position();
         while (true)
         {
-            offs += def.deflate(output.buffer, offs, output.buffer.length - offs);
+            int arrayOffset = dest.buffer.arrayOffset();
+            int len = def.deflate(dest.buffer.array(), arrayOffset + dest.buffer.position(), dest.buffer.remaining());
+            dest.buffer.position(dest.buffer.position() + len);
             if (def.finished())
             {
-                return offs - outputOffset;
+                return dest.buffer.position() - startPos;
             }
             else
             {
                 // We're not done, output was too small. Increase it and continue
-                byte[] newBuffer = new byte[(output.buffer.length*4)/3 + 1];
-                System.arraycopy(output.buffer, 0, newBuffer, 0, offs);
-                output.buffer = newBuffer;
+                ByteBuffer newDest = ByteBuffer.allocate(dest.buffer.capacity()*4/3 + 1);
+                dest.buffer.rewind();
+                newDest.put(dest.buffer);
+                dest.buffer = newDest;
             }
         }
     }

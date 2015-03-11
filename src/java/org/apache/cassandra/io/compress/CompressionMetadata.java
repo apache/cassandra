@@ -134,6 +134,7 @@ public class CompressionMetadata
         {
             FileUtils.closeQuietly(stream);
         }
+
         this.chunkOffsetsSize = chunkOffsets.size();
     }
 

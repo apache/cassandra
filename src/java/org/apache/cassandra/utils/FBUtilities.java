@@ -667,7 +667,8 @@ public class FBUtilities
             {
                 directUpdate.invoke(checksum, bb);
                 return;
-            } catch (IllegalAccessException e)
+            }
+            catch (IllegalAccessException e)
             {
                 directUpdate = null;
                 logger.warn("JVM doesn't support Adler32 byte buffer access");
