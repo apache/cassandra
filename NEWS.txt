@@ -73,6 +73,10 @@ Upgrading
    - The results of CQL3 queries containing an IN restriction will be ordered
      in the normal order and not anymore in the order in which the column values were
      specified in the IN restriction.
+   - Some secondary index queries with restrictions on non-indexed clustering
+     columns were not requiring ALLOW FILTERING as they should. This has been
+     fixed, and those queries now require ALLOW FILTERING (see CASSANDRA-8418
+     for details).
 
 2.1.4
 =====
