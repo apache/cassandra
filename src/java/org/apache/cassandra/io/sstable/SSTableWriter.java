@@ -173,7 +173,7 @@ public class SSTableWriter extends SSTable
         return (lastWrittenKey == null) ? 0 : dataFile.getFilePointer();
     }
 
-    private void afterAppend(DecoratedKey decoratedKey, long dataPosition, RowIndexEntry index)
+    private void afterAppend(DecoratedKey decoratedKey, long dataEnd, RowIndexEntry index)
     {
         sstableMetadataCollector.addKey(decoratedKey.getKey());
         lastWrittenKey = decoratedKey;
@@ -182,9 +182,9 @@ public class SSTableWriter extends SSTable
             first = lastWrittenKey;
 
         if (logger.isTraceEnabled())
-            logger.trace("wrote " + decoratedKey + " at " + dataPosition);
-        iwriter.append(decoratedKey, index, dataPosition);
-        dbuilder.addPotentialBoundary(dataPosition);
+            logger.trace("wrote " + decoratedKey + " at " + dataEnd);
+        iwriter.append(decoratedKey, index, dataEnd);
+        dbuilder.addPotentialBoundary(dataEnd);
     }
 
     /**
@@ -222,16 +222,18 @@ public class SSTableWriter extends SSTable
         }
 
         long startPosition = beforeAppend(decoratedKey);
+        long endPosition;
         try
         {
             RowIndexEntry entry = rawAppend(cf, startPosition, decoratedKey, dataFile.stream);
-            afterAppend(decoratedKey, startPosition, entry);
+            endPosition = dataFile.getFilePointer();
+            afterAppend(decoratedKey, endPosition, entry);
         }
         catch (IOException e)
         {
             throw new FSWriteError(e, dataFile.getPath());
         }
-        sstableMetadataCollector.update(dataFile.getFilePointer() - startPosition, cf.getColumnStats());
+        sstableMetadataCollector.update(endPosition - startPosition, cf.getColumnStats());
     }
 
     public static RowIndexEntry rawAppend(ColumnFamily cf, long startPosition, DecoratedKey key, DataOutputPlus out) throws IOException
