@@ -215,28 +215,28 @@ public class ColumnFamilyMetrics
         {
             public Long getValue()
             {
-                return cfs.getDataTracker().getView().getCurrentMemtable().getOperations();
+                return cfs.getTracker().getView().getCurrentMemtable().getOperations();
             }
         });
         memtableOnHeapSize = createColumnFamilyGauge("MemtableOnHeapSize", new Gauge<Long>()
         {
             public Long getValue()
             {
-                return cfs.getDataTracker().getView().getCurrentMemtable().getAllocator().onHeap().owns();
+                return cfs.getTracker().getView().getCurrentMemtable().getAllocator().onHeap().owns();
             }
         });
         memtableOffHeapSize = createColumnFamilyGauge("MemtableOffHeapSize", new Gauge<Long>()
         {
             public Long getValue()
             {
-                return cfs.getDataTracker().getView().getCurrentMemtable().getAllocator().offHeap().owns();
+                return cfs.getTracker().getView().getCurrentMemtable().getAllocator().offHeap().owns();
             }
         });
         memtableLiveDataSize = createColumnFamilyGauge("MemtableLiveDataSize", new Gauge<Long>()
         {
             public Long getValue()
             {
-                return cfs.getDataTracker().getView().getCurrentMemtable().getLiveDataSize();
+                return cfs.getTracker().getView().getCurrentMemtable().getLiveDataSize();
             }
         });
         allMemtablesOnHeapSize = createColumnFamilyGauge("AllMemtablesHeapSize", new Gauge<Long>()
@@ -245,7 +245,7 @@ public class ColumnFamilyMetrics
             {
                 long size = 0;
                 for (ColumnFamilyStore cfs2 : cfs.concatWithIndexes())
-                    size += cfs2.getDataTracker().getView().getCurrentMemtable().getAllocator().onHeap().owns();
+                    size += cfs2.getTracker().getView().getCurrentMemtable().getAllocator().onHeap().owns();
                 return size;
             }
         });
@@ -255,7 +255,7 @@ public class ColumnFamilyMetrics
             {
                 long size = 0;
                 for (ColumnFamilyStore cfs2 : cfs.concatWithIndexes())
-                    size += cfs2.getDataTracker().getView().getCurrentMemtable().getAllocator().offHeap().owns();
+                    size += cfs2.getTracker().getView().getCurrentMemtable().getAllocator().offHeap().owns();
                 return size;
             }
         });
@@ -265,7 +265,7 @@ public class ColumnFamilyMetrics
             {
                 long size = 0;
                 for (ColumnFamilyStore cfs2 : cfs.concatWithIndexes())
-                    size += cfs2.getDataTracker().getView().getCurrentMemtable().getLiveDataSize();
+                    size += cfs2.getTracker().getView().getCurrentMemtable().getLiveDataSize();
                 return size;
             }
         });
@@ -288,7 +288,7 @@ public class ColumnFamilyMetrics
             public Long getValue()
             {
                 long memtablePartitions = 0;
-                for (Memtable memtable : cfs.getDataTracker().getView().getAllMemtables())
+                for (Memtable memtable : cfs.getTracker().getView().getAllMemtables())
                     memtablePartitions += memtable.partitionCount();
                 return SSTableReader.getApproximateKeyCount(cfs.getSSTables()) + memtablePartitions;
             }
@@ -358,7 +358,7 @@ public class ColumnFamilyMetrics
         {
             public Integer getValue()
             {
-                return cfs.getDataTracker().getSSTables().size();
+                return cfs.getTracker().getSSTables().size();
             }
         });
         liveDiskSpaceUsed = createColumnFamilyCounter("LiveDiskSpaceUsed");

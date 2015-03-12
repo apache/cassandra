@@ -50,7 +50,7 @@ public final class WrappingCompactionStrategy extends AbstractCompactionStrategy
     {
         super(cfs, cfs.metadata.compactionStrategyOptions);
         reloadCompactionStrategy(cfs.metadata);
-        cfs.getDataTracker().subscribe(this);
+        cfs.getTracker().subscribe(this);
         logger.debug("{} subscribed to the data tracker.", this);
     }
 

@@ -17,7 +17,7 @@
  */
 package org.apache.cassandra.db.compaction;
 
-import junit.framework.Assert;
+import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.utils.concurrent.Refs;
 import static org.hamcrest.CoreMatchers.is;
 import static org.junit.Assert.assertEquals;
@@ -30,7 +30,6 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
-import java.util.concurrent.ExecutionException;
 
 import org.apache.cassandra.config.KSMetaData;
 import org.apache.cassandra.exceptions.ConfigurationException;
@@ -91,13 +90,18 @@ public class AntiCompactionTest
         Range<Token> range = new Range<Token>(new BytesToken("0".getBytes()), new BytesToken("4".getBytes()));
         List<Range<Token>> ranges = Arrays.asList(range);
 
-        Refs<SSTableReader> refs = Refs.ref(sstables);
-        long repairedAt = 1000;
-        CompactionManager.instance.performAnticompaction(store, ranges, refs, repairedAt);
-
-        assertEquals(2, store.getSSTables().size());
         int repairedKeys = 0;
         int nonRepairedKeys = 0;
+        try (LifecycleTransaction txn = store.getTracker().tryModify(sstables, OperationType.ANTICOMPACTION);
+             Refs<SSTableReader> refs = Refs.ref(sstables))
+        {
+            if (txn == null)
+                throw new IllegalStateException();
+            long repairedAt = 1000;
+            CompactionManager.instance.performAnticompaction(store, ranges, refs, txn, repairedAt);
+        }
+
+        assertEquals(2, store.getSSTables().size());
         for (SSTableReader sstable : store.getSSTables())
         {
             try (ISSTableScanner scanner = sstable.getScanner())
@@ -123,7 +127,7 @@ public class AntiCompactionTest
             assertFalse(sstable.isMarkedCompacted());
             assertEquals(1, sstable.selfRef().globalCount());
         }
-        assertEquals(0, store.getDataTracker().getCompacting().size());
+        assertEquals(0, store.getTracker().getCompacting().size());
         assertEquals(repairedKeys, 4);
         assertEquals(nonRepairedKeys, 6);
     }
@@ -139,13 +143,16 @@ public class AntiCompactionTest
         long origSize = s.bytesOnDisk();
         Range<Token> range = new Range<Token>(new BytesToken(ByteBufferUtil.bytes(0)), new BytesToken(ByteBufferUtil.bytes(500)));
         Collection<SSTableReader> sstables = cfs.getSSTables();
-        CompactionManager.instance.performAnticompaction(cfs, Arrays.asList(range), Refs.tryRef(sstables), 12345);
+        try (LifecycleTransaction txn = cfs.getTracker().tryModify(sstables, OperationType.ANTICOMPACTION);
+             Refs<SSTableReader> refs = Refs.ref(sstables))
+        {
+            CompactionManager.instance.performAnticompaction(cfs, Arrays.asList(range), refs, txn, 12345);
+        }
         long sum = 0;
         for (SSTableReader x : cfs.getSSTables())
             sum += x.bytesOnDisk();
         assertEquals(sum, cfs.metric.liveDiskSpaceUsed.getCount());
         assertEquals(origSize, cfs.metric.liveDiskSpaceUsed.getCount(), 100000);
-
     }
 
     private SSTableReader writeFile(ColumnFamilyStore cfs, int count)
@@ -210,10 +217,12 @@ public class AntiCompactionTest
         Range<Token> range = new Range<Token>(new BytesToken("0".getBytes()), new BytesToken("4".getBytes()));
         List<Range<Token>> ranges = Arrays.asList(range);
 
-        Refs<SSTableReader> refs = Refs.tryRef(sstables);
-        Assert.assertNotNull(refs);
         long repairedAt = 1000;
-        CompactionManager.instance.performAnticompaction(store, ranges, refs, repairedAt);
+        try (LifecycleTransaction txn = store.getTracker().tryModify(sstables, OperationType.ANTICOMPACTION);
+             Refs<SSTableReader> refs = Refs.ref(sstables))
+        {
+            CompactionManager.instance.performAnticompaction(store, ranges, refs, txn, repairedAt);
+        }
         /*
         Anticompaction will be anti-compacting 10 SSTables but will be doing this two at a time
         so there will be no net change in the number of sstables
@@ -256,12 +265,16 @@ public class AntiCompactionTest
         Range<Token> range = new Range<Token>(new BytesToken("0".getBytes()), new BytesToken("9999".getBytes()));
         List<Range<Token>> ranges = Arrays.asList(range);
 
-        CompactionManager.instance.performAnticompaction(store, ranges, Refs.tryRef(sstables), 1);
+        try (LifecycleTransaction txn = store.getTracker().tryModify(sstables, OperationType.ANTICOMPACTION);
+             Refs<SSTableReader> refs = Refs.ref(sstables))
+        {
+            CompactionManager.instance.performAnticompaction(store, ranges, refs, txn, 1);
+        }
 
         assertThat(store.getSSTables().size(), is(1));
         assertThat(Iterables.get(store.getSSTables(), 0).isRepaired(), is(true));
         assertThat(Iterables.get(store.getSSTables(), 0).selfRef().globalCount(), is(1));
-        assertThat(store.getDataTracker().getCompacting().size(), is(0));
+        assertThat(store.getTracker().getCompacting().size(), is(0));
     }
 
 
@@ -282,8 +295,12 @@ public class AntiCompactionTest
         Range<Token> range = new Range<Token>(new BytesToken("-10".getBytes()), new BytesToken("-1".getBytes()));
         List<Range<Token>> ranges = Arrays.asList(range);
 
-        Refs<SSTableReader> refs = Refs.ref(sstables);
-        CompactionManager.instance.performAnticompaction(store, ranges, refs, 0);
+
+        try (LifecycleTransaction txn = store.getTracker().tryModify(sstables, OperationType.ANTICOMPACTION);
+             Refs<SSTableReader> refs = Refs.ref(sstables))
+        {
+            CompactionManager.instance.performAnticompaction(store, ranges, refs, txn, 0);
+        }
 
         assertThat(store.getSSTables().size(), is(10));
         assertThat(Iterables.get(store.getSSTables(), 0).isRepaired(), is(false));

@@ -346,7 +346,7 @@ public class SecondaryIndexManager
     {
         // despatch flushes for all CFS backed indexes
         List<Future<?>> wait = new ArrayList<>();
-        synchronized (baseCfs.getDataTracker())
+        synchronized (baseCfs.getTracker())
         {
             for (SecondaryIndex index : allIndexes)
                 if (index.getIndexCfs() != null)

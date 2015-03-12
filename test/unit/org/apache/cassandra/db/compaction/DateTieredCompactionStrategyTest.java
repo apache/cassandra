@@ -324,10 +324,10 @@ public class DateTieredCompactionStrategyTest extends SchemaLoader
         Thread.sleep(2000);
         AbstractCompactionTask t = dtcs.getNextBackgroundTask((int) (System.currentTimeMillis()/1000));
         assertNotNull(t);
-        assertEquals(1, Iterables.size(t.sstables));
-        SSTableReader sstable = t.sstables.iterator().next();
+        assertEquals(1, Iterables.size(t.transaction.originals()));
+        SSTableReader sstable = t.transaction.originals().iterator().next();
         assertEquals(sstable, expiredSSTable);
-        cfs.getDataTracker().unmarkCompacting(cfs.getSSTables());
+        t.transaction.abort();
     }
 
 }

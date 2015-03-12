@@ -250,7 +250,7 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
     protected synchronized void compact()
     {
         ArrayList<Descriptor> descriptors = new ArrayList<>();
-        for (SSTable sstable : hintStore.getDataTracker().getUncompactingSSTables())
+        for (SSTable sstable : hintStore.getTracker().getUncompacting())
             descriptors.add(sstable.descriptor);
 
         if (descriptors.isEmpty())
