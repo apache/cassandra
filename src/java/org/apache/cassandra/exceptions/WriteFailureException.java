@@ -15,26 +15,18 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.net;
+package org.apache.cassandra.exceptions;
 
-import java.io.IOException;
+import org.apache.cassandra.db.ConsistencyLevel;
+import org.apache.cassandra.db.WriteType;
 
-/**
- * IVerbHandler provides the method that all verb handlers need to implement.
- * The concrete implementation of this interface would provide the functionality
- * for a given verb.
- */
-
-public interface IVerbHandler<T>
+public class WriteFailureException extends RequestFailureException
 {
-    /**
-     * This method delivers a message to the implementing class (if the implementing
-     * class was registered by a call to MessagingService.registerVerbHandlers).
-     * Note that the caller should not be holding any locks when calling this method
-     * because the implementation may be synchronized.
-     *
-     * @param message - incoming message that needs handling.
-     * @param id
-     */
-    public void doVerb(MessageIn<T> message, int id) throws IOException;
+    public final WriteType writeType;
+
+    public WriteFailureException(ConsistencyLevel consistency, int received, int failures, int blockFor, WriteType writeType)
+    {
+        super(ExceptionCode.WRITE_FAILURE, consistency, received, failures, blockFor);
+        this.writeType = writeType;
+    }
 }

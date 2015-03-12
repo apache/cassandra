@@ -34,7 +34,7 @@ import org.apache.cassandra.db.WriteType;
 /**
  * Handles blocking writes for ONE, ANY, TWO, THREE, QUORUM, and ALL consistency levels.
  */
-public class WriteResponseHandler extends AbstractWriteResponseHandler
+public class WriteResponseHandler<T> extends AbstractWriteResponseHandler<T>
 {
     protected static final Logger logger = LoggerFactory.getLogger(WriteResponseHandler.class);
 
@@ -63,7 +63,7 @@ public class WriteResponseHandler extends AbstractWriteResponseHandler
         this(endpoint, writeType, null);
     }
 
-    public void response(MessageIn m)
+    public void response(MessageIn<T> m)
     {
         if (responsesUpdater.decrementAndGet(this) == 0)
             signal();

@@ -1,4 +1,6 @@
 3.0
+ * Add WriteFailureException to native protocol, notify coordinator of
+   write failures (CASSANDRA-8592)
  * Convert SequentialWriter to nio (CASSANDRA-8709)
  * Add role based access control (CASSANDRA-7653, 8650, 7216, 8760, 8849, 8761, 8850)
  * Record client ip address in tracing sessions (CASSANDRA-8162)

@@ -34,7 +34,7 @@ import org.apache.cassandra.db.WriteType;
 /**
  * This class blocks for a quorum of responses _in all datacenters_ (CL.EACH_QUORUM).
  */
-public class DatacenterSyncWriteResponseHandler extends AbstractWriteResponseHandler
+public class DatacenterSyncWriteResponseHandler<T> extends AbstractWriteResponseHandler<T>
 {
     private static final IEndpointSnitch snitch = DatabaseDescriptor.getEndpointSnitch();
 
@@ -68,7 +68,7 @@ public class DatacenterSyncWriteResponseHandler extends AbstractWriteResponseHan
         }
     }
 
-    public void response(MessageIn message)
+    public void response(MessageIn<T> message)
     {
         String dataCenter = message == null
                             ? DatabaseDescriptor.getLocalDataCenter()

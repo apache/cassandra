@@ -1010,9 +1010,9 @@ Table of Contents
                              - "BATCH": the write was a (logged) batch write.
                                If this type is received, it means the batch log
                                has been successfully written (otherwise a
-                               "BATCH_LOG" type would have been send instead).
+                               "BATCH_LOG" type would have been sent instead).
                              - "UNLOGGED_BATCH": the write was an unlogged
-                               batch. Not batch log write has been attempted.
+                               batch. No batch log write has been attempted.
                              - "COUNTER": the write was a counter write
                                (batched or not).
                              - "BATCH_LOG": the timeout occured during the
@@ -1058,6 +1058,34 @@ Table of Contents
                 <keyspace> is the keyspace [string] of the failed function
                 <function> is the name [string] of the failed function
                 <arg_types> [string list] one string for each argument type (as CQL type) of the failed function
+    0x1500    Write_failure: A non-timeout exception during a write request. The rest
+              of the ERROR message body will be
+                <cl><received><blockfor><numfailures><write_type>
+              where:
+                <cl> is the [consistency] level of the query having triggered
+                     the exception.
+                <received> is an [int] representing the number of nodes having
+                           answered the request.
+                <blockfor> is the number of replicas whose response is
+                           required to achieve <cl>.
+                <numfailures> is an [int] representing the number of nodes that
+                              experience a failure while executing the request.
+                <writeType> is a [string] that describe the type of the write
+                            that failed. The value of that string can be one
+                            of:
+                             - "SIMPLE": the write was a non-batched
+                               non-counter write.
+                             - "BATCH": the write was a (logged) batch write.
+                               If this type is received, it means the batch log
+                               has been successfully written (otherwise a
+                               "BATCH_LOG" type would have been sent instead).
+                             - "UNLOGGED_BATCH": the write was an unlogged
+                               batch. No batch log write has been attempted.
+                             - "COUNTER": the write was a counter write
+                               (batched or not).
+                             - "BATCH_LOG": the failure occured during the
+                               write to the batch log when a (logged) batch
+                               write was requested.
 
     0x2000    Syntax_error: The submitted query has a syntax error.
     0x2100    Unauthorized: The logged user doesn't have the right to perform

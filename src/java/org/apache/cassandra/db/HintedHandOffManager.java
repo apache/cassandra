@@ -49,6 +49,7 @@ import org.apache.cassandra.db.marshal.UUIDType;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.exceptions.WriteFailureException;
 import org.apache.cassandra.exceptions.WriteTimeoutException;
 import org.apache.cassandra.gms.ApplicationState;
 import org.apache.cassandra.gms.FailureDetector;
@@ -389,7 +390,7 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
                 break;
             }
 
-            List<WriteResponseHandler> responseHandlers = Lists.newArrayList();
+            List<WriteResponseHandler<Mutation>> responseHandlers = Lists.newArrayList();
             for (final Cell hint : hintsPage)
             {
                 // check if hints delivery has been paused during the process
@@ -452,20 +453,21 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
                         deleteHint(hostIdBytes, hint.name(), hint.timestamp());
                     }
                 };
-                WriteResponseHandler responseHandler = new WriteResponseHandler(endpoint, WriteType.SIMPLE, callback);
+                WriteResponseHandler<Mutation> responseHandler = new WriteResponseHandler<>(endpoint, WriteType.SIMPLE, callback);
                 MessagingService.instance().sendRR(message, endpoint, responseHandler, false);
                 responseHandlers.add(responseHandler);
             }
 
-            for (WriteResponseHandler handler : responseHandlers)
+            for (WriteResponseHandler<Mutation> handler : responseHandlers)
             {
                 try
                 {
                     handler.get();
                 }
-                catch (WriteTimeoutException e)
+                catch (WriteTimeoutException|WriteFailureException e)
                 {
-                    logger.info("Timed out replaying hints to {}; aborting ({} delivered)", endpoint, rowsReplayed);
+                    logger.info("Failed replaying hints to {}; aborting ({} delivered), error : {}",
+                        endpoint, rowsReplayed, e.getMessage());
                     break delivery;
                 }
             }

@@ -639,11 +639,11 @@ public final class MessagingService implements MessagingServiceMBean
      */
     public int sendRR(MessageOut<? extends IMutation> message,
                       InetAddress to,
-                      AbstractWriteResponseHandler handler,
+                      AbstractWriteResponseHandler<? extends IMutation> handler,
                       boolean allowHints)
     {
         int id = addCallback(handler, message, to, message.getTimeout(), handler.consistencyLevel, allowHints);
-        sendOneWay(message, id, to);
+        sendOneWay(message.withParameter(FAILURE_CALLBACK_PARAM, ONE_BYTE), id, to);
         return id;
     }
 

@@ -17,12 +17,13 @@
  */
 package org.apache.cassandra.net;
 
+import java.io.IOException;
 import java.util.EnumSet;
 
-import org.apache.cassandra.db.filter.TombstoneOverwhelmingException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.db.filter.TombstoneOverwhelmingException;
 import org.apache.cassandra.gms.Gossiper;
 
 public class MessageDeliveryTask implements Runnable
@@ -62,22 +63,34 @@ public class MessageDeliveryTask implements Runnable
         {
             verbHandler.doVerb(message, id);
         }
+        catch (IOException ioe)
+        {
+            handleFailure(ioe);
+            throw new RuntimeException(ioe);
+        }
+        catch (TombstoneOverwhelmingException toe)
+        {
+            handleFailure(toe);
+            logger.error(toe.getMessage());
+        }
         catch (Throwable t)
         {
-            if (message.doCallbackOnFailure())
-            {
-                MessageOut response = new MessageOut(MessagingService.Verb.INTERNAL_RESPONSE)
-                                                    .withParameter(MessagingService.FAILURE_RESPONSE_PARAM, MessagingService.ONE_BYTE);
-                MessagingService.instance().sendReply(response, id, message.from);
-            }
-
-            if (t instanceof TombstoneOverwhelmingException)
-                logger.error(t.getMessage());
-            else
-                throw t;
+            handleFailure(t);
+            throw t;
         }
+
         if (GOSSIP_VERBS.contains(message.verb))
             Gossiper.instance.setLastProcessedMessageAt(constructionTime);
+    }
+
+    private void handleFailure(Throwable t)
+    {
+        if (message.doCallbackOnFailure())
+        {
+            MessageOut response = new MessageOut(MessagingService.Verb.INTERNAL_RESPONSE)
+                                                .withParameter(MessagingService.FAILURE_RESPONSE_PARAM, MessagingService.ONE_BYTE);
+            MessagingService.instance().sendReply(response, id, message.from);
+        }
     }
 
     EnumSet<MessagingService.Verb> GOSSIP_VERBS = EnumSet.of(MessagingService.Verb.GOSSIP_DIGEST_ACK,

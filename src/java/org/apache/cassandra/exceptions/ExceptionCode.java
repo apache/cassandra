@@ -41,6 +41,7 @@ public enum ExceptionCode
     READ_TIMEOUT    (0x1200),
     READ_FAILURE    (0x1300),
     FUNCTION_FAILURE(0x1400),
+    WRITE_FAILURE   (0x1500),
 
     // 2xx: problem validating the request
     SYNTAX_ERROR    (0x2000),

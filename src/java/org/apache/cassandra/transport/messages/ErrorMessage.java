@@ -76,14 +76,23 @@ public class ErrorMessage extends Message.Response
                 case TRUNCATE_ERROR:
                     te = new TruncateException(msg);
                     break;
+                case WRITE_FAILURE: 
                 case READ_FAILURE:
                     {
                         ConsistencyLevel cl = CBUtil.readConsistencyLevel(body);
                         int received = body.readInt();
                         int blockFor = body.readInt();
                         int failure = body.readInt();
-                        byte dataPresent = body.readByte();
-                        te = new ReadFailureException(cl, received, failure, blockFor, dataPresent != 0);
+                        if (code == ExceptionCode.WRITE_FAILURE)
+                        {
+                            WriteType writeType = Enum.valueOf(WriteType.class, CBUtil.readString(body));
+                            te = new WriteFailureException(cl, received, failure, blockFor, writeType);
+                        }
+                        else
+                        {
+                            byte dataPresent = body.readByte();
+                            te = new ReadFailureException(cl, received, failure, blockFor, dataPresent != 0);   
+                        }
                     }
                     break;
                 case WRITE_TIMEOUT:
@@ -152,15 +161,21 @@ public class ErrorMessage extends Message.Response
                     dest.writeInt(ue.required);
                     dest.writeInt(ue.alive);
                     break;
+                case WRITE_FAILURE:
                 case READ_FAILURE:
                     {
                         RequestFailureException rfe = (RequestFailureException)err;
+                        boolean isWrite = err.code() == ExceptionCode.WRITE_FAILURE;
 
                         CBUtil.writeConsistencyLevel(rfe.consistency, dest);
                         dest.writeInt(rfe.received);
                         dest.writeInt(rfe.blockFor);
                         dest.writeInt(rfe.failures);
-                        dest.writeByte((byte)(((ReadFailureException)rfe).dataPresent ? 1 : 0));
+
+                        if (isWrite)
+                            CBUtil.writeString(((WriteFailureException)rfe).writeType.toString(), dest);
+                        else
+                            dest.writeByte((byte)(((ReadFailureException)rfe).dataPresent ? 1 : 0));
                     }
                     break;
                 case WRITE_TIMEOUT:
@@ -204,10 +219,13 @@ public class ErrorMessage extends Message.Response
                     UnavailableException ue = (UnavailableException)err;
                     size += CBUtil.sizeOfConsistencyLevel(ue.consistency) + 8;
                     break;
+                case WRITE_FAILURE:
                 case READ_FAILURE:
                     {
-                        ReadFailureException rfe = (ReadFailureException)err;
-                        size += CBUtil.sizeOfConsistencyLevel(rfe.consistency) + 4 + 4 + 4 + 1;
+                        RequestFailureException rfe = (RequestFailureException)err;
+                        boolean isWrite = err.code() == ExceptionCode.WRITE_FAILURE;
+                        size += CBUtil.sizeOfConsistencyLevel(rfe.consistency) + 4 + 4 + 4;
+                        size += isWrite ? CBUtil.sizeOfString(((WriteFailureException)rfe).writeType.toString()) : 1;
                     }
                     break;
                 case WRITE_TIMEOUT:
@@ -246,6 +264,9 @@ public class ErrorMessage extends Message.Response
                 case READ_FAILURE:
                     ReadFailureException rfe = (ReadFailureException) msg.error;
                     return new ReadTimeoutException(rfe.consistency, rfe.received, rfe.blockFor, rfe.dataPresent);
+                case WRITE_FAILURE:
+                    WriteFailureException wfe = (WriteFailureException) msg.error;
+                    return new WriteTimeoutException(wfe.writeType, wfe.consistency, wfe.received, wfe.blockFor);
                 case FUNCTION_FAILURE:
                     return new InvalidRequestException(msg.toString());
             }
