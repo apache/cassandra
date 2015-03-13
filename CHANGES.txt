@@ -1,4 +1,5 @@
 2.1.4
+ * Fix SSTableRewriter with disabled early open (CASSANDRA-8535)
  * Allow invalidating permissions and cache time (CASSANDRA-8722)
  * Log warning when queries that will require ALLOW FILTERING in Cassandra 3.0
    are executed (CASSANDRA-8418)
