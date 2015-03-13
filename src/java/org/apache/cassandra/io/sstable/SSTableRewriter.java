@@ -20,7 +20,6 @@ package org.apache.cassandra.io.sstable;
 import java.util.*;
 
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.base.Functions;
 import com.google.common.base.Throwables;
 import com.google.common.collect.ImmutableList;
 
@@ -58,7 +57,7 @@ public class SSTableRewriter
     static
     {
         long interval = DatabaseDescriptor.getSSTablePreempiveOpenIntervalInMB() * (1L << 20);
-        if (interval < 0)
+        if (interval < 0 || FBUtilities.isWindows())
             interval = Long.MAX_VALUE;
         preemptiveOpenInterval = interval;
     }
@@ -81,6 +80,7 @@ public class SSTableRewriter
     private SSTableReader currentlyOpenedEarly; // the reader for the most recent (re)opening of the target file
     private long currentlyOpenedEarlyAt; // the position (in MB) in the target file we last (re)opened at
 
+    private final List<SSTableReader> finishedReaders = new ArrayList<>();
     private final Queue<Finished> finishedEarly = new ArrayDeque<>();
     // as writers are closed from finishedEarly, their last readers are moved
     // into discard, so that abort can cleanup after us safely
@@ -161,7 +161,7 @@ public class SSTableRewriter
 
     private void maybeReopenEarly(DecoratedKey key)
     {
-        if (!FBUtilities.isWindows() && writer.getFilePointer() - currentlyOpenedEarlyAt > preemptiveOpenInterval)
+        if (writer.getFilePointer() - currentlyOpenedEarlyAt > preemptiveOpenInterval)
         {
             if (isOffline)
             {
@@ -367,13 +367,22 @@ public class SSTableRewriter
             return;
         }
 
-        // we leave it as a tmp file, but we open it and add it to the dataTracker
         if (writer.getFilePointer() != 0)
         {
-            SSTableReader reader = writer.finish(SSTableWriter.FinishType.EARLY, maxAge, -1);
-            replaceEarlyOpenedFile(currentlyOpenedEarly, reader);
-            moveStarts(reader, reader.last, false);
-            finishedEarly.add(new Finished(writer, reader));
+            // If early re-open is disabled, simply finalize the writer and store it
+            if (preemptiveOpenInterval == Long.MAX_VALUE)
+            {
+                SSTableReader reader = writer.finish(SSTableWriter.FinishType.NORMAL, maxAge, -1);
+                finishedReaders.add(reader);
+            }
+            else
+            {
+                // we leave it as a tmp file, but we open it and add it to the dataTracker
+                SSTableReader reader = writer.finish(SSTableWriter.FinishType.EARLY, maxAge, -1);
+                replaceEarlyOpenedFile(currentlyOpenedEarly, reader);
+                moveStarts(reader, reader.last, false);
+                finishedEarly.add(new Finished(writer, reader));
+            }
         }
         else
         {
@@ -428,6 +437,15 @@ public class SSTableRewriter
 
         if (throwEarly)
             throw new RuntimeException("exception thrown early in finish, for testing");
+
+        // No early open to finalize and replace
+        if (preemptiveOpenInterval == Long.MAX_VALUE)
+        {
+            replaceWithFinishedReaders(finishedReaders);
+            if (throwLate)
+                throw new RuntimeException("exception thrown after all sstables finished, for testing");
+            return finishedReaders;
+        }
 
         while (!finishedEarly.isEmpty())
         {
