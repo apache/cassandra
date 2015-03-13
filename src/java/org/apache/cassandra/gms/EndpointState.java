@@ -47,12 +47,14 @@ public class EndpointState
     /* fields below do not get serialized */
     private volatile long updateTimestamp;
     private volatile boolean isAlive;
+    private volatile boolean hasPendingEcho;
 
     EndpointState(HeartBeatState initialHbState)
     {
         hbState = initialHbState;
         updateTimestamp = System.nanoTime();
         isAlive = true;
+        hasPendingEcho = false;
     }
 
     HeartBeatState getHeartBeatState()
@@ -112,6 +114,16 @@ public class EndpointState
     void markDead()
     {
         isAlive = false;
+    }
+
+    public boolean hasPendingEcho()
+    {
+        return hasPendingEcho;
+    }
+
+    public void markPendingEcho(boolean val)
+    {
+        hasPendingEcho = val;
     }
 
     public String toString()
