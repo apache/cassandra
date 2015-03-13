@@ -71,7 +71,7 @@ public class YamlConfigurationLoader implements ConfigurationLoader
                 String required = "file:" + File.separator + File.separator;
                 if (!configUrl.startsWith(required))
                     throw new ConfigurationException("Expecting URI in variable: [cassandra.config].  Please prefix the file with " + required + File.separator +
-                            " for local files or " + required + "<server>" + File.separator + " for remote files.  Aborting.");
+                            " for local files or " + required + "<server>" + File.separator + " for remote files. Aborting. If you are executing this from an external tool, it needs to set Config.setClientMode(true) to avoid loading configuration.");
                 throw new ConfigurationException("Cannot locate " + configUrl + ".  If this is a local file, please confirm you've provided " + required + File.separator + " as a URI prefix.");
             }
         }
