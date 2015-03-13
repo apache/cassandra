@@ -714,6 +714,11 @@ public class DatabaseDescriptor
         return conf.permissions_validity_in_ms;
     }
 
+    public static void setPermissionsValidity(int timeout)
+    {
+        conf.permissions_validity_in_ms = timeout;
+    }
+
     public static int getPermissionsCacheMaxEntries()
     {
         return conf.permissions_cache_max_entries;
@@ -724,6 +729,11 @@ public class DatabaseDescriptor
         return conf.permissions_update_interval_in_ms == -1
              ? conf.permissions_validity_in_ms
              : conf.permissions_update_interval_in_ms;
+    }
+
+    public static void setPermissionsUpdateInterval(int updateInterval)
+    {
+        conf.permissions_update_interval_in_ms = updateInterval;
     }
 
     public static int getThriftFramedTransportSize()

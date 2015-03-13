@@ -57,10 +57,7 @@ public class Auth
     public static final String USERS_CF = "users";
 
     // User-level permissions cache.
-    private static final PermissionsCache permissionsCache = new PermissionsCache(DatabaseDescriptor.getPermissionsValidity(),
-                                                                                  DatabaseDescriptor.getPermissionsUpdateInterval(),
-                                                                                  DatabaseDescriptor.getPermissionsCacheMaxEntries(),
-                                                                                  DatabaseDescriptor.getAuthorizer());
+    private static final PermissionsCache permissionsCache = new PermissionsCache(DatabaseDescriptor.getAuthorizer());
 
     private static final String USERS_CF_SCHEMA = String.format("CREATE TABLE %s.%s ("
                                                                 + "name text,"
