@@ -1,4 +1,5 @@
 2.0.14:
+ * Fix duplicate up/down messages sent to native clients (CASSANDRA-7816)
  * Expose commit log archive status via JMX (CASSANDRA-8734)
  * Provide better exceptions for invalid replication strategy parameters
    (CASSANDRA-8909)
