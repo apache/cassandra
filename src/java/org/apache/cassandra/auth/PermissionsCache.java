@@ -17,9 +17,11 @@
  */
 package org.apache.cassandra.auth;
 
+import java.lang.management.ManagementFactory;
 import java.util.Set;
 import java.util.concurrent.*;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.CacheLoader;
 import com.google.common.cache.LoadingCache;
@@ -31,19 +33,33 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.concurrent.DebuggableThreadPoolExecutor;
 import org.apache.cassandra.utils.Pair;
 
-public class PermissionsCache
+import javax.management.MBeanServer;
+import javax.management.ObjectName;
+
+public class PermissionsCache implements PermissionsCacheMBean
 {
     private static final Logger logger = LoggerFactory.getLogger(PermissionsCache.class);
+
+    private final String MBEAN_NAME = "org.apache.cassandra.auth:type=PermissionsCache";
 
     private final ThreadPoolExecutor cacheRefreshExecutor = new DebuggableThreadPoolExecutor("PermissionsCacheRefresh",
                                                                                              Thread.NORM_PRIORITY);
     private final IAuthorizer authorizer;
-    private final LoadingCache<Pair<AuthenticatedUser, IResource>, Set<Permission>> cache;
+    private volatile LoadingCache<Pair<AuthenticatedUser, IResource>, Set<Permission>> cache;
 
-    public PermissionsCache(int validityPeriod, int updateInterval, int maxEntries, IAuthorizer authorizer)
+    public PermissionsCache(IAuthorizer authorizer)
     {
         this.authorizer = authorizer;
-        this.cache = initCache(validityPeriod, updateInterval, maxEntries);
+        this.cache = initCache(null);
+        try
+        {
+            MBeanServer mbs = ManagementFactory.getPlatformMBeanServer();
+            mbs.registerMBean(this, new ObjectName(MBEAN_NAME));
+        }
+        catch (Exception e)
+        {
+            throw new RuntimeException(e);
+        }
     }
 
     public Set<Permission> getPermissions(AuthenticatedUser user, IResource resource)
@@ -61,20 +77,46 @@ public class PermissionsCache
         }
     }
 
-    private LoadingCache<Pair<AuthenticatedUser, IResource>, Set<Permission>> initCache(int validityPeriod,
-                                                                                        int updateInterval,
-                                                                                        int maxEntries)
+    public void invalidate()
+    {
+        cache = initCache(null);
+    }
+
+    public void setValidity(int validityPeriod)
+    {
+        DatabaseDescriptor.setPermissionsValidity(validityPeriod);
+        cache = initCache(cache);
+    }
+
+    public int getValidity()
+    {
+        return DatabaseDescriptor.getPermissionsValidity();
+    }
+
+    public void setUpdateInterval(int updateInterval)
+    {
+        DatabaseDescriptor.setPermissionsUpdateInterval(updateInterval);
+        cache = initCache(cache);
+    }
+
+    public int getUpdateInterval()
+    {
+        return DatabaseDescriptor.getPermissionsUpdateInterval();
+    }
+
+    private LoadingCache<Pair<AuthenticatedUser, IResource>, Set<Permission>> initCache(
+                                                             LoadingCache<Pair<AuthenticatedUser, IResource>, Set<Permission>> existing)
     {
         if (authorizer instanceof AllowAllAuthorizer)
             return null;
 
-        if (validityPeriod <= 0)
+        if (DatabaseDescriptor.getPermissionsValidity() <= 0)
             return null;
 
-        return CacheBuilder.newBuilder()
-                           .refreshAfterWrite(updateInterval, TimeUnit.MILLISECONDS)
-                           .expireAfterWrite(validityPeriod, TimeUnit.MILLISECONDS)
-                           .maximumSize(maxEntries)
+        LoadingCache<Pair<AuthenticatedUser, IResource>, Set<Permission>> newcache = CacheBuilder.newBuilder()
+                           .refreshAfterWrite(DatabaseDescriptor.getPermissionsUpdateInterval(), TimeUnit.MILLISECONDS)
+                           .expireAfterWrite(DatabaseDescriptor.getPermissionsValidity(), TimeUnit.MILLISECONDS)
+                           .maximumSize(DatabaseDescriptor.getPermissionsCacheMaxEntries())
                            .build(new CacheLoader<Pair<AuthenticatedUser, IResource>, Set<Permission>>()
                            {
                                public Set<Permission> load(Pair<AuthenticatedUser, IResource> userResource)
@@ -104,5 +146,8 @@ public class PermissionsCache
                                    return task;
                                }
                            });
+        if (existing != null)
+            newcache.putAll(existing.asMap());
+        return newcache;
     }
 }
