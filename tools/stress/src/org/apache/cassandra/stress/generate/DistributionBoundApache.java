@@ -61,7 +61,7 @@ public class DistributionBoundApache extends Distribution
     private static long bound(long min, long max, double val)
     {
         long r = (long) val;
-        if ((r >= min) & (r <= max))
+        if ((r >= min) && (r <= max))
             return r;
         if (r < min)
             return min;
@@ -72,7 +72,7 @@ public class DistributionBoundApache extends Distribution
 
     private static double boundDouble(long min, long max, double r)
     {
-        if ((r >= min) & (r <= max))
+        if ((r >= min) && (r <= max))
             return r;
         if (r < min)
             return min;
