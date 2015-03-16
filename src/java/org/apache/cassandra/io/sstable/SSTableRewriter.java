@@ -351,7 +351,7 @@ public class SSTableRewriter
         }
         else
         {
-            dataTracker.markCompacting(Collections.singleton(replaceWith), true);
+            dataTracker.markCompacting(Collections.singleton(replaceWith), true, isOffline);
             toReplaceSet = Collections.emptySet();
         }
         dataTracker.replaceEarlyOpenedFiles(toReplaceSet, Collections.singleton(replaceWith));

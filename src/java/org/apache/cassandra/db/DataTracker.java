@@ -194,9 +194,9 @@ public class DataTracker
      */
     public boolean markCompacting(Collection<SSTableReader> sstables)
     {
-        return markCompacting(sstables, false);
+        return markCompacting(sstables, false, false);
     }
-    public boolean markCompacting(Collection<SSTableReader> sstables, boolean newTables)
+    public boolean markCompacting(Collection<SSTableReader> sstables, boolean newTables, boolean offline)
     {
         assert sstables != null && !Iterables.isEmpty(sstables);
         while (true)
@@ -214,7 +214,7 @@ public class DataTracker
             };
             if (newTables)
                 assert !Iterables.any(sstables, Predicates.in(currentView.sstables));
-            else if (!Iterables.all(sstables, live))
+            else if (!offline && !Iterables.all(sstables, live))
                 return false;
 
             View newView = currentView.markCompacting(sstables);
