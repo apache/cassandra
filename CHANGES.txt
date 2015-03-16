@@ -71,6 +71,7 @@
  * Generalize progress reporting (CASSANDRA-8901)
 
 2.1.4
+ * Don't check if an sstable is live for offline compactions (CASSANDRA-8841)
  * Don't set clientMode in SSTableLoader (CASSANDRA-8238)
  * Fix SSTableRewriter with disabled early open (CASSANDRA-8535)
  * Fix cassandra-stress so it respects the CL passed in user mode (CASSANDRA-8948)

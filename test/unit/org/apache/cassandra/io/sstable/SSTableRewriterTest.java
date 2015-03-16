@@ -604,7 +604,7 @@ public class SSTableRewriterTest extends SchemaLoader
         cfs.truncateBlocking();
         cfs.disableAutoCompaction();
         SSTableReader s = writeFile(cfs, 1000);
-        cfs.getDataTracker().markCompacting(Arrays.asList(s), true);
+        cfs.getDataTracker().markCompacting(Arrays.asList(s), true, false);
         SSTableSplitter splitter = new SSTableSplitter(cfs, s, 10);
         splitter.split();
         Thread.sleep(1000);
