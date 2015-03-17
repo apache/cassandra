@@ -60,7 +60,6 @@ import org.apache.cassandra.locator.TokenMetadata;
 import org.apache.cassandra.metrics.*;
 import org.apache.cassandra.net.*;
 import org.apache.cassandra.service.paxos.*;
-import org.apache.cassandra.sink.SinkManager;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.triggers.TriggerExecutor;
 import org.apache.cassandra.utils.*;
@@ -1054,19 +1053,15 @@ public class StorageProxy implements StorageProxyMBean
         {
             public void runMayThrow()
             {
-                IMutation processed = SinkManager.processWriteRequest(mutation);
-                if (processed != null)
+                try
                 {
-                    try 
-                    {
-                        ((Mutation) processed).apply();
-                        responseHandler.response(null);
-                    }
-                    catch (Exception ex)
-                    {
-                        logger.error("Failed to apply mutation locally : {}", ex.getMessage());
-                        responseHandler.onFailure(FBUtilities.getBroadcastAddress());
-                    }
+                    mutation.apply();
+                    responseHandler.response(null);
+                }
+                catch (Exception ex)
+                {
+                    logger.error("Failed to apply mutation locally : {}", ex.getMessage());
+                    responseHandler.onFailure(FBUtilities.getBroadcastAddress());
                 }
             }
         });
@@ -1177,18 +1172,13 @@ public class StorageProxy implements StorageProxyMBean
             @Override
             public void runMayThrow() throws OverloadedException, WriteTimeoutException
             {
-                IMutation processed = SinkManager.processWriteRequest(mutation);
-                if (processed == null)
-                    return;
+                assert mutation instanceof CounterMutation;
 
-                assert processed instanceof CounterMutation;
-                CounterMutation cm = (CounterMutation) processed;
-
-                Mutation result = cm.apply();
+                Mutation result = ((CounterMutation) mutation).apply();
                 responseHandler.response(null);
 
                 Set<InetAddress> remotes = Sets.difference(ImmutableSet.copyOf(targets),
-                            ImmutableSet.of(FBUtilities.getBroadcastAddress()));
+                                                           ImmutableSet.of(FBUtilities.getBroadcastAddress()));
                 if (!remotes.isEmpty())
                     sendToHintedEndpoints(result, remotes, responseHandler, localDataCenter);
             }

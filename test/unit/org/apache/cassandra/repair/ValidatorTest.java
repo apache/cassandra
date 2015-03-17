@@ -43,8 +43,7 @@ import org.apache.cassandra.locator.SimpleStrategy;
 import org.apache.cassandra.net.MessageIn;
 import org.apache.cassandra.net.MessageOut;
 import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.sink.IMessageSink;
-import org.apache.cassandra.sink.SinkManager;
+import org.apache.cassandra.net.IMessageSink;
 import org.apache.cassandra.repair.messages.RepairMessage;
 import org.apache.cassandra.repair.messages.ValidationComplete;
 import org.apache.cassandra.service.StorageService;
@@ -73,7 +72,7 @@ public class ValidatorTest
     @After
     public void tearDown()
     {
-        SinkManager.clear();
+        MessagingService.instance().clearMessageSinks();
     }
 
     @Test
@@ -83,10 +82,10 @@ public class ValidatorTest
         final RepairJobDesc desc = new RepairJobDesc(UUID.randomUUID(), UUID.randomUUID(), keyspace, columnFamily, range);
 
         final SimpleCondition lock = new SimpleCondition();
-        SinkManager.add(new IMessageSink()
+        MessagingService.instance().addMessageSink(new IMessageSink()
         {
             @SuppressWarnings("unchecked")
-            public MessageOut handleMessage(MessageOut message, int id, InetAddress to)
+            public boolean allowOutgoingMessage(MessageOut message, int id, InetAddress to)
             {
                 try
                 {
@@ -95,20 +94,20 @@ public class ValidatorTest
                         RepairMessage m = (RepairMessage) message.payload;
                         assertEquals(RepairMessage.Type.VALIDATION_COMPLETE, m.messageType);
                         assertEquals(desc, m.desc);
-                        assertTrue(((ValidationComplete)m).success);
-                        assertNotNull(((ValidationComplete)m).tree);
+                        assertTrue(((ValidationComplete) m).success);
+                        assertNotNull(((ValidationComplete) m).tree);
                     }
                 }
                 finally
                 {
                     lock.signalAll();
                 }
-                return null;
+                return false;
             }
 
-            public MessageIn handleMessage(MessageIn message, int id, InetAddress to)
+            public boolean allowIncomingMessage(MessageIn message, int id)
             {
-                return null;
+                return false;
             }
         });
 
@@ -165,10 +164,10 @@ public class ValidatorTest
         final RepairJobDesc desc = new RepairJobDesc(UUID.randomUUID(), UUID.randomUUID(), keyspace, columnFamily, range);
 
         final SimpleCondition lock = new SimpleCondition();
-        SinkManager.add(new IMessageSink()
+        MessagingService.instance().addMessageSink(new IMessageSink()
         {
             @SuppressWarnings("unchecked")
-            public MessageOut handleMessage(MessageOut message, int id, InetAddress to)
+            public boolean allowOutgoingMessage(MessageOut message, int id, InetAddress to)
             {
                 try
                 {
@@ -178,19 +177,19 @@ public class ValidatorTest
                         assertEquals(RepairMessage.Type.VALIDATION_COMPLETE, m.messageType);
                         assertEquals(desc, m.desc);
                         assertFalse(((ValidationComplete) m).success);
-                        assertNull(((ValidationComplete)m).tree);
+                        assertNull(((ValidationComplete) m).tree);
                     }
                 }
                 finally
                 {
                     lock.signalAll();
                 }
-                return null;
+                return false;
             }
 
-            public MessageIn handleMessage(MessageIn message, int id, InetAddress to)
+            public boolean allowIncomingMessage(MessageIn message, int id)
             {
-                return null;
+                return false;
             }
         });
 

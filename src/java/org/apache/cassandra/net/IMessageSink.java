@@ -15,18 +15,23 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.sink;
+package org.apache.cassandra.net;
 
-import org.apache.cassandra.db.IMutation;
+import java.net.InetAddress;
 
-public interface IRequestSink
+public interface IMessageSink
 {
     /**
-     * Transform or drop a write request (represented by a Mutation).
+     * Allow or drop an outgoing message
      *
-     * @param mutation the Mutation to be applied locally.
-     * @return null if the mutation is to be dropped, or the transformed mutation to apply, which may be just
-     * the original mutation.
+     * @return true if the message is allowed, false if it should be dropped
      */
-    IMutation handleWriteRequest(IMutation mutation);
+    boolean allowOutgoingMessage(MessageOut message, int id, InetAddress to);
+
+    /**
+     * Allow or drop an incoming message
+     *
+     * @return true if the message is allowed, false if it should be dropped
+     */
+    boolean allowIncomingMessage(MessageIn message, int id);
 }
