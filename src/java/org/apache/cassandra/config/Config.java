@@ -34,7 +34,7 @@ import org.apache.cassandra.utils.FBUtilities;
 
 /**
  * A class that contains configuration properties for the cassandra node it runs within.
- * 
+ *
  * Properties declared as volatile can be mutated via JMX.
  */
 public class Config
@@ -101,12 +101,14 @@ public class Config
     public Integer ssl_storage_port = 7001;
     public String listen_address;
     public String listen_interface;
+    public Boolean listen_interface_prefer_ipv6 = false;
     public String broadcast_address;
     public String internode_authenticator;
 
     public Boolean start_rpc = true;
     public String rpc_address;
     public String rpc_interface;
+    public Boolean rpc_interface_prefer_ipv6 = false;
     public String broadcast_rpc_address;
     public Integer rpc_port = 9160;
     public Integer rpc_listen_backlog = 50;
@@ -155,7 +157,7 @@ public class Config
     public Double commitlog_sync_batch_window_in_ms;
     public Integer commitlog_sync_period_in_ms;
     public int commitlog_segment_size_in_mb = 32;
- 
+
     @Deprecated
     public int commitlog_periodic_queue_size = -1;
 

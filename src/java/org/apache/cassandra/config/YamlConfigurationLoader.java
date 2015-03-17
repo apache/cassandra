@@ -50,7 +50,7 @@ public class YamlConfigurationLoader implements ConfigurationLoader
     /**
      * Inspect the classpath to find storage configuration file
      */
-    private URL getStorageConfigURL() throws ConfigurationException
+    static URL getStorageConfigURL() throws ConfigurationException
     {
         String configUrl = System.getProperty("cassandra.config");
         if (configUrl == null)
@@ -100,7 +100,7 @@ public class YamlConfigurationLoader implements ConfigurationLoader
                 // getStorageConfigURL should have ruled this out
                 throw new AssertionError(e);
             }
-            
+
             logConfig(configBytes);
             
             org.yaml.snakeyaml.constructor.Constructor constructor = new org.yaml.snakeyaml.constructor.Constructor(Config.class);
@@ -134,16 +134,16 @@ public class YamlConfigurationLoader implements ConfigurationLoader
         }
         logger.info("Node configuration:[" + Joiner.on("; ").join(configMap.entrySet()) + "]");
     }
-    
-    private static class MissingPropertiesChecker extends PropertyUtils 
+
+    private static class MissingPropertiesChecker extends PropertyUtils
     {
         private final Set<String> missingProperties = new HashSet<>();
-        
+
         public MissingPropertiesChecker()
         {
             setSkipMissingProperties(true);
         }
-        
+
         @Override
         public Property getProperty(Class<? extends Object> type, String name) throws IntrospectionException
         {
@@ -154,10 +154,10 @@ public class YamlConfigurationLoader implements ConfigurationLoader
             }
             return result;
         }
-        
+
         public void check() throws ConfigurationException
         {
-            if (!missingProperties.isEmpty()) 
+            if (!missingProperties.isEmpty())
             {
                 throw new ConfigurationException("Invalid yaml. Please remove properties " + missingProperties + " from your cassandra.yaml");
             }

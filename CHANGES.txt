@@ -1,4 +1,5 @@
 2.1.4
+ * DatabaseDescriptor throws NPE when rpc_interface is used (CASSANDRA-8839)
  * Don't check if an sstable is live for offline compactions (CASSANDRA-8841)
  * Don't set clientMode in SSTableLoader (CASSANDRA-8238)
  * Fix SSTableRewriter with disabled early open (CASSANDRA-8535)
