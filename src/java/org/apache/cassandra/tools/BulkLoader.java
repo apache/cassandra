@@ -227,7 +227,7 @@ public class BulkLoader
                     peak = average;
                 sb.append("(avg: ").append(average).append(" MB/s)");
 
-                System.err.print(sb.toString());
+                System.out.print(sb.toString());
             }
         }
 
@@ -250,7 +250,7 @@ public class BulkLoader
             sb.append(String.format("   %-30s: %-10d%n", "Total duration (ms): ", durationMS));
             sb.append(String.format("   %-30s: %-10d%n", "Average transfer rate (MB/s): ", + average));
             sb.append(String.format("   %-30s: %-10d%n", "Peak transfer rate (MB/s): ", + peak));
-            System.err.println(sb.toString());
+            System.out.println(sb.toString());
         }
     }
 

@@ -113,6 +113,7 @@
  * cassandra-stress support for varint (CASSANDRA-8882)
  * Fix Adler32 digest for compressed sstables (CASSANDRA-8778)
  * Add nodetool statushandoff/statusbackup (CASSANDRA-8912)
+ * Use stdout for progress and stats in sstableloader (CASSANDRA-8982)
 Merged from 2.0:
  * Allow specifying the tmp dir (CASSANDRA-7712)
  * Improve compaction estimated tasks estimation (CASSANDRA-8904)
