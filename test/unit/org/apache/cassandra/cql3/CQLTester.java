@@ -75,11 +75,28 @@ public abstract class CQLTester
     private static org.apache.cassandra.transport.Server server;
     private static final int nativePort;
     private static final InetAddress nativeAddr;
-    private static final Cluster cluster[] = new Cluster[Server.CURRENT_VERSION];
-    private static final Session session[] = new Session[Server.CURRENT_VERSION];
+    private static final Cluster[] cluster;
+    private static final Session[] session;
 
-    static
-    {
+    static int maxProtocolVersion;
+    static {
+        int version;
+        for (version = 1; version <= Server.CURRENT_VERSION; version++)
+        {
+            try
+            {
+                ProtocolVersion.fromInt(version);
+            }
+            catch (IllegalArgumentException e)
+            {
+                version--;
+                break;
+            }
+        }
+        maxProtocolVersion = version;
+        cluster = new Cluster[maxProtocolVersion];
+        session = new Session[maxProtocolVersion];
+
         // Once per-JVM is enough
         SchemaLoader.prepareServer();
 
@@ -210,7 +227,7 @@ public abstract class CQLTester
         server = new org.apache.cassandra.transport.Server(nativeAddr, nativePort);
         server.start();
 
-        for (int version = 1; version <= Server.CURRENT_VERSION; version++)
+        for (int version = 1; version <= maxProtocolVersion; version++)
         {
             if (cluster[version-1] != null)
                 continue;
