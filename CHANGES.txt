@@ -44,6 +44,7 @@
  * Fix Adler32 digest for compressed sstables (CASSANDRA-8778)
  * Add nodetool statushandoff/statusbackup (CASSANDRA-8912)
 Merged from 2.0:
+ * Improve compaction estimated tasks estimation (CASSANDRA-8904)
  * Fix duplicate up/down messages sent to native clients (CASSANDRA-7816)
  * Expose commit log archive status via JMX (CASSANDRA-8734)
  * Provide better exceptions for invalid replication strategy parameters
