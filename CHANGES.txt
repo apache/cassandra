@@ -1,4 +1,5 @@
 2.0.14:
+ * Allow specifying the tmp dir (CASSANDRA-7712)
  * Improve compaction estimated tasks estimation (CASSANDRA-8904)
  * Fix duplicate up/down messages sent to native clients (CASSANDRA-7816)
  * Expose commit log archive status via JMX (CASSANDRA-8734)
