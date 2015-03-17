@@ -125,7 +125,7 @@ public class DatabaseDescriptor
         return loader.loadConfig();
     }
 
-    private static InetAddress getNetworkInterfaceAddress(String intf, String configName) throws ConfigurationException
+    private static InetAddress getNetworkInterfaceAddress(String intf, String configName, boolean preferIPv6) throws ConfigurationException
     {
         try
         {
@@ -135,14 +135,120 @@ public class DatabaseDescriptor
             Enumeration<InetAddress> addrs = ni.getInetAddresses();
             if (!addrs.hasMoreElements())
                 throw new ConfigurationException("Configured " + configName + " \"" + intf + "\" was found, but had no addresses", false);
-            InetAddress retval = listenAddress = addrs.nextElement();
-            if (addrs.hasMoreElements())
-                throw new ConfigurationException("Configured " + configName + " \"" + intf + "\" can't have more than one address", false);
+
+            /*
+             * Try to return the first address of the preferred type, otherwise return the first address
+             */
+            InetAddress retval = null;
+            while (addrs.hasMoreElements())
+            {
+                InetAddress temp = addrs.nextElement();
+                if (preferIPv6 && temp instanceof Inet6Address) return temp;
+                if (!preferIPv6 && temp instanceof Inet4Address) return temp;
+                if (retval == null) retval = temp;
+            }
             return retval;
         }
         catch (SocketException e)
         {
             throw new ConfigurationException("Configured " + configName + " \"" + intf + "\" caused an exception", e);
+        }
+    }
+
+    @VisibleForTesting
+    static void applyAddressConfig(Config config) throws ConfigurationException
+    {
+        listenAddress = null;
+        rpcAddress = null;
+        broadcastAddress = null;
+        broadcastRpcAddress = null;
+
+        /* Local IP, hostname or interface to bind services to */
+        if (config.listen_address != null && config.listen_interface != null)
+        {
+            throw new ConfigurationException("Set listen_address OR listen_interface, not both", false);
+        }
+        else if (config.listen_address != null)
+        {
+            try
+            {
+                listenAddress = InetAddress.getByName(config.listen_address);
+            }
+            catch (UnknownHostException e)
+            {
+                throw new ConfigurationException("Unknown listen_address '" + config.listen_address + "'", false);
+            }
+
+            if (listenAddress.isAnyLocalAddress())
+                throw new ConfigurationException("listen_address cannot be a wildcard address (" + config.listen_address + ")!", false);
+        }
+        else if (config.listen_interface != null)
+        {
+            listenAddress = getNetworkInterfaceAddress(config.listen_interface, "listen_interface", config.listen_interface_prefer_ipv6);
+        }
+
+        /* Gossip Address to broadcast */
+        if (config.broadcast_address != null)
+        {
+            try
+            {
+                broadcastAddress = InetAddress.getByName(config.broadcast_address);
+            }
+            catch (UnknownHostException e)
+            {
+                throw new ConfigurationException("Unknown broadcast_address '" + config.broadcast_address + "'", false);
+            }
+
+            if (broadcastAddress.isAnyLocalAddress())
+                throw new ConfigurationException("broadcast_address cannot be a wildcard address (" + config.broadcast_address + ")!", false);
+        }
+
+        /* Local IP, hostname or interface to bind RPC server to */
+        if (config.rpc_address != null && config.rpc_interface != null)
+        {
+            throw new ConfigurationException("Set rpc_address OR rpc_interface, not both", false);
+        }
+        else if (config.rpc_address != null)
+        {
+            try
+            {
+                rpcAddress = InetAddress.getByName(config.rpc_address);
+            }
+            catch (UnknownHostException e)
+            {
+                throw new ConfigurationException("Unknown host in rpc_address " + config.rpc_address, false);
+            }
+        }
+        else if (config.rpc_interface != null)
+        {
+            rpcAddress = getNetworkInterfaceAddress(config.rpc_interface, "rpc_interface", config.rpc_interface_prefer_ipv6);
+        }
+        else
+        {
+            rpcAddress = FBUtilities.getLocalAddress();
+        }
+
+        /* RPC address to broadcast */
+        if (config.broadcast_rpc_address != null)
+        {
+            try
+            {
+                broadcastRpcAddress = InetAddress.getByName(config.broadcast_rpc_address);
+            }
+            catch (UnknownHostException e)
+            {
+                throw new ConfigurationException("Unknown broadcast_rpc_address '" + config.broadcast_rpc_address + "'", false);
+            }
+
+            if (broadcastRpcAddress.isAnyLocalAddress())
+                throw new ConfigurationException("broadcast_rpc_address cannot be a wildcard address (" + config.broadcast_rpc_address + ")!", false);
+        }
+        else
+        {
+            if (rpcAddress.isAnyLocalAddress())
+                throw new ConfigurationException("If rpc_address is set to a wildcard address (" + config.rpc_address + "), then " +
+                                                 "you must set broadcast_rpc_address to a value other than " + config.rpc_address, false);
+            broadcastRpcAddress = rpcAddress;
         }
     }
 
@@ -300,93 +406,7 @@ public class DatabaseDescriptor
         else
             logger.info("Global memtable off-heap threshold is enabled at {}MB", conf.memtable_offheap_space_in_mb);
 
-        /* Local IP, hostname or interface to bind services to */
-        if (conf.listen_address != null && conf.listen_interface != null)
-        {
-            throw new ConfigurationException("Set listen_address OR listen_interface, not both", false);
-        }
-        else if (conf.listen_address != null)
-        {
-            try
-            {
-                listenAddress = InetAddress.getByName(conf.listen_address);
-            }
-            catch (UnknownHostException e)
-            {
-                throw new ConfigurationException("Unknown listen_address '" + conf.listen_address + "'", false);
-            }
-
-            if (listenAddress.isAnyLocalAddress())
-                throw new ConfigurationException("listen_address cannot be a wildcard address (" + conf.listen_address + ")!", false);
-        }
-        else if (conf.listen_interface != null)
-        {
-            listenAddress = getNetworkInterfaceAddress(conf.listen_interface, "listen_interface");
-        }
-
-        /* Gossip Address to broadcast */
-        if (conf.broadcast_address != null)
-        {
-            try
-            {
-                broadcastAddress = InetAddress.getByName(conf.broadcast_address);
-            }
-            catch (UnknownHostException e)
-            {
-                throw new ConfigurationException("Unknown broadcast_address '" + conf.broadcast_address + "'", false);
-            }
-
-            if (broadcastAddress.isAnyLocalAddress())
-                throw new ConfigurationException("broadcast_address cannot be a wildcard address (" + conf.broadcast_address + ")!", false);
-        }
-
-        /* Local IP, hostname or interface to bind RPC server to */
-        if (conf.rpc_address != null && conf.rpc_interface != null)
-        {
-            throw new ConfigurationException("Set rpc_address OR rpc_interface, not both", false);
-        }
-        else if (conf.rpc_address != null)
-        {
-            try
-            {
-                rpcAddress = InetAddress.getByName(conf.rpc_address);
-            }
-            catch (UnknownHostException e)
-            {
-                throw new ConfigurationException("Unknown host in rpc_address " + conf.rpc_address, false);
-            }
-        }
-        else if (conf.rpc_interface != null)
-        {
-            rpcAddress = getNetworkInterfaceAddress(conf.rpc_interface, "rpc_interface");
-        }
-        else
-        {
-            rpcAddress = FBUtilities.getLocalAddress();
-        }
-
-        /* RPC address to broadcast */
-        if (conf.broadcast_rpc_address != null)
-        {
-            try
-            {
-                broadcastRpcAddress = InetAddress.getByName(conf.broadcast_rpc_address);
-            }
-            catch (UnknownHostException e)
-            {
-                throw new ConfigurationException("Unknown broadcast_rpc_address '" + conf.broadcast_rpc_address + "'", false);
-            }
-
-            if (broadcastRpcAddress.isAnyLocalAddress())
-                throw new ConfigurationException("broadcast_rpc_address cannot be a wildcard address (" + conf.broadcast_rpc_address + ")!", false);
-        }
-        else
-        {
-            if (rpcAddress.isAnyLocalAddress())
-                throw new ConfigurationException("If rpc_address is set to a wildcard address (" + conf.rpc_address + "), then " +
-                                                 "you must set broadcast_rpc_address to a value other than " + conf.rpc_address, false);
-            broadcastRpcAddress = rpcAddress;
-        }
+        applyAddressConfig(config);
 
         if (conf.thrift_framed_transport_size_in_mb <= 0)
             throw new ConfigurationException("thrift_framed_transport_size_in_mb must be positive", false);
