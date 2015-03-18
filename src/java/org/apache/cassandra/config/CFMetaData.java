@@ -112,7 +112,7 @@ public final class CFMetaData
                 {
                     double value = Double.parseDouble(name.substring(0, name.length() - 10));
                     if (value > 100 || value < 0)
-                        throw new ConfigurationException("PERCENTILE should be between 0 and 100");
+                        throw new ConfigurationException("PERCENTILE should be between 0 and 100, but was " + value);
                     return new SpeculativeRetry(RetryType.PERCENTILE, (value / 100));
                 }
                 else if (name.endsWith("MS"))
@@ -813,10 +813,10 @@ public final class CFMetaData
                                                            cfm.cfId, cfId));
 
         if (cfm.cfType != cfType)
-            throw new ConfigurationException("types do not match.");
+            throw new ConfigurationException(String.format("Column family types do not match (found %s; expected %s).", cfm.cfType, cfType));
 
         if (!cfm.comparator.isCompatibleWith(comparator))
-            throw new ConfigurationException("comparators do not match or are not compatible.");
+            throw new ConfigurationException(String.format("Column family comparators do not match or are not compatible (found %s; expected %s).", cfm.comparator.getClass().getSimpleName(), comparator.getClass().getSimpleName()));
     }
 
     public static void validateCompactionOptions(Class<? extends AbstractCompactionStrategy> strategyClass, Map<String, String> options) throws ConfigurationException
@@ -838,7 +838,7 @@ public final class CFMetaData
         {
             if (e.getTargetException() instanceof ConfigurationException)
                 throw (ConfigurationException) e.getTargetException();
-            throw new ConfigurationException("Failed to validate compaction options");
+            throw new ConfigurationException("Failed to validate compaction options: " + options);
         }
         catch (ConfigurationException e)
         {
@@ -846,7 +846,7 @@ public final class CFMetaData
         }
         catch (Exception e)
         {
-            throw new ConfigurationException("Failed to validate compaction options");
+            throw new ConfigurationException("Failed to validate compaction options: " + options);
         }
     }
 

@@ -76,7 +76,7 @@ public class Attributes
         }
         catch (MarshalException e)
         {
-            throw new InvalidRequestException("Invalid timestamp value");
+            throw new InvalidRequestException("Invalid timestamp value: " + tval);
         }
 
         return LongType.instance.compose(tval);
@@ -97,12 +97,12 @@ public class Attributes
         }
         catch (MarshalException e)
         {
-            throw new InvalidRequestException("Invalid timestamp value");
+            throw new InvalidRequestException("Invalid timestamp value: " + tval);
         }
 
         int ttl = Int32Type.instance.compose(tval);
         if (ttl < 0)
-            throw new InvalidRequestException("A TTL must be greater or equal to 0");
+            throw new InvalidRequestException("A TTL must be greater or equal to 0, but was " + ttl);
 
         if (ttl > ExpiringCell.MAX_TTL)
             throw new InvalidRequestException(String.format("ttl is too large. requested (%d) maximum (%d)", ttl, ExpiringCell.MAX_TTL));

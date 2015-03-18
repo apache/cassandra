@@ -137,9 +137,9 @@ public class BufferExpiringCell extends BufferCell implements ExpiringCell
         super.validateFields(metadata);
 
         if (timeToLive <= 0)
-            throw new MarshalException("A column TTL should be > 0");
+            throw new MarshalException("A column TTL should be > 0, but was " + timeToLive);
         if (localExpirationTime < 0)
-            throw new MarshalException("The local expiration time should not be negative");
+            throw new MarshalException("The local expiration time should not be negative but was " + localExpirationTime);
     }
 
     @Override
