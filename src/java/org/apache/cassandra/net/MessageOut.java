@@ -46,6 +46,8 @@ public class MessageOut<T>
     public final T payload;
     public final IVersionedSerializer<T> serializer;
     public final Map<String, byte[]> parameters;
+    private long payloadSize = -1;
+    private int payloadSizeVersion = -1;
 
     // we do support messages that just consist of a verb
     public MessageOut(MessagingService.Verb verb)
@@ -86,7 +88,7 @@ public class MessageOut<T>
         return new MessageOut<T>(verb, payload, serializer, builder.build());
     }
 
-    public Stage getStage()
+    private Stage getStage()
     {
         return MessagingService.verbStages.get(verb);
     }
@@ -116,7 +118,7 @@ public class MessageOut<T>
             out.write(entry.getValue());
         }
 
-        long longSize = payload == null ? 0 : serializer.serializedSize(payload, version);
+        long longSize = payloadSize(version);
         assert longSize <= Integer.MAX_VALUE; // larger values are supported in sstables but not messages
         out.writeInt((int) longSize);
         if (payload != null)
@@ -136,10 +138,38 @@ public class MessageOut<T>
             size += entry.getValue().length;
         }
 
-        long longSize = payload == null ? 0 : serializer.serializedSize(payload, version);
+        long longSize = payloadSize(version);
         assert longSize <= Integer.MAX_VALUE; // larger values are supported in sstables but not messages
         size += TypeSizes.NATIVE.sizeof((int) longSize);
         size += longSize;
         return size;
+    }
+
+    /**
+     * Calculate the size of the payload of this message for the specified protocol version
+     * and memoize the result for the specified protocol version. Memoization only covers the protocol
+     * version of the first invocation.
+     *
+     * It is not safe to call payloadSize concurrently from multiple threads unless it has already been invoked
+     * once from a single thread and there is a happens before relationship between that invocation and other
+     * threads concurrently invoking payloadSize.
+     *
+     * For instance it would be safe to invokePayload size to make a decision in the thread that created the message
+     * and then hand it off to other threads via a thread-safe queue, volatile write, or synchronized/ReentrantLock.
+     * @param version Protocol version to use when calculating payload size
+     * @return Size of the payload of this message in bytes
+     */
+    public long payloadSize(int version)
+    {
+        if (payloadSize == -1)
+        {
+            payloadSize = payload == null ? 0 : serializer.serializedSize(payload, version);
+            payloadSizeVersion = version;
+        }
+        else if (payloadSizeVersion != version)
+        {
+            return payload == null ? 0 : serializer.serializedSize(payload, version);
+        }
+        return payloadSize;
     }
 }

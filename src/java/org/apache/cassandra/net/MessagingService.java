@@ -540,7 +540,7 @@ public final class MessagingService implements MessagingServiceMBean
         cp.waitForStarted();
         return cp;
     }
-    
+
 
     public OutboundTcpConnection getConnection(InetAddress to, MessageOut msg)
     {
@@ -964,50 +964,58 @@ public final class MessagingService implements MessagingServiceMBean
         }
     }
 
-    public Map<String, Integer> getCommandPendingTasks()
+    public Map<String, Integer> getLargeMessagePendingTasks()
     {
         Map<String, Integer> pendingTasks = new HashMap<String, Integer>(connectionManagers.size());
         for (Map.Entry<InetAddress, OutboundTcpConnectionPool> entry : connectionManagers.entrySet())
-            pendingTasks.put(entry.getKey().getHostAddress(), entry.getValue().cmdCon.getPendingMessages());
+            pendingTasks.put(entry.getKey().getHostAddress(), entry.getValue().largeMessages.getPendingMessages());
         return pendingTasks;
     }
 
-    public int getCommandPendingTasks(InetAddress address)
+    public int getLargeMessagePendingTasks(InetAddress address)
     {
         OutboundTcpConnectionPool connection = connectionManagers.get(address);
-        return connection == null ? 0 : connection.cmdCon.getPendingMessages();
+        return connection == null ? 0 : connection.largeMessages.getPendingMessages();
     }
 
-    public Map<String, Long> getCommandCompletedTasks()
+    public Map<String, Long> getLargeMessageCompletedTasks()
     {
         Map<String, Long> completedTasks = new HashMap<String, Long>(connectionManagers.size());
         for (Map.Entry<InetAddress, OutboundTcpConnectionPool> entry : connectionManagers.entrySet())
-            completedTasks.put(entry.getKey().getHostAddress(), entry.getValue().cmdCon.getCompletedMesssages());
+            completedTasks.put(entry.getKey().getHostAddress(), entry.getValue().largeMessages.getCompletedMesssages());
         return completedTasks;
     }
 
-    public Map<String, Long> getCommandDroppedTasks()
+    public Map<String, Long> getLargeMessageDroppedTasks()
     {
         Map<String, Long> droppedTasks = new HashMap<String, Long>(connectionManagers.size());
         for (Map.Entry<InetAddress, OutboundTcpConnectionPool> entry : connectionManagers.entrySet())
-            droppedTasks.put(entry.getKey().getHostAddress(), entry.getValue().cmdCon.getDroppedMessages());
+            droppedTasks.put(entry.getKey().getHostAddress(), entry.getValue().largeMessages.getDroppedMessages());
         return droppedTasks;
     }
 
-    public Map<String, Integer> getResponsePendingTasks()
+    public Map<String, Integer> getSmallMessagePendingTasks()
     {
         Map<String, Integer> pendingTasks = new HashMap<String, Integer>(connectionManagers.size());
         for (Map.Entry<InetAddress, OutboundTcpConnectionPool> entry : connectionManagers.entrySet())
-            pendingTasks.put(entry.getKey().getHostAddress(), entry.getValue().ackCon.getPendingMessages());
+            pendingTasks.put(entry.getKey().getHostAddress(), entry.getValue().smallMessages.getPendingMessages());
         return pendingTasks;
     }
 
-    public Map<String, Long> getResponseCompletedTasks()
+    public Map<String, Long> getSmallMessageCompletedTasks()
     {
         Map<String, Long> completedTasks = new HashMap<String, Long>(connectionManagers.size());
         for (Map.Entry<InetAddress, OutboundTcpConnectionPool> entry : connectionManagers.entrySet())
-            completedTasks.put(entry.getKey().getHostAddress(), entry.getValue().ackCon.getCompletedMesssages());
+            completedTasks.put(entry.getKey().getHostAddress(), entry.getValue().smallMessages.getCompletedMesssages());
         return completedTasks;
+    }
+
+    public Map<String, Long> getSmallMessageDroppedTasks()
+    {
+        Map<String, Long> droppedTasks = new HashMap<String, Long>(connectionManagers.size());
+        for (Map.Entry<InetAddress, OutboundTcpConnectionPool> entry : connectionManagers.entrySet())
+            droppedTasks.put(entry.getKey().getHostAddress(), entry.getValue().smallMessages.getDroppedMessages());
+        return droppedTasks;
     }
 
     public Map<String, Integer> getDroppedMessages()

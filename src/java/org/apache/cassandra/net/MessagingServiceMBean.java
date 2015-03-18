@@ -29,29 +29,34 @@ import java.util.Map;
 public interface MessagingServiceMBean
 {
     /**
-     * Pending tasks for Command(Mutations, Read etc) TCP Connections
+     * Pending tasks for large message TCP Connections
      */
-    public Map<String, Integer> getCommandPendingTasks();
+    public Map<String, Integer> getLargeMessagePendingTasks();
 
     /**
-     * Completed tasks for Command(Mutations, Read etc) TCP Connections
+     * Completed tasks for large message) TCP Connections
      */
-    public Map<String, Long> getCommandCompletedTasks();
+    public Map<String, Long> getLargeMessageCompletedTasks();
 
     /**
-     * Dropped tasks for Command(Mutations, Read etc) TCP Connections
+     * Dropped tasks for large message TCP Connections
      */
-    public Map<String, Long> getCommandDroppedTasks();
+    public Map<String, Long> getLargeMessageDroppedTasks();
 
     /**
-     * Pending tasks for Response(GOSSIP & RESPONSE) TCP Connections
+     * Pending tasks for small message TCP Connections
      */
-    public Map<String, Integer> getResponsePendingTasks();
+    public Map<String, Integer> getSmallMessagePendingTasks();
 
     /**
-     * Completed tasks for Response(GOSSIP & RESPONSE) TCP Connections
+     * Completed tasks for small message TCP Connections
      */
-    public Map<String, Long> getResponseCompletedTasks();
+    public Map<String, Long> getSmallMessageCompletedTasks();
+
+    /**
+     * Dropped tasks for small message TCP Connections
+     */
+    public Map<String, Long> getSmallMessageDroppedTasks();
 
     /**
      * dropped message counts for server lifetime

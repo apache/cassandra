@@ -255,7 +255,7 @@ public class NodeTool
             try (NodeProbe probe = connect())
             {
                 execute(probe);
-            } 
+            }
             catch (IOException e)
             {
                 throw new RuntimeException("Error while closing JMX connection", e);
@@ -510,20 +510,20 @@ public class NodeTool
             try
             {
                 ownerships = probe.effectiveOwnership(keyspace);
-            } 
+            }
             catch (IllegalStateException ex)
             {
                 ownerships = probe.getOwnership();
                 errors.append("Note: " + ex.getMessage() + "%n");
                 showEffectiveOwnership = false;
-            } 
+            }
             catch (IllegalArgumentException ex)
             {
                 System.out.printf("%nError: " + ex.getMessage() + "%n");
                 return;
             }
 
-            
+
             System.out.println();
             for (Entry<String, SetHostStat> entry : getOwnershipByDc(probe, resolveIp, tokensToEndpoints, ownerships).entrySet())
                 printDc(probe, format, entry.getKey(), endpointsToTokens, entry.getValue(),showEffectiveOwnership);
@@ -673,20 +673,20 @@ public class NodeTool
                 long completed;
 
                 pending = 0;
-                for (int n : ms.getCommandPendingTasks().values())
+                for (int n : ms.getLargeMessagePendingTasks().values())
                     pending += n;
                 completed = 0;
-                for (long n : ms.getCommandCompletedTasks().values())
+                for (long n : ms.getLargeMessageCompletedTasks().values())
                     completed += n;
-                System.out.printf("%-25s%10s%10s%15s%n", "Commands", "n/a", pending, completed);
+                System.out.printf("%-25s%10s%10s%15s%n", "Large messages", "n/a", pending, completed);
 
                 pending = 0;
-                for (int n : ms.getResponsePendingTasks().values())
+                for (int n : ms.getSmallMessagePendingTasks().values())
                     pending += n;
                 completed = 0;
-                for (long n : ms.getResponseCompletedTasks().values())
+                for (long n : ms.getSmallMessageCompletedTasks().values())
                     completed += n;
-                System.out.printf("%-25s%10s%10s%15s%n", "Responses", "n/a", pending, completed);
+                System.out.printf("%-25s%10s%10s%15s%n", "Small messages", "n/a", pending, completed);
             }
         }
     }
@@ -2173,7 +2173,7 @@ public class NodeTool
             unreachableNodes = probe.getUnreachableNodes();
             hostIDMap = probe.getHostIdMap();
             epSnitchInfo = probe.getEndpointSnitchInfoProxy();
-            
+
             StringBuffer errors = new StringBuffer();
 
             Map<InetAddress, Float> ownerships = null;
@@ -2226,9 +2226,9 @@ public class NodeTool
                     printNode(endpoint.getHostAddress(), owns, tokens, hasEffectiveOwns, isTokenPerNode);
                 }
             }
-            
+
             System.out.printf("%n" + errors.toString());
-            
+
         }
 
         private void findMaxAddressLength(Map<String, SetHostStat> dcs)
@@ -2314,7 +2314,7 @@ public class NodeTool
         }
     }
 
-    private static Map<String, SetHostStat> getOwnershipByDc(NodeProbe probe, boolean resolveIp, 
+    private static Map<String, SetHostStat> getOwnershipByDc(NodeProbe probe, boolean resolveIp,
                                                              Map<String, String> tokenToEndpoint,
                                                              Map<InetAddress, Float> ownerships)
     {
@@ -2699,7 +2699,7 @@ public class NodeTool
                 probe.truncateHints(endpoint);
         }
     }
-    
+
     @Command(name = "setlogginglevel", description = "Set the log level threshold for a given class. If both class and level are empty/null, it will reset to the initial configuration")
     public static class SetLoggingLevel extends NodeToolCmd
     {
@@ -2714,7 +2714,7 @@ public class NodeTool
             probe.setLoggingLevel(classQualifier, level);
         }
     }
-    
+
     @Command(name = "getlogginglevels", description = "Get the runtime logging levels")
     public static class GetLoggingLevels extends NodeToolCmd
     {
