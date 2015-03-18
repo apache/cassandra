@@ -114,7 +114,7 @@ public class SSTableScannerTest
 
     private static Token token(int key)
     {
-        return key == Integer.MIN_VALUE ? ByteOrderedPartitioner.MINIMUM : new BytesToken(toKey(key).getBytes());
+        return key == Integer.MIN_VALUE ? ByteOrderedPartitioner.MINIMUM : new ByteOrderedPartitioner.BytesToken(toKey(key).getBytes());
     }
 
     private static RowPosition min(int key)
@@ -134,8 +134,8 @@ public class SSTableScannerTest
 
     private static Range<Token> rangeFor(int start, int end)
     {
-        return new Range<Token>(new BytesToken(toKey(start).getBytes()),
-                                end == Integer.MIN_VALUE ? ByteOrderedPartitioner.MINIMUM : new BytesToken(toKey(end).getBytes()));
+        return new Range<Token>(new ByteOrderedPartitioner.BytesToken(toKey(start).getBytes()),
+                                end == Integer.MIN_VALUE ? ByteOrderedPartitioner.MINIMUM : new ByteOrderedPartitioner.BytesToken(toKey(end).getBytes()));
     }
 
     private static Collection<Range<Token>> makeRanges(int ... keys)
