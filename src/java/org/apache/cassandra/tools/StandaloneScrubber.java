@@ -150,7 +150,7 @@ public class StandaloneScrubber
     {
         WrappingCompactionStrategy wrappingStrategy = (WrappingCompactionStrategy)strategy;
         int maxSizeInMB = (int)((cfs.getCompactionStrategy().getMaxSSTableBytes()) / (1024L * 1024L));
-        if (wrappingStrategy.getWrappedStrategies().size() == 2 && wrappingStrategy.getWrappedStrategies().iterator().next() instanceof LeveledCompactionStrategy)
+        if (wrappingStrategy.getWrappedStrategies().size() == 2 && wrappingStrategy.getWrappedStrategies().get(0) instanceof LeveledCompactionStrategy)
         {
             System.out.println("Checking leveled manifest");
             Predicate<SSTableReader> repairedPredicate = new Predicate<SSTableReader>()
