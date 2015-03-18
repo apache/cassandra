@@ -178,13 +178,9 @@ public class NativeCounterCell extends NativeCell implements CounterCell
         return SIZE;
     }
 
+    @Override
     public boolean equals(Cell cell)
     {
-        return cell instanceof CounterCell && equals((CounterCell) cell);
-    }
-
-    public boolean equals(CounterCell cell)
-    {
-        return super.equals(cell) && timestampOfLastDelete() == cell.timestampOfLastDelete();
+        return super.equals(cell) && timestampOfLastDelete() == ((CounterCell) cell).timestampOfLastDelete();
     }
 }

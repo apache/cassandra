@@ -167,15 +167,10 @@ public class BufferExpiringCell extends BufferCell implements ExpiringCell
     @Override
     public boolean equals(Cell cell)
     {
-        return cell instanceof ExpiringCell && equals((ExpiringCell) cell);
-    }
-
-    public boolean equals(ExpiringCell cell)
-    {
-        // super.equals() returns false if o is not a CounterCell
-        return super.equals(cell)
-               && getLocalDeletionTime() == cell.getLocalDeletionTime()
-               && getTimeToLive() == cell.getTimeToLive();
+        if (!super.equals(cell))
+            return false;
+        ExpiringCell that = (ExpiringCell) cell;
+        return getLocalDeletionTime() == that.getLocalDeletionTime() && getTimeToLive() == that.getTimeToLive();
     }
 
     /** @return Either a DeletedCell, or an ExpiringCell. */
