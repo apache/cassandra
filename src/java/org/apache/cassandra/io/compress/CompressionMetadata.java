@@ -188,7 +188,7 @@ public class CompressionMetadata
             {
                 try
                 {
-                    offsets.setLong(i * 8, input.readLong());
+                    offsets.setLong(i * 8L, input.readLong());
                 }
                 catch (EOFException e)
                 {
@@ -290,7 +290,7 @@ public class CompressionMetadata
         {
             if (count == maxCount)
             {
-                SafeMemory newOffsets = offsets.copy((maxCount *= 2L) * 8);
+                SafeMemory newOffsets = offsets.copy((maxCount *= 2L) * 8L);
                 offsets.close();
                 offsets = newOffsets;
             }
