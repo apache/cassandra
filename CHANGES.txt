@@ -72,6 +72,7 @@
  * Generalize progress reporting (CASSANDRA-8901)
 
 2.1.4
+ * Introduce intra-cluster message coalescing (CASSANDRA-8692)
  * DatabaseDescriptor throws NPE when rpc_interface is used (CASSANDRA-8839)
  * Don't check if an sstable is live for offline compactions (CASSANDRA-8841)
  * Don't set clientMode in SSTableLoader (CASSANDRA-8238)
