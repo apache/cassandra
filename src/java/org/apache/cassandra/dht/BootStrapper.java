@@ -55,15 +55,20 @@ public class BootStrapper
 
         this.address = address;
         this.tokens = tokens;
-        tokenMetadata = tmd;
+        this.tokenMetadata = tmd;
     }
 
-    public void bootstrap()
+    public void bootstrap(StreamStateStore stateStore, boolean useStrictConsistency)
     {
-        if (logger.isDebugEnabled())
-            logger.debug("Beginning bootstrap process");
+        logger.debug("Beginning bootstrap process");
 
-        RangeStreamer streamer = new RangeStreamer(tokenMetadata, tokens, address, "Bootstrap");
+        RangeStreamer streamer = new RangeStreamer(tokenMetadata,
+                                                   tokens,
+                                                   address,
+                                                   "Bootstrap",
+                                                   useStrictConsistency,
+                                                   DatabaseDescriptor.getEndpointSnitch(),
+                                                   stateStore);
         streamer.addSourceFilter(new RangeStreamer.FailureDetectorSourceFilter(FailureDetector.instance));
 
         for (String keyspaceName : Schema.instance.getNonSystemKeyspaces())
@@ -83,7 +88,7 @@ public class BootStrapper
         }
         catch (ExecutionException e)
         {
-            throw new RuntimeException("Error during boostrap: " + e.getCause().getMessage(), e.getCause());
+            throw new RuntimeException("Error during bootstrap: " + e.getCause().getMessage(), e.getCause());
         }
     }
 
@@ -99,7 +104,7 @@ public class BootStrapper
         if (initialTokens.size() > 0)
         {
             logger.debug("tokens manually specified as {}",  initialTokens);
-            List<Token> tokens = new ArrayList<Token>(initialTokens.size());
+            List<Token> tokens = new ArrayList<>(initialTokens.size());
             for (String tokenString : initialTokens)
             {
                 Token token = StorageService.getPartitioner().getTokenFactory().fromString(tokenString);
@@ -122,7 +127,7 @@ public class BootStrapper
 
     public static Collection<Token> getRandomTokens(TokenMetadata metadata, int numTokens)
     {
-        Set<Token> tokens = new HashSet<Token>(numTokens);
+        Set<Token> tokens = new HashSet<>(numTokens);
         while (tokens.size() < numTokens)
         {
             Token token = StorageService.getPartitioner().getRandomToken();

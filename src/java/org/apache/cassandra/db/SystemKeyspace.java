@@ -18,6 +18,7 @@
 package org.apache.cassandra.db;
 
 import java.io.DataInputStream;
+import java.io.IOError;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.nio.ByteBuffer;
@@ -27,6 +28,7 @@ import javax.management.openmbean.*;
 
 import com.google.common.base.Function;
 import com.google.common.collect.*;
+import com.google.common.io.ByteStreams;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -35,12 +37,13 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.KSMetaData;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.UntypedResultSet;
-import org.apache.cassandra.db.compaction.CompactionHistoryTabularData;
 import org.apache.cassandra.db.commitlog.ReplayPosition;
+import org.apache.cassandra.db.compaction.CompactionHistoryTabularData;
 import org.apache.cassandra.db.compaction.LeveledCompactionStrategy;
 import org.apache.cassandra.db.composites.Composite;
 import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.db.marshal.*;
+import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.ConfigurationException;
@@ -49,6 +52,7 @@ import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.locator.LocalStrategy;
 import org.apache.cassandra.metrics.RestorableMeter;
+import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.schema.LegacySchemaTables;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.paxos.Commit;
@@ -78,6 +82,7 @@ public final class SystemKeyspace
     public static final String COMPACTION_HISTORY = "compaction_history";
     public static final String SSTABLE_ACTIVITY = "sstable_activity";
     public static final String SIZE_ESTIMATES = "size_estimates";
+    public static final String AVAILABLE_RANGES = "available_ranges";
 
     public static final CFMetaData Hints =
         compile(HINTS,
@@ -218,7 +223,7 @@ public final class SystemKeyspace
     private static final CFMetaData SizeEstimates =
         compile(SIZE_ESTIMATES,
                 "per-table primary range size estimates",
-                "CREATE TABLE %S ("
+                "CREATE TABLE %s ("
                 + "keyspace_name text,"
                 + "table_name text,"
                 + "range_start text,"
@@ -227,6 +232,14 @@ public final class SystemKeyspace
                 + "partitions_count bigint,"
                 + "PRIMARY KEY ((keyspace_name), table_name, range_start, range_end))")
                 .gcGraceSeconds(0);
+
+    private static final CFMetaData AvailableRanges =
+        compile(AVAILABLE_RANGES,
+                "Available keyspace/ranges during bootstrap/replace that are ready to be served",
+                "CREATE TABLE %s ("
+                        + "keyspace_name text PRIMARY KEY,"
+                        + "ranges set<blob>"
+                        + ")");
 
     private static CFMetaData compile(String name, String description, String schema)
     {
@@ -249,7 +262,8 @@ public final class SystemKeyspace
                                            CompactionsInProgress,
                                            CompactionHistory,
                                            SSTableActivity,
-                                           SizeEstimates));
+                                           SizeEstimates,
+                                           AvailableRanges));
         return new KSMetaData(NAME, LocalStrategy.class, Collections.<String, String>emptyMap(), true, tables);
     }
 
@@ -954,4 +968,67 @@ public final class SystemKeyspace
         String cql = String.format("DELETE FROM %s.%s WHERE keyspace_name = ? AND table_name = ?", NAME, SIZE_ESTIMATES);
         executeInternal(cql, keyspace, table);
     }
+
+    public static synchronized void updateAvailableRanges(String keyspace, Collection<Range<Token>> completedRanges)
+    {
+        String cql = "UPDATE system.%s SET ranges = ranges + ? WHERE keyspace_name = ?";
+        Set<ByteBuffer> rangesToUpdate = new HashSet<>(completedRanges.size());
+        for (Range<Token> range : completedRanges)
+        {
+            rangesToUpdate.add(rangeToBytes(range));
+        }
+        executeInternal(String.format(cql, AVAILABLE_RANGES), rangesToUpdate, keyspace);
+    }
+
+    public static synchronized Set<Range<Token>> getAvailableRanges(String keyspace, IPartitioner partitioner)
+    {
+        Set<Range<Token>> result = new HashSet<>();
+        String query = "SELECT * FROM system.%s WHERE keyspace_name=?";
+        UntypedResultSet rs = executeInternal(String.format(query, AVAILABLE_RANGES), keyspace);
+        for (UntypedResultSet.Row row : rs)
+        {
+            Set<ByteBuffer> rawRanges = row.getSet("ranges", BytesType.instance);
+            for (ByteBuffer rawRange : rawRanges)
+            {
+                result.add(byteBufferToRange(rawRange, partitioner));
+            }
+        }
+        return ImmutableSet.copyOf(result);
+    }
+
+    public static void resetAvailableRanges()
+    {
+        ColumnFamilyStore availableRanges = Keyspace.open(NAME).getColumnFamilyStore(AVAILABLE_RANGES);
+        availableRanges.truncateBlocking();
+    }
+
+    private static ByteBuffer rangeToBytes(Range<Token> range)
+    {
+        try
+        {
+            DataOutputBuffer out = new DataOutputBuffer();
+            Range.tokenSerializer.serialize(range, out, MessagingService.VERSION_30);
+            return out.asByteBuffer();
+        }
+        catch (IOException e)
+        {
+            throw new IOError(e);
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Range<Token> byteBufferToRange(ByteBuffer rawRange, IPartitioner partitioner)
+    {
+        try
+        {
+            return (Range<Token>) Range.tokenSerializer.deserialize(ByteStreams.newDataInput(ByteBufferUtil.getArray(rawRange)),
+                                                                    partitioner,
+                                                                    MessagingService.VERSION_30);
+        }
+        catch (IOException e)
+        {
+            throw new IOError(e);
+        }
+    }
+
 }
