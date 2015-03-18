@@ -508,8 +508,8 @@ public class IndexSummaryManagerTest extends SchemaLoader
         String cfname = "StandardRace"; // index interval of 8, no key caching
         Keyspace keyspace = Keyspace.open(ksname);
         ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(cfname);
-        int numSSTables = 20;
-        int numRows = 28;
+        int numSSTables = 50;
+        int numRows = 1 << 10;
         createSSTables(ksname, cfname, numSSTables, numRows);
 
         List<SSTableReader> sstables = new ArrayList<>(cfs.getSSTables());
@@ -530,7 +530,8 @@ public class IndexSummaryManagerTest extends SchemaLoader
                         try
                         {
                             IndexSummaryManager.instance.redistributeSummaries();
-                        } catch (Throwable e)
+                        }
+                        catch (Throwable e)
                         {
                             failed.set(true);
                         }
@@ -544,14 +545,14 @@ public class IndexSummaryManagerTest extends SchemaLoader
 
         try
         {
-            Assert.assertFalse(failed.get());
+            Assert.assertFalse(failed.getAndSet(true));
 
             for (SSTableReader sstable : sstables)
             {
                 Assert.assertEquals(true, sstable.isMarkedCompacted());
             }
 
-            Assert.assertEquals(20, sstables.size());
+            Assert.assertEquals(numSSTables, sstables.size());
 
             try
             {
@@ -567,5 +568,7 @@ public class IndexSummaryManagerTest extends SchemaLoader
             tp.shutdownNow();
             CompactionManager.instance.finishCompactionsAndShutdown(10, TimeUnit.SECONDS);
         }
+
+        cfs.truncateBlocking();
     }
 }
