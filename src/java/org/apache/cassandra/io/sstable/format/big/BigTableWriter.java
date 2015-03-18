@@ -124,7 +124,7 @@ public class BigTableWriter extends SSTableWriter
             first = lastWrittenKey;
 
         if (logger.isTraceEnabled())
-            logger.trace("wrote " + decoratedKey + " at " + dataEnd);
+            logger.trace("wrote {} at {}", decoratedKey, dataEnd);
         iwriter.append(decoratedKey, index, dataEnd);
         dbuilder.addPotentialBoundary(dataEnd);
     }
