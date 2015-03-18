@@ -87,6 +87,7 @@ public class NodeTool
                 ClearSnapshot.class,
                 Compact.class,
                 Scrub.class,
+                Verify.class,
                 Flush.class,
                 UpgradeSSTable.class,
                 DisableAutoCompaction.class,
@@ -1281,7 +1282,37 @@ public class NodeTool
                     probe.scrub(System.out, disableSnapshot, skipCorrupted, keyspace, cfnames);
                 } catch (Exception e)
                 {
-                    throw new RuntimeException("Error occurred during flushing", e);
+                    throw new RuntimeException("Error occurred during scrubbing", e);
+                }
+            }
+        }
+    }
+
+    @Command(name = "verify", description = "Verify (check data checksum for) one or more tables")
+    public static class Verify extends NodeToolCmd
+    {
+        @Arguments(usage = "[<keyspace> <tables>...]", description = "The keyspace followed by one or many tables")
+        private List<String> args = new ArrayList<>();
+
+        @Option(title = "extended_verify",
+            name = {"-e", "--extended-verify"},
+            description = "Verify each cell data, beyond simply checking sstable checksums")
+        private boolean extendedVerify = false;
+
+        @Override
+        public void execute(NodeProbe probe)
+        {
+            List<String> keyspaces = parseOptionalKeyspace(args, probe);
+            String[] cfnames = parseOptionalColumnFamilies(args);
+
+            for (String keyspace : keyspaces)
+            {
+                try
+                {
+                    probe.verify(System.out, extendedVerify, keyspace, cfnames);
+                } catch (Exception e)
+                {
+                    throw new RuntimeException("Error occurred during verifying", e);
                 }
             }
         }
@@ -2424,7 +2455,7 @@ public class NodeTool
     @Command(name = "stop", description = "Stop compaction")
     public static class Stop extends NodeToolCmd
     {
-        @Arguments(title = "compaction_type", usage = "<compaction type>", description = "Supported types are COMPACTION, VALIDATION, CLEANUP, SCRUB, INDEX_BUILD", required = true)
+        @Arguments(title = "compaction_type", usage = "<compaction type>", description = "Supported types are COMPACTION, VALIDATION, CLEANUP, SCRUB, VERIFY, INDEX_BUILD", required = true)
         private OperationType compactionType = OperationType.UNKNOWN;
 
         @Override

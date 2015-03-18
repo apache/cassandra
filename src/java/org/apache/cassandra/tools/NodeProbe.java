@@ -207,6 +207,11 @@ public class NodeProbe implements AutoCloseable
         return ssProxy.scrub(disableSnapshot, skipCorrupted, keyspaceName, columnFamilies);
     }
 
+    public int verify(boolean extendedVerify, String keyspaceName, String... columnFamilies) throws IOException, ExecutionException, InterruptedException
+    {
+        return ssProxy.verify(extendedVerify, keyspaceName, columnFamilies);
+    }
+
     public int upgradeSSTables(String keyspaceName, boolean excludeCurrentVersion, String... columnFamilies) throws IOException, ExecutionException, InterruptedException
     {
         return ssProxy.upgradeSSTables(keyspaceName, excludeCurrentVersion, columnFamilies);
@@ -217,7 +222,7 @@ public class NodeProbe implements AutoCloseable
         if (forceKeyspaceCleanup(keyspaceName, columnFamilies) != 0)
         {
             failed = true;
-            out.println("Aborted cleaning up atleast one table in keyspace "+keyspaceName+", check server logs for more information.");
+            out.println("Aborted cleaning up at least one table in keyspace "+keyspaceName+", check server logs for more information.");
         }
     }
 
@@ -226,9 +231,19 @@ public class NodeProbe implements AutoCloseable
         if (scrub(disableSnapshot, skipCorrupted, keyspaceName, columnFamilies) != 0)
         {
             failed = true;
-            out.println("Aborted scrubbing atleast one table in keyspace "+keyspaceName+", check server logs for more information.");
+            out.println("Aborted scrubbing at least one table in keyspace "+keyspaceName+", check server logs for more information.");
         }
     }
+
+    public void verify(PrintStream out, boolean extendedVerify, String keyspaceName, String... columnFamilies) throws IOException, ExecutionException, InterruptedException
+    {
+        if (verify(extendedVerify, keyspaceName, columnFamilies) != 0)
+        {
+            failed = true;
+            out.println("Aborted verifying at least one table in keyspace "+keyspaceName+", check server logs for more information.");
+        }
+    }
+
 
     public void upgradeSSTables(PrintStream out, String keyspaceName, boolean excludeCurrentVersion, String... columnFamilies) throws IOException, ExecutionException, InterruptedException
     {
