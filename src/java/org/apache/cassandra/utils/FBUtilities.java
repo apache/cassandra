@@ -532,19 +532,16 @@ public class FBUtilities
      */
     public static Field getProtectedField(Class klass, String fieldName)
     {
-        Field field;
-
         try
         {
-            field = klass.getDeclaredField(fieldName);
+            Field field = klass.getDeclaredField(fieldName);
             field.setAccessible(true);
+            return field;
         }
         catch (Exception e)
         {
             throw new AssertionError(e);
         }
-
-        return field;
     }
 
     public static <T> CloseableIterator<T> closeableIterator(Iterator<T> iterator)

@@ -118,7 +118,6 @@ public class RoleOptionsTest
     private void setupRoleManager(IRoleManager manager)
     {
         Field field = FBUtilities.getProtectedField(DatabaseDescriptor.class, "roleManager");
-        field.setAccessible(true);
         try
         {
             field.set(null, manager);
