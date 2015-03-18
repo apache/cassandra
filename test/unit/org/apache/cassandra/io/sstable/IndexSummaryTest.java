@@ -173,20 +173,24 @@ public class IndexSummaryTest
         int downsamplingRound = 1;
         for (int samplingLevel = BASE_SAMPLING_LEVEL - 1; samplingLevel >= 1; samplingLevel--)
         {
-            IndexSummary downsampled = downsample(original, samplingLevel, 128, DatabaseDescriptor.getPartitioner());
-            assertEquals(entriesAtSamplingLevel(samplingLevel, original.getMaxNumberOfEntries()), downsampled.size());
-
-            int sampledCount = 0;
-            List<Integer> skipStartPoints = samplePattern.subList(0, downsamplingRound);
-            for (int i = 0; i < ORIGINAL_NUM_ENTRIES; i++)
+            try (IndexSummary downsampled = downsample(original, samplingLevel, 128, DatabaseDescriptor.getPartitioner());)
             {
-                if (!shouldSkip(i, skipStartPoints))
+                assertEquals(entriesAtSamplingLevel(samplingLevel, original.getMaxNumberOfEntries()), downsampled.size());
+
+                int sampledCount = 0;
+                List<Integer> skipStartPoints = samplePattern.subList(0, downsamplingRound);
+                for (int i = 0; i < ORIGINAL_NUM_ENTRIES; i++)
                 {
-                    assertEquals(keys.get(i * INDEX_INTERVAL).getKey(), ByteBuffer.wrap(downsampled.getKey(sampledCount)));
-                    sampledCount++;
+                    if (!shouldSkip(i, skipStartPoints))
+                    {
+                        assertEquals(keys.get(i * INDEX_INTERVAL).getKey(), ByteBuffer.wrap(downsampled.getKey(sampledCount)));
+                        sampledCount++;
+                    }
                 }
+
+                testPosition(original, downsampled, keys);
+                downsamplingRound++;
             }
-            downsamplingRound++;
         }
 
         // downsample one level each time
@@ -195,6 +199,8 @@ public class IndexSummaryTest
         for (int downsampleLevel = BASE_SAMPLING_LEVEL - 1; downsampleLevel >= 1; downsampleLevel--)
         {
             IndexSummary downsampled = downsample(previous, downsampleLevel, 128, DatabaseDescriptor.getPartitioner());
+            if (previous != original)
+                previous.close();
             assertEquals(entriesAtSamplingLevel(downsampleLevel, original.getMaxNumberOfEntries()), downsampled.size());
 
             int sampledCount = 0;
@@ -208,8 +214,21 @@ public class IndexSummaryTest
                 }
             }
 
+            testPosition(original, downsampled, keys);
             previous = downsampled;
             downsamplingRound++;
+        }
+        previous.close();
+        original.close();
+    }
+
+    private void testPosition(IndexSummary original, IndexSummary downsampled, Iterable<DecoratedKey> keys)
+    {
+        for (DecoratedKey key : keys)
+        {
+            long orig = SSTableReader.getIndexScanPositionFromBinarySearchResult(original.binarySearch(key), original);
+            long down = SSTableReader.getIndexScanPositionFromBinarySearchResult(downsampled.binarySearch(key), downsampled);
+            assert down <= orig;
         }
     }
 
