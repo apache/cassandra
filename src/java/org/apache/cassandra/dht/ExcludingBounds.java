@@ -49,6 +49,16 @@ public class ExcludingBounds<T extends RingPosition<T>> extends AbstractBounds<T
         return Pair.create(lb, rb);
     }
 
+    public boolean inclusiveLeft()
+    {
+        return false;
+    }
+
+    public boolean inclusiveRight()
+    {
+        return false;
+    }
+
     public List<? extends AbstractBounds<T>> unwrap()
     {
         // ExcludingBounds objects never wrap
