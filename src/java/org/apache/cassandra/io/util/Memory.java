@@ -330,6 +330,8 @@ public class Memory implements AutoCloseable
 
     public void put(long trgOffset, Memory memory, long srcOffset, long size)
     {
+        checkBounds(trgOffset, trgOffset + size);
+        memory.checkBounds(srcOffset, srcOffset + size);
         unsafe.copyMemory(memory.peer + srcOffset, peer + trgOffset, size);
     }
 
