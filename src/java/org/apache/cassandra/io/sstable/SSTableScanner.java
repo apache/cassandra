@@ -32,6 +32,7 @@ import org.apache.cassandra.db.columniterator.IColumnIteratorFactory;
 import org.apache.cassandra.db.columniterator.LazyColumnIterator;
 import org.apache.cassandra.db.columniterator.OnDiskAtomIterator;
 import org.apache.cassandra.dht.AbstractBounds;
+import org.apache.cassandra.dht.AbstractBounds.Boundary;
 import org.apache.cassandra.dht.Bounds;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
@@ -39,6 +40,10 @@ import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.io.util.RandomAccessReader;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.Pair;
+
+import static org.apache.cassandra.dht.AbstractBounds.isEmpty;
+import static org.apache.cassandra.dht.AbstractBounds.maxLeft;
+import static org.apache.cassandra.dht.AbstractBounds.minRight;
 
 public class SSTableScanner implements ISSTableScanner
 {
@@ -84,28 +89,39 @@ public class SSTableScanner implements ISSTableScanner
         List<AbstractBounds<RowPosition>> boundsList = new ArrayList<>(2);
         if (dataRange.isWrapAround())
         {
-            if (dataRange.stopKey().isMinimum(sstable.partitioner)
-                || dataRange.stopKey().compareTo(sstable.last) >= 0
-                || dataRange.startKey().compareTo(sstable.first) <= 0)
+            if (dataRange.stopKey().compareTo(sstable.first) >= 0)
             {
-                boundsList.add(new Bounds<RowPosition>(sstable.first, sstable.last, sstable.partitioner));
+                // since we wrap, we must contain the whole sstable prior to stopKey()
+                Boundary<RowPosition> left = new Boundary<RowPosition>(sstable.first, true);
+                Boundary<RowPosition> right;
+                right = dataRange.keyRange().rightBoundary();
+                right = minRight(right, sstable.last, true);
+                if (!isEmpty(left, right))
+                    boundsList.add(AbstractBounds.bounds(left, right));
             }
-            else
+            if (dataRange.startKey().compareTo(sstable.last) <= 0)
             {
-                if (dataRange.startKey().compareTo(sstable.last) <= 0)
-                    boundsList.add(new Bounds<>(dataRange.startKey(), sstable.last, sstable.partitioner));
-                if (dataRange.stopKey().compareTo(sstable.first) >= 0)
-                    boundsList.add(new Bounds<>(sstable.first, dataRange.stopKey(), sstable.partitioner));
+                // since we wrap, we must contain the whole sstable after dataRange.startKey()
+                Boundary<RowPosition> right = new Boundary<RowPosition>(sstable.last, true);
+                Boundary<RowPosition> left;
+                left = dataRange.keyRange().leftBoundary();
+                left = maxLeft(left, sstable.first, true);
+                if (!isEmpty(left, right))
+                    boundsList.add(AbstractBounds.bounds(left, right));
             }
         }
         else
         {
             assert dataRange.startKey().compareTo(dataRange.stopKey()) <= 0 || dataRange.stopKey().isMinimum();
-            RowPosition left = Ordering.natural().max(dataRange.startKey(), sstable.first);
+            Boundary<RowPosition> left, right;
+            left = dataRange.keyRange().leftBoundary();
+            right = dataRange.keyRange().rightBoundary();
+            left = maxLeft(left, sstable.first, true);
             // apparently isWrapAround() doesn't count Bounds that extend to the limit (min) as wrapping
-            RowPosition right = dataRange.stopKey().isMinimum() ? sstable.last : Ordering.natural().min(dataRange.stopKey(), sstable.last);
-            if (left.compareTo(right) <= 0)
-                boundsList.add(new Bounds<>(left, right, sstable.partitioner));
+            right = dataRange.stopKey().isMinimum() ? new Boundary<RowPosition>(sstable.last, true)
+                                                    : minRight(right, sstable.last, true);
+            if (!isEmpty(left, right))
+                boundsList.add(AbstractBounds.bounds(left, right));
         }
         this.rangeIterator = boundsList.iterator();
     }

@@ -68,6 +68,8 @@ public abstract class AbstractBounds<T extends RingPosition<T>> implements Seria
      * instead.
      */
     public abstract Pair<AbstractBounds<T>, AbstractBounds<T>> split(T position);
+    public abstract boolean inclusiveLeft();
+    public abstract boolean inclusiveRight();
 
     @Override
     public int hashCode()
@@ -192,5 +194,77 @@ public abstract class AbstractBounds<T extends RingPosition<T>> implements Seria
             }
             return size;
         }
+    }
+
+    public static <T extends RingPosition<T>> AbstractBounds<T> bounds(Boundary<T> min, Boundary<T> max)
+    {
+        return bounds(min.boundary, min.inclusive, max.boundary, max.inclusive);
+    }
+    public static <T extends RingPosition<T>> AbstractBounds<T> bounds(T min, boolean inclusiveMin, T max, boolean inclusiveMax)
+    {
+        if (inclusiveMin && inclusiveMax)
+            return new Bounds<T>(min, max);
+        else if (inclusiveMax)
+            return new Range<T>(min, max);
+        else if (inclusiveMin)
+            return new IncludingExcludingBounds<T>(min, max);
+        else
+            return new ExcludingBounds<T>(min, max);
+    }
+
+    // represents one side of a bounds (which side is not encoded)
+    public static class Boundary<T extends RingPosition<T>>
+    {
+        public final T boundary;
+        public final boolean inclusive;
+        public Boundary(T boundary, boolean inclusive)
+        {
+            this.boundary = boundary;
+            this.inclusive = inclusive;
+        }
+    }
+
+    public Boundary<T> leftBoundary()
+    {
+        return new Boundary<>(left, inclusiveLeft());
+    }
+
+    public Boundary<T> rightBoundary()
+    {
+        return new Boundary<>(right, inclusiveRight());
+    }
+
+    public static <T extends RingPosition<T>> boolean isEmpty(Boundary<T> left, Boundary<T> right)
+    {
+        int c = left.boundary.compareTo(right.boundary);
+        return c > 0 || (c == 0 && !(left.inclusive && right.inclusive));
+    }
+
+    public static <T extends RingPosition<T>> Boundary<T> minRight(Boundary<T> right1, T right2, boolean isInclusiveRight2)
+    {
+        return minRight(right1, new Boundary<T>(right2, isInclusiveRight2));
+    }
+
+    public static <T extends RingPosition<T>> Boundary<T> minRight(Boundary<T> right1, Boundary<T> right2)
+    {
+        int c = right1.boundary.compareTo(right2.boundary);
+        if (c != 0)
+            return c < 0 ? right1 : right2;
+        // return the exclusive version, if either
+        return right2.inclusive ? right1 : right2;
+    }
+
+    public static <T extends RingPosition<T>> Boundary<T> maxLeft(Boundary<T> left1, T left2, boolean isInclusiveLeft2)
+    {
+        return maxLeft(left1, new Boundary<T>(left2, isInclusiveLeft2));
+    }
+
+    public static <T extends RingPosition<T>> Boundary<T> maxLeft(Boundary<T> left1, Boundary<T> left2)
+    {
+        int c = left1.boundary.compareTo(left1.boundary);
+        if (c != 0)
+            return c > 0 ? left1 : left2;
+        // return the exclusive version, if either
+        return left2.inclusive ? left1 : left2;
     }
 }
