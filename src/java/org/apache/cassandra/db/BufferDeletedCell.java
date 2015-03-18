@@ -107,11 +107,6 @@ public class BufferDeletedCell extends BufferCell implements DeletedCell
             throw new MarshalException("The local deletion time should not be negative");
     }
 
-    public boolean equals(Cell cell)
-    {
-        return timestamp() == cell.timestamp() && getLocalDeletionTime() == cell.getLocalDeletionTime() && name().equals(cell.name());
-    }
-
     @Override
     public void updateDigest(MessageDigest digest)
     {
