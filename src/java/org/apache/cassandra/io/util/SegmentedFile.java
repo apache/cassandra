@@ -32,6 +32,7 @@ import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.FSReadError;
 import org.apache.cassandra.io.compress.CompressedSequentialWriter;
+import org.apache.cassandra.utils.CLibrary;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.concurrent.RefCounted;
 import org.apache.cassandra.utils.concurrent.SharedCloseableImpl;
@@ -110,6 +111,11 @@ public abstract class SegmentedFile extends SharedCloseableImpl
         RandomAccessReader reader = createReader();
         reader.seek(position);
         return reader;
+    }
+
+    public void dropPageCache(long before)
+    {
+        CLibrary.trySkipCache(path, 0, before);
     }
 
     /**
