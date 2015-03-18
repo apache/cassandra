@@ -72,7 +72,7 @@ public class CompositesIndexOnCollectionKeyAndValue extends CompositesIndexInclu
 
     private ByteBuffer extractIndexKeyComponent(IndexedEntry entry, int component)
     {
-        return ((CompositeType)getIndexKeyComparator()).extractComponent(entry.indexValue.getKey(), component);
+        return CompositeType.extractComponent(entry.indexValue.getKey(), component);
     }
 
     private ByteBuffer extractCollectionValue(IndexedEntry entry)
