@@ -896,8 +896,8 @@ public class SSTableReader extends SSTable implements SelfRefCounted<SSTableRead
                 {
                     public void run()
                     {
-                        CLibrary.trySkipCache(dfile.path, 0, dataStart);
-                        CLibrary.trySkipCache(ifile.path, 0, indexStart);
+                        dfile.dropPageCache(dataStart);
+                        ifile.dropPageCache(indexStart);
                         if (runOnClose != null)
                             runOnClose.run();
                     }
@@ -920,8 +920,8 @@ public class SSTableReader extends SSTable implements SelfRefCounted<SSTableRead
             {
                 public void run()
                 {
-                    CLibrary.trySkipCache(dfile.path, 0, 0);
-                    CLibrary.trySkipCache(ifile.path, 0, 0);
+                    dfile.dropPageCache(0);
+                    ifile.dropPageCache(0);
                     runOnClose.run();
                 }
             };
@@ -2181,8 +2181,8 @@ public class SSTableReader extends SSTable implements SelfRefCounted<SSTableRead
             if (isCompacted.get())
                 SystemKeyspace.clearSSTableReadMeter(desc.ksname, desc.cfname, desc.generation);
             // don't ideally want to dropPageCache for the file until all instances have been released
-            dropPageCache(desc.filenameFor(Component.DATA));
-            dropPageCache(desc.filenameFor(Component.PRIMARY_INDEX));
+            CLibrary.trySkipCache(desc.filenameFor(Component.DATA), 0, 0);
+            CLibrary.trySkipCache(desc.filenameFor(Component.PRIMARY_INDEX), 0, 0);
         }
 
         public String name()
@@ -2202,34 +2202,6 @@ public class SSTableReader extends SSTable implements SelfRefCounted<SSTableRead
             Ref<?> ex = lookup.putIfAbsent(descriptor, refc);
             assert ex == null;
             return refc;
-        }
-    }
-
-    private static void dropPageCache(String filePath)
-    {
-        RandomAccessFile file = null;
-
-        try
-        {
-            file = new RandomAccessFile(filePath, "r");
-
-            int fd = CLibrary.getfd(file.getFD());
-
-            if (fd > 0)
-            {
-                if (logger.isDebugEnabled())
-                    logger.debug(String.format("Dropping page cache of file %s.", filePath));
-
-                CLibrary.trySkipCache(fd, 0, 0);
-            }
-        }
-        catch (IOException e)
-        {
-            // we don't care if cache cleanup fails
-        }
-        finally
-        {
-            FileUtils.closeQuietly(file);
         }
     }
 }

@@ -1,4 +1,5 @@
 2.1.4
+ * Use correct bounds for page cache eviction of compressed files (CASSANDRA-8746)
  * SSTableScanner enforces its bounds (CASSANDRA-8946)
  * Cleanup cell equality (CASSANDRA-8947)
  * Introduce intra-cluster message coalescing (CASSANDRA-8692)
