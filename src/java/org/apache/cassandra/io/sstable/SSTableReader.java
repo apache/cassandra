@@ -1083,7 +1083,7 @@ public class SSTableReader extends SSTable implements SelfRefCounted<SSTableRead
             return referencedIndexSummary.getPosition(getIndexSummaryIndexFromBinarySearchResult(binarySearchResult));
     }
 
-    private static int getIndexSummaryIndexFromBinarySearchResult(int binarySearchResult)
+    public static int getIndexSummaryIndexFromBinarySearchResult(int binarySearchResult)
     {
         if (binarySearchResult < 0)
         {
@@ -1466,12 +1466,12 @@ public class SSTableReader extends SSTable implements SelfRefCounted<SSTableRead
         // of the next interval).
         int i = 0;
         Iterator<FileDataInput> segments = ifile.iterator(sampledPosition);
-        while (segments.hasNext() && i <= effectiveInterval)
+        while (segments.hasNext())
         {
             FileDataInput in = segments.next();
             try
             {
-                while (!in.isEOF() && i <= effectiveInterval)
+                while (!in.isEOF())
                 {
                     i++;
 
@@ -1481,7 +1481,7 @@ public class SSTableReader extends SSTable implements SelfRefCounted<SSTableRead
                     boolean exactMatch; // is the current position an exact match for the key, suitable for caching
 
                     // Compare raw keys if possible for performance, otherwise compare decorated keys.
-                    if (op == Operator.EQ)
+                    if (op == Operator.EQ && i <= effectiveInterval)
                     {
                         opSatisfied = exactMatch = indexKey.equals(((DecoratedKey) key).getKey());
                     }
