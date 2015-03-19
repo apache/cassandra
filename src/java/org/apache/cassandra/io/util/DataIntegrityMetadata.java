@@ -26,7 +26,6 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.file.Files;
 import java.util.zip.Adler32;
-import java.util.zip.CheckedInputStream;
 import java.util.zip.Checksum;
 
 import com.google.common.base.Charsets;
@@ -86,58 +85,6 @@ public class DataIntegrityMetadata
             reader.close();
         }
     }
-
-    public static FileDigestValidator fileDigestValidator(Descriptor desc) throws IOException
-    {
-        return new FileDigestValidator(desc);
-    }
-
-    public static class FileDigestValidator implements Closeable
-    {
-        private final Checksum checksum;
-        private final RandomAccessReader digestReader;
-        private final RandomAccessReader dataReader;
-        private final Descriptor descriptor;
-        private long storedDigestValue;
-        private long calculatedDigestValue;
-
-        public FileDigestValidator(Descriptor descriptor) throws IOException
-        {
-            this.descriptor = descriptor;
-            checksum = descriptor.version.hasAllAdlerChecksums() ? new Adler32() : CRC32Factory.instance.create();
-            digestReader = RandomAccessReader.open(new File(descriptor.filenameFor(Component.DIGEST)));
-            dataReader = RandomAccessReader.open(new File(descriptor.filenameFor(Component.DATA)));
-            try
-            {
-                storedDigestValue = Long.parseLong(digestReader.readLine());
-            }
-            catch (Exception e)
-            {
-                // Attempting to create a FileDigestValidator without a DIGEST file will fail
-                throw new IOException("Corrupted SSTable : " + descriptor.filenameFor(Component.DATA));
-            }
-
-        }
-
-        // Validate the entire file
-        public void validate() throws IOException
-        {
-            CheckedInputStream checkedInputStream = new CheckedInputStream(dataReader, checksum);
-            byte[] chunk = new byte[64 * 1024];
-
-            while( checkedInputStream.read(chunk) > 0 ) { }
-            calculatedDigestValue = checkedInputStream.getChecksum().getValue();
-            if (storedDigestValue != calculatedDigestValue) {
-                throw new IOException("Corrupted SSTable : " + descriptor.filenameFor(Component.DATA));
-            }
-        }
-
-        public void close()
-        {
-            this.digestReader.close();
-        }
-    }
-
 
     public static class ChecksumWriter
     {

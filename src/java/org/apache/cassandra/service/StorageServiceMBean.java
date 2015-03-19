@@ -240,14 +240,6 @@ public interface StorageServiceMBean extends NotificationEmitter
     public int scrub(boolean disableSnapshot, boolean skipCorrupted, String keyspaceName, String... columnFamilies) throws IOException, ExecutionException, InterruptedException;
 
     /**
-     * Verify (checksums of) the given keyspace.
-     * If columnFamilies array is empty, all CFs are verified.
-     *
-     * The entire sstable will be read to ensure each cell validates if extendedVerify is true
-     */
-    public int verify(boolean extendedVerify, String keyspaceName, String... columnFamilies) throws IOException, ExecutionException, InterruptedException;
-
-    /**
      * Rewrite all sstables to the latest version.
      * Unlike scrub, it doesn't skip bad rows and do not snapshot sstables first.
      */
