@@ -223,13 +223,20 @@ public class IndexSummaryTest
         original.close();
     }
 
-    private void testPosition(IndexSummary original, IndexSummary downsampled, Iterable<DecoratedKey> keys)
+    private void testPosition(IndexSummary original, IndexSummary downsampled, List<DecoratedKey> keys)
     {
         for (DecoratedKey key : keys)
         {
             long orig = SSTableReader.getIndexScanPositionFromBinarySearchResult(original.binarySearch(key), original);
-            long down = SSTableReader.getIndexScanPositionFromBinarySearchResult(downsampled.binarySearch(key), downsampled);
-            assert down <= orig;
+            int binarySearch = downsampled.binarySearch(key);
+            int index = SSTableReader.getIndexSummaryIndexFromBinarySearchResult(binarySearch);
+            int scanFrom = (int) SSTableReader.getIndexScanPositionFromBinarySearchResult(index, downsampled);
+            assert scanFrom <= orig;
+            int effectiveInterval = downsampled.getEffectiveIndexIntervalAfterIndex(index);
+            DecoratedKey k = null;
+            for (int i = 0 ; k != key && i < effectiveInterval && scanFrom < keys.size() ; i++, scanFrom ++)
+                k = keys.get(scanFrom);
+            assert k == key;
         }
     }
 

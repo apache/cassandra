@@ -175,12 +175,12 @@ public class BigTableReader extends SSTableReader
         // of the next interval).
         int i = 0;
         Iterator<FileDataInput> segments = ifile.iterator(sampledPosition);
-        while (segments.hasNext() && i <= effectiveInterval)
+        while (segments.hasNext())
         {
             FileDataInput in = segments.next();
             try
             {
-                while (!in.isEOF() && i <= effectiveInterval)
+                while (!in.isEOF())
                 {
                     i++;
 
@@ -190,7 +190,7 @@ public class BigTableReader extends SSTableReader
                     boolean exactMatch; // is the current position an exact match for the key, suitable for caching
 
                     // Compare raw keys if possible for performance, otherwise compare decorated keys.
-                    if (op == Operator.EQ)
+                    if (op == Operator.EQ && i <= effectiveInterval)
                     {
                         opSatisfied = exactMatch = indexKey.equals(((DecoratedKey) key).getKey());
                     }
