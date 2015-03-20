@@ -46,6 +46,16 @@ public class DropIndexStatement extends SchemaAlteringStatement
         this.ifExists = ifExists;
     }
 
+    // We don't override CFStatement#columnFamily as this'd change the
+    // protocol for returned events when we drop an index. We need it
+    // to return null so that SchemaMigrations remain a keyspace,
+    // rather than table, level event (see SchemaAlteringStatement#execute).
+    public String getColumnFamily() throws InvalidRequestException
+    {
+        CFMetaData cfm = findIndexedCF();
+        return cfm == null ? null : cfm.cfName;
+    }
+
     public void checkAccess(ClientState state) throws UnauthorizedException, InvalidRequestException
     {
         CFMetaData cfm = findIndexedCF();
