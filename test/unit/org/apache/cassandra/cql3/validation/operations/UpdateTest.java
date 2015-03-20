@@ -524,10 +524,4 @@ public class UpdateTest extends CQLTester
 
         assertRows(execute("SELECT l FROM %s WHERE k = 0"), row(list("v1", "v4", "v3")));
     }
-
-    private void flush(boolean forceFlush)
-    {
-        if (forceFlush)
-            flush();
-    }
 }

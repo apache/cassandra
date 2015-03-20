@@ -42,10 +42,15 @@ public abstract class LazilyInitializedUnfilteredRowIterator extends AbstractIte
 
     protected abstract UnfilteredRowIterator initializeIterator();
 
-    private void maybeInit()
+    protected void maybeInit()
     {
         if (iterator == null)
             iterator = initializeIterator();
+    }
+
+    public boolean initialized()
+    {
+        return iterator != null;
     }
 
     public CFMetaData metadata()

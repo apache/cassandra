@@ -1,4 +1,6 @@
 3.4
+ * Optimize disk seek using min/max column name meta data when the LIMIT clause is used
+   (CASSANDRA-8180)
  * Add LIKE support to CQL3 (CASSANDRA-11067)
  * Generic Java UDF types (CASSANDRA-10819)
  * cqlsh: Include sub-second precision in timestamps by default (CASSANDRA-10428)

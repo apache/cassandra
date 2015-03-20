@@ -326,6 +326,27 @@ public class DeleteTest extends CQLTester
 
         assertEmpty(execute("select * from %s  where a=1 and b=1"));
     }
+
+    /** Test that two deleted rows for the same partition but on different sstables do not resurface */
+    @Test
+    public void testDeletedRowsDoNotResurface() throws Throwable
+    {
+        createTable("CREATE TABLE %s (a int, b int, c text, primary key (a, b))");
+        execute("INSERT INTO %s (a, b, c) VALUES(1, 1, '1')");
+        execute("INSERT INTO %s (a, b, c) VALUES(1, 2, '2')");
+        execute("INSERT INTO %s (a, b, c) VALUES(1, 3, '3')");
+        flush();
+
+        execute("DELETE FROM %s where a=1 and b = 1");
+        flush();
+
+        execute("DELETE FROM %s where a=1 and b = 2");
+        flush();
+
+        assertRows(execute("SELECT * FROM %s WHERE a = ?", 1),
+                   row(1, 3, "3"));
+    }
+
     @Test
     public void testDeleteWithNoClusteringColumns() throws Throwable
     {
@@ -621,6 +642,39 @@ public class DeleteTest extends CQLTester
             assertInvalidMessage(errorMsg,
                                  "DELETE FROM %s WHERE partitionKey = ? AND clustering_1 = ? AND clustering_2 = ? AND value = ?", 0, 1, 1, 3);
         }
+    }
+
+    @Test
+    public void testDeleteWithNonoverlappingRange() throws Throwable
+    {
+        createTable("CREATE TABLE %s (a int, b int, c text, primary key (a, b))");
+
+        for (int i = 0; i < 10; i++)
+            execute("INSERT INTO %s (a, b, c) VALUES(1, ?, 'abc')", i);
+        flush();
+
+        execute("DELETE FROM %s WHERE a=1 and b <= 3");
+        flush();
+
+        // this query does not overlap the tombstone range above and caused the rows to be resurrected
+        assertEmpty(execute("SELECT * FROM %s WHERE a=1 and b <= 2"));
+    }
+
+    @Test
+    public void testDeleteWithIntermediateRangeAndOneClusteringColumn() throws Throwable
+    {
+        createTable("CREATE TABLE %s (a int, b int, c text, primary key (a, b))");
+        execute("INSERT INTO %s (a, b, c) VALUES(1, 1, '1')");
+        execute("INSERT INTO %s (a, b, c) VALUES(1, 3, '3')");
+        execute("DELETE FROM %s where a=1 and b >= 2 and b <= 3");
+        execute("INSERT INTO %s (a, b, c) VALUES(1, 2, '2')");
+        flush();
+
+        execute("DELETE FROM %s where a=1 and b >= 2 and b <= 3");
+        flush();
+
+        assertRows(execute("SELECT * FROM %s WHERE a = ?", 1),
+                   row(1, 1, "1"));
     }
 
     @Test
@@ -1056,11 +1110,5 @@ public class DeleteTest extends CQLTester
 
         compact();
         assertRows(execute("SELECT * FROM %s"), row(0, null));
-    }
-
-    private void flush(boolean forceFlush)
-    {
-        if (forceFlush)
-            flush();
     }
 }

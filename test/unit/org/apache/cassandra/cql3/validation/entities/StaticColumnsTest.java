@@ -37,9 +37,16 @@ public class StaticColumnsTest extends CQLTester
     @Test
     public void testStaticColumns() throws Throwable
     {
+        testStaticColumns(false);
+        testStaticColumns(true);
+    }
+
+    private void testStaticColumns(boolean forceFlush) throws Throwable
+    {
         createTable("CREATE TABLE %s ( k int, p int, s int static, v int, PRIMARY KEY (k, p))");
 
         execute("INSERT INTO %s(k, s) VALUES (0, 42)");
+        flush(forceFlush);
 
         assertRows(execute("SELECT * FROM %s"), row(0, null, 42, null));
 
@@ -51,6 +58,7 @@ public class StaticColumnsTest extends CQLTester
 
         execute("INSERT INTO %s (k, p, s, v) VALUES (0, 0, 12, 0)");
         execute("INSERT INTO %s (k, p, s, v) VALUES (0, 1, 24, 1)");
+        flush(forceFlush);
 
         // Check the static columns in indeed "static"
         assertRows(execute("SELECT * FROM %s"), row(0, 0, 24, 0), row(0, 1, 24, 1));
@@ -81,10 +89,12 @@ public class StaticColumnsTest extends CQLTester
 
         // Check that deleting a row don't implicitely deletes statics
         execute("DELETE FROM %s WHERE k=0 AND p=0");
+        flush(forceFlush);
         assertRows(execute("SELECT * FROM %s"),row(0, 1, 24, 1));
 
         // But that explicitely deleting the static column does remove it
         execute("DELETE s FROM %s WHERE k=0");
+        flush(forceFlush);
         assertRows(execute("SELECT * FROM %s"), row(0, 1, null, 1));
 
         // Check we can add a static column ...

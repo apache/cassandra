@@ -15,12 +15,10 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package org.apache.cassandra.utils;
 
-import java.util.Iterator;
-
-public interface IMergeIterator<In, Out> extends CloseableIterator<Out>
+public interface IteratorWithLowerBound<In>
 {
-
-    Iterable<? extends Iterator<In>> iterators();
+    In lowerBound();
 }

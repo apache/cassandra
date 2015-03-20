@@ -367,11 +367,23 @@ public abstract class CQLTester
              : Keyspace.open(KEYSPACE).getColumnFamilyStore(currentTable);
     }
 
+    public void flush(boolean forceFlush)
+    {
+        if (forceFlush)
+            flush();
+    }
+
     public void flush()
     {
         ColumnFamilyStore store = getCurrentColumnFamilyStore();
         if (store != null)
             store.forceBlockingFlush();
+    }
+
+    public void disableCompaction()
+    {
+        ColumnFamilyStore store = getCurrentColumnFamilyStore();
+        store.disableAutoCompaction();
     }
 
     public void compact()
@@ -809,8 +821,17 @@ public abstract class CQLTester
         {
             while (iter.hasNext())
             {
-                iter.next();
+                UntypedResultSet.Row actual = iter.next();
                 i++;
+
+                StringBuilder str = new StringBuilder();
+                for (int j = 0; j < meta.size(); j++)
+                {
+                    ColumnSpecification column = meta.get(j);
+                    ByteBuffer actualValue = actual.getBytes(column.name.toString());
+                    str.append(String.format("%s=%s ", column.name, formatValue(actualValue, column.type)));
+                }
+                logger.info("Extra row num {}: {}", i, str.toString());
             }
             Assert.fail(String.format("Got more rows than expected. Expected %d but got %d.", rows.length, i));
         }

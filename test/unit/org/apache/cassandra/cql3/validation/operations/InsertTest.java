@@ -283,10 +283,4 @@ public class InsertTest extends CQLTester
         assertInvalidMessage("Some clustering keys are missing: clustering_1",
                              "INSERT INTO %s (partitionKey, clustering_2, staticValue) VALUES (0, 0, 'A')");
     }
-
-    private void flush(boolean forceFlush)
-    {
-        if (forceFlush)
-            flush();
-    }
 }
