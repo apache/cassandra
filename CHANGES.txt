@@ -52,6 +52,8 @@
  * Add nodetool statushandoff/statusbackup (CASSANDRA-8912)
  * Use stdout for progress and stats in sstableloader (CASSANDRA-8982)
 Merged from 2.0:
+ * Fix NullPointerException when nodetool getendpoints is run
+   against invalid keyspaces or tables (CASSANDRA-8950)
  * Allow specifying the tmp dir (CASSANDRA-7712)
  * Improve compaction estimated tasks estimation (CASSANDRA-8904)
  * Fix duplicate up/down messages sent to native clients (CASSANDRA-7816)
