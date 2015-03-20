@@ -907,6 +907,11 @@ public class NodeProbe
         ssProxy.resetLocalSchema();
     }
 
+    public void failed()
+    {
+        failed = true;
+    }
+
     public boolean isFailed()
     {
         return failed;

@@ -1182,11 +1182,16 @@ public class NodeCmd
 
     private void printEndPoints(String keySpace, String cf, String key, PrintStream output)
     {
-        List<InetAddress> endpoints = this.probe.getEndpoints(keySpace, cf, key);
-
-        for (InetAddress anEndpoint : endpoints)
+        try
         {
-           output.println(anEndpoint.getHostAddress());
+            List<InetAddress> endpoints = probe.getEndpoints(keySpace, cf, key);
+            for (InetAddress anEndpoint : endpoints)
+               output.println(anEndpoint.getHostAddress());
+        }
+        catch (IllegalArgumentException ex)
+        {
+            output.println(ex.getMessage());
+            probe.failed();
         }
     }
 
