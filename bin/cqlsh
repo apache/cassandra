@@ -51,6 +51,8 @@ import platform
 import warnings
 import csv
 import getpass
+from functools import partial
+import traceback
 
 
 readline = None
@@ -108,6 +110,8 @@ except ImportError, e:
 from cassandra.cluster import Cluster, PagedResult
 from cassandra.query import SimpleStatement, ordered_dict_factory
 from cassandra.policies import WhiteListRoundRobinPolicy
+from cassandra.protocol import QueryMessage, ResultMessage
+from cassandra.marshal import int16_pack, int32_pack, uint64_pack
 from cassandra.metadata import protect_name, protect_names, protect_value, KeyspaceMetadata, TableMetadata, ColumnMetadata
 from cassandra.auth import PlainTextAuthProvider
 
@@ -117,7 +121,7 @@ cqlshlibdir = os.path.join(CASSANDRA_PATH, 'pylib')
 if os.path.isdir(cqlshlibdir):
     sys.path.insert(0, cqlshlibdir)
 
-from cqlshlib import cqlhandling, cql3handling, pylexotron, sslhandling, async_insert, meter
+from cqlshlib import cqlhandling, cql3handling, pylexotron, sslhandling
 from cqlshlib.displaying import (RED, BLUE, CYAN, ANSI_RESET, COLUMN_NAME_COLORS,
                                  FormattedValue, colorme)
 from cqlshlib.formatting import format_by_type, formatter_for, format_value_utype
@@ -550,6 +554,7 @@ class Shell(cmd.Cmd):
             self.auth_provider = PlainTextAuthProvider(username=username, password=password)
         self.username = username
         self.keyspace = keyspace
+        self.ssl = ssl
         self.tracing_enabled = tracing_enabled
         self.expand_enabled = expand_enabled
         if use_conn:
@@ -935,7 +940,6 @@ class Shell(cmd.Cmd):
                 self.handle_statement(st, statementtext)
             except Exception, e:
                 if self.debug:
-                    import traceback
                     traceback.print_exc()
                 else:
                     self.printerr(e)
@@ -1457,73 +1461,251 @@ class Shell(cmd.Cmd):
             except IOError, e:
                 self.printerr("Can't open %r for reading: %s" % (fname, e))
                 return 0
+
+        current_record = None
         try:
             if header:
                 linesource.next()
             table_meta = self.get_table_meta(ks, cf)
             reader = csv.reader(linesource, **dialect_options)
-            from functools import partial
-            rownum, error = \
-                async_insert.insert_concurrent(self.session, enumerate(reader, start=1),
-                                               partial(
-                                                   self.create_insert_statement,
-                                                   columns, nullval,
-                                                   table_meta))
-            if error:
-                self.printerr(str(error[0]))
-                self.printerr("Aborting import at record #%d. "
-                              "Previously-inserted values still present."
-                               % error[1])
+
+            from multiprocessing import Process, Pipe, cpu_count
+
+            # Pick a resonable number of child processes. We need to leave at
+            # least one core for the parent process.  This doesn't necessarily
+            # need to be capped at 4, but it's currently enough to keep
+            # a single local Cassandra node busy, and I see lower throughput
+            # with more processes.
+            try:
+                num_processes = max(1, min(4, cpu_count() - 1))
+            except NotImplementedError:
+                num_processes = 1
+
+            processes, pipes = [], [],
+            for i in range(num_processes):
+                parent_conn, child_conn = Pipe()
+                pipes.append(parent_conn)
+                processes.append(Process(target=self.multiproc_import, args=(child_conn, ks, cf, columns, nullval)))
+
+            for process in processes:
+                process.start()
+
+            last_checkpoint_time = time.time()
+            current_rate = 0.0
+            for current_record, row in enumerate(reader, start=1):
+                # write to the child process
+                pipes[current_record % num_processes].send((current_record, row))
+
+                # update the progress and current rate periodically
+                if (current_record % 10000) == 0:
+                    new_checkpoint_time = time.time()
+                    new_rate = 10000.0 / (new_checkpoint_time - last_checkpoint_time)
+                    last_checkpoint_time = new_checkpoint_time
+
+                    # smooth the rate a bit
+                    if current_rate == 0.0:
+                        current_rate = new_rate
+                    else:
+                        current_rate = (current_rate + new_rate) / 2.0
+
+                    output = 'Processed %s rows; Write: %.2f rows/s\r' % \
+                             (current_record, current_rate)
+                    sys.stdout.write(output)
+                    sys.stdout.flush()
+
+                # check for any errors reported by the children
+                if (current_record % 100) == 0:
+                    if self._check_child_pipes(current_record, pipes):
+                        # no errors seen, continue with outer loop
+                        continue
+                    else:
+                        # errors seen, break out of outer loop
+                        break
+        except Exception, exc:
+            if current_record is None:
+                # we failed before we started
+                self.printerr("\nError starting import process:\n")
+                self.printerr(str(exc))
+                if self.debug:
+                    traceback.print_exc()
+            else:
+                self.printerr("\n" + str(exc))
+                self.printerr("\nAborting import at record #%d. "
+                              "Previously inserted records and some records after "
+                              "this number may be present."
+                              % (current_record,))
+                if self.debug:
+                    traceback.print_exc()
         finally:
+            # send a message that indicates we're done
+            for pipe in pipes:
+                pipe.send((None, None))
+
+            for process in processes:
+                process.join()
+
+            self._check_child_pipes(current_record, pipes)
+
+            for pipe in pipes:
+                pipe.close()
+
             if do_close:
                 linesource.close()
             elif self.tty:
                 print
-        return rownum
 
-    def create_insert_statement(self, columns, nullval, table_meta, row):
+        return current_record
 
-        if len(row) != len(columns):
-            raise ValueError(
-                "Record has the wrong number of fields (%d instead of %d)."
-                % (len(row), len(columns)))
+    def _check_child_pipes(self, current_record, pipes):
+        # check the pipes for errors from child processes
+        for pipe in pipes:
+            if pipe.poll():
+                try:
+                    (record_num, error) = pipe.recv()
+                    self.printerr("\n" + str(error))
+                    self.printerr(
+                        "Aborting import at record #%d. "
+                        "Previously inserted records are still present, "
+                        "and some records after that may be present as well."
+                        % (record_num,))
+                    return False
+                except EOFError:
+                    # pipe is closed, nothing to read
+                    self.printerr("\nChild process died without notification, "
+                                  "aborting import at record #%d. Previously "
+                                  "inserted records are probably still present, "
+                                  "and some records after that may be present "
+                                  "as well." % (current_record,))
+                    return False
+        return True
 
-        rowmap = {}
-        primary_key_columns = [col.name for col in table_meta.primary_key]
-        for name, value in zip(columns, row):
-            type = table_meta.columns[name].data_type
-            cqltype = table_meta.columns[name].typestring
+    def multiproc_import(self, pipe, ks, cf, columns, nullval):
+        """
+        This method is where child processes start when doing a COPY FROM
+        operation.  The child process will open one connection to the node and
+        interact directly with the connection, bypassing most of the driver
+        code.  Because we don't need retries, connection pooling, thread safety,
+        and other fancy features, this is okay.
+        """
 
-            if value != nullval:
-                if cqltype in ('ascii', 'text', 'timestamp', 'date', 'time', 'inet'):
-                    rowmap[name] = protect_value(value)
-                else:
-                    rowmap[name] = value
-            elif name in primary_key_columns:
-                # By default, nullval is an empty string. See CASSANDRA-7792 for details.
-                message = "Cannot insert null value for primary key column '%s'." % (name,)
-                if nullval == '':
-                    message += " If you want to insert empty strings, consider using " \
-                               "the WITH NULL=<marker> option for COPY."
-                self.printerr(message)
-                return False
-            else:
-                rowmap[name] = 'null'
-        # would be nice to be able to use a prepared query here, but in order
-        # to use that interface, we'd need to have all the input as native
-        # values already, reading them from text just like the various
-        # Cassandra cql types do. Better just to submit them all as intact
-        # CQL string literals and let Cassandra do its thing.
-        query = 'INSERT INTO %s.%s (%s) VALUES (%s)' % (
-            protect_name(table_meta.keyspace.name),
-            protect_name(table_meta.name),
-            ', '.join(protect_names(rowmap.keys())),
-            ', '.join(rowmap.values())
-        )
-        if self.debug:
-            print 'Import using CQL: %s' % query
-        return SimpleStatement(query)
+        # open a new connection for this subprocess
+        new_cluster = Cluster(
+                contact_points=(self.hostname,),
+                port=self.port,
+                cql_version=self.conn.cql_version,
+                protocol_version=DEFAULT_PROTOCOL_VERSION,
+                auth_provider=self.auth_provider,
+                ssl_options=sslhandling.ssl_settings(self.hostname, CONFIG_FILE) if self.ssl else None,
+                load_balancing_policy=WhiteListRoundRobinPolicy([self.hostname]),
+                compression=None)
+        session = new_cluster.connect(self.keyspace)
+        conn = session._pools.values()[0]._connection
 
+        # pre-build as much of the query as we can
+        table_meta = self.get_table_meta(ks, cf)
+        pk_cols = [col.name for col in table_meta.primary_key]
+        cqltypes = [table_meta.columns[name].typestring for name in columns]
+        pk_indexes = [columns.index(col.name) for col in table_meta.primary_key]
+        query = 'INSERT INTO %s.%s (%s) VALUES (%%s)' % (
+            protect_name(ks),
+            protect_name(cf),
+            ', '.join(columns))
+
+        # we need to handle some types specially
+        should_escape = [t in ('ascii', 'text', 'timestamp', 'date', 'time', 'inet') for t in cqltypes]
+
+        insert_timestamp = int(time.time() * 1e6)
+
+        def callback(record_num, response):
+            # This is the callback we register for all inserts.  Because this
+            # is run on the event-loop thread, we need to hold a lock when
+            # adjusting in_flight.
+            with conn.lock:
+                conn.in_flight -= 1
+
+            if not isinstance(response, ResultMessage):
+                # It's an error. Notify the parent process and let it send
+                # a stop signal to all child processes (including this one).
+                pipe.send((record_num, str(response)))
+                if isinstance(response, Exception) and self.debug:
+                    traceback.print_exc(response)
+
+        current_record = 0
+        insert_num = 0
+        try:
+            while True:
+                # To avoid totally maxing out the connection,
+                # defer to the reactor thread when we're close
+                # to capacity
+                if conn.in_flight > (conn.max_request_id * 0.9):
+                    conn._readable = True
+                    time.sleep(0.05)
+                    continue
+
+                try:
+                    (current_record, row) = pipe.recv()
+                except EOFError:
+                    # the pipe was closed and there's nothing to receive
+                    sys.stdout.write('Failed to read from pipe:\n\n')
+                    sys.stdout.flush()
+                    conn._writable = True
+                    conn._readable = True
+                    break
+
+                # see if the parent process has signaled that we are done
+                if (current_record, row) == (None, None):
+                    conn._writable = True
+                    conn._readable = True
+                    pipe.close()
+                    break
+
+                # format the values in the row
+                for i, value in enumerate(row):
+                    if value != nullval:
+                        if should_escape[i]:
+                            row[i] = protect_value(value)
+                    elif i in pk_indexes:
+                        # By default, nullval is an empty string. See CASSANDRA-7792 for details.
+                        message = "Cannot insert null value for primary key column '%s'." % (pk_cols[i],)
+                        if nullval == '':
+                            message += " If you want to insert empty strings, consider using " \
+                                       "the WITH NULL=<marker> option for COPY."
+                        pipe.send((current_record, message))
+                        return
+                    else:
+                        row[i] = 'null'
+
+                full_query = query % (','.join(row),)
+                query_message = QueryMessage(
+                    full_query, self.consistency_level, serial_consistency_level=None,
+                    fetch_size=None, paging_state=None, timestamp=insert_timestamp)
+
+                request_id = conn.get_request_id()
+                binary_message = query_message.to_binary(
+                    stream_id=request_id, protocol_version=DEFAULT_PROTOCOL_VERSION, compression=None)
+
+                # add the message directly to the connection's queue
+                with conn.lock:
+                    conn.in_flight += 1
+                conn._callbacks[request_id] = partial(callback, current_record)
+                conn.deque.append(binary_message)
+
+                # every 50 records, clear the pending writes queue and read
+                # any responses we have
+                if insert_num % 50 == 0:
+                    conn._writable = True
+                    conn._readable = True
+
+                insert_num += 1
+        except Exception, exc:
+            pipe.send((current_record, exc))
+        finally:
+            # wait for any pending requests to finish
+            while conn.in_flight > 0:
+                conn._readable = True
+                time.sleep(0.01)
+
+            new_cluster.shutdown()
 
     def perform_csv_export(self, ks, cf, columns, fname, opts):
         dialect_options = self.csv_dialect_defaults.copy()

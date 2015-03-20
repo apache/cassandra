@@ -73,6 +73,7 @@
  * Resumable bootstrap streaming (CASSANDRA-8838)
 
 2.1.4
+ * (cqlsh) Greatly improve performance of COPY FROM (CASSANDRA-8225)
  * IndexSummary effectiveIndexInterval is now a guideline, not a rule (CASSANDRA-8993)
  * Use correct bounds for page cache eviction of compressed files (CASSANDRA-8746)
  * SSTableScanner enforces its bounds (CASSANDRA-8946)
