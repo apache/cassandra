@@ -261,7 +261,7 @@ public abstract class AbstractBounds<T extends RingPosition<T>> implements Seria
 
     public static <T extends RingPosition<T>> Boundary<T> maxLeft(Boundary<T> left1, Boundary<T> left2)
     {
-        int c = left1.boundary.compareTo(left1.boundary);
+        int c = left1.boundary.compareTo(left2.boundary);
         if (c != 0)
             return c > 0 ? left1 : left2;
         // return the exclusive version, if either
