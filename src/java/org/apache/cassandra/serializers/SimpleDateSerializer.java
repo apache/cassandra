@@ -52,14 +52,14 @@ public class SimpleDateSerializer implements TypeSerializer<Integer>
         return value == null ? ByteBufferUtil.EMPTY_BYTE_BUFFER : ByteBufferUtil.bytes(value);
     }
 
-    public static Integer dateStringToDays(String source) throws MarshalException
+    public static int dateStringToDays(String source) throws MarshalException
     {
         // Raw day value in unsigned int form, epoch @ 2^31
         if (rawPattern.matcher(source).matches())
         {
             try
             {
-                Long result = Long.parseLong(source);
+                long result = Long.parseLong(source);
 
                 if (result < 0 || result > maxSupportedDays)
                     throw new NumberFormatException("Input out of bounds: " + source);
@@ -68,7 +68,7 @@ public class SimpleDateSerializer implements TypeSerializer<Integer>
                 if (result >= Integer.MAX_VALUE)
                     result -= byteOrderShift;
 
-                return result.intValue();
+                return (int) result;
             }
             catch (NumberFormatException e)
             {
