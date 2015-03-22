@@ -24,6 +24,7 @@ debian/files
 
 # IntelliJ
 .idea/
+*.eml
 *.iml
 *.ipr
 *.iws
