@@ -52,6 +52,8 @@
  * Add nodetool statushandoff/statusbackup (CASSANDRA-8912)
  * Use stdout for progress and stats in sstableloader (CASSANDRA-8982)
 Merged from 2.0:
+ * Stop logging range tombstones when exceeding the threshold
+   (CASSANDRA-8559)
  * Fix NullPointerException when nodetool getendpoints is run
    against invalid keyspaces or tables (CASSANDRA-8950)
  * Allow specifying the tmp dir (CASSANDRA-7712)
