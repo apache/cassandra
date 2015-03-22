@@ -557,7 +557,7 @@ public class StorageProxy implements StorageProxyMBean
                     writeMetrics.failures.mark();
                     WriteFailureException fe = (WriteFailureException)ex;
                     Tracing.trace("Write failure; received {} of {} required replies, failed {} requests",
-                        new Object[] {fe.received, fe.blockFor, fe.failures});
+                                  fe.received, fe.blockFor, fe.failures);
                 }
                 else
                 {
@@ -1397,7 +1397,7 @@ public class StorageProxy implements StorageProxyMBean
                     if (Tracing.isTracing())
                     {
                         Tracing.trace("{}; received {} of {} responses{}",
-                                      new Object[]{(isTimeout ? "Timed out" : "Failed"), responseCount, blockFor, gotData });
+                                      isTimeout ? "Timed out" : "Failed", responseCount, blockFor, gotData);
                     }
                     else if (logger.isDebugEnabled())
                     {
@@ -1686,7 +1686,8 @@ public class StorageProxy implements StorageProxyMBean
                                   : Math.max(1, Math.min(ranges.size(), (int) Math.ceil(command.limit() / resultRowsPerRange)));
             logger.debug("Estimated result rows per range: {}; requested rows: {}, ranges.size(): {}; concurrent range requests: {}",
                          resultRowsPerRange, command.limit(), ranges.size(), concurrencyFactor);
-            Tracing.trace("Submitting range requests on {} ranges with a concurrency of {} ({} rows per range expected)", new Object[]{ ranges.size(), concurrencyFactor, resultRowsPerRange});
+            Tracing.trace("Submitting range requests on {} ranges with a concurrency of {} ({} rows per range expected)",
+                          ranges.size(), concurrencyFactor, resultRowsPerRange);
 
             boolean haveSufficientRows = false;
             int i = 0;
@@ -1805,7 +1806,7 @@ public class StorageProxy implements StorageProxyMBean
                         if (Tracing.isTracing())
                         {
                             Tracing.trace("{}; received {} of {} responses{} for range {} of {}",
-                                          new Object[]{(isTimeout ? "Timed out" : "Failed"), responseCount, blockFor, gotData, i, ranges.size() });
+                                          (isTimeout ? "Timed out" : "Failed"), responseCount, blockFor, gotData, i, ranges.size());
                         }
                         else if (logger.isDebugEnabled())
                         {

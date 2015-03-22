@@ -20,7 +20,6 @@ package org.apache.cassandra.db.filter;
 
 import org.apache.cassandra.db.DecoratedKey;
 
-
 public class TombstoneOverwhelmingException extends RuntimeException
 {
     private final int numTombstones;
@@ -29,11 +28,14 @@ public class TombstoneOverwhelmingException extends RuntimeException
     private final String cfName;
     private final String lastCellName;
     private final String slicesInfo;
-    private final String deletionInfo;
     private String partitionKey = null;
 
-    public TombstoneOverwhelmingException(int numTombstones, int numRequested, String ksName, String cfName,
-                                          String lastCellName, String slicesInfo, String deletionInfo)
+    public TombstoneOverwhelmingException(int numTombstones,
+                                          int numRequested,
+                                          String ksName,
+                                          String cfName,
+                                          String lastCellName,
+                                          String slicesInfo)
     {
         this.numTombstones = numTombstones;
         this.numRequested = numRequested;
@@ -41,13 +43,12 @@ public class TombstoneOverwhelmingException extends RuntimeException
         this.cfName = cfName;
         this.lastCellName = lastCellName;
         this.slicesInfo = slicesInfo;
-        this.deletionInfo = deletionInfo;
     }
 
     public void setKey(DecoratedKey key)
     {
-        if(key != null)
-            this.partitionKey = key.toString();
+        if (key != null)
+            partitionKey = key.toString();
     }
 
     public String getLocalizedMessage()
@@ -59,7 +60,7 @@ public class TombstoneOverwhelmingException extends RuntimeException
     {
         return String.format(
                 "Scanned over %d tombstones in %s.%s; %d columns were requested; query aborted " +
-                "(see tombstone_failure_threshold); partitionKey=%s; lastCell=%s; delInfo=%s; slices=%s",
-                numTombstones, ksName, cfName, numRequested, partitionKey, lastCellName, deletionInfo, slicesInfo);
+                "(see tombstone_failure_threshold); partitionKey=%s; lastCell=%s; slices=%s",
+                numTombstones, ksName, cfName, numRequested, partitionKey, lastCellName, slicesInfo);
     }
 }
