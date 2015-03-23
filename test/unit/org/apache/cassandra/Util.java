@@ -118,6 +118,16 @@ public class Util
         return new BufferCell(cellname(name), ByteBufferUtil.bytes(value), timestamp);
     }
 
+    public static Cell column(String name, long value, long timestamp)
+    {
+        return new BufferCell(cellname(name), ByteBufferUtil.bytes(value), timestamp);
+    }
+
+    public static Cell column(String clusterKey, String name, long value, long timestamp)
+    {
+        return new BufferCell(cellname(clusterKey, name), ByteBufferUtil.bytes(value), timestamp);
+    }
+
     public static Cell expiringColumn(String name, String value, long timestamp, int ttl)
     {
         return new BufferExpiringCell(cellname(name), ByteBufferUtil.bytes(value), timestamp, ttl);

@@ -49,10 +49,15 @@ public class DataTracker
     public final ColumnFamilyStore cfstore;
     private final AtomicReference<View> view;
 
-    public DataTracker(ColumnFamilyStore cfstore)
+    // Indicates if it is safe to load the initial sstables (may not be true when running in
+    //standalone processes meant to repair or upgrade sstables (e.g. standalone scrubber)
+    public final boolean loadsstables;
+
+    public DataTracker(ColumnFamilyStore cfstore, boolean loadsstables)
     {
         this.cfstore = cfstore;
         this.view = new AtomicReference<>();
+        this.loadsstables = loadsstables;
         this.init();
     }
 

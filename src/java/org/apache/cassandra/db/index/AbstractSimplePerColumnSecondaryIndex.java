@@ -56,7 +56,8 @@ public abstract class AbstractSimplePerColumnSecondaryIndex extends PerColumnSec
         indexCfs = ColumnFamilyStore.createColumnFamilyStore(baseCfs.keyspace,
                                                              indexedCfMetadata.cfName,
                                                              new LocalPartitioner(getIndexKeyComparator()),
-                                                             indexedCfMetadata);
+                                                             indexedCfMetadata,
+                                                             baseCfs.getDataTracker().loadsstables);
     }
 
     protected AbstractType<?> getIndexKeyComparator()

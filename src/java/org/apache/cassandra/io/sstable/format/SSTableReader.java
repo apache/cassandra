@@ -344,9 +344,9 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
         return open(descriptor, components, metadata, partitioner, true);
     }
 
-    public static SSTableReader openNoValidation(Descriptor descriptor, Set<Component> components, CFMetaData metadata) throws IOException
+    public static SSTableReader openNoValidation(Descriptor descriptor, Set<Component> components, ColumnFamilyStore cfs) throws IOException
     {
-        return open(descriptor, components, metadata, StorageService.getPartitioner(), false);
+        return open(descriptor, components, cfs.metadata, cfs.partitioner, false);
     }
 
     /**

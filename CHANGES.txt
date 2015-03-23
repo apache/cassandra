@@ -71,6 +71,7 @@
  * Evaluate MurmurHash of Token once per query (CASSANDRA-7096)
  * Generalize progress reporting (CASSANDRA-8901)
  * Resumable bootstrap streaming (CASSANDRA-8838)
+ * Allow scrub for secondary index (CASSANDRA-5174)
 
 2.1.4
  * Check for overlap with non-early sstables in LCS (CASSANDRA-8739)
