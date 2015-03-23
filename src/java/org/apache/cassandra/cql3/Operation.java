@@ -418,7 +418,7 @@ public abstract class Operation
                     return new Lists.DiscarderByIndex(receiver, idx);
                 case SET:
                     Term elt = element.prepare(keyspace, Sets.valueSpecOf(receiver));
-                    return new Sets.Discarder(receiver, elt);
+                    return new Sets.ElementDiscarder(receiver, elt);
                 case MAP:
                     Term key = element.prepare(keyspace, Maps.keySpecOf(receiver));
                     return new Maps.DiscarderByKey(receiver, key);
