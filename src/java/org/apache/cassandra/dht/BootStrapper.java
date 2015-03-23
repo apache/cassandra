@@ -84,7 +84,7 @@ public class BootStrapper
         }
         catch (InterruptedException e)
         {
-            throw new RuntimeException("Interrupted while waiting on boostrap to complete. Bootstrap will have to be restarted.");
+            throw new RuntimeException("Interrupted while waiting on bootstrap to complete. Bootstrap will have to be restarted.");
         }
         catch (ExecutionException e)
         {
