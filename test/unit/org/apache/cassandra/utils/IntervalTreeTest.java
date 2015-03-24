@@ -115,7 +115,7 @@ public class IntervalTreeTest
 
         IntervalTree<Integer, Void, Interval<Integer, Void>> it = IntervalTree.build(intervals);
 
-        Collections.sort(intervals, it.minOrdering);
+        Collections.sort(intervals, Interval.<Integer, Void>minOrdering());
 
         List<Interval<Integer, Void>> l = new ArrayList<Interval<Integer, Void>>();
         for (Interval<Integer, Void> i : it)
