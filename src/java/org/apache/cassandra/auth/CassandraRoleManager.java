@@ -29,6 +29,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.concurrent.ScheduledExecutors;
+import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.cql3.*;
@@ -100,8 +101,19 @@ public class CassandraRoleManager implements IRoleManager
         }
     };
 
-    // 2 ** GENSALT_LOG2_ROUNS rounds of hashing will be performed.
-    private static final int GENSALT_LOG2_ROUNDS = 10;
+    // 2 ** GENSALT_LOG2_ROUNDS rounds of hashing will be performed.
+    private static final String GENSALT_LOG2_ROUNDS_PROPERTY = Config.PROPERTY_PREFIX + "auth_bcrypt_gensalt_log2_rounds";
+    private static final int GENSALT_LOG2_ROUNDS = getGensaltLogRounds();
+
+    static int getGensaltLogRounds()
+    {
+         int rounds = Integer.getInteger(GENSALT_LOG2_ROUNDS_PROPERTY, 10);
+         if (rounds < 4 || rounds > 31)
+         throw new ConfigurationException(String.format("Bad value for system property -D%s." +
+                                                        "Please use a value 4 and 31",
+                                                        GENSALT_LOG2_ROUNDS_PROPERTY));
+         return rounds;
+    }
 
     // NullObject returned when a supplied role name not found in AuthKeyspace.ROLES
     private static final Role NULL_ROLE = new Role(null, false, false, Collections.<String>emptySet());

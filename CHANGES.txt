@@ -76,6 +76,7 @@
  * Allow scrub for secondary index (CASSANDRA-5174)
 
 2.1.4
+ * Make PasswordAuthenticator number of hashing rounds configurable (CASSANDRA-8085)
  * Fix AssertionError when binding nested collections in DELETE (CASSANDRA-8900)
  * Check for overlap with non-early sstables in LCS (CASSANDRA-8739)
  * Only calculate max purgable timestamp if we have to (CASSANDRA-8914)
