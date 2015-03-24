@@ -1,4 +1,6 @@
 2.0.14:
+ * (cqlsh) Allow increasing CSV field size limit through
+   cqlshrc config option (CASSANDRA-8934)
  * Stop logging range tombstones when exceeding the threshold
    (CASSANDRA-8559)
  * Fix NullPointerException when nodetool getendpoints is run

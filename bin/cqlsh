@@ -1964,6 +1964,8 @@ def read_options(cmdlineargs, environment):
                                                     DEFAULT_TIME_FORMAT)
     optvalues.float_precision = option_with_default(configs.getint, 'ui', 'float_precision',
                                                     DEFAULT_FLOAT_PRECISION)
+    optvalues.field_size_limit = option_with_default(configs.getint, 'csv', 'field_size_limit', csv.field_size_limit())
+
     optvalues.debug = False
     optvalues.file = None
     optvalues.tty = sys.stdin.isatty()
@@ -2046,6 +2048,7 @@ def main(options, hostname, port):
     setup_cqlruleset(options.cqlmodule)
     setup_cqldocs(options.cqlmodule)
     init_history()
+    csv.field_size_limit(options.field_size_limit)
 
     if options.file is None:
         stdin = None
