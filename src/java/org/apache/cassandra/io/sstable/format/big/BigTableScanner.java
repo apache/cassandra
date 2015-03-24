@@ -93,43 +93,7 @@ public class BigTableScanner implements ISSTableScanner
         this.rowIndexEntrySerializer = sstable.descriptor.version.getSSTableFormat().getIndexSerializer(sstable.metadata);
 
         List<AbstractBounds<RowPosition>> boundsList = new ArrayList<>(2);
-        // we enforce the first/last keys of the sstablereader
-        if (dataRange.isWrapAround())
-        {
-            if (dataRange.stopKey().compareTo(sstable.first) >= 0)
-            {
-                // since we wrap, we must contain the whole sstable prior to stopKey()
-                Boundary<RowPosition> left = new Boundary<RowPosition>(sstable.first, true);
-                Boundary<RowPosition> right;
-                right = dataRange.keyRange().rightBoundary();
-                right = minRight(right, sstable.last, true);
-                if (!isEmpty(left, right))
-                    boundsList.add(AbstractBounds.bounds(left, right));
-            }
-            if (dataRange.startKey().compareTo(sstable.last) <= 0)
-            {
-                // since we wrap, we must contain the whole sstable after dataRange.startKey()
-                Boundary<RowPosition> right = new Boundary<RowPosition>(sstable.last, true);
-                Boundary<RowPosition> left;
-                left = dataRange.keyRange().leftBoundary();
-                left = maxLeft(left, sstable.first, true);
-                if (!isEmpty(left, right))
-                    boundsList.add(AbstractBounds.bounds(left, right));
-            }
-        }
-        else
-        {
-            assert dataRange.startKey().compareTo(dataRange.stopKey()) <= 0 || dataRange.stopKey().isMinimum();
-            Boundary<RowPosition> left, right;
-            left = dataRange.keyRange().leftBoundary();
-            right = dataRange.keyRange().rightBoundary();
-            left = maxLeft(left, sstable.first, true);
-            // apparently isWrapAround() doesn't count Bounds that extend to the limit (min) as wrapping
-            right = dataRange.stopKey().isMinimum() ? new Boundary<RowPosition>(sstable.last, true)
-                                                    : minRight(right, sstable.last, true);
-            if (!isEmpty(left, right))
-                boundsList.add(AbstractBounds.bounds(left, right));
-        }
+        addRange(dataRange.keyRange(), boundsList);
         this.rangeIterator = boundsList.iterator();
     }
 
@@ -148,27 +112,51 @@ public class BigTableScanner implements ISSTableScanner
         this.dataRange = null;
         this.rowIndexEntrySerializer = sstable.descriptor.version.getSSTableFormat().getIndexSerializer(sstable.metadata);
 
-        List<Range<Token>> normalized = Range.normalize(tokenRanges);
-        List<AbstractBounds<RowPosition>> boundsList = new ArrayList<>(normalized.size());
-        // we enforce the first/last keys of the sstablereader
-        for (Range<Token> range : normalized)
-        {
-            // cap our ranges by the start/end of the sstable
-            RowPosition right = range.right.maxKeyBound();
-            if (right.compareTo(sstable.last) > 0)
-                right = sstable.last;
-
-            RowPosition left = range.left.maxKeyBound();
-            if (left.compareTo(sstable.first) < 0)
-            {
-                if (sstable.first.compareTo(right) <= 0)
-                    boundsList.add(new Bounds<>(sstable.first, right));
-            }
-            else if (left.compareTo(right) < 0)
-                boundsList.add(new Range<>(left, right));
-        }
+        List<AbstractBounds<RowPosition>> boundsList = new ArrayList<>(tokenRanges.size());
+        for (Range<Token> range : Range.normalize(tokenRanges))
+            addRange(Range.makeRowRange(range), boundsList);
 
         this.rangeIterator = boundsList.iterator();
+    }
+
+    private void addRange(AbstractBounds<RowPosition> requested, List<AbstractBounds<RowPosition>> boundsList)
+    {
+        if (requested instanceof Range && ((Range)requested).isWrapAround())
+        {
+            if (requested.right.compareTo(sstable.first) >= 0)
+            {
+                // since we wrap, we must contain the whole sstable prior to stopKey()
+                Boundary<RowPosition> left = new Boundary<RowPosition>(sstable.first, true);
+                Boundary<RowPosition> right;
+                right = requested.rightBoundary();
+                right = minRight(right, sstable.last, true);
+                if (!isEmpty(left, right))
+                    boundsList.add(AbstractBounds.bounds(left, right));
+            }
+            if (requested.left.compareTo(sstable.last) <= 0)
+            {
+                // since we wrap, we must contain the whole sstable after dataRange.startKey()
+                Boundary<RowPosition> right = new Boundary<RowPosition>(sstable.last, true);
+                Boundary<RowPosition> left;
+                left = requested.leftBoundary();
+                left = maxLeft(left, sstable.first, true);
+                if (!isEmpty(left, right))
+                    boundsList.add(AbstractBounds.bounds(left, right));
+            }
+        }
+        else
+        {
+            assert requested.left.compareTo(requested.right) <= 0 || requested.right.isMinimum();
+            Boundary<RowPosition> left, right;
+            left = requested.leftBoundary();
+            right = requested.rightBoundary();
+            left = maxLeft(left, sstable.first, true);
+            // apparently isWrapAround() doesn't count Bounds that extend to the limit (min) as wrapping
+            right = requested.right.isMinimum() ? new Boundary<RowPosition>(sstable.last, true)
+                                                    : minRight(right, sstable.last, true);
+            if (!isEmpty(left, right))
+                boundsList.add(AbstractBounds.bounds(left, right));
+        }
     }
 
     private void seekToCurrentRangeStart()
