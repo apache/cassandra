@@ -72,7 +72,7 @@
  * Select optimal CRC32 implementation at runtime (CASSANDRA-8614)
  * Evaluate MurmurHash of Token once per query (CASSANDRA-7096)
  * Generalize progress reporting (CASSANDRA-8901)
- * Resumable bootstrap streaming (CASSANDRA-8838)
+ * Resumable bootstrap streaming (CASSANDRA-8838, CASSANDRA-8942)
  * Allow scrub for secondary index (CASSANDRA-5174)
 
 2.1.4

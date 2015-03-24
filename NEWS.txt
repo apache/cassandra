@@ -45,6 +45,9 @@ New features
      installed which is accessible by Cassandra. Old versions of
      libjna packages (< 4.0.0) will cause problems - e.g. Debian Wheezy
      contains libjna versin 3.2.x.
+   - The node now keeps up when streaming is failed during bootstrapping. You can
+     use new `nodetool bootstrap resume` command to continue streaming after resolving
+     an issue.
 
 
 Upgrading

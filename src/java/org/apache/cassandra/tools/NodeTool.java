@@ -156,11 +156,19 @@ public class NodeTool
                 GetLoggingLevels.class
         );
 
-        Cli<Runnable> parser = Cli.<Runnable>builder("nodetool")
-                .withDescription("Manage your Cassandra cluster")
+        Cli.CliBuilder<Runnable> builder = Cli.builder("nodetool");
+
+        builder.withDescription("Manage your Cassandra cluster")
+                 .withDefaultCommand(Help.class)
+                 .withCommands(commands);
+
+        // bootstrap commands
+        builder.withGroup("bootstrap")
+                .withDescription("Monitor/manage node's bootstrap process")
                 .withDefaultCommand(Help.class)
-                .withCommands(commands)
-                .build();
+                .withCommand(BootstrapResume.class);
+
+        Cli<Runnable> parser = builder.build();
 
         int status = 0;
         try
@@ -2700,4 +2708,20 @@ public class NodeTool
         }
     }
 
+    @Command(name = "resume", description = "Resume bootstrap streaming")
+    public static class BootstrapResume extends NodeToolCmd
+    {
+        @Override
+        protected void execute(NodeProbe probe)
+        {
+            try
+            {
+                probe.resumeBootstrap(System.out);
+            }
+            catch (IOException e)
+            {
+                throw new IOError(e);
+            }
+        }
+    }
 }
