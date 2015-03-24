@@ -104,7 +104,7 @@ public class YamlConfigurationLoader implements ConfigurationLoader
             logConfig(configBytes);
 
             org.yaml.snakeyaml.constructor.Constructor constructor = new org.yaml.snakeyaml.constructor.Constructor(Config.class);
-            TypeDescription seedDesc = new TypeDescription(SeedProviderDef.class);
+            TypeDescription seedDesc = new TypeDescription(ParametrizedClass.class);
             seedDesc.putMapPropertyType("parameters", String.class, String.class);
             constructor.addTypeDescription(seedDesc);
             MissingPropertiesChecker propertiesChecker = new MissingPropertiesChecker();

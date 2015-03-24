@@ -21,15 +21,40 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+import com.google.common.base.Objects;
 
-public class SeedProviderDef
+public class ParametrizedClass
 {
     public String class_name;
     public Map<String, String> parameters;
 
-    public SeedProviderDef(LinkedHashMap<String, ?> p)
+    public ParametrizedClass(String class_name, Map<String, String> parameters)
     {
-        class_name = (String)p.get("class_name");
-        parameters = (Map<String, String>)((List)p.get("parameters")).get(0);
+        this.class_name = class_name;
+        this.parameters = parameters;
+    }
+
+    @SuppressWarnings("unchecked")
+    public ParametrizedClass(LinkedHashMap<String, ?> p)
+    {
+        this((String)p.get("class_name"),
+                p.containsKey("parameters") ? (Map<String, String>)((List<?>)p.get("parameters")).get(0) : null);
+    }
+
+    @Override
+    public boolean equals(Object that)
+    {
+        return that instanceof ParametrizedClass && equals((ParametrizedClass) that);
+    }
+
+    public boolean equals(ParametrizedClass that)
+    {
+        return Objects.equal(class_name, that.class_name) && Objects.equal(parameters, that.parameters);
+    }
+
+    @Override
+    public String toString()
+    {
+        return class_name + (parameters == null ? "" : parameters.toString());
     }
 }

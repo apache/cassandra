@@ -32,10 +32,11 @@ import java.util.concurrent.*;
 
 import org.apache.cassandra.concurrent.JMXEnabledThreadPoolExecutor;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.io.compress.CompressionParameters;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.WrappedRunnable;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -203,7 +204,7 @@ public class CommitLogArchiver
                 CommitLogDescriptor descriptor;
                 if (fromHeader == null && fromName == null)
                     throw new IllegalStateException("Cannot safely construct descriptor for segment, either from its name or its header: " + fromFile.getPath());
-                else if (fromHeader != null && fromName != null && !fromHeader.equals(fromName))
+                else if (fromHeader != null && fromName != null && !fromHeader.equalsIgnoringCompression(fromName))
                     throw new IllegalStateException(String.format("Cannot safely construct descriptor for segment, as name and header descriptors do not match (%s vs %s): %s", fromHeader, fromName, fromFile.getPath()));
                 else if (fromName != null && fromHeader == null && fromName.version >= CommitLogDescriptor.VERSION_21)
                     throw new IllegalStateException("Cannot safely construct descriptor for segment, as name descriptor implies a version that should contain a header descriptor, but that descriptor could not be read: " + fromFile.getPath());
@@ -213,6 +214,17 @@ public class CommitLogArchiver
 
                 if (descriptor.version > CommitLogDescriptor.VERSION_30)
                     throw new IllegalStateException("Unsupported commit log version: " + descriptor.version);
+
+                if (descriptor.compression != null) {
+                    try
+                    {
+                        CompressionParameters.createCompressor(descriptor.compression);
+                    }
+                    catch (ConfigurationException e)
+                    {
+                        throw new IllegalStateException("Unknown compression", e);
+                    }
+                }
 
                 File toFile = new File(DatabaseDescriptor.getCommitLogLocation(), descriptor.fileName());
                 if (toFile.exists())

@@ -77,7 +77,7 @@ public class DeflateCompressor implements ICompressor
 
         Deflater def = deflater.get();
         def.reset();
-        def.setInput(src.array(), src.position(), src.limit());
+        def.setInput(src.array(), src.arrayOffset() + src.position(), src.remaining());
         def.finish();
         if (def.needsInput())
             return 0;

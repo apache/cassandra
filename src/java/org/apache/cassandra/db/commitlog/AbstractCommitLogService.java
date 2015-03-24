@@ -45,7 +45,7 @@ public abstract class AbstractCommitLogService
     protected final WaitQueue syncComplete = new WaitQueue();
     private final Semaphore haveWork = new Semaphore(1);
 
-    private final CommitLog commitLog;
+    final CommitLog commitLog;
     private final String name;
     private final long pollIntervalMillis;
 
@@ -62,11 +62,10 @@ public abstract class AbstractCommitLogService
         this.commitLog = commitLog;
         this.name = name;
         this.pollIntervalMillis = pollIntervalMillis;
-        start();
     }
 
-    // Separated into individual method for unit testing stop/start capability
-    private void start()
+    // Separated into individual method to ensure relevant objects are constructed before this is started.
+    void start()
     {
         if (pollIntervalMillis < 1)
             throw new IllegalArgumentException(String.format("Commit log flush interval must be positive: %dms", pollIntervalMillis));

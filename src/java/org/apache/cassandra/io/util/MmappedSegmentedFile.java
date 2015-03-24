@@ -86,7 +86,7 @@ public class MmappedSegmentedFile extends SegmentedFile
         if (segment.right != null)
         {
             // segment is mmap'd
-            return new MappedFileDataInput(segment.right, path, segment.left, (int) (position - segment.left));
+            return new ByteBufferDataInput(segment.right, path, segment.left, (int) (position - segment.left));
         }
 
         // we can have single cells or partitions larger than 2Gb, which is our maximum addressable range in a single segment;
