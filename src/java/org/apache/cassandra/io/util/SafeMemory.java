@@ -53,11 +53,13 @@ public class SafeMemory extends Memory implements SharedCloseable
     public void free()
     {
         ref.release();
+        peer = 0;
     }
 
     public void close()
     {
         ref.ensureReleased();
+        peer = 0;
     }
 
     public SafeMemory copy(long newSize)
