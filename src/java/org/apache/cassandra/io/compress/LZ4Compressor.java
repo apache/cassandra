@@ -23,6 +23,8 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
+import com.google.common.annotations.VisibleForTesting;
+
 import net.jpountz.lz4.LZ4Exception;
 import net.jpountz.lz4.LZ4Factory;
 
@@ -30,7 +32,9 @@ public class LZ4Compressor implements ICompressor
 {
 
     private static final int INTEGER_BYTES = 4;
-    private static final LZ4Compressor instance = new LZ4Compressor();
+
+    @VisibleForTesting
+    public static final LZ4Compressor instance = new LZ4Compressor();
 
     public static LZ4Compressor create(Map<String, String> args)
     {
