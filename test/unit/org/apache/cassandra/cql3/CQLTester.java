@@ -73,8 +73,8 @@ public abstract class CQLTester
     private static final AtomicInteger seqNumber = new AtomicInteger();
 
     private static org.apache.cassandra.transport.Server server;
-    private static final int nativePort;
-    private static final InetAddress nativeAddr;
+    protected static final int nativePort;
+    protected static final InetAddress nativeAddr;
     private static final Cluster[] cluster;
     private static final Session[] session;
 
@@ -215,7 +215,7 @@ public abstract class CQLTester
     }
 
     // lazy initialization for all tests that require Java Driver
-    private static void requireNetwork() throws ConfigurationException
+    protected static void requireNetwork() throws ConfigurationException
     {
         if (server != null)
             return;

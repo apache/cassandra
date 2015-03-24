@@ -124,6 +124,15 @@ Table of Contents
           a tracing ID. The tracing ID is a [uuid] and is the first thing in
           the frame body. The rest of the body will then be the usual body
           corresponding to the response opcode.
+    0x04: Custom payload flag. For a request or response frame, this indicates
+          that generic key-value custom payload for a custom QueryHandler
+          implementation is present in the frame. Such custom payload is simply
+          ignored by the default QueryHandler implementation.
+          Currently, only QUERY, PREPARE, EXECUTE and BATCH requests support
+          payload.
+          If both trace-flag and payload-flag are set, the generic key-value
+          payload appears after trace's data.
+          Type of custom payload is [bytes map] (see below).
 
   The rest of the flags is currently unused and ignored.
 
@@ -228,6 +237,8 @@ Table of Contents
                       are [string].
     [string multimap] A [short] n, followed by n pair <k><v> where <k> is a
                       [string] and <v> is a [string list].
+    [bytes map]       A [short] n, followed by n pair <k><v> where <k> is a
+                      [string] and <v> is a [bytes].
 
 
 4. Messages
@@ -1113,3 +1124,4 @@ Table of Contents
     has been modified, and now includes changes related to user defined functions and user defined aggregates.
   * Read_failure error code was added.
   * Function_failure error code was added.
+  * Add custom payload to frames for custom QueryHandler implementations (ignored by Cassandra's standard QueryHandler)
