@@ -213,6 +213,8 @@ public class OptionDistribution extends Option
                     mean = (min + max) / 2d;
                     stdev = ((max - min) / 2d) / stdevsToEdge;
                 }
+                if (min == max)
+                    return new FixedFactory(min);
                 return new GaussianFactory(min, max, mean, stdev);
             } catch (Exception ignore)
             {
@@ -233,6 +235,8 @@ public class OptionDistribution extends Option
                 String[] bounds = params.get(0).split("\\.\\.+");
                 final long min = parseLong(bounds[0]);
                 final long max = parseLong(bounds[1]);
+                if (min == max)
+                    return new FixedFactory(min);
                 ExponentialDistribution findBounds = new ExponentialDistribution(1d);
                 // max probability should be roughly equal to accuracy of (max-min) to ensure all values are visitable,
                 // over entire range, but this results in overly skewed distribution, so take sqrt
@@ -257,6 +261,8 @@ public class OptionDistribution extends Option
                 String[] bounds = params.get(0).split("\\.\\.+");
                 final long min = parseLong(bounds[0]);
                 final long max = parseLong(bounds[1]);
+                if (min == max)
+                    return new FixedFactory(min);
                 final double shape = Double.parseDouble(params.get(1));
                 WeibullDistribution findBounds = new WeibullDistribution(shape, 1d);
                 // max probability should be roughly equal to accuracy of (max-min) to ensure all values are visitable,
@@ -288,6 +294,8 @@ public class OptionDistribution extends Option
                 // max probability should be roughly equal to accuracy of (max-min) to ensure all values are visitable,
                 // over entire range, but this results in overly skewed distribution, so take sqrt
                 final double scale = (max - min) / findBounds.inverseCumulativeProbability(1d - Math.sqrt(1d/(max-min)));
+                if (min == max)
+                    return new FixedFactory(min);
                 return new QuantizedExtremeFactory(min, max, shape, scale, quantas);
             } catch (Exception ignore)
             {
@@ -309,6 +317,8 @@ public class OptionDistribution extends Option
                 String[] bounds = params.get(0).split("\\.\\.+");
                 final long min = parseLong(bounds[0]);
                 final long max = parseLong(bounds[1]);
+                if (min == max)
+                    return new FixedFactory(min);
                 return new UniformFactory(min, max);
             } catch (Exception ignore)
             {
