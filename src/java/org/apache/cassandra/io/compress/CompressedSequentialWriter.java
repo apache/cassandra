@@ -255,9 +255,6 @@ public class CompressedSequentialWriter extends SequentialWriter
         bufferOffset = truncateTarget - buffer.position();
         chunkCount = realMark.nextChunkIndex - 1;
 
-        // mark as dirty so we don't lose the bytes on subsequent reBuffer calls
-        isDirty = true;
-
         // truncate data and index file
         truncate(chunkOffset);
         metadataWriter.resetAndTruncate(realMark.nextChunkIndex - 1);
