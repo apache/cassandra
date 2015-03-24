@@ -37,7 +37,7 @@ import org.apache.cassandra.utils.FBUtilities;
 public class OutboundTcpConnectionPool
 {
     public static final long LARGE_MESSAGE_THRESHOLD =
-            Long.getLong(Config.PROPERTY_PREFIX + "OTCP_LARGE_MESSAGE_THRESHOLD", 1024 * 64);
+            Long.getLong(Config.PROPERTY_PREFIX + "otcp_large_message_threshold", 1024 * 64);
 
     // pointer for the real Address.
     private final InetAddress id;
