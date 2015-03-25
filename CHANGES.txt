@@ -57,6 +57,8 @@
  * Add nodetool statushandoff/statusbackup (CASSANDRA-8912)
  * Use stdout for progress and stats in sstableloader (CASSANDRA-8982)
 Merged from 2.0:
+ * Lower logging level from ERROR to DEBUG when a scheduled schema pull
+   cannot be completed due to a node being down (CASSANDRA-9032)
  * Fix MOVED_NODE client event (CASSANDRA-8516)
  * Allow overriding MAX_OUTSTANDING_REPLAY_COUNT (CASSANDRA-7533)
  * Fix malformed JMX ObjectName containing IPv6 addresses (CASSANDRA-9027)
