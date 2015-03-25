@@ -133,6 +133,7 @@
  * Add nodetool statushandoff/statusbackup (CASSANDRA-8912)
  * Use stdout for progress and stats in sstableloader (CASSANDRA-8982)
 Merged from 2.0:
+ * Allow overriding MAX_OUTSTANDING_REPLAY_COUNT (CASSANDRA-7533)
  * Fix malformed JMX ObjectName containing IPv6 addresses (CASSANDRA-9027)
  * (cqlsh) Allow increasing CSV field size limit through
    cqlshrc config option (CASSANDRA-8934)
