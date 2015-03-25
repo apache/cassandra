@@ -35,7 +35,7 @@ import org.apache.commons.lang3.StringUtils;
 import com.github.tjake.ICRC32;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.config.ParametrizedClass;
+import org.apache.cassandra.config.ParameterizedClass;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.io.compress.CompressionParameters;
@@ -69,7 +69,7 @@ public class CommitLog implements CommitLogMBean
     final AbstractCommitLogService executor;
 
     final ICompressor compressor;
-    public ParametrizedClass compressorClass;
+    public ParameterizedClass compressorClass;
     final public String location;
 
     static private CommitLog construct()

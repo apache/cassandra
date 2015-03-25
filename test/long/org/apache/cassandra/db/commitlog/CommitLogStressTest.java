@@ -48,7 +48,7 @@ import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.config.Config.CommitLogSync;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.config.ParametrizedClass;
+import org.apache.cassandra.config.ParameterizedClass;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.Cell;
 import org.apache.cassandra.db.ColumnFamily;
@@ -185,11 +185,11 @@ public class CommitLogStressTest
         DatabaseDescriptor.setCommitLogSyncBatchWindow(1);
         DatabaseDescriptor.setCommitLogSyncPeriod(30);
         DatabaseDescriptor.setCommitLogSegmentSize(32);
-        for (ParametrizedClass compressor : new ParametrizedClass[] {
+        for (ParameterizedClass compressor : new ParameterizedClass[] {
                 null,
-                new ParametrizedClass("LZ4Compressor", null),
-                new ParametrizedClass("SnappyCompressor", null),
-                new ParametrizedClass("DeflateCompressor", null)}) {
+                new ParameterizedClass("LZ4Compressor", null),
+                new ParameterizedClass("SnappyCompressor", null),
+                new ParameterizedClass("DeflateCompressor", null)}) {
             DatabaseDescriptor.setCommitLogCompression(compressor);
             for (CommitLogSync sync : CommitLogSync.values())
             {

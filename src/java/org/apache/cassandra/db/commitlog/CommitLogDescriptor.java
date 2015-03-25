@@ -37,7 +37,7 @@ import com.google.common.base.Objects;
 import com.github.tjake.ICRC32;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.config.ParametrizedClass;
+import org.apache.cassandra.config.ParameterizedClass;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.FSReadError;
 import org.apache.cassandra.net.MessagingService;
@@ -67,16 +67,16 @@ public class CommitLogDescriptor
 
     final int version;
     public final long id;
-    public final ParametrizedClass compression;
+    public final ParameterizedClass compression;
 
-    public CommitLogDescriptor(int version, long id, ParametrizedClass compression)
+    public CommitLogDescriptor(int version, long id, ParameterizedClass compression)
     {
         this.version = version;
         this.id = id;
         this.compression = compression;
     }
 
-    public CommitLogDescriptor(long id, ParametrizedClass compression)
+    public CommitLogDescriptor(long id, ParameterizedClass compression)
     {
         this(current_version, id, compression);
     }
@@ -107,7 +107,7 @@ public class CommitLogDescriptor
     private static String constructParametersString(CommitLogDescriptor descriptor)
     {
         Map<String, Object> params = new TreeMap<String, Object>();
-        ParametrizedClass compression = descriptor.compression;
+        ParameterizedClass compression = descriptor.compression;
         if (compression != null)
         {
             params.put(COMPRESSION_PARAMETERS_KEY, compression.parameters);
@@ -159,7 +159,7 @@ public class CommitLogDescriptor
     }
 
     @SuppressWarnings("unchecked")
-    private static ParametrizedClass parseCompression(Map<?, ?> params)
+    private static ParameterizedClass parseCompression(Map<?, ?> params)
     {
         if (params == null)
             return null;
@@ -168,7 +168,7 @@ public class CommitLogDescriptor
             return null;
 
         Map<String, String> cparams = (Map<String, String>) params.get(COMPRESSION_PARAMETERS_KEY);
-        return new ParametrizedClass(className, cparams);
+        return new ParameterizedClass(className, cparams);
     }
 
     public static CommitLogDescriptor fromFileName(String name)

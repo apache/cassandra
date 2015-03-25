@@ -23,19 +23,19 @@ import java.util.Map;
 
 import com.google.common.base.Objects;
 
-public class ParametrizedClass
+public class ParameterizedClass
 {
     public String class_name;
     public Map<String, String> parameters;
 
-    public ParametrizedClass(String class_name, Map<String, String> parameters)
+    public ParameterizedClass(String class_name, Map<String, String> parameters)
     {
         this.class_name = class_name;
         this.parameters = parameters;
     }
 
     @SuppressWarnings("unchecked")
-    public ParametrizedClass(LinkedHashMap<String, ?> p)
+    public ParameterizedClass(LinkedHashMap<String, ?> p)
     {
         this((String)p.get("class_name"),
                 p.containsKey("parameters") ? (Map<String, String>)((List<?>)p.get("parameters")).get(0) : null);
@@ -44,10 +44,10 @@ public class ParametrizedClass
     @Override
     public boolean equals(Object that)
     {
-        return that instanceof ParametrizedClass && equals((ParametrizedClass) that);
+        return that instanceof ParameterizedClass && equals((ParameterizedClass) that);
     }
 
-    public boolean equals(ParametrizedClass that)
+    public boolean equals(ParameterizedClass that)
     {
         return Objects.equal(class_name, that.class_name) && Objects.equal(parameters, that.parameters);
     }

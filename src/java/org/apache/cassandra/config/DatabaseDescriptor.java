@@ -1077,12 +1077,12 @@ public class DatabaseDescriptor
         return conf.commitlog_directory;
     }
 
-    public static ParametrizedClass getCommitLogCompression()
+    public static ParameterizedClass getCommitLogCompression()
     {
         return conf.commitlog_compression;
     }
 
-    public static void setCommitLogCompression(ParametrizedClass compressor)
+    public static void setCommitLogCompression(ParameterizedClass compressor)
     {
         conf.commitlog_compression = compressor;
     }

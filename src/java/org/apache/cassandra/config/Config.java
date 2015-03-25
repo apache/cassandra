@@ -64,7 +64,7 @@ public class Config
     public Set<String> hinted_handoff_enabled_by_dc = Sets.newConcurrentHashSet();
     public volatile Integer max_hint_window_in_ms = 3600 * 1000; // one hour
 
-    public ParametrizedClass seed_provider;
+    public ParameterizedClass seed_provider;
     public DiskAccessMode disk_access_mode = DiskAccessMode.auto;
 
     public DiskFailurePolicy disk_failure_policy = DiskFailurePolicy.ignore;
@@ -167,7 +167,9 @@ public class Config
     public Double commitlog_sync_batch_window_in_ms;
     public Integer commitlog_sync_period_in_ms;
     public int commitlog_segment_size_in_mb = 32;
-
+    public ParameterizedClass commitlog_compression;
+    public int commitlog_max_compression_buffers_in_pool = 3;
+ 
     @Deprecated
     public int commitlog_periodic_queue_size = -1;
 
