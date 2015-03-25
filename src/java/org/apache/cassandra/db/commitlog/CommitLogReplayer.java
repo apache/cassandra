@@ -46,7 +46,7 @@ import org.cliffc.high_scale_lib.NonBlockingHashSet;
 public class CommitLogReplayer
 {
     private static final Logger logger = LoggerFactory.getLogger(CommitLogReplayer.class);
-    private static final int MAX_OUTSTANDING_REPLAY_COUNT = 1024;
+    private static final int MAX_OUTSTANDING_REPLAY_COUNT = Integer.getInteger("cassandra.commitlog_max_outstanding_replay_count", 1024);
     private static final int LEGACY_END_OF_SEGMENT_MARKER = 0;
 
     private final Set<Keyspace> keyspacesRecovered;
