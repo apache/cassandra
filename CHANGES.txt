@@ -1,4 +1,5 @@
 2.0.14:
+ * Fix malformed JMX ObjectName containing IPv6 addresses (CASSANDRA-9027)
  * Fix potential data loss in CompressedSequentialWriter (CASSANDRA-8949)
  * (cqlsh) Allow increasing CSV field size limit through
    cqlshrc config option (CASSANDRA-8934)
