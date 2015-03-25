@@ -13,6 +13,12 @@ restore snapshots created with the previous major version using the
 'sstableloader' tool. You can upgrade the file format of your snapshots
 using the provided 'sstableupgrade' tool.
 
+2.1.4
+=====
+
+The default JMX config now listens to localhost only. You must enable 
+the other JMX flags in cassandra-env.sh manually.
+
 2.1.3
 =====
 
