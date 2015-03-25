@@ -1,4 +1,5 @@
 2.0.14:
+ * Fix MOVED_NODE client event (CASSANDRA-8516)
  * Allow overriding MAX_OUTSTANDING_REPLAY_COUNT (CASSANDRA-7533)
  * Fix malformed JMX ObjectName containing IPv6 addresses (CASSANDRA-9027)
  * Fix potential data loss in CompressedSequentialWriter (CASSANDRA-8949)
