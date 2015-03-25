@@ -64,7 +64,7 @@ public class ConnectionMetrics
     public ConnectionMetrics(InetAddress ip, final OutboundTcpConnectionPool connectionPool)
     {
         // ipv6 addresses will contain colons, which are invalid in a JMX ObjectName
-        address = ip.getHostAddress().replaceAll(":", ".");
+        address = ip.getHostAddress().replace(':', '.');
 
         factory = new DefaultNameFactory("Connection", address);
 

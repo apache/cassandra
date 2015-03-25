@@ -52,7 +52,7 @@ public class StreamingMetrics
 
     public StreamingMetrics(final InetAddress peer)
     {
-        MetricNameFactory factory = new DefaultNameFactory("Streaming", peer.getHostAddress().replaceAll(":", "."));
+        MetricNameFactory factory = new DefaultNameFactory("Streaming", peer.getHostAddress().replace(':', '.'));
         incomingBytes = Metrics.newCounter(factory.createMetricName("IncomingBytes"));
         outgoingBytes= Metrics.newCounter(factory.createMetricName("OutgoingBytes"));
     }
