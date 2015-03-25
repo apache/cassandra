@@ -56,7 +56,7 @@ public class HintedHandoffMetrics
     {
         public Counter load(InetAddress address)
         {
-            return Metrics.counter(factory.createMetricName("Hints_created-" + address.getHostAddress()));
+            return Metrics.counter(factory.createMetricName("Hints_created-" + address.getHostAddress().replace(':', '.')));
         }
     });
 
@@ -89,7 +89,7 @@ public class HintedHandoffMetrics
 
         public DifferencingCounter(InetAddress address)
         {
-            this.meter = Metrics.counter(factory.createMetricName("Hints_not_stored-" + address.getHostAddress()));
+            this.meter = Metrics.counter(factory.createMetricName("Hints_not_stored-" + address.getHostAddress().replace(':', '.')));
         }
 
         public long difference()
