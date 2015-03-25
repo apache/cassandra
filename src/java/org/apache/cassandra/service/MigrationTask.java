@@ -59,7 +59,7 @@ class MigrationTask extends WrappedRunnable
 
         if (!FailureDetector.instance.isAlive(endpoint))
         {
-            logger.error("Can't send migration request: node {} is down.", endpoint);
+            logger.debug("Can't send schema pull request: node {} is down.", endpoint);
             return;
         }
 
