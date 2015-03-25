@@ -1,3 +1,6 @@
+2.0.14:
+ * If no JMX flags are set start a localhost only JMX service
+
 2.0.13:
  * Add offline tool to relevel sstables (CASSANDRA-8301)
  * Preserve stream ID for more protocol errors (CASSANDRA-8848)
