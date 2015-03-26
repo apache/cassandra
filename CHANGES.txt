@@ -1,4 +1,5 @@
 2.1.4
+ * Prevent AssertionError from SizeEstimatesRecorder (CASSANDRA-9034)
  * Avoid overwriting index summaries for sstables with an older format that
    does not support downsampling; rebuild summaries on startup when this
    is detected (CASSANDRA-8993)
