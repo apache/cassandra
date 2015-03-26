@@ -49,6 +49,7 @@ public class IndexSummaryTest
         Pair<List<DecoratedKey>, IndexSummary> random = generateRandomIndex(100, 1);
         for (int i = 0; i < 100; i++)
             assertEquals(random.left.get(i).getKey(), ByteBuffer.wrap(random.right.getKey(i)));
+        random.right.close();
     }
 
     @Test
@@ -57,6 +58,7 @@ public class IndexSummaryTest
         Pair<List<DecoratedKey>, IndexSummary> random = generateRandomIndex(100, 1);
         for (int i = 0; i < 100; i++)
             assertEquals(i, random.right.binarySearch(random.left.get(i)));
+        random.right.close();
     }
 
     @Test
@@ -65,6 +67,7 @@ public class IndexSummaryTest
         Pair<List<DecoratedKey>, IndexSummary> random = generateRandomIndex(100, 2);
         for (int i = 0; i < 50; i++)
             assertEquals(i*2, random.right.getPosition(i));
+        random.right.close();
     }
 
     @Test
@@ -84,6 +87,7 @@ public class IndexSummaryTest
         // read the junk
         assertEquals(dis.readUTF(), "JUNK");
         assertEquals(dis.readUTF(), "JUNK");
+        is.close();
         FileUtils.closeQuietly(dis);
     }
 
@@ -107,6 +111,8 @@ public class IndexSummaryTest
             assertEquals(1, loaded.size());
             assertEquals(summary.getPosition(0), loaded.getPosition(0));
             assertArrayEquals(summary.getKey(0), summary.getKey(0));
+            summary.close();
+            loaded.close();
         }
     }
 
