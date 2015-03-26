@@ -53,8 +53,19 @@ public class PasswordAuthenticator implements ISaslAwareAuthenticator
 {
     private static final Logger logger = LoggerFactory.getLogger(PasswordAuthenticator.class);
 
-    // 2 ** GENSALT_LOG2_ROUNS rounds of hashing will be performed.
-    private static final int GENSALT_LOG2_ROUNDS = 10;
+    // 2 ** GENSALT_LOG2_ROUNDS rounds of hashing will be performed.
+    private static final String GENSALT_LOG2_ROUNDS_PROPERTY = "cassandra.auth_bcrypt_gensalt_log2_rounds";
+    private static final int GENSALT_LOG2_ROUNDS = getGensaltLogRounds();
+
+    static int getGensaltLogRounds()
+    {
+        int rounds = Integer.getInteger(GENSALT_LOG2_ROUNDS_PROPERTY, 10);
+        if (rounds < 4 || rounds > 31)
+            throw new RuntimeException(new ConfigurationException(String.format("Bad value for system property -D%s. " +
+                                                                                "Please use a value 4 and 31",
+                                                                                GENSALT_LOG2_ROUNDS_PROPERTY)));
+        return rounds;
+    }
 
     // name of the hash column.
     private static final String SALTED_HASH = "salted_hash";
