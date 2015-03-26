@@ -86,6 +86,7 @@ public class IndexSummary extends WrappedSharedCloseable
         this.offsets = offsets;
         this.entries = entries;
         this.samplingLevel = samplingLevel;
+        assert samplingLevel > 0;
     }
 
     private IndexSummary(IndexSummary copy)
