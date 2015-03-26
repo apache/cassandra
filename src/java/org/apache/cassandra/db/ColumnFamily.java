@@ -321,6 +321,8 @@ public abstract class ColumnFamily implements Iterable<Column>, IRowCacheEntry
             }
         }
 
+        cfDiff.setDeletionInfo(deletionInfo().diff(cfComposite.deletionInfo()));
+
         if (!cfDiff.isEmpty())
             return cfDiff;
         return null;

@@ -21,15 +21,16 @@ package org.apache.cassandra.db;
 import java.util.Arrays;
 import java.util.concurrent.TimeUnit;
 
-import org.apache.cassandra.SchemaLoader;
+import com.google.common.util.concurrent.Uninterruptibles;
 import org.junit.Test;
 
-import static org.junit.Assert.assertEquals;
-import static org.apache.cassandra.Util.column;
+import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
-import com.google.common.util.concurrent.Uninterruptibles;
+import static org.junit.Assert.assertEquals;
 
+import static org.apache.cassandra.Util.column;
+import static org.apache.cassandra.Util.tombstone;
 
 public class RowTest extends SchemaLoader
 {
@@ -46,6 +47,38 @@ public class RowTest extends SchemaLoader
         ColumnFamily cfDiff = cf1.diff(cf2);
         assertEquals(cfDiff.getColumnCount(), 0);
         assertEquals(cfDiff.deletionInfo(), delInfo);
+
+        RangeTombstone tombstone1 = tombstone("1", "11", (long) 123, 123);
+        RangeTombstone tombstone1_2 = tombstone("111", "112", (long) 1230, 123);
+        RangeTombstone tombstone2_1 = tombstone("2", "22", (long) 123, 123);
+        RangeTombstone tombstone2_2 = tombstone("2", "24", (long) 123, 123);
+        RangeTombstone tombstone3_1 = tombstone("3", "31", (long) 123, 123);
+        RangeTombstone tombstone3_2 = tombstone("3", "31", (long) 1230, 123);
+        RangeTombstone tombstone4_1 = tombstone("4", "41", (long) 123, 123);
+        RangeTombstone tombstone4_2 = tombstone("4", "41", (long) 123, 1230);
+        RangeTombstone tombstone5_2 = tombstone("5", "51", (long) 123, 1230);
+        cf1.delete(tombstone1);
+        cf1.delete(tombstone2_1);
+        cf1.delete(tombstone3_1);
+        cf1.delete(tombstone4_1);
+
+        cf2.delete(tombstone1);
+        cf2.delete(tombstone1_2);
+        cf2.delete(tombstone2_2);
+        cf2.delete(tombstone3_2);
+        cf2.delete(tombstone4_2);
+        cf2.delete(tombstone5_2);
+
+        cfDiff = cf1.diff(cf2);
+        assertEquals(0, cfDiff.getColumnCount());
+
+        // only tmbstones which differ in superset or have more recent timestamp to be in diff
+        delInfo.add(tombstone1_2, cf1.getComparator());
+        delInfo.add(tombstone2_2, cf1.getComparator());
+        delInfo.add(tombstone3_2, cf1.getComparator());
+        delInfo.add(tombstone5_2, cf1.getComparator());
+
+        assertEquals(delInfo, cfDiff.deletionInfo());
     }
 
     @Test

@@ -281,4 +281,9 @@ public class Util
 
         assert thrown : exception.getName() + " not received";
     }
+
+    public static RangeTombstone tombstone(String start, String finish, long timestamp, int localtime)
+    {
+        return new RangeTombstone(ByteBufferUtil.bytes(start), ByteBufferUtil.bytes(finish), timestamp , localtime);
+    }
 }

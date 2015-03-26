@@ -171,6 +171,22 @@ public class DeletionInfo
     }
 
     /**
+     * Evaluates difference between this deletion info and superset for read repair
+     *
+     * @return the difference between the two, or LIVE if no difference
+     */
+    public DeletionInfo diff(DeletionInfo superset)
+    {
+        RangeTombstoneList rangeDiff = superset.ranges == null || superset.ranges.isEmpty()
+                                     ? null
+                                     : ranges == null ? superset.ranges : ranges.diff(superset.ranges);
+
+        return topLevel.markedForDeleteAt != superset.topLevel.markedForDeleteAt || rangeDiff != null
+             ? new DeletionInfo(superset.topLevel, rangeDiff)
+             : DeletionInfo.live();
+    }
+
+    /**
      * Returns true if {@code purge} would remove the top-level tombstone or any of the range
      * tombstones, false otherwise.
      * @param gcBefore timestamp (in seconds) before which tombstones should be purged

@@ -333,6 +333,45 @@ public class RangeTombstoneList implements Iterable<RangeTombstone>
         };
     }
 
+    /**
+     * Evaluates a diff between superset (known to be all merged tombstones) and this list for read repair
+     *
+     * @return null if there is no difference
+     */
+    public RangeTombstoneList diff(RangeTombstoneList superset)
+    {
+        if (isEmpty())
+            return superset;
+
+        assert size <= superset.size;
+
+        RangeTombstoneList diff = null;
+
+        int j = 0; // index to iterate through our own list
+        for (int i = 0; i < superset.size; i++)
+        {
+            boolean sameStart = j < size && starts[j].equals(superset.starts[i]);
+            // don't care about local deletion time here. for RR it doesn't makes sense
+            if (!sameStart
+                || !ends[j].equals(superset.ends[i])
+                || markedAts[j] != superset.markedAts[i])
+            {
+                if (diff == null)
+                    diff = new RangeTombstoneList(comparator, Math.min(8, superset.size - i));
+                diff.add(superset.starts[i], superset.ends[i], superset.markedAts[i], superset.delTimes[i]);
+
+                if (sameStart)
+                    j++;
+            }
+            else
+            {
+                j++;
+            }
+        }
+
+        return diff;
+    }
+
     @Override
     public boolean equals(Object o)
     {
