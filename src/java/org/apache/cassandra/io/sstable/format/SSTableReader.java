@@ -649,13 +649,39 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
                 : SegmentedFile.getBuilder(DatabaseDescriptor.getDiskAccessMode());
 
         boolean summaryLoaded = loadSummary(ibuilder, dbuilder);
+        boolean builtSummary = false;
         if (recreateBloomFilter || !summaryLoaded)
+        {
             buildSummary(recreateBloomFilter, ibuilder, dbuilder, summaryLoaded, Downsampling.BASE_SAMPLING_LEVEL);
+            builtSummary = true;
+        }
 
         ifile = ibuilder.complete(descriptor.filenameFor(Component.PRIMARY_INDEX));
         dfile = dbuilder.complete(descriptor.filenameFor(Component.DATA));
-        if (saveSummaryIfCreated && (recreateBloomFilter || !summaryLoaded)) // save summary information to disk
+
+        // Check for an index summary that was downsampled even though the serialization format doesn't support
+        // that.  If it was downsampled, rebuild it.  See CASSANDRA-8993 for details.
+        if (!descriptor.version.hasSamplingLevel() && !builtSummary && !validateSummarySamplingLevel())
+        {
+            indexSummary.close();
+            ifile.close();
+            dfile.close();
+
+            logger.info("Detected erroneously downsampled index summary; will rebuild summary at full sampling");
+            FileUtils.deleteWithConfirm(new File(descriptor.filenameFor(Component.SUMMARY)));
+            ibuilder = SegmentedFile.getBuilder(DatabaseDescriptor.getIndexAccessMode());
+            dbuilder = compression
+                       ? SegmentedFile.getCompressedBuilder()
+                       : SegmentedFile.getBuilder(DatabaseDescriptor.getDiskAccessMode());
+            buildSummary(false, ibuilder, dbuilder, false, Downsampling.BASE_SAMPLING_LEVEL);
+            ifile = ibuilder.complete(descriptor.filenameFor(Component.PRIMARY_INDEX));
+            dfile = dbuilder.complete(descriptor.filenameFor(Component.DATA));
             saveSummary(ibuilder, dbuilder);
+        }
+        else if (saveSummaryIfCreated && builtSummary)
+        {
+            saveSummary(ibuilder, dbuilder);
+        }
     }
 
     /**
@@ -742,7 +768,9 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
         try
         {
             iStream = new DataInputStream(new FileInputStream(summariesFile));
-            indexSummary = IndexSummary.serializer.deserialize(iStream, partitioner, descriptor.version.hasSamplingLevel(), metadata.getMinIndexInterval(), metadata.getMaxIndexInterval());
+            indexSummary = IndexSummary.serializer.deserialize(
+                    iStream, partitioner, descriptor.version.hasSamplingLevel(),
+                    metadata.getMinIndexInterval(), metadata.getMaxIndexInterval());
             first = partitioner.decorateKey(ByteBufferUtil.readWithLength(iStream));
             last = partitioner.decorateKey(ByteBufferUtil.readWithLength(iStream));
             ibuilder.deserializeBounds(iStream);
@@ -762,6 +790,57 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
         finally
         {
             FileUtils.closeQuietly(iStream);
+        }
+
+        return true;
+    }
+
+    /**
+     * Validates that an index summary has full sampling, as expected when the serialization format does not support
+     * persisting the sampling level.
+     * @return true if the summary has full sampling, false otherwise
+     */
+    private boolean validateSummarySamplingLevel()
+    {
+        // We need to check index summary entries against the index to verify that none of them were dropped due to
+        // downsampling.  Downsampling can drop any of the first BASE_SAMPLING_LEVEL entries (repeating that drop pattern
+        // for the remainder of the summary).  Unfortunately, the first entry to be dropped is the entry at
+        // index (BASE_SAMPLING_LEVEL - 1), so we need to check a full set of BASE_SAMPLING_LEVEL entries.
+        Iterator<FileDataInput> segments = ifile.iterator(0);
+        int i = 0;
+        int summaryEntriesChecked = 0;
+        int expectedIndexInterval = getMinIndexInterval();
+        while (segments.hasNext())
+        {
+            FileDataInput in = segments.next();
+            try
+            {
+                while (!in.isEOF())
+                {
+                    ByteBuffer indexKey = ByteBufferUtil.readWithShortLength(in);
+                    if (i % expectedIndexInterval == 0)
+                    {
+                        ByteBuffer summaryKey = ByteBuffer.wrap(indexSummary.getKey(i / expectedIndexInterval));
+                        if (!summaryKey.equals(indexKey))
+                            return false;
+                        summaryEntriesChecked++;
+
+                        if (summaryEntriesChecked == Downsampling.BASE_SAMPLING_LEVEL)
+                            return true;
+                    }
+                    RowIndexEntry.Serializer.skip(in);
+                    i++;
+                }
+            }
+            catch (IOException e)
+            {
+                markSuspect();
+                throw new CorruptSSTableException(e, in.getPath());
+            }
+            finally
+            {
+                FileUtils.closeQuietly(in);
+            }
         }
 
         return true;
@@ -888,6 +967,8 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
      */
     public SSTableReader cloneWithNewSummarySamplingLevel(ColumnFamilyStore parent, int samplingLevel) throws IOException
     {
+        assert descriptor.version.hasSamplingLevel();
+
         synchronized (tidy.global)
         {
             assert openReason != OpenReason.EARLY;

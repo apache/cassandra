@@ -258,7 +258,7 @@ public class IndexSummaryTest
         assertEquals(128, BASE_SAMPLING_LEVEL);
         assertEquals(Arrays.asList(0, 32, 64, 96), Downsampling.getOriginalIndexes(4));
         assertEquals(Arrays.asList(0, 64), Downsampling.getOriginalIndexes(2));
-        assertEquals(Arrays.asList(), Downsampling.getOriginalIndexes(0));
+        assertEquals(Arrays.asList(0), Downsampling.getOriginalIndexes(1));
     }
 
     @Test

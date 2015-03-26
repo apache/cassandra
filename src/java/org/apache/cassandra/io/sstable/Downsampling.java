@@ -79,8 +79,8 @@ public class Downsampling
      * Returns a list that can be used to translate current index summary indexes to their original index before
      * downsampling.  (This repeats every `samplingLevel`, so that's how many entries we return.)
      *
-     * For example, if [7, 15] is returned, the current index summary entry at index 0 was originally
-     * at index 7, and the current index 1 was originally at index 15.
+     * For example, if [0, 64] is returned, the current index summary entry at index 0 was originally
+     * at index 0, and the current index 1 was originally at index 64.
      *
      * @param samplingLevel the current sampling level for the index summary
      *
@@ -115,21 +115,11 @@ public class Downsampling
      */
     public static int getEffectiveIndexIntervalAfterIndex(int index, int samplingLevel, int minIndexInterval)
     {
-        assert index >= -1;
-        List<Integer> originalIndexes = getOriginalIndexes(samplingLevel);
-        if (index == -1)
-            return originalIndexes.get(0) * minIndexInterval;
-
+        assert index >= 0;
         index %= samplingLevel;
-        if (index == originalIndexes.size() - 1)
-        {
-            // account for partitions after the "last" entry as well as partitions before the "first" entry
-            return ((BASE_SAMPLING_LEVEL - originalIndexes.get(index)) + originalIndexes.get(0)) * minIndexInterval;
-        }
-        else
-        {
-            return (originalIndexes.get(index + 1) - originalIndexes.get(index)) * minIndexInterval;
-        }
+        List<Integer> originalIndexes = getOriginalIndexes(samplingLevel);
+        int nextEntryOriginalIndex = (index == originalIndexes.size() - 1) ? BASE_SAMPLING_LEVEL : originalIndexes.get(index + 1);
+        return (nextEntryOriginalIndex - originalIndexes.get(index)) * minIndexInterval;
     }
 
     public static int[] getStartPoints(int currentSamplingLevel, int newSamplingLevel)

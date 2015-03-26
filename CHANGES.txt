@@ -78,6 +78,9 @@
  * Allow scrub for secondary index (CASSANDRA-5174)
 
 2.1.4
+ * Avoid overwriting index summaries for sstables with an older format that
+   does not support downsampling; rebuild summaries on startup when this
+   is detected (CASSANDRA-8993)
  * Fix potential data loss in CompressedSequentialWriter (CASSANDRA-8949)
  * Make PasswordAuthenticator number of hashing rounds configurable (CASSANDRA-8085)
  * Fix AssertionError when binding nested collections in DELETE (CASSANDRA-8900)
