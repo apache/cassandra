@@ -91,7 +91,7 @@ public class SSTableExportTest
     {
         return bytesToHex(ByteBufferUtil.bytes(str));
     }
-    
+
     @Test
     public void testEnumeratekeys() throws IOException
     {
@@ -123,7 +123,7 @@ public class SSTableExportTest
             char[] buf = new char[(int) temp.length()];
             file.read(buf);
             String output = new String(buf);
-    
+
             String sep = System.getProperty("line.separator");
             assert output.equals(asHex("rowA") + sep + asHex("rowB") + sep) : output;
         }
@@ -328,8 +328,8 @@ public class SSTableExportTest
 
         assertEquals(
                 "unexpected serialization format for topLevelDeletion",
-                "{\"markedForDeleteAt\":0,\"localDeletionTime\":0}",
-                serializedDeletionInfo.toJSONString());
+                JSONValue.parse("{\"markedForDeleteAt\":0,\"localDeletionTime\":0}"),
+                serializedDeletionInfo);
 
         // check the colums are what we put in
         JSONArray cols = (JSONArray) row.get("cells");
