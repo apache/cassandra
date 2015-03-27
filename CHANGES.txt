@@ -83,6 +83,7 @@ Merged from 2.0:
  * Add ability to limit number of native connections (CASSANDRA-8086)
  * Fix CQLSSTableWriter throwing exception and spawning threads
    (CASSANDRA-8808)
+ * Fix MT mismatch between empty and GC-able data (CASSANDRA-8979)
  * Add offline tool to relevel sstables (CASSANDRA-8301)
  * Preserve stream ID for more protocol errors (CASSANDRA-8848)
  * Fix combining token() function with multi-column relations on
