@@ -1234,6 +1234,8 @@ basic_unreserved_keyword returns [String str]
         | K_DISTINCT
         | K_CONTAINS
         | K_STATIC
+        | K_FROZEN
+        | K_TUPLE
         ) { $str = $k.text; }
     ;
 
