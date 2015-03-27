@@ -29,7 +29,6 @@ import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.TreeMapBackedSortedColumns;
 import org.apache.cassandra.db.compaction.CompactionController;
-import org.apache.cassandra.db.compaction.LazilyCompactedRow;
 import org.apache.cassandra.db.compaction.PrecompactedRow;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Range;
@@ -143,7 +142,6 @@ public class ValidatorTest extends SchemaLoader
         validator1.prepare(cfs);
         validator1.complete();
 
-        LazilyCompactedRow row3 = new LazilyCompactedRow(new CompactionController(cfs, null, 0), null);
         // create validator with a single row with null cf
         Validator validator2 = new Validator(desc, remote, 0);
         validator2.prepare(cfs);
