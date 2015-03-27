@@ -109,7 +109,10 @@ public class IndexSummaryBuilder implements AutoCloseable
         maxExpectedEntries = Math.max(1, (maxExpectedEntries * samplingLevel) / BASE_SAMPLING_LEVEL);
         offsets = new SafeMemoryWriter(4 * maxExpectedEntries).withByteOrder(ByteOrder.nativeOrder());
         entries = new SafeMemoryWriter(40 * maxExpectedEntries).withByteOrder(ByteOrder.nativeOrder());
-        setNextSamplePosition(-minIndexInterval);
+
+        // the summary will always contain the first index entry (downsampling will never remove it)
+        nextSamplePosition = 0;
+        indexIntervalMatches++;
     }
 
     // the index file has been flushed to the provided position; stash it and use that to recalculate our max readable boundary
