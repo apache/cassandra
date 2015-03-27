@@ -23,6 +23,7 @@
  * Add ability to limit number of native connections (CASSANDRA-8086)
  * Fix CQLSSTableWriter throwing exception and spawning threads
    (CASSANDRA-8808)
+ * Fix MT mismatch between empty and GC-able data (CASSANDRA-8979)
 
 
 2.0.13:

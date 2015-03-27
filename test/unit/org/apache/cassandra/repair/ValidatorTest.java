@@ -18,16 +18,18 @@
 package org.apache.cassandra.repair;
 
 import java.net.InetAddress;
+import java.util.List;
 import java.util.UUID;
 
 import org.junit.After;
 import org.junit.Test;
-
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.TreeMapBackedSortedColumns;
+import org.apache.cassandra.db.compaction.CompactionController;
+import org.apache.cassandra.db.compaction.LazilyCompactedRow;
 import org.apache.cassandra.db.compaction.PrecompactedRow;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Range;
@@ -41,6 +43,8 @@ import org.apache.cassandra.repair.messages.RepairMessage;
 import org.apache.cassandra.repair.messages.ValidationComplete;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.MerkleTree;
+import org.apache.cassandra.utils.MerkleTree.TreeRange;
 import org.apache.cassandra.utils.SimpleCondition;
 
 import static org.junit.Assert.assertFalse;
@@ -119,6 +123,40 @@ public class ValidatorTest extends SchemaLoader
 
         if (!lock.isSignaled())
             lock.await();
+    }
+
+    @Test
+    public void testPurgedVsNonExisting() throws Throwable
+    {
+        Range<Token> range = new Range<>(partitioner.getMinimumToken(), partitioner.getRandomToken());
+        final RepairJobDesc desc = new RepairJobDesc(UUID.randomUUID(), keyspace, columnFamily, range);
+
+        InetAddress remote = InetAddress.getByName("127.0.0.2");
+
+        ColumnFamilyStore cfs = Keyspace.open(keyspace).getColumnFamilyStore(columnFamily);
+
+        Token mid = partitioner.midpoint(range.left, range.right);
+        DecoratedKey key = new DecoratedKey(mid, ByteBufferUtil.bytes("inconceivable!"));
+
+        // create validator with zero rows
+        Validator validator1 = new Validator(desc, remote, 0);
+        validator1.prepare(cfs);
+        validator1.complete();
+
+        LazilyCompactedRow row3 = new LazilyCompactedRow(new CompactionController(cfs, null, 0), null);
+        // create validator with a single row with null cf
+        Validator validator2 = new Validator(desc, remote, 0);
+        validator2.prepare(cfs);
+        // a precompacted row with a cf null value indicates that there are no columns or tombstones left for this row
+        // this should give us the identical hash compared to the case as if the row would not have been added at all
+        // as with validator1
+        PrecompactedRow row2 = new PrecompactedRow(key, null);
+        validator2.add(row2);
+        validator2.complete();
+
+        // confirm that both trees are equal
+        List<TreeRange> diff = MerkleTree.difference(validator1.tree, validator2.tree);
+        assertTrue("Found tree mismatch: " + diff, diff.size() == 0);
     }
 
     @Test

@@ -161,7 +161,12 @@ public class PrecompactedRow extends AbstractCompactedRow
         try
         {
             DeletionTime.serializer.serialize(compactedCf.deletionInfo().getTopLevelDeletion(), buffer);
-            digest.update(buffer.getData(), 0, buffer.getLength());
+
+            // do not update digest in case of missing or purged row level tombstones, see CASSANDRA-8979
+            if (compactedCf.deletionInfo().getTopLevelDeletion() != DeletionTime.LIVE)
+            {
+                digest.update(buffer.getData(), 0, buffer.getLength());
+            }
         }
         catch (IOException e)
         {
