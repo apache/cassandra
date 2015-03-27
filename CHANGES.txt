@@ -78,6 +78,7 @@
  * Allow scrub for secondary index (CASSANDRA-5174)
 
 2.1.4
+ * Make FROZEN and TUPLE unreserved keywords in CQL (CASSANDRA-9047)
  * Prevent AssertionError from SizeEstimatesRecorder (CASSANDRA-9034)
  * Avoid overwriting index summaries for sstables with an older format that
    does not support downsampling; rebuild summaries on startup when this
