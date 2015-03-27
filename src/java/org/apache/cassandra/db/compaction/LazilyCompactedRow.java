@@ -162,7 +162,12 @@ public class LazilyCompactedRow extends AbstractCompactedRow
         try
         {
             DeletionTime.serializer.serialize(emptyColumnFamily.deletionInfo().getTopLevelDeletion(), out);
-            digest.update(out.getData(), 0, out.getLength());
+
+            // do not update digest in case of missing or purged row level tombstones, see CASSANDRA-8979
+            if (emptyColumnFamily.deletionInfo().getTopLevelDeletion() != DeletionTime.LIVE)
+            {
+                digest.update(out.getData(), 0, out.getLength());
+            }
         }
         catch (IOException e)
         {
