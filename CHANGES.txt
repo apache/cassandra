@@ -1,4 +1,5 @@
 2.1.4
+ * Buffer bloom filter serialization (CASSANDRA-9066)
  * Fix anti-compaction target bloom filter size (CASSANDRA-9060)
  * Make FROZEN and TUPLE unreserved keywords in CQL (CASSANDRA-9047)
  * Prevent AssertionError from SizeEstimatesRecorder (CASSANDRA-9034)
