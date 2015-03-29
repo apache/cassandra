@@ -1050,8 +1050,6 @@ public class CompactionManager implements CompactionManagerMBean
         List<SSTableReader> anticompactedSSTables = new ArrayList<>();
         int repairedKeyCount = 0;
         int unrepairedKeyCount = 0;
-        // TODO(5351): we can do better here:
-        int expectedBloomFilterSize = Math.max(cfs.metadata.getMinIndexInterval(), (int)(SSTableReader.getApproximateKeyCount(repairedSSTables)));
         logger.info("Performing anticompaction on {} sstables", repairedSSTables.size());
         // iterate over sstables to check if the repaired / unrepaired ranges intersect them.
         for (SSTableReader sstable : repairedSSTables)
@@ -1075,6 +1073,7 @@ public class CompactionManager implements CompactionManagerMBean
             try (AbstractCompactionStrategy.ScannerList scanners = cfs.getCompactionStrategy().getScanners(new HashSet<>(Collections.singleton(sstable)));
                  CompactionController controller = new CompactionController(cfs, sstableAsSet, CFMetaData.DEFAULT_GC_GRACE_SECONDS))
             {
+                int expectedBloomFilterSize = Math.max(cfs.metadata.getMinIndexInterval(), (int)sstable.estimatedKeys());
                 repairedSSTableWriter.switchWriter(CompactionManager.createWriter(cfs, destination, expectedBloomFilterSize, repairedAt, sstable));
                 unRepairedSSTableWriter.switchWriter(CompactionManager.createWriter(cfs, destination, expectedBloomFilterSize, ActiveRepairService.UNREPAIRED_SSTABLE, sstable));
 
