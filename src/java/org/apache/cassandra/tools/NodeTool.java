@@ -2133,12 +2133,11 @@ public class NodeTool
         @Option(title = "resolve_ip", name = {"-r", "--resolve-ip"}, description = "Show node domain names instead of IPs")
         private boolean resolveIp = false;
 
-        private boolean hasEffectiveOwns = false;
         private boolean isTokenPerNode = true;
         private int maxAddressLength = 0;
         private String format = null;
         private Collection<String> joiningNodes, leavingNodes, movingNodes, liveNodes, unreachableNodes;
-        private Map<String, String> loadMap, hostIDMap, tokensToEndpoints;
+        private Map<String, String> loadMap, hostIDMap;
         private EndpointSnitchInfoMBean epSnitchInfo;
 
         @Override
@@ -2148,7 +2147,7 @@ public class NodeTool
             leavingNodes = probe.getLeavingNodes();
             movingNodes = probe.getMovingNodes();
             loadMap = probe.getLoadMap();
-            tokensToEndpoints = probe.getTokenToEndpointMap();
+            Map<String, String> tokensToEndpoints = probe.getTokenToEndpointMap();
             liveNodes = probe.getLiveNodes();
             unreachableNodes = probe.getUnreachableNodes();
             hostIDMap = probe.getHostIdMap();
@@ -2157,6 +2156,7 @@ public class NodeTool
             StringBuffer errors = new StringBuffer();
 
             Map<InetAddress, Float> ownerships = null;
+            boolean hasEffectiveOwns = false;
             try
             {
                 ownerships = probe.effectiveOwnership(keyspace);
