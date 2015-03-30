@@ -193,10 +193,11 @@ public class Directories
 
         this.dataPaths = new File[dataDirectories.length];
         // If upgraded from version less than 2.1, use existing directories
+        String oldSSTableRelativePath = join(metadata.ksName, metadata.cfName);
         for (int i = 0; i < dataDirectories.length; ++i)
         {
             // check if old SSTable directory exists
-            dataPaths[i] = new File(dataDirectories[i].location, join(metadata.ksName, metadata.cfName));
+            dataPaths[i] = new File(dataDirectories[i].location, oldSSTableRelativePath);
         }
         boolean olderDirectoryExists = Iterables.any(Arrays.asList(dataPaths), new Predicate<File>()
         {
@@ -208,8 +209,10 @@ public class Directories
         if (!olderDirectoryExists)
         {
             // use 2.1-style path names
+        	
+        	String newSSTableRelativePath = join(metadata.ksName, directoryName);
             for (int i = 0; i < dataDirectories.length; ++i)
-                dataPaths[i] = new File(dataDirectories[i].location, join(metadata.ksName, directoryName));
+                dataPaths[i] = new File(dataDirectories[i].location, newSSTableRelativePath);
         }
 
         for (File dir : dataPaths)
