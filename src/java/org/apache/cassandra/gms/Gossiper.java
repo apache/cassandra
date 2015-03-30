@@ -979,14 +979,19 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
             subscriber.onJoin(ep, epState);
     }
 
+    public boolean isAlive(InetAddress endpoint)
+    {
+        EndpointState epState = getEndpointStateForEndpoint(endpoint);
+        if (epState == null)
+            return false;
+        return epState.isAlive() && !isDeadState(epState);
+    }
+
     public boolean isDeadState(EndpointState epState)
     {
-        if (epState.getApplicationState(ApplicationState.STATUS) == null)
+        String state = epState.getStatus();
+        if (state.isEmpty())
             return false;
-        String value = epState.getApplicationState(ApplicationState.STATUS).value;
-        String[] pieces = value.split(VersionedValue.DELIMITER_STR, -1);
-        assert (pieces.length > 0);
-        String state = pieces[0];
         for (String deadstate : DEAD_STATES)
         {
             if (state.equals(deadstate))

@@ -114,6 +114,23 @@ public class EndpointState
         isAlive = false;
     }
 
+    public boolean isRpcReady()
+    {
+        VersionedValue rpcState = getApplicationState(ApplicationState.RPC_READY);
+        return rpcState != null && Boolean.parseBoolean(rpcState.value);
+    }
+
+    public String getStatus()
+    {
+        VersionedValue status = getApplicationState(ApplicationState.STATUS);
+        if (status == null)
+            return "";
+
+        String[] pieces = status.value.split(VersionedValue.DELIMITER_STR, -1);
+        assert (pieces.length > 0);
+        return pieces[0];
+    }
+
     public String toString()
     {
         return "EndpointState: HeartBeatState = " + hbState + ", AppStateMap = " + applicationState;

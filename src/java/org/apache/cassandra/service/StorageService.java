@@ -1541,6 +1541,9 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                 case HOST_ID:
                     SystemKeyspace.updatePeerInfo(endpoint, "host_id", UUID.fromString(value.value));
                     break;
+                case RPC_READY:
+                    notifyRpcChange(endpoint, epState.isRpcReady());
+                    break;
             }
         }
     }
@@ -1585,6 +1588,71 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     {
         String vvalue = Gossiper.instance.getEndpointStateForEndpoint(endpoint).getApplicationState(appstate).value;
         return vvalue.getBytes(ISO_8859_1);
+    }
+
+    private void notifyRpcChange(InetAddress endpoint, boolean ready)
+    {
+        if (ready)
+        {
+            notifyUp(endpoint);
+            notifyJoined(endpoint);
+        }
+        else
+        {
+            notifyDown(endpoint);
+        }
+    }
+
+    private void notifyUp(InetAddress endpoint)
+    {
+        if (!isRpcReady(endpoint) || !Gossiper.instance.isAlive(endpoint))
+            return;
+
+        for (IEndpointLifecycleSubscriber subscriber : lifecycleSubscribers)
+            subscriber.onUp(endpoint);
+    }
+
+    private void notifyDown(InetAddress endpoint)
+    {
+        for (IEndpointLifecycleSubscriber subscriber : lifecycleSubscribers)
+            subscriber.onDown(endpoint);
+    }
+
+    private void notifyJoined(InetAddress endpoint)
+    {
+        if (!isRpcReady(endpoint) || !isStatus(endpoint, VersionedValue.STATUS_NORMAL))
+            return;
+
+        for (IEndpointLifecycleSubscriber subscriber : lifecycleSubscribers)
+            subscriber.onJoinCluster(endpoint);
+    }
+
+    private void notifyMoved(InetAddress endpoint)
+    {
+        for (IEndpointLifecycleSubscriber subscriber : lifecycleSubscribers)
+            subscriber.onMove(endpoint);
+    }
+
+    private void notifyLeft(InetAddress endpoint)
+    {
+        for (IEndpointLifecycleSubscriber subscriber : lifecycleSubscribers)
+            subscriber.onLeaveCluster(endpoint);
+    }
+
+    private boolean isStatus(InetAddress endpoint, String status)
+    {
+        return Gossiper.instance.getEndpointStateForEndpoint(endpoint).getStatus().equals(status);
+    }
+
+    private boolean isRpcReady(InetAddress endpoint)
+    {
+        return MessagingService.instance().getVersion(endpoint) < MessagingService.VERSION_30 ||
+                Gossiper.instance.getEndpointStateForEndpoint(endpoint).isRpcReady();
+    }
+
+    public void setRpcReady(boolean value)
+    {
+        Gossiper.instance.addLocalApplicationState(ApplicationState.RPC_READY, valueFactory.rpcReady(value));
     }
 
     private Collection<Token> getTokensFor(InetAddress endpoint)
@@ -1756,13 +1824,11 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         if (isMoving || operationMode == Mode.MOVING)
         {
             tokenMetadata.removeFromMoving(endpoint);
-            for (IEndpointLifecycleSubscriber subscriber : lifecycleSubscribers)
-                subscriber.onMove(endpoint);
+            notifyMoved(endpoint);
         }
         else
         {
-            for (IEndpointLifecycleSubscriber subscriber : lifecycleSubscribers)
-                subscriber.onJoinCluster(endpoint);
+            notifyJoined(endpoint);
         }
 
         PendingRangeCalculatorService.instance.update();
@@ -1902,8 +1968,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         tokenMetadata.removeEndpoint(endpoint);
         tokenMetadata.removeBootstrapTokens(tokens);
 
-        for (IEndpointLifecycleSubscriber subscriber : lifecycleSubscribers)
-            subscriber.onLeaveCluster(endpoint);
+        notifyLeft(endpoint);
         PendingRangeCalculatorService.instance.update();
     }
 
@@ -2118,8 +2183,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         if (tokenMetadata.isMember(endpoint))
         {
             HintedHandOffManager.instance.scheduleHintDelivery(endpoint, true);
-            for (IEndpointLifecycleSubscriber subscriber : lifecycleSubscribers)
-                subscriber.onUp(endpoint);
+            notifyUp(endpoint);
         }
     }
 
@@ -2132,8 +2196,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     public void onDead(InetAddress endpoint, EndpointState state)
     {
         MessagingService.instance().convict(endpoint);
-        for (IEndpointLifecycleSubscriber subscriber : lifecycleSubscribers)
-            subscriber.onDown(endpoint);
+        notifyDown(endpoint);
     }
 
     public void onRestart(InetAddress endpoint, EndpointState state)

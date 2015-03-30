@@ -33,6 +33,7 @@ public enum ApplicationState
     NET_VERSION,
     HOST_ID,
     TOKENS,
+    RPC_READY,
     // pad to allow adding new states to existing cluster
     X1,
     X2,
