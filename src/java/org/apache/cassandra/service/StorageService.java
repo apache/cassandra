@@ -2437,10 +2437,11 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             throw new IOException("You must supply a snapshot name.");
 
         Keyspace keyspace = getValidKeyspace(keyspaceName);
-        if (keyspace.snapshotExists(tag))
+        ColumnFamilyStore columnFamilyStore = keyspace.getColumnFamilyStore(columnFamilyName);
+        if (columnFamilyStore.snapshotExists(tag))
             throw new IOException("Snapshot " + tag + " already exists.");
 
-        keyspace.snapshot(tag, columnFamilyName);
+        columnFamilyStore.snapshot(tag);
     }
 
     private Keyspace getValidKeyspace(String keyspaceName) throws IOException
