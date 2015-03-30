@@ -47,17 +47,8 @@ public class IntervalTree<C extends Comparable<? super C>, D, I extends Interval
 
     protected IntervalTree(Collection<I> intervals)
     {
-        final IntervalTree it = this;
         this.head = intervals == null || intervals.isEmpty() ? null : new IntervalNode(intervals);
         this.count = intervals == null ? 0 : intervals.size();
-    }
-
-    public static <C extends Comparable<? super C>, D, I extends Interval<C, D>> IntervalTree<C, D, I> build(Collection<I> intervals, Comparator<C> comparator)
-    {
-        if (intervals == null || intervals.isEmpty())
-            return emptyTree();
-
-        return new IntervalTree<C, D, I>(intervals);
     }
 
     public static <C extends Comparable<? super C>, D, I extends Interval<C, D>> IntervalTree<C, D, I> build(Collection<I> intervals)
