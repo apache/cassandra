@@ -142,6 +142,7 @@
  * Add nodetool statushandoff/statusbackup (CASSANDRA-8912)
  * Use stdout for progress and stats in sstableloader (CASSANDRA-8982)
 Merged from 2.0:
+ * java.lang.AssertionError when reading saved cache (CASSANDRA-8740)
  * "disk full" when running cleanup (CASSANDRA-9036)
  * Lower logging level from ERROR to DEBUG when a scheduled schema pull
    cannot be completed due to a node being down (CASSANDRA-9032)
