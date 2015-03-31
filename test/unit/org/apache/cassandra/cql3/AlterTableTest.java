@@ -17,7 +17,11 @@
  */
 package org.apache.cassandra.cql3;
 
+import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.Keyspace;
 import org.junit.Test;
+
+import static org.junit.Assert.assertEquals;
 
 public class AlterTableTest extends CQLTester
 {
@@ -89,5 +93,21 @@ public class AlterTableTest extends CQLTester
 
         assertInvalidSyntaxMessage("no viable alternative at input '}'",
                                    "ALTER TABLE %s WITH caching = {'keys' : 'all', 'rows_per_partition' : ALL};");
+    }
+
+    @Test
+    // tests CASSANDRA-7976
+    public void testAlterIndexInterval() throws Throwable
+    {
+        String tableName = createTable("CREATE TABLE IF NOT EXISTS %s (id uuid, album text, artist text, data blob, PRIMARY KEY (id))");
+        ColumnFamilyStore cfs = Keyspace.open(KEYSPACE).getColumnFamilyStore(tableName);
+
+        alterTable("ALTER TABLE %s WITH min_index_interval=256 AND max_index_interval=512");
+        assertEquals(256, cfs.metadata.getMinIndexInterval());
+        assertEquals(512, cfs.metadata.getMaxIndexInterval());
+
+        alterTable("ALTER TABLE %s WITH caching = 'none'");
+        assertEquals(256, cfs.metadata.getMinIndexInterval());
+        assertEquals(512, cfs.metadata.getMaxIndexInterval());
     }
 }

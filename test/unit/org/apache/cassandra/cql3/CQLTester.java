@@ -194,13 +194,14 @@ public abstract class CQLTester
         return typeName;
     }
 
-    protected void createTable(String query)
+    protected String createTable(String query)
     {
         String currentTable = "table_" + seqNumber.getAndIncrement();
         tables.add(currentTable);
         String fullQuery = String.format(query, KEYSPACE + "." + currentTable);
         logger.info(fullQuery);
         schemaChange(fullQuery);
+        return currentTable;
     }
 
     protected void createTableMayThrow(String query) throws Throwable
