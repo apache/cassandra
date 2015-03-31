@@ -145,6 +145,9 @@ public class CompactionTask extends AbstractCompactionTask
             collector.beginCompaction(ci);
         try
         {
+            if (!controller.cfs.getCompactionStrategy().isActive)
+                throw new CompactionInterruptedException(ci.getCompactionInfo());
+
             if (!iter.hasNext())
             {
                 // don't mark compacted in the finally block, since if there _is_ nondeleted data,
