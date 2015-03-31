@@ -1,4 +1,6 @@
 2.0.14:
+ * Don't set clientMode to true when bulk-loading sstables to avoid
+   a NullPointerException (CASSANDRA-8238)
  * Fix ignored index_interval change in ALTER TABLE statements (CASSANDRA-7976)
  * Do more aggressive compaction in old time windows in DTCS (CASSANDRA-8360)
  * java.lang.AssertionError when reading saved cache (CASSANDRA-8740)

@@ -61,7 +61,8 @@ public class YamlConfigurationLoader implements ConfigurationLoader
             ClassLoader loader = DatabaseDescriptor.class.getClassLoader();
             url = loader.getResource(configUrl);
             if (url == null)
-                throw new ConfigurationException("Cannot locate " + configUrl);
+                throw new ConfigurationException("Cannot locate " + configUrl + ". If you are executing this from an " +
+                        "external tool, it needs to set Config.setClientMode(true) to avoid loading configuration.\"");
         }
 
         return url;
