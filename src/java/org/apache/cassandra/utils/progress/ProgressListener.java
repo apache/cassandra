@@ -15,28 +15,18 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.sink;
+package org.apache.cassandra.utils.progress;
 
-import java.net.InetAddress;
-
-import org.apache.cassandra.net.MessageIn;
-import org.apache.cassandra.net.MessageOut;
-
-public interface IMessageSink
+/**
+ * Listener interface to handle {@link org.apache.cassandra.utils.progress.ProgressEvent}
+ */
+public interface ProgressListener
 {
     /**
-     * Transform or drop an outgoing message
+     * Called when some progress is made by progress publisher.
      *
-     * @return null if the message is dropped, or the transformed message to send, which may be just
-     * the original message
+     * @param tag String that identifies progress event.
+     * @param event Current progress
      */
-    MessageOut handleMessage(MessageOut message, int id, InetAddress to);
-
-    /**
-     * Transform or drop an incoming message
-     *
-     * @return null if the message is dropped, or the transformed message to receive, which may be just
-     * the original message
-     */
-    MessageIn handleMessage(MessageIn message, int id, InetAddress to);
+    void progress(String tag, ProgressEvent event);
 }

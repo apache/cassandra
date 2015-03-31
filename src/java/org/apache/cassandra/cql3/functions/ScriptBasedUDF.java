@@ -139,7 +139,7 @@ public class ScriptBasedUDF extends UDFunction
         }
         catch (RuntimeException | ScriptException e)
         {
-            logger.info("Execution of UDF '{}' failed", name, e);
+            logger.debug("Execution of UDF '{}' failed", name, e);
             throw FunctionExecutionException.create(this, e);
         }
     }

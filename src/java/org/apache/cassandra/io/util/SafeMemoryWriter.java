@@ -33,6 +33,7 @@ public class SafeMemoryWriter extends AbstractDataOutput implements DataOutputPl
         buffer = new SafeMemory(initialCapacity);
     }
 
+    @Override
     public void write(byte[] buffer, int offset, int count)
     {
         long newLength = ensureCapacity(count);
@@ -40,6 +41,7 @@ public class SafeMemoryWriter extends AbstractDataOutput implements DataOutputPl
         this.length = newLength;
     }
 
+    @Override
     public void write(int oneByte)
     {
         long newLength = ensureCapacity(1);
@@ -47,6 +49,7 @@ public class SafeMemoryWriter extends AbstractDataOutput implements DataOutputPl
         length = newLength;
     }
 
+    @Override
     public void writeShort(int val) throws IOException
     {
         if (order != ByteOrder.nativeOrder())
@@ -56,6 +59,7 @@ public class SafeMemoryWriter extends AbstractDataOutput implements DataOutputPl
         length = newLength;
     }
 
+    @Override
     public void writeInt(int val)
     {
         if (order != ByteOrder.nativeOrder())
@@ -65,6 +69,7 @@ public class SafeMemoryWriter extends AbstractDataOutput implements DataOutputPl
         length = newLength;
     }
 
+    @Override
     public void writeLong(long val)
     {
         if (order != ByteOrder.nativeOrder())
@@ -74,6 +79,7 @@ public class SafeMemoryWriter extends AbstractDataOutput implements DataOutputPl
         length = newLength;
     }
 
+    @Override
     public void write(ByteBuffer buffer)
     {
         long newLength = ensureCapacity(buffer.remaining());
@@ -81,10 +87,11 @@ public class SafeMemoryWriter extends AbstractDataOutput implements DataOutputPl
         length = newLength;
     }
 
-    public void write(Memory memory)
+    @Override
+    public void write(Memory memory, long offset, long size)
     {
-        long newLength = ensureCapacity(memory.size());
-        buffer.put(length, memory, 0, memory.size());
+        long newLength = ensureCapacity(size);
+        buffer.put(length, memory, offset, size);
         length = newLength;
     }
 
@@ -128,7 +135,7 @@ public class SafeMemoryWriter extends AbstractDataOutput implements DataOutputPl
 
     // TODO: consider hoisting this into DataOutputPlus, since most implementations can copy with this gracefully
     // this would simplify IndexSummary.IndexSummarySerializer.serialize()
-    public SafeMemoryWriter withByteOrder(ByteOrder order)
+    public SafeMemoryWriter order(ByteOrder order)
     {
         this.order = order;
         return this;

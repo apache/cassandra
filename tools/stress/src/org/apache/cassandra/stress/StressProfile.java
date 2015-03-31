@@ -43,10 +43,7 @@ import org.apache.cassandra.stress.generate.*;
 import org.apache.cassandra.stress.generate.values.*;
 import org.apache.cassandra.stress.operations.userdefined.SchemaInsert;
 import org.apache.cassandra.stress.operations.userdefined.SchemaQuery;
-import org.apache.cassandra.stress.settings.OptionDistribution;
-import org.apache.cassandra.stress.settings.OptionRatioDistribution;
-import org.apache.cassandra.stress.settings.StressSettings;
-import org.apache.cassandra.stress.settings.ValidationType;
+import org.apache.cassandra.stress.settings.*;
 import org.apache.cassandra.stress.util.JavaDriverClient;
 import org.apache.cassandra.stress.util.ThriftClient;
 import org.apache.cassandra.stress.util.Timer;
@@ -188,6 +185,16 @@ public class StressProfile implements Serializable
         maybeLoadSchemaInfo(settings);
     }
 
+    public void truncateTable(StressSettings settings)
+    {
+        JavaDriverClient client = settings.getJavaDriverClient(false);
+        assert settings.command.truncate != SettingsCommand.TruncateWhen.NEVER;
+        String cql = String.format("TRUNCATE %s.%s", keyspaceName, tableName);
+        client.execute(cql, org.apache.cassandra.db.ConsistencyLevel.ONE);
+        System.out.println(String.format("Truncated %s.%s. Sleeping %ss for propagation.",
+                                         keyspaceName, tableName, settings.node.nodes.size()));
+        Uninterruptibles.sleepUninterruptibly(settings.node.nodes.size(), TimeUnit.SECONDS);
+    }
 
     private void maybeLoadSchemaInfo(StressSettings settings)
     {

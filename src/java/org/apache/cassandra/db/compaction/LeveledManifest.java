@@ -545,7 +545,7 @@ public class LeveledManifest
 
         if (level == 0)
         {
-            Set<SSTableReader> compactingL0 = ImmutableSet.copyOf(Iterables.filter(getLevel(0), Predicates.in(compacting)));
+            Set<SSTableReader> compactingL0 = getCompacting(0);
 
             RowPosition lastCompactingKey = null;
             RowPosition firstCompactingKey = null;
@@ -606,6 +606,8 @@ public class LeveledManifest
                 Set<SSTableReader> l1overlapping = overlapping(candidates, getLevel(1));
                 if (Sets.intersection(l1overlapping, compacting).size() > 0)
                     return Collections.emptyList();
+                if (!overlapping(candidates, compactingL0).isEmpty())
+                    return Collections.emptyList();
                 candidates = Sets.union(candidates, l1overlapping);
             }
             if (candidates.size() < 2)
@@ -641,6 +643,18 @@ public class LeveledManifest
 
         // all the sstables were suspect or overlapped with something suspect
         return Collections.emptyList();
+    }
+
+    private Set<SSTableReader> getCompacting(int level)
+    {
+        Set<SSTableReader> sstables = new HashSet<>();
+        Set<SSTableReader> levelSSTables = new HashSet<>(getLevel(level));
+        for (SSTableReader sstable : cfs.getDataTracker().getCompacting())
+        {
+            if (levelSSTables.contains(sstable))
+                sstables.add(sstable);
+        }
+        return sstables;
     }
 
     private List<SSTableReader> ageSortedSSTables(Collection<SSTableReader> candidates)
@@ -684,7 +698,8 @@ public class LeveledManifest
         for (int i = generations.length - 1; i >= 0; i--)
         {
             List<SSTableReader> sstables = getLevel(i);
-            estimated[i] = Math.max(0L, SSTableReader.getTotalBytes(sstables) - maxBytesForLevel(i)) / maxSSTableSizeInBytes;
+            // If there is 1 byte over TBL - (MBL * 1.001), there is still a task left, so we need to round up.
+            estimated[i] = (long)Math.ceil((double)Math.max(0L, SSTableReader.getTotalBytes(sstables) - (long)(maxBytesForLevel(i) * 1.001)) / (double)maxSSTableSizeInBytes);
             tasks += estimated[i];
         }
 

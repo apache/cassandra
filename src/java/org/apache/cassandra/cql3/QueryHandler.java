@@ -17,6 +17,8 @@
  */
 package org.apache.cassandra.cql3;
 
+import java.util.Map;
+
 import org.apache.cassandra.cql3.statements.BatchStatement;
 import org.apache.cassandra.cql3.statements.ParsedStatement;
 import org.apache.cassandra.exceptions.RequestExecutionException;
@@ -27,10 +29,15 @@ import org.apache.cassandra.utils.MD5Digest;
 
 public interface QueryHandler
 {
-    public ResultMessage process(String query, QueryState state, QueryOptions options) throws RequestExecutionException, RequestValidationException;
-    public ResultMessage.Prepared prepare(String query, QueryState state) throws RequestValidationException;
-    public ParsedStatement.Prepared getPrepared(MD5Digest id);
-    public ParsedStatement.Prepared getPreparedForThrift(Integer id);
-    public ResultMessage processPrepared(CQLStatement statement, QueryState state, QueryOptions options) throws RequestExecutionException, RequestValidationException;
-    public ResultMessage processBatch(BatchStatement statement, QueryState state, BatchQueryOptions options) throws RequestExecutionException, RequestValidationException;
+    ResultMessage process(String query, QueryState state, QueryOptions options, Map<String, byte[]> customPayload) throws RequestExecutionException, RequestValidationException;
+
+    ResultMessage.Prepared prepare(String query, QueryState state, Map<String, byte[]> customPayload) throws RequestValidationException;
+
+    ParsedStatement.Prepared getPrepared(MD5Digest id);
+
+    ParsedStatement.Prepared getPreparedForThrift(Integer id);
+
+    ResultMessage processPrepared(CQLStatement statement, QueryState state, QueryOptions options, Map<String, byte[]> customPayload) throws RequestExecutionException, RequestValidationException;
+
+    ResultMessage processBatch(BatchStatement statement, QueryState state, BatchQueryOptions options, Map<String, byte[]> customPayload) throws RequestExecutionException, RequestValidationException;
 }

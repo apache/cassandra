@@ -658,6 +658,15 @@ public class SecondaryIndexManager
         return result;
     }
 
+    public SecondaryIndex getIndexByName(String idxName)
+    {
+        for (SecondaryIndex index : allIndexes)
+            if (idxName.equals(index.getIndexName()))
+                return index;
+
+        return null;
+    }
+
     public void setIndexBuilt(Set<String> idxNames)
     {
         for (SecondaryIndex index : getIndexesByNames(idxNames))

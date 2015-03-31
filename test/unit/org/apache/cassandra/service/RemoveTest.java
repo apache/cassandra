@@ -39,7 +39,6 @@ import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.locator.TokenMetadata;
 import org.apache.cassandra.net.MessageOut;
 import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.sink.SinkManager;
 import org.apache.cassandra.utils.FBUtilities;
 
 import static org.junit.Assert.assertEquals;
@@ -90,7 +89,7 @@ public class RemoveTest
     @After
     public void tearDown()
     {
-        SinkManager.clear();
+        MessagingService.instance().clearMessageSinks();
         MessagingService.instance().clearCallbacksUnsafe();
         MessagingService.instance().shutdown();
     }

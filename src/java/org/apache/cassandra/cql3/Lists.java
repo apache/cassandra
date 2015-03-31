@@ -494,10 +494,8 @@ public abstract class Lists
             if (index == null)
                 throw new InvalidRequestException("Invalid null value for list index");
 
-            assert index instanceof Constants.Value;
-
             List<Cell> existingList = params.getPrefetchedList(rowKey, column.name);
-            int idx = ByteBufferUtil.toInt(((Constants.Value)index).bytes);
+            int idx = ByteBufferUtil.toInt(index.get(params.options));
             if (idx < 0 || idx >= existingList.size())
                 throw new InvalidRequestException(String.format("List index %d out of bound, list has size %d", idx, existingList.size()));
 

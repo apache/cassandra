@@ -44,21 +44,23 @@ public abstract class ParsedStatement
     {
         public final CQLStatement statement;
         public final List<ColumnSpecification> boundNames;
+        public final Short[] partitionKeyBindIndexes;
 
-        public Prepared(CQLStatement statement, List<ColumnSpecification> boundNames)
+        protected Prepared(CQLStatement statement, List<ColumnSpecification> boundNames, Short[] partitionKeyBindIndexes)
         {
             this.statement = statement;
             this.boundNames = boundNames;
+            this.partitionKeyBindIndexes = partitionKeyBindIndexes;
         }
 
-        public Prepared(CQLStatement statement, VariableSpecifications names)
+        public Prepared(CQLStatement statement, VariableSpecifications names, Short[] partitionKeyBindIndexes)
         {
-            this(statement, names.getSpecifications());
+            this(statement, names.getSpecifications(), partitionKeyBindIndexes);
         }
 
         public Prepared(CQLStatement statement)
         {
-            this(statement, Collections.<ColumnSpecification>emptyList());
+            this(statement, Collections.<ColumnSpecification>emptyList(), null);
         }
     }
 

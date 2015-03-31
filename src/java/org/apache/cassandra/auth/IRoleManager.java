@@ -65,7 +65,7 @@ public interface IRoleManager
      * @throws RequestValidationException
      * @throws RequestExecutionException
      */
-    void createRole(AuthenticatedUser performer, RoleResource role, Map<Option, Object> options)
+    void createRole(AuthenticatedUser performer, RoleResource role, RoleOptions options)
     throws RequestValidationException, RequestExecutionException;
 
     /**
@@ -91,7 +91,7 @@ public interface IRoleManager
      * @throws RequestValidationException
      * @throws RequestExecutionException
      */
-    void alterRole(AuthenticatedUser performer, RoleResource role, Map<Option, Object> options)
+    void alterRole(AuthenticatedUser performer, RoleResource role, RoleOptions options)
     throws RequestValidationException, RequestExecutionException;
 
     /**

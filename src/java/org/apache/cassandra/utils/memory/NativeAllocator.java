@@ -102,7 +102,7 @@ public class NativeAllocator extends MemtableAllocator
         // satisfy large allocations directly from JVM since they don't cause fragmentation
         // as badly, and fill up our regions quickly
         if (size > MAX_CLONED_SIZE)
-            return allocateOversize(size, opGroup);
+            return allocateOversize(size);
 
         while (true)
         {
@@ -143,7 +143,7 @@ public class NativeAllocator extends MemtableAllocator
             MemoryUtil.free(next.peer);
     }
 
-    private long allocateOversize(int size, OpOrder.Group opGroup)
+    private long allocateOversize(int size)
     {
         // satisfy large allocations directly from JVM since they don't cause fragmentation
         // as badly, and fill up our regions quickly

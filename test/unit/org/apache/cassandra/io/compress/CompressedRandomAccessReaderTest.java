@@ -55,6 +55,7 @@ public class CompressedRandomAccessReaderTest
         testResetAndTruncate(File.createTempFile("compressed", "1"), true, 10);
         testResetAndTruncate(File.createTempFile("compressed", "2"), true, CompressionParameters.DEFAULT_CHUNK_LENGTH);
     }
+
     @Test
     public void test6791() throws IOException, ConfigurationException
     {
@@ -105,7 +106,7 @@ public class CompressedRandomAccessReaderTest
             MetadataCollector sstableMetadataCollector = new MetadataCollector(new SimpleDenseCellNameType(BytesType.instance)).replayPosition(null);
             SequentialWriter writer = compressed
                 ? new CompressedSequentialWriter(f, filename + ".metadata", new CompressionParameters(SnappyCompressor.instance), sstableMetadataCollector)
-                : new SequentialWriter(f, CompressionParameters.DEFAULT_CHUNK_LENGTH);
+                : new SequentialWriter(f, CompressionParameters.DEFAULT_CHUNK_LENGTH, false);
 
             writer.write("The quick ".getBytes());
             FileMark mark = writer.mark();

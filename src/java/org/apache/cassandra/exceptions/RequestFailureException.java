@@ -28,7 +28,7 @@ public class RequestFailureException extends RequestExecutionException
 
     protected RequestFailureException(ExceptionCode code, ConsistencyLevel consistency, int received, int failures, int blockFor)
     {
-        super(code, String.format("Operation failed - received %d responses and %d failures.", received, failures));
+        super(code, String.format("Operation failed - received %d responses and %d failures", received, failures));
         this.consistency = consistency;
         this.received = received;
         this.failures = failures;

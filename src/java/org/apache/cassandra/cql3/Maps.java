@@ -390,9 +390,8 @@ public abstract class Maps
             Term.Terminal key = t.bind(params.options);
             if (key == null)
                 throw new InvalidRequestException("Invalid null map key");
-            assert key instanceof Constants.Value;
 
-            CellName cellName = cf.getComparator().create(prefix, column, ((Constants.Value)key).bytes);
+            CellName cellName = cf.getComparator().create(prefix, column, key.get(params.options));
             cf.addColumn(params.makeTombstone(cellName));
         }
     }

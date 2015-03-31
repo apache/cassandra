@@ -64,18 +64,18 @@ public class StatusLogger
         // one offs
         logger.info(String.format("%-25s%10s%10s",
                                   "CompactionManager", CompactionManager.instance.getActiveCompactions(), CompactionManager.instance.getPendingTasks()));
-        int pendingCommands = 0;
-        for (int n : MessagingService.instance().getCommandPendingTasks().values())
+        int pendingLargeMessages = 0;
+        for (int n : MessagingService.instance().getLargeMessagePendingTasks().values())
         {
-            pendingCommands += n;
+            pendingLargeMessages += n;
         }
-        int pendingResponses = 0;
-        for (int n : MessagingService.instance().getResponsePendingTasks().values())
+        int pendingSmallMessages = 0;
+        for (int n : MessagingService.instance().getSmallMessagePendingTasks().values())
         {
-            pendingResponses += n;
+            pendingSmallMessages += n;
         }
         logger.info(String.format("%-25s%10s%10s",
-                                  "MessagingService", "n/a", pendingCommands + "/" + pendingResponses));
+                                  "MessagingService", "n/a", pendingLargeMessages + "/" + pendingSmallMessages));
 
         // Global key/row cache information
         AutoSavingCache<KeyCacheKey, RowIndexEntry> keyCache = CacheService.instance.keyCache;

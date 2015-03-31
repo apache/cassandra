@@ -65,6 +65,7 @@
     <property name="test.microbench.src" value="${test.dir}/microbench"/>
     <property name="test.pig.src" value="${test.dir}/pig"/>
     <property name="dist.dir" value="${build.dir}/dist"/>
+    <property name="tmp.dir" value="${java.io.tmpdir}"/>
 	
 	<property name="source.version" value="1.7"/>
 	<property name="target.version" value="1.7"/>
@@ -339,6 +340,7 @@
           <dependency groupId="com.googlecode.json-simple" artifactId="json-simple" version="1.1"/>
           <dependency groupId="com.boundary" artifactId="high-scale-lib" version="1.0.6"/>
           <dependency groupId="com.github.jbellis" artifactId="jamm" version="0.3.0"/>
+	  	  <dependency groupId="com.github.tjake" artifactId="crc32ex" version="0.1.1"/>
           <dependency groupId="com.thinkaurelius.thrift" artifactId="thrift-server" version="0.3.7">
             <exclusion groupId="org.slf4j" artifactId="slf4j-log4j12"/>
           </dependency>
@@ -370,7 +372,7 @@
           <dependency groupId="org.apache.cassandra" artifactId="cassandra-all" version="${version}" />
           <dependency groupId="org.apache.cassandra" artifactId="cassandra-thrift" version="${version}" />
           <dependency groupId="io.dropwizard.metrics" artifactId="metrics-core" version="3.1.0" />
-          <dependency groupId="com.addthis.metrics" artifactId="reporter-config" version="2.1.0" />
+          <dependency groupId="com.addthis.metrics" artifactId="reporter-config3" version="3.0.0" />
           <dependency groupId="org.mindrot" artifactId="jbcrypt" version="0.3m" />
           <dependency groupId="io.airlift" artifactId="airline" version="0.6" />
           <dependency groupId="io.netty" artifactId="netty-all" version="4.0.23.Final" />
@@ -384,6 +386,8 @@
           <dependency groupId="org.fusesource" artifactId="sigar" version="1.6.4">
           	<exclusion groupId="log4j" artifactId="log4j"/>
           </dependency>
+          <dependency groupId="joda-time" artifactId="joda-time" version="2.4" />
+        	
         </dependencyManagement>
         <developer id="alakshman" name="Avinash Lakshman"/>
         <developer id="aleksey" name="Aleksey Yeschenko"/>
@@ -450,7 +454,7 @@
                 artifactId="cassandra-parent"
                 version="${version}"/>
         <!-- do NOT remove this, it breaks pig-test -->
-        <dependency groupId="joda-time" artifactId="joda-time" version="2.3" />
+        <dependency groupId="joda-time" artifactId="joda-time" version="2.4" />
       </artifact:pom>
 
       <!-- now the pom's for artifacts being deployed to Maven Central -->
@@ -485,7 +489,7 @@
         <dependency groupId="org.yaml" artifactId="snakeyaml"/>
         <dependency groupId="org.mindrot" artifactId="jbcrypt"/>
         <dependency groupId="io.dropwizard.metrics" artifactId="metrics-core"/>
-        <dependency groupId="com.addthis.metrics" artifactId="reporter-config"/>
+        <dependency groupId="com.addthis.metrics" artifactId="reporter-config3"/>
         <dependency groupId="com.thinkaurelius.thrift" artifactId="thrift-server" version="0.3.5"/>
         <dependency groupId="com.clearspring.analytics" artifactId="stream" version="2.5.2" />
         <dependency groupId="net.sf.supercsv" artifactId="super-csv" version="2.1.0" />
@@ -508,7 +512,10 @@
         
         <!-- don't need jamm unless running a server in which case it needs to be a -javagent to be used anyway -->
         <dependency groupId="com.github.jbellis" artifactId="jamm"/>
+		<dependency groupId="com.github.tjake" artifactId="crc32ex"/>
         <dependency groupId="io.netty" artifactId="netty-all"/>
+      	
+      	<dependency groupId="joda-time" artifactId="joda-time" version="2.4" />
 
         <dependency groupId="org.fusesource" artifactId="sigar" version="1.6.4"/>
       </artifact:pom>
@@ -1077,13 +1084,14 @@
      includeantruntime="false"
      source="${source.version}" 
      target="${target.version}">
-      <classpath>
+     <classpath>
         <path refid="cassandra.classpath"/>
-      </classpath>
-      <src path="${test.unit.src}"/>
-      <src path="${test.long.src}"/>
-      <src path="${test.pig.src}"/>
-      <src path="${test.microbench.src}"/>
+     </classpath>
+	 <compilerarg value="-XDignore.symbol.file"/>
+     <src path="${test.unit.src}"/>
+     <src path="${test.long.src}"/>
+     <src path="${test.pig.src}"/>
+     <src path="${test.microbench.src}"/>
     </javac>
 
     <!-- Non-java resources needed by the test suite -->
@@ -1197,6 +1205,7 @@
       <jvmarg value="-Dmigration-sstable-root=${test.data}/migration-sstables"/>
       <jvmarg value="-Dcassandra.ring_delay_ms=1000"/>
       <jvmarg value="-Dcassandra.tolerate_sstable_size=true"/>
+      <jvmarg value="-Djava.io.tmpdir=${tmp.dir}"/>
     </testmacro>
     <fileset dir="${test.unit.src}">
         <exclude name="**/pig/*.java" />
@@ -1241,13 +1250,20 @@
   </target>
     
   <target name="test-compression" depends="build-test" description="Execute unit tests with sstable compression enabled">
-      <testmacro suitename="unit" inputdir="${test.unit.src}" exclude="**/pig/*.java" timeout="${test.timeout}">
+    <property name="compressed_yaml" value="${build.test.dir}/cassandra.compressed.yaml"/>
+    <concat destfile="${compressed_yaml}">
+      <fileset file="${test.conf}/cassandra.yaml"/>
+      <fileset file="${test.conf}/commitlog_compression.yaml"/>
+    </concat>
+    <echo>Compressed config: ${compressed_yaml}</echo>
+    <testmacro suitename="unit" inputdir="${test.unit.src}" exclude="**/pig/*.java" timeout="${test.timeout}">
       <jvmarg value="-Dlegacy-sstable-root=${test.data}/legacy-sstables"/>
       <jvmarg value="-Dcorrupt-sstable-root=${test.data}/corrupt-sstables"/>
       <jvmarg value="-Dmigration-sstable-root=${test.data}/migration-sstables"/>
       <jvmarg value="-Dcassandra.test.compression=true"/>
       <jvmarg value="-Dcassandra.ring_delay_ms=1000"/>
       <jvmarg value="-Dcassandra.tolerate_sstable_size=true"/>
+      <jvmarg value="-Dcassandra.config=file:///${compressed_yaml}"/>
     </testmacro>
     <fileset dir="${test.unit.src}">
         <exclude name="**/pig/*.java" />

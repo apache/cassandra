@@ -24,13 +24,16 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
+import com.google.common.annotations.VisibleForTesting;
 import net.jpountz.lz4.LZ4Exception;
 import net.jpountz.lz4.LZ4Factory;
 
 public class LZ4Compressor implements ICompressor
 {
     private static final int INTEGER_BYTES = 4;
-    private static final LZ4Compressor instance = new LZ4Compressor();
+
+    @VisibleForTesting
+    public static final LZ4Compressor instance = new LZ4Compressor();
 
     public static LZ4Compressor create(Map<String, String> args)
     {
@@ -52,18 +55,20 @@ public class LZ4Compressor implements ICompressor
         return INTEGER_BYTES + compressor.maxCompressedLength(chunkLength);
     }
 
-    public int compress(byte[] input, int inputOffset, int inputLength, WrappedArray output, int outputOffset) throws IOException
+    public int compress(ByteBuffer src, WrappedByteBuffer dest) throws IOException
     {
-        final byte[] dest = output.buffer;
-        dest[outputOffset] = (byte) inputLength;
-        dest[outputOffset + 1] = (byte) (inputLength >>> 8);
-        dest[outputOffset + 2] = (byte) (inputLength >>> 16);
-        dest[outputOffset + 3] = (byte) (inputLength >>> 24);
-        final int maxCompressedLength = compressor.maxCompressedLength(inputLength);
+        final ByteBuffer buf = dest.buffer;
+        int len = src.remaining();
+        dest.buffer.put((byte) len);
+        dest.buffer.put((byte) (len >>> 8));
+        dest.buffer.put((byte) (len >>> 16));
+        dest.buffer.put((byte) (len >>> 24));
+
+        int start = dest.buffer.position();
         try
         {
-            return INTEGER_BYTES + compressor.compress(input, inputOffset, inputLength,
-                                                       dest, outputOffset + INTEGER_BYTES, maxCompressedLength);
+            compressor.compress(src, dest.buffer);
+            return INTEGER_BYTES + (buf.position() - start);
         }
         catch (LZ4Exception e)
         {
@@ -104,7 +109,6 @@ public class LZ4Compressor implements ICompressor
                 | ((input.get(pos + 1) & 0xFF) << 8)
                 | ((input.get(pos + 2) & 0xFF) << 16)
                 | ((input.get(pos + 3) & 0xFF) << 24);
-
         int inputLength = input.remaining() - INTEGER_BYTES;
 
         final int compressedLength;
@@ -119,7 +123,7 @@ public class LZ4Compressor implements ICompressor
 
         if (compressedLength != inputLength)
         {
-            throw new IOException("Compressed lengths mismatch: "+compressedLength+" vs "+inputLength);
+            throw new IOException("Compressed lengths mismatch - got: "+compressedLength+" vs expected: "+inputLength);
         }
 
         return decompressedLength;

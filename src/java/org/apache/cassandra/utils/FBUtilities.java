@@ -532,19 +532,16 @@ public class FBUtilities
      */
     public static Field getProtectedField(Class klass, String fieldName)
     {
-        Field field;
-
         try
         {
-            field = klass.getDeclaredField(fieldName);
+            Field field = klass.getDeclaredField(fieldName);
             field.setAccessible(true);
+            return field;
         }
         catch (Exception e)
         {
             throw new AssertionError(e);
         }
-
-        return field;
     }
 
     public static <T> CloseableIterator<T> closeableIterator(Iterator<T> iterator)
@@ -667,7 +664,8 @@ public class FBUtilities
             {
                 directUpdate.invoke(checksum, bb);
                 return;
-            } catch (IllegalAccessException e)
+            }
+            catch (IllegalAccessException e)
             {
                 directUpdate = null;
                 logger.warn("JVM doesn't support Adler32 byte buffer access");

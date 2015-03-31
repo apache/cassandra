@@ -33,18 +33,24 @@ import org.supercsv.prefs.CsvPreference;
 
 /**
  * A class that contains configuration properties for the cassandra node it runs within.
- * 
+ *
  * Properties declared as volatile can be mutated via JMX.
  */
 public class Config
 {
+    /*
+     * Prefix for Java properties for internal Cassandra configuration options
+     */
+    public static final String PROPERTY_PREFIX = "cassandra.";
+
+
     public String cluster_name = "Test Cluster";
     public String authenticator;
     public String authorizer;
     public String role_manager;
-    public int permissions_validity_in_ms = 2000;
+    public volatile int permissions_validity_in_ms = 2000;
     public int permissions_cache_max_entries = 1000;
-    public int permissions_update_interval_in_ms = -1;
+    public volatile int permissions_update_interval_in_ms = -1;
     public int roles_validity_in_ms = 2000;
     public int roles_cache_max_entries = 1000;
     public int roles_update_interval_in_ms = -1;
@@ -58,7 +64,7 @@ public class Config
     public Set<String> hinted_handoff_enabled_by_dc = Sets.newConcurrentHashSet();
     public volatile Integer max_hint_window_in_ms = 3600 * 1000; // one hour
 
-    public SeedProviderDef seed_provider;
+    public ParameterizedClass seed_provider;
     public DiskAccessMode disk_access_mode = DiskAccessMode.auto;
 
     public DiskFailurePolicy disk_failure_policy = DiskFailurePolicy.ignore;
@@ -104,12 +110,14 @@ public class Config
     public Integer ssl_storage_port = 7001;
     public String listen_address;
     public String listen_interface;
+    public Boolean listen_interface_prefer_ipv6 = false;
     public String broadcast_address;
     public String internode_authenticator;
 
     public Boolean start_rpc = true;
     public String rpc_address;
     public String rpc_interface;
+    public Boolean rpc_interface_prefer_ipv6 = false;
     public String broadcast_rpc_address;
     public Integer rpc_port = 9160;
     public Integer rpc_listen_backlog = 50;
@@ -159,6 +167,8 @@ public class Config
     public Double commitlog_sync_batch_window_in_ms;
     public Integer commitlog_sync_period_in_ms;
     public int commitlog_segment_size_in_mb = 32;
+    public ParameterizedClass commitlog_compression;
+    public int commitlog_max_compression_buffers_in_pool = 3;
  
     @Deprecated
     public int commitlog_periodic_queue_size = -1;
@@ -230,6 +240,22 @@ public class Config
     // TTL for different types of trace events.
     public int tracetype_query_ttl = (int) TimeUnit.DAYS.toSeconds(1);
     public int tracetype_repair_ttl = (int) TimeUnit.DAYS.toSeconds(7);
+
+    /*
+     * Strategy to use for coalescing messages in OutboundTcpConnection.
+     * Can be fixed, movingaverage, timehorizon, disabled. Setting is case and leading/trailing
+     * whitespace insensitive. You can also specify a subclass of CoalescingStrategies.CoalescingStrategy by name.
+     */
+    public String otc_coalescing_strategy = "TIMEHORIZON";
+
+    /*
+     * How many microseconds to wait for coalescing. For fixed strategy this is the amount of time after the first
+     * messgae is received before it will be sent with any accompanying messages. For moving average this is the
+     * maximum amount of time that will be waited as well as the interval at which messages must arrive on average
+     * for coalescing to be enabled.
+     */
+    public static final int otc_coalescing_window_us_default = 200;
+    public int otc_coalescing_window_us = otc_coalescing_window_us_default;
 
     public static boolean getOutboundBindAny()
     {

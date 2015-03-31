@@ -22,8 +22,10 @@ import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.UnknownHostException;
 import java.util.EnumMap;
+import java.util.Map;
 import java.util.List;
 import java.util.concurrent.Callable;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLEngine;
@@ -64,10 +66,11 @@ public class Server implements CassandraDaemon.Server
     private static final Logger logger = LoggerFactory.getLogger(Server.class);
     private static final boolean enableEpoll = Boolean.valueOf(System.getProperty("cassandra.native.epoll.enabled", "true"));
 
+    public static final int VERSION_1 = 1;
     public static final int VERSION_2 = 2;
     public static final int VERSION_3 = 3;
     public static final int VERSION_4 = 4;
-    public static final int CURRENT_VERSION = VERSION_3;
+    public static final int CURRENT_VERSION = VERSION_4;
 
     private final ConnectionTracker connectionTracker = new ConnectionTracker();
 
@@ -177,6 +180,8 @@ public class Server implements CassandraDaemon.Server
 
         connectionTracker.allChannels.add(bindFuture.channel());
         isRunning.set(true);
+
+        StorageService.instance.setRpcReady(true);
     }
 
     private void registerMetrics()
@@ -201,6 +206,8 @@ public class Server implements CassandraDaemon.Server
         eventExecutorGroup.shutdown();
         eventExecutorGroup = null;
         logger.info("Stop listening for CQL clients");
+
+        StorageService.instance.setRpcReady(false);
     }
 
 
@@ -208,7 +215,7 @@ public class Server implements CassandraDaemon.Server
     {
         // TODO: should we be using the GlobalEventExecutor or defining our own?
         public final ChannelGroup allChannels = new DefaultChannelGroup(GlobalEventExecutor.INSTANCE);
-        private final EnumMap<Event.Type, ChannelGroup> groups = new EnumMap<Event.Type, ChannelGroup>(Event.Type.class);
+        private final EnumMap<Event.Type, ChannelGroup> groups = new EnumMap<>(Event.Type.class);
 
         public ConnectionTracker()
         {
@@ -330,9 +337,48 @@ public class Server implements CassandraDaemon.Server
         }
     }
 
+    private static class LatestEvent
+    {
+        public final Event.StatusChange.Status status;
+        public final Event.TopologyChange.Change topology;
+
+        private LatestEvent(Event.StatusChange.Status status, Event.TopologyChange.Change topology)
+        {
+            this.status = status;
+            this.topology = topology;
+        }
+
+        @Override
+        public String toString()
+        {
+            return String.format("Status %s, Topology %s", status, topology);
+        }
+
+        public static LatestEvent forStatusChange(Event.StatusChange.Status status, LatestEvent prev)
+        {
+            return new LatestEvent(status,
+                                   prev == null ?
+                                           null :
+                                           prev.topology);
+        }
+
+        public static LatestEvent forTopologyChange(Event.TopologyChange.Change change, LatestEvent prev)
+        {
+            return new LatestEvent(prev == null ?
+                                           null :
+                                           prev.status,
+                                           change);
+        }
+    }
+
     private static class EventNotifier extends MigrationListener implements IEndpointLifecycleSubscriber
     {
         private final Server server;
+
+        // We keep track of the latest events we have sent to avoid sending duplicates
+        // since StorageService may send duplicate notifications (CASSANDRA-7816, CASSANDRA-8236)
+        private final Map<InetAddress, LatestEvent> latestEvents = new ConcurrentHashMap<>();
+
         private static final InetAddress bindAll;
         static {
             try
@@ -372,27 +418,55 @@ public class Server implements CassandraDaemon.Server
 
         public void onJoinCluster(InetAddress endpoint)
         {
-            server.connectionTracker.send(Event.TopologyChange.newNode(getRpcAddress(endpoint), server.socket.getPort()));
+            onTopologyChange(endpoint, Event.TopologyChange.newNode(getRpcAddress(endpoint), server.socket.getPort()));
         }
 
         public void onLeaveCluster(InetAddress endpoint)
         {
-            server.connectionTracker.send(Event.TopologyChange.removedNode(getRpcAddress(endpoint), server.socket.getPort()));
+            onTopologyChange(endpoint, Event.TopologyChange.removedNode(getRpcAddress(endpoint), server.socket.getPort()));
         }
 
         public void onMove(InetAddress endpoint)
         {
-            server.connectionTracker.send(Event.TopologyChange.movedNode(getRpcAddress(endpoint), server.socket.getPort()));
+            onTopologyChange(endpoint, Event.TopologyChange.movedNode(getRpcAddress(endpoint), server.socket.getPort()));
         }
 
         public void onUp(InetAddress endpoint)
         {
-            server.connectionTracker.send(Event.StatusChange.nodeUp(getRpcAddress(endpoint), server.socket.getPort()));
+            onStatusChange(endpoint, Event.StatusChange.nodeUp(getRpcAddress(endpoint), server.socket.getPort()));
         }
 
         public void onDown(InetAddress endpoint)
         {
-            server.connectionTracker.send(Event.StatusChange.nodeDown(getRpcAddress(endpoint), server.socket.getPort()));
+            onStatusChange(endpoint, Event.StatusChange.nodeDown(getRpcAddress(endpoint), server.socket.getPort()));
+        }
+
+        private void onTopologyChange(InetAddress endpoint, Event.TopologyChange event)
+        {
+            if (logger.isTraceEnabled())
+                logger.trace("Topology changed event : {}, {}", endpoint, event.change);
+
+            LatestEvent prev = latestEvents.get(endpoint);
+            if (prev == null || prev.topology != event.change)
+            {
+                LatestEvent ret = latestEvents.put(endpoint, LatestEvent.forTopologyChange(event.change, prev));
+                if (ret == prev)
+                    server.connectionTracker.send(event);
+            }
+        }
+
+        private void onStatusChange(InetAddress endpoint, Event.StatusChange event)
+        {
+            if (logger.isTraceEnabled())
+                logger.trace("Status changed event : {}, {}", endpoint, event.status);
+
+            LatestEvent prev = latestEvents.get(endpoint);
+            if (prev == null || prev.status != event.status)
+            {
+                LatestEvent ret = latestEvents.put(endpoint, LatestEvent.forStatusChange(event.status, prev));
+                if (ret == prev)
+                    server.connectionTracker.send(event);
+            }
         }
 
         public void onCreateKeyspace(String ksName)

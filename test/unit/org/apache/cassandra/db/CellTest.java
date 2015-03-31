@@ -21,6 +21,8 @@ package org.apache.cassandra.db;
  */
 
 
+import java.nio.ByteBuffer;
+
 import org.junit.Test;
 
 import junit.framework.Assert;
@@ -35,6 +37,29 @@ public class CellTest
 
     private static final OpOrder order = new OpOrder();
     private static NativeAllocator allocator = new NativePool(Integer.MAX_VALUE, Integer.MAX_VALUE, 1f, null).newAllocator();
+
+    @Test
+    public void testConflictingTypeEquality()
+    {
+        boolean[] tf = new boolean[]{ true, false };
+        for (boolean lhs : tf)
+        {
+            for (boolean rhs : tf)
+            {
+                // don't test equality for both sides native, as this is based on CellName resolution
+                if (lhs && rhs)
+                    continue;
+                Cell a = expiring("a", "a", 1, 1, lhs);
+                Cell b = regular("a", "a", 1, rhs);
+                Assert.assertNotSame(a, b);
+                Assert.assertNotSame(b, a);
+                a = deleted("a", 1, 1, lhs);
+                b = regular("a", ByteBufferUtil.bytes(1), 1, rhs);
+                Assert.assertNotSame(a, b);
+                Assert.assertNotSame(b, a);
+            }
+        }
+    }
 
     @Test
     public void testExpiringCellReconile()
@@ -94,4 +119,23 @@ public class CellTest
         return cell;
     }
 
+    private Cell regular(String name, ByteBuffer value, long timestamp, boolean nativeCell)
+    {
+        Cell cell = new BufferCell(Util.cellname(name), value, timestamp);
+        if (nativeCell)
+            cell = new NativeCell(allocator, order.getCurrent(), cell);
+        return cell;
+    }
+    private Cell regular(String name, String value, long timestamp, boolean nativeCell)
+    {
+        return regular(name, ByteBufferUtil.bytes(value), timestamp, nativeCell);
+    }
+
+    private Cell deleted(String name, int localDeletionTime, long timestamp, boolean nativeCell)
+    {
+        DeletedCell cell = new BufferDeletedCell(Util.cellname(name), localDeletionTime, timestamp);
+        if (nativeCell)
+            cell = new NativeDeletedCell(allocator, order.getCurrent(), cell);
+        return cell;
+    }
 }

@@ -77,7 +77,7 @@ public class SerializationsTest extends AbstractSerializationsTester
     private void testRangeSliceCommandWrite() throws IOException
     {
         IPartitioner part = StorageService.getPartitioner();
-        AbstractBounds<RowPosition> bounds = new Range<Token>(part.getRandomToken(), part.getRandomToken()).toRowBounds();
+        AbstractBounds<RowPosition> bounds = Range.makeRowRange(part.getRandomToken(), part.getRandomToken());
 
         RangeSliceCommand namesCmd = new RangeSliceCommand(statics.KS, "Standard1", statics.readTs, namesPred, bounds, 100);
         MessageOut<RangeSliceCommand> namesCmdMsg = namesCmd.createMessage();
@@ -311,8 +311,8 @@ public class SerializationsTest extends AbstractSerializationsTester
         assert MessageIn.read(in, getVersion(), -1) != null;
 
         // set up some fake callbacks so deserialization knows that what it's deserializing is a TruncateResponse
-        MessagingService.instance().setCallbackForTests(1, new CallbackInfo(null, null, TruncateResponse.serializer));
-        MessagingService.instance().setCallbackForTests(2, new CallbackInfo(null, null, TruncateResponse.serializer));
+        MessagingService.instance().setCallbackForTests(1, new CallbackInfo(null, null, TruncateResponse.serializer, false));
+        MessagingService.instance().setCallbackForTests(2, new CallbackInfo(null, null, TruncateResponse.serializer, false));
 
         assert MessageIn.read(in, getVersion(), 1) != null;
         assert MessageIn.read(in, getVersion(), 2) != null;

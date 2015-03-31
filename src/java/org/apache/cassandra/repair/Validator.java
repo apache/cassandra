@@ -24,9 +24,9 @@ import java.util.List;
 import java.util.Random;
 
 import com.google.common.annotations.VisibleForTesting;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.concurrent.StageManager;
 import org.apache.cassandra.db.ColumnFamilyStore;
@@ -37,6 +37,7 @@ import org.apache.cassandra.repair.messages.ValidationComplete;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.MerkleTree;
+import org.apache.cassandra.utils.MerkleTree.RowHash;
 
 /**
  * Handles the building of a merkle tree for a column family.
@@ -139,7 +140,11 @@ public class Validator implements Runnable
         }
 
         // case 3 must be true: mix in the hashed row
-        range.addHash(rowHash(row));
+        RowHash rowHash = rowHash(row);
+        if (rowHash != null)
+        {
+            range.addHash(rowHash);
+        }
     }
 
     static class CountingDigest extends MessageDigest
@@ -187,7 +192,15 @@ public class Validator implements Runnable
         // MerkleTree uses XOR internally, so we want lots of output bits here
         CountingDigest digest = new CountingDigest(FBUtilities.newMessageDigest("SHA-256"));
         row.update(digest);
-        return new MerkleTree.RowHash(row.key.getToken(), digest.digest(), digest.count);
+        // only return new hash for merkle tree in case digest was updated - see CASSANDRA-8979
+        if (digest.count > 0)
+        {
+            return new MerkleTree.RowHash(row.key.getToken(), digest.digest(), digest.count);
+        }
+        else
+        {
+            return null;
+        }
     }
 
     /**

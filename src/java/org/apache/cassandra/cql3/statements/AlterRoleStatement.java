@@ -17,13 +17,10 @@
  */
 package org.apache.cassandra.cql3.statements;
 
-import org.apache.cassandra.auth.AuthenticatedUser;
+import org.apache.cassandra.auth.*;
 import org.apache.cassandra.auth.IRoleManager.Option;
-import org.apache.cassandra.auth.Permission;
-import org.apache.cassandra.auth.RoleResource;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.RoleName;
-import org.apache.cassandra.cql3.RoleOptions;
 import org.apache.cassandra.exceptions.*;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.transport.messages.ResultMessage;
@@ -57,11 +54,11 @@ public class AlterRoleStatement extends AuthenticationStatement
         AuthenticatedUser user = state.getUser();
         boolean isSuper = user.isSuper();
 
-        if (opts.getOptions().containsKey(Option.SUPERUSER) && user.getRoles().contains(role))
+        if (opts.getSuperuser().isPresent() && user.getRoles().contains(role))
             throw new UnauthorizedException("You aren't allowed to alter your own superuser " +
                                             "status or that of a role granted to you");
 
-        if (opts.getOptions().containsKey(Option.SUPERUSER) && !isSuper)
+        if (opts.getSuperuser().isPresent() && !isSuper)
             throw new UnauthorizedException("Only superusers are allowed to alter superuser status");
 
         // superusers can do whatever else they like
@@ -87,7 +84,7 @@ public class AlterRoleStatement extends AuthenticationStatement
     public ResultMessage execute(ClientState state) throws RequestValidationException, RequestExecutionException
     {
         if (!opts.isEmpty())
-            DatabaseDescriptor.getRoleManager().alterRole(state.getUser(), role, opts.getOptions());
+            DatabaseDescriptor.getRoleManager().alterRole(state.getUser(), role, opts);
         return null;
     }
 }

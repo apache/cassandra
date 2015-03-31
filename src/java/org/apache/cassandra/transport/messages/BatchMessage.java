@@ -50,8 +50,8 @@ public class BatchMessage extends Message.Request
 
             byte type = body.readByte();
             int n = body.readUnsignedShort();
-            List<Object> queryOrIds = new ArrayList<Object>(n);
-            List<List<ByteBuffer>> variables = new ArrayList<List<ByteBuffer>>(n);
+            List<Object> queryOrIds = new ArrayList<>(n);
+            List<List<ByteBuffer>> variables = new ArrayList<>(n);
             for (int i = 0; i < n; i++)
             {
                 byte kind = body.readByte();
@@ -167,7 +167,7 @@ public class BatchMessage extends Message.Request
             {
                 state.createTracingSession();
                 // TODO we don't have [typed] access to CQL bind variables here.  CASSANDRA-4560 is open to add support.
-                Tracing.instance.begin("Execute batch of CQL3 queries", Collections.<String, String>emptyMap());
+                Tracing.instance.begin("Execute batch of CQL3 queries", state.getClientAddress(), Collections.<String, String>emptyMap());
             }
 
             QueryHandler handler = ClientState.getCQLQueryHandler();
@@ -212,7 +212,7 @@ public class BatchMessage extends Message.Request
             // Note: It's ok at this point to pass a bogus value for the number of bound terms in the BatchState ctor
             // (and no value would be really correct, so we prefer passing a clearly wrong one).
             BatchStatement batch = new BatchStatement(-1, batchType, statements, Attributes.none());
-            Message.Response response = handler.processBatch(batch, state, batchOptions);
+            Message.Response response = handler.processBatch(batch, state, batchOptions, getCustomPayload());
 
             if (tracingId != null)
                 response.setTracingId(tracingId);

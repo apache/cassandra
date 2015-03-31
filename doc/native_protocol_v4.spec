@@ -124,6 +124,15 @@ Table of Contents
           a tracing ID. The tracing ID is a [uuid] and is the first thing in
           the frame body. The rest of the body will then be the usual body
           corresponding to the response opcode.
+    0x04: Custom payload flag. For a request or response frame, this indicates
+          that generic key-value custom payload for a custom QueryHandler
+          implementation is present in the frame. Such custom payload is simply
+          ignored by the default QueryHandler implementation.
+          Currently, only QUERY, PREPARE, EXECUTE and BATCH requests support
+          payload.
+          If both trace-flag and payload-flag are set, the generic key-value
+          payload appears after trace's data.
+          Type of custom payload is [bytes map] (see below).
 
   The rest of the flags is currently unused and ignored.
 
@@ -228,6 +237,8 @@ Table of Contents
                       are [string].
     [string multimap] A [short] n, followed by n pair <k><v> where <k> is a
                       [string] and <v> is a [string list].
+    [bytes map]       A [short] n, followed by n pair <k><v> where <k> is a
+                      [string] and <v> is a [bytes].
 
 
 4. Messages
@@ -574,6 +585,8 @@ Table of Contents
             0x000E    Varint
             0x000F    Timeuuid
             0x0010    Inet
+            0x0011    Date
+            0x0012    Time
             0x0020    List: the value is an [option], representing the type
                             of the elements of the list.
             0x0021    Map: the value is two [option], representing the types of the
@@ -614,23 +627,66 @@ Table of Contents
 
 4.2.5.4. Prepared
 
-  The result to a PREPARE message. The rest of the body of a Prepared result is:
+  The result to a PREPARE message. The body of a Prepared result is:
     <id><metadata><result_metadata>
   where:
     - <id> is [short bytes] representing the prepared query ID.
-    - <metadata> is defined exactly as for a Rows RESULT (See section 4.2.5.2; you
-      can however assume that the Has_more_pages flag is always off) and
-      is the specification for the variable bound in this prepare statement.
-    - <result_metadata> is defined exactly as <metadata> but correspond to the
-      metadata for the resultSet that execute this query will yield. Note that
-      <result_metadata> may be empty (have the No_metadata flag and 0 columns, See
-      section 4.2.5.2) and will be for any query that is not a Select. There is
-      in fact never a guarantee that this will non-empty so client should protect
-      themselves accordingly. The presence of this information is an
-      optimization that allows to later execute the statement that has been
-      prepared without requesting the metadata (Skip_metadata flag in EXECUTE).
-      Clients can safely discard this metadata if they do not want to take
-      advantage of that optimization.
+    - <metadata> is composed of:
+        <flags><columns_count><pk_count>[<pk_index_1>...<pk_index_n>][<global_table_spec>?<col_spec_1>...<col_spec_n>]
+      where:
+        - <flags> is an [int]. The bits of <flags> provides information on the
+          formatting of the remaining informations. A flag is set if the bit
+          corresponding to its `mask` is set. Supported masks and their flags
+          are:
+            0x0001    Global_tables_spec: if set, only one table spec (keyspace
+                      and table name) is provided as <global_table_spec>. If not
+                      set, <global_table_spec> is not present.
+        - <columns_count> is an [int] representing the number of bind markers
+          in the prepared statement.  It defines the number of <col_spec_i>
+          elements.
+        - <pk_count> is an [int] representing the number of <pk_index_i>
+          elements to follow. If this value is zero, at least one of the
+          partition key columns in the table that the statement acts on
+          did not have a corresponding bind marker (or the bind marker
+          was wrapped in a function call).
+        - <pk_index_i> is a short that represents the index of the bind marker
+          that corresponds to the partition key column in position i.
+          For example, a <pk_index> sequence of [2, 0, 1] indicates that the
+          table has three partition key columns; the full partition key
+          can be constructed by creating a composite of the values for
+          the bind markers at index 2, at index 0, and at index 1.
+          This allows implementations with token-aware routing to correctly
+          construct the partition key without needing to inspect table
+          metadata.
+        - <global_table_spec> is present if the Global_tables_spec is set in
+          <flags>. If present, it is composed of two [string]s. The first
+          [string] is the name of the keyspace that the statement acts on.
+          The second [string] is the name of the table that the columns
+          represented by the bind markers belong to.
+        - <col_spec_i> specifies the bind markers in the prepared statement.
+          There are <column_count> such column specifications, each with the
+          following format:
+            (<ksname><tablename>)?<name><type>
+          The initial <ksname> and <tablename> are two [string] that are only
+          present if the Global_tables_spec flag is not set. The <name> field
+          is a [string] that holds the name of the bind marker (if named),
+          or the name of the column, field, or expression that the bind marker
+          corresponds to (if the bind marker is "anonymous").  The <type>
+          field is an [option] that represents the expected type of values for
+          the bind marker.  See the Rows documentation (section 4.2.5.2) for
+          full details on the <type> field.
+
+    - <result_metadata> is defined exactly the same as <metadata> in the Rows
+      documentation (section 4.2.5.2).  This describes the metadata for the
+      result set that will be returned when this prepared statement is executed.
+      Note that <result_metadata> may be empty (have the No_metadata flag and
+      0 columns, See section 4.2.5.2) and will be for any query that is not a
+      Select. In fact, there is never a guarantee that this will non-empty, so
+      implementations should protect themselves accordingly. This result metadata
+      is an optimization that allows implementations to later execute the
+      prepared statement without requesting the metadata (see the Skip_metadata
+      flag in EXECUTE).  Clients can safely discard this metadata if they do not
+      want to take advantage of that optimization.
 
   Note that prepared query ID return is global to the node on which the query
   has been prepared. It can be used on any connection to that node and this
@@ -965,9 +1021,9 @@ Table of Contents
                              - "BATCH": the write was a (logged) batch write.
                                If this type is received, it means the batch log
                                has been successfully written (otherwise a
-                               "BATCH_LOG" type would have been send instead).
+                               "BATCH_LOG" type would have been sent instead).
                              - "UNLOGGED_BATCH": the write was an unlogged
-                               batch. Not batch log write has been attempted.
+                               batch. No batch log write has been attempted.
                              - "COUNTER": the write was a counter write
                                (batched or not).
                              - "BATCH_LOG": the timeout occured during the
@@ -1013,6 +1069,34 @@ Table of Contents
                 <keyspace> is the keyspace [string] of the failed function
                 <function> is the name [string] of the failed function
                 <arg_types> [string list] one string for each argument type (as CQL type) of the failed function
+    0x1500    Write_failure: A non-timeout exception during a write request. The rest
+              of the ERROR message body will be
+                <cl><received><blockfor><numfailures><write_type>
+              where:
+                <cl> is the [consistency] level of the query having triggered
+                     the exception.
+                <received> is an [int] representing the number of nodes having
+                           answered the request.
+                <blockfor> is the number of replicas whose response is
+                           required to achieve <cl>.
+                <numfailures> is an [int] representing the number of nodes that
+                              experience a failure while executing the request.
+                <writeType> is a [string] that describe the type of the write
+                            that failed. The value of that string can be one
+                            of:
+                             - "SIMPLE": the write was a non-batched
+                               non-counter write.
+                             - "BATCH": the write was a (logged) batch write.
+                               If this type is received, it means the batch log
+                               has been successfully written (otherwise a
+                               "BATCH_LOG" type would have been sent instead).
+                             - "UNLOGGED_BATCH": the write was an unlogged
+                               batch. No batch log write has been attempted.
+                             - "COUNTER": the write was a counter write
+                               (batched or not).
+                             - "BATCH_LOG": the failure occured during the
+                               write to the batch log when a (logged) batch
+                               write was requested.
 
     0x2000    Syntax_error: The submitted query has a syntax error.
     0x2100    Unauthorized: The logged user doesn't have the right to perform
@@ -1040,3 +1124,4 @@ Table of Contents
     has been modified, and now includes changes related to user defined functions and user defined aggregates.
   * Read_failure error code was added.
   * Function_failure error code was added.
+  * Add custom payload to frames for custom QueryHandler implementations (ignored by Cassandra's standard QueryHandler)

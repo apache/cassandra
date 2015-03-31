@@ -15,14 +15,18 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.utils;
+package org.apache.cassandra.exceptions;
 
-import java.nio.ByteBuffer;
-import java.util.zip.Checksum;
+import org.apache.cassandra.db.ConsistencyLevel;
+import org.apache.cassandra.db.WriteType;
 
-public interface ICRC32 extends Checksum
+public class WriteFailureException extends RequestFailureException
 {
-    void update(ByteBuffer b, int offset, int length);
-    void updateInt(int v);
-    int getCrc();
+    public final WriteType writeType;
+
+    public WriteFailureException(ConsistencyLevel consistency, int received, int failures, int blockFor, WriteType writeType)
+    {
+        super(ExceptionCode.WRITE_FAILURE, consistency, received, failures, blockFor);
+        this.writeType = writeType;
+    }
 }

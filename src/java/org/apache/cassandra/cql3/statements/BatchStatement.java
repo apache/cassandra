@@ -256,7 +256,7 @@ public class BatchStatement implements CQLStatement
             String format = "Batch of prepared statements for {} is of size {}, exceeding specified threshold of {} by {}.{}";
             if (size > failThreshold)
             {
-                Tracing.trace(format, new Object[] {ksCfPairs, size, failThreshold, size - failThreshold, " (see batch_size_fail_threshold_in_kb)"});
+                Tracing.trace(format, ksCfPairs, size, failThreshold, size - failThreshold, " (see batch_size_fail_threshold_in_kb)");
                 logger.error(format, ksCfPairs, size, failThreshold, size - failThreshold, " (see batch_size_fail_threshold_in_kb)");
                 throw new InvalidRequestException(String.format("Batch too large"));
             }
@@ -403,9 +403,25 @@ public class BatchStatement implements CQLStatement
         {
             VariableSpecifications boundNames = getBoundVariables();
 
+            String firstKS = null;
+            String firstCF = null;
+            boolean haveMultipleCFs = false;
+
             List<ModificationStatement> statements = new ArrayList<>(parsedStatements.size());
             for (ModificationStatement.Parsed parsed : parsedStatements)
+            {
+                if (firstKS == null)
+                {
+                    firstKS = parsed.keyspace();
+                    firstCF = parsed.columnFamily();
+                }
+                else if (!haveMultipleCFs)
+                {
+                    haveMultipleCFs = !firstKS.equals(parsed.keyspace()) || !firstCF.equals(parsed.columnFamily());
+                }
+
                 statements.add(parsed.prepare(boundNames));
+            }
 
             Attributes prepAttrs = attrs.prepare("[batch]", "[batch]");
             prepAttrs.collectMarkerSpecification(boundNames);
@@ -413,7 +429,12 @@ public class BatchStatement implements CQLStatement
             BatchStatement batchStatement = new BatchStatement(boundNames.size(), type, statements, prepAttrs);
             batchStatement.validate();
 
-            return new ParsedStatement.Prepared(batchStatement, boundNames);
+            // Use the CFMetadata of the first statement for partition key bind indexes.  If the statements affect
+            // multiple tables, we won't send partition key bind indexes.
+            Short[] partitionKeyBindIndexes = haveMultipleCFs ? null
+                                                              : boundNames.getPartitionKeyBindIndexes(batchStatement.statements.get(0).cfm);
+
+            return new ParsedStatement.Prepared(batchStatement, boundNames, partitionKeyBindIndexes);
         }
     }
 }

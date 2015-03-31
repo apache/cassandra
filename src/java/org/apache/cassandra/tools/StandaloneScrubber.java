@@ -62,14 +62,27 @@ public class StandaloneScrubber
             // load keyspace descriptions.
             Schema.instance.loadFromDisk(false);
 
-            if (Schema.instance.getCFMetaData(options.keyspaceName, options.cfName) == null)
-                throw new IllegalArgumentException(String.format("Unknown keyspace/table %s.%s",
-                                                                 options.keyspaceName,
-                                                                 options.cfName));
+            if (Schema.instance.getKSMetaData(options.keyspaceName) == null)
+                throw new IllegalArgumentException(String.format("Unknown keyspace %s", options.keyspaceName));
 
             // Do not load sstables since they might be broken
             Keyspace keyspace = Keyspace.openWithoutSSTables(options.keyspaceName);
-            ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(options.cfName);
+
+            ColumnFamilyStore cfs = null;
+            for (ColumnFamilyStore c : keyspace.getValidColumnFamilies(true, false, options.cfName))
+            {
+                if (c.name.equals(options.cfName))
+                {
+                    cfs = c;
+                    break;
+                }
+            }
+
+            if (cfs == null)
+                throw new IllegalArgumentException(String.format("Unknown table %s.%s",
+                                                                  options.keyspaceName,
+                                                                  options.cfName));
+
             String snapshotName = "pre-scrub-" + System.currentTimeMillis();
 
             OutputHandler handler = new OutputHandler.SystemOutput(options.verbose, options.debug);
@@ -86,7 +99,7 @@ public class StandaloneScrubber
 
                 try
                 {
-                    SSTableReader sstable = SSTableReader.openNoValidation(entry.getKey(), components, cfs.metadata);
+                    SSTableReader sstable = SSTableReader.openNoValidation(entry.getKey(), components, cfs);
                     sstables.add(sstable);
 
                     File snapshotDirectory = Directories.getSnapshotDirectory(sstable.descriptor, snapshotName);
@@ -113,6 +126,14 @@ public class StandaloneScrubber
                         try
                         {
                             scrubber.scrub();
+                        }
+                        catch (Throwable t)
+                        {
+                            if (!cfs.rebuildOnFailedScrub(t))
+                            {
+                                System.out.println(t.getMessage());
+                                throw t;
+                            }
                         }
                         finally
                         {
@@ -150,7 +171,7 @@ public class StandaloneScrubber
     {
         WrappingCompactionStrategy wrappingStrategy = (WrappingCompactionStrategy)strategy;
         int maxSizeInMB = (int)((cfs.getCompactionStrategy().getMaxSSTableBytes()) / (1024L * 1024L));
-        if (wrappingStrategy.getWrappedStrategies().size() == 2 && wrappingStrategy.getWrappedStrategies().iterator().next() instanceof LeveledCompactionStrategy)
+        if (wrappingStrategy.getWrappedStrategies().size() == 2 && wrappingStrategy.getWrappedStrategies().get(0) instanceof LeveledCompactionStrategy)
         {
             System.out.println("Checking leveled manifest");
             Predicate<SSTableReader> repairedPredicate = new Predicate<SSTableReader>()

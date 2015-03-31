@@ -303,7 +303,7 @@ abstract class AbstractQueryPager implements QueryPager
         DeletionInfo.InOrderTester tester = cf.deletionInfo().inOrderTester(isReversed);
         return isReversed
              ? discardTail(cf, toDiscard, newCf, cf.reverseIterator(), tester)
-             : discardHead(cf, toDiscard, newCf, cf.iterator(), tester);
+             : discardHead(toDiscard, newCf, cf.iterator(), tester);
     }
 
     private int discardLast(ColumnFamily cf, int toDiscard, ColumnFamily newCf)
@@ -311,11 +311,11 @@ abstract class AbstractQueryPager implements QueryPager
         boolean isReversed = isReversed();
         DeletionInfo.InOrderTester tester = cf.deletionInfo().inOrderTester(isReversed);
         return isReversed
-             ? discardHead(cf, toDiscard, newCf, cf.reverseIterator(), tester)
+             ? discardHead(toDiscard, newCf, cf.reverseIterator(), tester)
              : discardTail(cf, toDiscard, newCf, cf.iterator(), tester);
     }
 
-    private int discardHead(ColumnFamily cf, int toDiscard, ColumnFamily copy, Iterator<Cell> iter, DeletionInfo.InOrderTester tester)
+    private int discardHead(int toDiscard, ColumnFamily copy, Iterator<Cell> iter, DeletionInfo.InOrderTester tester)
     {
         ColumnCounter counter = columnCounter();
 

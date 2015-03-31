@@ -55,6 +55,12 @@ public class SizeEstimatesRecorder extends MigrationListener implements Runnable
 
     public void run()
     {
+        if (StorageService.instance.isStarting())
+        {
+            logger.debug("Node has not yet joined; not recording size estimates");
+            return;
+        }
+
         logger.debug("Recording size estimates");
 
         // find primary token ranges for the local node.
@@ -86,7 +92,7 @@ public class SizeEstimatesRecorder extends MigrationListener implements Runnable
             Refs<SSTableReader> refs = null;
             while (refs == null)
             {
-                ColumnFamilyStore.ViewFragment view = table.select(table.viewFilter(range.toRowBounds()));
+                ColumnFamilyStore.ViewFragment view = table.select(table.viewFilter(Range.makeRowRange(range)));
                 refs = Refs.tryRef(view.sstables);
             }
 

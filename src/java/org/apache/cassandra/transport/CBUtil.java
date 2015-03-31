@@ -181,6 +181,40 @@ public abstract class CBUtil
         return 2 + bytes.length;
     }
 
+    public static Map<String, byte[]> readBytesMap(ByteBuf cb)
+    {
+        int length = cb.readUnsignedShort();
+        Map<String, byte[]> m = new HashMap<>(length);
+        for (int i = 0; i < length; i++)
+        {
+            String k = readString(cb);
+            byte[] v = readBytes(cb);
+            m.put(k, v);
+        }
+        return m;
+    }
+
+    public static void writeBytesMap(Map<String, byte[]> m, ByteBuf cb)
+    {
+        cb.writeShort(m.size());
+        for (Map.Entry<String, byte[]> entry : m.entrySet())
+        {
+            writeString(entry.getKey(), cb);
+            writeBytes(entry.getValue(), cb);
+        }
+    }
+
+    public static int sizeOfBytesMap(Map<String, byte[]> m)
+    {
+        int size = 2;
+        for (Map.Entry<String, byte[]> entry : m.entrySet())
+        {
+            size += sizeOfString(entry.getKey());
+            size += sizeOfBytes(entry.getValue());
+        }
+        return size;
+    }
+
     public static ConsistencyLevel readConsistencyLevel(ByteBuf cb)
     {
         return ConsistencyLevel.fromCode(cb.readUnsignedShort());

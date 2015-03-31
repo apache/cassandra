@@ -21,16 +21,15 @@ import java.io.IOException;
 import java.io.PrintStream;
 import java.text.SimpleDateFormat;
 import java.util.Map;
-import javax.management.Notification;
-import javax.management.NotificationListener;
-import javax.management.remote.JMXConnectionNotification;
+import java.util.concurrent.locks.Condition;
 
-import com.google.common.util.concurrent.AbstractFuture;
-
-import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.service.StorageServiceMBean;
+import org.apache.cassandra.utils.concurrent.SimpleCondition;
+import org.apache.cassandra.utils.progress.ProgressEvent;
+import org.apache.cassandra.utils.progress.ProgressEventType;
+import org.apache.cassandra.utils.progress.jmx.JMXNotificationProgressListener;
 
-public class RepairRunner extends AbstractFuture<Boolean> implements Runnable, NotificationListener
+public class RepairRunner extends JMXNotificationProgressListener
 {
     private final SimpleDateFormat format = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss,SSS");
 
@@ -38,9 +37,11 @@ public class RepairRunner extends AbstractFuture<Boolean> implements Runnable, N
     private final StorageServiceMBean ssProxy;
     private final String keyspace;
     private final Map<String, String> options;
+    private final Condition condition = new SimpleCondition();
 
-    private volatile int cmd;
-    private volatile boolean success;
+    private int cmd;
+    private volatile boolean hasNotificationLost;
+    private volatile Exception error;
 
     public RepairRunner(PrintStream out, StorageServiceMBean ssProxy, String keyspace, Map<String, String> options)
     {
@@ -50,52 +51,68 @@ public class RepairRunner extends AbstractFuture<Boolean> implements Runnable, N
         this.options = options;
     }
 
-    public void run()
+    public void run() throws Exception
     {
         cmd = ssProxy.repairAsync(keyspace, options);
         if (cmd <= 0)
         {
             String message = String.format("[%s] Nothing to repair for keyspace '%s'", format.format(System.currentTimeMillis()), keyspace);
             out.println(message);
-            set(true);
+        }
+        else
+        {
+            condition.await();
+            if (error != null)
+            {
+                throw error;
+            }
+            if (hasNotificationLost)
+            {
+                out.println(String.format("There were some lost notification(s). You should check server log for repair status of keyspace %s", keyspace));
+            }
         }
     }
 
-    public void handleNotification(Notification notification, Object handback)
+    @Override
+    public boolean isInterestedIn(String tag)
     {
-        if ("repair".equals(notification.getType()))
+        return tag.equals("repair:" + cmd);
+    }
+
+    @Override
+    public void handleNotificationLost(long timestamp, String message)
+    {
+        hasNotificationLost = true;
+    }
+
+    @Override
+    public void handleConnectionClosed(long timestamp, String message)
+    {
+        handleConnectionFailed(timestamp, message);
+    }
+
+    @Override
+    public void handleConnectionFailed(long timestamp, String message)
+    {
+        error = new IOException(String.format("[%s] JMX connection closed. You should check server log for repair status of keyspace %s"
+                                               + "(Subsequent keyspaces are not going to be repaired).",
+                                  format.format(timestamp), keyspace));
+        condition.signalAll();
+    }
+
+    @Override
+    public void progress(String tag, ProgressEvent event)
+    {
+        ProgressEventType type = event.getType();
+        String message = String.format("[%s] %s", format.format(System.currentTimeMillis()), event.getMessage());
+        if (type == ProgressEventType.PROGRESS)
         {
-            int[] status = (int[]) notification.getUserData();
-            assert status.length == 2;
-            if (cmd == status[0])
-            {
-                String message = String.format("[%s] %s", format.format(notification.getTimeStamp()), notification.getMessage());
-                out.println(message);
-                // repair status is int array with [0] = cmd number, [1] = status
-                if (status[1] == ActiveRepairService.Status.SESSION_FAILED.ordinal())
-                {
-                    success = false;
-                }
-                else if (status[1] == ActiveRepairService.Status.FINISHED.ordinal())
-                {
-                    set(success);
-                }
-            }
+            message = message + " (progress: " + (int)event.getProgressPercentage() + "%)";
         }
-        else if (JMXConnectionNotification.NOTIFS_LOST.equals(notification.getType()))
+        out.println(message);
+        if (type == ProgressEventType.COMPLETE)
         {
-            String message = String.format("[%s] Lost notification. You should check server log for repair status of keyspace %s",
-                                           format.format(notification.getTimeStamp()),
-                                           keyspace);
-            out.println(message);
-        }
-        else if (JMXConnectionNotification.FAILED.equals(notification.getType())
-                 || JMXConnectionNotification.CLOSED.equals(notification.getType()))
-        {
-            String message = String.format("JMX connection closed. You should check server log for repair status of keyspace %s"
-                                           + "(Subsequent keyspaces are not going to be repaired).",
-                                           keyspace);
-            setException(new IOException(message));
+            condition.signalAll();
         }
     }
 }

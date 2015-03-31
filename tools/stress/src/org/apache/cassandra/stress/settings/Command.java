@@ -31,38 +31,37 @@ import com.google.common.collect.ImmutableList;
 public enum Command
 {
 
-    READ(false, "standard1", "Super1",
+    READ(false, "standard1",
             "Multiple concurrent reads - the cluster must first be populated by a write test",
             CommandCategory.BASIC
     ),
-    WRITE(true, "standard1", "Super1",
+    WRITE(true, "standard1",
             "insert",
             "Multiple concurrent writes against the cluster",
             CommandCategory.BASIC
     ),
-    MIXED(true, null, null,
+    MIXED(true, null,
             "Interleaving of any basic commands, with configurable ratio and distribution - the cluster must first be populated by a write test",
             CommandCategory.MIXED
     ),
-    COUNTER_WRITE(true, "counter1", "SuperCounter1",
+    COUNTER_WRITE(true, "counter1",
             "counter_add",
             "Multiple concurrent updates of counters.",
             CommandCategory.BASIC
     ),
-    COUNTER_READ(false, "counter1", "SuperCounter1",
+    COUNTER_READ(false, "counter1",
             "counter_get",
             "Multiple concurrent reads of counters. The cluster must first be populated by a counterwrite test.",
             CommandCategory.BASIC
     ),
-    USER(true, null, null,
+    USER(true, null,
           "Interleaving of user provided queries, with configurable ratio and distribution",
           CommandCategory.USER
     ),
 
-    HELP(false, null, null, "-?", "Print help for a command or option", null),
-    PRINT(false, null, null, "Inspect the output of a distribution definition", null),
-    LEGACY(false, null, null, "Legacy support mode", null)
-
+    HELP(false, null, "-?", "Print help for a command or option", null),
+    PRINT(false, null, "Inspect the output of a distribution definition", null),
+    LEGACY(false, null, "Legacy support mode", null)
     ;
 
     private static final Map<String, Command> LOOKUP;
@@ -87,17 +86,15 @@ public enum Command
     public final List<String> names;
     public final String description;
     public final String table;
-    public final String supertable;
 
-    Command(boolean updates, String table, String supertable, String description, CommandCategory category)
+    Command(boolean updates, String table, String description, CommandCategory category)
     {
-        this(updates, table, supertable, null, description, category);
+        this(updates, table, null, description, category);
     }
 
-    Command(boolean updates, String table, String supertable, String extra, String description, CommandCategory category)
+    Command(boolean updates, String table, String extra, String description, CommandCategory category)
     {
         this.table = table;
-        this.supertable = supertable;
         this.updates = updates;
         this.category = category;
         List<String> names = new ArrayList<>();

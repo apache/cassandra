@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.tracing;
 
+import java.net.InetAddress;
 import java.nio.ByteBuffer;
 import java.util.*;
 
@@ -44,6 +45,7 @@ public final class TraceKeyspace
                 "CREATE TABLE %s ("
                 + "session_id uuid,"
                 + "command text,"
+                + "client inet,"
                 + "coordinator inet,"
                 + "duration int,"
                 + "parameters map<text, text>,"
@@ -75,13 +77,20 @@ public final class TraceKeyspace
         return new KSMetaData(NAME, SimpleStrategy.class, ImmutableMap.of("replication_factor", "2"), true, tables);
     }
 
-    static Mutation makeStartSessionMutation(ByteBuffer sessionId, Map<String, String> parameters, String request, long startedAt, String command, int ttl)
+    static Mutation makeStartSessionMutation(ByteBuffer sessionId,
+                                             InetAddress client,
+                                             Map<String, String> parameters,
+                                             String request,
+                                             long startedAt,
+                                             String command,
+                                             int ttl)
     {
         Mutation mutation = new Mutation(NAME, sessionId);
         ColumnFamily cells = mutation.addOrGet(TraceKeyspace.Sessions);
 
         CFRowAdder adder = new CFRowAdder(cells, cells.metadata().comparator.builder().build(), FBUtilities.timestampMicros(), ttl);
-        adder.add("coordinator", FBUtilities.getBroadcastAddress())
+        adder.add("client", client)
+             .add("coordinator", FBUtilities.getBroadcastAddress())
              .add("request", request)
              .add("started_at", new Date(startedAt))
              .add("command", command);

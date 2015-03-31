@@ -37,7 +37,7 @@ public class WriteCallbackInfo extends CallbackInfo
                              ConsistencyLevel consistencyLevel,
                              boolean allowHints)
     {
-        super(target, callback, serializer);
+        super(target, callback, serializer, true);
         assert message != null;
         this.sentMessage = message;
         this.consistencyLevel = consistencyLevel;

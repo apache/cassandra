@@ -24,6 +24,37 @@ import java.util.List;
 public interface CommitLogMBean
 {
     /**
+     *  Command to execute to archive a commitlog segment.  Blank to disabled.
+     */
+    public String getArchiveCommand();
+
+    /**
+     * Command to execute to make an archived commitlog live again
+     */
+    public String getRestoreCommand();
+
+    /**
+     * Directory to scan the recovery files in
+     */
+    public String getRestoreDirectories();
+
+    /**
+     * Restore mutations created up to and including this timestamp in GMT
+     * Format: yyyy:MM:dd HH:mm:ss (2012:04:31 20:43:12)
+     *
+     * Recovery will continue through the segment when the first client-supplied
+     * timestamp greater than this time is encountered, but only mutations less than
+     * or equal to this timestamp will be applied.
+     */
+    public long getRestorePointInTime();
+
+    /**
+     * get precision of the timestamp used in the restore (MILLISECONDS, MICROSECONDS, ...)
+     * to determine if passed the restore point in time.
+     */
+    public String getRestorePrecision();
+
+    /**
      * Recover a single file.
      */
     public void recover(String path) throws IOException;

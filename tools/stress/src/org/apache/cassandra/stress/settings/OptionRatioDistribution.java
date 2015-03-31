@@ -124,6 +124,11 @@ public class OptionRatioDistribution extends Option
         return delegate.setByUser();
     }
 
+    boolean present()
+    {
+        return delegate.present();
+    }
+
     @Override
     public String shortDisplay()
     {

@@ -15,18 +15,24 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.sink;
+package org.apache.cassandra.utils.progress;
 
-import org.apache.cassandra.db.IMutation;
-
-public interface IRequestSink
+/**
+ * Interface for {@link ProgressEvent} publisher.
+ */
+public interface ProgressEventNotifier
 {
     /**
-     * Transform or drop a write request (represented by a Mutation).
+     * Register progress listener to this publisher.
      *
-     * @param mutation the Mutation to be applied locally.
-     * @return null if the mutation is to be dropped, or the transformed mutation to apply, which may be just
-     * the original mutation.
+     * @param listener listener to register.
      */
-    IMutation handleWriteRequest(IMutation mutation);
+    void addProgressListener(ProgressListener listener);
+
+    /**
+     * Remove progress listener from this publisher.
+     *
+     * @param listener listener to remove
+     */
+    void removeProgressListener(ProgressListener listener);
 }

@@ -33,17 +33,23 @@ public class CommitLogMetrics
     public static final MetricNameFactory factory = new DefaultNameFactory("CommitLog");
 
     /** Number of completed tasks */
-    public final Gauge<Long> completedTasks;
+    public Gauge<Long> completedTasks;
     /** Number of pending tasks */
-    public final Gauge<Long> pendingTasks;
+    public Gauge<Long> pendingTasks;
     /** Current size used by all the commit log segments */
-    public final Gauge<Long> totalCommitLogSize;
+    public Gauge<Long> totalCommitLogSize;
     /** Time spent waiting for a CLS to be allocated - under normal conditions this should be zero */
     public final Timer waitingOnSegmentAllocation;
     /** The time spent waiting on CL sync; for Periodic this is only occurs when the sync is lagging its sync interval */
     public final Timer waitingOnCommit;
+    
+    public CommitLogMetrics()
+    {
+        waitingOnSegmentAllocation = Metrics.timer(factory.createMetricName("WaitingOnSegmentAllocation"));
+        waitingOnCommit = Metrics.timer(factory.createMetricName("WaitingOnCommit"));
+    }
 
-    public CommitLogMetrics(final AbstractCommitLogService service, final CommitLogSegmentManager allocator)
+    public void attach(final AbstractCommitLogService service, final CommitLogSegmentManager allocator)
     {
         completedTasks = Metrics.register(factory.createMetricName("CompletedTasks"), new Gauge<Long>()
         {
@@ -66,7 +72,5 @@ public class CommitLogMetrics
                 return allocator.bytesUsed();
             }
         });
-        waitingOnSegmentAllocation = Metrics.timer(factory.createMetricName("WaitingOnSegmentAllocation"));
-        waitingOnCommit = Metrics.timer(factory.createMetricName("WaitingOnCommit"));
     }
 }

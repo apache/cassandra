@@ -30,6 +30,7 @@ import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.statements.ParsedStatement;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.exceptions.PreparedQueryNotFoundException;
+import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.transport.*;
@@ -101,7 +102,7 @@ public class ExecuteMessage extends Message.Request
     {
         try
         {
-            QueryHandler handler = state.getClientState().getCQLQueryHandler();
+            QueryHandler handler = ClientState.getCQLQueryHandler();
             ParsedStatement.Prepared prepared = handler.getPrepared(statementId);
             if (prepared == null)
                 throw new PreparedQueryNotFoundException(statementId);
@@ -128,10 +129,10 @@ public class ExecuteMessage extends Message.Request
                     builder.put("page_size", Integer.toString(options.getPageSize()));
 
                 // TODO we don't have [typed] access to CQL bind variables here.  CASSANDRA-4560 is open to add support.
-                Tracing.instance.begin("Execute CQL3 prepared query", builder.build());
+                Tracing.instance.begin("Execute CQL3 prepared query", state.getClientAddress(), builder.build());
             }
 
-            Message.Response response = handler.processPrepared(statement, state, options);
+            Message.Response response = handler.processPrepared(statement, state, options, getCustomPayload());
             if (options.skipMetadata() && response instanceof ResultMessage.Rows)
                 ((ResultMessage.Rows)response).result.metadata.setSkipMetadata();
 

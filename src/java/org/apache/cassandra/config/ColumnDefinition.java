@@ -252,7 +252,7 @@ public class ColumnDefinition extends ColumnSpecification
 
             assert getIndexName() != null;
             if (!getIndexName().equals(def.getIndexName()))
-                throw new ConfigurationException("Cannot modify index name");
+                throw new ConfigurationException("Cannot modify index name: " + def.getIndexName());
         }
 
         return new ColumnDefinition(ksName,
@@ -313,7 +313,7 @@ public class ColumnDefinition extends ColumnSpecification
      */
     public boolean hasIndexOption(String name)
     {
-        return indexOptions.containsKey(name);
+        return indexOptions != null && indexOptions.containsKey(name);
     }
 
     /**

@@ -17,7 +17,7 @@
  */
 package org.apache.cassandra.thrift;
 
-import java.net.SocketAddress;
+import java.net.InetSocketAddress;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.service.ClientState;
@@ -34,7 +34,7 @@ public class ThriftClientState extends ClientState
 {
     private final QueryState queryState;
 
-    public ThriftClientState(SocketAddress remoteAddress)
+    public ThriftClientState(InetSocketAddress remoteAddress)
     {
         super(remoteAddress);
         this.queryState = new QueryState(this);

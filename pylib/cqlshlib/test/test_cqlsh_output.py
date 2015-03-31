@@ -113,10 +113,11 @@ class TestCqlshOutput(BaseTestCase):
             self.assertTrue(6 <= len(output) <= 8,
                             msg='output: %r' % '\n'.join(output))
             self.assertEqual(output[0], '')
-            self.assertNicelyFormattedTableHeader(output[1])
-            self.assertNicelyFormattedTableRule(output[2])
-            self.assertNicelyFormattedTableData(output[3])
-            self.assertEqual(output[4].strip(), '')
+            self.assertEqual(output[1], 'Warning!  Non-ISO 8601 dates detected (< 1-1-1 or > 9999-12-31).  Returning raw days since epoch.');
+            self.assertNicelyFormattedTableHeader(output[2])
+            self.assertNicelyFormattedTableRule(output[3])
+            self.assertNicelyFormattedTableData(output[4])
+            self.assertEqual(output[5].strip(), '')
 
     def test_color_output(self):
         for termname in ('xterm', 'unknown-garbage'):
@@ -274,9 +275,9 @@ class TestCqlshOutput(BaseTestCase):
         # same query should show up as empty in cql 3
         self.assertQueriesGiveColoredOutput((
             (q, """
-             num | asciicol | bigintcol | blobcol | booleancol | decimalcol | doublecol | floatcol | intcol | textcol | timestampcol | uuidcol | varcharcol | varintcol
-             RRR   MMMMMMMM   MMMMMMMMM   MMMMMMM   MMMMMMMMMM   MMMMMMMMMM   MMMMMMMMM   MMMMMMMM   MMMMMM   MMMMMMM   MMMMMMMMMMMM   MMMMMMM   MMMMMMMMMM   MMMMMMMMM
-            -----+----------+-----------+---------+------------+------------+-----------+----------+--------+---------+--------------+---------+------------+-----------
+             num | asciicol | bigintcol | blobcol | booleancol | datecol | decimalcol | doublecol | floatcol | intcol | textcol | timecol | timestampcol | uuidcol | varcharcol | varintcol
+             RRR   MMMMMMMM   MMMMMMMMM   MMMMMMM   MMMMMMMMMM   MMMMMMM   MMMMMMMMMM   MMMMMMMMM   MMMMMMMM   MMMMMM   MMMMMMM   MMMMMMM   MMMMMMMMMMMM   MMMMMMM   MMMMMMMMMM   MMMMMMMMM
+            -----+----------+-----------+---------+------------+---------+------------+-----------+----------+--------+---------+---------+--------------+---------+------------+-----------
 
 
             (0 rows)
@@ -597,11 +598,13 @@ class TestCqlshOutput(BaseTestCase):
                 bigintcol bigint,
                 blobcol blob,
                 booleancol boolean,
+                datecol date,
                 decimalcol decimal,
                 doublecol double,
                 floatcol float,
                 intcol int,
                 textcol text,
+                timecol time,
                 timestampcol timestamp,
                 uuidcol uuid,
                 varcharcol text,

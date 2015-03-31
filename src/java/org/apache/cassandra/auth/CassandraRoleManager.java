@@ -29,6 +29,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.concurrent.ScheduledExecutors;
+import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.cql3.*;
@@ -100,8 +101,19 @@ public class CassandraRoleManager implements IRoleManager
         }
     };
 
-    // 2 ** GENSALT_LOG2_ROUNS rounds of hashing will be performed.
-    private static final int GENSALT_LOG2_ROUNDS = 10;
+    // 2 ** GENSALT_LOG2_ROUNDS rounds of hashing will be performed.
+    private static final String GENSALT_LOG2_ROUNDS_PROPERTY = Config.PROPERTY_PREFIX + "auth_bcrypt_gensalt_log2_rounds";
+    private static final int GENSALT_LOG2_ROUNDS = getGensaltLogRounds();
+
+    static int getGensaltLogRounds()
+    {
+         int rounds = Integer.getInteger(GENSALT_LOG2_ROUNDS_PROPERTY, 10);
+         if (rounds < 4 || rounds > 31)
+         throw new ConfigurationException(String.format("Bad value for system property -D%s." +
+                                                        "Please use a value 4 and 31",
+                                                        GENSALT_LOG2_ROUNDS_PROPERTY));
+         return rounds;
+    }
 
     // NullObject returned when a supplied role name not found in AuthKeyspace.ROLES
     private static final Role NULL_ROLE = new Role(null, false, false, Collections.<String>emptySet());
@@ -115,11 +127,11 @@ public class CassandraRoleManager implements IRoleManager
     public CassandraRoleManager()
     {
         supportedOptions = DatabaseDescriptor.getAuthenticator().getClass() == PasswordAuthenticator.class
-                           ? ImmutableSet.of(Option.LOGIN, Option.SUPERUSER, Option.PASSWORD)
-                           : ImmutableSet.of(Option.LOGIN, Option.SUPERUSER);
+                         ? ImmutableSet.of(Option.LOGIN, Option.SUPERUSER, Option.PASSWORD)
+                         : ImmutableSet.of(Option.LOGIN, Option.SUPERUSER);
         alterableOptions = DatabaseDescriptor.getAuthenticator().getClass().equals(PasswordAuthenticator.class)
-                           ? ImmutableSet.of(Option.PASSWORD)
-                           : ImmutableSet.<Option>of();
+                         ? ImmutableSet.of(Option.PASSWORD)
+                         : ImmutableSet.<Option>of();
     }
 
     public void setup()
@@ -135,8 +147,8 @@ public class CassandraRoleManager implements IRoleManager
         if (Schema.instance.getCFMetaData(AuthKeyspace.NAME, "users") != null)
         {
              legacySelectUserStatement = (SelectStatement) prepare("SELECT * FROM %s.%s WHERE name = ?",
-                                                             AuthKeyspace.NAME,
-                                                             LEGACY_USERS_TABLE);
+                                                                   AuthKeyspace.NAME,
+                                                                   LEGACY_USERS_TABLE);
             scheduleSetupTask(new Runnable()
             {
                 public void run()
@@ -167,23 +179,23 @@ public class CassandraRoleManager implements IRoleManager
         return alterableOptions;
     }
 
-    public void createRole(AuthenticatedUser performer, RoleResource role, Map<Option, Object> options)
+    public void createRole(AuthenticatedUser performer, RoleResource role, RoleOptions options)
     throws RequestValidationException, RequestExecutionException
     {
-        String insertCql = options.containsKey(Option.PASSWORD)
-                            ? String.format("INSERT INTO %s.%s (role, is_superuser, can_login, salted_hash) VALUES ('%s', %s, %s, '%s')",
-                                            AuthKeyspace.NAME,
-                                            AuthKeyspace.ROLES,
-                                            escape(role.getRoleName()),
-                                            options.get(Option.SUPERUSER),
-                                            options.get(Option.LOGIN),
-                                            escape(hashpw(options.get(Option.PASSWORD).toString())))
-                            : String.format("INSERT INTO %s.%s (role, is_superuser, can_login) VALUES ('%s', %s, %s)",
-                                            AuthKeyspace.NAME,
-                                            AuthKeyspace.ROLES,
-                                            escape(role.getRoleName()),
-                                            options.get(Option.SUPERUSER),
-                                            options.get(Option.LOGIN));
+        String insertCql = options.getPassword().isPresent()
+                         ? String.format("INSERT INTO %s.%s (role, is_superuser, can_login, salted_hash) VALUES ('%s', %s, %s, '%s')",
+                                         AuthKeyspace.NAME,
+                                         AuthKeyspace.ROLES,
+                                         escape(role.getRoleName()),
+                                         options.getSuperuser().get(),
+                                         options.getLogin().get(),
+                                         escape(hashpw(options.getPassword().get())))
+                         : String.format("INSERT INTO %s.%s (role, is_superuser, can_login) VALUES ('%s', %s, %s)",
+                                         AuthKeyspace.NAME,
+                                         AuthKeyspace.ROLES,
+                                         escape(role.getRoleName()),
+                                         options.getSuperuser().get(),
+                                         options.getLogin().get());
         process(insertCql, consistencyForRole(role.getRoleName()));
     }
 
@@ -197,14 +209,12 @@ public class CassandraRoleManager implements IRoleManager
         removeAllMembers(role.getRoleName());
     }
 
-    public void alterRole(AuthenticatedUser performer, RoleResource role, Map<Option, Object> options)
-    throws RequestValidationException, RequestExecutionException
+    public void alterRole(AuthenticatedUser performer, RoleResource role, RoleOptions options)
     {
         // Unlike most of the other data access methods here, this does not use a
         // prepared statement in order to allow the set of assignments to be variable.
-        String assignments = Joiner.on(',')
-                                   .join(Iterables.filter(optionsToAssignments(options),
-                                                          Predicates.notNull()));
+        String assignments = Joiner.on(',').join(Iterables.filter(optionsToAssignments(options.getOptions()),
+                                                                  Predicates.notNull()));
         if (!Strings.isNullOrEmpty(assignments))
         {
             QueryProcessor.process(String.format("UPDATE %s.%s SET %s WHERE role = '%s'",
@@ -372,9 +382,9 @@ public class CassandraRoleManager implements IRoleManager
                                                                 ConsistencyLevel.QUORUM);
                 for (UntypedResultSet.Row row : users)
                 {
-                    Map<Option, Object> options = new HashMap<>();
-                    options.put(Option.SUPERUSER, row.getBoolean("super"));
-                    options.put(Option.LOGIN, true);
+                    RoleOptions options = new RoleOptions();
+                    options.setOption(Option.SUPERUSER, row.getBoolean("super"));
+                    options.setOption(Option.LOGIN, true);
                     createRole(null, RoleResource.role(row.getString("name")), options);
                 }
                 logger.info("Completed conversion of legacy users");

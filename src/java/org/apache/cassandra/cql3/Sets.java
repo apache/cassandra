@@ -321,14 +321,33 @@ public abstract class Sets
                 return;
 
             // This can be either a set or a single element
-            Set<ByteBuffer> toDiscard = value instanceof Constants.Value
-                                      ? Collections.singleton(((Constants.Value)value).bytes)
-                                      : ((Sets.Value)value).elements;
+            Set<ByteBuffer> toDiscard = value instanceof Sets.Value
+                                      ? ((Sets.Value)value).elements
+                                      : Collections.singleton(value.get(params.options));
 
             for (ByteBuffer bb : toDiscard)
             {
                 cf.addColumn(params.makeTombstone(cf.getComparator().create(prefix, column, bb)));
             }
+        }
+    }
+
+    public static class ElementDiscarder extends Operation
+    {
+        public ElementDiscarder(ColumnDefinition column, Term k)
+        {
+            super(column, k);
+        }
+
+        public void execute(ByteBuffer rowKey, ColumnFamily cf, Composite prefix, UpdateParameters params) throws InvalidRequestException
+        {
+            assert column.type.isMultiCell() : "Attempted to delete a single element in a frozen set";
+            Term.Terminal elt = t.bind(params.options);
+            if (elt == null)
+                throw new InvalidRequestException("Invalid null set element");
+
+            CellName cellName = cf.getComparator().create(prefix, column, elt.get(params.options));
+            cf.addColumn(params.makeTombstone(cellName));
         }
     }
 }

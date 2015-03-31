@@ -32,6 +32,7 @@ import org.apache.cassandra.db.columniterator.IColumnIteratorFactory;
 import org.apache.cassandra.db.columniterator.LazyColumnIterator;
 import org.apache.cassandra.db.columniterator.OnDiskAtomIterator;
 import org.apache.cassandra.dht.AbstractBounds;
+import org.apache.cassandra.dht.AbstractBounds.Boundary;
 import org.apache.cassandra.dht.Bounds;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
@@ -43,6 +44,10 @@ import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.io.util.RandomAccessReader;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.Pair;
+
+import static org.apache.cassandra.dht.AbstractBounds.isEmpty;
+import static org.apache.cassandra.dht.AbstractBounds.maxLeft;
+import static org.apache.cassandra.dht.AbstractBounds.minRight;
 
 public class BigTableScanner implements ISSTableScanner
 {
@@ -88,32 +93,7 @@ public class BigTableScanner implements ISSTableScanner
         this.rowIndexEntrySerializer = sstable.descriptor.version.getSSTableFormat().getIndexSerializer(sstable.metadata);
 
         List<AbstractBounds<RowPosition>> boundsList = new ArrayList<>(2);
-        // we enforce the first/last keys of the sstablereader
-        if (dataRange.isWrapAround())
-        {
-            if (dataRange.stopKey().isMinimum()
-                || dataRange.stopKey().compareTo(sstable.last) >= 0
-                || dataRange.startKey().compareTo(sstable.first) <= 0)
-            {
-                boundsList.add(new Bounds<RowPosition>(sstable.first, sstable.last));
-            }
-            else
-            {
-                if (dataRange.startKey().compareTo(sstable.last) <= 0)
-                    boundsList.add(new Bounds<>(dataRange.startKey(), sstable.last));
-                if (dataRange.stopKey().compareTo(sstable.first) >= 0)
-                    boundsList.add(new Bounds<>(sstable.first, dataRange.stopKey()));
-            }
-        }
-        else
-        {
-            assert dataRange.startKey().compareTo(dataRange.stopKey()) <= 0 || dataRange.stopKey().isMinimum();
-            RowPosition left = Ordering.natural().max(dataRange.startKey(), sstable.first);
-            // apparently isWrapAround() doesn't count Bounds that extend to the limit (min) as wrapping
-            RowPosition right = dataRange.stopKey().isMinimum() ? sstable.last : Ordering.natural().min(dataRange.stopKey(), sstable.last);
-            if (left.compareTo(right) <= 0)
-                boundsList.add(new Bounds<>(left, right));
-        }
+        addRange(dataRange.keyRange(), boundsList);
         this.rangeIterator = boundsList.iterator();
     }
 
@@ -132,27 +112,51 @@ public class BigTableScanner implements ISSTableScanner
         this.dataRange = null;
         this.rowIndexEntrySerializer = sstable.descriptor.version.getSSTableFormat().getIndexSerializer(sstable.metadata);
 
-        List<Range<Token>> normalized = Range.normalize(tokenRanges);
-        List<AbstractBounds<RowPosition>> boundsList = new ArrayList<>(normalized.size());
-        // we enforce the first/last keys of the sstablereader
-        for (Range<Token> range : normalized)
-        {
-            // cap our ranges by the start/end of the sstable
-            RowPosition right = range.right.maxKeyBound();
-            if (right.compareTo(sstable.last) > 0)
-                right = sstable.last;
-
-            RowPosition left = range.left.maxKeyBound();
-            if (left.compareTo(sstable.first) < 0)
-            {
-                if (sstable.first.compareTo(right) <= 0)
-                    boundsList.add(new Bounds<>(sstable.first, right));
-            }
-            else if (left.compareTo(right) < 0)
-                boundsList.add(new Range<>(left, right));
-        }
+        List<AbstractBounds<RowPosition>> boundsList = new ArrayList<>(tokenRanges.size());
+        for (Range<Token> range : Range.normalize(tokenRanges))
+            addRange(Range.makeRowRange(range), boundsList);
 
         this.rangeIterator = boundsList.iterator();
+    }
+
+    private void addRange(AbstractBounds<RowPosition> requested, List<AbstractBounds<RowPosition>> boundsList)
+    {
+        if (requested instanceof Range && ((Range)requested).isWrapAround())
+        {
+            if (requested.right.compareTo(sstable.first) >= 0)
+            {
+                // since we wrap, we must contain the whole sstable prior to stopKey()
+                Boundary<RowPosition> left = new Boundary<RowPosition>(sstable.first, true);
+                Boundary<RowPosition> right;
+                right = requested.rightBoundary();
+                right = minRight(right, sstable.last, true);
+                if (!isEmpty(left, right))
+                    boundsList.add(AbstractBounds.bounds(left, right));
+            }
+            if (requested.left.compareTo(sstable.last) <= 0)
+            {
+                // since we wrap, we must contain the whole sstable after dataRange.startKey()
+                Boundary<RowPosition> right = new Boundary<RowPosition>(sstable.last, true);
+                Boundary<RowPosition> left;
+                left = requested.leftBoundary();
+                left = maxLeft(left, sstable.first, true);
+                if (!isEmpty(left, right))
+                    boundsList.add(AbstractBounds.bounds(left, right));
+            }
+        }
+        else
+        {
+            assert requested.left.compareTo(requested.right) <= 0 || requested.right.isMinimum();
+            Boundary<RowPosition> left, right;
+            left = requested.leftBoundary();
+            right = requested.rightBoundary();
+            left = maxLeft(left, sstable.first, true);
+            // apparently isWrapAround() doesn't count Bounds that extend to the limit (min) as wrapping
+            right = requested.right.isMinimum() ? new Boundary<RowPosition>(sstable.last, true)
+                                                    : minRight(right, sstable.last, true);
+            if (!isEmpty(left, right))
+                boundsList.add(AbstractBounds.bounds(left, right));
+        }
     }
 
     private void seekToCurrentRangeStart()

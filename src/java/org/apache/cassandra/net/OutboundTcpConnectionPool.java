@@ -36,11 +36,14 @@ import org.apache.cassandra.utils.FBUtilities;
 
 public class OutboundTcpConnectionPool
 {
+    public static final long LARGE_MESSAGE_THRESHOLD =
+            Long.getLong(Config.PROPERTY_PREFIX + "otcp_large_message_threshold", 1024 * 64);
+
     // pointer for the real Address.
     private final InetAddress id;
     private final CountDownLatch started;
-    public final OutboundTcpConnection cmdCon;
-    public final OutboundTcpConnection ackCon;
+    public final OutboundTcpConnection smallMessages;
+    public final OutboundTcpConnection largeMessages;
     // pointer to the reset Address.
     private InetAddress resetEndpoint;
     private ConnectionMetrics metrics;
@@ -51,8 +54,8 @@ public class OutboundTcpConnectionPool
         resetEndpoint = SystemKeyspace.getPreferredIP(remoteEp);
         started = new CountDownLatch(1);
 
-        cmdCon = new OutboundTcpConnection(this);
-        ackCon = new OutboundTcpConnection(this);
+        smallMessages = new OutboundTcpConnection(this);
+        largeMessages = new OutboundTcpConnection(this);
     }
 
     /**
@@ -61,21 +64,20 @@ public class OutboundTcpConnectionPool
      */
     OutboundTcpConnection getConnection(MessageOut msg)
     {
-        Stage stage = msg.getStage();
-        return stage == Stage.REQUEST_RESPONSE || stage == Stage.INTERNAL_RESPONSE || stage == Stage.GOSSIP
-               ? ackCon
-               : cmdCon;
+        return msg.payloadSize(smallMessages.getTargetVersion()) > LARGE_MESSAGE_THRESHOLD
+               ? largeMessages
+               : smallMessages;
     }
 
     void reset()
     {
-        for (OutboundTcpConnection conn : new OutboundTcpConnection[] { cmdCon, ackCon })
+        for (OutboundTcpConnection conn : new OutboundTcpConnection[] { smallMessages, largeMessages })
             conn.closeSocket(false);
     }
 
     public void resetToNewerVersion(int version)
     {
-        for (OutboundTcpConnection conn : new OutboundTcpConnection[] { cmdCon, ackCon })
+        for (OutboundTcpConnection conn : new OutboundTcpConnection[] { smallMessages, largeMessages })
         {
             if (version > conn.getTargetVersion())
                 conn.softCloseSocket();
@@ -91,7 +93,7 @@ public class OutboundTcpConnectionPool
     {
         SystemKeyspace.updatePreferredIP(id, remoteEP);
         resetEndpoint = remoteEP;
-        for (OutboundTcpConnection conn : new OutboundTcpConnection[] { cmdCon, ackCon })
+        for (OutboundTcpConnection conn : new OutboundTcpConnection[] { smallMessages, largeMessages })
             conn.softCloseSocket();
 
         // release previous metrics and create new one with reset address
@@ -163,17 +165,17 @@ public class OutboundTcpConnectionPool
         }
         return true;
     }
-    
+
     public void start()
     {
-        cmdCon.start();
-        ackCon.start();
+        smallMessages.start();
+        largeMessages.start();
 
         metrics = new ConnectionMetrics(id, this);
-        
+
         started.countDown();
     }
-    
+
     public void waitForStarted()
     {
         if (started.getCount() == 0)
@@ -197,11 +199,11 @@ public class OutboundTcpConnectionPool
     public void close()
     {
         // these null guards are simply for tests
-        if (ackCon != null)
-            ackCon.closeSocket(true);
-        if (cmdCon != null)
-            cmdCon.closeSocket(true);
-        
+        if (largeMessages != null)
+            largeMessages.closeSocket(true);
+        if (smallMessages != null)
+            smallMessages.closeSocket(true);
+
         metrics.release();
     }
 }

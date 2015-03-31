@@ -38,16 +38,19 @@ public class ConnectionMetrics
     public static final Meter totalTimeouts = Metrics.meter(DefaultNameFactory.createMetricName(TYPE_NAME, "TotalTimeouts", null));
 
     public final String address;
-    /** Pending tasks for Command(Mutations, Read etc) TCP Connections */
-    public final Gauge<Integer> commandPendingTasks;
-    /** Completed tasks for Command(Mutations, Read etc) TCP Connections */
-    public final Gauge<Long> commandCompletedTasks;
-    /** Dropped tasks for Command(Mutations, Read etc) TCP Connections */
-    public final Gauge<Long> commandDroppedTasks;
-    /** Pending tasks for Response(GOSSIP & RESPONSE) TCP Connections */
-    public final Gauge<Integer> responsePendingTasks;
-    /** Completed tasks for Response(GOSSIP & RESPONSE) TCP Connections */
-    public final Gauge<Long> responseCompletedTasks;
+    /** Pending tasks for large message TCP Connections */
+    public final Gauge<Integer> largeMessagePendingTasks;
+    /** Completed tasks for large message TCP Connections */
+    public final Gauge<Long> largeMessageCompletedTasks;
+    /** Dropped tasks for large message TCP Connections */
+    public final Gauge<Long> largeMessageDroppedTasks;
+    /** Pending tasks for small message TCP Connections */
+    public final Gauge<Integer> smallMessagePendingTasks;
+    /** Completed tasks for small message TCP Connections */
+    public final Gauge<Long> smallMessageCompletedTasks;
+    /** Dropped tasks for small message TCP Connections */
+    public final Gauge<Long> smallMessageDroppedTasks;
+
     /** Number of timeouts for specific IP */
     public final Meter timeouts;
 
@@ -62,43 +65,50 @@ public class ConnectionMetrics
     public ConnectionMetrics(InetAddress ip, final OutboundTcpConnectionPool connectionPool)
     {
         // ipv6 addresses will contain colons, which are invalid in a JMX ObjectName
-        address = ip.getHostAddress().replaceAll(":", ".");
+        address = ip.getHostAddress().replace(':', '.');
 
         factory = new DefaultNameFactory("Connection", address);
 
-        commandPendingTasks = Metrics.register(factory.createMetricName("CommandPendingTasks"), new Gauge<Integer>()
+        largeMessagePendingTasks = Metrics.register(factory.createMetricName("LargeMessagePendingTasks"), new Gauge<Integer>()
         {
             public Integer getValue()
             {
-                return connectionPool.cmdCon.getPendingMessages();
+                return connectionPool.largeMessages.getPendingMessages();
             }
         });
-        commandCompletedTasks = Metrics.register(factory.createMetricName("CommandCompletedTasks"), new Gauge<Long>()
+        largeMessageCompletedTasks = Metrics.register(factory.createMetricName("LargeMessageCompletedTasks"), new Gauge<Long>()
         {
             public Long getValue()
             {
-                return connectionPool.cmdCon.getCompletedMesssages();
+                return connectionPool.largeMessages.getCompletedMesssages();
             }
         });
-        commandDroppedTasks = Metrics.register(factory.createMetricName("CommandDroppedTasks"), new Gauge<Long>()
+        largeMessageDroppedTasks = Metrics.register(factory.createMetricName("LargeMessageDroppedTasks"), new Gauge<Long>()
         {
             public Long getValue()
             {
-                return connectionPool.cmdCon.getDroppedMessages();
+                return connectionPool.largeMessages.getDroppedMessages();
             }
         });
-        responsePendingTasks = Metrics.register(factory.createMetricName("ResponsePendingTasks"), new Gauge<Integer>()
+        smallMessagePendingTasks = Metrics.register(factory.createMetricName("SmallMessagePendingTasks"), new Gauge<Integer>()
         {
             public Integer getValue()
             {
-                return connectionPool.ackCon.getPendingMessages();
+                return connectionPool.smallMessages.getPendingMessages();
             }
         });
-        responseCompletedTasks = Metrics.register(factory.createMetricName("ResponseCompletedTasks"), new Gauge<Long>()
+        smallMessageCompletedTasks = Metrics.register(factory.createMetricName("SmallMessageCompletedTasks"), new Gauge<Long>()
         {
             public Long getValue()
             {
-                return connectionPool.ackCon.getCompletedMesssages();
+                return connectionPool.smallMessages.getCompletedMesssages();
+            }
+        });
+        smallMessageDroppedTasks = Metrics.register(factory.createMetricName("SmallMessageDroppedTasks"), new Gauge<Long>()
+        {
+            public Long getValue()
+            {
+                return connectionPool.smallMessages.getDroppedMessages();
             }
         });
         timeouts = Metrics.meter(factory.createMetricName("Timeouts"));
@@ -106,11 +116,12 @@ public class ConnectionMetrics
 
     public void release()
     {
-        Metrics.remove(factory.createMetricName("CommandPendingTasks"));
-        Metrics.remove(factory.createMetricName("CommandCompletedTasks"));
-        Metrics.remove(factory.createMetricName("CommandDroppedTasks"));
-        Metrics.remove(factory.createMetricName("ResponsePendingTasks"));
-        Metrics.remove(factory.createMetricName("ResponseCompletedTasks"));
+        Metrics.remove(factory.createMetricName("LargeMessagePendingTasks"));
+        Metrics.remove(factory.createMetricName("LargeMessageCompletedTasks"));
+        Metrics.remove(factory.createMetricName("LargeMessageDroppedTasks"));
+        Metrics.remove(factory.createMetricName("SmallMessagePendingTasks"));
+        Metrics.remove(factory.createMetricName("SmallMessageCompletedTasks"));
+        Metrics.remove(factory.createMetricName("SmallMessageDroppedTasks"));
         Metrics.remove(factory.createMetricName("Timeouts"));
     }
 }

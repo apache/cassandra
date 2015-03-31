@@ -36,6 +36,7 @@ import org.apache.cassandra.utils.Pair;
 
 import static org.junit.Assert.assertEquals;
 import static org.apache.cassandra.utils.ByteBufferUtil.bytes;
+import static org.junit.Assert.assertNotSame;
 
 /**
  * Serialization/deserialization tests for protocol objects and messages.
@@ -226,5 +227,35 @@ public class SerDeserTest
         m.put("bar", 12L);
         m.put("foo", 24L);
         assertEquals(m, mt.getSerializer().deserializeForNativeProtocol(fields[3], 3));
+    }
+
+    @Test
+    public void preparedMetadataSerializationTest()
+    {
+        List<ColumnSpecification> columnNames = new ArrayList<>();
+        for (int i = 0; i < 3; i++)
+            columnNames.add(new ColumnSpecification("ks", "cf", new ColumnIdentifier("col" + i, false), Int32Type.instance));
+
+        ResultSet.PreparedMetadata meta = new ResultSet.PreparedMetadata(columnNames, new Short[]{2, 1});
+        ByteBuf buf = Unpooled.buffer(meta.codec.encodedSize(meta, Server.VERSION_4));
+        meta.codec.encode(meta, buf, Server.VERSION_4);
+        ResultSet.PreparedMetadata decodedMeta = meta.codec.decode(buf, Server.VERSION_4);
+
+        assertEquals(meta, decodedMeta);
+
+        // v3 encoding doesn't include partition key bind indexes
+        buf = Unpooled.buffer(meta.codec.encodedSize(meta, Server.VERSION_3));
+        meta.codec.encode(meta, buf, Server.VERSION_3);
+        decodedMeta = meta.codec.decode(buf, Server.VERSION_3);
+
+        assertNotSame(meta, decodedMeta);
+
+        // however, if there are no partition key indexes, they should be the same
+        ResultSet.PreparedMetadata metaWithoutIndexes = new ResultSet.PreparedMetadata(columnNames, null);
+        buf = Unpooled.buffer(metaWithoutIndexes.codec.encodedSize(metaWithoutIndexes, Server.VERSION_4));
+        metaWithoutIndexes.codec.encode(metaWithoutIndexes, buf, Server.VERSION_4);
+        ResultSet.PreparedMetadata decodedMetaWithoutIndexes = metaWithoutIndexes.codec.decode(buf, Server.VERSION_4);
+
+        assertEquals(decodedMeta, decodedMetaWithoutIndexes);
     }
 }

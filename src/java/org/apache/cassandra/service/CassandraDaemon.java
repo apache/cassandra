@@ -39,7 +39,7 @@ import com.google.common.util.concurrent.Uninterruptibles;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.addthis.metrics.reporter.config.ReporterConfig;
+import com.addthis.metrics3.reporter.config.ReporterConfig;
 
 import org.apache.cassandra.concurrent.JMXEnabledThreadPoolExecutor;
 import org.apache.cassandra.concurrent.ScheduledExecutors;
@@ -372,7 +372,7 @@ public class CassandraDaemon
             try
             {
                 String reportFileLocation = CassandraDaemon.class.getClassLoader().getResource(metricsReporterConfigFile).getFile();
-                ReporterConfig.loadFromFile(reportFileLocation).enableAll();
+                ReporterConfig.loadFromFile(reportFileLocation).enableAll(CassandraMetricsRegistry.Metrics);
             }
             catch (Exception e)
             {
@@ -425,7 +425,9 @@ public class CassandraDaemon
     {
         String nativeFlag = System.getProperty("cassandra.start_native_transport");
         if ((nativeFlag != null && Boolean.parseBoolean(nativeFlag)) || (nativeFlag == null && DatabaseDescriptor.startNativeTransport()))
+        {
             nativeServer.start();
+        }
         else
             logger.info("Not starting native transport as requested. Use JMX (StorageService->startNativeTransport()) or nodetool (enablebinary) to start it");
 
@@ -522,7 +524,7 @@ public class CassandraDaemon
             else
             {
                 if (runManaged)
-                    logger.error("Exception encountered during startup: " + e.getMessage());
+                    logger.error("Exception encountered during startup: {}", e.getMessage());
                 // try to warn user on stdout too, if we haven't already detached
                 System.err.println(e.getMessage());
                 exitOrFail(3, "Exception encountered during startup: " + e.getMessage());

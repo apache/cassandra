@@ -260,6 +260,17 @@ public class IndexSummaryManager implements IndexSummaryManagerMBean
         for (SSTableReader sstable : Iterables.concat(compacting, nonCompacting))
             total += sstable.getIndexSummaryOffHeapSize();
 
+        List<SSTableReader> oldFormatSSTables = new ArrayList<>();
+        for (SSTableReader sstable : nonCompacting)
+        {
+            // We can't change the sampling level of sstables with the old format, because the serialization format
+            // doesn't include the sampling level.  Leave this one as it is.  (See CASSANDRA-8993 for details.)
+            logger.trace("SSTable {} cannot be re-sampled due to old sstable format", sstable);
+            if (!sstable.descriptor.version.hasSamplingLevel())
+                oldFormatSSTables.add(sstable);
+        }
+        nonCompacting.removeAll(oldFormatSSTables);
+
         logger.debug("Beginning redistribution of index summaries for {} sstables with memory pool size {} MB; current spaced used is {} MB",
                      nonCompacting.size(), memoryPoolBytes / 1024L / 1024L, total / 1024.0 / 1024.0);
 
@@ -281,7 +292,7 @@ public class IndexSummaryManager implements IndexSummaryManagerMBean
         Collections.sort(sstablesByHotness, new ReadRateComparator(readRates));
 
         long remainingBytes = memoryPoolBytes;
-        for (SSTableReader sstable : compacting)
+        for (SSTableReader sstable : Iterables.concat(compacting, oldFormatSSTables))
             remainingBytes -= sstable.getIndexSummaryOffHeapSize();
 
         logger.trace("Index summaries for compacting SSTables are using {} MB of space",
@@ -289,7 +300,7 @@ public class IndexSummaryManager implements IndexSummaryManagerMBean
         List<SSTableReader> newSSTables = adjustSamplingLevels(sstablesByHotness, totalReadsPerSec, remainingBytes);
 
         total = 0;
-        for (SSTableReader sstable : Iterables.concat(compacting, newSSTables))
+        for (SSTableReader sstable : Iterables.concat(compacting, oldFormatSSTables, newSSTables))
             total += sstable.getIndexSummaryOffHeapSize();
         logger.debug("Completed resizing of index summaries; current approximate memory used: {} MB",
                      total / 1024.0 / 1024.0);

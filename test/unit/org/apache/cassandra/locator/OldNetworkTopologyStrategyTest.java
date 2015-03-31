@@ -37,6 +37,7 @@ import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.Pair;
+
 import org.junit.Before;
 import org.junit.Test;
 
@@ -202,6 +203,7 @@ public class OldNetworkTopologyStrategyTest
 
     }
 
+    @SuppressWarnings("unchecked")
     @Test
     public void testMoveMiddleOfRing() throws UnknownHostException
     {
@@ -215,25 +217,26 @@ public class OldNetworkTopologyStrategyTest
         Pair<Set<Range<Token>>, Set<Range<Token>>> ranges = calculateStreamAndFetchRanges(tokens, tokensAfterMove, movingNodeIdx);
 
         // sort the results, so they can be compared
-        Range[] toStream = ranges.left.toArray(new Range[0]);
-        Range[] toFetch = ranges.right.toArray(new Range[0]);
+        Range<Token>[] toStream = ranges.left.toArray(new Range[0]);
+        Range<Token>[] toFetch = ranges.right.toArray(new Range[0]);
         Arrays.sort(toStream);
         Arrays.sort(toFetch);
 
         // build expected ranges
-        Range[] toStreamExpected = new Range[2];
-        toStreamExpected[0] = new Range(getToken(movingNodeIdx - 2, tokens), getToken(movingNodeIdx - 1, tokens));
-        toStreamExpected[1] = new Range(getToken(movingNodeIdx - 1, tokens), getToken(movingNodeIdx, tokens));
+        Range<Token>[] toStreamExpected = new Range[2];
+        toStreamExpected[0] = new Range<Token>(getToken(movingNodeIdx - 2, tokens), getToken(movingNodeIdx - 1, tokens));
+        toStreamExpected[1] = new Range<Token>(getToken(movingNodeIdx - 1, tokens), getToken(movingNodeIdx, tokens));
         Arrays.sort(toStreamExpected);
-        Range[] toFetchExpected = new Range[2];
-        toFetchExpected[0] = new Range(getToken(movingNodeIdxAfterMove - 1, tokens), getToken(movingNodeIdxAfterMove, tokens));
-        toFetchExpected[1] = new Range(getToken(movingNodeIdxAfterMove, tokensAfterMove), getToken(movingNodeIdx, tokensAfterMove));
+        Range<Token>[] toFetchExpected = new Range[2];
+        toFetchExpected[0] = new Range<Token>(getToken(movingNodeIdxAfterMove - 1, tokens), getToken(movingNodeIdxAfterMove, tokens));
+        toFetchExpected[1] = new Range<Token>(getToken(movingNodeIdxAfterMove, tokensAfterMove), getToken(movingNodeIdx, tokensAfterMove));
         Arrays.sort(toFetchExpected);
 
         assertEquals(Arrays.equals(toStream, toStreamExpected), true);
         assertEquals(Arrays.equals(toFetch, toFetchExpected), true);
     }
 
+    @SuppressWarnings("unchecked")
     @Test
     public void testMoveAfterNextNeighbors() throws UnknownHostException
     {
@@ -248,24 +251,25 @@ public class OldNetworkTopologyStrategyTest
 
 
         // sort the results, so they can be compared
-        Range[] toStream = ranges.left.toArray(new Range[0]);
-        Range[] toFetch = ranges.right.toArray(new Range[0]);
+        Range<Token>[] toStream = ranges.left.toArray(new Range[0]);
+        Range<Token>[] toFetch = ranges.right.toArray(new Range[0]);
         Arrays.sort(toStream);
         Arrays.sort(toFetch);
 
         // build expected ranges
-        Range[] toStreamExpected = new Range[1];
-        toStreamExpected[0] = new Range(getToken(movingNodeIdx - 2, tokens), getToken(movingNodeIdx - 1, tokens));
+        Range<Token>[] toStreamExpected = new Range[1];
+        toStreamExpected[0] = new Range<Token>(getToken(movingNodeIdx - 2, tokens), getToken(movingNodeIdx - 1, tokens));
         Arrays.sort(toStreamExpected);
-        Range[] toFetchExpected = new Range[2];
-        toFetchExpected[0] = new Range(getToken(movingNodeIdxAfterMove - 1, tokens), getToken(movingNodeIdxAfterMove, tokens));
-        toFetchExpected[1] = new Range(getToken(movingNodeIdxAfterMove, tokensAfterMove), getToken(movingNodeIdx, tokensAfterMove));
+        Range<Token>[] toFetchExpected = new Range[2];
+        toFetchExpected[0] = new Range<Token>(getToken(movingNodeIdxAfterMove - 1, tokens), getToken(movingNodeIdxAfterMove, tokens));
+        toFetchExpected[1] = new Range<Token>(getToken(movingNodeIdxAfterMove, tokensAfterMove), getToken(movingNodeIdx, tokensAfterMove));
         Arrays.sort(toFetchExpected);
 
         assertEquals(Arrays.equals(toStream, toStreamExpected), true);
         assertEquals(Arrays.equals(toFetch, toFetchExpected), true);
     }
 
+    @SuppressWarnings("unchecked")
     @Test
     public void testMoveBeforePreviousNeighbor() throws UnknownHostException
     {
@@ -278,17 +282,17 @@ public class OldNetworkTopologyStrategyTest
         BigIntegerToken[] tokensAfterMove = initTokensAfterMove(tokens, movingNodeIdx, newToken);
         Pair<Set<Range<Token>>, Set<Range<Token>>> ranges = calculateStreamAndFetchRanges(tokens, tokensAfterMove, movingNodeIdx);
 
-        Range[] toStream = ranges.left.toArray(new Range[0]);
-        Range[] toFetch = ranges.right.toArray(new Range[0]);
+        Range<Token>[] toStream = ranges.left.toArray(new Range[0]);
+        Range<Token>[] toFetch = ranges.right.toArray(new Range[0]);
         Arrays.sort(toStream);
         Arrays.sort(toFetch);
 
-        Range[] toStreamExpected = new Range[2];
-        toStreamExpected[0] = new Range(getToken(movingNodeIdx, tokensAfterMove), getToken(movingNodeIdx - 1, tokensAfterMove));
-        toStreamExpected[1] = new Range(getToken(movingNodeIdx - 1, tokens), getToken(movingNodeIdx, tokens));
+        Range<Token>[] toStreamExpected = new Range[2];
+        toStreamExpected[0] = new Range<Token>(getToken(movingNodeIdx, tokensAfterMove), getToken(movingNodeIdx - 1, tokensAfterMove));
+        toStreamExpected[1] = new Range<Token>(getToken(movingNodeIdx - 1, tokens), getToken(movingNodeIdx, tokens));
         Arrays.sort(toStreamExpected);
-        Range[] toFetchExpected = new Range[1];
-        toFetchExpected[0] = new Range(getToken(movingNodeIdxAfterMove - 1, tokens), getToken(movingNodeIdxAfterMove, tokens));
+        Range<Token>[] toFetchExpected = new Range[1];
+        toFetchExpected[0] = new Range<Token>(getToken(movingNodeIdxAfterMove - 1, tokens), getToken(movingNodeIdxAfterMove, tokens));
         Arrays.sort(toFetchExpected);
 
         System.out.println("toStream : " + Arrays.toString(toStream));

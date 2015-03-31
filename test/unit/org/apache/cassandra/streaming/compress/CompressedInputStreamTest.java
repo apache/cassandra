@@ -117,8 +117,8 @@ public class CompressedInputStreamTest
         for (int i = 0; i < sections.size(); i++)
         {
             input.position(sections.get(i).left);
-            long exp = in.readLong();
-            assert exp == valuesToCheck[i] : "expected " + valuesToCheck[i] + " but was " + exp;
+            long readValue = in.readLong();
+            assert readValue == valuesToCheck[i] : "expected " + valuesToCheck[i] + " but was " + readValue;
         }
     }
 }

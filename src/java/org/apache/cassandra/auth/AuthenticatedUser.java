@@ -38,10 +38,7 @@ public class AuthenticatedUser
     public static final AuthenticatedUser ANONYMOUS_USER = new AuthenticatedUser(ANONYMOUS_USERNAME);
 
     // User-level permissions cache.
-    private static final PermissionsCache permissionsCache = new PermissionsCache(DatabaseDescriptor.getPermissionsValidity(),
-                                                                                  DatabaseDescriptor.getPermissionsUpdateInterval(),
-                                                                                  DatabaseDescriptor.getPermissionsCacheMaxEntries(),
-                                                                                  DatabaseDescriptor.getAuthorizer());
+    private static final PermissionsCache permissionsCache = new PermissionsCache(DatabaseDescriptor.getAuthorizer());
 
     private final String name;
     // primary Role of the logged in user

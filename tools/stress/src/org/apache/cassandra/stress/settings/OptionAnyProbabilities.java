@@ -73,6 +73,11 @@ public final class OptionAnyProbabilities extends OptionMulti
         {
             return !options.isEmpty();
         }
+
+        boolean present()
+        {
+            return setByUser();
+        }
     }
 
 

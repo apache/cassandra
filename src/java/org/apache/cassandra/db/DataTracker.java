@@ -49,10 +49,15 @@ public class DataTracker
     public final ColumnFamilyStore cfstore;
     private final AtomicReference<View> view;
 
-    public DataTracker(ColumnFamilyStore cfstore)
+    // Indicates if it is safe to load the initial sstables (may not be true when running in
+    //standalone processes meant to repair or upgrade sstables (e.g. standalone scrubber)
+    public final boolean loadsstables;
+
+    public DataTracker(ColumnFamilyStore cfstore, boolean loadsstables)
     {
         this.cfstore = cfstore;
         this.view = new AtomicReference<>();
+        this.loadsstables = loadsstables;
         this.init();
     }
 
@@ -194,9 +199,9 @@ public class DataTracker
      */
     public boolean markCompacting(Collection<SSTableReader> sstables)
     {
-        return markCompacting(sstables, false);
+        return markCompacting(sstables, false, false);
     }
-    public boolean markCompacting(Collection<SSTableReader> sstables, boolean newTables)
+    public boolean markCompacting(Collection<SSTableReader> sstables, boolean newTables, boolean offline)
     {
         assert sstables != null && !Iterables.isEmpty(sstables);
         while (true)
@@ -205,7 +210,7 @@ public class DataTracker
             if (Iterables.any(sstables, Predicates.in(currentView.compacting)))
                 return false;
 
-            Predicate live = new Predicate<SSTableReader>()
+            Predicate<SSTableReader> live = new Predicate<SSTableReader>()
             {
                 public boolean apply(SSTableReader sstable)
                 {
@@ -214,7 +219,7 @@ public class DataTracker
             };
             if (newTables)
                 assert !Iterables.any(sstables, Predicates.in(currentView.sstables));
-            else if (!Iterables.all(sstables, live))
+            else if (!offline && !Iterables.all(sstables, live))
                 return false;
 
             View newView = currentView.markCompacting(sstables);
@@ -587,7 +592,7 @@ public class DataTracker
 
         private SSTableIntervalTree(Collection<Interval<RowPosition, SSTableReader>> intervals)
         {
-            super(intervals, null);
+            super(intervals);
         }
 
         public static SSTableIntervalTree empty()
@@ -772,22 +777,6 @@ public class DataTracker
         {
             Set<SSTableReader> compactingNew = ImmutableSet.copyOf(Sets.difference(compacting, ImmutableSet.copyOf(tounmark)));
             return new View(liveMemtables, flushingMemtables, sstablesMap, compactingNew, shadowed, intervalTree);
-        }
-
-        private Set<SSTableReader> newSSTables(Collection<SSTableReader> oldSSTables, Iterable<SSTableReader> replacements)
-        {
-            ImmutableSet<SSTableReader> oldSet = ImmutableSet.copyOf(oldSSTables);
-            int newSSTablesSize = sstables.size() - oldSSTables.size() + Iterables.size(replacements);
-            assert newSSTablesSize >= Iterables.size(replacements) : String.format("Incoherent new size %d replacing %s by %s in %s", newSSTablesSize, oldSSTables, replacements, this);
-            Set<SSTableReader> newSSTables = new HashSet<>(newSSTablesSize);
-
-            for (SSTableReader sstable : sstables)
-                if (!oldSet.contains(sstable))
-                    newSSTables.add(sstable);
-
-            Iterables.addAll(newSSTables, replacements);
-            assert newSSTables.size() == newSSTablesSize : String.format("Expecting new size of %d, got %d while replacing %s by %s in %s", newSSTablesSize, newSSTables.size(), oldSSTables, replacements, this);
-            return ImmutableSet.copyOf(newSSTables);
         }
 
         @Override

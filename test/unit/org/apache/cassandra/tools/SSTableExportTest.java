@@ -91,7 +91,7 @@ public class SSTableExportTest
     {
         return bytesToHex(ByteBufferUtil.bytes(str));
     }
-    
+
     @Test
     public void testEnumeratekeys() throws IOException
     {
@@ -123,7 +123,7 @@ public class SSTableExportTest
             char[] buf = new char[(int) temp.length()];
             file.read(buf);
             String output = new String(buf);
-    
+
             String sep = System.getProperty("line.separator");
             assert output.equals(asHex("rowA") + sep + asHex("rowB") + sep) : output;
         }
@@ -157,8 +157,7 @@ public class SSTableExportTest
 
         // Export to JSON and verify
         File tempJson = File.createTempFile("Standard1", ".json");
-        SSTableExport.export(reader, new PrintStream(tempJson.getPath()), new String[]{asHex("rowExclude")},
-                CFMetaData.sparseCFMetaData(KEYSPACE1, "Standard1", BytesType.instance));
+        SSTableExport.export(reader, new PrintStream(tempJson.getPath()), new String[]{asHex("rowExclude")});
 
         JSONArray json = (JSONArray)JSONValue.parseWithException(new FileReader(tempJson));
         assertEquals("unexpected number of rows", 2, json.size());
@@ -207,8 +206,7 @@ public class SSTableExportTest
 
         // Export to JSON and verify
         File tempJson = File.createTempFile("Standard1", ".json");
-        SSTableExport.export(reader, new PrintStream(tempJson.getPath()), new String[]{asHex("rowExclude")},
-                CFMetaData.sparseCFMetaData(KEYSPACE1, "Standard1", BytesType.instance));
+        SSTableExport.export(reader, new PrintStream(tempJson.getPath()), new String[]{asHex("rowExclude")});
 
         // Import JSON to another SSTable file
         File tempSS2 = tempSSTableFile(KEYSPACE1, "Standard1");
@@ -243,8 +241,7 @@ public class SSTableExportTest
 
         // Export to JSON and verify
         File tempJson = File.createTempFile("Counter1", ".json");
-        SSTableExport.export(reader, new PrintStream(tempJson.getPath()), new String[0],
-                CFMetaData.sparseCFMetaData(KEYSPACE1, "Counter1", BytesType.instance));
+        SSTableExport.export(reader, new PrintStream(tempJson.getPath()), new String[0]);
         JSONArray json = (JSONArray)JSONValue.parseWithException(new FileReader(tempJson));
         assertEquals("unexpected number of rows", 1, json.size());
 
@@ -275,8 +272,7 @@ public class SSTableExportTest
 
         // Export to JSON and verify
         File tempJson = File.createTempFile("ValuesWithQuotes", ".json");
-        SSTableExport.export(reader, new PrintStream(tempJson.getPath()), new String[0],
-                CFMetaData.sparseCFMetaData(KEYSPACE1, "ValuesWithQuotes", BytesType.instance));
+        SSTableExport.export(reader, new PrintStream(tempJson.getPath()), new String[0]);
 
         JSONArray json = (JSONArray)JSONValue.parseWithException(new FileReader(tempJson));
         assertEquals("unexpected number of rows", 1, json.size());
@@ -307,8 +303,7 @@ public class SSTableExportTest
         SSTableReader reader = writer.closeAndOpenReader();
         // Export to JSON and verify
         File tempJson = File.createTempFile("CFWithDeletionInfo", ".json");
-        SSTableExport.export(reader, new PrintStream(tempJson.getPath()), new String[0],
-                CFMetaData.sparseCFMetaData(KEYSPACE1, "Counter1", BytesType.instance));
+        SSTableExport.export(reader, new PrintStream(tempJson.getPath()), new String[0]);
 
         JSONArray json = (JSONArray)JSONValue.parseWithException(new FileReader(tempJson));
         assertEquals("unexpected number of rows", 1, json.size());
@@ -333,8 +328,8 @@ public class SSTableExportTest
 
         assertEquals(
                 "unexpected serialization format for topLevelDeletion",
-                "{\"markedForDeleteAt\":0,\"localDeletionTime\":0}",
-                serializedDeletionInfo.toJSONString());
+                JSONValue.parse("{\"markedForDeleteAt\":0,\"localDeletionTime\":0}"),
+                serializedDeletionInfo);
 
         // check the colums are what we put in
         JSONArray cols = (JSONArray) row.get("cells");
@@ -367,8 +362,7 @@ public class SSTableExportTest
         SSTableReader reader = writer.closeAndOpenReader();
         // Export to JSON and verify
         File tempJson = File.createTempFile("CFWithColumnNameEqualToDefaultKeyAlias", ".json");
-        SSTableExport.export(reader, new PrintStream(tempJson.getPath()), new String[0],
-                CFMetaData.sparseCFMetaData(KEYSPACE1, "UUIDKeys", BytesType.instance));
+        SSTableExport.export(reader, new PrintStream(tempJson.getPath()), new String[0]);
 
         JSONArray json = (JSONArray)JSONValue.parseWithException(new FileReader(tempJson));
         assertEquals(1, json.size());
@@ -399,8 +393,7 @@ public class SSTableExportTest
         File tempJson = File.createTempFile("CFWithAsciiKeys", ".json");
         SSTableExport.export(reader,
                              new PrintStream(tempJson.getPath()),
-                             new String[0],
-                             CFMetaData.sparseCFMetaData(KEYSPACE1, "AsciiKeys", BytesType.instance));
+                             new String[0]);
 
         JSONArray json = (JSONArray)JSONValue.parseWithException(new FileReader(tempJson));
         assertEquals(1, json.size());

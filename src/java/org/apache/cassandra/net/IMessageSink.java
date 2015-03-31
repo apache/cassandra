@@ -15,21 +15,23 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.config;
+package org.apache.cassandra.net;
 
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
+import java.net.InetAddress;
 
-
-public class SeedProviderDef
+public interface IMessageSink
 {
-    public String class_name;
-    public Map<String, String> parameters;
+    /**
+     * Allow or drop an outgoing message
+     *
+     * @return true if the message is allowed, false if it should be dropped
+     */
+    boolean allowOutgoingMessage(MessageOut message, int id, InetAddress to);
 
-    public SeedProviderDef(LinkedHashMap<String, ?> p)
-    {
-        class_name = (String)p.get("class_name");
-        parameters = (Map<String, String>)((List)p.get("parameters")).get(0);
-    }
+    /**
+     * Allow or drop an incoming message
+     *
+     * @return true if the message is allowed, false if it should be dropped
+     */
+    boolean allowIncomingMessage(MessageIn message, int id);
 }

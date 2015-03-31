@@ -201,7 +201,7 @@ public class StreamingHistogram
             Map<Double, Long> entries = histogram.getAsMap();
             size += typeSizes.sizeof(entries.size());
             // size of entries = size * (8(double) + 8(long))
-            size += entries.size() * (8 + 8);
+            size += entries.size() * (8L + 8L);
             return size;
         }
     }

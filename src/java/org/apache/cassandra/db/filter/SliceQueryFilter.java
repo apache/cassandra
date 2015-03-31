@@ -215,8 +215,13 @@ public class SliceQueryFilter implements IDiskAtomFilter
             {
                 Tracing.trace("Scanned over {} tombstones; query aborted (see tombstone_failure_threshold); slices={}",
                               DatabaseDescriptor.getTombstoneFailureThreshold(), getSlicesInfo(container));
-                throw new TombstoneOverwhelmingException(columnCounter.ignored(), count, container.metadata().ksName, container.metadata().cfName,
-                                container.getComparator().getString(cell.name()), getSlicesInfo(container),  container.deletionInfo().toString());
+
+                throw new TombstoneOverwhelmingException(columnCounter.ignored(),
+                                                         count,
+                                                         container.metadata().ksName,
+                                                         container.metadata().cfName,
+                                                         container.getComparator().getString(cell.name()),
+                                                         getSlicesInfo(container));
             }
 
             container.maybeAppendColumn(cell, tester, gcBefore);
@@ -225,12 +230,18 @@ public class SliceQueryFilter implements IDiskAtomFilter
         boolean warnTombstones = respectTombstoneThresholds() && columnCounter.ignored() > DatabaseDescriptor.getTombstoneWarnThreshold();
         if (warnTombstones)
         {
-            logger.warn("Read {} live and {} tombstoned cells in {}.{} (see tombstone_warn_threshold). {} columns were requested, slices={}, delInfo={}",
-                        columnCounter.live(), columnCounter.ignored(), container.metadata().ksName, container.metadata().cfName, count,
-                        getSlicesInfo(container), container.deletionInfo());
+            logger.warn("Read {} live and {} tombstoned cells in {}.{} (see tombstone_warn_threshold). {} columns were requested, slices={}",
+                        columnCounter.live(),
+                        columnCounter.ignored(),
+                        container.metadata().ksName,
+                        container.metadata().cfName,
+                        count,
+                        getSlicesInfo(container));
         }
         Tracing.trace("Read {} live and {} tombstoned cells{}",
-                      new Object[]{ columnCounter.live(), columnCounter.ignored(), (warnTombstones ? " (see tombstone_warn_threshold)" : "") });
+                      columnCounter.live(),
+                      columnCounter.ignored(),
+                      warnTombstones ? " (see tombstone_warn_threshold)" : "");
     }
 
     private String getSlicesInfo(ColumnFamily container)

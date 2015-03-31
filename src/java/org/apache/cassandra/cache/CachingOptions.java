@@ -76,18 +76,18 @@ public class CachingOptions
             {
                 if (!(value.equals("ALL") || value.equals("NONE")))
                 {
-                    throw new ConfigurationException("'keys' can only have values 'ALL' or 'NONE'");
+                    throw new ConfigurationException("'keys' can only have values 'ALL' or 'NONE', but was '" + value + "'");
                 }
             }
             else if (entry.getKey().equals("rows_per_partition"))
             {
                 if (!(value.equals("ALL") || value.equals("NONE") || StringUtils.isNumeric(value)))
                 {
-                    throw new ConfigurationException("'rows_per_partition' can only have values 'ALL', 'NONE' or be numeric.");
+                    throw new ConfigurationException("'rows_per_partition' can only have values 'ALL', 'NONE' or be numeric, but was '" + value + "'.");
                 }
             }
             else
-                throw new ConfigurationException("Only supported CachingOptions parameters are 'keys' and 'rows_per_partition'");
+                throw new ConfigurationException("Only supported CachingOptions parameters are 'keys' and 'rows_per_partition', but was '" + entry.getKey() + "'");
         }
     }
 

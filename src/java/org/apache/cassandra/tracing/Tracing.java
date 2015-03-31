@@ -197,6 +197,11 @@ public class Tracing
 
     public TraceState begin(final String request, final Map<String, String> parameters)
     {
+        return begin(request, null, parameters);
+    }
+
+    public TraceState begin(final String request, final InetAddress client, final Map<String, String> parameters)
+    {
         assert isTracing();
 
         final TraceState state = this.state.get();
@@ -209,7 +214,7 @@ public class Tracing
         {
             public void run()
             {
-                mutateWithCatch(TraceKeyspace.makeStartSessionMutation(sessionId, parameters, request, startedAt, command, ttl));
+                mutateWithCatch(TraceKeyspace.makeStartSessionMutation(sessionId, client, parameters, request, startedAt, command, ttl));
             }
         });
 
@@ -291,7 +296,7 @@ public class Tracing
         state.trace(format, arg1, arg2);
     }
 
-    public static void trace(String format, Object[] args)
+    public static void trace(String format, Object... args)
     {
         final TraceState state = instance.get();
         if (state == null) // inline isTracing to avoid implicit two calls to state.get()

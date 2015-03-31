@@ -281,9 +281,6 @@ public final class CLibrary
     {
         Field field = FBUtilities.getProtectedField(channel.getClass(), "fd");
 
-        if (field == null)
-            return -1;
-
         try
         {
             return getfd((FileDescriptor)field.get(channel));
@@ -303,9 +300,6 @@ public final class CLibrary
     public static int getfd(FileDescriptor descriptor)
     {
         Field field = FBUtilities.getProtectedField(descriptor.getClass(), "fd");
-
-        if (field == null)
-            return -1;
 
         try
         {

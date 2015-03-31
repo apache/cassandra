@@ -17,13 +17,9 @@
  */
 package org.apache.cassandra.cql3.statements;
 
-import org.apache.cassandra.auth.AuthenticatedUser;
-import org.apache.cassandra.auth.IRoleManager.Option;
-import org.apache.cassandra.auth.Permission;
-import org.apache.cassandra.auth.RoleResource;
+import org.apache.cassandra.auth.*;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.RoleName;
-import org.apache.cassandra.cql3.RoleOptions;
 import org.apache.cassandra.exceptions.*;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.transport.messages.ResultMessage;
@@ -44,9 +40,9 @@ public class CreateRoleStatement extends AuthenticationStatement
     public void checkAccess(ClientState state) throws UnauthorizedException
     {
         super.checkPermission(state, Permission.CREATE, RoleResource.root());
-        if (opts.getOptions().containsKey(Option.SUPERUSER))
+        if (opts.getSuperuser().isPresent())
         {
-            if ((Boolean)opts.getOptions().get(Option.SUPERUSER) && !state.getUser().isSuper())
+            if (opts.getSuperuser().get() && !state.getUser().isSuper())
                 throw new UnauthorizedException("Only superusers can create a role with superuser status");
         }
     }
@@ -63,12 +59,6 @@ public class CreateRoleStatement extends AuthenticationStatement
 
         if (!ifNotExists && DatabaseDescriptor.getRoleManager().isExistingRole(role))
             throw new InvalidRequestException(String.format("%s already exists", role.getRoleName()));
-
-        for (Option option : opts.getOptions().keySet())
-        {
-            if (!DatabaseDescriptor.getRoleManager().supportedOptions().contains(option))
-                throw new UnauthorizedException(String.format("You aren't allowed to alter %s", option));
-        }
     }
 
     public ResultMessage execute(ClientState state) throws RequestExecutionException, RequestValidationException
@@ -77,7 +67,7 @@ public class CreateRoleStatement extends AuthenticationStatement
         if (ifNotExists && DatabaseDescriptor.getRoleManager().isExistingRole(role))
             return null;
 
-        DatabaseDescriptor.getRoleManager().createRole(state.getUser(), role, opts.getOptions());
+        DatabaseDescriptor.getRoleManager().createRole(state.getUser(), role, opts);
         grantPermissionsToCreator(state);
         return null;
     }

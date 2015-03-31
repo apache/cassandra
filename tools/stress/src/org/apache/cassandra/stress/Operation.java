@@ -176,7 +176,7 @@ public abstract class Operation
             }
         }
 
-        timer.stop(run.partitionCount(), run.rowCount());
+        timer.stop(run.partitionCount(), run.rowCount(), !success);
 
         if (!success)
         {

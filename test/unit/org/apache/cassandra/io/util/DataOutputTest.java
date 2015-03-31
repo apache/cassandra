@@ -41,7 +41,6 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 
 public class DataOutputTest
 {
-
     @Test
     public void testDataOutputStreamPlus() throws IOException
     {
@@ -145,7 +144,7 @@ public class DataOutputTest
     public void testSequentialWriter() throws IOException
     {
         File file = FileUtils.createTempFile("dataoutput", "test");
-        final SequentialWriter writer = new SequentialWriter(file, 32);
+        final SequentialWriter writer = new SequentialWriter(file, 32, false);
         DataOutputStreamAndChannel write = new DataOutputStreamAndChannel(writer, writer);
         DataInput canon = testWrite(write);
         write.flush();
@@ -162,32 +161,33 @@ public class DataOutputTest
         final DataOutput canon = new DataOutputStream(bos);
         Random rnd = ThreadLocalRandom.current();
 
-        byte[] bytes = new byte[50];
+        int size = 50;
+        byte[] bytes = new byte[size];
         rnd.nextBytes(bytes);
         ByteBufferUtil.writeWithLength(bytes, test);
         ByteBufferUtil.writeWithLength(bytes, canon);
 
-        bytes = new byte[50];
+        bytes = new byte[size];
         rnd.nextBytes(bytes);
         ByteBufferUtil.writeWithLength(wrap(bytes, false), test);
         ByteBufferUtil.writeWithLength(bytes, canon);
 
-        bytes = new byte[50];
+        bytes = new byte[size];
         rnd.nextBytes(bytes);
         ByteBufferUtil.writeWithLength(wrap(bytes, true), test);
         ByteBufferUtil.writeWithLength(bytes, canon);
 
-        bytes = new byte[50];
+        bytes = new byte[size];
         rnd.nextBytes(bytes);
         ByteBufferUtil.writeWithShortLength(bytes, test);
         ByteBufferUtil.writeWithShortLength(bytes, canon);
 
-        bytes = new byte[50];
+        bytes = new byte[size];
         rnd.nextBytes(bytes);
         ByteBufferUtil.writeWithShortLength(wrap(bytes, false), test);
         ByteBufferUtil.writeWithShortLength(bytes, canon);
 
-        bytes = new byte[50];
+        bytes = new byte[size];
         rnd.nextBytes(bytes);
         ByteBufferUtil.writeWithShortLength(wrap(bytes, true), test);
         ByteBufferUtil.writeWithShortLength(bytes, canon);

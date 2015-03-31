@@ -65,12 +65,17 @@ public class DataRange
 
     public static DataRange allData(IPartitioner partitioner)
     {
-        return forKeyRange(new Range<Token>(partitioner.getMinimumToken(), partitioner.getMinimumToken()));
+        return forTokenRange(new Range<Token>(partitioner.getMinimumToken(), partitioner.getMinimumToken()));
     }
 
-    public static DataRange forKeyRange(Range<Token> keyRange)
+    public static DataRange forTokenRange(Range<Token> keyRange)
     {
-        return new DataRange(keyRange.toRowBounds(), new IdentityQueryFilter());
+        return forKeyRange(Range.makeRowRange(keyRange));
+    }
+
+    public static DataRange forKeyRange(Range<RowPosition> keyRange)
+    {
+        return new DataRange(keyRange, new IdentityQueryFilter());
     }
 
     public AbstractBounds<RowPosition> keyRange()
@@ -104,7 +109,7 @@ public class DataRange
     public boolean isWrapAround()
     {
         // On range can ever wrap
-        return keyRange instanceof Range && ((Range)keyRange).isWrapAround();
+        return keyRange instanceof Range && ((Range<?>)keyRange).isWrapAround();
     }
 
     public boolean contains(RowPosition pos)
@@ -160,7 +165,7 @@ public class DataRange
 
             // When using a paging range, we don't allow wrapped ranges, as it's unclear how to handle them properly.
             // This is ok for now since we only need this in range slice queries, and the range are "unwrapped" in that case.
-            assert !(range instanceof Range) || !((Range)range).isWrapAround() || range.right.isMinimum() : range;
+            assert !(range instanceof Range) || !((Range<?>)range).isWrapAround() || range.right.isMinimum() : range;
 
             this.sliceFilter = filter;
             this.comparator = comparator;

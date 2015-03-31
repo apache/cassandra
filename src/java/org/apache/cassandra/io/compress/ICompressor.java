@@ -25,9 +25,12 @@ public interface ICompressor
 {
     public int initialCompressedBufferLength(int chunkLength);
 
-    public int compress(byte[] input, int inputOffset, int inputLength, WrappedArray output, int outputOffset) throws IOException;
-
     public int uncompress(byte[] input, int inputOffset, int inputLength, byte[] output, int outputOffset) throws IOException;
+
+    /**
+     * Compression for ByteBuffers
+     */
+    public int compress(ByteBuffer input, WrappedByteBuffer output) throws IOException;
 
     /**
      * Decompression for DirectByteBuffers
@@ -43,18 +46,18 @@ public interface ICompressor
     public Set<String> supportedOptions();
 
     /**
-     * A simple wrapper of a byte array.
-     * Not all implementation allows to know what is the maximum size after
-     * compression. This make it hard to size the ouput buffer for compress
-     * (and we want to reuse the buffer).  Instead we use this wrapped buffer
-     * so that compress can have the liberty to resize underlying array if
-     * need be.
+     * A simple wrapped Bytebuffer.
+     * Not all implementations allow us to know the maximum size after
+     * compression. This makes it hard to size the output buffer for compression
+     * (and we want to reuse the buffer).  Instead we use this wrapped ByteBuffer
+     * so that compress(...) can have the liberty to resize the underlying array if
+     * necessary.
      */
-    public static class WrappedArray
+    public static class WrappedByteBuffer
     {
-        public byte[] buffer;
+        public ByteBuffer buffer;
 
-        public WrappedArray(byte[] buffer)
+        public WrappedByteBuffer(ByteBuffer buffer)
         {
             this.buffer = buffer;
         }

@@ -88,6 +88,13 @@ public class CompressedSegmentedFile extends SegmentedFile implements ICompresse
         }
     }
 
+    public void dropPageCache(long before)
+    {
+        if (before >= metadata.dataLength)
+            super.dropPageCache(0);
+        super.dropPageCache(metadata.chunkFor(before).offset);
+    }
+
     public RandomAccessReader createReader()
     {
         return CompressedRandomAccessReader.open(path, metadata);

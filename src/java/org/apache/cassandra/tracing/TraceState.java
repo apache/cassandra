@@ -19,6 +19,8 @@ package org.apache.cassandra.tracing;
 
 import java.net.InetAddress;
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -28,15 +30,17 @@ import org.slf4j.helpers.MessageFormatter;
 
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.concurrent.StageManager;
-import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.WrappedRunnable;
+import org.apache.cassandra.utils.progress.ProgressEvent;
+import org.apache.cassandra.utils.progress.ProgressEventNotifier;
+import org.apache.cassandra.utils.progress.ProgressListener;
 
 /**
  * ThreadLocal state for a tracing session. The presence of an instance of this class as a ThreadLocal denotes that an
  * operation is being traced.
  */
-public class TraceState
+public class TraceState implements ProgressEventNotifier
 {
     public final UUID sessionId;
     public final InetAddress coordinator;
@@ -46,13 +50,14 @@ public class TraceState
     public final int ttl;
 
     private boolean notify;
-    private Object notificationHandle;
+    private List<ProgressListener> listeners = new ArrayList<>();
+    private String tag;
 
     public enum Status
     {
         IDLE,
         ACTIVE,
-        STOPPED;
+        STOPPED
     }
 
     private Status status;
@@ -80,16 +85,30 @@ public class TraceState
         this.status = Status.IDLE;
     }
 
-    public void enableActivityNotification()
+    /**
+     * Activate notification with provided {@code tag} name.
+     *
+     * @param tag Tag name to add when emitting notification
+     */
+    public void enableActivityNotification(String tag)
     {
         assert traceType == Tracing.TraceType.REPAIR;
         notify = true;
+        this.tag = tag;
     }
 
-    public void setNotificationHandle(Object handle)
+    @Override
+    public void addProgressListener(ProgressListener listener)
     {
         assert traceType == Tracing.TraceType.REPAIR;
-        notificationHandle = handle;
+        listeners.add(listener);
+    }
+
+    @Override
+    public void removeProgressListener(ProgressListener listener)
+    {
+        assert traceType == Tracing.TraceType.REPAIR;
+        listeners.remove(listener);
     }
 
     public int elapsed()
@@ -158,15 +177,17 @@ public class TraceState
         if (notify)
             notifyActivity();
 
-        TraceState.trace(sessionIdBytes, message, elapsed(), ttl, notificationHandle);
+        TraceState.mutateWithTracing(sessionIdBytes, message, elapsed(), ttl);
+
+        for (ProgressListener listener : listeners)
+        {
+            listener.progress(tag, ProgressEvent.createNotification(message));
+        }
     }
 
-    public static void trace(final ByteBuffer sessionId, final String message, final int elapsed, final int ttl, final Object notificationHandle)
+    public static void mutateWithTracing(final ByteBuffer sessionId, final String message, final int elapsed, final int ttl)
     {
         final String threadName = Thread.currentThread().getName();
-
-        if (notificationHandle != null)
-            StorageService.instance.sendNotification("repair", message, notificationHandle);
 
         StageManager.getStage(Stage.TRACING).execute(new WrappedRunnable()
         {

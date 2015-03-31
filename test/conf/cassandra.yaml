@@ -7,6 +7,7 @@ memtable_allocation_type: offheap_objects
 commitlog_sync: batch
 commitlog_sync_batch_window_in_ms: 1.0
 commitlog_segment_size_in_mb: 5
+commitlog_directory: build/test/cassandra/commitlog
 partitioner: org.apache.cassandra.dht.ByteOrderedPartitioner
 listen_address: 127.0.0.1
 storage_port: 7010
@@ -14,7 +15,6 @@ rpc_port: 9170
 start_native_transport: true
 native_transport_port: 9042
 column_index_size_in_kb: 4
-commitlog_directory: build/test/cassandra/commitlog
 saved_caches_directory: build/test/cassandra/saved_caches
 data_file_directories:
     - build/test/cassandra/data

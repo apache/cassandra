@@ -473,8 +473,7 @@ public class CQLSSTableWriter implements Closeable
          * added in SSTable sorted order (and an exception will be thrown if that
          * is not the case during insertion). The SSTable sorted order means that
          * rows are added such that their partition key respect the partitioner
-         * order and for a given partition, that the rows respect the clustering
-         * columns order.
+         * order.
          * <p>
          * You should thus only use this option is you know that you can provide
          * the rows in order, which is rarely the case. If you can provide the

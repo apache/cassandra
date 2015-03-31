@@ -132,7 +132,7 @@ public abstract class SingleColumnRestriction extends AbstractRestriction
         public CompositesBuilder appendTo(CompositesBuilder builder, QueryOptions options)
         {
             builder.addElementToAll(value.bindAndGet(options));
-            checkFalse(builder.containsNull(), "Invalid null value in condition for column %s", columnDef);
+            checkFalse(builder.containsNull(), "Invalid null value in condition for column %s", columnDef.name);
             return builder;
         }
 
@@ -178,7 +178,7 @@ public abstract class SingleColumnRestriction extends AbstractRestriction
         public CompositesBuilder appendTo(CompositesBuilder builder, QueryOptions options)
         {
             builder.addEachElementToAll(getValues(options));
-            checkFalse(builder.containsNull(), "Invalid null value in condition for column %s", columnDef);
+            checkFalse(builder.containsNull(), "Invalid null value in condition for column %s", columnDef.name);
             return builder;
         }
 
