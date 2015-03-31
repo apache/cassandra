@@ -26,6 +26,7 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.file.Files;
 import java.util.zip.Adler32;
+import java.util.zip.CheckedInputStream;
 import java.util.zip.Checksum;
 
 import com.google.common.base.Charsets;
@@ -86,6 +87,58 @@ public class DataIntegrityMetadata
         }
     }
 
+    public static FileDigestValidator fileDigestValidator(Descriptor desc) throws IOException
+    {
+        return new FileDigestValidator(desc);
+    }
+
+    public static class FileDigestValidator implements Closeable
+    {
+        private final Checksum checksum;
+        private final RandomAccessReader digestReader;
+        private final RandomAccessReader dataReader;
+        private final Descriptor descriptor;
+        private long storedDigestValue;
+        private long calculatedDigestValue;
+
+        public FileDigestValidator(Descriptor descriptor) throws IOException
+        {
+            this.descriptor = descriptor;
+            checksum = descriptor.version.hasAllAdlerChecksums() ? new Adler32() : CRC32Factory.instance.create();
+            digestReader = RandomAccessReader.open(new File(descriptor.filenameFor(Component.DIGEST)));
+            dataReader = RandomAccessReader.open(new File(descriptor.filenameFor(Component.DATA)));
+            try
+            {
+                storedDigestValue = Long.parseLong(digestReader.readLine());
+            }
+            catch (Exception e)
+            {
+                // Attempting to create a FileDigestValidator without a DIGEST file will fail
+                throw new IOException("Corrupted SSTable : " + descriptor.filenameFor(Component.DATA));
+            }
+
+        }
+
+        // Validate the entire file
+        public void validate() throws IOException
+        {
+            CheckedInputStream checkedInputStream = new CheckedInputStream(dataReader, checksum);
+            byte[] chunk = new byte[64 * 1024];
+
+            while( checkedInputStream.read(chunk) > 0 ) { }
+            calculatedDigestValue = checkedInputStream.getChecksum().getValue();
+            if (storedDigestValue != calculatedDigestValue) {
+                throw new IOException("Corrupted SSTable : " + descriptor.filenameFor(Component.DATA));
+            }
+        }
+
+        public void close()
+        {
+            this.digestReader.close();
+        }
+    }
+
+
     public static class ChecksumWriter
     {
         private final Adler32 incrementalChecksum = new Adler32();
@@ -116,45 +169,28 @@ public class DataIntegrityMetadata
 
         // CompressedSequentialWriters serialize the partial checksums inline with the compressed data chunks they
         // corroborate, whereas ChecksummedSequentialWriters serialize them to a different file.
-        public void append(byte[] buffer, int start, int end, boolean checksumIncrementalResult)
+        public void appendDirect(ByteBuffer bb, boolean checksumIncrementalResult)
         {
             try
             {
-                int incrementalChecksumValue;
 
-                incrementalChecksum.update(buffer, start, end);
-                incrementalChecksumValue = (int) incrementalChecksum.getValue();
+                ByteBuffer toAppend = bb.duplicate();
+                toAppend.mark();
+                FBUtilities.directCheckSum(incrementalChecksum, toAppend);
+                toAppend.reset();
+
+                int incrementalChecksumValue = (int) incrementalChecksum.getValue();
                 incrementalOut.writeInt(incrementalChecksumValue);
-                incrementalChecksum.reset();
 
-                fullChecksum.update(buffer, start, end);
-
+                FBUtilities.directCheckSum(fullChecksum, toAppend);
                 if (checksumIncrementalResult)
                 {
                     ByteBuffer byteBuffer = ByteBuffer.allocate(4);
                     byteBuffer.putInt(incrementalChecksumValue);
                     fullChecksum.update(byteBuffer.array(), 0, byteBuffer.array().length);
                 }
-            }
-            catch (IOException e)
-            {
-                throw new IOError(e);
-            }
-        }
-
-        public void appendDirect(ByteBuffer bb)
-        {
-            try
-            {
-                ByteBuffer toAppend = bb.duplicate();
-                toAppend.mark();
-                FBUtilities.directCheckSum(incrementalChecksum, toAppend);
-                toAppend.reset();
-
-                incrementalOut.writeInt((int) incrementalChecksum.getValue());
                 incrementalChecksum.reset();
 
-                FBUtilities.directCheckSum(fullChecksum, toAppend);
             }
             catch (IOException e)
             {

@@ -323,6 +323,25 @@ public class CompactionManager implements CompactionManagerMBean
         });
     }
 
+    public AllSSTableOpStatus performVerify(final ColumnFamilyStore cfs, final boolean extendedVerify) throws InterruptedException, ExecutionException
+    {
+        assert !cfs.isIndex();
+        return parallelAllSSTableOperation(cfs, new OneSSTableOperation()
+        {
+            @Override
+            public Iterable<SSTableReader> filterSSTables(Iterable<SSTableReader> input)
+            {
+                return input;
+            }
+
+            @Override
+            public void execute(SSTableReader input) throws IOException
+            {
+                verifyOne(cfs, input, extendedVerify);
+            }
+        });
+    }
+
     public AllSSTableOpStatus performSSTableRewrite(final ColumnFamilyStore cfs, final boolean excludeCurrentVersion) throws InterruptedException, ExecutionException
     {
         return parallelAllSSTableOperation(cfs, new OneSSTableOperation()
@@ -648,6 +667,23 @@ public class CompactionManager implements CompactionManagerMBean
         {
             scrubber.close();
             metrics.finishCompaction(scrubInfo);
+        }
+    }
+
+    private void verifyOne(ColumnFamilyStore cfs, SSTableReader sstable, boolean extendedVerify) throws IOException
+    {
+        Verifier verifier = new Verifier(cfs, sstable, false);
+
+        CompactionInfo.Holder verifyInfo = verifier.getVerifyInfo();
+        metrics.beginCompaction(verifyInfo);
+        try
+        {
+            verifier.verify(extendedVerify);
+        }
+        finally
+        {
+            verifier.close();
+            metrics.finishCompaction(verifyInfo);
         }
     }
 

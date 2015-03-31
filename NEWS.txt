@@ -18,6 +18,8 @@ using the provided 'sstableupgrade' tool.
 
 New features
 ------------
+   - A new tool has been added bin/sstableverify that checks for errors/bitrot
+     in all sstables.  Unlike scrub, this is a non-invasive tool. 
    - Authentication & Authorization APIs have been updated to introduce
      roles. Roles and Permissions granted to them are inherited, supporting
      role based access control. The role concept supercedes that of users

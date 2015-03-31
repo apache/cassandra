@@ -41,7 +41,7 @@ public class ChecksummedSequentialWriter extends SequentialWriter
         ByteBuffer toAppend = buffer.duplicate();
         toAppend.position(0);
         toAppend.limit(buffer.position());
-        crcMetadata.appendDirect(toAppend);
+        crcMetadata.appendDirect(toAppend, false);
     }
 
     public void writeFullChecksum(Descriptor descriptor)

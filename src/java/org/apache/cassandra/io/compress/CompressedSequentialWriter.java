@@ -145,7 +145,7 @@ public class CompressedSequentialWriter extends SequentialWriter
 
             // write corresponding checksum
             compressed.buffer.rewind();
-            crcMetadata.appendDirect(compressed.buffer);
+            crcMetadata.appendDirect(compressed.buffer, true);
             lastFlushOffset += compressedLength + 4;
 
             // adjust our bufferOffset to account for the new uncompressed data we've now written out
