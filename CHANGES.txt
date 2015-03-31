@@ -1,4 +1,5 @@
 2.0.14:
+ * Do more aggressive compaction in old time windows in DTCS (CASSANDRA-8360)
  * java.lang.AssertionError when reading saved cache (CASSANDRA-8740)
  * "disk full" when running cleanup (CASSANDRA-9036)
  * Make PasswordAuthenticator number of hashing rounds configurable (CASSANDRA-8085)

@@ -103,7 +103,11 @@ public class DateTieredCompactionStrategy extends AbstractCompactionStrategy
         List<List<SSTableReader>> buckets = getBuckets(createSSTableAndMinTimestampPairs(candidates), options.baseTime, base, now);
         logger.debug("Compaction buckets are {}", buckets);
         updateEstimatedCompactionsByTasks(buckets);
-        List<SSTableReader> mostInteresting = newestBucket(buckets, cfs.getMinimumCompactionThreshold(), cfs.getMaximumCompactionThreshold());
+        List<SSTableReader> mostInteresting = newestBucket(buckets,
+                                                           cfs.getMinimumCompactionThreshold(),
+                                                           cfs.getMaximumCompactionThreshold(),
+                                                           options.baseTime,
+                                                           now);
         if (!mostInteresting.isEmpty())
             return mostInteresting;
         return null;
@@ -298,12 +302,18 @@ public class DateTieredCompactionStrategy extends AbstractCompactionStrategy
      * @return a bucket (list) of sstables to compact.
      */
     @VisibleForTesting
-    static List<SSTableReader> newestBucket(List<List<SSTableReader>> buckets, int minThreshold, int maxThreshold)
+    static List<SSTableReader> newestBucket(List<List<SSTableReader>> buckets, int minThreshold, int maxThreshold, long now, long baseTime)
     {
-        // Skip buckets containing less than minThreshold sstables, and limit other buckets to maxThreshold sstables.
+        // If the "incoming window" has at least minThreshold SSTables, choose that one.
+        // For any other bucket, at least 2 SSTables is enough.
+        // In any case, limit to maxThreshold SSTables.
+        Target incomingWindow = getInitialTarget(now, baseTime);
         for (List<SSTableReader> bucket : buckets)
-            if (bucket.size() >= minThreshold)
+        {
+            if (bucket.size() >= minThreshold ||
+                    (bucket.size() >= 2 && !incomingWindow.onTarget(bucket.get(0).getMinTimestamp())))
                 return trimToThreshold(bucket, maxThreshold);
+        }
         return Collections.emptyList();
     }
 
