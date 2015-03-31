@@ -1,4 +1,5 @@
 2.0.14:
+ * Fix ignored index_interval change in ALTER TABLE statements (CASSANDRA-7976)
  * Do more aggressive compaction in old time windows in DTCS (CASSANDRA-8360)
  * java.lang.AssertionError when reading saved cache (CASSANDRA-8740)
  * "disk full" when running cleanup (CASSANDRA-9036)
