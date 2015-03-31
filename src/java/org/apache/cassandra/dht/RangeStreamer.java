@@ -336,7 +336,7 @@ public class RangeStreamer
             Set<Range<Token>> availableRanges = stateStore.getAvailableRanges(keyspace, StorageService.getPartitioner());
             if (ranges.removeAll(availableRanges))
             {
-                logger.info(availableRanges + " already available. Skipping streaming.");
+                logger.info("Some ranges of {} are already available. Skipping streaming those ranges.", availableRanges);
             }
 
             if (logger.isDebugEnabled())

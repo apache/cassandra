@@ -925,7 +925,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         for (IEndpointStateChangeSubscriber subscriber : subscribers)
             subscriber.onAlive(addr, localState);
         if (logger.isTraceEnabled())
-            logger.trace("Notified " + subscribers);
+            logger.trace("Notified {}", subscribers);
     }
 
     private void markDead(InetAddress addr, EndpointState localState)

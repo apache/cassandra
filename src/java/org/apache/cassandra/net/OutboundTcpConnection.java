@@ -94,7 +94,7 @@ public class OutboundTcpConnection extends Thread
         case "MOVINGAVERAGE":
         case "FIXED":
         case "DISABLED":
-            logger.info("OutboundTcpConnection using coalescing strategy " + strategy);
+            logger.info("OutboundTcpConnection using coalescing strategy {}", strategy);
             break;
             default:
                 //Check that it can be loaded
@@ -103,7 +103,7 @@ public class OutboundTcpConnection extends Thread
 
         int coalescingWindow = DatabaseDescriptor.getOtcCoalescingWindow();
         if (coalescingWindow != Config.otc_coalescing_window_us_default)
-            logger.info("OutboundTcpConnection coalescing window set to " + coalescingWindow + "μs");
+            logger.info("OutboundTcpConnection coalescing window set to {}μs", coalescingWindow);
 
         if (coalescingWindow < 0)
             throw new ExceptionInInitializerError(
