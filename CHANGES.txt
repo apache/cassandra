@@ -1,4 +1,5 @@
 2.0.14:
+ * java.lang.AssertionError when reading saved cache (CASSANDRA-8740)
  * "disk full" when running cleanup (CASSANDRA-9036)
  * Make PasswordAuthenticator number of hashing rounds configurable (CASSANDRA-8085)
  * Lower logging level from ERROR to DEBUG when a scheduled schema pull
