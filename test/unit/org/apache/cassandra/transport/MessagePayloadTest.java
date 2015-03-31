@@ -23,6 +23,7 @@ import java.nio.ByteBuffer;
 import java.util.Collections;
 import java.util.Map;
 
+import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -73,7 +74,7 @@ public class MessagePayloadTest extends CQLTester
         }
     }
 
-    @BeforeClass
+    @AfterClass
     public static void resetCqlQueryHandlerField()
     {
         if (cqlQueryHandlerField == null)
@@ -83,6 +84,7 @@ public class MessagePayloadTest extends CQLTester
             cqlQueryHandlerField.setAccessible(false);
 
             Field modifiersField = Field.class.getDeclaredField("modifiers");
+            modifiersField.setAccessible(true);
             modifiersField.setInt(cqlQueryHandlerField, cqlQueryHandlerField.getModifiers() | Modifier.FINAL);
             modifiersField.setAccessible(modifiersAccessible);
         }
