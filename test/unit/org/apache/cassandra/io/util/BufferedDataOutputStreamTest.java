@@ -3,6 +3,7 @@ package org.apache.cassandra.io.util;
 import java.io.ByteArrayOutputStream;
 import java.io.DataOutput;
 import java.io.IOException;
+import java.io.OutputStream;
 import java.io.UTFDataFormatException;
 import java.lang.reflect.Field;
 import java.nio.ByteBuffer;
@@ -148,7 +149,7 @@ public class BufferedDataOutputStreamTest
         int action = 0;
         while (generated.size() < 1024 * 1024 * 8)
         {
-            action = r.nextInt(18);
+            action = r.nextInt(19);
 
             //System.out.println("Action " + action + " iteration " + iteration);
             iteration++;
@@ -258,6 +259,9 @@ public class BufferedDataOutputStreamTest
             {
                 StringBuilder sb = new StringBuilder();
                 int length = r.nextInt(500);
+                //Some times do big strings
+                if (r.nextDouble() > .95)
+                    length += 4000;
                 sb.append(simple + twoByte + threeByte + fourByte);
                 for (int ii = 0; ii < length; ii++)
                 {
@@ -270,6 +274,20 @@ public class BufferedDataOutputStreamTest
             }
             case 15:
             {
+                StringBuilder sb = new StringBuilder();
+                int length = r.nextInt(500);
+                sb.append("the very model of a modern major general familiar with all things animal vegetable and mineral");
+                for (int ii = 0; ii < length; ii++)
+                {
+                    sb.append(' ');
+                }
+                String str = sb.toString();
+                writeUTFLegacy(str, dosp);
+                ndosp.writeUTF(str);
+                break;
+            }
+            case 16:
+            {
                 ByteBuffer buf = ByteBuffer.allocate(r.nextInt(1024 * 8 + 1));
                 r.nextBytes(buf.array());
                 buf.position(buf.capacity() == 0 ? 0 : r.nextInt(buf.capacity()));
@@ -281,7 +299,7 @@ public class BufferedDataOutputStreamTest
                 dosp.write(buf.duplicate());
                 break;
             }
-            case 16:
+            case 17:
             {
                 ByteBuffer buf = ByteBuffer.allocateDirect(r.nextInt(1024 * 8 + 1));
                 while (buf.hasRemaining())
@@ -295,7 +313,7 @@ public class BufferedDataOutputStreamTest
                 dosp.write(buf.duplicate());
                 break;
             }
-            case 17:
+            case 18:
             {
                 try (Memory buf = Memory.allocate(r.nextInt(1024 * 8 - 1) + 1);)
                 {
@@ -317,7 +335,7 @@ public class BufferedDataOutputStreamTest
         assertSameOutput(0, -1, iteration);
     }
 
-    static void writeUTFLegacy(String str, DataOutput out) throws IOException
+    public static void writeUTFLegacy(String str, OutputStream out) throws IOException
     {
         int utfCount = 0, length = str.length();
         for (int i = 0; i < length; i++)

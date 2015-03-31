@@ -55,7 +55,7 @@ public abstract class DataOutputStreamPlus extends OutputStream implements DataO
     protected static byte[] retrieveTemporaryBuffer(int minSize)
     {
         byte[] bytes = tempBuffer.get();
-        if (bytes.length < minSize)
+        if (bytes.length < Math.min(minSize, MAX_BUFFER_SIZE))
         {
             // increase in powers of 2, to avoid wasted repeat allocations
             bytes = new byte[Math.min(MAX_BUFFER_SIZE, 2 * Integer.highestOneBit(minSize))];

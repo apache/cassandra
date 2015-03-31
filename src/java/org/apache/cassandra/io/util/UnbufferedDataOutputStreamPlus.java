@@ -252,81 +252,72 @@ public abstract class UnbufferedDataOutputStreamPlus extends DataOutputStreamPlu
     public static void writeUTF(String str, DataOutput out) throws IOException
     {
         int length = str.length();
-        int utfCount = calculateUTFLength(str, length);
+        int utfCount = 0;
+        for (int i = 0 ; i < length ; i++)
+        {
+            int ch = str.charAt(i);
+            if ((ch > 0) & (ch <= 127))
+                utfCount += 1;
+            else if (ch <= 2047)
+                utfCount += 2;
+            else
+                utfCount += 3;
+        }
 
         if (utfCount > 65535)
             throw new UTFDataFormatException(); //$NON-NLS-1$
 
         byte[] utfBytes = retrieveTemporaryBuffer(utfCount + 2);
 
-        int utfIndex = 2;
-        utfBytes[0] = (byte) (utfCount >> 8);
-        utfBytes[1] = (byte) utfCount;
         int bufferLength = utfBytes.length;
-
-        if (utfCount == length && utfCount + utfIndex < bufferLength)
+        if (utfCount == length)
         {
-            for (int charIndex = 0 ; charIndex < length ; charIndex++)
-                utfBytes[utfIndex++] = (byte) str.charAt(charIndex);
+            utfBytes[0] = (byte) (utfCount >> 8);
+            utfBytes[1] = (byte) utfCount;
+            int firstIndex = 2;
+            for (int offset = 0 ; offset < length ; offset += bufferLength)
+            {
+                int runLength = Math.min(bufferLength - firstIndex, length - offset) + firstIndex;
+                offset -= firstIndex;
+                for (int i = firstIndex ; i < runLength; i++)
+                    utfBytes[i] = (byte) str.charAt(offset + i);
+                out.write(utfBytes, 0, runLength);
+                offset += firstIndex;
+                firstIndex = 0;
+            }
         }
         else
         {
-            int charIndex = 0;
-            while (charIndex < length)
+            int utfIndex = 2;
+            utfBytes[0] = (byte) (utfCount >> 8);
+            utfBytes[1] = (byte) utfCount;
+            for (int charIndex = 0 ; charIndex < length ; charIndex++)
             {
-                char ch = str.charAt(charIndex);
-                int sizeOfChar = sizeOfChar(ch);
-                if (utfIndex + sizeOfChar > bufferLength)
+                if (utfIndex + 3 > bufferLength)
                 {
                     out.write(utfBytes, 0, utfIndex);
                     utfIndex = 0;
                 }
 
-                switch (sizeOfChar)
+                char ch = str.charAt(charIndex);
+                if ((ch > 0) & (ch <= 127))
                 {
-                    case 3:
-                        utfBytes[utfIndex] = (byte) (0xe0 | (0x0f & (ch >> 12)));
-                        utfBytes[utfIndex + 1] = (byte) (0x80 | (0x3f & (ch >> 6)));
-                        utfBytes[utfIndex + 2] = (byte) (0x80 | (0x3f & ch));
-                        break;
-                    case 2:
-                        utfBytes[utfIndex] = (byte) (0xc0 | (0x1f & (ch >> 6)));
-                        utfBytes[utfIndex + 1] = (byte) (0x80 | (0x3f & ch));
-                        break;
-                    case 1:
-                        utfBytes[utfIndex] = (byte) ch;
-                        break;
-                    default:
-                        throw new IllegalStateException();
+                    utfBytes[utfIndex++] = (byte) ch;
                 }
-                utfIndex += sizeOfChar;
-                charIndex++;
+                else if (ch <= 2047)
+                {
+                    utfBytes[utfIndex++] = (byte) (0xc0 | (0x1f & (ch >> 6)));
+                    utfBytes[utfIndex++] = (byte) (0x80 | (0x3f & ch));
+                }
+                else
+                {
+                    utfBytes[utfIndex++] = (byte) (0xe0 | (0x0f & (ch >> 12)));
+                    utfBytes[utfIndex++] = (byte) (0x80 | (0x3f & (ch >> 6)));
+                    utfBytes[utfIndex++] = (byte) (0x80 | (0x3f & ch));
+                }
             }
+            out.write(utfBytes, 0, utfIndex);
         }
-        out.write(utfBytes, 0, utfIndex);
-    }
-
-    /*
-     * Factored out into separate method to create more flexibility around inlining
-     */
-    private static int calculateUTFLength(String str, int length)
-    {
-        int utfCount = 0;
-        for (int i = 0; i < length; i++)
-            utfCount += sizeOfChar(str.charAt(i));
-        return utfCount;
-    }
-
-    private static int sizeOfChar(int ch)
-    {
-        // wrap 0 around to max, because it requires 3 bytes
-        return 1
-               // if >= 128, we need an extra byte, so we divide by 128 and check the value is > 0
-               // (by negating it and taking the sign bit)
-               + (-(ch / 128) >>> 31)
-               // if >= 2048, or == 0, we need another extra byte; we subtract one and wrap around,
-               // so we only then need to confirm it is greater than 2047
-               + (-(((ch - 1) & 0xffff) / 2047) >>> 31);
     }
 
     /**
