@@ -59,7 +59,7 @@ public class Config
     public volatile boolean hinted_handoff_enabled_global = true;
     public String hinted_handoff_enabled;
     public Set<String> hinted_handoff_enabled_by_dc = Sets.newConcurrentHashSet();
-    public volatile Integer max_hint_window_in_ms = 3600 * 1000; // one hour
+    public volatile Integer max_hint_window_in_ms = 3 * 3600 * 1000; // three hours
 
     public SeedProviderDef seed_provider;
     public DiskAccessMode disk_access_mode = DiskAccessMode.auto;
