@@ -1,4 +1,5 @@
 2.0.14:
+ * "disk full" when running cleanup (CASSANDRA-9036)
  * Make PasswordAuthenticator number of hashing rounds configurable (CASSANDRA-8085)
  * Lower logging level from ERROR to DEBUG when a scheduled schema pull
    cannot be completed due to a node being down (CASSANDRA-9032)

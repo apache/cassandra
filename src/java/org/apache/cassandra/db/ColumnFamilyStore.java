@@ -1091,6 +1091,11 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             for (Pair<Long, Long> position : positions)
                 expectedFileSize += position.right - position.left;
         }
+
+        double compressionRatio = getCompressionRatio();
+        if (compressionRatio > 0d)
+            expectedFileSize *= compressionRatio;
+
         return expectedFileSize;
     }
 
