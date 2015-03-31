@@ -186,7 +186,7 @@ public class SuperColumns
             {
                 // Note that, because the filter in argument is the one from thrift, 'name' are SimpleDenseCellName.
                 // So calling name.slice() would be incorrect, as simple cell names don't handle the EOC properly.
-                // This is why we call toByteBuffer() and rebuild a  Composite of the right type before call slice().
+                // This is why we call buffer() and rebuild a  Composite of the right type before call slice().
                 slices[i++] = type.make(name.toByteBuffer()).slice();
             }
             return new SliceQueryFilter(slices, false, slices.length, 1);

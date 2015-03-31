@@ -161,7 +161,7 @@ public class BatchlogManager implements BatchlogManagerMBean
             throw new AssertionError(); // cannot happen.
         }
 
-        return buf.asByteBuffer();
+        return buf.buffer();
     }
 
     private void replayAllFailedBatches() throws ExecutionException, InterruptedException

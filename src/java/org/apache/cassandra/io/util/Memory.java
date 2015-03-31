@@ -386,6 +386,7 @@ public class Memory implements AutoCloseable
 
     public ByteBuffer[] asByteBuffers(long offset, long length)
     {
+        checkBounds(offset, offset + length);
         if (size() == 0)
             return NO_BYTE_BUFFERS;
 

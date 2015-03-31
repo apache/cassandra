@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.streaming;
 
+import java.io.BufferedOutputStream;
 import java.io.IOException;
 import java.net.Socket;
 import java.net.SocketException;
@@ -33,10 +34,12 @@ import java.util.concurrent.atomic.AtomicReference;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.SettableFuture;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import org.apache.cassandra.io.util.DataOutputStreamAndChannel;
+import org.apache.cassandra.io.util.DataOutputStreamPlus;
+import org.apache.cassandra.io.util.BufferedDataOutputStreamPlus;
+import org.apache.cassandra.io.util.WrappedDataOutputStreamPlus;
 import org.apache.cassandra.streaming.messages.StreamInitMessage;
 import org.apache.cassandra.streaming.messages.StreamMessage;
 import org.apache.cassandra.utils.FBUtilities;
@@ -154,13 +157,13 @@ public class ConnectionHandler
 
         protected abstract String name();
 
-        protected static DataOutputStreamAndChannel getWriteChannel(Socket socket) throws IOException
+        protected static DataOutputStreamPlus getWriteChannel(Socket socket) throws IOException
         {
             WritableByteChannel out = socket.getChannel();
             // socket channel is null when encrypted(SSL)
             if (out == null)
-                out = Channels.newChannel(socket.getOutputStream());
-            return new DataOutputStreamAndChannel(socket.getOutputStream(), out);
+                return new WrappedDataOutputStreamPlus(new BufferedOutputStream(socket.getOutputStream()));
+            return new BufferedDataOutputStreamPlus(out);
         }
 
         protected static ReadableByteChannel getReadChannel(Socket socket) throws IOException
@@ -182,7 +185,9 @@ public class ConnectionHandler
                     isForOutgoing,
                     session.keepSSTableLevel());
             ByteBuffer messageBuf = message.createMessage(false, protocolVersion);
-            getWriteChannel(socket).write(messageBuf);
+            DataOutputStreamPlus out = getWriteChannel(socket);
+            out.write(messageBuf);
+            out.flush();
         }
 
         public void start(Socket socket, int protocolVersion)
@@ -308,7 +313,7 @@ public class ConnectionHandler
         {
             try
             {
-                DataOutputStreamAndChannel out = getWriteChannel(socket);
+                DataOutputStreamPlus out = getWriteChannel(socket);
 
                 StreamMessage next;
                 while (!isClosed())
@@ -340,11 +345,12 @@ public class ConnectionHandler
             }
         }
 
-        private void sendMessage(DataOutputStreamAndChannel out, StreamMessage message)
+        private void sendMessage(DataOutputStreamPlus out, StreamMessage message)
         {
             try
             {
                 StreamMessage.serialize(message, out, protocolVersion, session);
+                out.flush();
             }
             catch (SocketException e)
             {

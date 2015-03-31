@@ -134,6 +134,10 @@ public class IndexSummaryTest
             IndexSummary summary = builder.build(DatabaseDescriptor.getPartitioner());
             return Pair.create(list, summary);
         }
+        catch (IOException e)
+        {
+            throw new RuntimeException(e);
+        }
     }
 
     @Test

@@ -21,8 +21,11 @@ import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.channels.WritableByteChannel;
 import java.util.Iterator;
 import java.util.UUID;
+
+import com.google.common.base.Function;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamily;
@@ -267,6 +270,11 @@ public class OHCProvider implements CacheProvider<RowCacheKey, IRowCacheEntry>
         }
 
         public void write(Memory memory, long offset, long length) throws IOException
+        {
+            throw new UnsupportedOperationException("IMPLEMENT ME");
+        }
+
+        public <R> R applyToChannel(Function<WritableByteChannel, R> c) throws IOException
         {
             throw new UnsupportedOperationException("IMPLEMENT ME");
         }

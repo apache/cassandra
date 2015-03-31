@@ -1008,7 +1008,7 @@ public final class SystemKeyspace
         {
             DataOutputBuffer out = new DataOutputBuffer();
             Range.tokenSerializer.serialize(range, out, MessagingService.VERSION_30);
-            return out.asByteBuffer();
+            return out.buffer();
         }
         catch (IOException e)
         {

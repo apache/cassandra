@@ -20,7 +20,7 @@ package org.apache.cassandra.gms;
 
 import org.apache.cassandra.AbstractSerializationsTester;
 import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.io.util.DataOutputStreamAndChannel;
+import org.apache.cassandra.io.util.DataOutputStreamPlus;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
 import org.junit.Test;
@@ -38,7 +38,7 @@ public class SerializationsTest extends AbstractSerializationsTester
 {
     private void testEndpointStateWrite() throws IOException
     {
-        DataOutputStreamAndChannel out = getOutput("gms.EndpointState.bin");
+        DataOutputStreamPlus out = getOutput("gms.EndpointState.bin");
         HeartBeatState.serializer.serialize(Statics.HeartbeatSt, out, getVersion());
         EndpointState.serializer.serialize(Statics.EndpointSt, out, getVersion());
         VersionedValue.serializer.serialize(Statics.vv0, out, getVersion());
@@ -75,7 +75,7 @@ public class SerializationsTest extends AbstractSerializationsTester
         GossipDigestAck2 ack2 = new GossipDigestAck2(states);
         GossipDigestSyn syn = new GossipDigestSyn("Not a real cluster name", StorageService.getPartitioner().getClass().getCanonicalName(), Statics.Digests);
 
-        DataOutputStreamAndChannel out = getOutput("gms.Gossip.bin");
+        DataOutputStreamPlus out = getOutput("gms.Gossip.bin");
         for (GossipDigest gd : Statics.Digests)
             GossipDigest.serializer.serialize(gd, out, getVersion());
         GossipDigestAck.serializer.serialize(ack, out, getVersion());

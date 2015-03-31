@@ -20,8 +20,6 @@ package org.apache.cassandra.streaming;
 import java.io.File;
 import java.io.IOException;
 import java.io.OutputStream;
-import java.nio.channels.Channels;
-import java.nio.channels.WritableByteChannel;
 import java.util.Collection;
 
 import com.ning.compress.lzf.LZFOutputStream;
@@ -30,6 +28,7 @@ import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.DataIntegrityMetadata;
 import org.apache.cassandra.io.util.DataIntegrityMetadata.ChecksumValidator;
+import org.apache.cassandra.io.util.DataOutputStreamPlus;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.io.util.RandomAccessReader;
 import org.apache.cassandra.streaming.StreamManager.StreamRateLimiter;
@@ -65,10 +64,10 @@ public class StreamWriter
      *
      * StreamWriter uses LZF compression on wire to decrease size to transfer.
      *
-     * @param channel where this writes data to
+     * @param output where this writes data to
      * @throws IOException on any I/O error
      */
-    public void write(WritableByteChannel channel) throws IOException
+    public void write(DataOutputStreamPlus output) throws IOException
     {
         long totalSize = totalSize();
         RandomAccessReader file = sstable.openDataReader();
@@ -78,7 +77,7 @@ public class StreamWriter
         transferBuffer = validator == null ? new byte[DEFAULT_CHUNK_SIZE] : new byte[validator.chunkSize];
 
         // setting up data compression stream
-        compressedOutput = new LZFOutputStream(Channels.newOutputStream(channel));
+        compressedOutput = new LZFOutputStream(output);
         long progress = 0L;
 
         try
@@ -106,7 +105,7 @@ public class StreamWriter
                     readOffset = 0;
                 }
 
-                // make sure that current section is send
+                // make sure that current section is sent
                 compressedOutput.flush();
             }
         }

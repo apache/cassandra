@@ -25,13 +25,12 @@ import java.util.Collections;
 import java.util.UUID;
 
 import org.junit.Test;
-
 import org.apache.cassandra.AbstractSerializationsTester;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.RandomPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.io.util.DataOutputStreamAndChannel;
+import org.apache.cassandra.io.util.DataOutputStreamPlus;
 import org.apache.cassandra.net.MessageIn;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.repair.NodePair;
@@ -54,7 +53,7 @@ public class SerializationsTest extends AbstractSerializationsTester
 
     private void testRepairMessageWrite(String fileName, RepairMessage... messages) throws IOException
     {
-        try (DataOutputStreamAndChannel out = getOutput(fileName))
+        try (DataOutputStreamPlus out = getOutput(fileName))
         {
             for (RepairMessage message : messages)
             {

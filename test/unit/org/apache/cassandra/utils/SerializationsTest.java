@@ -20,7 +20,7 @@ package org.apache.cassandra.utils;
 
 import org.apache.cassandra.AbstractSerializationsTester;
 import org.apache.cassandra.dht.IPartitioner;
-import org.apache.cassandra.io.util.DataOutputStreamAndChannel;
+import org.apache.cassandra.io.util.DataOutputStreamPlus;
 import org.apache.cassandra.service.StorageService;
 import org.junit.Assert;
 import org.junit.Test;
@@ -38,7 +38,7 @@ public class SerializationsTest extends AbstractSerializationsTester
         {
             for (int i = 0; i < 100; i++)
                 bf.add(partitioner.decorateKey(partitioner.getTokenFactory().toByteArray(partitioner.getRandomToken())));
-            try (DataOutputStreamAndChannel out = getOutput("utils.BloomFilter.bin")) 
+            try (DataOutputStreamPlus out = getOutput("utils.BloomFilter.bin"))
             {
                 FilterFactory.serialize(bf, out);
             }
@@ -72,7 +72,7 @@ public class SerializationsTest extends AbstractSerializationsTester
         data[offsets.length] = 100000;
         EstimatedHistogram hist2 = new EstimatedHistogram(offsets, data);
 
-        try (DataOutputStreamAndChannel out = getOutput("utils.EstimatedHistogram.bin"))
+        try (DataOutputStreamPlus out = getOutput("utils.EstimatedHistogram.bin"))
         {
             EstimatedHistogram.serializer.serialize(hist0, out);
             EstimatedHistogram.serializer.serialize(hist1, out);

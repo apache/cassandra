@@ -1867,6 +1867,10 @@ public class CassandraServer implements Cassandra.Iface
         {
             throw new InvalidRequestException("Error deflating query string.");
         }
+        catch (IOException e)
+        {
+            throw new AssertionError(e);
+        }
         return queryString;
     }
 

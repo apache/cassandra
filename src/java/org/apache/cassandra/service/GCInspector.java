@@ -19,11 +19,14 @@ package org.apache.cassandra.service;
 
 import java.lang.management.ManagementFactory;
 import java.lang.management.MemoryUsage;
+import java.lang.reflect.Field;
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
+
 import javax.management.MBeanServer;
 import javax.management.Notification;
 import javax.management.NotificationListener;
@@ -34,6 +37,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.sun.management.GarbageCollectionNotificationInfo;
+
 import org.apache.cassandra.io.sstable.SSTableDeletingTask;
 import org.apache.cassandra.utils.StatusLogger;
 
@@ -43,6 +47,29 @@ public class GCInspector implements NotificationListener, GCInspectorMXBean
     private static final Logger logger = LoggerFactory.getLogger(GCInspector.class);
     final static long MIN_LOG_DURATION = 200;
     final static long MIN_LOG_DURATION_TPSTATS = 1000;
+    /*
+     * The field from java.nio.Bits that tracks the total number of allocated
+     * bytes of direct memory requires via ByteBuffer.allocateDirect that have not been GCed.
+     */
+    final static Field BITS_TOTAL_CAPACITY;
+
+    static
+    {
+        Field temp = null;
+        try
+        {
+            Class<?> bitsClass = Class.forName("java.nio.Bits");
+            Field f = bitsClass.getDeclaredField("totalCapacity");
+            f.setAccessible(true);
+            temp = f;
+        }
+        catch (Throwable t)
+        {
+            logger.debug("Error accessing field of java.nio.Bits", t);
+            //Don't care, will just return the dummy value -1 if we can't get at the field in this JVM
+        }
+        BITS_TOTAL_CAPACITY = temp;
+    }
 
     static final class State
     {
@@ -160,13 +187,30 @@ public class GCInspector implements NotificationListener, GCInspectorMXBean
     public double[] getAndResetStats()
     {
         State state = getTotalSinceLastCheck();
-        double[] r = new double[6];
+        double[] r = new double[7];
         r[0] = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - state.startNanos);
         r[1] = state.maxRealTimeElapsed;
         r[2] = state.totalRealTimeElapsed;
         r[3] = state.sumSquaresRealTimeElapsed;
         r[4] = state.totalBytesReclaimed;
         r[5] = state.count;
+        r[6] = getAllocatedDirectMemory();
+
         return r;
+    }
+
+    private static long getAllocatedDirectMemory()
+    {
+        if (BITS_TOTAL_CAPACITY == null) return -1;
+        try
+        {
+            return BITS_TOTAL_CAPACITY.getLong(null);
+        }
+        catch (Throwable t)
+        {
+            logger.trace("Error accessing field of java.nio.Bits", t);
+            //Don't care how or why we failed to get the value in this JVM. Return -1 to indicate failure
+            return -1;
+        }
     }
 }

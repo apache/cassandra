@@ -21,7 +21,8 @@ package org.apache.cassandra;
 
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataOutputBuffer;
-import org.apache.cassandra.io.util.DataOutputStreamAndChannel;
+import org.apache.cassandra.io.util.DataOutputStreamPlus;
+import org.apache.cassandra.io.util.BufferedDataOutputStreamPlus;
 import org.apache.cassandra.net.MessagingService;
 
 import java.io.DataInputStream;
@@ -65,10 +66,11 @@ public class AbstractSerializationsTester
         return new DataInputStream(new FileInputStream(f));
     }
 
-    protected static DataOutputStreamAndChannel getOutput(String name) throws IOException
+    @SuppressWarnings("resource")
+    protected static DataOutputStreamPlus getOutput(String name) throws IOException
     {
         File f = new File("test/data/serialization/" + CUR_VER + "/" + name);
         f.getParentFile().mkdirs();
-        return new DataOutputStreamAndChannel(new FileOutputStream(f));
+        return new BufferedDataOutputStreamPlus(new FileOutputStream(f).getChannel());
     }
 }
