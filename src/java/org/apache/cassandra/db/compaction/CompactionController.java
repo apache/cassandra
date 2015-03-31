@@ -17,23 +17,21 @@
  */
 package org.apache.cassandra.db.compaction;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.db.DataTracker;
 import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.RowPosition;
 import org.apache.cassandra.utils.AlwaysPresentFilter;
 
+import org.apache.cassandra.utils.OverlapIterator;
 import org.apache.cassandra.utils.concurrent.Refs;
+
+import static org.apache.cassandra.db.DataTracker.buildIntervals;
 
 /**
  * Manage compaction options.
@@ -43,8 +41,8 @@ public class CompactionController implements AutoCloseable
     private static final Logger logger = LoggerFactory.getLogger(CompactionController.class);
 
     public final ColumnFamilyStore cfs;
-    private DataTracker.SSTableIntervalTree overlappingTree;
     private Refs<SSTableReader> overlappingSSTables;
+    private OverlapIterator<RowPosition, SSTableReader> overlapIterator;
     private final Iterable<SSTableReader> compacting;
 
     public final int gcBefore;
@@ -84,7 +82,7 @@ public class CompactionController implements AutoCloseable
             overlappingSSTables = Refs.tryRef(Collections.<SSTableReader>emptyList());
         else
             overlappingSSTables = cfs.getAndReferenceOverlappingSSTables(compacting);
-        this.overlappingTree = DataTracker.buildIntervalTree(overlappingSSTables);
+        this.overlapIterator = new OverlapIterator<>(buildIntervals(overlappingSSTables));
     }
 
     public Set<SSTableReader> getFullyExpiredSSTables()
@@ -170,9 +168,9 @@ public class CompactionController implements AutoCloseable
      */
     public long maxPurgeableTimestamp(DecoratedKey key)
     {
-        List<SSTableReader> filteredSSTables = overlappingTree.search(key);
         long min = Long.MAX_VALUE;
-        for (SSTableReader sstable : filteredSSTables)
+        overlapIterator.update(key);
+        for (SSTableReader sstable : overlapIterator.overlaps())
         {
             // if we don't have bloom filter(bf_fp_chance=1.0 or filter file is missing),
             // we check index file instead.
@@ -193,4 +191,5 @@ public class CompactionController implements AutoCloseable
     {
         overlappingSSTables.release();
     }
+
 }

@@ -93,7 +93,6 @@ public abstract class AsymmetricOrdering<T1, T2> extends Ordering<T1>
             // { a[m] >= v   ==>   a[ub] >= v   ==>   a[lb] < v ^ a[ub] >= v }
             // { a[m] <  v   ==>   a[lb] <  v   ==>   a[lb] < v ^ a[ub] >= v }
         }
-
         throw new IllegalStateException();
     }
 
@@ -115,8 +114,6 @@ public abstract class AsymmetricOrdering<T1, T2> extends Ordering<T1>
         }
         throw new IllegalStateException();
     }
-
-
 
     private class Reversed extends AsymmetricOrdering<T1, T2>
     {
