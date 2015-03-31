@@ -1,4 +1,5 @@
 3.0
+ * Push notification when tracing completes for an operation (CASSANDRA-7807)
  * Delay "node up" and "node added" notifications until native protocol server is started (CASSANDRA-8236)
  * Compressed Commit Log (CASSANDRA-6809)
  * Optimise IntervalTree (CASSANDRA-8988)

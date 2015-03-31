@@ -742,6 +742,9 @@ Table of Contents
             - [string] keyspace containing the user defined function / aggregate
             - [string] the function/aggregate name
             - [string list] one string for each argument type (as CQL type)
+    - "TRACE_COMPLETE": notification that a trace session has completed at least
+      on the coordinator. After the event type, the rest of the message will
+      contain the trace session-ID [uuid] as the only argument.
 
   All EVENT messages have a streamId of -1 (Section 2.3).
 
@@ -1125,3 +1128,4 @@ Table of Contents
   * Read_failure error code was added.
   * Function_failure error code was added.
   * Add custom payload to frames for custom QueryHandler implementations (ignored by Cassandra's standard QueryHandler)
+  * Add "TRACE_COMPLETE" event (section 4.2.6).

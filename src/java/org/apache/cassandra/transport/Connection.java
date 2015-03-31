@@ -19,6 +19,7 @@ package org.apache.cassandra.transport;
 
 import io.netty.channel.Channel;
 import io.netty.util.AttributeKey;
+import org.apache.cassandra.transport.messages.EventMessage;
 
 public class Connection
 {
@@ -64,14 +65,21 @@ public class Connection
         return channel;
     }
 
+    public void sendIfRegistered(Event event)
+    {
+        if (getTracker().isRegistered(event.type, channel))
+            channel.writeAndFlush(new EventMessage(event));
+    }
+
     public interface Factory
     {
-        public Connection newConnection(Channel channel, int version);
+        Connection newConnection(Channel channel, int version);
     }
 
     public interface Tracker
     {
-        public void addConnection(Channel ch, Connection connection);
-        public void closeAll();
+        void addConnection(Channel ch, Connection connection);
+
+        boolean isRegistered(Event.Type type, Channel ch);
     }
 }

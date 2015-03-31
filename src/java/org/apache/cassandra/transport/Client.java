@@ -27,6 +27,7 @@ import java.util.*;
 import com.google.common.base.Splitter;
 
 import org.apache.cassandra.auth.PasswordAuthenticator;
+import org.apache.cassandra.config.Config;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.marshal.Int32Type;
@@ -40,9 +41,12 @@ import static org.apache.cassandra.config.EncryptionOptions.ClientEncryptionOpti
 
 public class Client extends SimpleClient
 {
-    public Client(String host, int port, ClientEncryptionOptions encryptionOptions)
+    private final SimpleEventHandler eventHandler = new SimpleEventHandler();
+
+    public Client(String host, int port, int version, ClientEncryptionOptions encryptionOptions)
     {
-        super(host, port, encryptionOptions);
+        super(host, port, version, encryptionOptions);
+        setEventHandler(eventHandler);
     }
 
     public void run() throws IOException
@@ -56,6 +60,12 @@ public class Client extends SimpleClient
         BufferedReader in = new BufferedReader(new InputStreamReader(System.in));
         for (;;)
         {
+            Event event;
+            while ((event = eventHandler.queue.poll()) != null)
+            {
+                System.out.println("<< " + event);
+            }
+
             System.out.print(">> ");
             System.out.flush();
             String line = in.readLine();
@@ -228,21 +238,24 @@ public class Client extends SimpleClient
 
     public static void main(String[] args) throws Exception
     {
+        Config.setClientMode(true);
+
         // Print usage if no argument is specified.
-        if (args.length != 2)
+        if (args.length < 2 || args.length > 3)
         {
-            System.err.println("Usage: " + Client.class.getSimpleName() + " <host> <port>");
+            System.err.println("Usage: " + Client.class.getSimpleName() + " <host> <port> [<version>]");
             return;
         }
 
         // Parse options.
         String host = args[0];
         int port = Integer.parseInt(args[1]);
+        int version = args.length == 3 ? Integer.parseInt(args[2]) : Server.CURRENT_VERSION;
 
         ClientEncryptionOptions encryptionOptions = new ClientEncryptionOptions();
-        System.out.println("CQL binary protocol console " + host + "@" + port);
+        System.out.println("CQL binary protocol console " + host + "@" + port + " using native protocol version " + version);
 
-        new Client(host, port, encryptionOptions).run();
+        new Client(host, port, version, encryptionOptions).run();
         System.exit(0);
     }
 }

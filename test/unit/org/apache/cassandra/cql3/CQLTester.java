@@ -475,6 +475,13 @@ public abstract class CQLTester
         return session[protocolVersion-1].execute(formatQuery(query), values);
     }
 
+    protected Session sessionNet(int protocolVersion)
+    {
+        requireNetwork();
+
+        return session[protocolVersion-1];
+    }
+
     private String formatQuery(String query)
     {
         String currentTable = currentTable();

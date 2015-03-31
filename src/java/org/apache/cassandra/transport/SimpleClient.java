@@ -25,6 +25,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.SynchronousQueue;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLEngine;
@@ -45,6 +46,7 @@ import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.security.SSLFactory;
 import org.apache.cassandra.transport.messages.CredentialsMessage;
 import org.apache.cassandra.transport.messages.ErrorMessage;
+import org.apache.cassandra.transport.messages.EventMessage;
 import org.apache.cassandra.transport.messages.ExecuteMessage;
 import org.apache.cassandra.transport.messages.PrepareMessage;
 import org.apache.cassandra.transport.messages.QueryMessage;
@@ -72,8 +74,9 @@ public class SimpleClient
 
     protected final ResponseHandler responseHandler = new ResponseHandler();
     protected final Connection.Tracker tracker = new ConnectionTracker();
+    protected final int version;
     // We don't track connection really, so we don't need one Connection per channel
-    protected final Connection connection = new Connection(null, Server.CURRENT_VERSION, tracker);
+    protected Connection connection;
     protected Bootstrap bootstrap;
     protected Channel channel;
     protected ChannelFuture lastWriteFuture;
@@ -82,16 +85,26 @@ public class SimpleClient
     {
         public Connection newConnection(Channel channel, int version)
         {
-            assert version == Server.CURRENT_VERSION;
             return connection;
         }
     };
 
-    public SimpleClient(String host, int port, ClientEncryptionOptions encryptionOptions)
+    public SimpleClient(String host, int port, int version, ClientEncryptionOptions encryptionOptions)
     {
         this.host = host;
         this.port = port;
+        this.version = version;
         this.encryptionOptions = encryptionOptions;
+    }
+
+    public SimpleClient(String host, int port, ClientEncryptionOptions encryptionOptions)
+    {
+        this(host, port, Server.CURRENT_VERSION, encryptionOptions);
+    }
+
+    public SimpleClient(String host, int port, int version)
+    {
+        this(host, port, version, new ClientEncryptionOptions());
     }
 
     public SimpleClient(String host, int port)
@@ -103,7 +116,7 @@ public class SimpleClient
     {
         establishConnection();
 
-        Map<String, String> options = new HashMap<String, String>();
+        Map<String, String> options = new HashMap<>();
         options.put(StartupMessage.CQL_VERSION, "3.0.0");
         if (useCompression)
         {
@@ -111,6 +124,11 @@ public class SimpleClient
             connection.setCompressor(FrameCompressor.SnappyCompressor.instance);
         }
         execute(new StartupMessage(options));
+    }
+
+    public void setEventHandler(EventHandler eventHandler)
+    {
+        responseHandler.eventHandler = eventHandler;
     }
 
     protected void establishConnection() throws IOException
@@ -188,7 +206,7 @@ public class SimpleClient
         bootstrap.group().shutdownGracefully();
     }
 
-    protected Message.Response execute(Message.Request request)
+    public Message.Response execute(Message.Request request)
     {
         try
         {
@@ -205,6 +223,21 @@ public class SimpleClient
         }
     }
 
+    public interface EventHandler
+    {
+        void onEvent(Event event);
+    }
+
+    public static class SimpleEventHandler implements EventHandler
+    {
+        public final LinkedBlockingQueue<Event> queue = new LinkedBlockingQueue<>();
+
+        public void onEvent(Event event)
+        {
+            queue.add(event);
+        }
+    }
+
     // Stateless handlers
     private static final Message.ProtocolDecoder messageDecoder = new Message.ProtocolDecoder();
     private static final Message.ProtocolEncoder messageEncoder = new Message.ProtocolEncoder();
@@ -215,13 +248,20 @@ public class SimpleClient
     private static class ConnectionTracker implements Connection.Tracker
     {
         public void addConnection(Channel ch, Connection connection) {}
-        public void closeAll() {}
+
+        public boolean isRegistered(Event.Type type, Channel ch)
+        {
+            return false;
+        }
     }
 
     private class Initializer extends ChannelInitializer<Channel>
     {
         protected void initChannel(Channel channel) throws Exception
         {
+            connection = new Connection(channel, version, tracker);
+            channel.attr(Connection.attributeKey).set(connection);
+
             ChannelPipeline pipeline = channel.pipeline();
             pipeline.addLast("frameDecoder", new Frame.Decoder(connectionFactory));
             pipeline.addLast("frameEncoder", frameEncoder);
@@ -259,14 +299,21 @@ public class SimpleClient
     @ChannelHandler.Sharable
     private static class ResponseHandler extends SimpleChannelInboundHandler<Message.Response>
     {
-        public final BlockingQueue<Message.Response> responses = new SynchronousQueue<Message.Response>(true);
+        public final BlockingQueue<Message.Response> responses = new SynchronousQueue<>(true);
+        public EventHandler eventHandler;
 
         @Override
         public void channelRead0(ChannelHandlerContext ctx, Message.Response r)
         {
             try
             {
-                responses.put(r);
+                if (r instanceof EventMessage)
+                {
+                    if (eventHandler != null)
+                        eventHandler.onEvent(((EventMessage) r).event);
+                }
+                else
+                    responses.put(r);
             }
             catch (InterruptedException ie)
             {

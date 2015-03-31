@@ -233,10 +233,9 @@ public class Server implements CassandraDaemon.Server
             groups.get(type).add(ch);
         }
 
-        public void unregister(Channel ch)
+        public boolean isRegistered(Event.Type type, Channel ch)
         {
-            for (ChannelGroup group : groups.values())
-                group.remove(ch);
+            return groups.get(type).contains(ch);
         }
 
         public void send(Event event)

@@ -34,7 +34,7 @@ public class ServerConnection extends Connection
     private final ClientState clientState;
     private volatile State state;
 
-    private final ConcurrentMap<Integer, QueryState> queryStates = new NonBlockingHashMap<Integer, QueryState>();
+    private final ConcurrentMap<Integer, QueryState> queryStates = new NonBlockingHashMap<>();
 
     public ServerConnection(Channel channel, int version, Connection.Tracker tracker)
     {

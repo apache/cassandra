@@ -23,6 +23,7 @@ import java.nio.ByteBuffer;
 import java.util.Collections;
 import java.util.Map;
 
+import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.BeforeClass;
@@ -81,16 +82,30 @@ public class MessagePayloadTest extends CQLTester
             return;
         try
         {
-            cqlQueryHandlerField.setAccessible(false);
-
             Field modifiersField = Field.class.getDeclaredField("modifiers");
             modifiersField.setAccessible(true);
             modifiersField.setInt(cqlQueryHandlerField, cqlQueryHandlerField.getModifiers() | Modifier.FINAL);
+
+            cqlQueryHandlerField.setAccessible(false);
+
             modifiersField.setAccessible(modifiersAccessible);
         }
         catch (IllegalAccessException | NoSuchFieldException e)
         {
             throw new RuntimeException(e);
+        }
+    }
+
+    @After
+    public void dropCreatedTable()
+    {
+        try
+        {
+            QueryProcessor.executeOnceInternal("DROP TABLE " + KEYSPACE + ".atable");
+        }
+        catch (Throwable t)
+        {
+            // ignore
         }
     }
 
@@ -163,6 +178,102 @@ public class MessagePayloadTest extends CQLTester
         }
     }
 
+    @Test
+    public void testMessagePayloadVersion3() throws Throwable
+    {
+        QueryHandler queryHandler = (QueryHandler) cqlQueryHandlerField.get(null);
+        cqlQueryHandlerField.set(null, new TestQueryHandler());
+        try
+        {
+            requireNetwork();
+
+            Assert.assertSame(TestQueryHandler.class, ClientState.getCQLQueryHandler().getClass());
+
+            SimpleClient client = new SimpleClient(nativeAddr.getHostAddress(), nativePort, Server.VERSION_3);
+            try
+            {
+                client.connect(false);
+
+                Map<String, byte[]> reqMap;
+
+                QueryMessage queryMessage = new QueryMessage(
+                                                            "CREATE TABLE " + KEYSPACE + ".atable (pk int PRIMARY KEY, v text)",
+                                                            QueryOptions.DEFAULT
+                );
+                PrepareMessage prepareMessage = new PrepareMessage("SELECT * FROM " + KEYSPACE + ".atable");
+
+                reqMap = Collections.singletonMap("foo", "42".getBytes());
+                responsePayload = Collections.singletonMap("bar", "42".getBytes());
+                queryMessage.setCustomPayload(reqMap);
+                try
+                {
+                    client.execute(queryMessage);
+                    Assert.fail();
+                }
+                catch (ProtocolException e)
+                {
+                    // that's what we want
+                }
+                queryMessage.setCustomPayload(null);
+                client.execute(queryMessage);
+
+                reqMap = Collections.singletonMap("foo", "43".getBytes());
+                responsePayload = Collections.singletonMap("bar", "43".getBytes());
+                prepareMessage.setCustomPayload(reqMap);
+                try
+                {
+                    client.execute(prepareMessage);
+                    Assert.fail();
+                }
+                catch (ProtocolException e)
+                {
+                    // that's what we want
+                }
+                prepareMessage.setCustomPayload(null);
+                ResultMessage.Prepared prepareResponse = (ResultMessage.Prepared) client.execute(prepareMessage);
+
+                ExecuteMessage executeMessage = new ExecuteMessage(prepareResponse.statementId, QueryOptions.DEFAULT);
+                reqMap = Collections.singletonMap("foo", "44".getBytes());
+                responsePayload = Collections.singletonMap("bar", "44".getBytes());
+                executeMessage.setCustomPayload(reqMap);
+                try
+                {
+                    client.execute(executeMessage);
+                    Assert.fail();
+                }
+                catch (ProtocolException e)
+                {
+                    // that's what we want
+                }
+
+                BatchMessage batchMessage = new BatchMessage(BatchStatement.Type.UNLOGGED,
+                                                             Collections.<Object>singletonList("INSERT INTO " + KEYSPACE + ".atable (pk,v) VALUES (1, 'foo')"),
+                                                             Collections.singletonList(Collections.<ByteBuffer>emptyList()),
+                                                             QueryOptions.DEFAULT);
+                reqMap = Collections.singletonMap("foo", "45".getBytes());
+                responsePayload = Collections.singletonMap("bar", "45".getBytes());
+                batchMessage.setCustomPayload(reqMap);
+                try
+                {
+                    client.execute(batchMessage);
+                    Assert.fail();
+                }
+                catch (ProtocolException e)
+                {
+                    // that's what we want
+                }
+            }
+            finally
+            {
+                client.close();
+            }
+        }
+        finally
+        {
+            cqlQueryHandlerField.set(null, queryHandler);
+        }
+    }
+
     private static void payloadEquals(Map<String, byte[]> map1, Map<String, byte[]> map2)
     {
         Assert.assertNotNull(map1);
@@ -182,26 +293,6 @@ public class MessagePayloadTest extends CQLTester
         public ParsedStatement.Prepared getPreparedForThrift(Integer id)
         {
             return QueryProcessor.instance.getPreparedForThrift(id);
-        }
-
-        public ResultMessage processPrepared(CQLStatement statement, QueryState state, QueryOptions options) throws RequestExecutionException, RequestValidationException
-        {
-            return processPrepared(statement, state, options, null);
-        }
-
-        public ResultMessage processBatch(BatchStatement statement, QueryState state, BatchQueryOptions options) throws RequestExecutionException, RequestValidationException
-        {
-            return processBatch(statement, state, options, null);
-        }
-
-        public ResultMessage process(String query, QueryState state, QueryOptions options) throws RequestExecutionException, RequestValidationException
-        {
-            return process(query, state, options, null);
-        }
-
-        public ResultMessage.Prepared prepare(String query, QueryState state) throws RequestValidationException
-        {
-            return prepare(query, state, null);
         }
 
         public ResultMessage.Prepared prepare(String query, QueryState state, Map<String, byte[]> customPayload) throws RequestValidationException

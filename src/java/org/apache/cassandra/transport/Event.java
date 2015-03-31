@@ -21,13 +21,26 @@ import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.util.Iterator;
 import java.util.List;
+import java.util.UUID;
 
 import com.google.common.base.Objects;
 import io.netty.buffer.ByteBuf;
 
 public abstract class Event
 {
-    public enum Type { TOPOLOGY_CHANGE, STATUS_CHANGE, SCHEMA_CHANGE }
+    public enum Type {
+        TOPOLOGY_CHANGE(Server.VERSION_2),
+        STATUS_CHANGE(Server.VERSION_2),
+        SCHEMA_CHANGE(Server.VERSION_2),
+        TRACE_COMPLETE(Server.VERSION_4);
+
+        public final int minimumVersion;
+
+        Type(int minimumVersion)
+        {
+            this.minimumVersion = minimumVersion;
+        }
+    }
 
     public final Type type;
 
@@ -38,7 +51,10 @@ public abstract class Event
 
     public static Event deserialize(ByteBuf cb, int version)
     {
-        switch (CBUtil.readEnumValue(Type.class, cb))
+        Type eventType = CBUtil.readEnumValue(Type.class, cb);
+        if (eventType.minimumVersion > version)
+            throw new ProtocolException("Event " + eventType.name() + " not valid for protocol version " + version);
+        switch (eventType)
         {
             case TOPOLOGY_CHANGE:
                 return TopologyChange.deserializeEvent(cb, version);
@@ -46,12 +62,16 @@ public abstract class Event
                 return StatusChange.deserializeEvent(cb, version);
             case SCHEMA_CHANGE:
                 return SchemaChange.deserializeEvent(cb, version);
+            case TRACE_COMPLETE:
+                return TraceComplete.deserializeEvent(cb, version);
         }
         throw new AssertionError();
     }
 
     public void serialize(ByteBuf dest, int version)
     {
+        if (type.minimumVersion > version)
+            throw new ProtocolException("Event " + type.name() + " not valid for protocol version " + version);
         CBUtil.writeEnumValue(type, dest);
         serializeEvent(dest, version);
     }
@@ -395,6 +415,58 @@ public abstract class Event
                 && Objects.equal(keyspace, scc.keyspace)
                 && Objects.equal(name, scc.name)
                 && Objects.equal(argTypes, scc.argTypes);
+        }
+    }
+
+    /**
+     * @since native protocol v4
+     */
+    public static class TraceComplete extends Event
+    {
+        public final UUID traceSessionId;
+
+        public TraceComplete(UUID traceSessionId)
+        {
+            super(Type.TRACE_COMPLETE);
+            this.traceSessionId = traceSessionId;
+        }
+
+        public static Event deserializeEvent(ByteBuf cb, int version)
+        {
+            UUID traceSessionId = CBUtil.readUUID(cb);
+            return new TraceComplete(traceSessionId);
+        }
+
+        protected void serializeEvent(ByteBuf dest, int version)
+        {
+            CBUtil.writeUUID(traceSessionId, dest);
+        }
+
+        protected int eventSerializedSize(int version)
+        {
+            return CBUtil.sizeOfUUID(traceSessionId);
+        }
+
+        @Override
+        public String toString()
+        {
+            return traceSessionId.toString();
+        }
+
+        @Override
+        public int hashCode()
+        {
+            return Objects.hashCode(traceSessionId);
+        }
+
+        @Override
+        public boolean equals(Object other)
+        {
+            if (!(other instanceof TraceComplete))
+                return false;
+
+            TraceComplete tf = (TraceComplete)other;
+            return Objects.equal(traceSessionId, tf.traceSessionId);
         }
     }
 }
