@@ -157,20 +157,20 @@ public class PrecompactedRow extends AbstractCompactedRow
         if (compactedCf == null)
             return;
 
-        DataOutputBuffer buffer = new DataOutputBuffer();
-        try
+        // do not update digest in case of missing or purged row level tombstones, see CASSANDRA-8979
+        if (compactedCf.deletionInfo().getTopLevelDeletion() != DeletionTime.LIVE)
         {
-            DeletionTime.serializer.serialize(compactedCf.deletionInfo().getTopLevelDeletion(), buffer);
-
-            // do not update digest in case of missing or purged row level tombstones, see CASSANDRA-8979
-            if (compactedCf.deletionInfo().getTopLevelDeletion() != DeletionTime.LIVE)
+            DataOutputBuffer buffer = new DataOutputBuffer();
+            try
             {
+                DeletionTime.serializer.serialize(compactedCf.deletionInfo().getTopLevelDeletion(), buffer);
+
                 digest.update(buffer.getData(), 0, buffer.getLength());
             }
-        }
-        catch (IOException e)
-        {
-            throw new RuntimeException(e);
+            catch (IOException e)
+            {
+                throw new RuntimeException(e);
+            }
         }
         compactedCf.updateDigest(digest);
     }
