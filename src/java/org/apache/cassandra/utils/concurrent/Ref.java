@@ -214,7 +214,7 @@ public final class Ref<T> implements RefCounted<T>, AutoCloseable
         String print(String thread, StackTraceElement[] trace)
         {
             StringBuilder sb = new StringBuilder();
-            sb.append(thread.toString());
+            sb.append(thread);
             sb.append("\n");
             for (StackTraceElement element : trace)
             {
