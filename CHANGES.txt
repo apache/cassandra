@@ -1,4 +1,4 @@
-2.0.14:
+2.0.15:
  * Avoid race in cancelling compactions (CASSANDRA-9070)
  * More aggressive check for expired sstables in DTCS (CASSANDRA-8359)
  * Don't set clientMode to true when bulk-loading sstables to avoid
@@ -34,6 +34,8 @@
  * Fix MT mismatch between empty and GC-able data (CASSANDRA-8979)
  * Fix incorrect validation when snapshotting single table (CASSANDRA-8056)
 
+2.0.14
+ * Bind JMX to localhost unless explicitly configured otherwise (CASSANDRA-9085)
 
 2.0.13:
  * Add offline tool to relevel sstables (CASSANDRA-8301)
