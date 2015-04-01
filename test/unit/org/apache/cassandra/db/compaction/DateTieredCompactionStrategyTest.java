@@ -317,6 +317,8 @@ public class DateTieredCompactionStrategyTest extends SchemaLoader
         options.put(DateTieredCompactionStrategyOptions.TIMESTAMP_RESOLUTION_KEY, "MILLISECONDS");
         options.put(DateTieredCompactionStrategyOptions.MAX_SSTABLE_AGE_KEY, Double.toString((1d / (24 * 60 * 60))));
         DateTieredCompactionStrategy dtcs = new DateTieredCompactionStrategy(cfs, options);
+        for (SSTableReader sstable : cfs.getSSTables())
+            dtcs.addSSTable(sstable);
         dtcs.startup();
         assertNull(dtcs.getNextBackgroundTask((int) (System.currentTimeMillis() / 1000)));
         Thread.sleep(7000);

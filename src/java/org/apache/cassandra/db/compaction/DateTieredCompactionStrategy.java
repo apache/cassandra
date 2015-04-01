@@ -74,7 +74,7 @@ public class DateTieredCompactionStrategy extends AbstractCompactionStrategy
         if (!isEnabled() || cfs.getSSTables().isEmpty())
             return Collections.emptyList();
 
-        Set<SSTableReader> uncompacting = cfs.getUncompactingSSTables();
+        Set<SSTableReader> uncompacting = Sets.intersection(sstables, cfs.getUncompactingSSTables());
 
         // Find fully expired SSTables. Those will be included no matter what.
         Set<SSTableReader> expired = CompactionController.getFullyExpiredSSTables(cfs, uncompacting, cfs.getOverlappingSSTables(uncompacting), gcBefore);
