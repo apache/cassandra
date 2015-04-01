@@ -626,7 +626,7 @@ public class SelectStatement implements CQLStatement
         CQL3Row staticRow = iter.getStaticRow();
         if (staticRow != null && !iter.hasNext() && !restrictions.usesSecondaryIndexing() && restrictions.hasNoClusteringColumnsRestriction())
         {
-            result.newRow(options.getProtocolVersion());
+            result.newRow(protocolVersion);
             for (ColumnDefinition def : selection.getColumns())
             {
                 switch (def.kind)
@@ -649,7 +649,7 @@ public class SelectStatement implements CQLStatement
             CQL3Row cql3Row = iter.next();
 
             // Respect requested order
-            result.newRow(options.getProtocolVersion());
+            result.newRow(protocolVersion);
             // Respect selection order
             for (ColumnDefinition def : selection.getColumns())
             {
