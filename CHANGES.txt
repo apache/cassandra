@@ -1,4 +1,6 @@
 2.1.5
+ * cqlsh: Make CompositeType data readable (CASSANDRA-8919)
+ * cqlsh: Fix display of triggers (CASSANDRA-9081)
  * Fix NullPointerException when deleting or setting an element by index on
    a null list collection (CASSANDRA-9077)
  * Buffer bloom filter serialization (CASSANDRA-9066)
