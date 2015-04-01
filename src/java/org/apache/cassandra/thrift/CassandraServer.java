@@ -581,13 +581,6 @@ public class CassandraServer implements Cassandra.Iface
         }
     }
 
-    private static ByteBuffer getName(ColumnOrSuperColumn cosc)
-    {
-        return cosc.isSetSuper_column() ? cosc.super_column.name :
-                   (cosc.isSetColumn() ? cosc.column.name :
-                       (cosc.isSetCounter_column() ? cosc.counter_column.name : cosc.counter_super_column.name));
-    }
-
     public Map<ByteBuffer, Integer> multiget_count(List<ByteBuffer> keys, ColumnParent column_parent, SlicePredicate predicate, ConsistencyLevel consistency_level)
     throws InvalidRequestException, UnavailableException, TimedOutException
     {
