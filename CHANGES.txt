@@ -1,4 +1,5 @@
 2.0.14:
+ * More aggressive check for expired sstables in DTCS (CASSANDRA-8359)
  * Don't set clientMode to true when bulk-loading sstables to avoid
    a NullPointerException (CASSANDRA-8238)
  * Fix ignored index_interval change in ALTER TABLE statements (CASSANDRA-7976)

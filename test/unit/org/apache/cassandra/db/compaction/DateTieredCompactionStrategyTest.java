@@ -273,4 +273,47 @@ public class DateTieredCompactionStrategyTest extends SchemaLoader
         filtered = filterOldSSTables(sstrs, 1, 4);
         assertEquals("no sstables should remain when all are too old", 0, Iterables.size(filtered));
     }
+
+
+    @Test
+    public void testDropExpiredSSTables() throws InterruptedException
+    {
+        Keyspace keyspace = Keyspace.open(KEYSPACE1);
+        ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(CF_STANDARD1);
+        cfs.truncateBlocking();
+        cfs.disableAutoCompaction();
+
+        ByteBuffer value = ByteBuffer.wrap(new byte[100]);
+
+        // create 2 sstables
+        DecoratedKey key = Util.dk(String.valueOf("expired"));
+        RowMutation rm = new RowMutation(KEYSPACE1, key.key);
+        rm.add(CF_STANDARD1, ByteBufferUtil.bytes("column"), value, System.currentTimeMillis(), 5);
+        rm.apply();
+        cfs.forceBlockingFlush();
+        SSTableReader expiredSSTable = cfs.getSSTables().iterator().next();
+        Thread.sleep(10);
+        key = Util.dk(String.valueOf("nonexpired"));
+        rm = new RowMutation(KEYSPACE1, key.key);
+        rm.add(CF_STANDARD1, ByteBufferUtil.bytes("column"), value, System.currentTimeMillis());
+        rm.apply();
+        cfs.forceBlockingFlush();
+        assertEquals(cfs.getSSTables().size(), 2);
+
+        Map<String, String> options = new HashMap<>();
+
+        options.put(DateTieredCompactionStrategyOptions.BASE_TIME_KEY, "30");
+        options.put(DateTieredCompactionStrategyOptions.TIMESTAMP_RESOLUTION_KEY, "MILLISECONDS");
+        options.put(DateTieredCompactionStrategyOptions.MAX_SSTABLE_AGE_KEY, Double.toString((1d / (24 * 60 * 60))));
+        DateTieredCompactionStrategy dtcs = new DateTieredCompactionStrategy(cfs, options);
+        dtcs.startup();
+        assertNull(dtcs.getNextBackgroundTask((int) (System.currentTimeMillis() / 1000)));
+        Thread.sleep(7000);
+        AbstractCompactionTask t = dtcs.getNextBackgroundTask((int) (System.currentTimeMillis()/1000));
+        assertNotNull(t);
+        assertEquals(1, Iterables.size(t.sstables));
+        SSTableReader sstable = t.sstables.iterator().next();
+        assertEquals(sstable, expiredSSTable);
+    }
+
 }
