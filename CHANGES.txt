@@ -1,4 +1,6 @@
 2.0.15:
+ * Use the proper CAS WriteType when finishing a previous round during Paxos
+   preparation (CASSANDRA-8672)
  * Avoid race in cancelling compactions (CASSANDRA-9070)
  * More aggressive check for expired sstables in DTCS (CASSANDRA-8359)
  * Don't set clientMode to true when bulk-loading sstables to avoid
