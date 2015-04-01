@@ -120,7 +120,7 @@ p. A @<variable>@ can be either anonymous (a question mark (@?@)) or named (an i
 
 p. The @<properties>@ production is use by statement that create and alter keyspaces and tables. Each @<property>@ is either a _simple_ one, in which case it just has a value, or a _map_ one, in which case it's value is a map grouping sub-options. The following will refer to one or the other as the _kind_ (_simple_ or _map_) of the property.
 
-p. A @<tablename>@ will be used to identify a table. This is an identifier representing the table name that can be preceded by a keyspace name. The keyspace name, if provided, allow to identify a table in another keyspace than the currently active one (the currently active keyspace is set through the <a href="#useStmt"><tt>USE</tt></a> statement).
+p. A @<tablename>@ will be used to identify a table. This is an identifier representing the table name that can be preceded by a keyspace name. The keyspace name, if provided, allow to identify a table in another keyspace than the currently active one (the currently active keyspace is set through the <a href=":#useStmt"><tt>USE</tt></a> statement).
 
 p. For supported @<function>@, see the section on "functions":#functions.
 
@@ -743,10 +743,14 @@ __Syntax:__
 
 bc(syntax).. 
 <insertStatement> ::= INSERT INTO <tablename>
-                             '(' <identifier> ( ',' <identifier> )* ')'
-                      VALUES '(' <term-or-literal> ( ',' <term-or-literal> )* ')'
+                      ( ( <name-list> VALUES <value-list> )
+                      | ( JSON <string> ))
                       ( IF NOT EXISTS )?
                       ( USING <option> ( AND <option> )* )?
+
+<names-list> ::= '(' <identifier> ( ',' <identifier> )* ')'
+
+<value-list> ::= '(' <term-or-literal> ( ',' <term-or-literal> )* ')'
 
 <term-or-literal> ::= <term>
                     | <collection-literal>
@@ -756,12 +760,14 @@ bc(syntax)..
 p. 
 __Sample:__
 
-bc(sample). 
+bc(sample).. 
 INSERT INTO NerdMovies (movie, director, main_actor, year)
                 VALUES ('Serenity', 'Joss Whedon', 'Nathan Fillion', 2005)
 USING TTL 86400;
 
-The @INSERT@ statement writes one or more columns for a given row in a table. Note that since a row is identified by its @PRIMARY KEY@, at least the columns composing it must be specified.
+INSERT INTO NerdMovies JSON '{"movie": "Serenity", "director": "Joss Whedon", "year": 2005}'
+p. 
+The @INSERT@ statement writes one or more columns for a given row in a table. Note that since a row is identified by its @PRIMARY KEY@, at least the columns composing it must be specified.  The list of columns to insert to must be supplied when using the @VALUES@ syntax.  When using the @JSON@ syntax, they are optional.  See the section on "@INSERT JSON@":#insertJson for more details.
 
 Note that unlike in SQL, @INSERT@ does not check the prior existence of the row by default: the row is created if none existed before, and updated otherwise. Furthermore, there is no mean to know which of creation or update happened.
 
@@ -926,7 +932,7 @@ h3(#selectStmt). SELECT
 __Syntax:__
 
 bc(syntax).. 
-<select-stmt> ::= SELECT <select-clause>
+<select-stmt> ::= SELECT ( JSON )? <select-clause>
                   FROM <tablename>
                   ( WHERE <where-clause> )?
                   ( ORDER BY <order-by> )?
@@ -962,6 +968,8 @@ __Sample:__
 bc(sample).. 
 SELECT name, occupation FROM users WHERE userid IN (199, 200, 207);
 
+SELECT JSON name, occupation FROM users WHERE userid = 199;
+
 SELECT name AS user_name, occupation AS user_occupation FROM users;
 
 SELECT time, value
@@ -975,7 +983,7 @@ SELECT COUNT(*) FROM users;
 SELECT COUNT(*) AS user_count FROM users;
 
 p. 
-The @SELECT@ statements reads one or more columns for one or more rows in a table. It returns a result-set of rows, where each row contains the collection of columns corresponding to the query.
+The @SELECT@ statements reads one or more columns for one or more rows in a table. It returns a result-set of rows, where each row contains the collection of columns corresponding to the query.  If the @JSON@ keyword is used, the results for each row will contain only a single column named "json".  See the section on "@SELECT JSON@":#selectJson for more details.
 
 h4(#selectSelection). @<select-clause>@
 
@@ -1481,6 +1489,58 @@ p.
 
 See "@CREATE AGGREGATE@":#createAggregateStmt and "@DROP AGGREGATE@":#dropAggregateStmt.
 
+h2(#json). JSON Support
+
+Cassandra 3.0 introduces JSON support to "@SELECT@":#selectStmt and "@INSERT@":#insertStmt statements.  This support does not fundamentally alter the CQL API (for example, the schema is still enforced), it simply provides a convenient way to work with JSON documents.
+
+h3(#selectJson). SELECT JSON
+
+With @SELECT@ statements, the new @JSON@ keyword can be used to return each row as a single @JSON@ encoded map.  The remainder of the @SELECT@ statment behavior is the same.
+
+The result map keys are the same as the column names in a normal result set.  For example, a statement like "@SELECT JSON a, ttl(b) FROM ...@" would result in a map with keys @"a"@ and @"ttl(b)"@.  However, this is one notable exception: for symmetry with @INSERT JSON@ behavior, case-sensitive column names with upper-case letters will be surrounded with double quotes.  For example, "@SELECT JSON myColumn FROM ...@" would result in a map key @"\"myColumn\""@ (note the escaped quotes).
+
+The map values will @JSON@-encoded representations (as described below) of the result set values.
+
+h3(#insertJson). INSERT JSON
+
+With @INSERT@ statements, the new @JSON@ keyword can be used to enable inserting a @JSON@ encoded map as a single row.  The format of the @JSON@ map should generally match that returned by a @SELECT JSON@ statement on the same table.  In particular, case-sensitive column names should be surrounded with double quotes.  For example, to insert into a table with two columns named "myKey" and "value", you would do the following:
+
+bc(sample). 
+INSERT INTO mytable JSON '{"\"myKey\"": 0, "value": 0}'
+
+Any columns which are ommitted from the @JSON@ map will be defaulted to a @NULL@ value (which will result in a tombstone being created).
+
+h3(#jsonEncoding). JSON Encoding of Cassandra Data Types
+
+Where possible, Cassandra will represent and accept data types in their native @JSON@ representation.  Cassandra will also accept string representations matching the CQL literal format for all data types.  The following table describes the encodings that Cassandra will accept in @INSERT JSON@ values (and @fromJson()@ arguments) as well as the format Cassandra will use when returning data for @SELECT JSON@ statements (and @fromJson()@):
+
+|_. type    |_. formats accepted   |_. return format |_. notes|
+|@ascii@    |string                |string           |Uses JSON's @\u@ character escape|
+|@bigint@   |integer, string       |integer          |String must be valid 64 bit integer|
+|@blob@     |string                |string           |String should be 0x followed by an even number of hex digits|
+|@boolean@  |boolean, string       |boolean          |String must be "true" or "false"|
+|@date@     |string                |string           |Date in format @YYYY-MM-DD@, timezone UTC|
+|@decimal@  |integer, float, string|float            |May exceed 32 or 64-bit IEEE-754 floating point precision in client-side decoder|
+|@double@   |integer, float, string|float            |String must be valid integer or float|
+|@float@    |integer, float, string|float            |String must be valid integer or float|
+|@inet@     |string                |string           |IPv4 or IPv6 address|
+|@int@      |integer, string       |integer          |String must be valid 32 bit integer|
+|@text@     |string                |string           |Uses JSON's @\u@ character escape|
+|@time@     |string                |string           |Time of day in format @HH-MM-SS[.fffffffff]@|
+|@timestamp@|integer, string       |string           |A timestamp. Strings constant are allow to input timestamps as dates, see "Working with dates":#usingdates below for more information.  Datestamps with format @YYYY-MM-DD HH:MM:SS.SSS@ are returned.|
+|@timeuuid@ |string                |string           |Type 1 UUID. See "Constants":#constants for the UUID format|
+|@uuid@     |string                |string           |See "Constants":#constants for the UUID format|
+|@varchar@  |string                |string           |Uses JSON's @\u@ character escape|
+|@varint@   |integer, string       |integer          |Variable length; may overflow 32 or 64 bit integers in client-side decoder|
+
+h3(#fromJson). The fromJson() Function
+
+The @fromJson()@ function may be used similarly to @INSERT JSON@, but for a single column value.  It may only be used in the @VALUES@ clause of an @INSERT@ statement or as one of the column values in an @UPDATE@, @DELETE@, or @SELECT@ statement.  For example, it cannot be used in the selection clause of a @SELECT@ statement.
+
+h3(#toJson). The toJson() Function
+
+The @toJson()@ function may be used similarly to @SELECT JSON@, but for a single column value.  It may only be used in the selection clause of a @SELECT@ statement.
+
 h2(#appendixA). Appendix A: CQL Keywords
 
 CQL distinguishes between _reserved_ and _non-reserved_ keywords. Reserved keywords cannot be used as identifier, they are truly reserved for the language (but one can enclose a reserved keyword by double-quotes to use it as an identifier). Non-reserved keywords however only have a specific meaning in certain context but can used as identifer otherwise. The only _raison d'être_ of these non-reserved keywords is convenience: some keyword are non-reserved when it was always easy for the parser to decide whether they were used as keywords or not.
@@ -1654,7 +1714,7 @@ h3. 3.1.1
 h3. 3.1.0
 
 * "ALTER TABLE":#alterTableStmt @DROP@ option has been reenabled for CQL3 tables and has new semantics now: the space formerly used by dropped columns will now be eventually reclaimed (post-compaction). You should not readd previously dropped columns unless you use timestamps with microsecond precision (see "CASSANDRA-3919":https://issues.apache.org/jira/browse/CASSANDRA-3919 for more details).
-* @SELECT@ statement now supports aliases in select clause. Aliases in WHERE and ORDER BY clauses are not supported. See the "section on select"#selectStmt for details.
+* @SELECT@ statement now supports aliases in select clause. Aliases in WHERE and ORDER BY clauses are not supported. See the "section on select":#selectStmt for details.
 * @CREATE@ statements for @KEYSPACE@, @TABLE@ and @INDEX@ now supports an @IF NOT EXISTS@ condition. Similarly, @DROP@ statements support a @IF EXISTS@ condition.
 * @INSERT@ statements optionally supports a @IF NOT EXISTS@ condition and @UPDATE@ supports @IF@ conditions.
 
@@ -1681,7 +1741,6 @@ h3. 3.0.1
 
 * "Date strings":#usingtimestamps (and timestamps) are no longer accepted as valid @timeuuid@ values. Doing so was a bug in the sense that date string are not valid @timeuuid@, and it was thus resulting in "confusing behaviors":https://issues.apache.org/jira/browse/CASSANDRA-4936.  However, the following new methods have been added to help working with @timeuuid@: @now@, @minTimeuuid@, @maxTimeuuid@ , @dateOf@ and @unixTimestampOf@. See the "section dedicated to these methods":#usingtimeuuid for more detail.
 * "Float constants"#constants now support the exponent notation. In other words, @4.2E10@ is now a valid floating point value.
-
 
 h2. Versioning
 

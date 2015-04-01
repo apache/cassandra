@@ -72,6 +72,11 @@ public abstract class QueryOptions
         return new DefaultQueryOptions(consistency, Collections.<ByteBuffer>emptyList(), false, SpecificOptions.DEFAULT, Server.VERSION_2);
     }
 
+    public static QueryOptions forProtocolVersion(int protocolVersion)
+    {
+        return new DefaultQueryOptions(null, null, true, null, protocolVersion);
+    }
+
     public static QueryOptions create(ConsistencyLevel consistency, List<ByteBuffer> values, boolean skipMetadata, int pageSize, PagingState pagingState, ConsistencyLevel serialConsistency)
     {
         return new DefaultQueryOptions(consistency, values, skipMetadata, new SpecificOptions(pageSize, pagingState, serialConsistency, -1L), 0);

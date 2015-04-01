@@ -19,6 +19,7 @@ package org.apache.cassandra.db.marshal;
 
 import java.nio.ByteBuffer;
 
+import org.apache.cassandra.cql3.Term;
 import org.apache.cassandra.serializers.TypeSerializer;
 import org.apache.cassandra.serializers.MarshalException;
 
@@ -55,6 +56,18 @@ public class LocalByPartionerType extends AbstractType<ByteBuffer>
     }
 
     public ByteBuffer fromString(String source)
+    {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public Term fromJSONObject(Object parsed)
+    {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public String toJSONString(ByteBuffer buffer, int protocolVersion)
     {
         throw new UnsupportedOperationException();
     }

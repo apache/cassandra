@@ -92,7 +92,7 @@ public abstract class CollectionSerializer<T> implements TypeSerializer<T>
         return version >= Server.VERSION_3 ? 4 : 2;
     }
 
-    protected static void writeValue(ByteBuffer output, ByteBuffer value, int version)
+    public static void writeValue(ByteBuffer output, ByteBuffer value, int version)
     {
         if (version >= Server.VERSION_3)
         {
@@ -129,7 +129,7 @@ public abstract class CollectionSerializer<T> implements TypeSerializer<T>
         }
     }
 
-    protected static int sizeOfValue(ByteBuffer value, int version)
+    public static int sizeOfValue(ByteBuffer value, int version)
     {
         if (version >= Server.VERSION_3)
         {

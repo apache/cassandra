@@ -23,7 +23,11 @@ import java.nio.charset.Charset;
 import java.nio.charset.CharsetEncoder;
 import java.nio.charset.CharacterCodingException;
 
+import org.apache.cassandra.cql3.Constants;
+import org.apache.cassandra.cql3.Json;
+
 import org.apache.cassandra.cql3.CQL3Type;
+import org.apache.cassandra.cql3.Term;
 import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.serializers.TypeSerializer;
 import org.apache.cassandra.serializers.AsciiSerializer;
@@ -62,6 +66,33 @@ public class AsciiType extends AbstractType<String>
         catch (CharacterCodingException exc)
         {
             throw new MarshalException(String.format("Invalid ASCII character in string literal: %s", exc));
+        }
+    }
+
+    @Override
+    public Term fromJSONObject(Object parsed) throws MarshalException
+    {
+        try
+        {
+            return new Constants.Value(fromString((String) parsed));
+        }
+        catch (ClassCastException exc)
+        {
+            throw new MarshalException(String.format(
+                    "Expected an ascii string, but got a %s: %s", parsed.getClass().getSimpleName(), parsed));
+        }
+    }
+
+    @Override
+    public String toJSONString(ByteBuffer buffer, int protocolVersion)
+    {
+        try
+        {
+            return '"' + new String(Json.JSON_STRING_ENCODER.quoteAsString(ByteBufferUtil.string(buffer, Charset.forName("US-ASCII")))) + '"';
+        }
+        catch (CharacterCodingException exc)
+        {
+            throw new AssertionError("ascii value contained non-ascii characters: ", exc);
         }
     }
 

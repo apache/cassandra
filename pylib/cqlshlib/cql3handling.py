@@ -612,7 +612,7 @@ def working_on_keyspace(ctxt):
 syntax_rules += r'''
 <useStatement> ::= "USE" <keyspaceName>
                  ;
-<selectStatement> ::= "SELECT" <selectClause>
+<selectStatement> ::= "SELECT" ( "JSON" )? <selectClause>
                         "FROM" cf=<columnFamilyName>
                           ( "WHERE" <whereClause> )?
                           ( "ORDER" "BY" <orderByClause> ( "," <orderByClause> )* )?
@@ -692,10 +692,9 @@ explain_completion('selector', 'colname')
 
 syntax_rules += r'''
 <insertStatement> ::= "INSERT" "INTO" cf=<columnFamilyName>
-                               "(" [colname]=<cident> "," [colname]=<cident>
-                                   ( "," [colname]=<cident> )* ")"
-                      "VALUES" "(" [newval]=<term> valcomma="," [newval]=<term>
-                                   ( valcomma="," [newval]=<term> )* valcomma=")"
+                      ( ( "(" [colname]=<cident> ( "," [colname]=<cident> )* ")"
+                          "VALUES" "(" [newval]=<term> ( valcomma="," [newval]=<term> )* valcomma=")")
+                        | ("JSON" <stringLiteral>))
                       ( "IF" "NOT" "EXISTS")?
                       ( "USING" [insertopt]=<usingOption>
                                 ( "AND" [insertopt]=<usingOption> )* )?

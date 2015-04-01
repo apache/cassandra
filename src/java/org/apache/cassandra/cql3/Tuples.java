@@ -153,7 +153,7 @@ public class Tuples
             return new Value(type.split(bytes));
         }
 
-        public ByteBuffer get(QueryOptions options)
+        public ByteBuffer get(int protocolVersion)
         {
             return TupleType.buildValue(elements);
         }
@@ -264,7 +264,7 @@ public class Tuples
             }
         }
 
-        public ByteBuffer get(QueryOptions options)
+        public ByteBuffer get(int protocolVersion)
         {
             throw new UnsupportedOperationException();
         }

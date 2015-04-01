@@ -25,6 +25,7 @@ import java.nio.ByteBuffer;
 import java.nio.charset.CharacterCodingException;
 import java.util.*;
 
+import org.apache.cassandra.transport.Server;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -437,7 +438,7 @@ public abstract class AbstractCassandraStorage extends LoadFunc implements Store
         }
         // NOTE: using protocol v1 serialization format for collections so as to not break
         // compatibility. Not sure if that's the right thing.
-        return CollectionSerializer.pack(serialized, objects.size(), 1);
+        return CollectionSerializer.pack(serialized, objects.size(), Server.VERSION_1);
     }
 
     private ByteBuffer objToMapBB(List<Object> objects)
@@ -454,7 +455,7 @@ public abstract class AbstractCassandraStorage extends LoadFunc implements Store
         } 
         // NOTE: using protocol v1 serialization format for collections so as to not break
         // compatibility. Not sure if that's the right thing.
-        return CollectionSerializer.pack(serialized, objects.size(), 1);
+        return CollectionSerializer.pack(serialized, objects.size(), Server.VERSION_1);
     }
 
     private ByteBuffer objToCompositeBB(List<Object> objects)

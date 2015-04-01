@@ -20,10 +20,13 @@ package org.apache.cassandra.db.marshal;
 import java.nio.ByteBuffer;
 import java.util.*;
 
+import org.apache.cassandra.cql3.Maps;
+import org.apache.cassandra.cql3.Term;
 import org.apache.cassandra.db.Cell;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.SyntaxException;
 import org.apache.cassandra.serializers.CollectionSerializer;
+import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.serializers.MapSerializer;
 import org.apache.cassandra.transport.Server;
 import org.apache.cassandra.utils.Pair;
@@ -192,5 +195,44 @@ public class MapType<K, V> extends CollectionType<Map<K, V>>
             bbs.add(c.value());
         }
         return bbs;
+    }
+
+    @Override
+    public Term fromJSONObject(Object parsed) throws MarshalException
+    {
+        if (!(parsed instanceof Map))
+            throw new MarshalException(String.format(
+                    "Expected a map, but got a %s: %s", parsed.getClass().getSimpleName(), parsed));
+
+        Map<Object, Object> map = (Map<Object, Object>) parsed;
+        Map<Term, Term> terms = new HashMap<>(map.size());
+        for (Map.Entry<Object, Object> entry : map.entrySet())
+        {
+            if (entry.getKey() == null)
+                throw new MarshalException("Invalid null key in map");
+
+            if (entry.getValue() == null)
+                throw new MarshalException("Invalid null value in map");
+
+            terms.put(keys.fromJSONObject(entry.getKey()), values.fromJSONObject(entry.getValue()));
+        }
+        return new Maps.DelayedValue(keys, terms);
+    }
+
+    @Override
+    public String toJSONString(ByteBuffer buffer, int protocolVersion)
+    {
+        StringBuilder sb = new StringBuilder("{");
+        int size = CollectionSerializer.readCollectionSize(buffer, protocolVersion);
+        for (int i = 0; i < size; i++)
+        {
+            if (i > 0)
+                sb.append(", ");
+
+            sb.append(keys.toJSONString(CollectionSerializer.readValue(buffer, protocolVersion), protocolVersion));
+            sb.append(": ");
+            sb.append(values.toJSONString(CollectionSerializer.readValue(buffer, protocolVersion), protocolVersion));
+        }
+        return sb.append("}").toString();
     }
 }

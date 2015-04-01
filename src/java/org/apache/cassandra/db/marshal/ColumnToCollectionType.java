@@ -23,6 +23,7 @@ import java.util.Map;
 
 import com.google.common.collect.ImmutableMap;
 
+import org.apache.cassandra.cql3.Term;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.SyntaxException;
 import org.apache.cassandra.serializers.TypeSerializer;
@@ -89,6 +90,18 @@ public class ColumnToCollectionType extends AbstractType<ByteBuffer>
         {
             throw new MarshalException(String.format("cannot parse '%s' as hex bytes", source), e);
         }
+    }
+
+    @Override
+    public Term fromJSONObject(Object parsed) throws MarshalException
+    {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public String toJSONString(ByteBuffer buffer, int protocolVersion)
+    {
+        throw new UnsupportedOperationException();
     }
 
     @Override

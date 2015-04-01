@@ -116,6 +116,21 @@ public class MapSerializer<K, V> extends CollectionSerializer<Map<K, V>>
     }
 
     /**
+     * Deserializes a serialized map and returns a map of unserialized (ByteBuffer) keys and values.
+     */
+    public Map<ByteBuffer, ByteBuffer> deserializeToByteBufferCollection(ByteBuffer bytes, int protocolVersion)
+    {
+        ByteBuffer input = bytes.duplicate();
+        int n = readCollectionSize(input, protocolVersion);
+        Map<ByteBuffer, ByteBuffer> m = new LinkedHashMap<>(n);
+
+        for (int i = 0; i < n; i++)
+            m.put(readValue(input, protocolVersion), readValue(input, protocolVersion));
+
+        return m;
+    }
+
+    /**
      * Given a serialized map, gets the value associated with a given key.
      * @param serializedMap a serialized map
      * @param serializedKey a serialized key

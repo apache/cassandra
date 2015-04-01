@@ -26,9 +26,11 @@ import java.util.List;
 import java.util.Map;
 
 import org.apache.cassandra.cql3.CQL3Type;
+import org.apache.cassandra.cql3.Term;
 import org.apache.cassandra.exceptions.SyntaxException;
 import org.apache.cassandra.serializers.TypeSerializer;
 import org.apache.cassandra.serializers.MarshalException;
+
 import org.github.jamm.Unmetered;
 
 /**
@@ -93,6 +95,17 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>
 
     /** get a byte representation of the given string. */
     public abstract ByteBuffer fromString(String source) throws MarshalException;
+
+    /** Given a parsed JSON string, return a byte representation of the object.
+     * @param parsed the result of parsing a json string
+     **/
+    public abstract Term fromJSONObject(Object parsed) throws MarshalException;
+
+    /** Converts a value to a JSON string. */
+    public String toJSONString(ByteBuffer buffer, int protocolVersion)
+    {
+        return '"' + getSerializer().deserialize(buffer).toString() + '"';
+    }
 
     /* validate that the byte array is a valid sequence for the type we are supposed to be comparing */
     public void validate(ByteBuffer bytes) throws MarshalException

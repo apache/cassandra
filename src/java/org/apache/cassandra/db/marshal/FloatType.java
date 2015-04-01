@@ -20,6 +20,8 @@ package org.apache.cassandra.db.marshal;
 import java.nio.ByteBuffer;
 
 import org.apache.cassandra.cql3.CQL3Type;
+import org.apache.cassandra.cql3.Constants;
+import org.apache.cassandra.cql3.Term;
 import org.apache.cassandra.serializers.TypeSerializer;
 import org.apache.cassandra.serializers.FloatSerializer;
 import org.apache.cassandra.serializers.MarshalException;
@@ -53,8 +55,31 @@ public class FloatType extends AbstractType<Float>
       }
       catch (NumberFormatException e1)
       {
-          throw new MarshalException(String.format("unable to coerce '%s' to a float", source), e1);
+          throw new MarshalException(String.format("Unable to make float from '%s'", source), e1);
       }
+    }
+
+    @Override
+    public Term fromJSONObject(Object parsed) throws MarshalException
+    {
+        try
+        {
+            if (parsed instanceof String)
+                return new Constants.Value(fromString((String) parsed));
+            else
+                return new Constants.Value(getSerializer().serialize(((Number) parsed).floatValue()));
+        }
+        catch (ClassCastException exc)
+        {
+            throw new MarshalException(String.format(
+                    "Expected a float value, but got a %s: %s", parsed.getClass().getSimpleName(), parsed));
+        }
+    }
+
+    @Override
+    public String toJSONString(ByteBuffer buffer, int protocolVersion)
+    {
+        return getSerializer().deserialize(buffer).toString();
     }
 
     public CQL3Type asCQL3Type()

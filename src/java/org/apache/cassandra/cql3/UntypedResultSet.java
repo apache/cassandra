@@ -73,8 +73,8 @@ public abstract class UntypedResultSet implements Iterable<UntypedResultSet.Row>
 
         public Row one()
         {
-            if (cqlRows.rows.size() != 1)
-                throw new IllegalStateException("One row required, " + cqlRows.rows.size() + " found");
+            if (cqlRows.size() != 1)
+                throw new IllegalStateException("One row required, " + cqlRows.size() + " found");
             return new Row(cqlRows.metadata.names, cqlRows.rows.get(0));
         }
 

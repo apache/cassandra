@@ -18,15 +18,17 @@
 package org.apache.cassandra.db.marshal;
 
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
-import java.util.List;
+import java.nio.charset.CharacterCodingException;
+import java.nio.charset.Charset;
+import java.util.*;
 
 import com.google.common.base.Objects;
 
-import org.apache.cassandra.cql3.CQL3Type;
+import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.SyntaxException;
 import org.apache.cassandra.serializers.*;
+import org.apache.cassandra.transport.Server;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.Pair;
 
@@ -40,6 +42,7 @@ public class UserType extends TupleType
     public final String keyspace;
     public final ByteBuffer name;
     private final List<ByteBuffer> fieldNames;
+    private final List<String> stringFieldNames;
 
     public UserType(String keyspace, ByteBuffer name, List<ByteBuffer> fieldNames, List<AbstractType<?>> fieldTypes)
     {
@@ -48,6 +51,18 @@ public class UserType extends TupleType
         this.keyspace = keyspace;
         this.name = name;
         this.fieldNames = fieldNames;
+        this.stringFieldNames = new ArrayList<>(fieldNames.size());
+        for (ByteBuffer fieldName : fieldNames)
+        {
+            try
+            {
+                stringFieldNames.add(ByteBufferUtil.string(fieldName, Charset.forName("UTF-8")));
+            }
+            catch (CharacterCodingException ex)
+            {
+                throw new AssertionError("Got non-UTF8 field name for user-defined type: " + ByteBufferUtil.bytesToHex(fieldName), ex);
+            }
+        }
     }
 
     public static UserType getInstance(TypeParser parser) throws ConfigurationException, SyntaxException
@@ -120,6 +135,78 @@ public class UserType extends TupleType
         // We're allowed to get less fields than declared, but not more
         if (input.hasRemaining())
             throw new MarshalException("Invalid remaining data after end of UDT value");
+    }
+
+    @Override
+    public Term fromJSONObject(Object parsed) throws MarshalException
+    {
+        if (!(parsed instanceof Map))
+            throw new MarshalException(String.format(
+                    "Expected a map, but got a %s: %s", parsed.getClass().getSimpleName(), parsed));
+
+        Map<String, Object> map = (Map<String, Object>) parsed;
+
+        Json.handleCaseSensitivity(map);
+
+        List<Term> terms = new ArrayList<>(types.size());
+
+        Set keys = map.keySet();
+        assert keys.isEmpty() || keys.iterator().next() instanceof String;
+
+        int foundValues = 0;
+        for (int i = 0; i < types.size(); i++)
+        {
+            Object value = map.get(stringFieldNames.get(i));
+            if (value == null)
+            {
+                terms.add(Constants.NULL_VALUE);
+            }
+            else
+            {
+                terms.add(types.get(i).fromJSONObject(value));
+                foundValues += 1;
+            }
+        }
+
+        // check for extra, unrecognized fields
+        if (foundValues != map.size())
+        {
+            for (Object fieldName : keys)
+            {
+                if (!stringFieldNames.contains((String) fieldName))
+                    throw new MarshalException(String.format(
+                            "Unknown field '%s' in value of user defined type %s", fieldName, getNameAsString()));
+            }
+        }
+
+        return new UserTypes.DelayedValue(this, terms);
+    }
+
+    @Override
+    public String toJSONString(ByteBuffer buffer, int protocolVersion)
+    {
+        ByteBuffer[] buffers = split(buffer);
+        StringBuilder sb = new StringBuilder("{");
+        for (int i = 0; i < types.size(); i++)
+        {
+            if (i > 0)
+                sb.append(", ");
+
+            String name = stringFieldNames.get(i);
+            if (!name.equals(name.toLowerCase(Locale.US)))
+                name = "\"" + name + "\"";
+
+            sb.append('"');
+            sb.append(Json.JSON_STRING_ENCODER.quoteAsString(name));
+            sb.append("\": ");
+
+            ByteBuffer valueBuffer = buffers[i];
+            if (valueBuffer == null)
+                sb.append("null");
+            else
+                sb.append(types.get(i).toJSONString(valueBuffer, protocolVersion));
+        }
+        return sb.append("}").toString();
     }
 
     @Override

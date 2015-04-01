@@ -20,6 +20,8 @@ package org.apache.cassandra.db.marshal;
 import java.nio.ByteBuffer;
 
 import org.apache.cassandra.cql3.CQL3Type;
+import org.apache.cassandra.cql3.Constants;
+import org.apache.cassandra.cql3.Term;
 import org.apache.cassandra.serializers.TypeSerializer;
 import org.apache.cassandra.serializers.BytesSerializer;
 import org.apache.cassandra.serializers.MarshalException;
@@ -47,6 +49,29 @@ public class BytesType extends AbstractType<ByteBuffer>
         {
             throw new MarshalException(String.format("cannot parse '%s' as hex bytes", source), e);
         }
+    }
+
+    @Override
+    public Term fromJSONObject(Object parsed) throws MarshalException
+    {
+        try
+        {
+            String parsedString = (String) parsed;
+            if (!parsedString.startsWith("0x"))
+                throw new MarshalException(String.format("String representation of blob is missing 0x prefix: %s", parsedString));
+
+            return new Constants.Value(BytesType.instance.fromString(parsedString.substring(2)));
+        }
+        catch (ClassCastException | MarshalException exc)
+        {
+            throw new MarshalException(String.format("Value '%s' is not a valid blob representation: %s", parsed, exc.getMessage()));
+        }
+    }
+
+    @Override
+    public String toJSONString(ByteBuffer buffer, int protocolVersion)
+    {
+        return "\"0x" + ByteBufferUtil.bytesToHex(buffer) + '"';
     }
 
     @Override

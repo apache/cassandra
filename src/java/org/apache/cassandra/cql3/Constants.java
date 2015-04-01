@@ -49,22 +49,6 @@ public abstract class Constants
 
     public static final Term.Raw NULL_LITERAL = new Term.Raw()
     {
-        private final Term.Terminal NULL_VALUE = new Value(null)
-        {
-            @Override
-            public Terminal bind(QueryOptions options)
-            {
-                // We return null because that makes life easier for collections
-                return null;
-            }
-
-            @Override
-            public String toString()
-            {
-                return "null";
-            }
-        };
-
         public Term prepare(String keyspace, ColumnSpecification receiver) throws InvalidRequestException
         {
             if (!testAssignment(keyspace, receiver).isAssignable())
@@ -78,6 +62,22 @@ public abstract class Constants
             return receiver.type instanceof CounterColumnType
                  ? AssignmentTestable.TestResult.NOT_ASSIGNABLE
                  : AssignmentTestable.TestResult.WEAKLY_ASSIGNABLE;
+        }
+
+        @Override
+        public String toString()
+        {
+            return "null";
+        }
+    };
+
+    public static final Term.Terminal NULL_VALUE = new Value(null)
+    {
+        @Override
+        public Terminal bind(QueryOptions options)
+        {
+            // We return null because that makes life easier for collections
+            return null;
         }
 
         @Override
@@ -256,7 +256,7 @@ public abstract class Constants
             this.bytes = bytes;
         }
 
-        public ByteBuffer get(QueryOptions options)
+        public ByteBuffer get(int protocolVersion)
         {
             return bytes;
         }

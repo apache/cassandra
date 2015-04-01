@@ -32,6 +32,7 @@ import org.apache.cassandra.db.marshal.SetType;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.serializers.CollectionSerializer;
 import org.apache.cassandra.serializers.MarshalException;
+import org.apache.cassandra.serializers.SetSerializer;
 import org.apache.cassandra.transport.Server;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
@@ -131,7 +132,7 @@ public abstract class Sets
         }
     }
 
-    public static class Value extends Term.Terminal implements Term.CollectionTerminal
+    public static class Value extends Term.Terminal
     {
         public final SortedSet<ByteBuffer> elements;
 
@@ -158,14 +159,9 @@ public abstract class Sets
             }
         }
 
-        public ByteBuffer get(QueryOptions options)
+        public ByteBuffer get(int protocolVersion)
         {
-            return getWithProtocolVersion(options.getProtocolVersion());
-        }
-
-        public ByteBuffer getWithProtocolVersion(int protocolVersion)
-        {
-            return CollectionSerializer.pack(new ArrayList<>(elements), elements.size(), protocolVersion);
+            return CollectionSerializer.pack(elements, elements.size(), protocolVersion);
         }
 
         public boolean equals(SetType st, Value v)
@@ -279,14 +275,12 @@ public abstract class Sets
         static void doAdd(Term t, ColumnFamily cf, Composite prefix, ColumnDefinition column, UpdateParameters params) throws InvalidRequestException
         {
             Term.Terminal value = t.bind(params.options);
-            Sets.Value setValue = (Sets.Value)value;
             if (column.type.isMultiCell())
             {
                 if (value == null)
                     return;
 
-                Set<ByteBuffer> toAdd = setValue.elements;
-                for (ByteBuffer bb : toAdd)
+                for (ByteBuffer bb : ((Value) value).elements)
                 {
                     CellName cellName = cf.getComparator().create(prefix, column, bb);
                     cf.addColumn(params.makeColumn(cellName, ByteBufferUtil.EMPTY_BYTE_BUFFER));
@@ -299,7 +293,7 @@ public abstract class Sets
                 if (value == null)
                     cf.addAtom(params.makeTombstone(cellName));
                 else
-                    cf.addColumn(params.makeColumn(cellName, ((Value) value).getWithProtocolVersion(Server.CURRENT_VERSION)));
+                    cf.addColumn(params.makeColumn(cellName, value.get(Server.CURRENT_VERSION)));
             }
         }
     }
@@ -323,12 +317,10 @@ public abstract class Sets
             // This can be either a set or a single element
             Set<ByteBuffer> toDiscard = value instanceof Sets.Value
                                       ? ((Sets.Value)value).elements
-                                      : Collections.singleton(value.get(params.options));
+                                      : Collections.singleton(value.get(params.options.getProtocolVersion()));
 
             for (ByteBuffer bb : toDiscard)
-            {
                 cf.addColumn(params.makeTombstone(cf.getComparator().create(prefix, column, bb)));
-            }
         }
     }
 
@@ -346,7 +338,7 @@ public abstract class Sets
             if (elt == null)
                 throw new InvalidRequestException("Invalid null set element");
 
-            CellName cellName = cf.getComparator().create(prefix, column, elt.get(params.options));
+            CellName cellName = cf.getComparator().create(prefix, column, elt.get(params.options.getProtocolVersion()));
             cf.addColumn(params.makeTombstone(cellName));
         }
     }

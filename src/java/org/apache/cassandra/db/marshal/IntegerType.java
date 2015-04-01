@@ -21,6 +21,8 @@ import java.math.BigInteger;
 import java.nio.ByteBuffer;
 
 import org.apache.cassandra.cql3.CQL3Type;
+import org.apache.cassandra.cql3.Constants;
+import org.apache.cassandra.cql3.Term;
 import org.apache.cassandra.serializers.TypeSerializer;
 import org.apache.cassandra.serializers.IntegerSerializer;
 import org.apache.cassandra.serializers.MarshalException;
@@ -139,6 +141,26 @@ public final class IntegerType extends AbstractType<BigInteger>
         }
 
         return decompose(integerType);
+    }
+
+    @Override
+    public Term fromJSONObject(Object parsed) throws MarshalException
+    {
+        try
+        {
+            return new Constants.Value(getSerializer().serialize(new BigInteger(parsed.toString())));
+        }
+        catch (NumberFormatException exc)
+        {
+            throw new MarshalException(String.format(
+                    "Value '%s' is not a valid representation of a varint value", parsed));
+        }
+    }
+
+    @Override
+    public String toJSONString(ByteBuffer buffer, int protocolVersion)
+    {
+        return getSerializer().deserialize(buffer).toString();
     }
 
     @Override

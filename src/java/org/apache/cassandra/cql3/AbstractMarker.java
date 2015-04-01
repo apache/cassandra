@@ -57,7 +57,7 @@ public abstract class AbstractMarker extends Term.NonTerminal
             this.bindIndex = bindIndex;
         }
 
-        public AbstractMarker prepare(String keyspace, ColumnSpecification receiver) throws InvalidRequestException
+        public NonTerminal prepare(String keyspace, ColumnSpecification receiver) throws InvalidRequestException
         {
             if (!(receiver.type instanceof CollectionType))
                 return new Constants.Marker(bindIndex, receiver);

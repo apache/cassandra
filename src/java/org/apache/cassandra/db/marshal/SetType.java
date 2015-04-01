@@ -20,10 +20,14 @@ package org.apache.cassandra.db.marshal;
 import java.nio.ByteBuffer;
 import java.util.*;
 
+import org.apache.cassandra.cql3.Sets;
+import org.apache.cassandra.cql3.Term;
 import org.apache.cassandra.db.Cell;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.SyntaxException;
+import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.serializers.SetSerializer;
+import org.apache.cassandra.transport.Server;
 
 public class SetType<T> extends CollectionType<Set<T>>
 {
@@ -145,5 +149,30 @@ public class SetType<T> extends CollectionType<Set<T>>
         for (Cell c : cells)
             bbs.add(c.name().collectionElement());
         return bbs;
+    }
+
+    @Override
+    public Term fromJSONObject(Object parsed) throws MarshalException
+    {
+        if (!(parsed instanceof List))
+            throw new MarshalException(String.format(
+                    "Expected a list (representing a set), but got a %s: %s", parsed.getClass().getSimpleName(), parsed));
+
+        List list = (List) parsed;
+        Set<Term> terms = new HashSet<>(list.size());
+        for (Object element : list)
+        {
+            if (element == null)
+                throw new MarshalException("Invalid null element in set");
+            terms.add(elements.fromJSONObject(element));
+        }
+
+        return new Sets.DelayedValue(elements, terms);
+    }
+
+    @Override
+    public String toJSONString(ByteBuffer buffer, int protocolVersion)
+    {
+        return ListType.setOrListToJsonString(buffer, elements, protocolVersion);
     }
 }

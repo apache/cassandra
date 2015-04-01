@@ -32,6 +32,7 @@ import org.apache.cassandra.db.composites.Composite;
 import org.apache.cassandra.db.filter.ColumnSlice;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.serializers.CollectionSerializer;
 import org.apache.cassandra.transport.Server;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
@@ -463,6 +464,7 @@ public class ColumnCondition
     static class CollectionBound extends Bound
     {
         private final Term.Terminal value;
+        private final QueryOptions options;
 
         private CollectionBound(ColumnCondition condition, QueryOptions options) throws InvalidRequestException
         {
@@ -470,6 +472,7 @@ public class ColumnCondition
             assert column.type.isCollection() && condition.collectionElement == null;
             assert condition.operator != Operator.IN;
             this.value = condition.value.bind(options);
+            this.options = options;
         }
 
         public boolean appliesTo(Composite rowPrefix, ColumnFamily current, final long now) throws InvalidRequestException
@@ -489,7 +492,7 @@ public class ColumnCondition
                         throw new InvalidRequestException(String.format("Invalid comparison with null for operator \"%s\"", operator));
                 }
 
-                return valueAppliesTo(type, iter, value, operator);
+                return valueAppliesTo(type, iter, value, operator, options);
             }
 
             // frozen collections
@@ -507,25 +510,31 @@ public class ColumnCondition
             // make sure we use v3 serialization format for comparison
             ByteBuffer conditionValue;
             if (type.kind == CollectionType.Kind.LIST)
-                conditionValue = ((Lists.Value) value).getWithProtocolVersion(Server.VERSION_3);
+                conditionValue = ((Lists.Value) value).get(Server.VERSION_3);
             else if (type.kind == CollectionType.Kind.SET)
-                conditionValue = ((Sets.Value) value).getWithProtocolVersion(Server.VERSION_3);
+                conditionValue = ((Sets.Value) value).get(Server.VERSION_3);
             else
-                conditionValue = ((Maps.Value) value).getWithProtocolVersion(Server.VERSION_3);
+                conditionValue = ((Maps.Value) value).get(Server.VERSION_3);
 
             return compareWithOperator(operator, type, conditionValue, cell.value());
         }
 
-        static boolean valueAppliesTo(CollectionType type, Iterator<Cell> iter, Term.Terminal value, Operator operator)
+        static boolean valueAppliesTo(CollectionType type, Iterator<Cell> iter, Term.Terminal value, Operator operator, QueryOptions options)
         {
             if (value == null)
                 return !iter.hasNext();
 
             switch (type.kind)
             {
-                case LIST: return listAppliesTo((ListType)type, iter, ((Lists.Value)value).elements, operator);
-                case SET: return setAppliesTo((SetType)type, iter, ((Sets.Value)value).elements, operator);
-                case MAP: return mapAppliesTo((MapType)type, iter, ((Maps.Value)value).map, operator);
+                case LIST:
+                    List<ByteBuffer> valueList = ((Lists.Value) value).elements;
+                    return listAppliesTo((ListType)type, iter, valueList, operator);
+                case SET:
+                    Set<ByteBuffer> valueSet = ((Sets.Value) value).elements;
+                    return setAppliesTo((SetType)type, iter, valueSet, operator);
+                case MAP:
+                    Map<ByteBuffer, ByteBuffer> valueMap = ((Maps.Value) value).map;
+                    return mapAppliesTo((MapType)type, iter, valueMap, operator);
             }
             throw new AssertionError();
         }
@@ -617,12 +626,14 @@ public class ColumnCondition
     public static class CollectionInBound extends Bound
     {
         private final List<Term.Terminal> inValues;
+        private final QueryOptions options;
 
         private CollectionInBound(ColumnCondition condition, QueryOptions options) throws InvalidRequestException
         {
             super(condition.column, condition.operator);
             assert column.type instanceof CollectionType && condition.collectionElement == null;
             assert condition.operator == Operator.IN;
+            this.options = options;
             inValues = new ArrayList<>();
             if (condition.inValues == null)
             {
@@ -680,7 +691,7 @@ public class ColumnCondition
                 List<Cell> cells = newArrayList(collectionColumns(name, current, now));
                 for (Term.Terminal value : inValues)
                 {
-                    if (CollectionBound.valueAppliesTo(type, cells.iterator(), value, Operator.EQ))
+                    if (CollectionBound.valueAppliesTo(type, cells.iterator(), value, Operator.EQ, options))
                         return true;
                 }
                 return false;
@@ -695,7 +706,7 @@ public class ColumnCondition
                         if (cell == null || !cell.isLive(now))
                             return true;
                     }
-                    else if (type.compare(((Term.CollectionTerminal)value).getWithProtocolVersion(Server.VERSION_3), cell.value()) == 0)
+                    else if (type.compare(value.get(Server.VERSION_3), cell.value()) == 0)
                     {
                         return true;
                     }

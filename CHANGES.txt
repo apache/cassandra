@@ -1,4 +1,6 @@
 3.0
+ * Add support for SELECT JSON, INSERT JSON syntax and new toJson(), fromJson()
+   functions (CASSANDRA-7970)
  * Optimise max purgeable timestamp calculation in compaction (CASSANDRA-8920)
  * Constrain internode message buffer sizes, and improve IO class hierarchy (CASSANDRA-8670) 
  * New tool added to validate all sstables in a node (CASSANDRA-5791)

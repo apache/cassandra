@@ -93,6 +93,13 @@ options {
         return marker;
     }
 
+    public Json.Marker newJsonBindVariables(ColumnIdentifier name)
+    {
+        Json.Marker marker = new Json.Marker(bindVariables.size());
+        bindVariables.add(name);
+        return marker;
+    }
+
     public void addErrorListener(ErrorListener listener)
     {
         this.listeners.add(listener);
@@ -283,9 +290,12 @@ selectStatement returns [SelectStatement.RawStatement expr]
         Term.Raw limit = null;
         Map<ColumnIdentifier.Raw, Boolean> orderings = new LinkedHashMap<ColumnIdentifier.Raw, Boolean>();
         boolean allowFiltering = false;
+        boolean isJson = false;
     }
-    : K_SELECT ( ( K_DISTINCT { isDistinct = true; } )? sclause=selectClause
-               | sclause=selectCountClause )
+    : K_SELECT 
+      ( K_JSON { isJson = true; } )?
+      ( ( K_DISTINCT { isDistinct = true; } )? sclause=selectClause
+        | sclause=selectCountClause )
       K_FROM cf=columnFamilyName
       ( K_WHERE wclause=whereClause )?
       ( K_ORDER K_BY orderByClause[orderings] ( ',' orderByClause[orderings] )* )?
@@ -294,7 +304,8 @@ selectStatement returns [SelectStatement.RawStatement expr]
       {
           SelectStatement.Parameters params = new SelectStatement.Parameters(orderings,
                                                                              isDistinct,
-                                                                             allowFiltering);
+                                                                             allowFiltering,
+                                                                             isJson);
           $expr = new SelectStatement.RawStatement(cf, params, sclause, wclause, limit);
       }
     ;
@@ -353,27 +364,47 @@ orderByClause[Map<ColumnIdentifier.Raw, Boolean> orderings]
  * USING TIMESTAMP <long>;
  *
  */
-insertStatement returns [UpdateStatement.ParsedInsert expr]
+insertStatement returns [ModificationStatement.Parsed expr]
+    : K_INSERT K_INTO cf=columnFamilyName
+        ( st1=normalInsertStatement[cf] { $expr = st1; }
+        | K_JSON st2=jsonInsertStatement[cf] { $expr = st2; })
+    ;
+
+normalInsertStatement [CFName cf] returns [UpdateStatement.ParsedInsert expr]
     @init {
         Attributes.Raw attrs = new Attributes.Raw();
         List<ColumnIdentifier.Raw> columnNames  = new ArrayList<ColumnIdentifier.Raw>();
         List<Term.Raw> values = new ArrayList<Term.Raw>();
         boolean ifNotExists = false;
     }
-    : K_INSERT K_INTO cf=columnFamilyName
-          '(' c1=cident { columnNames.add(c1); }  ( ',' cn=cident { columnNames.add(cn); } )* ')'
-        K_VALUES
-          '(' v1=term { values.add(v1); } ( ',' vn=term { values.add(vn); } )* ')'
-
-        ( K_IF K_NOT K_EXISTS { ifNotExists = true; } )?
-        ( usingClause[attrs] )?
+    : '(' c1=cident { columnNames.add(c1); }  ( ',' cn=cident { columnNames.add(cn); } )* ')'
+      K_VALUES
+      '(' v1=term { values.add(v1); } ( ',' vn=term { values.add(vn); } )* ')'
+      ( K_IF K_NOT K_EXISTS { ifNotExists = true; } )?
+      ( usingClause[attrs] )?
       {
-          $expr = new UpdateStatement.ParsedInsert(cf,
-                                                   attrs,
-                                                   columnNames,
-                                                   values,
-                                                   ifNotExists);
+          $expr = new UpdateStatement.ParsedInsert(cf, attrs, columnNames, values, ifNotExists);
       }
+    ;
+
+jsonInsertStatement [CFName cf] returns [UpdateStatement.ParsedInsertJson expr]
+    @init {
+        Attributes.Raw attrs = new Attributes.Raw();
+        boolean ifNotExists = false;
+    }
+    : val=jsonValue
+      ( K_IF K_NOT K_EXISTS { ifNotExists = true; } )?
+      ( usingClause[attrs] )?
+      {
+          $expr = new UpdateStatement.ParsedInsertJson(cf, attrs, val, ifNotExists);
+      }
+    ;
+
+jsonValue returns [Json.Raw value]
+    :
+    | s=STRING_LITERAL { $value = new Json.Literal($s.text); }
+    | ':' id=ident     { $value = newJsonBindVariables(id); }
+    | QMARK            { $value = newJsonBindVariables(null); }
     ;
 
 usingClause[Attributes.Raw attrs]
@@ -1500,6 +1531,7 @@ basic_unreserved_keyword returns [String str]
         | K_LANGUAGE
         | K_NON
         | K_DETERMINISTIC
+        | K_JSON
         ) { $str = $k.text; }
     ;
 
@@ -1629,6 +1661,8 @@ K_NON:         N O N;
 K_OR:          O R;
 K_REPLACE:     R E P L A C E;
 K_DETERMINISTIC: D E T E R M I N I S T I C;
+
+K_JSON:        J S O N;
 
 // Case-insensitive alpha characters
 fragment A: ('a'|'A');

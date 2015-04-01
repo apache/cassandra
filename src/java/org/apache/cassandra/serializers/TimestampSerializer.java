@@ -33,12 +33,12 @@ public class TimestampSerializer implements TypeSerializer<Date>
             "yyyy-MM-dd HH:mm",
             "yyyy-MM-dd HH:mm:ss",
             "yyyy-MM-dd HH:mmX",
-            "yyyy-MM-dd HH:mmXX",
+            "yyyy-MM-dd HH:mmXX",  // DEFAULT_FORMAT
             "yyyy-MM-dd HH:mmXXX",
             "yyyy-MM-dd HH:mm:ssX",
             "yyyy-MM-dd HH:mm:ssXX",
             "yyyy-MM-dd HH:mm:ssXXX",
-            "yyyy-MM-dd HH:mm:ss.SSS",
+            "yyyy-MM-dd HH:mm:ss.SSS",  // TO_JSON_FORMAT
             "yyyy-MM-dd HH:mm:ss.SSSX",
             "yyyy-MM-dd HH:mm:ss.SSSXX",
             "yyyy-MM-dd HH:mm:ss.SSSXXX",
@@ -71,6 +71,8 @@ public class TimestampSerializer implements TypeSerializer<Date>
         }
     };
 
+    public static final SimpleDateFormat TO_JSON_FORMAT = new SimpleDateFormat(dateStringPatterns[8]);
+
     public static final TimestampSerializer instance = new TimestampSerializer();
 
     public Date deserialize(ByteBuffer bytes)
@@ -97,7 +99,7 @@ public class TimestampSerializer implements TypeSerializer<Date>
             }
             catch (NumberFormatException e)
             {
-                throw new MarshalException(String.format("unable to make long (for date) from: '%s'", source), e);
+                throw new MarshalException(String.format("Unable to make long (for date) from: '%s'", source), e);
             }
         }
 
@@ -108,7 +110,7 @@ public class TimestampSerializer implements TypeSerializer<Date>
         }
         catch (ParseException e1)
         {
-            throw new MarshalException(String.format("unable to coerce '%s' to a  formatted date (long)", source), e1);
+            throw new MarshalException(String.format("Unable to coerce '%s' to a formatted date (long)", source), e1);
         }
     }
 

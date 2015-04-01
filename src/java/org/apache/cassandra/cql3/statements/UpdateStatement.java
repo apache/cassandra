@@ -150,13 +150,15 @@ public class UpdateStatement extends ModificationStatement
          * A parsed <code>INSERT</code> statement.
          *
          * @param name column family being operated on
+         * @param attrs additional attributes for statement (CL, timestamp, timeToLive)
          * @param columnNames list of column names
          * @param columnValues list of column values (corresponds to names)
-         * @param attrs additional attributes for statement (CL, timestamp, timeToLive)
+         * @param ifNotExists true if an IF NOT EXISTS condition was specified, false otherwise
          */
         public ParsedInsert(CFName name,
                             Attributes.Raw attrs,
-                            List<ColumnIdentifier.Raw> columnNames, List<Term.Raw> columnValues,
+                            List<ColumnIdentifier.Raw> columnNames,
+                            List<Term.Raw> columnValues,
                             boolean ifNotExists)
         {
             super(name, attrs, null, ifNotExists, false);
@@ -166,16 +168,20 @@ public class UpdateStatement extends ModificationStatement
 
         protected ModificationStatement prepareInternal(CFMetaData cfm, VariableSpecifications boundNames, Attributes attrs) throws InvalidRequestException
         {
-            UpdateStatement stmt = new UpdateStatement(ModificationStatement.StatementType.INSERT,boundNames.size(), cfm, attrs);
+            UpdateStatement stmt = new UpdateStatement(ModificationStatement.StatementType.INSERT, boundNames.size(), cfm, attrs);
 
             // Created from an INSERT
             if (stmt.isCounter())
-                throw new InvalidRequestException("INSERT statement are not allowed on counter tables, use UPDATE instead");
-            if (columnNames.size() != columnValues.size())
-                throw new InvalidRequestException("Unmatched column names/values");
+                throw new InvalidRequestException("INSERT statements are not allowed on counter tables, use UPDATE instead");
+
+            if (columnNames == null)
+                throw new InvalidRequestException("Column names for INSERT must be provided when using VALUES");
             if (columnNames.isEmpty())
                 throw new InvalidRequestException("No columns provided to INSERT");
+            if (columnNames.size() != columnValues.size())
+                throw new InvalidRequestException("Unmatched column names/values");
 
+            String ks = keyspace();
             for (int i = 0; i < columnNames.size(); i++)
             {
                 ColumnIdentifier id = columnNames.get(i).prepare(cfm);
@@ -191,22 +197,54 @@ public class UpdateStatement extends ModificationStatement
                 }
 
                 Term.Raw value = columnValues.get(i);
-
-                switch (def.kind)
+                if (def.isPrimaryKeyColumn())
                 {
-                    case PARTITION_KEY:
-                    case CLUSTERING_COLUMN:
-                        Term t = value.prepare(keyspace(), def);
-                        t.collectMarkerSpecification(boundNames);
-                        stmt.addKeyValue(def, t);
-                        break;
-                    default:
-                        Operation operation = new Operation.SetValue(value).prepare(keyspace(), def);
-                        operation.collectMarkerSpecification(boundNames);
-                        stmt.addOperation(operation);
-                        break;
+                    Term t = value.prepare(ks, def);
+                    t.collectMarkerSpecification(boundNames);
+                    stmt.addKeyValue(def, t);
+                }
+                else
+                {
+                    Operation operation = new Operation.SetValue(value).prepare(ks, def);
+                    operation.collectMarkerSpecification(boundNames);
+                    stmt.addOperation(operation);
                 }
             }
+
+            return stmt;
+        }
+    }
+
+    /**
+     * A parsed INSERT JSON statement.
+     */
+    public static class ParsedInsertJson extends ModificationStatement.Parsed
+    {
+        private final Json.Raw jsonValue;
+
+        public ParsedInsertJson(CFName name, Attributes.Raw attrs, Json.Raw jsonValue, boolean ifNotExists)
+        {
+            super(name, attrs, null, ifNotExists, false);
+            this.jsonValue = jsonValue;
+        }
+
+        protected ModificationStatement prepareInternal(CFMetaData cfm, VariableSpecifications boundNames, Attributes attrs) throws InvalidRequestException
+        {
+            UpdateStatement stmt = new UpdateStatement(ModificationStatement.StatementType.INSERT, boundNames.size(), cfm, attrs);
+            if (stmt.isCounter())
+                throw new InvalidRequestException("INSERT statements are not allowed on counter tables, use UPDATE instead");
+
+            Collection<ColumnDefinition> defs = cfm.allColumns();
+            Json.Prepared prepared = jsonValue.prepareAndCollectMarkers(cfm, defs, boundNames);
+
+            for (ColumnDefinition def : defs)
+            {
+                if (def.isPrimaryKeyColumn())
+                    stmt.addKeyValue(def, prepared.getPrimaryKeyValueForColumn(def));
+                else
+                    stmt.addOperation(prepared.getSetOperationForColumn(def));
+            }
+
             return stmt;
         }
     }

@@ -69,7 +69,7 @@ public abstract class CQLTester
 
     public static final String KEYSPACE = "cql_test_keyspace";
     public static final String KEYSPACE_PER_TEST = "cql_test_keyspace_alt";
-    private static final boolean USE_PREPARED_VALUES = Boolean.valueOf(System.getProperty("cassandra.test.use_prepared", "true"));
+    protected static final boolean USE_PREPARED_VALUES = Boolean.valueOf(System.getProperty("cassandra.test.use_prepared", "true"));
     private static final AtomicInteger seqNumber = new AtomicInteger();
 
     private static org.apache.cassandra.transport.Server server;
@@ -668,8 +668,8 @@ public abstract class CQLTester
         {
             execute(query, values);
             String q = USE_PREPARED_VALUES
-                     ? query + " (values: " + formatAllValues(values) + ")"
-                     : replaceValues(query, values);
+                       ? query + " (values: " + formatAllValues(values) + ")"
+                       : replaceValues(query, values);
             Assert.fail("Query should be invalid but no error was thrown. Query is: " + q);
         }
         catch (CassandraException e)
@@ -924,10 +924,11 @@ public abstract class CQLTester
         AbstractType type = typeFor(value);
         String s = type.getString(type.decompose(value));
 
-        if (type instanceof UTF8Type)
+        if (type instanceof InetAddressType || type instanceof TimestampType)
+            return String.format("'%s'", s);
+        else if (type instanceof UTF8Type)
             return String.format("'%s'", s.replaceAll("'", "''"));
-
-        if (type instanceof BytesType)
+        else if (type instanceof BytesType)
             return "0x" + s;
 
         return s;
@@ -1021,6 +1022,15 @@ public abstract class CQLTester
 
         if (value instanceof Boolean)
             return BooleanType.instance;
+
+        if (value instanceof InetAddress)
+            return InetAddressType.instance;
+
+        if (value instanceof Date)
+            return TimestampType.instance;
+
+        if (value instanceof UUID)
+            return UUIDType.instance;
 
         if (value instanceof List)
         {

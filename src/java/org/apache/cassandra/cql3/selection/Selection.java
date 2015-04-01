@@ -18,24 +18,24 @@
 package org.apache.cassandra.cql3.selection;
 
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Iterator;
-import java.util.List;
+import java.util.*;
 
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.ColumnSpecification;
+import org.apache.cassandra.cql3.Json;
 import org.apache.cassandra.cql3.ResultSet;
 import org.apache.cassandra.db.Cell;
 import org.apache.cassandra.db.CounterCell;
 import org.apache.cassandra.db.ExpiringCell;
 import org.apache.cassandra.db.context.CounterContext;
+import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 import com.google.common.base.Predicate;
+import com.google.common.base.Objects;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Iterators;
 
@@ -147,9 +147,14 @@ public abstract class Selection
            });
     }
 
-    public ResultSet.ResultMetadata getResultMetadata()
+    public ResultSet.ResultMetadata getResultMetadata(boolean isJson)
     {
-        return metadata;
+        if (!isJson)
+            return metadata;
+
+        ColumnSpecification firstColumn = metadata.names.get(0);
+        ColumnSpecification jsonSpec = new ColumnSpecification(firstColumn.ksName, firstColumn.cfName, Json.JSON_COLUMN_ID, UTF8Type.instance);
+        return new ResultSet.ResultMetadata(Arrays.asList(jsonSpec));
     }
 
     public static Selection wildcard(CFMetaData cfm)
@@ -223,31 +228,22 @@ public abstract class Selection
         return columns;
     }
 
-    public ResultSetBuilder resultSetBuilder(long now) throws InvalidRequestException
+    public ResultSetBuilder resultSetBuilder(long now, boolean isJson) throws InvalidRequestException
     {
-        return new ResultSetBuilder(now);
+        return new ResultSetBuilder(now, isJson);
     }
 
     public abstract boolean isAggregate();
 
-    /**
-     * Checks that selectors are either all aggregates or that none of them is.
-     *
-     * @param selectors the selectors to test.
-     * @param messageTemplate the error message template
-     * @param messageArgs the error message arguments
-     * @throws InvalidRequestException if some of the selectors are aggregate but not all of them
-     */
-    static void validateSelectors(List<Selector> selectors, String messageTemplate, Object... messageArgs)
-            throws InvalidRequestException
+    @Override
+    public String toString()
     {
-        int aggregates = 0;
-        for (Selector s : selectors)
-            if (s.isAggregate())
-                ++aggregates;
-
-        if (aggregates != 0 && aggregates != selectors.size())
-            throw new InvalidRequestException(String.format(messageTemplate, messageArgs));
+        return Objects.toStringHelper(this)
+                .add("columns", columns)
+                .add("metadata", metadata)
+                .add("collectTimestamps", collectTimestamps)
+                .add("collectTTLs", collectTTLs)
+                .toString();
     }
 
     public class ResultSetBuilder
@@ -273,13 +269,16 @@ public abstract class Selection
         final int[] ttls;
         final long now;
 
-        private ResultSetBuilder(long now) throws InvalidRequestException
+        private final boolean isJson;
+
+        private ResultSetBuilder(long now, boolean isJson) throws InvalidRequestException
         {
-            this.resultSet = new ResultSet(getResultMetadata().copy(), new ArrayList<List<ByteBuffer>>());
+            this.resultSet = new ResultSet(getResultMetadata(isJson).copy(), new ArrayList<List<ByteBuffer>>());
             this.selectors = newSelectors();
             this.timestamps = collectTimestamps ? new long[columns.size()] : null;
             this.ttls = collectTTLs ? new int[columns.size()] : null;
             this.now = now;
+            this.isJson = isJson;
         }
 
         public void add(ByteBuffer v)
@@ -315,11 +314,11 @@ public abstract class Selection
                 selectors.addInputRow(protocolVersion, this);
                 if (!selectors.isAggregate())
                 {
-                    resultSet.addRow(selectors.getOutputRow(protocolVersion));
+                    resultSet.addRow(getOutputRow(protocolVersion));
                     selectors.reset();
                 }
             }
-            current = new ArrayList<ByteBuffer>(columns.size());
+            current = new ArrayList<>(columns.size());
         }
 
         public ResultSet build(int protocolVersion) throws InvalidRequestException
@@ -327,16 +326,47 @@ public abstract class Selection
             if (current != null)
             {
                 selectors.addInputRow(protocolVersion, this);
-                resultSet.addRow(selectors.getOutputRow(protocolVersion));
+                resultSet.addRow(getOutputRow(protocolVersion));
                 selectors.reset();
                 current = null;
             }
 
             if (resultSet.isEmpty() && selectors.isAggregate())
-            {
-                resultSet.addRow(selectors.getOutputRow(protocolVersion));
-            }
+                resultSet.addRow(getOutputRow(protocolVersion));
             return resultSet;
+        }
+
+        private List<ByteBuffer> getOutputRow(int protocolVersion)
+        {
+            List<ByteBuffer> outputRow = selectors.getOutputRow(protocolVersion);
+            return isJson ? rowToJson(outputRow, protocolVersion)
+                          : outputRow;
+        }
+
+        private List<ByteBuffer> rowToJson(List<ByteBuffer> row, int protocolVersion)
+        {
+            StringBuilder sb = new StringBuilder("{");
+            for (int i = 0; i < metadata.names.size(); i++)
+            {
+                if (i > 0)
+                    sb.append(", ");
+
+                ColumnSpecification spec = metadata.names.get(i);
+                String columnName = spec.name.toString();
+                if (!columnName.equals(columnName.toLowerCase(Locale.US)))
+                    columnName = "\"" + columnName + "\"";
+
+                ByteBuffer buffer = row.get(i);
+                sb.append('"');
+                sb.append(Json.JSON_STRING_ENCODER.quoteAsString(columnName));
+                sb.append("\": ");
+                if (buffer == null)
+                    sb.append("null");
+                else
+                    sb.append(spec.type.toJSONString(buffer, protocolVersion));
+            }
+            sb.append("}");
+            return Collections.singletonList(UTF8Type.instance.getSerializer().serialize(sb.toString()));
         }
 
         private ByteBuffer value(Cell c)
@@ -476,10 +506,8 @@ public abstract class Selection
 
                 public void reset()
                 {
-                    for (int i = 0, m = selectors.size(); i < m; i++)
-                    {
-                        selectors.get(i).reset();
-                    }
+                    for (Selector selector : selectors)
+                        selector.reset();
                 }
 
                 public boolean isAggregate()
@@ -491,19 +519,16 @@ public abstract class Selection
                 {
                     List<ByteBuffer> outputRow = new ArrayList<>(selectors.size());
 
-                    for (int i = 0, m = selectors.size(); i < m; i++)
-                    {
-                        outputRow.add(selectors.get(i).getOutput(protocolVersion));
-                    }
+                    for (Selector selector: selectors)
+                        outputRow.add(selector.getOutput(protocolVersion));
+
                     return outputRow;
                 }
 
                 public void addInputRow(int protocolVersion, ResultSetBuilder rs) throws InvalidRequestException
                 {
-                    for (int i = 0, m = selectors.size(); i < m; i++)
-                    {
-                        selectors.get(i).addInput(protocolVersion, rs);
-                    }
+                    for (Selector selector : selectors)
+                        selector.addInput(protocolVersion, rs);
                 }
             };
         }

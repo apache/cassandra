@@ -27,6 +27,7 @@ import com.google.common.collect.Lists;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.cql3.selection.Selector.Factory;
+import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 
 /**
@@ -183,6 +184,22 @@ final class SelectorFactories implements Iterable<Selector.Factory>
             public String apply(Selector.Factory factory)
             {
                 return factory.getColumnName();
+            }
+        });
+    }
+
+    /**
+     * Returns a list of the return types of the selector instances created by these factories.
+     *
+     * @return a list of types
+     */
+    public List<AbstractType<?>> getReturnTypes()
+    {
+        return Lists.transform(factories, new Function<Selector.Factory, AbstractType<?>>()
+        {
+            public AbstractType<?> apply(Selector.Factory factory)
+            {
+                return factory.getReturnType();
             }
         });
     }

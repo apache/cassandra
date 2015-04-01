@@ -20,6 +20,8 @@ package org.apache.cassandra.db.marshal;
 import java.nio.ByteBuffer;
 
 import org.apache.cassandra.cql3.CQL3Type;
+import org.apache.cassandra.cql3.Constants;
+import org.apache.cassandra.cql3.Term;
 import org.apache.cassandra.serializers.TypeSerializer;
 import org.apache.cassandra.serializers.DoubleSerializer;
 import org.apache.cassandra.serializers.MarshalException;
@@ -52,10 +54,33 @@ public class DoubleType extends AbstractType<Double>
       }
       catch (NumberFormatException e1)
       {
-          throw new MarshalException(String.format("unable to coerce '%s' to a double", source), e1);
+          throw new MarshalException(String.format("Unable to make double from '%s'", source), e1);
       }
 
       return decompose(d);
+    }
+
+    @Override
+    public Term fromJSONObject(Object parsed) throws MarshalException
+    {
+        try
+        {
+            if (parsed instanceof String)
+                return new Constants.Value(fromString((String) parsed));
+            else
+                return new Constants.Value(getSerializer().serialize(((Number) parsed).doubleValue()));
+        }
+        catch (ClassCastException exc)
+        {
+            throw new MarshalException(String.format(
+                    "Expected a double value, but got a %s: %s", parsed.getClass().getSimpleName(), parsed));
+        }
+    }
+
+    @Override
+    public String toJSONString(ByteBuffer buffer, int protocolVersion)
+    {
+        return getSerializer().deserialize(buffer).toString();
     }
 
     public CQL3Type asCQL3Type()

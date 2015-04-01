@@ -53,7 +53,7 @@ public abstract class Functions
 
         for (CQL3Type type : CQL3Type.Native.values())
         {
-            // Note: because text and varchar ends up being synonimous, our automatic makeToBlobFunction doesn't work
+            // Note: because text and varchar ends up being synonymous, our automatic makeToBlobFunction doesn't work
             // for varchar, so we special case it below. We also skip blob for obvious reasons.
             if (type == CQL3Type.Native.VARCHAR || type == CQL3Type.Native.BLOB)
                 continue;
@@ -101,17 +101,40 @@ public abstract class Functions
         return declared.get(name).size();
     }
 
+    /**
+     * @param keyspace the current keyspace
+     * @param name the name of the function
+     * @param providedArgs the arguments provided for the function call
+     * @param receiverKs the receiver's keyspace
+     * @param receiverCf the receiver's table
+     * @param receiverType if the receiver type is known (during inserts, for example), this should be the type of
+     *                     the receiver
+     * @throws InvalidRequestException
+     */
     public static Function get(String keyspace,
                                FunctionName name,
                                List<? extends AssignmentTestable> providedArgs,
                                String receiverKs,
-                               String receiverCf)
+                               String receiverCf,
+                               AbstractType<?> receiverType)
     throws InvalidRequestException
     {
-        if (name.hasKeyspace()
-            ? name.equals(TOKEN_FUNCTION_NAME)
-            : name.name.equals(TOKEN_FUNCTION_NAME.name))
+        if (name.equalsNativeFunction(TOKEN_FUNCTION_NAME))
             return new TokenFct(Schema.instance.getCFMetaData(receiverKs, receiverCf));
+
+        // The toJson() function can accept any type of argument, so instances of it are not pre-declared.  Instead,
+        // we create new instances as needed while handling selectors (which is the only place that toJson() is supported,
+        // due to needing to know the argument types in advance).
+        if (name.equalsNativeFunction(ToJsonFct.NAME))
+            throw new InvalidRequestException("toJson() may only be used within the selection clause of SELECT statements");
+
+        // Similarly, we can only use fromJson when we know the receiver type (such as inserts)
+        if (name.equalsNativeFunction(FromJsonFct.NAME))
+        {
+            if (receiverType == null)
+                throw new InvalidRequestException("fromJson() cannot be used in the selection clause of a SELECT statement");
+            return FromJsonFct.getInstance(receiverType);
+        }
 
         List<Function> candidates;
         if (!name.hasKeyspace())

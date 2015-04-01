@@ -596,7 +596,7 @@ public abstract class ModificationStatement implements CQLStatement
         }
 
         long now = System.currentTimeMillis();
-        Selection.ResultSetBuilder builder = selection.resultSetBuilder(now);
+        Selection.ResultSetBuilder builder = selection.resultSetBuilder(now, false);
         SelectStatement.forSelection(cfm, selection).processColumnFamily(key, cf, options, now, builder);
 
         return builder.build(options.getProtocolVersion());
