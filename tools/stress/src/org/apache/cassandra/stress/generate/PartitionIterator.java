@@ -298,7 +298,7 @@ public abstract class PartitionIterator implements Iterator<Row>
             for (int i = 0 ; i <= depth ; i++)
             {
                 int p = currentRow[i], l = lastRow[i], r = clusteringComponents[i].size();
-                if ((p == l) | (r == 1))
+                if ((p == l) || (r == 1))
                     continue;
                 return p - l;
             }
