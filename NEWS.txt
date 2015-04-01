@@ -13,7 +13,7 @@ restore snapshots created with the previous major version using the
 'sstableloader' tool. You can upgrade the file format of your snapshots
 using the provided 'sstableupgrade' tool.
 
-2.1.4
+2.1.5
 =====
 Upgrading
 ---------
@@ -25,6 +25,11 @@ New features
 ------------
     - New `SimpleDateType` (cql date). 4-byte unsigned integer w/out timestamp
     - New `TimeType` (cql time). 8-byte long nano-second resolution timestamp
+
+2.1.4
+=====
+The default JMX config now listens to localhost only. You must enable 
+the other JMX flags in cassandra-env.sh manually.
 
 2.1.3
 =====
