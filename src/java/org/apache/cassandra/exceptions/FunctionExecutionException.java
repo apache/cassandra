@@ -23,7 +23,7 @@ import org.apache.cassandra.cql3.functions.Function;
 import org.apache.cassandra.cql3.functions.FunctionName;
 import org.apache.cassandra.db.marshal.AbstractType;
 
-public class FunctionExecutionException extends CassandraException
+public class FunctionExecutionException extends RequestExecutionException
 {
     public final FunctionName functionName;
     public final List<String> argTypes;

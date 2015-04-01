@@ -1,4 +1,6 @@
 3.0
+ * Make FunctionExecutionException extend RequestExecutionException
+   (CASSANDRA-9055)
  * Add support for SELECT JSON, INSERT JSON syntax and new toJson(), fromJson()
    functions (CASSANDRA-7970)
  * Optimise max purgeable timestamp calculation in compaction (CASSANDRA-8920)
