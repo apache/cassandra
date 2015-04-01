@@ -82,7 +82,7 @@
  * Resumable bootstrap streaming (CASSANDRA-8838, CASSANDRA-8942)
  * Allow scrub for secondary index (CASSANDRA-5174)
 
-2.1.4
+2.1.5
  * Buffer bloom filter serialization (CASSANDRA-9066)
  * Fix anti-compaction target bloom filter size (CASSANDRA-9060)
  * Make FROZEN and TUPLE unreserved keywords in CQL (CASSANDRA-9047)
@@ -195,6 +195,8 @@ Merged from 2.0:
  * Ensure SSTableSimpleUnsortedWriter.close() terminates if
    disk writer has crashed (CASSANDRA-8807)
 
+2.1.4
+ * Bind JMX to localhost unless explicitly configured otherwise (CASSANDRA-9085)
 
 2.1.3
  * Fix HSHA/offheap_objects corruption (CASSANDRA-8719)
@@ -294,9 +296,6 @@ Merged from 2.0:
  * Add batch remove iterator to ABSC (CASSANDRA-8414, 8666)
  * Round up time deltas lower than 1ms in BulkLoader (CASSANDRA-8645)
  * Fix isClientMode check in Keyspace (CASSANDRA-8687)
- * 'nodetool info' prints exception against older node (CASSANDRA-8796)
- * Ensure SSTableSimpleUnsortedWriter.close() terminates if
-   disk writer has crashed (CASSANDRA-8807)
  * Use more efficient slice size for querying internal secondary
    index tables (CASSANDRA-8550)
  * Fix potentially returning deleted rows with range tombstone (CASSANDRA-8558)
@@ -349,7 +348,6 @@ Merged from 2.0:
  * Add DC-aware sequential repair (CASSANDRA-8193)
  * Use live sstables in snapshot repair if possible (CASSANDRA-8312)
  * Fix hints serialized size calculation (CASSANDRA-8587)
-
 
 2.1.2
  * (cqlsh) parse_for_table_meta errors out on queries with undefined

@@ -65,11 +65,14 @@ set JAVA_OPTS=-ea^
  -XX:MaxTenuringThreshold=1^
  -XX:CMSInitiatingOccupancyFraction=75^
  -XX:+UseCMSInitiatingOccupancyOnly^
- -Dcom.sun.management.jmxremote.port=7199^
- -Dcom.sun.management.jmxremote.ssl=false^
- -Dcom.sun.management.jmxremote.authenticate=false^
  -Dlogback.configurationFile=logback.xml^
- -Djava.library.path=%CASSANDRA_HOME%\lib\sigar-bin
+ -Djava.library.path=%CASSANDRA_HOME%\lib\sigar-bin^
+ -Dcassandra.jmx.local.port=7199
+REM **** JMX REMOTE ACCESS SETTINGS SEE: https://wiki.apache.org/cassandra/JmxSecurity ***
+REM -Dcom.sun.management.jmxremote.port=7199^
+REM -Dcom.sun.management.jmxremote.ssl=false^
+REM -Dcom.sun.management.jmxremote.authenticate=true^
+REM -Dcom.sun.management.jmxremote.password.file=C:\jmxremote.password
 
 REM ***** CLASSPATH library setting *****
 REM Ensure that any user defined CLASSPATH variables are not used on startup
