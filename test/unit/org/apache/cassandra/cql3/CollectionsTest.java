@@ -166,51 +166,47 @@ public class CollectionsTest extends CQLTester
 
         execute("INSERT INTO %s(k, l) VALUES (0, ?)", list("v1", "v2", "v3"));
 
-        assertRows(execute("SELECT l FROM %s WHERE k = 0"),
-            row(list("v1", "v2", "v3"))
-        );
+        assertRows(execute("SELECT l FROM %s WHERE k = 0"), row(list("v1", "v2", "v3")));
 
         execute("DELETE l[?] FROM %s WHERE k = 0", 1);
 
-        assertRows(execute("SELECT l FROM %s WHERE k = 0"),
-            row(list("v1", "v3"))
-        );
+        assertRows(execute("SELECT l FROM %s WHERE k = 0"), row(list("v1", "v3")));
 
         execute("UPDATE %s SET l[?] = ? WHERE k = 0", 1, "v4");
 
-        assertRows(execute("SELECT l FROM %s WHERE k = 0"),
-            row(list("v1", "v4"))
-        );
+        assertRows(execute("SELECT l FROM %s WHERE k = 0"), row(list("v1", "v4")));
 
         // Full overwrite
         execute("UPDATE %s SET l = ? WHERE k = 0", list("v6", "v5"));
 
-        assertRows(execute("SELECT l FROM %s WHERE k = 0"),
-            row(list("v6", "v5"))
-        );
+        assertRows(execute("SELECT l FROM %s WHERE k = 0"), row(list("v6", "v5")));
 
         execute("UPDATE %s SET l = l + ? WHERE k = 0", list("v7", "v8"));
 
-        assertRows(execute("SELECT l FROM %s WHERE k = 0"),
-            row(list("v6", "v5", "v7", "v8"))
-        );
+        assertRows(execute("SELECT l FROM %s WHERE k = 0"), row(list("v6", "v5", "v7", "v8")));
 
         execute("UPDATE %s SET l = ? + l WHERE k = 0", list("v9"));
 
-        assertRows(execute("SELECT l FROM %s WHERE k = 0"),
-            row(list("v9", "v6", "v5", "v7", "v8"))
-        );
+        assertRows(execute("SELECT l FROM %s WHERE k = 0"), row(list("v9", "v6", "v5", "v7", "v8")));
 
         execute("UPDATE %s SET l = l - ? WHERE k = 0", list("v5", "v8"));
 
-        assertRows(execute("SELECT l FROM %s WHERE k = 0"),
-            row(list("v9", "v6", "v7"))
-        );
+        assertRows(execute("SELECT l FROM %s WHERE k = 0"), row(list("v9", "v6", "v7")));
 
         execute("DELETE l FROM %s WHERE k = 0");
 
-        assertRows(execute("SELECT l FROM %s WHERE k = 0"),
-            row((Object)null)
-        );
+        assertRows(execute("SELECT l FROM %s WHERE k = 0"), row((Object) null));
+
+        assertInvalidMessage("Attempted to delete an element from a list which is null",
+                             "DELETE l[0] FROM %s WHERE k=0 ");
+
+        assertInvalidMessage("Attempted to set an element on a list which is null",
+                             "UPDATE %s SET l[0] = ? WHERE k=0", list("v10"));
+
+        assertInvalidMessage("Attempted to delete an element from a list which is null",
+                             "UPDATE %s SET l = l - ? WHERE k=0 ",
+                             list("v11"));
+
+        assertRows(execute("SELECT l FROM %s WHERE k = 0"), row((Object) null));
     }
 }
