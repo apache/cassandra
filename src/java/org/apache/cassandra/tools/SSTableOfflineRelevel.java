@@ -28,6 +28,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import com.google.common.base.Throwables;
+
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.DecoratedKey;
@@ -93,12 +95,20 @@ public class SSTableOfflineRelevel
         Keyspace.openWithoutSSTables(keyspace);
         Directories directories = Directories.create(keyspace, columnfamily);
         Set<SSTableReader> sstables = new HashSet<>();
-        for (Map.Entry<Descriptor, Set<Component>> sstable : directories.sstableLister().list().entrySet())
+        for (Map.Entry<Descriptor, Set<Component>> sstable : directories.sstableLister().skipTemporary(true).list().entrySet())
         {
             if (sstable.getKey() != null)
             {
-                SSTableReader reader = SSTableReader.open(sstable.getKey());
-                sstables.add(reader);
+                try
+                {
+                    SSTableReader reader = SSTableReader.open(sstable.getKey());
+                    sstables.add(reader);
+                }
+                catch (Throwable t)
+                {
+                    out.println("Couldn't open sstable: "+sstable.getKey().filenameFor(Component.DATA));
+                    Throwables.propagate(t);
+                }
             }
         }
         if (sstables.isEmpty())

@@ -1,4 +1,5 @@
 2.0.15:
+ * Don't include tmp files when doing offline relevel (CASSANDRA-9088)
  * Use the proper CAS WriteType when finishing a previous round during Paxos
    preparation (CASSANDRA-8672)
  * Avoid race in cancelling compactions (CASSANDRA-9070)
