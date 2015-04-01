@@ -149,6 +149,7 @@ public class CompactionTask extends AbstractCompactionTask
         logger.info("Compacting ({}) {}", taskIdLoggerMsg, ssTableLoggerMsg);
 
         long start = System.nanoTime();
+
         long totalKeysWritten = 0;
 
         try (CompactionController controller = getCompactionController(sstables);)
@@ -184,6 +185,8 @@ public class CompactionTask extends AbstractCompactionTask
                 SSTableRewriter writer = new SSTableRewriter(cfs, sstables, maxAge, offline);
                 try
                 {
+                    if (!controller.cfs.getCompactionStrategy().isActive)
+                       throw new CompactionInterruptedException(ci.getCompactionInfo());
                     if (!iter.hasNext())
                     {
                         // don't mark compacted in the finally block, since if there _is_ nondeleted data,
