@@ -85,7 +85,7 @@ public class NetworkTopologyStrategy extends AbstractReplicationStrategy
         // replicas we have found in each DC
         Map<String, Set<InetAddress>> dcReplicas = new HashMap<>(datacenters.size());
         for (Map.Entry<String, Integer> dc : datacenters.entrySet())
-            dcReplicas.put(dc.getKey(), new HashSet<>(dc.getValue()));
+            dcReplicas.put(dc.getKey(), new HashSet<InetAddress>(dc.getValue()));
 
         Topology topology = tokenMetadata.getTopology();
         // all endpoints in each DC, so we can check when we have exhausted all the members of a DC
@@ -97,13 +97,13 @@ public class NetworkTopologyStrategy extends AbstractReplicationStrategy
         // tracks the racks we have already placed replicas in
         Map<String, Set<String>> seenRacks = new HashMap<>(datacenters.size());
         for (Map.Entry<String, Integer> dc : datacenters.entrySet())
-            seenRacks.put(dc.getKey(), new HashSet<>());
+            seenRacks.put(dc.getKey(), new HashSet<String>());
 
         // tracks the endpoints that we skipped over while looking for unique racks
         // when we relax the rack uniqueness we can append this to the current result so we don't have to wind back the iterator
         Map<String, Set<InetAddress>> skippedDcEndpoints = new HashMap<>(datacenters.size());
         for (Map.Entry<String, Integer> dc : datacenters.entrySet())
-            skippedDcEndpoints.put(dc.getKey(), new LinkedHashSet<>());
+            skippedDcEndpoints.put(dc.getKey(), new LinkedHashSet<InetAddress>());
 
         Iterator<Token> tokenIter = TokenMetadata.ringIterator(tokenMetadata.sortedTokens(), searchToken, false);
         while (tokenIter.hasNext() && !hasSufficientReplicas(dcReplicas, allEndpoints))
