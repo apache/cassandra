@@ -492,7 +492,7 @@ public class ColumnCondition
                         throw new InvalidRequestException(String.format("Invalid comparison with null for operator \"%s\"", operator));
                 }
 
-                return valueAppliesTo(type, iter, value, operator, options);
+                return valueAppliesTo(type, iter, value, operator);
             }
 
             // frozen collections
@@ -519,7 +519,7 @@ public class ColumnCondition
             return compareWithOperator(operator, type, conditionValue, cell.value());
         }
 
-        static boolean valueAppliesTo(CollectionType type, Iterator<Cell> iter, Term.Terminal value, Operator operator, QueryOptions options)
+        static boolean valueAppliesTo(CollectionType type, Iterator<Cell> iter, Term.Terminal value, Operator operator)
         {
             if (value == null)
                 return !iter.hasNext();
@@ -691,7 +691,7 @@ public class ColumnCondition
                 List<Cell> cells = newArrayList(collectionColumns(name, current, now));
                 for (Term.Terminal value : inValues)
                 {
-                    if (CollectionBound.valueAppliesTo(type, cells.iterator(), value, Operator.EQ, options))
+                    if (CollectionBound.valueAppliesTo(type, cells.iterator(), value, Operator.EQ))
                         return true;
                 }
                 return false;
