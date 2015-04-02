@@ -24,6 +24,7 @@ import java.util.concurrent.TimeUnit;
 
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.db.Memtable;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
 import org.apache.cassandra.utils.EstimatedHistogram;
@@ -61,6 +62,8 @@ public class ColumnFamilyMetrics
     public final Gauge<Double> compressionRatio;
     /** Histogram of estimated row size (in bytes). */
     public final Gauge<long[]> estimatedRowSizeHistogram;
+    /** Approximate number of keys in table. */
+    public final Gauge<Long> estimatedRowCount;
     /** Histogram of estimated number of columns. */
     public final Gauge<long[]> estimatedColumnCountHistogram;
     /** Histogram of the number of sstable data files accessed per read */
@@ -281,6 +284,16 @@ public class ColumnFamilyMetrics
                         return reader.getEstimatedRowSize();
                     }
                 });
+            }
+        });
+        estimatedRowCount = Metrics.newGauge(factory.createMetricName("EstimatedRowCount"), new Gauge<Long>()
+        {
+            public Long value()
+            {
+                long memtablePartitions = 0;
+                for (Memtable memtable : cfs.getDataTracker().getView().getAllMemtables())
+                    memtablePartitions += memtable.partitionCount();
+                return SSTableReader.getApproximateKeyCount(cfs.getSSTables()) + memtablePartitions;
             }
         });
         estimatedColumnCountHistogram = Metrics.newGauge(factory.createMetricName("EstimatedColumnCountHistogram"), new Gauge<long[]>()
@@ -624,6 +637,7 @@ public class ColumnFamilyMetrics
         writeLatency.release();
         rangeLatency.release();
         Metrics.defaultRegistry().removeMetric(factory.createMetricName("EstimatedRowSizeHistogram"));
+        Metrics.defaultRegistry().removeMetric(factory.createMetricName("EstimatedRowCount"));
         Metrics.defaultRegistry().removeMetric(factory.createMetricName("EstimatedColumnCountHistogram"));
         Metrics.defaultRegistry().removeMetric(factory.createMetricName("KeyCacheHitRate"));
         Metrics.defaultRegistry().removeMetric(factory.createMetricName("CoordinatorReadLatency"));
