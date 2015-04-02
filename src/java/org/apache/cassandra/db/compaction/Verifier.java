@@ -184,7 +184,8 @@ public class Verifier implements Closeable
                     if (key == null || dataSize > dataFile.length())
                         markAndThrow();
 
-                    SSTableIdentityIterator atoms = new SSTableIdentityIterator(sstable, dataFile, key, true);
+                    //mimic the scrub read path
+                    new SSTableIdentityIterator(sstable, dataFile, key, true);
                     if ( (prevKey != null && prevKey.compareTo(key) > 0) || !key.getKey().equals(currentIndexKey) || dataStart != dataStartFromIndex )
                         markAndThrow();
                     
