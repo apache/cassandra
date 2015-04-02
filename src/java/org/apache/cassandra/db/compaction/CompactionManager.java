@@ -1027,7 +1027,7 @@ public class CompactionManager implements CompactionManagerMBean
 
                 for (SSTableReader sstable : sstableCandidates.sstables)
                 {
-                    if (!(new Bounds<>(sstable.first.getToken(), sstable.last.getToken()).intersects(Arrays.asList(validator.desc.range))))
+                    if (new Bounds<>(sstable.first.getToken(), sstable.last.getToken()).intersects(Collections.singletonList(validator.desc.range)))
                     {
                         sstablesToValidate.add(sstable);
                     }
