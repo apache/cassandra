@@ -31,7 +31,6 @@ import java.nio.ByteBuffer;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
-import java.util.concurrent.ExecutionException;
 import java.util.zip.CRC32;
 import java.util.zip.Checksum;
 
@@ -40,10 +39,8 @@ import com.google.common.collect.ImmutableMap;
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
-
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
-import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.KSMetaData;
 import org.apache.cassandra.config.ParameterizedClass;
@@ -51,20 +48,17 @@ import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.commitlog.CommitLogDescriptor;
 import org.apache.cassandra.db.commitlog.CommitLogSegment;
 import org.apache.cassandra.db.commitlog.ReplayPosition;
+import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.composites.CellName;
 import org.apache.cassandra.db.composites.CellNameType;
 import org.apache.cassandra.db.filter.NamesQueryFilter;
 import org.apache.cassandra.exceptions.ConfigurationException;
-import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.io.util.ByteBufferDataInput;
 import org.apache.cassandra.io.util.FileDataInput;
 import org.apache.cassandra.locator.SimpleStrategy;
 import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.utils.JVMStabilityInspector;
-import org.apache.cassandra.utils.KillerForTests;
 
 public class CommitLogTest
 {
@@ -90,6 +84,7 @@ public class CommitLogTest
                                     SchemaLoader.standardCFMD(KEYSPACE1, CF1),
                                     SchemaLoader.standardCFMD(KEYSPACE1, CF2));
         System.setProperty("cassandra.commitlog.stop_on_errors", "true");
+        CompactionManager.instance.disableAutoCompaction();
     }
 
     @Test
@@ -313,45 +308,6 @@ public class CommitLogTest
         Assert.assertEquals(MessagingService.current_version, new CommitLogDescriptor(1340512736956320000L, null).getMessagingVersion());
         String newCLName = "CommitLog-" + CommitLogDescriptor.current_version + "-1340512736956320000.log";
         Assert.assertEquals(MessagingService.current_version, CommitLogDescriptor.fromFileName(newCLName).getMessagingVersion());
-    }
-
-    @Test
-    public void testCommitFailurePolicy_stop() throws ConfigurationException
-    {
-        // Need storage service active so stop policy can shutdown gossip
-        StorageService.instance.initServer();
-        Assert.assertTrue(Gossiper.instance.isEnabled());
-
-        Config.CommitFailurePolicy oldPolicy = DatabaseDescriptor.getCommitFailurePolicy();
-        try
-        {
-            DatabaseDescriptor.setCommitFailurePolicy(Config.CommitFailurePolicy.stop);
-            CommitLog.handleCommitError("Test stop error", new Throwable());
-            Assert.assertFalse(Gossiper.instance.isEnabled());
-        }
-        finally
-        {
-            DatabaseDescriptor.setCommitFailurePolicy(oldPolicy);
-        }
-    }
-
-    @Test
-    public void testCommitFailurePolicy_die()
-    {
-        KillerForTests killerForTests = new KillerForTests();
-        JVMStabilityInspector.Killer originalKiller = JVMStabilityInspector.replaceKiller(killerForTests);
-        Config.CommitFailurePolicy oldPolicy = DatabaseDescriptor.getCommitFailurePolicy();
-        try
-        {
-            DatabaseDescriptor.setCommitFailurePolicy(Config.CommitFailurePolicy.die);
-            CommitLog.handleCommitError("Testing die policy", new Throwable());
-            Assert.assertTrue(killerForTests.wasKilled());
-        }
-        finally
-        {
-            DatabaseDescriptor.setCommitFailurePolicy(oldPolicy);
-            JVMStabilityInspector.replaceKiller(originalKiller);
-        }
     }
 
     @Test
