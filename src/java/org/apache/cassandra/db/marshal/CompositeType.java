@@ -32,6 +32,7 @@ import org.apache.cassandra.exceptions.SyntaxException;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.Operator;
 import org.apache.cassandra.io.util.DataOutputBuffer;
+import org.apache.cassandra.io.util.DataOutputBufferFixed;
 import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
@@ -403,7 +404,7 @@ public class CompositeType extends AbstractCompositeType
         {
             try
             {
-                DataOutputBuffer out = new DataOutputBuffer(serializedSize);
+                DataOutputBuffer out = new DataOutputBufferFixed(serializedSize);
                 if (isStatic)
                     out.writeShort(STATIC_MARKER);
 

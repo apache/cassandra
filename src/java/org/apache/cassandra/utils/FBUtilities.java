@@ -49,6 +49,7 @@ import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.compress.CompressionParameters;
 import org.apache.cassandra.io.util.DataOutputBuffer;
+import org.apache.cassandra.io.util.DataOutputBufferFixed;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.net.AsyncOneResponse;
 import org.apache.thrift.*;
@@ -719,7 +720,7 @@ public class FBUtilities
         try
         {
             int size = (int) serializer.serializedSize(object, version);
-            DataOutputBuffer buffer = new DataOutputBuffer(size);
+            DataOutputBuffer buffer = new DataOutputBufferFixed(size);
             serializer.serialize(object, buffer, version);
             assert buffer.getLength() == size && buffer.getData().length == size
                 : String.format("Final buffer length %s to accommodate data size of %s (predicted %s) for %s",

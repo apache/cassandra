@@ -26,6 +26,7 @@ import java.util.UUID;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataOutputBuffer;
+import org.apache.cassandra.io.util.DataOutputBufferFixed;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.net.CompactEndpointSerializationHelper;
 import org.apache.cassandra.net.MessagingService;
@@ -80,7 +81,7 @@ public class StreamInitMessage
         try
         {
             int size = (int)StreamInitMessage.serializer.serializedSize(this, version);
-            DataOutputBuffer buffer = new DataOutputBuffer(size);
+            DataOutputBuffer buffer = new DataOutputBufferFixed(size);
             StreamInitMessage.serializer.serialize(this, buffer, version);
             bytes = buffer.getData();
         }

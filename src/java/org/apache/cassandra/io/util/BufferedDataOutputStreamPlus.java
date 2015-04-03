@@ -75,13 +75,13 @@ public class BufferedDataOutputStreamPlus extends DataOutputStreamPlus
         Preconditions.checkArgument(bufferSize >= 8, "Buffer size must be large enough to accommodate a long/double");
     }
 
-    public BufferedDataOutputStreamPlus(WritableByteChannel channel, ByteBuffer buffer)
+    protected BufferedDataOutputStreamPlus(WritableByteChannel channel, ByteBuffer buffer)
     {
         super(channel);
         this.buffer = buffer;
     }
 
-    public BufferedDataOutputStreamPlus(ByteBuffer buffer)
+    protected BufferedDataOutputStreamPlus(ByteBuffer buffer)
     {
         super();
         this.buffer = buffer;

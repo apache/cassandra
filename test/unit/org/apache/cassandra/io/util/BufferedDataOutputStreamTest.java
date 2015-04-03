@@ -6,16 +6,55 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.io.UTFDataFormatException;
 import java.lang.reflect.Field;
+import java.nio.BufferOverflowException;
 import java.nio.ByteBuffer;
 import java.nio.channels.WritableByteChannel;
 import java.util.Random;
 
 import org.junit.Test;
 
+import com.google.common.base.Throwables;
+
 import static org.junit.Assert.*;
 
 public class BufferedDataOutputStreamTest
 {
+
+    @Test(expected = BufferOverflowException.class)
+    public void testDataOutputBufferFixedByes() throws Exception
+    {
+        try (DataOutputBufferFixed dob = new DataOutputBufferFixed())
+        {
+            try
+            {
+                for (int ii = 0; ii < 128; ii++)
+                    dob.write(0);
+            }
+            catch (BufferOverflowException e)
+            {
+                fail("Should not throw BufferOverflowException yet");
+            }
+            dob.write(0);
+        }
+    }
+
+    @Test(expected = BufferOverflowException.class)
+    public void testDataOutputBufferFixedByteBuffer() throws Exception
+    {
+        try (DataOutputBufferFixed dob = new DataOutputBufferFixed())
+        {
+            try
+            {
+                dob.write(ByteBuffer.allocateDirect(128));
+            }
+            catch (BufferOverflowException e)
+            {
+                fail("Should not throw BufferOverflowException yet");
+            }
+            dob.write(ByteBuffer.allocateDirect(1));
+        }
+    }
+
     WritableByteChannel adapter = new WritableByteChannel()
     {
 

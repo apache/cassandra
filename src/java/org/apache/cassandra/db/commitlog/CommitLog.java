@@ -29,10 +29,10 @@ import com.google.common.annotations.VisibleForTesting;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
 import org.apache.commons.lang3.StringUtils;
 
 import com.github.tjake.ICRC32;
+
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.ParameterizedClass;
@@ -41,6 +41,7 @@ import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.io.compress.CompressionParameters;
 import org.apache.cassandra.io.compress.ICompressor;
 import org.apache.cassandra.io.util.BufferedDataOutputStreamPlus;
+import org.apache.cassandra.io.util.DataOutputBufferFixed;
 import org.apache.cassandra.metrics.CommitLogMetrics;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.StorageService;
@@ -251,7 +252,7 @@ public class CommitLog implements CommitLogMBean
         {
             ICRC32 checksum = CRC32Factory.instance.create();
             final ByteBuffer buffer = alloc.getBuffer();
-            BufferedDataOutputStreamPlus dos = new BufferedDataOutputStreamPlus(null, buffer);
+            BufferedDataOutputStreamPlus dos = new DataOutputBufferFixed(buffer);
 
             // checksummed length
             dos.writeInt((int) size);
