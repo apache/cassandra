@@ -264,6 +264,7 @@ def format_value_map(val, encoding, colormap, date_time_format, float_precision,
     return FormattedValue(bval, coloredval, displaywidth)
 formatter_for('OrderedDict')(format_value_map)
 formatter_for('OrderedMap')(format_value_map)
+formatter_for('OrderedMapSerializedKey')(format_value_map)
 
 
 def format_value_utype(val, encoding, colormap, date_time_format, float_precision, nullval, **_):
