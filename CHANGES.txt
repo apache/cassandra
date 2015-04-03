@@ -89,6 +89,7 @@
  * Allow scrub for secondary index (CASSANDRA-5174)
 
 2.1.5
+ * Do not load read meter for offline operations (CASSANDRA-9082)
  * cqlsh: Make CompositeType data readable (CASSANDRA-8919)
  * cqlsh: Fix display of triggers (CASSANDRA-9081)
  * Fix NullPointerException when deleting or setting an element by index on
