@@ -21,7 +21,6 @@ package org.apache.cassandra.io.util;
  */
 
 
-import java.io.File;
 import java.io.FileNotFoundException;
 
 import com.google.common.util.concurrent.RateLimiter;
@@ -30,9 +29,9 @@ public class ThrottledReader extends RandomAccessReader
 {
     private final RateLimiter limiter;
 
-    protected ThrottledReader(File file, long overrideLength, RateLimiter limiter) throws FileNotFoundException
+    protected ThrottledReader(ChannelProxy channel, long overrideLength, RateLimiter limiter) throws FileNotFoundException
     {
-        super(file, RandomAccessReader.DEFAULT_BUFFER_SIZE, overrideLength, false, null);
+        super(channel, RandomAccessReader.DEFAULT_BUFFER_SIZE, overrideLength, false, null);
         this.limiter = limiter;
     }
 
@@ -42,11 +41,11 @@ public class ThrottledReader extends RandomAccessReader
         super.reBuffer();
     }
 
-    public static ThrottledReader open(File file, long overrideLength, RateLimiter limiter)
+    public static ThrottledReader open(ChannelProxy channel, long overrideLength, RateLimiter limiter)
     {
         try
         {
-            return new ThrottledReader(file, overrideLength, limiter);
+            return new ThrottledReader(channel, overrideLength, limiter);
         }
         catch (FileNotFoundException e)
         {

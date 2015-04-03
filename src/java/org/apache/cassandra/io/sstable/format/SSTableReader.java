@@ -573,12 +573,12 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
 
     public String getFilename()
     {
-        return dfile.path;
+        return dfile.path();
     }
 
     public String getIndexFilename()
     {
-        return ifile.path;
+        return ifile.path();
     }
 
     public void setTrackedBy(DataTracker tracker)
@@ -642,44 +642,48 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
      */
     private void load(boolean recreateBloomFilter, boolean saveSummaryIfCreated) throws IOException
     {
-        SegmentedFile.Builder ibuilder = SegmentedFile.getBuilder(DatabaseDescriptor.getIndexAccessMode());
-        SegmentedFile.Builder dbuilder = compression
+        try(SegmentedFile.Builder ibuilder = SegmentedFile.getBuilder(DatabaseDescriptor.getIndexAccessMode());
+            SegmentedFile.Builder dbuilder = compression
                 ? SegmentedFile.getCompressedBuilder()
-                : SegmentedFile.getBuilder(DatabaseDescriptor.getDiskAccessMode());
-
-        boolean summaryLoaded = loadSummary(ibuilder, dbuilder);
-        boolean builtSummary = false;
-        if (recreateBloomFilter || !summaryLoaded)
+                : SegmentedFile.getBuilder(DatabaseDescriptor.getDiskAccessMode()))
         {
-            buildSummary(recreateBloomFilter, ibuilder, dbuilder, summaryLoaded, Downsampling.BASE_SAMPLING_LEVEL);
-            builtSummary = true;
-        }
+            boolean summaryLoaded = loadSummary(ibuilder, dbuilder);
+            boolean builtSummary = false;
+            if (recreateBloomFilter || !summaryLoaded)
+            {
+                buildSummary(recreateBloomFilter, ibuilder, dbuilder, summaryLoaded, Downsampling.BASE_SAMPLING_LEVEL);
+                builtSummary = true;
+            }
 
-        ifile = ibuilder.complete(descriptor.filenameFor(Component.PRIMARY_INDEX));
-        dfile = dbuilder.complete(descriptor.filenameFor(Component.DATA));
-
-        // Check for an index summary that was downsampled even though the serialization format doesn't support
-        // that.  If it was downsampled, rebuild it.  See CASSANDRA-8993 for details.
-        if (!descriptor.version.hasSamplingLevel() && !builtSummary && !validateSummarySamplingLevel())
-        {
-            indexSummary.close();
-            ifile.close();
-            dfile.close();
-
-            logger.info("Detected erroneously downsampled index summary; will rebuild summary at full sampling");
-            FileUtils.deleteWithConfirm(new File(descriptor.filenameFor(Component.SUMMARY)));
-            ibuilder = SegmentedFile.getBuilder(DatabaseDescriptor.getIndexAccessMode());
-            dbuilder = compression
-                       ? SegmentedFile.getCompressedBuilder()
-                       : SegmentedFile.getBuilder(DatabaseDescriptor.getDiskAccessMode());
-            buildSummary(false, ibuilder, dbuilder, false, Downsampling.BASE_SAMPLING_LEVEL);
             ifile = ibuilder.complete(descriptor.filenameFor(Component.PRIMARY_INDEX));
             dfile = dbuilder.complete(descriptor.filenameFor(Component.DATA));
-            saveSummary(ibuilder, dbuilder);
-        }
-        else if (saveSummaryIfCreated && builtSummary)
-        {
-            saveSummary(ibuilder, dbuilder);
+
+            // Check for an index summary that was downsampled even though the serialization format doesn't support
+            // that.  If it was downsampled, rebuild it.  See CASSANDRA-8993 for details.
+            if (!descriptor.version.hasSamplingLevel() && !builtSummary && !validateSummarySamplingLevel())
+            {
+                indexSummary.close();
+                ifile.close();
+                dfile.close();
+
+                logger.info("Detected erroneously downsampled index summary; will rebuild summary at full sampling");
+                FileUtils.deleteWithConfirm(new File(descriptor.filenameFor(Component.SUMMARY)));
+
+                try(SegmentedFile.Builder ibuilderRebuild = SegmentedFile.getBuilder(DatabaseDescriptor.getIndexAccessMode());
+                    SegmentedFile.Builder dbuilderRebuild = compression
+                        ? SegmentedFile.getCompressedBuilder()
+                        : SegmentedFile.getBuilder(DatabaseDescriptor.getDiskAccessMode()))
+                {
+                    buildSummary(false, ibuilderRebuild, dbuilderRebuild, false, Downsampling.BASE_SAMPLING_LEVEL);
+                    ifile = ibuilderRebuild.complete(descriptor.filenameFor(Component.PRIMARY_INDEX));
+                    dfile = dbuilderRebuild.complete(descriptor.filenameFor(Component.DATA));
+                    saveSummary(ibuilderRebuild, dbuilderRebuild);
+                }
+            }
+            else if (saveSummaryIfCreated && builtSummary)
+            {
+                saveSummary(ibuilder, dbuilder);
+            }
         }
     }
 
@@ -993,11 +997,13 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
                 // we can use the existing index summary to make a smaller one
                 newSummary = IndexSummaryBuilder.downsample(indexSummary, samplingLevel, minIndexInterval, partitioner);
 
-                SegmentedFile.Builder ibuilder = SegmentedFile.getBuilder(DatabaseDescriptor.getIndexAccessMode());
-                SegmentedFile.Builder dbuilder = compression
+                try(SegmentedFile.Builder ibuilder = SegmentedFile.getBuilder(DatabaseDescriptor.getIndexAccessMode());
+                    SegmentedFile.Builder dbuilder = compression
                         ? SegmentedFile.getCompressedBuilder()
-                        : SegmentedFile.getBuilder(DatabaseDescriptor.getDiskAccessMode());
-                saveSummary(ibuilder, dbuilder, newSummary);
+                        : SegmentedFile.getBuilder(DatabaseDescriptor.getDiskAccessMode()))
+                {
+                    saveSummary(ibuilder, dbuilder, newSummary);
+                }
             }
             else
             {

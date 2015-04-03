@@ -103,12 +103,14 @@ public class DataOutputTest
     @Test
     public void testSafeMemoryWriter() throws IOException
     {
-        SafeMemoryWriter write = new SafeMemoryWriter(10);
-        DataInput canon = testWrite(write);
-        byte[] bytes = new byte[345];
-        write.currentBuffer().getBytes(0, bytes, 0, 345);
-        DataInput test = new DataInputStream(new ByteArrayInputStream(bytes));
-        testRead(test, canon);
+        try (SafeMemoryWriter write = new SafeMemoryWriter(10))
+        {
+            DataInput canon = testWrite(write);
+            byte[] bytes = new byte[345];
+            write.currentBuffer().getBytes(0, bytes, 0, 345);
+            DataInput test = new DataInputStream(new ByteArrayInputStream(bytes));
+            testRead(test, canon);
+        }
     }
 
     @Test

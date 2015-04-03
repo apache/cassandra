@@ -29,6 +29,8 @@ import java.util.concurrent.ExecutionException;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Iterators;
+
+import org.apache.cassandra.io.sstable.ISSTableScanner;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -537,19 +539,22 @@ public class RangeTombstoneTest
 
         // test the physical structure of the sstable i.e. rt & columns on disk
         SSTableReader sstable = cfs.getSSTables().iterator().next();
-        OnDiskAtomIterator iter = sstable.getScanner().next();
-        int cnt = 0;
-        // after compaction, the first element should be an RT followed by the remaining non-deleted columns
-        while(iter.hasNext())
+        try(ISSTableScanner scanner = sstable.getScanner())
         {
-            OnDiskAtom atom = iter.next();
-            if (cnt == 0)
-                assertTrue(atom instanceof RangeTombstone);
-            if (cnt > 0)
-                assertTrue(atom instanceof Cell);
-            cnt++;
+            OnDiskAtomIterator iter = scanner.next();
+            int cnt = 0;
+            // after compaction, the first element should be an RT followed by the remaining non-deleted columns
+            while (iter.hasNext())
+            {
+                OnDiskAtom atom = iter.next();
+                if (cnt == 0)
+                    assertTrue(atom instanceof RangeTombstone);
+                if (cnt > 0)
+                    assertTrue(atom instanceof Cell);
+                cnt++;
+            }
+            assertEquals(2, cnt);
         }
-        assertEquals(2, cnt);
     }
 
     @Test

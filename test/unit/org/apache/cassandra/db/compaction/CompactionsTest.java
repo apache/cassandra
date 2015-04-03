@@ -19,6 +19,7 @@
 package org.apache.cassandra.db.compaction;
 
 import java.io.File;
+import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
@@ -157,7 +158,7 @@ public class CompactionsTest
     }
 
     @Test
-    public void testSuperColumnTombstones()
+    public void testSuperColumnTombstones() throws IOException
     {
         Keyspace keyspace = Keyspace.open(KEYSPACE1);
         ColumnFamilyStore cfs = keyspace.getColumnFamilyStore("Super1");
@@ -191,6 +192,7 @@ public class CompactionsTest
         assertEquals(key, iter.getKey());
         assertTrue(iter.next() instanceof RangeTombstone);
         assertFalse(iter.hasNext());
+        scanner.close();
     }
 
     @Test

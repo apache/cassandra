@@ -42,6 +42,7 @@ public class MemoryTest
         memory.setBytes(0, new byte[1000], 0, 1000);
         memory.setBytes(0, canon.duplicate());
         test(canon, memory);
+        memory.close();
     }
 
     private static void test(ByteBuffer canon, Memory memory)

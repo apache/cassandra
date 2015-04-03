@@ -18,6 +18,7 @@
 */
 package org.apache.cassandra.io.sstable;
 
+import java.io.IOException;
 import java.util.*;
 
 import org.apache.cassandra.io.sstable.format.SSTableReader;
@@ -160,11 +161,17 @@ public class SSTableScannerTest
         assert boundaries.length % 2 == 0;
         for (DataRange range : dataRanges(scanStart, scanEnd))
         {
-            ISSTableScanner scanner = sstable.getScanner(range);
-            for (int b = 0 ; b < boundaries.length ; b += 2)
-                for (int i = boundaries[b] ; i <= boundaries[b + 1] ; i++)
-                    assertEquals(toKey(i), new String(scanner.next().getKey().getKey().array()));
-            assertFalse(scanner.hasNext());
+            try(ISSTableScanner scanner = sstable.getScanner(range))
+            {
+                for (int b = 0; b < boundaries.length; b += 2)
+                    for (int i = boundaries[b]; i <= boundaries[b + 1]; i++)
+                        assertEquals(toKey(i), new String(scanner.next().getKey().getKey().array()));
+                assertFalse(scanner.hasNext());
+            }
+            catch (Exception e)
+            {
+                throw new RuntimeException(e);
+            }
         }
     }
 
@@ -174,7 +181,7 @@ public class SSTableScannerTest
     }
 
     @Test
-    public void testSingleDataRange()
+    public void testSingleDataRange() throws IOException
     {
         Keyspace keyspace = Keyspace.open(KEYSPACE);
         ColumnFamilyStore store = keyspace.getColumnFamilyStore(TABLE);
@@ -194,6 +201,8 @@ public class SSTableScannerTest
         ISSTableScanner scanner = sstable.getScanner();
         for (int i = 2; i < 10; i++)
             assertEquals(toKey(i), new String(scanner.next().getKey().getKey().array()));
+
+        scanner.close();
 
         // a simple read of a chunk in the middle
         assertScanMatches(sstable, 3, 6, 3, 6);
@@ -257,7 +266,7 @@ public class SSTableScannerTest
         assertScanMatches(sstable, 1, 0, 2, 9);
     }
 
-    private static void assertScanContainsRanges(ISSTableScanner scanner, int ... rangePairs)
+    private static void assertScanContainsRanges(ISSTableScanner scanner, int ... rangePairs) throws IOException
     {
         assert rangePairs.length % 2 == 0;
 
@@ -273,10 +282,11 @@ public class SSTableScannerTest
             }
         }
         assertFalse(scanner.hasNext());
+        scanner.close();
     }
 
     @Test
-    public void testMultipleRanges()
+    public void testMultipleRanges() throws IOException
     {
         Keyspace keyspace = Keyspace.open(KEYSPACE);
         ColumnFamilyStore store = keyspace.getColumnFamilyStore(TABLE);
@@ -408,7 +418,7 @@ public class SSTableScannerTest
     }
 
     @Test
-    public void testSingleKeyMultipleRanges()
+    public void testSingleKeyMultipleRanges() throws IOException
     {
         Keyspace keyspace = Keyspace.open(KEYSPACE);
         ColumnFamilyStore store = keyspace.getColumnFamilyStore(TABLE);

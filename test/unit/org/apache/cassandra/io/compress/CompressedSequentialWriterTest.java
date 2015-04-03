@@ -29,6 +29,7 @@ import org.junit.Test;
 import org.apache.cassandra.db.composites.SimpleDenseCellNameType;
 import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
+import org.apache.cassandra.io.util.ChannelProxy;
 import org.apache.cassandra.io.util.FileMark;
 import org.apache.cassandra.io.util.RandomAccessReader;
 
@@ -71,10 +72,11 @@ public class CompressedSequentialWriterTest
 
     private void testWrite(File f, int bytesToTest) throws IOException
     {
+        final String filename = f.getAbsolutePath();
+        final ChannelProxy channel = new ChannelProxy(f);
+
         try
         {
-            final String filename = f.getAbsolutePath();
-
             MetadataCollector sstableMetadataCollector = new MetadataCollector(new SimpleDenseCellNameType(BytesType.instance)).replayPosition(null);
             CompressedSequentialWriter writer = new CompressedSequentialWriter(f, filename + ".metadata", new CompressionParameters(compressor), sstableMetadataCollector);
 
@@ -102,7 +104,7 @@ public class CompressedSequentialWriterTest
             writer.close();
 
             assert f.exists();
-            RandomAccessReader reader = CompressedRandomAccessReader.open(filename, new CompressionMetadata(filename + ".metadata", f.length()));
+            RandomAccessReader reader = CompressedRandomAccessReader.open(channel, new CompressionMetadata(filename + ".metadata", f.length()));
             assertEquals(dataPre.length + rawPost.length, reader.length());
             byte[] result = new byte[(int)reader.length()];
 
@@ -119,6 +121,8 @@ public class CompressedSequentialWriterTest
         finally
         {
             // cleanup
+            channel.close();
+
             if (f.exists())
                 f.delete();
             File metadata = new File(f + ".metadata");

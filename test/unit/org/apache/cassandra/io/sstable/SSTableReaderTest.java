@@ -376,12 +376,13 @@ public class SSTableReaderTest
         SSTableReader sstable = indexCfs.getSSTables().iterator().next();
         assert sstable.first.getToken() instanceof LocalToken;
 
-        SegmentedFile.Builder ibuilder = SegmentedFile.getBuilder(DatabaseDescriptor.getIndexAccessMode());
-        SegmentedFile.Builder dbuilder = sstable.compression
+        try(SegmentedFile.Builder ibuilder = SegmentedFile.getBuilder(DatabaseDescriptor.getIndexAccessMode());
+            SegmentedFile.Builder dbuilder = sstable.compression
                                           ? SegmentedFile.getCompressedBuilder()
-                                          : SegmentedFile.getBuilder(DatabaseDescriptor.getDiskAccessMode());
-        sstable.saveSummary(ibuilder, dbuilder);
-
+                                          : SegmentedFile.getBuilder(DatabaseDescriptor.getDiskAccessMode()))
+        {
+            sstable.saveSummary(ibuilder, dbuilder);
+        }
         SSTableReader reopened = SSTableReader.open(sstable.descriptor);
         assert reopened.first.getToken() instanceof LocalToken;
         reopened.selfRef().release();
@@ -389,7 +390,7 @@ public class SSTableReaderTest
 
     /** see CASSANDRA-5407 */
     @Test
-    public void testGetScannerForNoIntersectingRanges()
+    public void testGetScannerForNoIntersectingRanges() throws Exception
     {
         Keyspace keyspace = Keyspace.open(KEYSPACE1);
         ColumnFamilyStore store = keyspace.getColumnFamilyStore("Standard1");
@@ -401,9 +402,11 @@ public class SSTableReaderTest
         boolean foundScanner = false;
         for (SSTableReader s : store.getSSTables())
         {
-            ISSTableScanner scanner = s.getScanner(new Range<Token>(t(0), t(1)), null);
-            scanner.next(); // throws exception pre 5407
-            foundScanner = true;
+            try (ISSTableScanner scanner = s.getScanner(new Range<Token>(t(0), t(1)), null))
+            {
+                scanner.next(); // throws exception pre 5407
+                foundScanner = true;
+            }
         }
         assertTrue(foundScanner);
     }

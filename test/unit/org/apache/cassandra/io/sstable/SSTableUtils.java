@@ -81,18 +81,20 @@ public class SSTableUtils
         return datafile;
     }
 
-    public static void assertContentEquals(SSTableReader lhs, SSTableReader rhs)
+    public static void assertContentEquals(SSTableReader lhs, SSTableReader rhs) throws Exception
     {
-        ISSTableScanner slhs = lhs.getScanner();
-        ISSTableScanner srhs = rhs.getScanner();
-        while (slhs.hasNext())
+        try (ISSTableScanner slhs = lhs.getScanner();
+             ISSTableScanner srhs = rhs.getScanner())
         {
-            OnDiskAtomIterator ilhs = slhs.next();
-            assert srhs.hasNext() : "LHS contained more rows than RHS";
-            OnDiskAtomIterator irhs = srhs.next();
-            assertContentEquals(ilhs, irhs);
+            while (slhs.hasNext())
+            {
+                OnDiskAtomIterator ilhs = slhs.next();
+                assert srhs.hasNext() : "LHS contained more rows than RHS";
+                OnDiskAtomIterator irhs = srhs.next();
+                assertContentEquals(ilhs, irhs);
+            }
+            assert !srhs.hasNext() : "RHS contained more rows than LHS";
         }
-        assert !srhs.hasNext() : "RHS contained more rows than LHS";
     }
 
     public static void assertContentEquals(OnDiskAtomIterator lhs, OnDiskAtomIterator rhs)

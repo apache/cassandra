@@ -17,21 +17,19 @@
  */
 package org.apache.cassandra.io.util;
 
-import java.io.File;
-
 import org.apache.cassandra.service.FileCacheService;
 
 public abstract class PoolingSegmentedFile extends SegmentedFile
 {
     final FileCacheService.CacheKey cacheKey;
-    protected PoolingSegmentedFile(Cleanup cleanup, String path, long length)
+    protected PoolingSegmentedFile(Cleanup cleanup, ChannelProxy channel, long length)
     {
-        this(cleanup, path, length, length);
+        this(cleanup, channel, length, length);
     }
 
-    protected PoolingSegmentedFile(Cleanup cleanup, String path, long length, long onDiskLength)
+    protected PoolingSegmentedFile(Cleanup cleanup, ChannelProxy channel, long length, long onDiskLength)
     {
-        super(cleanup, path, length, onDiskLength);
+        super(cleanup, channel, length, onDiskLength);
         cacheKey = cleanup.cacheKey;
     }
 
@@ -44,13 +42,15 @@ public abstract class PoolingSegmentedFile extends SegmentedFile
     protected static class Cleanup extends SegmentedFile.Cleanup
     {
         final FileCacheService.CacheKey cacheKey = new FileCacheService.CacheKey();
-        protected Cleanup(String path)
+        protected Cleanup(ChannelProxy channel)
         {
-            super(path);
+            super(channel);
         }
-        public void tidy() throws Exception
+        public void tidy()
         {
-            FileCacheService.instance.invalidate(cacheKey, path);
+            super.tidy();
+
+            FileCacheService.instance.invalidate(cacheKey, channel.filePath());
         }
     }
 
@@ -67,7 +67,7 @@ public abstract class PoolingSegmentedFile extends SegmentedFile
 
     protected RandomAccessReader createPooledReader()
     {
-        return RandomAccessReader.open(new File(path), length, this);
+        return RandomAccessReader.open(channel, length, this);
     }
 
     public void recycle(RandomAccessReader reader)

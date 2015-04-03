@@ -285,6 +285,9 @@ public class BigTableWriter extends SSTableWriter
         if (dataFile!= null)
             dataFile.abort();
 
+        if (dbuilder != null)
+            dbuilder.close();
+
         Set<Component> components = SSTable.componentsFor(descriptor);
         try
         {
@@ -393,7 +396,9 @@ public class BigTableWriter extends SSTableWriter
             iwriter.summary.close();
             // try to save the summaries to disk
             sstable.saveSummary(iwriter.builder, dbuilder);
+            iwriter.builder.close();
             iwriter = null;
+            dbuilder.close();
             dbuilder = null;
         }
         return sstable;
@@ -402,7 +407,12 @@ public class BigTableWriter extends SSTableWriter
     // Close the writer and return the descriptor to the new sstable and it's metadata
     public Pair<Descriptor, StatsMetadata> close()
     {
-        return close(FinishType.CLOSE, this.repairedAt);
+        Pair<Descriptor, StatsMetadata> ret = close(FinishType.CLOSE, this.repairedAt);
+        if (dbuilder != null)
+            dbuilder.close();
+        if (iwriter != null)
+            iwriter.builder.close();
+        return ret;
     }
 
     private Pair<Descriptor, StatsMetadata> close(FinishType type, long repairedAt)
@@ -530,6 +540,7 @@ public class BigTableWriter extends SSTableWriter
             summary.close();
             indexFile.abort();
             bf.close();
+            builder.close();
         }
 
         /**

@@ -181,16 +181,18 @@ public class AntiCompactionTest
     }
 
     @Test
-    public void antiCompactTenSTC() throws InterruptedException, IOException{
+    public void antiCompactTenSTC() throws Exception
+    {
         antiCompactTen("SizeTieredCompactionStrategy");
     }
 
     @Test
-    public void antiCompactTenLC() throws InterruptedException, IOException{
+    public void antiCompactTenLC() throws Exception
+    {
         antiCompactTen("LeveledCompactionStrategy");
     }
 
-    public void antiCompactTen(String compactionStrategy) throws InterruptedException, IOException
+    public void antiCompactTen(String compactionStrategy) throws Exception
     {
         Keyspace keyspace = Keyspace.open(KEYSPACE1);
         ColumnFamilyStore store = keyspace.getColumnFamilyStore(CF);
@@ -220,21 +222,23 @@ public class AntiCompactionTest
         int nonRepairedKeys = 0;
         for (SSTableReader sstable : store.getSSTables())
         {
-            ISSTableScanner scanner = sstable.getScanner();
-            while (scanner.hasNext())
+            try(ISSTableScanner scanner = sstable.getScanner())
             {
-                SSTableIdentityIterator row = (SSTableIdentityIterator) scanner.next();
-                if (sstable.isRepaired())
+                while (scanner.hasNext())
                 {
-                    assertTrue(range.contains(row.getKey().getToken()));
-                    assertEquals(repairedAt, sstable.getSSTableMetadata().repairedAt);
-                    repairedKeys++;
-                }
-                else
-                {
-                    assertFalse(range.contains(row.getKey().getToken()));
-                    assertEquals(ActiveRepairService.UNREPAIRED_SSTABLE, sstable.getSSTableMetadata().repairedAt);
-                    nonRepairedKeys++;
+                    SSTableIdentityIterator row = (SSTableIdentityIterator) scanner.next();
+                    if (sstable.isRepaired())
+                    {
+                        assertTrue(range.contains(row.getKey().getToken()));
+                        assertEquals(repairedAt, sstable.getSSTableMetadata().repairedAt);
+                        repairedKeys++;
+                    }
+                    else
+                    {
+                        assertFalse(range.contains(row.getKey().getToken()));
+                        assertEquals(ActiveRepairService.UNREPAIRED_SSTABLE, sstable.getSSTableMetadata().repairedAt);
+                        nonRepairedKeys++;
+                    }
                 }
             }
         }

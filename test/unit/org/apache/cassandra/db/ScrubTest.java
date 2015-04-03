@@ -139,8 +139,7 @@ public class ScrubTest
         SSTableReader sstable = cfs.getSSTables().iterator().next();
 
         // with skipCorrupted == false, the scrub is expected to fail
-        Scrubber scrubber = new Scrubber(cfs, sstable, false, false);
-        try
+        try(Scrubber scrubber = new Scrubber(cfs, sstable, false, false))
         {
             scrubber.scrub();
             fail("Expected a CorruptSSTableException to be thrown");
@@ -148,9 +147,10 @@ public class ScrubTest
         catch (IOError err) {}
 
         // with skipCorrupted == true, the corrupt row will be skipped
-        scrubber = new Scrubber(cfs, sstable, true, false);
-        scrubber.scrub();
-        scrubber.close();
+        try(Scrubber scrubber = new Scrubber(cfs, sstable, true, false))
+        {
+            scrubber.scrub();
+        }
         assertEquals(1, cfs.getSSTables().size());
 
         // verify that we can read all of the rows, and there is now one less row
@@ -254,9 +254,10 @@ public class ScrubTest
         components.add(Component.TOC);
         SSTableReader sstable = SSTableReader.openNoValidation(desc, components, cfs);
 
-        Scrubber scrubber = new Scrubber(cfs, sstable, false, true);
-        scrubber.scrub();
-
+        try(Scrubber scrubber = new Scrubber(cfs, sstable, false, true))
+        {
+            scrubber.scrub();
+        }
         cfs.loadNewSSTables();
         List<Row> rows = cfs.getRangeSlice(Util.range("", ""), null, new IdentityQueryFilter(), 1000);
         assert isRowOrdered(rows) : "Scrub failed: " + rows;

@@ -31,6 +31,7 @@ import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.sstable.CorruptSSTableException;
 import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
+import org.apache.cassandra.io.util.ChannelProxy;
 import org.apache.cassandra.io.util.FileMark;
 import org.apache.cassandra.io.util.RandomAccessReader;
 import org.apache.cassandra.io.util.SequentialWriter;
@@ -61,6 +62,7 @@ public class CompressedRandomAccessReaderTest
     {
         File f = File.createTempFile("compressed6791_", "3");
         String filename = f.getAbsolutePath();
+        ChannelProxy channel = new ChannelProxy(f);
         try
         {
 
@@ -81,7 +83,7 @@ public class CompressedRandomAccessReaderTest
                 writer.write("x".getBytes());
             writer.close();
 
-            CompressedRandomAccessReader reader = CompressedRandomAccessReader.open(filename, new CompressionMetadata(filename + ".metadata", f.length()));
+            CompressedRandomAccessReader reader = CompressedRandomAccessReader.open(channel, new CompressionMetadata(filename + ".metadata", f.length()));
             String res = reader.readLine();
             assertEquals(res, "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx");
             assertEquals(40, res.length());
@@ -89,6 +91,8 @@ public class CompressedRandomAccessReaderTest
         finally
         {
             // cleanup
+            channel.close();
+
             if (f.exists())
                 f.delete();
             File metadata = new File(filename+ ".metadata");
@@ -100,7 +104,7 @@ public class CompressedRandomAccessReaderTest
     private void testResetAndTruncate(File f, boolean compressed, int junkSize) throws IOException
     {
         final String filename = f.getAbsolutePath();
-
+        ChannelProxy channel = new ChannelProxy(f);
         try
         {
             MetadataCollector sstableMetadataCollector = new MetadataCollector(new SimpleDenseCellNameType(BytesType.instance)).replayPosition(null);
@@ -124,7 +128,7 @@ public class CompressedRandomAccessReaderTest
 
             assert f.exists();
             RandomAccessReader reader = compressed
-                                      ? CompressedRandomAccessReader.open(filename, new CompressionMetadata(filename + ".metadata", f.length()))
+                                      ? CompressedRandomAccessReader.open(channel, new CompressionMetadata(filename + ".metadata", f.length()))
                                       : RandomAccessReader.open(f);
             String expected = "The quick brown fox jumps over the lazy dog";
             assertEquals(expected.length(), reader.length());
@@ -135,6 +139,8 @@ public class CompressedRandomAccessReaderTest
         finally
         {
             // cleanup
+            channel.close();
+
             if (f.exists())
                 f.delete();
             File metadata = new File(filename + ".metadata");
@@ -160,11 +166,13 @@ public class CompressedRandomAccessReaderTest
         writer.write(CONTENT.getBytes());
         writer.close();
 
+        ChannelProxy channel = new ChannelProxy(file);
+
         // open compression metadata and get chunk information
         CompressionMetadata meta = new CompressionMetadata(metadata.getPath(), file.length());
         CompressionMetadata.Chunk chunk = meta.chunkFor(0);
 
-        RandomAccessReader reader = CompressedRandomAccessReader.open(file.getPath(), meta);
+        RandomAccessReader reader = CompressedRandomAccessReader.open(channel, meta);
         // read and verify compressed data
         assertEquals(CONTENT, reader.readLine());
         // close reader
@@ -191,7 +199,7 @@ public class CompressedRandomAccessReaderTest
                 checksumModifier.write(random.nextInt());
                 checksumModifier.getFD().sync(); // making sure that change was synced with disk
 
-                final RandomAccessReader r = CompressedRandomAccessReader.open(file.getPath(), meta);
+                final RandomAccessReader r = CompressedRandomAccessReader.open(channel, meta);
 
                 Throwable exception = null;
                 try
@@ -212,7 +220,7 @@ public class CompressedRandomAccessReaderTest
             // lets write original checksum and check if we can read data
             updateChecksum(checksumModifier, chunk.length, checksum);
 
-            reader = CompressedRandomAccessReader.open(file.getPath(), meta);
+            reader = CompressedRandomAccessReader.open(channel, meta);
             // read and verify compressed data
             assertEquals(CONTENT, reader.readLine());
             // close reader
@@ -220,6 +228,8 @@ public class CompressedRandomAccessReaderTest
         }
         finally
         {
+            channel.close();
+
             if (checksumModifier != null)
                 checksumModifier.close();
         }

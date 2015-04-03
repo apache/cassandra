@@ -28,9 +28,9 @@ public class CompressedPoolingSegmentedFile extends PoolingSegmentedFile impleme
 {
     public final CompressionMetadata metadata;
 
-    public CompressedPoolingSegmentedFile(String path, CompressionMetadata metadata)
+    public CompressedPoolingSegmentedFile(ChannelProxy channel, CompressionMetadata metadata)
     {
-        super(new Cleanup(path, metadata), path, metadata.dataLength, metadata.compressedFileLength);
+        super(new Cleanup(channel, metadata), channel, metadata.dataLength, metadata.compressedFileLength);
         this.metadata = metadata;
     }
 
@@ -43,12 +43,12 @@ public class CompressedPoolingSegmentedFile extends PoolingSegmentedFile impleme
     protected static final class Cleanup extends PoolingSegmentedFile.Cleanup
     {
         final CompressionMetadata metadata;
-        protected Cleanup(String path, CompressionMetadata metadata)
+        protected Cleanup(ChannelProxy channel, CompressionMetadata metadata)
         {
-            super(path);
+            super(channel);
             this.metadata = metadata;
         }
-        public void tidy() throws Exception
+        public void tidy()
         {
             super.tidy();
             metadata.close();
@@ -67,9 +67,9 @@ public class CompressedPoolingSegmentedFile extends PoolingSegmentedFile impleme
             // only one segment in a standard-io file
         }
 
-        public SegmentedFile complete(String path, long overrideLength, boolean isFinal)
+        public SegmentedFile complete(ChannelProxy channel, long overrideLength, boolean isFinal)
         {
-            return new CompressedPoolingSegmentedFile(path, metadata(path, overrideLength, isFinal));
+            return new CompressedPoolingSegmentedFile(channel, metadata(channel.filePath(), overrideLength, isFinal));
         }
     }
 
@@ -82,17 +82,17 @@ public class CompressedPoolingSegmentedFile extends PoolingSegmentedFile impleme
 
     public RandomAccessReader createReader()
     {
-        return CompressedRandomAccessReader.open(path, metadata, null);
+        return CompressedRandomAccessReader.open(channel, metadata, null);
     }
 
     public RandomAccessReader createThrottledReader(RateLimiter limiter)
     {
-        return CompressedThrottledReader.open(path, metadata, limiter);
+        return CompressedThrottledReader.open(channel, metadata, limiter);
     }
 
     protected RandomAccessReader createPooledReader()
     {
-        return CompressedRandomAccessReader.open(path, metadata, this);
+        return CompressedRandomAccessReader.open(channel, metadata, this);
     }
 
     public CompressionMetadata getMetadata()

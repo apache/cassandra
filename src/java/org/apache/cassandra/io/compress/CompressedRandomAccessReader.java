@@ -33,10 +33,7 @@ import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.FSReadError;
 import org.apache.cassandra.io.sstable.CorruptSSTableException;
-import org.apache.cassandra.io.util.CompressedPoolingSegmentedFile;
-import org.apache.cassandra.io.util.FileUtils;
-import org.apache.cassandra.io.util.PoolingSegmentedFile;
-import org.apache.cassandra.io.util.RandomAccessReader;
+import org.apache.cassandra.io.util.*;
 import org.apache.cassandra.utils.FBUtilities;
 
 /**
@@ -47,15 +44,15 @@ public class CompressedRandomAccessReader extends RandomAccessReader
 {
     private static final boolean useMmap = DatabaseDescriptor.getDiskAccessMode() == Config.DiskAccessMode.mmap;
 
-    public static CompressedRandomAccessReader open(String dataFilePath, CompressionMetadata metadata)
+    public static CompressedRandomAccessReader open(ChannelProxy channel, CompressionMetadata metadata)
     {
-        return open(dataFilePath, metadata, null);
+        return open(channel, metadata, null);
     }
-    public static CompressedRandomAccessReader open(String path, CompressionMetadata metadata, CompressedPoolingSegmentedFile owner)
+    public static CompressedRandomAccessReader open(ChannelProxy channel, CompressionMetadata metadata, CompressedPoolingSegmentedFile owner)
     {
         try
         {
-            return new CompressedRandomAccessReader(path, metadata, owner);
+            return new CompressedRandomAccessReader(channel, metadata, owner);
         }
         catch (FileNotFoundException e)
         {
@@ -78,9 +75,9 @@ public class CompressedRandomAccessReader extends RandomAccessReader
     // raw checksum bytes
     private ByteBuffer checksumBytes;
 
-    protected CompressedRandomAccessReader(String dataFilePath, CompressionMetadata metadata, PoolingSegmentedFile owner) throws FileNotFoundException
+    protected CompressedRandomAccessReader(ChannelProxy channel, CompressionMetadata metadata, PoolingSegmentedFile owner) throws FileNotFoundException
     {
-        super(new File(dataFilePath), metadata.chunkLength(), metadata.compressedFileLength, metadata.compressor().useDirectOutputByteBuffers(), owner);
+        super(channel, metadata.chunkLength(), metadata.compressedFileLength, metadata.compressor().useDirectOutputByteBuffers(), owner);
         this.metadata = metadata;
         checksum = new Adler32();
 
@@ -162,16 +159,13 @@ public class CompressedRandomAccessReader extends RandomAccessReader
 
             CompressionMetadata.Chunk chunk = metadata.chunkFor(position);
 
-            if (channel.position() != chunk.offset)
-                channel.position(chunk.offset);
-
             if (compressed.capacity() < chunk.length)
                 compressed = ByteBuffer.wrap(new byte[chunk.length]);
             else
                 compressed.clear();
             compressed.limit(chunk.length);
 
-            if (channel.read(compressed) != chunk.length)
+            if (channel.read(compressed, chunk.offset) != chunk.length)
                 throw new CorruptBlockException(getPath(), chunk);
 
             // technically flip() is unnecessary since all the remaining work uses the raw array, but if that changes
@@ -300,9 +294,9 @@ public class CompressedRandomAccessReader extends RandomAccessReader
 
     private int checksum(CompressionMetadata.Chunk chunk) throws IOException
     {
-        assert channel.position() == chunk.offset + chunk.length;
+        long position = chunk.offset + chunk.length;
         checksumBytes.clear();
-        if (channel.read(checksumBytes) != checksumBytes.capacity())
+        if (channel.read(checksumBytes, position) != checksumBytes.capacity())
             throw new CorruptBlockException(getPath(), chunk);
         return checksumBytes.getInt(0);
     }

@@ -113,8 +113,7 @@ public class VerifyTest
 
         SSTableReader sstable = cfs.getSSTables().iterator().next();
 
-        Verifier verifier = new Verifier(cfs, sstable, false);
-        try
+        try(Verifier verifier = new Verifier(cfs, sstable, false))
         {
             verifier.verify(false);
         }

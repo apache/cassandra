@@ -18,7 +18,6 @@
 package org.apache.cassandra.streaming.compress;
 
 import java.io.IOException;
-import java.nio.channels.FileChannel;
 import java.nio.channels.WritableByteChannel;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -26,9 +25,9 @@ import java.util.List;
 
 import com.google.common.base.Function;
 
-import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.io.compress.CompressionMetadata;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.io.util.ChannelProxy;
 import org.apache.cassandra.io.util.DataOutputStreamPlus;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.io.util.RandomAccessReader;
@@ -57,7 +56,7 @@ public class CompressedStreamWriter extends StreamWriter
     {
         long totalSize = totalSize();
         RandomAccessReader file = sstable.openDataReader();
-        final FileChannel fc = file.getChannel();
+        final ChannelProxy fc = file.getChannel();
 
         long progress = 0L;
         // calculate chunks to transfer. we want to send continuous chunks altogether.
@@ -80,14 +79,7 @@ public class CompressedStreamWriter extends StreamWriter
                     {
                         public Long apply(WritableByteChannel wbc)
                         {
-                            try
-                            {
-                                return fc.transferTo(section.left + bytesTransferredFinal, toTransfer, wbc);
-                            }
-                            catch (IOException e)
-                            {
-                                throw new FSWriteError(e, sstable.getFilename());
-                            }
+                            return fc.transferTo(section.left + bytesTransferredFinal, toTransfer, wbc);
                         }
                     });
                     bytesTransferred += lastWrite;
