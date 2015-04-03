@@ -131,16 +131,13 @@ public abstract class SegmentedFile extends SharedCloseableImpl
     /**
      * @return A SegmentedFile.Builder.
      */
-    public static Builder getBuilder(Config.DiskAccessMode mode)
+    public static Builder getBuilder(Config.DiskAccessMode mode, boolean compressed)
     {
+        assert !compressed || mode != Config.DiskAccessMode.mmap;
         return mode == Config.DiskAccessMode.mmap
                ? new MmappedSegmentedFile.Builder()
-               : new BufferedPoolingSegmentedFile.Builder();
-    }
-
-    public static Builder getCompressedBuilder()
-    {
-        return getCompressedBuilder(null);
+               : compressed ? new CompressedSegmentedFile.Builder(null)
+                            : new BufferedPoolingSegmentedFile.Builder();
     }
 
     public static Builder getCompressedBuilder(CompressedSequentialWriter writer)

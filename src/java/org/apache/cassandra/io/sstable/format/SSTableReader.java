@@ -643,10 +643,8 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
      */
     private void load(boolean recreateBloomFilter, boolean saveSummaryIfCreated) throws IOException
     {
-        try(SegmentedFile.Builder ibuilder = SegmentedFile.getBuilder(DatabaseDescriptor.getIndexAccessMode());
-            SegmentedFile.Builder dbuilder = compression
-                ? SegmentedFile.getCompressedBuilder()
-                : SegmentedFile.getBuilder(DatabaseDescriptor.getDiskAccessMode()))
+        try(SegmentedFile.Builder ibuilder = SegmentedFile.getBuilder(DatabaseDescriptor.getIndexAccessMode(), false);
+            SegmentedFile.Builder dbuilder = SegmentedFile.getBuilder(DatabaseDescriptor.getDiskAccessMode(), compression))
         {
             boolean summaryLoaded = loadSummary(ibuilder, dbuilder);
             boolean builtSummary = false;
@@ -670,10 +668,8 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
                 logger.info("Detected erroneously downsampled index summary; will rebuild summary at full sampling");
                 FileUtils.deleteWithConfirm(new File(descriptor.filenameFor(Component.SUMMARY)));
 
-                try(SegmentedFile.Builder ibuilderRebuild = SegmentedFile.getBuilder(DatabaseDescriptor.getIndexAccessMode());
-                    SegmentedFile.Builder dbuilderRebuild = compression
-                        ? SegmentedFile.getCompressedBuilder()
-                        : SegmentedFile.getBuilder(DatabaseDescriptor.getDiskAccessMode()))
+                try(SegmentedFile.Builder ibuilderRebuild = SegmentedFile.getBuilder(DatabaseDescriptor.getIndexAccessMode(), false);
+                    SegmentedFile.Builder dbuilderRebuild = SegmentedFile.getBuilder(DatabaseDescriptor.getDiskAccessMode(), compression))
                 {
                     buildSummary(false, ibuilderRebuild, dbuilderRebuild, false, Downsampling.BASE_SAMPLING_LEVEL);
                     ifile = ibuilderRebuild.complete(descriptor.filenameFor(Component.PRIMARY_INDEX));
@@ -998,10 +994,8 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
                 // we can use the existing index summary to make a smaller one
                 newSummary = IndexSummaryBuilder.downsample(indexSummary, samplingLevel, minIndexInterval, partitioner);
 
-                try(SegmentedFile.Builder ibuilder = SegmentedFile.getBuilder(DatabaseDescriptor.getIndexAccessMode());
-                    SegmentedFile.Builder dbuilder = compression
-                        ? SegmentedFile.getCompressedBuilder()
-                        : SegmentedFile.getBuilder(DatabaseDescriptor.getDiskAccessMode()))
+                try(SegmentedFile.Builder ibuilder = SegmentedFile.getBuilder(DatabaseDescriptor.getIndexAccessMode(), false);
+                    SegmentedFile.Builder dbuilder = SegmentedFile.getBuilder(DatabaseDescriptor.getDiskAccessMode(), compression))
                 {
                     saveSummary(ibuilder, dbuilder, newSummary);
                 }
