@@ -378,6 +378,7 @@ public class SSTableReader extends SSTable implements SelfRefCounted<SSTableRead
         return open(descriptor, components, metadata, partitioner, true);
     }
 
+    // use only for offline or "Standalone" operations
     public static SSTableReader openNoValidation(Descriptor descriptor, Set<Component> components, CFMetaData metadata) throws IOException
     {
         return open(descriptor, components, metadata, StorageService.getPartitioner(), false);
@@ -434,7 +435,7 @@ public class SSTableReader extends SSTable implements SelfRefCounted<SSTableRead
         sstable.ifile = ibuilder.complete(sstable.descriptor.filenameFor(Component.PRIMARY_INDEX));
         sstable.dfile = dbuilder.complete(sstable.descriptor.filenameFor(Component.DATA));
         sstable.bf = FilterFactory.AlwaysPresent;
-        sstable.setup();
+        sstable.setup(true);
         return sstable;
     }
 
@@ -478,7 +479,7 @@ public class SSTableReader extends SSTable implements SelfRefCounted<SSTableRead
         sstable.load(validationMetadata);
         logger.debug("INDEX LOAD TIME for {}: {} ms.", descriptor, TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start));
 
-        sstable.setup();
+        sstable.setup(!validate);
         if (validate)
             sstable.validate();
 
@@ -599,7 +600,7 @@ public class SSTableReader extends SSTable implements SelfRefCounted<SSTableRead
         this.dfile = dfile;
         this.indexSummary = indexSummary;
         this.bf = bloomFilter;
-        this.setup();
+        this.setup(false);
     }
 
     public static long getTotalBytes(Iterable<SSTableReader> sstables)
@@ -2010,9 +2011,9 @@ public class SSTableReader extends SSTable implements SelfRefCounted<SSTableRead
         return selfRef.ref();
     }
 
-    void setup()
+    void setup(boolean isOffline)
     {
-        tidy.setup(this);
+        tidy.setup(this, isOffline);
         this.readMeter = tidy.global.readMeter;
     }
 
@@ -2059,7 +2060,7 @@ public class SSTableReader extends SSTable implements SelfRefCounted<SSTableRead
 
         private boolean setup;
 
-        void setup(SSTableReader reader)
+        void setup(SSTableReader reader, boolean isOffline)
         {
             this.setup = true;
             this.bf = reader.bf;
@@ -2070,6 +2071,8 @@ public class SSTableReader extends SSTable implements SelfRefCounted<SSTableRead
             this.typeRef = DescriptorTypeTidy.get(reader);
             this.type = typeRef.get();
             this.global = type.globalRef.get();
+            if (!isOffline)
+                global.ensureReadMeter();
         }
 
         InstanceTidier(Descriptor descriptor, CFMetaData metadata)
@@ -2212,7 +2215,7 @@ public class SSTableReader extends SSTable implements SelfRefCounted<SSTableRead
         private RestorableMeter readMeter;
         // the scheduled persistence of the readMeter, that we will cancel once all instances of this logical
         // sstable have been released
-        private final ScheduledFuture readMeterSyncFuture;
+        private ScheduledFuture readMeterSyncFuture;
         // shared state managing if the logical sstable has been compacted; this is used in cleanup both here
         // and in the FINAL type tidier
         private final AtomicBoolean isCompacted;
@@ -2222,6 +2225,13 @@ public class SSTableReader extends SSTable implements SelfRefCounted<SSTableRead
             this.desc = reader.descriptor;
             this.isCompacted = new AtomicBoolean();
             this.live = reader;
+        }
+
+        void ensureReadMeter()
+        {
+            if (readMeter != null)
+                return;
+
             // Don't track read rates for tables in the system keyspace and don't bother trying to load or persist
             // the read meter when in client mode.
             if (Keyspace.SYSTEM_KS.equals(desc.ksname) || Config.isClientMode())
