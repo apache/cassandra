@@ -336,7 +336,7 @@ public class SizeTieredCompactionStrategy extends AbstractCompactionStrategy
             cfs.getMaximumCompactionThreshold());
     }
 
-    private class SplittingCompactionTask extends CompactionTask
+    private static class SplittingCompactionTask extends CompactionTask
     {
         public SplittingCompactionTask(ColumnFamilyStore cfs, Iterable<SSTableReader> sstables, int gcBefore, boolean offline)
         {
