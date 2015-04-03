@@ -140,33 +140,13 @@ public class FunctionCall extends Term.NonTerminal
                                                                 fun, fun.argTypes().size(), terms.size()));
 
             List<Term> parameters = new ArrayList<>(terms.size());
-            boolean allTerminal = true;
             for (int i = 0; i < terms.size(); i++)
             {
                 Term t = terms.get(i).prepare(keyspace, Functions.makeArgSpec(receiver.ksName, receiver.cfName, scalarFun, i));
-                if (t instanceof NonTerminal)
-                    allTerminal = false;
                 parameters.add(t);
             }
 
-            // If all parameters are terminal and the function is pure, we can
-            // evaluate it now, otherwise we'd have to wait execution time
-            return allTerminal && scalarFun.isPure()
-                ? makeTerminal(scalarFun, execute(scalarFun, parameters), QueryOptions.DEFAULT.getProtocolVersion())
-                : new FunctionCall(scalarFun, parameters);
-        }
-
-        // All parameters must be terminal
-        private static ByteBuffer execute(ScalarFunction fun, List<Term> parameters) throws InvalidRequestException
-        {
-            List<ByteBuffer> buffers = new ArrayList<>(parameters.size());
-            for (Term t : parameters)
-            {
-                assert t instanceof Term.Terminal;
-                buffers.add(((Term.Terminal)t).get(QueryOptions.DEFAULT.getProtocolVersion()));
-            }
-
-            return executeInternal(Server.CURRENT_VERSION, fun, buffers);
+            return new FunctionCall(scalarFun, parameters);
         }
 
         public AssignmentTestable.TestResult testAssignment(String keyspace, ColumnSpecification receiver)
