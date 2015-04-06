@@ -20,10 +20,10 @@ package org.apache.cassandra.utils;
 
 import static org.junit.Assert.*;
 
-import java.util.ArrayList;
+import java.util.ArrayDeque;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
+import java.util.Queue;
 import java.util.concurrent.TimeUnit;
 
 import org.apache.cassandra.utils.NoSpamLogger.Level;
@@ -37,7 +37,7 @@ import org.slf4j.helpers.SubstituteLogger;
 
 public class NoSpamLoggerTest
 {
-    Map<Level, List<Pair<String, Object[]>>> logged = new HashMap<>();
+    Map<Level, Queue<Pair<String, Object[]>>> logged = new HashMap<>();
 
    Logger mock = new SubstituteLogger(null)
    {
@@ -45,19 +45,19 @@ public class NoSpamLoggerTest
        @Override
        public void info(String statement, Object... args)
        {
-           logged.get(Level.INFO).add(Pair.create(statement, args));
+           logged.get(Level.INFO).offer(Pair.create(statement, args));
        }
 
        @Override
        public void warn(String statement, Object... args)
        {
-           logged.get(Level.WARN).add(Pair.create(statement, args));
+           logged.get(Level.WARN).offer(Pair.create(statement, args));
        }
 
        @Override
        public void error(String statement, Object... args)
        {
-           logged.get(Level.ERROR).add(Pair.create(statement, args));
+           logged.get(Level.ERROR).offer(Pair.create(statement, args));
        }
 
        @Override
@@ -74,6 +74,8 @@ public class NoSpamLoggerTest
    };
 
 
+   static final String statement = "swizzle{}";
+   static final String param = "";
    static long now;
 
    @BeforeClass
@@ -92,9 +94,10 @@ public class NoSpamLoggerTest
    @Before
    public void setUp() throws Exception
    {
-       logged.put(Level.INFO, new ArrayList<Pair<String, Object[]>>());
-       logged.put(Level.WARN, new ArrayList<Pair<String, Object[]>>());
-       logged.put(Level.ERROR, new ArrayList<Pair<String, Object[]>>());
+       logged.put(Level.INFO, new ArrayDeque<Pair<String, Object[]>>());
+       logged.put(Level.WARN, new ArrayDeque<Pair<String, Object[]>>());
+       logged.put(Level.ERROR, new ArrayDeque<Pair<String, Object[]>>());
+       NoSpamLogger.clearWrappedLoggersForTest();
    }
 
    @Test
@@ -109,19 +112,18 @@ public class NoSpamLoggerTest
    {
        setUp();
        now = 5;
-       NoSpamLogger.clearWrappedLoggersForTest();
 
-       NoSpamLogger.log( mock, l, 5,  TimeUnit.NANOSECONDS, "swizzle{}", "a");
+       NoSpamLogger.log( mock, l, 5,  TimeUnit.NANOSECONDS, statement, param);
 
        assertEquals(1, logged.get(l).size());
 
-       NoSpamLogger.log( mock, l, 5,  TimeUnit.NANOSECONDS, "swizzle{}", "a");
+       NoSpamLogger.log( mock, l, 5,  TimeUnit.NANOSECONDS, statement, param);
 
        assertEquals(1, logged.get(l).size());
 
        now += 5;
 
-       NoSpamLogger.log( mock, l, 5,  TimeUnit.NANOSECONDS, "swizzle{}", "a");
+       NoSpamLogger.log( mock, l, 5,  TimeUnit.NANOSECONDS, statement, param);
 
        assertEquals(2, logged.get(l).size());
    }
@@ -139,20 +141,20 @@ public class NoSpamLoggerTest
        now = 5;
        NoSpamLogger logger = NoSpamLogger.getLogger( mock, 5, TimeUnit.NANOSECONDS);
 
-       logger.info("swizzle{}", "a");
-       logger.info("swizzle{}", "a");
-       logger.warn("swizzle{}", "a");
-       logger.error("swizzle{}", "a");
+       logger.info(statement, param);
+       logger.info(statement, param);
+       logger.warn(statement, param);
+       logger.error(statement, param);
 
        assertLoggedSizes(1, 0, 0);
 
        NoSpamLogStatement statement = logger.getStatement("swizzle2{}", 10, TimeUnit.NANOSECONDS);
-       statement.warn("a");
+       statement.warn(param);
        //now is 5 so it won't log
        assertLoggedSizes(1, 0, 0);
 
        now = 10;
-       statement.warn("a");
+       statement.warn(param);
        assertLoggedSizes(1, 1, 0);
 
    }
@@ -160,15 +162,80 @@ public class NoSpamLoggerTest
    @Test
    public void testNoSpamLoggerStatementDirect() throws Exception
    {
-       NoSpamLogger.NoSpamLogStatement statement = NoSpamLogger.getStatement( mock, "swizzle{}", 5, TimeUnit.NANOSECONDS);
+       NoSpamLogger.NoSpamLogStatement nospam = NoSpamLogger.getStatement( mock, statement, 5, TimeUnit.NANOSECONDS);
 
        now = 5;
 
-       statement.info("swizzle{}", "a");
-       statement.info("swizzle{}", "a");
-       statement.warn("swizzle{}", "a");
-       statement.error("swizzle{}", "a");
+       nospam.info(statement, param);
+       nospam.info(statement, param);
+       nospam.warn(statement, param);
+       nospam.error(statement, param);
 
        assertLoggedSizes(1, 0, 0);
+   }
+
+   private void checkMock(Level l)
+   {
+       Pair<String, Object[]> p = logged.get(l).poll();
+       assertNotNull(p);
+       assertEquals(statement, p.left);
+       Object objs[] = p.right;
+       assertEquals(1, objs.length);
+       assertEquals(param, objs[0]);
+       assertTrue(logged.get(l).isEmpty());
+   }
+
+   /*
+    * Make sure that what is passed to the underlying logger is the correct set of objects
+    */
+   @Test
+   public void testLoggedResult() throws Exception
+   {
+       NoSpamLogger.log( mock, Level.INFO, 5,  TimeUnit.NANOSECONDS, statement, param);
+       checkMock(Level.INFO);
+
+       now = 10;
+
+       NoSpamLogger.log( mock, Level.WARN, 5,  TimeUnit.NANOSECONDS, statement, param);
+       checkMock(Level.WARN);
+
+       now = 15;
+
+       NoSpamLogger.log( mock, Level.ERROR, 5,  TimeUnit.NANOSECONDS, statement, param);
+       checkMock(Level.ERROR);
+
+       now = 20;
+
+       NoSpamLogger logger = NoSpamLogger.getLogger(mock, 5, TimeUnit.NANOSECONDS);
+
+       logger.info(statement, param);
+       checkMock(Level.INFO);
+
+       now = 25;
+
+       logger.warn(statement, param);
+       checkMock(Level.WARN);
+
+       now = 30;
+
+       logger.error(statement, param);
+       checkMock(Level.ERROR);
+
+       NoSpamLogger.NoSpamLogStatement nospamStatement = logger.getStatement(statement);
+
+       now = 35;
+
+       nospamStatement.info(param);
+       checkMock(Level.INFO);
+
+       now = 40;
+
+       nospamStatement.warn(param);
+       checkMock(Level.WARN);
+
+       now = 45;
+
+       nospamStatement.error(param);
+       checkMock(Level.ERROR);
    }
 }
