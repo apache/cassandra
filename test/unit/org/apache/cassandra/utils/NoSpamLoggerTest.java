@@ -191,6 +191,8 @@ public class NoSpamLoggerTest
    @Test
    public void testLoggedResult() throws Exception
    {
+       now = 5;
+
        NoSpamLogger.log( mock, Level.INFO, 5,  TimeUnit.NANOSECONDS, statement, param);
        checkMock(Level.INFO);
 
