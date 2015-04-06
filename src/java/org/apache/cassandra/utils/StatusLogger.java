@@ -52,13 +52,13 @@ public class StatusLogger
 
         for (Stage stage : Stage.jmxEnabledStages())
         {
-            System.out.printf("%-25s%10s%10s%15s%10s%18s%n",
+            logger.info(String.format("%-25s%10s%10s%15s%10s%18s%n",
                               stage.getJmxName(),
                               ThreadPoolMetrics.getJmxMetric(server, stage.getJmxType(), stage.getJmxName(), "ActiveTasks"),
                               ThreadPoolMetrics.getJmxMetric(server, stage.getJmxType(), stage.getJmxName(), "PendingTasks"),
                               ThreadPoolMetrics.getJmxMetric(server, stage.getJmxType(), stage.getJmxName(), "CompletedTasks"),
                               ThreadPoolMetrics.getJmxMetric(server, stage.getJmxType(), stage.getJmxName(), "CurrentlyBlockedTasks"),
-                              ThreadPoolMetrics.getJmxMetric(server, stage.getJmxType(), stage.getJmxName(), "TotalBlockedTasks"));
+                              ThreadPoolMetrics.getJmxMetric(server, stage.getJmxType(), stage.getJmxName(), "TotalBlockedTasks")));
         }
 
         // one offs

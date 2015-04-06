@@ -114,6 +114,10 @@ public class ThreadPoolMetrics
         try
         {
             ObjectName oName = new ObjectName(name);
+            if (!mbeanServerConn.isRegistered(oName))
+            {
+                return "N/A";
+            }
 
             switch (metricName)
             {
@@ -127,9 +131,8 @@ public class ThreadPoolMetrics
                 default:
                     throw new AssertionError("Unknown metric name " + metricName);
             }
-
         }
-        catch (Throwable e)
+        catch (Exception e)
         {
             throw new RuntimeException("Error reading: " + name, e);
         }
