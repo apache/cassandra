@@ -210,9 +210,9 @@ public class MessagePayloadTest extends CQLTester
                     client.execute(queryMessage);
                     Assert.fail();
                 }
-                catch (ProtocolException e)
+                catch (RuntimeException e)
                 {
-                    // that's what we want
+                    Assert.assertTrue(e.getCause() instanceof ProtocolException);
                 }
                 queryMessage.setCustomPayload(null);
                 client.execute(queryMessage);
@@ -225,9 +225,9 @@ public class MessagePayloadTest extends CQLTester
                     client.execute(prepareMessage);
                     Assert.fail();
                 }
-                catch (ProtocolException e)
+                catch (RuntimeException e)
                 {
-                    // that's what we want
+                    Assert.assertTrue(e.getCause() instanceof ProtocolException);
                 }
                 prepareMessage.setCustomPayload(null);
                 ResultMessage.Prepared prepareResponse = (ResultMessage.Prepared) client.execute(prepareMessage);
@@ -241,9 +241,9 @@ public class MessagePayloadTest extends CQLTester
                     client.execute(executeMessage);
                     Assert.fail();
                 }
-                catch (ProtocolException e)
+                catch (RuntimeException e)
                 {
-                    // that's what we want
+                    Assert.assertTrue(e.getCause() instanceof ProtocolException);
                 }
 
                 BatchMessage batchMessage = new BatchMessage(BatchStatement.Type.UNLOGGED,
@@ -258,9 +258,9 @@ public class MessagePayloadTest extends CQLTester
                     client.execute(batchMessage);
                     Assert.fail();
                 }
-                catch (ProtocolException e)
+                catch (RuntimeException e)
                 {
-                    // that's what we want
+                    Assert.assertTrue(e.getCause() instanceof ProtocolException);
                 }
             }
             finally
