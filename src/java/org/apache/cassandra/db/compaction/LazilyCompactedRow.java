@@ -141,6 +141,9 @@ public class LazilyCompactedRow extends AbstractCompactedRow implements Iterable
         // blindly updating everything wouldn't be correct
         DataOutputBuffer out = new DataOutputBuffer();
 
+        // initialize indexBuilder for the benefit of its tombstoneTracker, used by our reducing iterator
+        indexBuilder = new ColumnIndex.Builder(emptyColumnFamily, key.key, out);
+
         try
         {
             DeletionTime.serializer.serialize(emptyColumnFamily.deletionInfo().getTopLevelDeletion(), out);
@@ -158,8 +161,6 @@ public class LazilyCompactedRow extends AbstractCompactedRow implements Iterable
             throw new AssertionError(e);
         }
 
-        // initialize indexBuilder for the benefit of its tombstoneTracker, used by our reducing iterator
-        indexBuilder = new ColumnIndex.Builder(emptyColumnFamily, key.key, out);
         while (iter.hasNext())
             iter.next().updateDigest(digest);
         close();
