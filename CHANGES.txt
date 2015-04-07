@@ -1,5 +1,6 @@
 2.0.15:
- * Fix updates to min/max_compaction_threshold throuch cassandra-cli
+ * Flush system.IndexInfo after marking index built (CASSANDRA-9128)
+ * Fix updates to min/max_compaction_threshold through cassandra-cli
    (CASSANDRA-8102)
  * Backport CASSANDRA-6863 without digest updates (CASSANDRA-8989)
  * Don't include tmp files when doing offline relevel (CASSANDRA-9088)
