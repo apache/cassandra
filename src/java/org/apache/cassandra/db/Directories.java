@@ -194,7 +194,9 @@ public class Directories
         for (int i = 0; i < dataDirectories.length; ++i)
         {
             // check if old SSTable directory exists
-            dataPaths[i] = new File(dataDirectories[i].location, join(metadata.ksName, metadata.cfName));
+            dataPaths[i] = new File(dataDirectories[i].location,
+                                    join(metadata.ksName,
+                                         idx > 0 ? metadata.cfName.substring(0, idx) : metadata.cfName));
         }
         boolean olderDirectoryExists = Iterables.any(Arrays.asList(dataPaths), new Predicate<File>()
         {

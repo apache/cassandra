@@ -72,6 +72,7 @@
  * Fix Adler32 digest for compressed sstables (CASSANDRA-8778)
  * Add nodetool statushandoff/statusbackup (CASSANDRA-8912)
  * Use stdout for progress and stats in sstableloader (CASSANDRA-8982)
+ * Correctly identify 2i datadir from older versions (CASSANDRA-9116)
 Merged from 2.0:
  * Flush system.IndexInfo after marking index built (CASSANDRA-9128)
  * Fix updates to min/max_compaction_threshold through cassandra-cli
