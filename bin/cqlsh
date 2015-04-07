@@ -1609,7 +1609,7 @@ class Shell(cmd.Cmd):
         query = 'INSERT INTO %s.%s (%s) VALUES (%%s)' % (
             protect_name(ks),
             protect_name(cf),
-            ', '.join(columns))
+            ', '.join(protect_names(columns)))
 
         # we need to handle some types specially
         should_escape = [t in ('ascii', 'text', 'timestamp', 'date', 'time', 'inet') for t in cqltypes]

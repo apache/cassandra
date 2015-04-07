@@ -91,6 +91,9 @@
  * Allow scrub for secondary index (CASSANDRA-5174)
 
 2.1.5
+ * Add generate-idea-files target to build.xml (CASSANDRA-9123)
+ * cqlsh: quote column names when needed in COPY FROM inserts (CASSANDRA-9080)
+ * Add generate-idea-files target to build.xml (CASSANDRA-9123)
  * Do not load read meter for offline operations (CASSANDRA-9082)
  * cqlsh: Make CompositeType data readable (CASSANDRA-8919)
  * cqlsh: Fix display of triggers (CASSANDRA-9081)
