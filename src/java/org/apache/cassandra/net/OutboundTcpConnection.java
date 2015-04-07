@@ -130,7 +130,7 @@ public class OutboundTcpConnection extends Thread
     private volatile long completed;
     private final AtomicLong dropped = new AtomicLong();
     private volatile int currentMsgBufferCount = 0;
-    private int targetVersion;
+    private int targetVersion = MessagingService.current_version;
 
     public OutboundTcpConnection(OutboundTcpConnectionPool pool)
     {
