@@ -1,4 +1,6 @@
 2.0.15:
+ * Fix updates to min/max_compaction_threshold throuch cassandra-cli
+   (CASSANDRA-8102)
  * Backport CASSANDRA-6863 without digest updates (CASSANDRA-8989)
  * Don't include tmp files when doing offline relevel (CASSANDRA-9088)
  * Use the proper CAS WriteType when finishing a previous round during Paxos

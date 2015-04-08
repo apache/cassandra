@@ -32,6 +32,7 @@ import com.google.common.base.Predicate;
 import com.google.common.collect.Collections2;
 import com.google.common.collect.Iterables;
 
+import org.apache.cassandra.cql3.statements.CFPropDefs;
 import org.apache.cassandra.serializers.MarshalException;
 import org.apache.commons.lang3.StringUtils;
 
@@ -1318,12 +1319,14 @@ public class CliClient
                 if (threshold <= 0)
                     throw new RuntimeException("Disabling compaction by setting min/max compaction thresholds to 0 has been deprecated, set compaction_strategy_options={'enabled':false} instead");
                 cfDef.setMin_compaction_threshold(threshold);
+                cfDef.putToCompaction_strategy_options(CFPropDefs.KW_MINCOMPACTIONTHRESHOLD, Integer.toString(threshold));
                 break;
             case MAX_COMPACTION_THRESHOLD:
                 threshold = Integer.parseInt(mValue);
                 if (threshold <= 0)
                     throw new RuntimeException("Disabling compaction by setting min/max compaction thresholds to 0 has been deprecated, set compaction_strategy_options={'enabled':false} instead");
                 cfDef.setMax_compaction_threshold(Integer.parseInt(mValue));
+                cfDef.putToCompaction_strategy_options(CFPropDefs.KW_MAXCOMPACTIONTHRESHOLD, Integer.toString(threshold));
                 break;
             case REPLICATE_ON_WRITE:
                 cfDef.setReplicate_on_write(Boolean.parseBoolean(mValue));
