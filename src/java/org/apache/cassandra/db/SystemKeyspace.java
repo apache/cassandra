@@ -785,6 +785,7 @@ public final class SystemKeyspace
         ColumnFamily cf = ArrayBackedSortedColumns.factory.create(NAME, BUILT_INDEXES);
         cf.addColumn(new BufferCell(cf.getComparator().makeCellName(indexName), ByteBufferUtil.EMPTY_BYTE_BUFFER, FBUtilities.timestampMicros()));
         new Mutation(NAME, ByteBufferUtil.bytes(keyspaceName), cf).apply();
+        forceBlockingFlush(BUILT_INDEXES);
     }
 
     public static void setIndexRemoved(String keyspaceName, String indexName)
@@ -792,6 +793,7 @@ public final class SystemKeyspace
         Mutation mutation = new Mutation(NAME, ByteBufferUtil.bytes(keyspaceName));
         mutation.delete(BUILT_INDEXES, BuiltIndexes.comparator.makeCellName(indexName), FBUtilities.timestampMicros());
         mutation.apply();
+        forceBlockingFlush(BUILT_INDEXES);
     }
 
     /**
