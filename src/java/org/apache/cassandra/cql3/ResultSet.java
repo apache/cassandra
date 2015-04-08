@@ -350,7 +350,7 @@ public class ResultSet
                 boolean globalTablesSpec = m.flags.contains(Flag.GLOBAL_TABLES_SPEC);
                 boolean hasMorePages = m.flags.contains(Flag.HAS_MORE_PAGES);
 
-                assert version > 1 || (!m.flags.contains(Flag.HAS_MORE_PAGES) && !noMetadata): "version = " + version + ", flags = " + m.flags;
+                assert version > 1 || (!hasMorePages && !noMetadata): "version = " + version + ", flags = " + m.flags;
 
                 dest.writeInt(Flag.serialize(m.flags));
                 dest.writeInt(m.columnCount);
