@@ -162,6 +162,8 @@
  * Add nodetool statushandoff/statusbackup (CASSANDRA-8912)
  * Use stdout for progress and stats in sstableloader (CASSANDRA-8982)
 Merged from 2.0:
+ * Fix updates to min/max_compaction_threshold throuch cassandra-cli
+   (CASSANDRA-8102)
  * Don't include tmp files when doing offline relevel (CASSANDRA-9088)
  * Use the proper CAS WriteType when finishing a previous round during Paxos
    preparation (CASSANDRA-8672)
