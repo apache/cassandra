@@ -2163,14 +2163,12 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         for (ColumnFamilyStore cfs : concatWithIndexes())
         {
             final JSONArray filesJSONArr = new JSONArray();
-            try (RefViewFragment currentView = cfs.selectAndReference(ALL_SSTABLES))
+            try (RefViewFragment currentView = cfs.selectAndReference(CANONICAL_SSTABLES))
             {
                 for (SSTableReader ssTable : currentView.sstables)
                 {
-                    if (ssTable.openReason == SSTableReader.OpenReason.EARLY || (predicate != null && !predicate.apply(ssTable)))
-                    {
+                    if (predicate != null && !predicate.apply(ssTable))
                         continue;
-                    }
 
                     File snapshotDirectory = Directories.getSnapshotDirectory(ssTable.descriptor, snapshotName);
                     ssTable.createLinks(snapshotDirectory.getPath()); // hard links
@@ -2382,7 +2380,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     public Iterable<DecoratedKey> keySamples(Range<Token> range)
     {
-        try (RefViewFragment view = selectAndReference(ALL_SSTABLES))
+        try (RefViewFragment view = selectAndReference(CANONICAL_SSTABLES))
         {
             Iterable<DecoratedKey>[] samples = new Iterable[view.sstables.size()];
             int i = 0;
@@ -2396,7 +2394,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     public long estimatedKeysForRange(Range<Token> range)
     {
-        try (RefViewFragment view = selectAndReference(ALL_SSTABLES))
+        try (RefViewFragment view = selectAndReference(CANONICAL_SSTABLES))
         {
             long count = 0;
             for (SSTableReader sstable : view.sstables)
@@ -2807,11 +2805,19 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         fileIndexGenerator.set(0);
     }
 
-    public static final Function<DataTracker.View, List<SSTableReader>> ALL_SSTABLES = new Function<DataTracker.View, List<SSTableReader>>()
+    // returns the "canonical" version of any current sstable, i.e. if an sstable is being replaced and is only partially
+    // visible to reads, this sstable will be returned as its original entirety, and its replacement will not be returned
+    // (even if it completely replaces it)
+    public static final Function<DataTracker.View, List<SSTableReader>> CANONICAL_SSTABLES = new Function<DataTracker.View, List<SSTableReader>>()
     {
         public List<SSTableReader> apply(DataTracker.View view)
         {
-            return new ArrayList<>(view.sstables);
+            List<SSTableReader> sstables = new ArrayList<>();
+            sstables.addAll(view.compacting);
+            for (SSTableReader sstable : view.sstables)
+            if (!view.compacting.contains(sstable) && sstable.openReason != SSTableReader.OpenReason.EARLY)
+                sstables.add(sstable);
+            return sstables;
         }
     };
 
@@ -2820,7 +2826,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         public List<SSTableReader> apply(DataTracker.View view)
         {
             List<SSTableReader> sstables = new ArrayList<>();
-            for (SSTableReader sstable : view.sstables)
+            for (SSTableReader sstable : CANONICAL_SSTABLES.apply(view))
             {
                 if (!sstable.isRepaired())
                     sstables.add(sstable);
