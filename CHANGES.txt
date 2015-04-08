@@ -1,4 +1,5 @@
 2.1.5
+ * Limit major sstable operations to their canonical representation (CASSANDRA-8669)
  * cqlsh: Add tests for INSERT and UPDATE tab completion (CASSANDRA-9125)
  * cqlsh: quote column names when needed in COPY FROM inserts (CASSANDRA-9080)
  * Add generate-idea-files target to build.xml (CASSANDRA-9123)
