@@ -677,6 +677,7 @@ public class SystemKeyspace
         ColumnFamily cf = ArrayBackedSortedColumns.factory.create(Keyspace.SYSTEM_KS, INDEX_CF);
         cf.addColumn(new BufferCell(cf.getComparator().makeCellName(indexName), ByteBufferUtil.EMPTY_BYTE_BUFFER, FBUtilities.timestampMicros()));
         new Mutation(Keyspace.SYSTEM_KS, ByteBufferUtil.bytes(keyspaceName), cf).apply();
+        forceBlockingFlush(INDEX_CF);
     }
 
     public static void setIndexRemoved(String keyspaceName, String indexName)
