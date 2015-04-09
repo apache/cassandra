@@ -1,7 +1,6 @@
 package org.apache.cassandra.io.util;
 
 import java.io.ByteArrayOutputStream;
-import java.io.DataOutput;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.io.UTFDataFormatException;
@@ -12,8 +11,6 @@ import java.nio.channels.WritableByteChannel;
 import java.util.Random;
 
 import org.junit.Test;
-
-import com.google.common.base.Throwables;
 
 import static org.junit.Assert.*;
 
@@ -175,9 +172,9 @@ public class BufferedDataOutputStreamTest
     }
 
     String simple = "foobar42";
-    String twoByte = "ƀ";
-    String threeByte = "㒨";
-    String fourByte = "𠝹";
+    public static final String twoByte = "\u0180";
+    public static final String threeByte = "\u34A8";
+    public static final String fourByte = "\uD841\uDF79";
 
     @SuppressWarnings("unused")
     private void fuzzOnce() throws Exception

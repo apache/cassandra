@@ -22,6 +22,7 @@ import org.apache.cassandra.io.util.BufferedDataOutputStreamPlus;
 import org.apache.cassandra.io.util.BufferedDataOutputStreamTest;
 import org.apache.cassandra.io.util.WrappedDataOutputStreamPlus;
 import org.openjdk.jmh.annotations.*;
+import org.openjdk.jmh.infra.Blackhole;
 
 import java.io.BufferedOutputStream;
 import java.io.IOException;
@@ -40,66 +41,103 @@ import java.util.concurrent.TimeUnit;
 public class OutputStreamBench
 {
 
-    BufferedOutputStream hole = new BufferedOutputStream(new OutputStream() {
+    BufferedOutputStream hole;
 
-        @Override
-        public void write(int b) throws IOException
-        {
+    WrappedDataOutputStreamPlus streamA;
 
+    BufferedDataOutputStreamPlus streamB;
+
+    byte foo;
+
+    int foo1;
+
+    long foo2;
+
+    double foo3;
+
+    float foo4;
+
+    short foo5;
+
+    char foo6;
+
+
+    String tinyM = BufferedDataOutputStreamTest.fourByte;
+    String smallM;
+    String largeM;
+    String tiny = "a";
+    String small = "adsjglhnafsjk;gujfakyhgukafshgjkahfsgjkhafs;jkhausjkgaksfj;gafskdghajfsk;g";
+    String large;
+
+    @Setup
+    public void setUp(final Blackhole bh) {
+        StringBuilder sb = new StringBuilder();
+        for (int ii = 0; ii < 11; ii++) {
+            sb.append(BufferedDataOutputStreamTest.fourByte);
+            sb.append(BufferedDataOutputStreamTest.threeByte);
+            sb.append(BufferedDataOutputStreamTest.twoByte);
         }
-
-        @Override
-        public void write(byte b[]) throws IOException {
-
+        smallM = sb.toString();
+            
+        sb = new StringBuilder();
+        while (sb.length() < 1024 * 12) {
+            sb.append(small);
         }
+        large = sb.toString();
 
-        @Override
-        public void write(byte b[], int a, int c) throws IOException {
-
+        sb = new StringBuilder();
+        while (sb.length() < 1024 * 12) {
+            sb.append(smallM);
         }
-        });
+        largeM = sb.toString();
 
-    WrappedDataOutputStreamPlus streamA = new WrappedDataOutputStreamPlus(hole);
+        hole = new BufferedOutputStream(new OutputStream() {
 
-    BufferedDataOutputStreamPlus streamB = new BufferedDataOutputStreamPlus(new WritableByteChannel() {
+            @Override
+            public void write(int b) throws IOException
+            {
+                bh.consume(b);
+            }
 
-        @Override
-        public boolean isOpen()
-        {
-            // TODO Auto-generated method stub
-            return true;
-        }
+            @Override
+            public void write(byte b[]) throws IOException {
+                bh.consume(b);
+            }
 
-        @Override
-        public void close() throws IOException
-        {
-            // TODO Auto-generated method stub
+            @Override
+            public void write(byte b[], int a, int c) throws IOException {
+                bh.consume(b);
+                bh.consume(a);
+                bh.consume(c);
+            }
+            });
 
-        }
+        streamA = new WrappedDataOutputStreamPlus(hole);
 
-        @Override
-        public int write(ByteBuffer src) throws IOException
-        {
-            int remaining = src.remaining();
-            src.position(src.limit());
-            return remaining;
-        }
+        streamB = new BufferedDataOutputStreamPlus(new WritableByteChannel() {
 
-    }, 8192);
+            @Override
+            public boolean isOpen()
+            {
+                return true;
+            }
 
-    public static byte foo;
+            @Override
+            public void close() throws IOException
+            {
+            }
 
-    public static int foo1;
+            @Override
+            public int write(ByteBuffer src) throws IOException
+            {
+                bh.consume(src);
+                int remaining = src.remaining();
+                src.position(src.limit());
+                return remaining;
+            }
 
-    public static long foo2;
-
-    public static double foo3;
-
-    public static float foo4;
-
-    public static short foo5;
-
-    public static char foo6;
+        }, 8192);
+    }
 
     @Benchmark
     public void testBOSByte() throws IOException
@@ -159,27 +197,6 @@ public class OutputStreamBench
         streamB.writeFloat(foo4);
         streamB.writeShort(foo5);
         streamB.writeChar(foo6);
-    }
-
-    public static String tinyM = "𠝹";
-    public static String smallM = "𠝹㒨ƀ𠝹㒨ƀ𠝹㒨ƀ𠝹㒨ƀ𠝹㒨ƀ𠝹㒨ƀ𠝹㒨ƀ𠝹㒨ƀ𠝹㒨ƀ𠝹㒨ƀ𠝹㒨ƀ";
-    public static String largeM;
-    public static String tiny = "a";
-    public static String small = "adsjglhnafsjk;gujfakyhgukafshgjkahfsgjkhafs;jkhausjkgaksfj;gafskdghajfsk;g";
-    public static String large;
-
-    static {
-        StringBuilder sb = new StringBuilder();
-        while (sb.length() < 1024 * 12) {
-            sb.append(small);
-        }
-        large = sb.toString();
-
-        sb = new StringBuilder();
-        while (sb.length() < 1024 * 12) {
-            sb.append(smallM);
-        }
-        largeM = sb.toString();
     }
 
     @Benchmark

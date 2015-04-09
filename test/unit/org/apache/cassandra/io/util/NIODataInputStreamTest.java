@@ -234,18 +234,15 @@ public class NIODataInputStreamTest
         DataOutputStream daos = new DataOutputStream(baos);
 
         String simple = "foobar42";
-        String twoByte = "ƀ";
-        String threeByte = "㒨";
-        String fourByte = "𠝹";
 
-        assertEquals(2, twoByte.getBytes(Charsets.UTF_8).length);
-        assertEquals(3, threeByte.getBytes(Charsets.UTF_8).length);
-        assertEquals(4, fourByte.getBytes(Charsets.UTF_8).length);
+        assertEquals(2, BufferedDataOutputStreamTest.twoByte.getBytes(Charsets.UTF_8).length);
+        assertEquals(3, BufferedDataOutputStreamTest.threeByte.getBytes(Charsets.UTF_8).length);
+        assertEquals(4, BufferedDataOutputStreamTest.fourByte.getBytes(Charsets.UTF_8).length);
 
         daos.writeUTF(simple);
-        daos.writeUTF(twoByte);
-        daos.writeUTF(threeByte);
-        daos.writeUTF(fourByte);
+        daos.writeUTF(BufferedDataOutputStreamTest.twoByte);
+        daos.writeUTF(BufferedDataOutputStreamTest.threeByte);
+        daos.writeUTF(BufferedDataOutputStreamTest.fourByte);
 
         NIODataInputStream is = new NIODataInputStream(new ReadableByteChannel()
         {
@@ -266,9 +263,9 @@ public class NIODataInputStreamTest
         }, 4096);
 
         assertEquals(simple, is.readUTF());
-        assertEquals(twoByte, is.readUTF());
-        assertEquals(threeByte, is.readUTF());
-        assertEquals(fourByte, is.readUTF());
+        assertEquals(BufferedDataOutputStreamTest.twoByte, is.readUTF());
+        assertEquals(BufferedDataOutputStreamTest.threeByte, is.readUTF());
+        assertEquals(BufferedDataOutputStreamTest.fourByte, is.readUTF());
     }
 
     @Test
