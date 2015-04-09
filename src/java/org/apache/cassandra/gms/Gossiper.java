@@ -877,12 +877,6 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
             return;
         }
 
-        if (localState.hasPendingEcho())
-        {
-            logger.debug("{} has already a pending echo, skipping it", localState);
-            return;
-        }
-
         localState.markDead();
 
         MessageOut<EchoMessage> echoMessage = new MessageOut<EchoMessage>(MessagingService.Verb.ECHO, new EchoMessage(), EchoMessage.serializer);
@@ -896,19 +890,17 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
 
             public void response(MessageIn msg)
             {
-                localState.markPendingEcho(false);
                 realMarkAlive(addr, localState);
             }
         };
 
-        localState.markPendingEcho(true);
         MessagingService.instance().sendRR(echoMessage, addr, echoHandler);
     }
 
     private void realMarkAlive(final InetAddress addr, final EndpointState localState)
     {
         if (logger.isTraceEnabled())
-                logger.trace("marking as alive {}", addr);
+            logger.trace("marking as alive {}", addr);
         localState.markAlive();
         localState.updateTimestamp(); // prevents doStatusCheck from racing us and evicting if it was down > aVeryLongTime
         liveEndpoints.add(addr);
@@ -919,7 +911,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         for (IEndpointStateChangeSubscriber subscriber : subscribers)
             subscriber.onAlive(addr, localState);
         if (logger.isTraceEnabled())
-                logger.trace("Notified " + subscribers);
+            logger.trace("Notified " + subscribers);
     }
 
     private void markDead(InetAddress addr, EndpointState localState)
