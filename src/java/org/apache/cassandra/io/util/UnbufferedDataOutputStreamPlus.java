@@ -253,15 +253,16 @@ public abstract class UnbufferedDataOutputStreamPlus extends DataOutputStreamPlu
     {
         int length = str.length();
         int utfCount = 0;
+        int maxSize = 2;
         for (int i = 0 ; i < length ; i++)
         {
             int ch = str.charAt(i);
-            if ((ch > 0) && (ch <= 127))
+            if ((ch > 0) & (ch <= 127))
                 utfCount += 1;
             else if (ch <= 2047)
                 utfCount += 2;
             else
-                utfCount += 3;
+                utfCount += maxSize = 3;
         }
 
         if (utfCount > 65535)
@@ -289,33 +290,45 @@ public abstract class UnbufferedDataOutputStreamPlus extends DataOutputStreamPlu
         else
         {
             int utfIndex = 2;
+            int offset = 0;
             utfBytes[0] = (byte) (utfCount >> 8);
             utfBytes[1] = (byte) utfCount;
-            for (int charIndex = 0 ; charIndex < length ; charIndex++)
+
+            while (length > 0)
             {
-                if (utfIndex + 3 > bufferLength)
+                int charRunLength = (utfBytes.length - utfIndex) / maxSize;
+                if (charRunLength < 128 && charRunLength < length)
                 {
                     out.write(utfBytes, 0, utfIndex);
                     utfIndex = 0;
                 }
+                if (charRunLength > length)
+                    charRunLength = length;
 
-                char ch = str.charAt(charIndex);
-                if ((ch > 0) && (ch <= 127))
+                for (int i = 0 ; i < charRunLength ; i++)
                 {
-                    utfBytes[utfIndex++] = (byte) ch;
+                    char ch = str.charAt(offset + i);
+                    if ((ch > 0) & (ch <= 127))
+                    {
+                        utfBytes[utfIndex++] = (byte) ch;
+                    }
+                    else if (ch <= 2047)
+                    {
+                        utfBytes[utfIndex++] = (byte) (0xc0 | (0x1f & (ch >> 6)));
+                        utfBytes[utfIndex++] = (byte) (0x80 | (0x3f & ch));
+                    }
+                    else
+                    {
+                        utfBytes[utfIndex++] = (byte) (0xe0 | (0x0f & (ch >> 12)));
+                        utfBytes[utfIndex++] = (byte) (0x80 | (0x3f & (ch >> 6)));
+                        utfBytes[utfIndex++] = (byte) (0x80 | (0x3f & ch));
+                    }
                 }
-                else if (ch <= 2047)
-                {
-                    utfBytes[utfIndex++] = (byte) (0xc0 | (0x1f & (ch >> 6)));
-                    utfBytes[utfIndex++] = (byte) (0x80 | (0x3f & ch));
-                }
-                else
-                {
-                    utfBytes[utfIndex++] = (byte) (0xe0 | (0x0f & (ch >> 12)));
-                    utfBytes[utfIndex++] = (byte) (0x80 | (0x3f & (ch >> 6)));
-                    utfBytes[utfIndex++] = (byte) (0x80 | (0x3f & ch));
-                }
+
+                offset += charRunLength;
+                length -= charRunLength;
             }
+
             out.write(utfBytes, 0, utfIndex);
         }
     }
