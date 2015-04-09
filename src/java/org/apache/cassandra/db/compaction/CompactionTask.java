@@ -244,6 +244,12 @@ public class CompactionTask extends AbstractCompactionTask
                                       taskIdLoggerMsg, oldSStables.size(), newSSTableNames.toString(), getLevel(), startsize, endsize, (int) (ratio * 100), dTime, mbps, totalSourceRows, totalKeysWritten, mergeSummary));
             logger.debug(String.format("CF Total Bytes Compacted: %,d", CompactionTask.addToTotalBytesCompacted(endsize)));
             logger.debug("Actual #keys: {}, Estimated #keys:{}, Err%: {}", totalKeysWritten, writer.estimatedKeys(), ((double)(totalKeysWritten - writer.estimatedKeys())/totalKeysWritten));
+
+            if (offline)
+            {
+                for (SSTableReader reader : newSStables)
+                    reader.selfRef().release();
+            }
         }
     }
 
