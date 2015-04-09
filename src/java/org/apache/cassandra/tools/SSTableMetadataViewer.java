@@ -69,7 +69,7 @@ public class SSTableMetadataViewer
                     out.printf("SSTable Level: %d%n", stats.sstableLevel);
                     out.printf("Repaired at: %d%n", stats.repairedAt);
                     out.println(stats.replayPosition);
-                    out.println("Estimated tombstone drop times:%n");
+                    out.println("Estimated tombstone drop times:");
                     for (Map.Entry<Double, Long> entry : stats.estimatedTombstoneDropTime.getAsMap().entrySet())
                     {
                         out.printf("%-10s:%10s%n",entry.getKey().intValue(), entry.getValue());
