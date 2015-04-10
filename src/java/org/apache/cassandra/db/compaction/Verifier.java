@@ -142,7 +142,6 @@ public class Verifier implements Closeable
                 outputHandler.debug("Reading row at " + rowStart);
 
                 DecoratedKey key = null;
-                long dataSize = -1;
                 try
                 {
                     key = sstable.partitioner.decorateKey(ByteBufferUtil.readWithShortLength(dataFile));
@@ -172,7 +171,7 @@ public class Verifier implements Closeable
                                         ? -1
                                         : rowStart + 2 + currentIndexKey.remaining();
 
-                dataSize = nextRowPositionFromIndex - dataStartFromIndex;
+                long dataSize = nextRowPositionFromIndex - dataStartFromIndex;
                 // avoid an NPE if key is null
                 String keyName = key == null ? "(unreadable key)" : ByteBufferUtil.bytesToHex(key.getKey());
                 outputHandler.debug(String.format("row %s is %s bytes", keyName, dataSize));
