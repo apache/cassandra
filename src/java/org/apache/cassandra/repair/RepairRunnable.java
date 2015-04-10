@@ -178,16 +178,24 @@ public class RepairRunnable extends WrappedRunnable implements ProgressEventNoti
             return;
         }
 
-        final UUID parentSession;
+        String[] cfnames = new String[columnFamilyStores.size()];
+        for (int i = 0; i < columnFamilyStores.size(); i++)
+        {
+            cfnames[i] = columnFamilyStores.get(i).name;
+        }
+
+        final UUID parentSession = UUIDGen.getTimeUUID();
+        SystemDistributedKeyspace.startParentRepair(parentSession, keyspace, cfnames, options.getRanges());
         long repairedAt;
         try
         {
-            parentSession = ActiveRepairService.instance.prepareForRepair(allNeighbors, options, columnFamilyStores);
+            ActiveRepairService.instance.prepareForRepair(parentSession, allNeighbors, options, columnFamilyStores);
             repairedAt = ActiveRepairService.instance.getParentRepairSession(parentSession).repairedAt;
             progress.incrementAndGet();
         }
         catch (Throwable t)
         {
+            SystemDistributedKeyspace.failParentRepair(parentSession, t);
             fireErrorAndComplete(tag, progress.get(), totalProgress, t.getMessage());
             return;
         }
@@ -201,11 +209,6 @@ public class RepairRunnable extends WrappedRunnable implements ProgressEventNoti
                                                                                                                          "internal"));
 
         List<ListenableFuture<RepairSessionResult>> futures = new ArrayList<>(options.getRanges().size());
-        String[] cfnames = new String[columnFamilyStores.size()];
-        for (int i = 0; i < columnFamilyStores.size(); i++)
-        {
-            cfnames[i] = columnFamilyStores.get(i).name;
-        }
         for (Range<Token> range : options.getRanges())
         {
             final RepairSession session = ActiveRepairService.instance.submitRepairSession(parentSession,
@@ -270,10 +273,12 @@ public class RepairRunnable extends WrappedRunnable implements ProgressEventNoti
                 try
                 {
                     ActiveRepairService.instance.finishParentSession(parentSession, allNeighbors, successfulRanges);
+                    SystemDistributedKeyspace.successfulParentRepair(parentSession, successfulRanges);
                 }
                 catch (Exception e)
                 {
                     logger.error("Error in incremental repair", e);
+                    SystemDistributedKeyspace.failParentRepair(parentSession, e);
                 }
                 if (hasFailure)
                 {
@@ -291,6 +296,7 @@ public class RepairRunnable extends WrappedRunnable implements ProgressEventNoti
             public void onFailure(Throwable t)
             {
                 fireProgressEvent(tag, new ProgressEvent(ProgressEventType.ERROR, progress.get(), totalProgress, t.getMessage()));
+                SystemDistributedKeyspace.failParentRepair(parentSession, t);
                 repairComplete();
             }
 
@@ -390,5 +396,4 @@ public class RepairRunnable extends WrappedRunnable implements ProgressEventNoti
             }
         });
     }
-
 }

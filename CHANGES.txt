@@ -89,6 +89,7 @@
  * Generalize progress reporting (CASSANDRA-8901)
  * Resumable bootstrap streaming (CASSANDRA-8838, CASSANDRA-8942)
  * Allow scrub for secondary index (CASSANDRA-5174)
+ * Save repair data to system table (CASSANDRA-5839)
 
 2.1.5
  * Add generate-idea-files target to build.xml (CASSANDRA-9123)

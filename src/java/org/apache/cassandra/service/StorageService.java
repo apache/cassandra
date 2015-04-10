@@ -820,6 +820,9 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         if (Schema.instance.getKSMetaData(TraceKeyspace.NAME) == null)
             maybeAddKeyspace(TraceKeyspace.definition());
 
+        if (Schema.instance.getKSMetaData(SystemDistributedKeyspace.NAME) == null)
+            MigrationManager.announceNewKeyspace(SystemDistributedKeyspace.definition(), 0, false);
+
         if (!isSurveyMode)
         {
             if (dataAvailable)

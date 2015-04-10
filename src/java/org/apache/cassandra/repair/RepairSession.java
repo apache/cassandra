@@ -223,12 +223,14 @@ public class RepairSession extends AbstractFuture<RepairSessionResult> implement
 
         logger.info(String.format("[repair #%s] new session: will sync %s on range %s for %s.%s", getId(), repairedNodes(), range, keyspace, Arrays.toString(cfnames)));
         Tracing.traceRepair("Syncing range {}", range);
+        SystemDistributedKeyspace.startRepairs(getId(), parentRepairSession, keyspace, cfnames, range, endpoints);
 
         if (endpoints.isEmpty())
         {
             logger.info("[repair #{}] {}", getId(), message = String.format("No neighbors to repair with on range %s: session completed", range));
             Tracing.traceRepair(message);
             set(new RepairSessionResult(id, keyspace, range, Lists.<RepairResult>newArrayList()));
+            SystemDistributedKeyspace.failRepairs(getId(), keyspace, cfnames, new RuntimeException(message));
             return;
         }
 
@@ -239,7 +241,9 @@ public class RepairSession extends AbstractFuture<RepairSessionResult> implement
             {
                 message = String.format("Cannot proceed on repair because a neighbor (%s) is dead: session failed", endpoint);
                 logger.error("[repair #{}] {}", getId(), message);
-                setException(new IOException(message));
+                Exception e = new IOException(message);
+                setException(e);
+                SystemDistributedKeyspace.failRepairs(getId(), keyspace, cfnames, e);
                 return;
             }
         }
