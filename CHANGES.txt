@@ -1,4 +1,5 @@
 2.0.15:
+ * Make sstable blacklisting work with compression (CASSANDRA-9138)
  * Do not attempt to rebuild indexes if no index accepts any column (CASSANDRA-9196)
  * Don't initiate snitch reconnection for dead states (CASSANDRA-7292)
  * Fix ArrayIndexOutOfBoundsException in CQLSSTableWriter (CASSANDRA-8978)
