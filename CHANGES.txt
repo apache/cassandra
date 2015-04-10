@@ -1,4 +1,5 @@
 3.0
+ * Don't initialize compaction writer before checking if iter is empty (CASSANDRA-9117)
  * Remove line number generation from default logback.xml
  * Don't execute any functions at prepare-time (CASSANDRA-9037)
  * Share file handles between all instances of a SegmentedFile (CASSANDRA-8893)

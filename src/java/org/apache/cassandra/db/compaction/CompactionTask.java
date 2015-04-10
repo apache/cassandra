@@ -147,10 +147,10 @@ public class CompactionTask extends AbstractCompactionTask
 
         long totalKeysWritten = 0;
 
+        long estimatedKeys = 0;
         try (CompactionController controller = getCompactionController(sstables))
         {
             Set<SSTableReader> actuallyCompact = Sets.difference(sstables, controller.getFullyExpiredSSTables());
-            CompactionAwareWriter writer = getCompactionAwareWriter(cfs, sstables, actuallyCompact);
 
             SSTableFormat.Type sstableFormat = getFormatType(sstables);
 
@@ -167,6 +167,7 @@ public class CompactionTask extends AbstractCompactionTask
                 if (collector != null)
                     collector.beginCompaction(ci);
                 long lastCheckObsoletion = start;
+                CompactionAwareWriter writer = null;
                 try
                 {
                     if (!controller.cfs.getCompactionStrategy().isActive)
@@ -179,7 +180,8 @@ public class CompactionTask extends AbstractCompactionTask
                         cfs.markObsolete(sstables, compactionType);
                         return;
                     }
-
+                    writer = getCompactionAwareWriter(cfs, sstables, actuallyCompact);
+                    estimatedKeys = writer.estimatedKeys();
                     while (iter.hasNext())
                     {
                         if (ci.isStopRequested())
@@ -203,7 +205,8 @@ public class CompactionTask extends AbstractCompactionTask
                 {
                     try
                     {
-                        writer.abort();
+                        if (writer != null)
+                            writer.abort();
                     }
                     catch (Throwable t2)
                     {
@@ -243,7 +246,7 @@ public class CompactionTask extends AbstractCompactionTask
             logger.info(String.format("Compacted (%s) %d sstables to [%s] to level=%d.  %,d bytes to %,d (~%d%% of original) in %,dms = %fMB/s.  %,d total partitions merged to %,d.  Partition merge counts were {%s}",
                                       taskIdLoggerMsg, oldSStables.size(), newSSTableNames.toString(), getLevel(), startsize, endsize, (int) (ratio * 100), dTime, mbps, totalSourceRows, totalKeysWritten, mergeSummary));
             logger.debug(String.format("CF Total Bytes Compacted: %,d", CompactionTask.addToTotalBytesCompacted(endsize)));
-            logger.debug("Actual #keys: {}, Estimated #keys:{}, Err%: {}", totalKeysWritten, writer.estimatedKeys(), ((double)(totalKeysWritten - writer.estimatedKeys())/totalKeysWritten));
+            logger.debug("Actual #keys: {}, Estimated #keys:{}, Err%: {}", totalKeysWritten, estimatedKeys, ((double)(totalKeysWritten - estimatedKeys)/totalKeysWritten));
 
             if (offline)
             {
