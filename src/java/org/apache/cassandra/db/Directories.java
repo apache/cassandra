@@ -193,7 +193,8 @@ public class Directories
 
         this.dataPaths = new File[dataDirectories.length];
         // If upgraded from version less than 2.1, use existing directories
-        String oldSSTableRelativePath = join(metadata.ksName, metadata.cfName);
+        String oldSSTableRelativePath = join(metadata.ksName,
+                                         idx > 0 ? metadata.cfName.substring(0, idx) : metadata.cfName);
         for (int i = 0; i < dataDirectories.length; ++i)
         {
             // check if old SSTable directory exists
