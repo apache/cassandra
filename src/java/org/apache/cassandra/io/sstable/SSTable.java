@@ -266,9 +266,17 @@ public abstract class SSTable
     {
         long sum = 0;
         for (SSTableReader sstable : sstables)
-        {
             sum += sstable.onDiskLength();
-        }
+
+        return sum;
+    }
+
+    public static long getTotalUncompressedBytes(Iterable<SSTableReader> sstables)
+    {
+        long sum = 0;
+        for (SSTableReader sstable : sstables)
+            sum += sstable.uncompressedLength();
+
         return sum;
     }
 
