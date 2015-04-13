@@ -254,7 +254,7 @@ public class DatabaseDescriptor
         }
     }
 
-    private static void applyConfig(Config config) throws ConfigurationException
+    public static void applyConfig(Config config) throws ConfigurationException
     {
         conf = config;
 
