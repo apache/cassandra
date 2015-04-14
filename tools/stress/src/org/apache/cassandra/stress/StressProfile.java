@@ -243,14 +243,21 @@ public class StressProfile implements Serializable
                     try
                     {
                         JavaDriverClient jclient = settings.getJavaDriverClient();
-                        ThriftClient tclient = settings.getThriftClient();
+                        ThriftClient tclient = null;
+
+                        if (settings.mode.api != ConnectionAPI.JAVA_DRIVER_NATIVE)
+                            tclient = settings.getThriftClient();
+
                         Map<String, PreparedStatement> stmts = new HashMap<>();
                         Map<String, Integer> tids = new HashMap<>();
                         Map<String, SchemaQuery.ArgSelect> args = new HashMap<>();
                         for (Map.Entry<String, StressYaml.QueryDef> e : queries.entrySet())
                         {
                             stmts.put(e.getKey().toLowerCase(), jclient.prepare(e.getValue().cql));
-                            tids.put(e.getKey().toLowerCase(), tclient.prepare_cql3_query(e.getValue().cql, Compression.NONE));
+
+                            if (tclient != null)
+                                tids.put(e.getKey().toLowerCase(), tclient.prepare_cql3_query(e.getValue().cql, Compression.NONE));
+
                             args.put(e.getKey().toLowerCase(), e.getValue().fields == null
                                                                      ? SchemaQuery.ArgSelect.MULTIROW
                                                                      : SchemaQuery.ArgSelect.valueOf(e.getValue().fields.toUpperCase()));
@@ -373,14 +380,19 @@ public class StressProfile implements Serializable
 
                     JavaDriverClient client = settings.getJavaDriverClient();
                     String query = sb.toString();
-                    try
+
+                    if (settings.mode.api != ConnectionAPI.JAVA_DRIVER_NATIVE)
                     {
-                        thriftInsertId = settings.getThriftClient().prepare_cql3_query(query, Compression.NONE);
+                        try
+                        {
+                            thriftInsertId = settings.getThriftClient().prepare_cql3_query(query, Compression.NONE);
+                        }
+                        catch (TException e)
+                        {
+                            throw new RuntimeException(e);
+                        }
                     }
-                    catch (TException e)
-                    {
-                        throw new RuntimeException(e);
-                    }
+
                     insertStatement = client.prepare(query);
                 }
             }
