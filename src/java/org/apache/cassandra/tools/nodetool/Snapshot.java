@@ -42,6 +42,9 @@ public class Snapshot extends NodeToolCmd
     @Option(title = "tag", name = {"-t", "--tag"}, description = "The name of the snapshot")
     private String snapshotName = Long.toString(System.currentTimeMillis());
 
+    @Option(title = "kclist", name = { "-kc", "--kc-list" }, description = "The list of Keyspace.Column family to take snapshot.(you must not specify only keyspace)")
+    private String kcList = null;
+
     @Override
     public void execute(NodeProbe probe)
     {
@@ -50,20 +53,40 @@ public class Snapshot extends NodeToolCmd
             StringBuilder sb = new StringBuilder();
 
             sb.append("Requested creating snapshot(s) for ");
-
-            if (keyspaces.isEmpty())
-                sb.append("[all keyspaces]");
+            // Create a separate path for kclist to avoid breaking of already existing scripts
+            if (null != kcList && !kcList.isEmpty())
+            {
+                kcList = kcList.replace(" ", "");
+                if (keyspaces.isEmpty() && null == columnFamily)
+                    sb.append("[").append(kcList).append("]");
+                else
+                {
+                    throw new IOException(
+                            "When specifying the Keyspace columfamily list for a snapshot, you should not specify columnfamily");
+                }
+                if (!snapshotName.isEmpty())
+                    sb.append(" with snapshot name [").append(snapshotName).append("]");
+                System.out.println(sb.toString());
+                probe.takeMultipleColumnFamilySnapshot(snapshotName, kcList.split(","));
+                System.out.println("Snapshot directory: " + snapshotName);
+            }
             else
-                sb.append("[").append(join(keyspaces, ", ")).append("]");
+            {
+                if (keyspaces.isEmpty())
+                    sb.append("[all keyspaces]");
+                else
+                    sb.append("[").append(join(keyspaces, ", ")).append("]");
 
-            if (!snapshotName.isEmpty())
-                sb.append(" with snapshot name [").append(snapshotName).append("]");
+                if (!snapshotName.isEmpty())
+                    sb.append(" with snapshot name [").append(snapshotName).append("]");
 
-            System.out.println(sb.toString());
+                System.out.println(sb.toString());
 
-            probe.takeSnapshot(snapshotName, columnFamily, toArray(keyspaces, String.class));
-            System.out.println("Snapshot directory: " + snapshotName);
-        } catch (IOException e)
+                probe.takeSnapshot(snapshotName, columnFamily, toArray(keyspaces, String.class));
+                System.out.println("Snapshot directory: " + snapshotName);
+            }
+        }
+        catch (IOException e)
         {
             throw new RuntimeException("Error during taking a snapshot", e);
         }
