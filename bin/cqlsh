@@ -209,8 +209,6 @@ CQL_ERRORS = (
 
 debug_completion = bool(os.environ.get('CQLSH_DEBUG_COMPLETION', '') == 'YES')
 
-SYSTEM_KEYSPACES = ('system', 'system_traces', 'system_auth')
-
 # we want the cql parser to understand our cqlsh-specific commands too
 my_commands_ending_with_newline = (
     'help',
@@ -1288,7 +1286,7 @@ class Shell(cmd.Cmd):
     def describe_schema(self, include_system=False):
         print
         for k in self.get_keyspaces():
-            if include_system or not k.name in SYSTEM_KEYSPACES:
+            if include_system or not k.name in cql3handling.SYSTEM_KEYSPACES:
                 self.print_recreate_keyspace(k, sys.stdout)
                 print
 

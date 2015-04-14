@@ -389,7 +389,8 @@ class TestCqlshCompletion(CqlshCompletionCase):
                                      'twenty_rows_composite_table',
                                      'utf8_with_special_chars',
                                      'system_traces.', 'songs',
-                                     '"' + self.cqlsh.keyspace + '".'])
+                                     '"' + self.cqlsh.keyspace + '".'],
+                            other_choices_ok=True)
 
         self.trycompletions('DELETE FROM ',
                             choices=['twenty_rows_table',
@@ -401,7 +402,8 @@ class TestCqlshCompletion(CqlshCompletionCase):
                                      'twenty_rows_composite_table',
                                      'utf8_with_special_chars',
                                      'system_traces.', 'songs',
-                                     '"' + self.cqlsh.keyspace + '".'])
+                                     '"' + self.cqlsh.keyspace + '".'],
+                            other_choices_ok=True)
         self.trycompletions('DELETE FROM twenty_rows_composite_table ',
                             choices=['USING', 'WHERE'])
 
