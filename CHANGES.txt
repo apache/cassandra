@@ -1,4 +1,6 @@
 2.1.5
+ * Don't check other keyspaces for schema changes when an user-defined
+   type is altered (CASSANDRA-9187)
  * Allow takeColumnFamilySnapshot to take a list of tables (CASSANDRA-8348)
  * Limit major sstable operations to their canonical representation (CASSANDRA-8669)
  * cqlsh: Add tests for INSERT and UPDATE tab completion (CASSANDRA-9125)
