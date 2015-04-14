@@ -17,26 +17,62 @@
  */
 package org.apache.cassandra.tools;
 
-import java.io.*;
+import static com.google.common.base.Preconditions.checkArgument;
+import static com.google.common.base.Preconditions.checkState;
+import static com.google.common.base.Throwables.getStackTraceAsString;
+import static com.google.common.collect.Iterables.toArray;
+import static com.google.common.collect.Lists.newArrayList;
+import static java.lang.Integer.parseInt;
+import static java.lang.String.format;
+import static org.apache.commons.lang3.ArrayUtils.EMPTY_STRING_ARRAY;
+import static org.apache.commons.lang3.StringUtils.EMPTY;
+import static org.apache.commons.lang3.StringUtils.isEmpty;
+import static org.apache.commons.lang3.StringUtils.isNotEmpty;
+import static org.apache.commons.lang3.StringUtils.join;
+import io.airlift.command.Arguments;
+import io.airlift.command.Cli;
+import io.airlift.command.Command;
+import io.airlift.command.Help;
+import io.airlift.command.Option;
+import io.airlift.command.OptionType;
+import io.airlift.command.ParseArgumentsMissingException;
+import io.airlift.command.ParseArgumentsUnexpectedException;
+import io.airlift.command.ParseCommandMissingException;
+import io.airlift.command.ParseCommandUnrecognizedException;
+import io.airlift.command.ParseOptionConversionException;
+import io.airlift.command.ParseOptionMissingException;
+import io.airlift.command.ParseOptionMissingValueException;
+
+import java.io.Console;
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.FileWriter;
+import java.io.IOError;
+import java.io.IOException;
 import java.lang.management.MemoryUsage;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.text.DecimalFormat;
 import java.text.SimpleDateFormat;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Scanner;
+import java.util.Set;
 import java.util.concurrent.ExecutionException;
 
 import javax.management.InstanceNotFoundException;
-import javax.management.openmbean.*;
-
-import com.google.common.base.Joiner;
-import com.google.common.base.Throwables;
-import com.google.common.collect.*;
-
-import com.yammer.metrics.reporting.JmxReporter;
-
-import io.airlift.command.*;
+import javax.management.openmbean.CompositeData;
+import javax.management.openmbean.OpenDataException;
+import javax.management.openmbean.TabularData;
+import javax.management.openmbean.TabularDataSupport;
 
 import org.apache.cassandra.concurrent.JMXEnabledThreadPoolExecutorMBean;
 import org.apache.cassandra.db.ColumnFamilyStoreMBean;
@@ -55,17 +91,16 @@ import org.apache.cassandra.streaming.SessionInfo;
 import org.apache.cassandra.streaming.StreamState;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.JVMStabilityInspector;
-
 import org.apache.commons.lang3.ArrayUtils;
-import static com.google.common.base.Preconditions.checkArgument;
-import static com.google.common.base.Preconditions.checkState;
-import static com.google.common.base.Throwables.getStackTraceAsString;
-import static com.google.common.collect.Iterables.toArray;
-import static com.google.common.collect.Lists.newArrayList;
-import static java.lang.Integer.parseInt;
-import static java.lang.String.format;
-import static org.apache.commons.lang3.ArrayUtils.EMPTY_STRING_ARRAY;
-import static org.apache.commons.lang3.StringUtils.*;
+
+import com.google.common.base.Joiner;
+import com.google.common.base.Throwables;
+import com.google.common.collect.ArrayListMultimap;
+import com.google.common.collect.LinkedHashMultimap;
+import com.google.common.collect.Lists;
+import com.google.common.collect.Maps;
+import com.google.common.collect.Ordering;
+import com.yammer.metrics.reporting.JmxReporter;
 
 public class NodeTool
 {
@@ -1966,6 +2001,9 @@ public class NodeTool
         @Option(title = "tag", name = {"-t", "--tag"}, description = "The name of the snapshot")
         private String snapshotName = Long.toString(System.currentTimeMillis());
 
+        @Option(title = "kclist", name = { "-kc", "--kc-list" }, description = "The list of Keyspace.Column family to take snapshot.(you must not specify only keyspace)")
+        private String kcList = null;
+
         @Override
         public void execute(NodeProbe probe)
         {
@@ -1975,19 +2013,40 @@ public class NodeTool
 
                 sb.append("Requested creating snapshot(s) for ");
 
-                if (keyspaces.isEmpty())
-                    sb.append("[all keyspaces]");
+                // Create a separate path for kclist to avoid breaking of already existing scripts
+                if (null != kcList && !kcList.isEmpty())
+                {
+                    kcList = kcList.replace(" ", "");
+                    if (keyspaces.isEmpty() && null == columnFamily)
+                        sb.append("[").append(kcList).append("]");
+                    else
+                    {
+                        throw new IOException(
+                                "When specifying the Keyspace columfamily list for a snapshot, you should not specify columnfamily");
+                    }
+                    if (!snapshotName.isEmpty())
+                        sb.append(" with snapshot name [").append(snapshotName).append("]");
+                    System.out.println(sb.toString());
+                    probe.takeMultipleColumnFamilySnapshot(snapshotName, kcList.split(","));
+                    System.out.println("Snapshot directory: " + snapshotName);
+                }
                 else
-                    sb.append("[").append(join(keyspaces, ", ")).append("]");
+                {
+                    if (keyspaces.isEmpty())
+                        sb.append("[all keyspaces]");
+                    else
+                        sb.append("[").append(join(keyspaces, ", ")).append("]");
 
-                if (!snapshotName.isEmpty())
-                    sb.append(" with snapshot name [").append(snapshotName).append("]");
+                    if (!snapshotName.isEmpty())
+                        sb.append(" with snapshot name [").append(snapshotName).append("]");
 
-                System.out.println(sb.toString());
+                    System.out.println(sb.toString());
 
-                probe.takeSnapshot(snapshotName, columnFamily, toArray(keyspaces, String.class));
-                System.out.println("Snapshot directory: " + snapshotName);
-            } catch (IOException e)
+                    probe.takeSnapshot(snapshotName, columnFamily, toArray(keyspaces, String.class));
+                    System.out.println("Snapshot directory: " + snapshotName);
+                }
+            }
+            catch (IOException e)
             {
                 throw new RuntimeException("Error during taking a snapshot", e);
             }

@@ -17,23 +17,52 @@
  */
 package org.apache.cassandra.tools;
 
+import static org.apache.commons.lang3.ArrayUtils.isEmpty;
+
 import java.io.IOException;
 import java.io.PrintStream;
-import java.lang.management.*;
+import java.lang.management.ManagementFactory;
+import java.lang.management.MemoryMXBean;
+import java.lang.management.MemoryUsage;
+import java.lang.management.RuntimeMXBean;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.text.SimpleDateFormat;
-import java.util.*;
+import java.util.AbstractMap;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
 import java.util.Map.Entry;
-import java.util.concurrent.*;
+import java.util.Set;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.locks.Condition;
 
-import javax.management.*;
-import javax.management.openmbean.*;
-import javax.management.remote.*;
+import javax.management.JMX;
+import javax.management.MBeanServerConnection;
+import javax.management.MalformedObjectNameException;
+import javax.management.Notification;
+import javax.management.NotificationListener;
+import javax.management.ObjectName;
+import javax.management.openmbean.CompositeData;
+import javax.management.openmbean.OpenDataException;
+import javax.management.openmbean.TabularData;
+import javax.management.remote.JMXConnectionNotification;
+import javax.management.remote.JMXConnector;
+import javax.management.remote.JMXConnectorFactory;
+import javax.management.remote.JMXServiceURL;
 
 import org.apache.cassandra.concurrent.JMXEnabledThreadPoolExecutorMBean;
-import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.ColumnFamilyStoreMBean;
+import org.apache.cassandra.db.HintedHandOffManager;
+import org.apache.cassandra.db.HintedHandOffManagerMBean;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.compaction.CompactionManagerMBean;
 import org.apache.cassandra.gms.FailureDetector;
@@ -43,7 +72,14 @@ import org.apache.cassandra.metrics.ColumnFamilyMetrics.Sampler;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.MessagingServiceMBean;
 import org.apache.cassandra.repair.RepairParallelism;
-import org.apache.cassandra.service.*;
+import org.apache.cassandra.service.ActiveRepairService;
+import org.apache.cassandra.service.CacheService;
+import org.apache.cassandra.service.CacheServiceMBean;
+import org.apache.cassandra.service.GCInspector;
+import org.apache.cassandra.service.GCInspectorMXBean;
+import org.apache.cassandra.service.StorageProxy;
+import org.apache.cassandra.service.StorageProxyMBean;
+import org.apache.cassandra.service.StorageServiceMBean;
 import org.apache.cassandra.streaming.StreamManagerMBean;
 import org.apache.cassandra.streaming.StreamState;
 import org.apache.cassandra.streaming.management.StreamStateCompositeData;
@@ -52,12 +88,11 @@ import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.concurrent.SimpleCondition;
 
 import com.google.common.base.Function;
-import com.google.common.collect.*;
+import com.google.common.collect.Iterables;
+import com.google.common.collect.Maps;
+import com.google.common.collect.Sets;
 import com.google.common.util.concurrent.Uninterruptibles;
-
 import com.yammer.metrics.reporting.JmxReporter;
-
-import static org.apache.commons.lang3.ArrayUtils.isEmpty;
 
 /**
  * JMX client operations for Cassandra.
@@ -500,6 +535,28 @@ public class NodeProbe implements AutoCloseable
         }
         else
             ssProxy.takeSnapshot(snapshotName, keyspaces);
+    }
+
+    /**
+     * Take a snapshot of all column family from different keyspaces.
+     * 
+     * @param snapshotName
+     *            the name of the snapshot.
+     * @param columnfamilylist
+     *            list of columnfamily from different keyspace in the form of ks1.cf1 ks2.cf2
+     */
+    public void takeMultipleColumnFamilySnapshot(String snapshotName, String... columnFamilyList)
+            throws IOException
+    {
+        if (null != columnFamilyList && columnFamilyList.length != 0)
+        {
+            ssProxy.takeMultipleColumnFamilySnapshot(snapshotName, columnFamilyList);
+        }
+        else
+        {
+            throw new IOException("The column family List  for a snapshot should not be empty or null");
+        }
+
     }
 
     /**

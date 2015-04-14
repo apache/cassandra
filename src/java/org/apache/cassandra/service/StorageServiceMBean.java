@@ -30,8 +30,6 @@ import java.util.concurrent.TimeoutException;
 import javax.management.NotificationEmitter;
 import javax.management.openmbean.TabularData;
 
-import org.apache.cassandra.db.compaction.CompactionManager;
-
 public interface StorageServiceMBean extends NotificationEmitter
 {
     /**
@@ -212,6 +210,18 @@ public interface StorageServiceMBean extends NotificationEmitter
      */
     public void takeColumnFamilySnapshot(String keyspaceName, String columnFamilyName, String tag) throws IOException;
 
+    /**
+     * Takes the snapshot of a multiple column family from different keyspaces. A snapshot name must be specified.
+     * 
+     * @param tag
+     *            the tag given to the snapshot; may not be null or empty
+     * @param columnFamilyList
+     *            list of columnfamily from different keyspace in the form of ks1.cf1 ks2.cf2
+     */
+    public void takeMultipleColumnFamilySnapshot(String tag, String... columnFamilyList) throws IOException;
+    
+    
+    
     /**
      * Remove the snapshot with the given name from the given keyspaces.
      * If no tag is specified we will remove all snapshots.
