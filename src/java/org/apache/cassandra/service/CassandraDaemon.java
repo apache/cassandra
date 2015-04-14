@@ -160,7 +160,7 @@ public class CassandraDaemon
             }
             else
             {
-                System.setProperty("java.rmi.server.hostname","127.0.0.1");
+                System.setProperty("java.rmi.server.hostname", InetAddress.getLoopbackAddress().getHostAddress());
 
                 try
                 {
