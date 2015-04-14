@@ -42,7 +42,7 @@ public class Snapshot extends NodeToolCmd
     @Option(title = "tag", name = {"-t", "--tag"}, description = "The name of the snapshot")
     private String snapshotName = Long.toString(System.currentTimeMillis());
 
-    @Option(title = "kclist", name = { "-kc", "--kc-list" }, description = "The list of Keyspace.Column family to take snapshot.(you must not specify only keyspace)")
+    @Option(title = "ktlist", name = { "-kc", "--kc.list", "-kt", "--kt-list" }, description = "The list of Keyspace.table to take snapshot.(you must not specify only keyspace)")
     private String kcList = null;
 
     @Override
@@ -53,6 +53,7 @@ public class Snapshot extends NodeToolCmd
             StringBuilder sb = new StringBuilder();
 
             sb.append("Requested creating snapshot(s) for ");
+
             // Create a separate path for kclist to avoid breaking of already existing scripts
             if (null != kcList && !kcList.isEmpty())
             {
