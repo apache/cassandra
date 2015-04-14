@@ -107,7 +107,8 @@ public class IndexSummary extends WrappedSharedCloseable
     // Harmony's Collections implementation
     public int binarySearch(RowPosition key)
     {
-        ByteBuffer hollow = MemoryUtil.getHollowDirectByteBuffer();
+        // We will be comparing non-native Keys, so use a buffer with appropriate byte order
+        ByteBuffer hollow = MemoryUtil.getHollowDirectByteBuffer().order(ByteOrder.BIG_ENDIAN);
         int low = 0, mid = offsetCount, high = mid - 1, result = -1;
         while (low <= high)
         {
