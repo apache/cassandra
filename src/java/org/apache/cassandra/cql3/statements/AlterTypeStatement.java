@@ -106,33 +106,30 @@ public abstract class AlterTypeStatement extends SchemaAlteringStatement
         // but we also need to find all existing user types and CF using it and change them.
         MigrationManager.announceTypeUpdate(updated, isLocalOnly);
 
-        for (KSMetaData ksm2 : Schema.instance.getKeyspaceDefinitions())
+        for (CFMetaData cfm : ksm.cfMetaData().values())
         {
-            for (CFMetaData cfm : ksm2.cfMetaData().values())
-            {
-                CFMetaData copy = cfm.copy();
-                boolean modified = false;
-                for (ColumnDefinition def : copy.allColumns())
-                    modified |= updateDefinition(copy, def, toUpdate.keyspace, toUpdate.name, updated);
-                if (modified)
-                    MigrationManager.announceColumnFamilyUpdate(copy, false, isLocalOnly);
-            }
+            CFMetaData copy = cfm.copy();
+            boolean modified = false;
+            for (ColumnDefinition def : copy.allColumns())
+                modified |= updateDefinition(copy, def, toUpdate.keyspace, toUpdate.name, updated);
+            if (modified)
+                MigrationManager.announceColumnFamilyUpdate(copy, false, isLocalOnly);
+        }
 
-            // Other user types potentially using the updated type
-            for (UserType ut : ksm2.userTypes.getAllTypes().values())
+        // Other user types potentially using the updated type
+        for (UserType ut : ksm.userTypes.getAllTypes().values())
+        {
+            // Re-updating the type we've just updated would be harmless but useless so we avoid it.
+            // Besides, we use the occasion to drop the old version of the type if it's a type rename
+            if (ut.keyspace.equals(toUpdate.keyspace) && ut.name.equals(toUpdate.name))
             {
-                // Re-updating the type we've just updated would be harmless but useless so we avoid it.
-                // Besides, we use the occasion to drop the old version of the type if it's a type rename
-                if (ut.keyspace.equals(toUpdate.keyspace) && ut.name.equals(toUpdate.name))
-                {
-                    if (!ut.keyspace.equals(updated.keyspace) || !ut.name.equals(updated.name))
-                        MigrationManager.announceTypeDrop(ut);
-                    continue;
-                }
-                AbstractType<?> upd = updateWith(ut, toUpdate.keyspace, toUpdate.name, updated);
-                if (upd != null)
-                    MigrationManager.announceTypeUpdate((UserType)upd, isLocalOnly);
+                if (!ut.keyspace.equals(updated.keyspace) || !ut.name.equals(updated.name))
+                    MigrationManager.announceTypeDrop(ut);
+                continue;
             }
+            AbstractType<?> upd = updateWith(ut, toUpdate.keyspace, toUpdate.name, updated);
+            if (upd != null)
+                MigrationManager.announceTypeUpdate((UserType) upd, isLocalOnly);
         }
         return true;
     }

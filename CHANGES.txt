@@ -95,6 +95,8 @@
  * Save repair data to system table (CASSANDRA-5839)
 
 2.1.5
+ * Don't check other keyspaces for schema changes when an user-defined
+   type is altered (CASSANDRA-9187)
  * Add generate-idea-files target to build.xml (CASSANDRA-9123)
  * Allow takeColumnFamilySnapshot to take a list of tables (CASSANDRA-8348)
  * Limit major sstable operations to their canonical representation (CASSANDRA-8669)

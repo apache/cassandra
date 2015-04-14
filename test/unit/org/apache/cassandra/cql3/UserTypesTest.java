@@ -71,10 +71,44 @@ public class UserTypesTest extends CQLTester
     }
 
     @Test
-    public void testNonFrozenUDT() throws Throwable
+    public void testCreateInvalidTablesWithUDT() throws Throwable
     {
-        // Using a UDT without frozen shouldn't work
         String myType = createType("CREATE TYPE %s (f int)");
-        assertInvalid("CREATE TABLE wrong (k int PRIMARY KEY, v " + myType + ")");
+
+        // Using a UDT without frozen shouldn't work
+        assertInvalidMessage("Non-frozen User-Defined types are not supported, please use frozen<>",
+                             "CREATE TABLE " + KEYSPACE + ".wrong (k int PRIMARY KEY, v " + KEYSPACE + '.' + myType + ")");
+
+        assertInvalidMessage("Statement on keyspace " + KEYSPACE + " cannot refer to a user type in keyspace otherkeyspace;" +
+                             " user types can only be used in the keyspace they are defined in",
+                             "CREATE TABLE " + KEYSPACE + ".wrong (k int PRIMARY KEY, v frozen<otherKeyspace.myType>)");
+
+        assertInvalidMessage("Unknown type " + KEYSPACE + ".unknowntype",
+                             "CREATE TABLE " + KEYSPACE + ".wrong (k int PRIMARY KEY, v frozen<" + KEYSPACE + '.' + "unknownType>)");
+    }
+
+    @Test
+    public void testAlterUDT() throws Throwable
+    {
+        String myType = KEYSPACE + '.' + createType("CREATE TYPE %s (a int)");
+        createTable("CREATE TABLE %s (a int PRIMARY KEY, b frozen<" + myType + ">)");
+        execute("INSERT INTO %s (a, b) VALUES (1, {a: 1})");
+
+        assertRows(execute("SELECT b.a FROM %s"), row(1));
+
+        flush();
+
+        execute("ALTER TYPE " + myType + " ADD b int");
+        execute("INSERT INTO %s (a, b) VALUES (2, {a: 2, b :2})");
+
+        assertRows(execute("SELECT b.a, b.b FROM %s"),
+                   row(1, null),
+                   row(2, 2));
+
+        flush();
+
+        assertRows(execute("SELECT b.a, b.b FROM %s"),
+                   row(1, null),
+                   row(2, 2));
     }
 }
