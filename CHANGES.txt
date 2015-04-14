@@ -94,12 +94,8 @@
  * Save repair data to system table (CASSANDRA-5839)
 
 2.1.5
-<<<<<<< HEAD
  * Add generate-idea-files target to build.xml (CASSANDRA-9123)
-||||||| merged common ancestors
-=======
  * Allow takeColumnFamilySnapshot to take a list of tables (CASSANDRA-8348)
->>>>>>> cassandra-2.1
  * Limit major sstable operations to their canonical representation (CASSANDRA-8669)
  * cqlsh: Add tests for INSERT and UPDATE tab completion (CASSANDRA-9125)
  * cqlsh: quote column names when needed in COPY FROM inserts (CASSANDRA-9080)
@@ -171,6 +167,7 @@
  * Use stdout for progress and stats in sstableloader (CASSANDRA-8982)
  * Correctly identify 2i datadir from older versions (CASSANDRA-9116)
 Merged from 2.0:
+ * Fix failed bootstrap/replace attempts being persisted in system.peers (CASSANDRA-9180)
  * Flush system.IndexInfo after marking index built (CASSANDRA-9128)
  * Fix updates to min/max_compaction_threshold through cassandra-cli
    (CASSANDRA-8102)
