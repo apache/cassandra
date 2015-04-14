@@ -386,17 +386,19 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
                 statsMetadata, OpenReason.NORMAL);
 
         // special implementation of load to use non-pooled SegmentedFile builders
-        SegmentedFile.Builder ibuilder = new BufferedSegmentedFile.Builder();
-        SegmentedFile.Builder dbuilder = sstable.compression
+        try(SegmentedFile.Builder ibuilder = new BufferedSegmentedFile.Builder();
+            SegmentedFile.Builder dbuilder = sstable.compression
                 ? new CompressedSegmentedFile.Builder(null)
-                : new BufferedSegmentedFile.Builder();
-        if (!sstable.loadSummary(ibuilder, dbuilder))
-            sstable.buildSummary(false, ibuilder, dbuilder, false, Downsampling.BASE_SAMPLING_LEVEL);
-        sstable.ifile = ibuilder.complete(sstable.descriptor.filenameFor(Component.PRIMARY_INDEX));
-        sstable.dfile = dbuilder.complete(sstable.descriptor.filenameFor(Component.DATA));
-        sstable.bf = FilterFactory.AlwaysPresent;
-        sstable.setup(true);
-        return sstable;
+                : new BufferedSegmentedFile.Builder())
+        {
+            if (!sstable.loadSummary(ibuilder, dbuilder))
+                sstable.buildSummary(false, ibuilder, dbuilder, false, Downsampling.BASE_SAMPLING_LEVEL);
+            sstable.ifile = ibuilder.complete(sstable.descriptor.filenameFor(Component.PRIMARY_INDEX));
+            sstable.dfile = dbuilder.complete(sstable.descriptor.filenameFor(Component.DATA));
+            sstable.bf = FilterFactory.AlwaysPresent;
+            sstable.setup(true);
+            return sstable;
+        }
     }
 
     private static SSTableReader open(Descriptor descriptor,

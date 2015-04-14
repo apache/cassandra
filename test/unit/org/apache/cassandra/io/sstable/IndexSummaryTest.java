@@ -90,6 +90,7 @@ public class IndexSummaryTest
         assertEquals(dis.readUTF(), "JUNK");
         is.close();
         FileUtils.closeQuietly(dis);
+        random.right.close();
     }
 
     @Test
