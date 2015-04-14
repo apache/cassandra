@@ -20,6 +20,7 @@ package org.apache.cassandra.cql3.functions;
 import java.util.List;
 
 import com.google.common.base.Objects;
+import com.google.common.collect.ImmutableSet;
 
 import org.apache.cassandra.db.marshal.AbstractType;
 
@@ -69,6 +70,11 @@ public abstract class AbstractFunction implements Function
     public boolean usesFunction(String ksName, String functionName)
     {
         return name.keyspace.equals(ksName) && name.name.equals(functionName);
+    }
+
+    public Iterable<Function> getFunctions()
+    {
+        return ImmutableSet.<Function>of(this);
     }
 
     public boolean hasReferenceTo(Function function)

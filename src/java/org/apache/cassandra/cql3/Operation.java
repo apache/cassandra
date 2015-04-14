@@ -18,8 +18,10 @@
 package org.apache.cassandra.cql3;
 
 import java.nio.ByteBuffer;
+import java.util.Collections;
 
 import org.apache.cassandra.config.ColumnDefinition;
+import org.apache.cassandra.cql3.functions.Function;
 import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.composites.Composite;
 import org.apache.cassandra.db.marshal.*;
@@ -58,6 +60,11 @@ public abstract class Operation
     public boolean usesFunction(String ksName, String functionName)
     {
         return t != null && t.usesFunction(ksName, functionName);
+    }
+
+    public Iterable<Function> getFunctions()
+    {
+        return t != null ? t.getFunctions() : Collections.<Function>emptySet();
     }
 
     /**

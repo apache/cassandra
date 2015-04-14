@@ -24,6 +24,7 @@ import java.util.List;
 
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.cql3.QueryOptions;
+import org.apache.cassandra.cql3.functions.Function;
 import org.apache.cassandra.cql3.statements.Bound;
 import org.apache.cassandra.db.IndexExpression;
 import org.apache.cassandra.db.composites.*;
@@ -143,6 +144,12 @@ final class PrimaryKeyRestrictionSet extends AbstractPrimaryKeyRestrictions
     public boolean usesFunction(String ksName, String functionName)
     {
         return restrictions.usesFunction(ksName, functionName);
+    }
+
+    @Override
+    public Iterable<Function> getFunctions()
+    {
+        return restrictions.getFunctions();
     }
 
     @Override

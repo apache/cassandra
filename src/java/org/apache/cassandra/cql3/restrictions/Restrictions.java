@@ -22,6 +22,7 @@ import java.util.List;
 
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.cql3.QueryOptions;
+import org.apache.cassandra.cql3.functions.Function;
 import org.apache.cassandra.db.IndexExpression;
 import org.apache.cassandra.db.index.SecondaryIndexManager;
 import org.apache.cassandra.exceptions.InvalidRequestException;
@@ -45,6 +46,8 @@ interface Restrictions
      * @return <code>true</code> if one of the restrictions use the specified function, <code>false</code> otherwise.
      */
     public boolean usesFunction(String ksName, String functionName);
+
+    public Iterable<Function> getFunctions();
 
     /**
      * Check if the restriction is on indexed columns.

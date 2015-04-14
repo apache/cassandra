@@ -23,6 +23,7 @@ import java.util.List;
 
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.cql3.QueryOptions;
+import org.apache.cassandra.cql3.functions.Function;
 import org.apache.cassandra.cql3.statements.Bound;
 import org.apache.cassandra.db.IndexExpression;
 import org.apache.cassandra.db.composites.Composite;
@@ -47,6 +48,12 @@ abstract class ForwardingPrimaryKeyRestrictions implements PrimaryKeyRestriction
     public boolean usesFunction(String ksName, String functionName)
     {
         return getDelegate().usesFunction(ksName, functionName);
+    }
+
+    @Override
+    public Iterable<Function> getFunctions()
+    {
+        return getDelegate().getFunctions();
     }
 
     @Override

@@ -20,9 +20,10 @@ package org.apache.cassandra.cql3;
 import java.nio.ByteBuffer;
 import java.util.*;
 
+import org.apache.cassandra.cql3.functions.Function;
 import org.apache.cassandra.db.marshal.CollectionType;
-import org.apache.cassandra.db.marshal.UserType;
 import org.apache.cassandra.db.marshal.UTF8Type;
+import org.apache.cassandra.db.marshal.UserType;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.transport.Server;
 
@@ -155,6 +156,11 @@ public abstract class UserTypes
                     if (value != null && value.usesFunction(ksName, functionName))
                         return true;
             return false;
+        }
+
+        public Iterable<Function> getFunctions()
+        {
+            return Terms.getFunctions(values);
         }
 
         public boolean containsBindMarker()

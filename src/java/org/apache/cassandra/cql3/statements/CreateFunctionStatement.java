@@ -21,17 +21,17 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 
-import org.apache.cassandra.auth.Permission;
+import org.apache.cassandra.auth.*;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.cql3.CQL3Type;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.functions.*;
 import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.exceptions.InvalidRequestException;
-import org.apache.cassandra.exceptions.RequestValidationException;
-import org.apache.cassandra.exceptions.UnauthorizedException;
+import org.apache.cassandra.exceptions.*;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.MigrationManager;
+import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.thrift.ThriftValidation;
 import org.apache.cassandra.transport.Event;
 
@@ -51,6 +51,8 @@ public final class CreateFunctionStatement extends SchemaAlteringStatement
     private final List<CQL3Type.Raw> argRawTypes;
     private final CQL3Type.Raw rawReturnType;
 
+    private List<AbstractType<?>> argTypes;
+    private AbstractType<?> returnType;
     private UDFunction udFunction;
     private boolean replaced;
 
@@ -75,6 +77,20 @@ public final class CreateFunctionStatement extends SchemaAlteringStatement
         this.ifNotExists = ifNotExists;
     }
 
+    public Prepared prepare() throws InvalidRequestException
+    {
+        if (new HashSet<>(argNames).size() != argNames.size())
+            throw new InvalidRequestException(String.format("duplicate argument names for given function %s with argument names %s",
+                                                            functionName, argNames));
+
+        argTypes = new ArrayList<>(argRawTypes.size());
+        for (CQL3Type.Raw rawType : argRawTypes)
+            argTypes.add(rawType.prepare(typeKeyspace(rawType)).getType());
+
+        returnType = rawReturnType.prepare(typeKeyspace(rawReturnType)).getType();
+        return super.prepare();
+    }
+
     public void prepareKeyspace(ClientState state) throws InvalidRequestException
     {
         if (!functionName.hasKeyspace() && state.getRawKeyspace() != null)
@@ -86,11 +102,30 @@ public final class CreateFunctionStatement extends SchemaAlteringStatement
         ThriftValidation.validateKeyspaceNotSystem(functionName.keyspace);
     }
 
+    protected void grantPermissionsToCreator(QueryState state)
+    {
+        try
+        {
+            IResource resource = FunctionResource.function(functionName.keyspace, functionName.name, argTypes);
+            DatabaseDescriptor.getAuthorizer().grant(AuthenticatedUser.SYSTEM_USER,
+                                                     resource.applicablePermissions(),
+                                                     resource,
+                                                     RoleResource.role(state.getClientState().getUser().getName()));
+        }
+        catch (RequestExecutionException e)
+        {
+            throw new RuntimeException(e);
+        }
+    }
+
     public void checkAccess(ClientState state) throws UnauthorizedException, InvalidRequestException
     {
-        // TODO CASSANDRA-7557 (function DDL permission)
-
-        state.hasKeyspaceAccess(functionName.keyspace, Permission.CREATE);
+        if (Functions.find(functionName, argTypes) != null && orReplace)
+            state.ensureHasPermission(Permission.ALTER, FunctionResource.function(functionName.keyspace,
+                                                                                  functionName.name,
+                                                                                  argTypes));
+        else
+            state.ensureHasPermission(Permission.CREATE, FunctionResource.keyspace(functionName.keyspace));
     }
 
     public void validate(ClientState state) throws InvalidRequestException
@@ -111,16 +146,6 @@ public final class CreateFunctionStatement extends SchemaAlteringStatement
 
     public boolean announceMigration(boolean isLocalOnly) throws RequestValidationException
     {
-        if (new HashSet<>(argNames).size() != argNames.size())
-            throw new InvalidRequestException(String.format("duplicate argument names for given function %s with argument names %s",
-                                                            functionName, argNames));
-
-        List<AbstractType<?>> argTypes = new ArrayList<>(argRawTypes.size());
-        for (CQL3Type.Raw rawType : argRawTypes)
-            argTypes.add(rawType.prepare(typeKeyspace(rawType)).getType());
-
-        AbstractType<?> returnType = rawReturnType.prepare(typeKeyspace(rawReturnType)).getType();
-
         Function old = Functions.find(functionName, argTypes);
         if (old != null)
         {

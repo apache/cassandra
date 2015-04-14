@@ -21,15 +21,13 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
 
+import com.google.common.collect.Iterables;
+
 import org.apache.cassandra.cql3.*;
-import org.apache.cassandra.db.marshal.CollectionType;
-import org.apache.cassandra.db.marshal.ListType;
-import org.apache.cassandra.db.marshal.MapType;
-import org.apache.cassandra.db.marshal.SetType;
+import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.exceptions.InvalidRequestException;
-import org.apache.cassandra.transport.Server;
-import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.serializers.MarshalException;
+import org.apache.cassandra.utils.ByteBufferUtil;
 
 public class FunctionCall extends Term.NonTerminal
 {
@@ -45,6 +43,11 @@ public class FunctionCall extends Term.NonTerminal
     public boolean usesFunction(String ksName, String functionName)
     {
         return fun.usesFunction(ksName, functionName);
+    }
+
+    public Iterable<Function> getFunctions()
+    {
+        return Iterables.concat(Terms.getFunctions(terms), fun.getFunctions());
     }
 
     public void collectMarkerSpecification(VariableSpecifications boundNames)

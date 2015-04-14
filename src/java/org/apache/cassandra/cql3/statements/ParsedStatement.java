@@ -21,6 +21,7 @@ import java.util.Collections;
 import java.util.List;
 
 import org.apache.cassandra.cql3.*;
+import org.apache.cassandra.cql3.functions.Function;
 import org.apache.cassandra.exceptions.RequestValidationException;
 
 public abstract class ParsedStatement
@@ -67,5 +68,10 @@ public abstract class ParsedStatement
     public boolean usesFunction(String ksName, String functionName)
     {
         return false;
+    }
+
+    public List<Function> getFunctions()
+    {
+        return Collections.emptyList();
     }
 }

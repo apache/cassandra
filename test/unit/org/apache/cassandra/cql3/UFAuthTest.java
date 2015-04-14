@@ -1,0 +1,945 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.apache.cassandra.cql3;
+
+import java.lang.reflect.Field;
+import java.util.*;
+
+import com.google.common.base.Joiner;
+import com.google.common.collect.ImmutableSet;
+import org.junit.Before;
+import org.junit.BeforeClass;
+import org.junit.Test;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import org.apache.cassandra.auth.*;
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.cql3.functions.Function;
+import org.apache.cassandra.cql3.functions.FunctionName;
+import org.apache.cassandra.cql3.functions.Functions;
+import org.apache.cassandra.cql3.statements.BatchStatement;
+import org.apache.cassandra.cql3.statements.ModificationStatement;
+import org.apache.cassandra.exceptions.*;
+import org.apache.cassandra.service.ClientState;
+import org.apache.cassandra.utils.Pair;
+
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
+
+public class UFAuthTest extends CQLTester
+{
+    private static final Logger logger = LoggerFactory.getLogger(UFAuthTest.class);
+
+    String roleName = "test_role";
+    AuthenticatedUser user;
+    RoleResource role;
+    ClientState clientState;
+
+    @BeforeClass
+    public static void setupAuthorizer()
+    {
+        try
+        {
+            IAuthorizer authorizer = new StubAuthorizer();
+            Field authorizerField = DatabaseDescriptor.class.getDeclaredField("authorizer");
+            authorizerField.setAccessible(true);
+            authorizerField.set(null, authorizer);
+            DatabaseDescriptor.setPermissionsValidity(0);
+        }
+        catch (IllegalAccessException | NoSuchFieldException e)
+        {
+            throw new RuntimeException(e);
+        }
+    }
+
+    @Before
+    public void setup() throws Throwable
+    {
+        ((StubAuthorizer) DatabaseDescriptor.getAuthorizer()).clear();
+        setupClientState();
+        setupTable("CREATE TABLE %s (k int, v1 int, v2 int, PRIMARY KEY (k, v1))");
+    }
+
+    @Test
+    public void nonDeterministicFunctionInSelection() throws Throwable
+    {
+        String functionName = createSimpleFunction(false);
+        String cql = String.format("SELECT k, %s FROM %s WHERE k = 1;",
+                                   functionCall(functionName),
+                                   KEYSPACE + "." + currentTable());
+        assertPermissionsOnFunction(cql, functionName);
+    }
+
+    @Test
+    public void deterministicFunctionInSelection() throws Throwable
+    {
+        String functionName = createSimpleFunction(true);
+        String cql = String.format("SELECT k, %s FROM %s WHERE k = 1;",
+                                   functionCall(functionName),
+                                   KEYSPACE + "." + currentTable());
+        assertPermissionsOnFunction(cql, functionName);
+    }
+
+    @Test
+    public void nonDeterministicFunctionInSelectPKRestriction() throws Throwable
+    {
+        String functionName = createSimpleFunction(false);
+        String cql = String.format("SELECT * FROM %s WHERE k = %s",
+                                   KEYSPACE + "." + currentTable(),
+                                   functionCall(functionName));
+        assertPermissionsOnFunction(cql, functionName);
+    }
+
+    @Test
+    public void deterministicFunctionInSelectPKRestriction() throws Throwable
+    {
+        String functionName = createSimpleFunction(true);
+        String cql = String.format("SELECT * FROM %s WHERE k = %s",
+                                   KEYSPACE + "." + currentTable(),
+                                   functionCall(functionName));
+        assertPermissionsOnFunction(cql, functionName);
+    }
+
+    @Test
+    public void nonDeterministicFunctionInSelectClusteringRestriction() throws Throwable
+    {
+        String functionName = createSimpleFunction(false);
+        String cql = String.format("SELECT * FROM %s WHERE k = 0 AND v1 = %s",
+                                   KEYSPACE + "." + currentTable(),
+                                   functionCall(functionName));
+        assertPermissionsOnFunction(cql, functionName);
+    }
+
+    @Test
+    public void deterministicFunctionInSelectClusteringRestriction() throws Throwable
+    {
+        String functionName = createSimpleFunction(true);
+        String cql = String.format("SELECT * FROM %s WHERE k = 0 AND v1 = %s",
+                                   KEYSPACE + "." + currentTable(),
+                                   functionCall(functionName));
+        assertPermissionsOnFunction(cql, functionName);
+    }
+
+    @Test
+    public void nonDeterministicFunctionInSelectInRestriction() throws Throwable
+    {
+        String functionName = createSimpleFunction(false);
+        String cql = String.format("SELECT * FROM %s WHERE k IN (%s, %s)",
+                                   KEYSPACE + "." + currentTable(),
+                                   functionCall(functionName),
+                                   functionCall(functionName));
+        assertPermissionsOnFunction(cql, functionName);
+    }
+
+    @Test
+    public void deterministicFunctionInSelectInRestriction() throws Throwable
+    {
+        String functionName = createSimpleFunction(true);
+        String cql = String.format("SELECT * FROM %s WHERE k IN (%s, %s)",
+                                   KEYSPACE + "." + currentTable(),
+                                   functionCall(functionName),
+                                   functionCall(functionName));
+        assertPermissionsOnFunction(cql, functionName);
+    }
+
+    @Test
+    public void nonDeterministicFunctionInSelectMultiColumnInRestriction() throws Throwable
+    {
+        setupTable("CREATE TABLE %s (k int, v1 int, v2 int, v3 int, PRIMARY KEY (k, v1, v2))");
+        String functionName = createSimpleFunction(false);
+        String cql = String.format("SELECT * FROM %s WHERE k=0 AND (v1, v2) IN ((%s, %s))",
+                                   KEYSPACE + "." + currentTable(),
+                                   functionCall(functionName),
+                                   functionCall(functionName));
+        assertPermissionsOnFunction(cql, functionName);
+    }
+
+    @Test
+    public void deterministicFunctionInSelectMultiColumnInRestriction() throws Throwable
+    {
+        setupTable("CREATE TABLE %s (k int, v1 int, v2 int, v3 int, PRIMARY KEY (k, v1, v2))");
+        String functionName = createSimpleFunction(true);
+        String cql = String.format("SELECT * FROM %s WHERE k=0 AND (v1, v2) IN ((%s, %s))",
+                                   KEYSPACE + "." + currentTable(),
+                                   functionCall(functionName),
+                                   functionCall(functionName));
+        assertPermissionsOnFunction(cql, functionName);
+    }
+
+
+    @Test
+    public void nonDeterministicFunctionInSelectMultiColumnEQRestriction() throws Throwable
+    {
+        setupTable("CREATE TABLE %s (k int, v1 int, v2 int, v3 int, PRIMARY KEY (k, v1, v2))");
+        String functionName = createSimpleFunction(false);
+        String cql = String.format("SELECT * FROM %s WHERE k=0 AND (v1, v2) = (%s, %s)",
+                                   KEYSPACE + "." + currentTable(),
+                                   functionCall(functionName),
+                                   functionCall(functionName));
+        assertPermissionsOnFunction(cql, functionName);
+    }
+
+    @Test
+    public void deterministicFunctionInSelectMultiColumnEQRestriction() throws Throwable
+    {
+        setupTable("CREATE TABLE %s (k int, v1 int, v2 int, v3 int, PRIMARY KEY (k, v1, v2))");
+        String functionName = createSimpleFunction(true);
+        String cql = String.format("SELECT * FROM %s WHERE k=0 AND (v1, v2) = (%s, %s)",
+                                   KEYSPACE + "." + currentTable(),
+                                   functionCall(functionName),
+                                   functionCall(functionName));
+        assertPermissionsOnFunction(cql, functionName);
+    }
+
+    @Test
+    public void nonDeterministicFunctionInSelectMultiColumnSliceRestriction() throws Throwable
+    {
+        setupTable("CREATE TABLE %s (k int, v1 int, v2 int, v3 int, PRIMARY KEY (k, v1, v2))");
+        String functionName = createSimpleFunction(false);
+        String cql = String.format("SELECT * FROM %s WHERE k=0 AND (v1, v2) > (%s, %s)",
+                                   KEYSPACE + "." + currentTable(),
+                                   functionCall(functionName),
+                                   functionCall(functionName));
+        assertPermissionsOnFunction(cql, functionName);
+    }
+
+    @Test
+    public void deterministicFunctionInSelectMultiColumnSliceRestriction() throws Throwable
+    {
+        setupTable("CREATE TABLE %s (k int, v1 int, v2 int, v3 int, PRIMARY KEY (k, v1, v2))");
+        String functionName = createSimpleFunction(true);
+        String cql = String.format("SELECT * FROM %s WHERE k=0 AND (v1, v2) < (%s, %s)",
+                                   KEYSPACE + "." + currentTable(),
+                                   functionCall(functionName),
+                                   functionCall(functionName));
+        assertPermissionsOnFunction(cql, functionName);
+    }
+
+    @Test
+    public void nonDeterministicFunctionInSelectTokenEQRestriction() throws Throwable
+    {
+        String functionName = createSimpleFunction(false);
+        String cql = String.format("SELECT * FROM %s WHERE token(k) = token(%s)",
+                                   KEYSPACE + "." + currentTable(),
+                                   functionCall(functionName));
+        assertPermissionsOnFunction(cql, functionName);
+    }
+
+    @Test
+    public void deterministicFunctionInSelectTokenEQRestriction() throws Throwable
+    {
+        String functionName = createSimpleFunction(true);
+        String cql = String.format("SELECT * FROM %s WHERE token(k) = token(%s)",
+                                   KEYSPACE + "." + currentTable(),
+                                   functionCall(functionName));
+        assertPermissionsOnFunction(cql, functionName);
+    }
+
+    @Test
+    public void nonDeterministicFunctionInSelectTokenSliceRestriction() throws Throwable
+    {
+        String functionName = createSimpleFunction(false);
+        String cql = String.format("SELECT * FROM %s WHERE token(k) > token(%s)",
+                                   KEYSPACE + "." + currentTable(),
+                                   functionCall(functionName));
+        assertPermissionsOnFunction(cql, functionName);
+    }
+
+    @Test
+    public void deterministicFunctionInSelectTokenSliceRestriction() throws Throwable
+    {
+        String functionName = createSimpleFunction(true);
+        String cql = String.format("SELECT * FROM %s WHERE token(k) < token(%s)",
+                                   KEYSPACE + "." + currentTable(),
+                                   functionCall(functionName));
+        assertPermissionsOnFunction(cql, functionName);
+    }
+    @Test
+    public void nonDeterministicFunctionInPKForInsert() throws Throwable
+    {
+        String functionName = createSimpleFunction(false);
+        String cql = String.format("INSERT INTO %s (k, v1 ,v2) VALUES (%s, 0, 0)",
+                                   KEYSPACE + "." + currentTable(),
+                                   functionCall(functionName));
+        assertPermissionsOnFunction(cql, functionName);
+    }
+
+    @Test
+    public void deterministicFunctionInPKForInsert() throws Throwable
+    {
+        String functionName = createSimpleFunction(true);
+        String cql = String.format("INSERT INTO %s (k, v1, v2) VALUES (%s, 0, 0)",
+                                   KEYSPACE + "." + currentTable(),
+                                   functionCall(functionName));
+        assertPermissionsOnFunction(cql, functionName);
+    }
+
+    @Test
+    public void nonDeterministicFunctionInClusteringValuesForInsert() throws Throwable
+    {
+        String functionName = createSimpleFunction(false);
+        String cql = String.format("INSERT INTO %s (k, v1, v2) VALUES (0, %s, 0)",
+                                   KEYSPACE + "." + currentTable(),
+                                   functionCall(functionName));
+        assertPermissionsOnFunction(cql, functionName);
+    }
+
+    @Test
+    public void deterministicFunctionInClusteringValuesForInsert() throws Throwable
+    {
+        String functionName = createSimpleFunction(true);
+        String cql = String.format("INSERT INTO %s (k, v1, v2) VALUES (0, %s, 0)",
+                                   KEYSPACE + "." + currentTable(),
+                                   functionCall(functionName));
+        assertPermissionsOnFunction(cql, functionName);
+    }
+
+    @Test
+    public void nonDeterministicFunctionInPKForDelete() throws Throwable
+    {
+        String functionName = createSimpleFunction(false);
+        String cql = String.format("DELETE FROM %s WHERE k = %s",
+                                   KEYSPACE + "." + currentTable(),
+                                   functionCall(functionName));
+        assertPermissionsOnFunction(cql, functionName);
+    }
+
+    @Test
+    public void deterministicFunctionInPKForDelete() throws Throwable
+    {
+        String functionName = createSimpleFunction(true);
+        String cql = String.format("DELETE FROM %s WHERE k = %s",
+                                   KEYSPACE + "." + currentTable(),
+                                   functionCall(functionName));
+        assertPermissionsOnFunction(cql, functionName);
+    }
+
+    @Test
+    public void nonDeterministicFunctionInClusteringValuesForDelete() throws Throwable
+    {
+        String functionName = createSimpleFunction(false);
+        String cql = String.format("DELETE FROM %s WHERE k = 0 AND v1 = %s",
+                                   KEYSPACE + "." + currentTable(),
+                                   functionCall(functionName));
+        assertPermissionsOnFunction(cql, functionName);
+    }
+
+    @Test
+
+    public void deterministicFunctionInClusteringValuesForDelete() throws Throwable
+    {
+        String functionName = createSimpleFunction(true);
+        String cql = String.format("DELETE FROM %s WHERE k = 0 AND v1 = %s",
+                                   KEYSPACE + "." + currentTable(),
+                                   functionCall(functionName));
+        assertPermissionsOnFunction(cql, functionName);
+    }
+
+    @Test
+    public void testBatchStatement() throws Throwable
+    {
+        List<ModificationStatement> statements = new ArrayList<>();
+        List<String> functions = new ArrayList<>();
+        for (int i = 0; i < 3; i++)
+        {
+            String functionName = createSimpleFunction(false);
+            ModificationStatement stmt =
+            (ModificationStatement) getStatement(String.format("INSERT INTO %s (k, v1, v2) " +
+                                                               "VALUES (%s, %s, %s)",
+                                                               KEYSPACE + "." + currentTable(),
+                                                               i, i, functionCall(functionName)));
+            functions.add(functionName);
+            statements.add(stmt);
+        }
+        BatchStatement batch = new BatchStatement(-1, BatchStatement.Type.LOGGED, statements, Attributes.none());
+        assertUnauthorized(batch, functions);
+
+        grantExecuteOnFunction(functions.get(0));
+        assertUnauthorized(batch, functions.subList(1, functions.size()));
+
+        grantExecuteOnFunction(functions.get(1));
+        assertUnauthorized(batch, functions.subList(2, functions.size()));
+
+        grantExecuteOnFunction(functions.get(2));
+        batch.checkAccess(clientState);
+    }
+
+    @Test
+    public void testNestedNonDeterministicFunctions() throws Throwable
+    {
+        String innerFunctionName = createSimpleFunction(false);
+        String outerFunctionName = createFunction("int",
+                                                  "CREATE NON DETERMINISTIC FUNCTION %s(input int) " +
+                                                  " RETURNS int" +
+                                                  " LANGUAGE java" +
+                                                  " AS 'return Integer.valueOf(0);'");
+        assertPermissionsOnNestedFunctions(innerFunctionName, outerFunctionName);
+    }
+
+    @Test
+    public void testNestedDeterministicFunctions() throws Throwable
+    {
+        String innerFunctionName = createSimpleFunction(true);
+        String outerFunctionName = createFunction("int",
+                                                  "CREATE FUNCTION %s(input int) " +
+                                                  " RETURNS int" +
+                                                  " LANGUAGE java" +
+                                                  " AS 'return Integer.valueOf(0);'");
+        assertPermissionsOnNestedFunctions(innerFunctionName, outerFunctionName);
+    }
+
+    @Test
+    public void testNestedMixedFunctions() throws Throwable
+    {
+        String innerFunctionName = createSimpleFunction(true);
+        String outerFunctionName = createFunction("int",
+                                                  "CREATE NON DETERMINISTIC FUNCTION %s(input int) " +
+                                                  " RETURNS int" +
+                                                  " LANGUAGE java" +
+                                                  " AS 'return Integer.valueOf(0);'");
+        assertPermissionsOnNestedFunctions(innerFunctionName, outerFunctionName);
+
+        innerFunctionName = createSimpleFunction(false);
+        outerFunctionName = createFunction("int",
+                                           "CREATE FUNCTION %s(input int) " +
+                                           " RETURNS int" +
+                                           " LANGUAGE java" +
+                                           " AS 'return Integer.valueOf(0);'");
+        assertPermissionsOnNestedFunctions(innerFunctionName, outerFunctionName);
+    }
+
+    @Test
+    public void nonDeterministicFunctionInStaticColumnRestrictionInSelect() throws Throwable
+    {
+        setupTable("CREATE TABLE %s (k int, s int STATIC, v1 int, v2 int, PRIMARY KEY(k, v1))");
+        String functionName = createSimpleFunction(false);
+        String cql = String.format("SELECT k FROM %s WHERE k = 0 AND s = %s",
+                                   KEYSPACE + "." + currentTable(),
+                                   functionCall(functionName));
+        assertPermissionsOnFunction(cql, functionName);
+    }
+
+    @Test
+    public void deterministicFunctionInStaticColumnRestrictionInSelect() throws Throwable
+    {
+        setupTable("CREATE TABLE %s (k int, s int STATIC, v1 int, v2 int, PRIMARY KEY(k, v1))");
+        String functionName = createSimpleFunction(true);
+        String cql = String.format("SELECT k FROM %s WHERE k = 0 AND s = %s",
+                                   KEYSPACE + "." + currentTable(),
+                                   functionCall(functionName));
+        assertPermissionsOnFunction(cql, functionName);
+    }
+
+    @Test
+    public void nonDeterministicFunctionInRegularCondition() throws Throwable
+    {
+        String functionName = createSimpleFunction(false);
+        String cql = String.format("UPDATE %s SET v2 = 0 WHERE k = 0 AND v1 = 0 IF v2 = %s",
+                                   KEYSPACE + "." + currentTable(),
+                                   functionCall(functionName));
+        assertPermissionsOnFunction(cql, functionName);
+    }
+
+    @Test
+    public void deterministicFunctionInRegularCondition() throws Throwable
+    {
+        String functionName = createSimpleFunction(true);
+        String cql = String.format("UPDATE %s SET v2 = 0 WHERE k = 0 AND v1 = 0 IF v2 = %s",
+                                   KEYSPACE + "." + currentTable(),
+                                   functionCall(functionName));
+        assertPermissionsOnFunction(cql, functionName);
+    }
+
+    @Test
+    public void nonDeterministicFunctionInStaticColumnCondition() throws Throwable
+    {
+        setupTable("CREATE TABLE %s (k int, s int STATIC, v1 int, v2 int, PRIMARY KEY(k, v1))");
+        String functionName = createSimpleFunction(false);
+        String cql = String.format("UPDATE %s SET v2 = 0 WHERE k = 0 AND v1 = 0 IF s = %s",
+                                   KEYSPACE + "." + currentTable(),
+                                   functionCall(functionName));
+        assertPermissionsOnFunction(cql, functionName);
+    }
+
+    @Test
+    public void deterministicFunctionInStaticColumnCondition() throws Throwable
+    {
+        setupTable("CREATE TABLE %s (k int, s int STATIC, v1 int, v2 int, PRIMARY KEY(k, v1))");
+        String functionName = createSimpleFunction(true);
+        String cql = String.format("UPDATE %s SET v2 = 0 WHERE k = 0 AND v1 = 0 IF s = %s",
+                                   KEYSPACE + "." + currentTable(),
+                                   functionCall(functionName));
+        assertPermissionsOnFunction(cql, functionName);
+    }
+
+    @Test
+    public void nonDeterministicFunctionInCollectionLiteralCondition() throws Throwable
+    {
+        setupTable("CREATE TABLE %s (k int, v1 int, m_val map<int, int>, PRIMARY KEY(k))");
+        String functionName = createSimpleFunction(false);
+        String cql = String.format("UPDATE %s SET v1 = 0 WHERE k = 0 IF m_val = {%s : %s}",
+                                   KEYSPACE + "." + currentTable(),
+                                   functionCall(functionName),
+                                   functionCall(functionName));
+        assertPermissionsOnFunction(cql, functionName);
+    }
+
+    @Test
+    public void deterministicFunctionInCollectionLiteralCondition() throws Throwable
+    {
+        setupTable("CREATE TABLE %s (k int, v1 int, m_val map<int, int>, PRIMARY KEY(k))");
+        String functionName = createSimpleFunction(true);
+        String cql = String.format("UPDATE %s SET v1 = 0 WHERE k = 0 IF m_val = {%s : %s}",
+                                   KEYSPACE + "." + currentTable(),
+                                   functionCall(functionName),
+                                   functionCall(functionName));
+        assertPermissionsOnFunction(cql, functionName);
+    }
+
+    @Test
+    public void nonDeterministicFunctionInCollectionElementCondition() throws Throwable
+    {
+        setupTable("CREATE TABLE %s (k int, v1 int, m_val map<int, int>, PRIMARY KEY(k))");
+        String functionName = createSimpleFunction(false);
+        String cql = String.format("UPDATE %s SET v1 = 0 WHERE k = 0 IF m_val[%s] = %s",
+                                   KEYSPACE + "." + currentTable(),
+                                   functionCall(functionName),
+                                   functionCall(functionName));
+        assertPermissionsOnFunction(cql, functionName);
+    }
+
+    @Test
+    public void deterministicFunctionInCollectionElementCondition() throws Throwable
+    {
+        setupTable("CREATE TABLE %s (k int, v1 int, m_val map<int, int>, PRIMARY KEY(k))");
+        String functionName = createSimpleFunction(true);
+        String cql = String.format("UPDATE %s SET v1 = 0 WHERE k = 0 IF m_val[%s] = %s",
+                                   KEYSPACE + "." + currentTable(),
+                                   functionCall(functionName),
+                                   functionCall(functionName));
+        assertPermissionsOnFunction(cql, functionName);
+    }
+
+    @Test
+    public void systemFunctionsRequireNoExplicitPrivileges() throws Throwable
+    {
+        // with terminal arguments, so evaluated at prepare time
+        String cql = String.format("UPDATE %s SET v2 = 0 WHERE k = blobasint(intasblob(0))",
+                                   KEYSPACE + "." + currentTable());
+        getStatement(cql).checkAccess(clientState);
+
+        // with non-terminal arguments, so evaluated at execution
+        String functionName = createSimpleFunction(false);
+        grantExecuteOnFunction(functionName);
+        cql = String.format("UPDATE %s SET v2 = 0 WHERE k = blobasint(intasblob(%s))",
+                            KEYSPACE + "." + currentTable(),
+                            functionCall(functionName));
+        getStatement(cql).checkAccess(clientState);
+    }
+
+    @Test
+    public void requireExecutePermissionOnComponentFunctionsWhenDefiningAggregate() throws Throwable
+    {
+        String sFunc = createSimpleStateFunction();
+        String fFunc = createSimpleFinalFunction();
+        // aside from the component functions, we need CREATE on the keyspace's functions
+        DatabaseDescriptor.getAuthorizer().grant(AuthenticatedUser.SYSTEM_USER,
+                                                 ImmutableSet.of(Permission.CREATE),
+                                                 FunctionResource.keyspace(KEYSPACE),
+                                                 role);
+        String aggDef = String.format(aggregateCql(sFunc, fFunc),
+                                      KEYSPACE + ".aggregate_for_permissions_test");
+
+        assertUnauthorized(aggDef, sFunc, "int, int");
+        grantExecuteOnFunction(sFunc);
+
+        assertUnauthorized(aggDef, fFunc, "int");
+        grantExecuteOnFunction(fFunc);
+
+        getStatement(aggDef).checkAccess(clientState);
+    }
+
+    @Test
+    public void revokeExecutePermissionsOnAggregateComponents() throws Throwable
+    {
+        String sFunc = createSimpleStateFunction();
+        String fFunc = createSimpleFinalFunction();
+        String aggDef = aggregateCql(sFunc, fFunc);
+        grantExecuteOnFunction(sFunc);
+        grantExecuteOnFunction(fFunc);
+
+        String aggregate = createAggregate(KEYSPACE, "int", aggDef);
+        grantExecuteOnFunction(aggregate);
+
+        String cql = String.format("SELECT %s(v1) FROM %s",
+                                   aggregate,
+                                   KEYSPACE + "." + currentTable());
+        getStatement(cql).checkAccess(clientState);
+
+        // check that revoking EXECUTE permission on any one of the
+        // component functions means we lose the ability to execute it
+        revokeExecuteOnFunction(aggregate);
+        assertUnauthorized(cql, aggregate, "int");
+        grantExecuteOnFunction(aggregate);
+        getStatement(cql).checkAccess(clientState);
+
+        revokeExecuteOnFunction(sFunc);
+        assertUnauthorized(cql, sFunc, "int, int");
+        grantExecuteOnFunction(sFunc);
+        getStatement(cql).checkAccess(clientState);
+
+        revokeExecuteOnFunction(fFunc);
+        assertUnauthorized(cql, fFunc, "int");
+        grantExecuteOnFunction(fFunc);
+        getStatement(cql).checkAccess(clientState);
+    }
+
+    @Test
+    public void nonDeterministicFunctionWrappingAggregate() throws Throwable
+    {
+        String outerFunc = createFunction("int",
+                                          "CREATE NON DETERMINISTIC FUNCTION %s(input int) " +
+                                          "RETURNS int " +
+                                          "LANGUAGE java " +
+                                          "AS 'return input;'");
+
+        String sFunc = createSimpleStateFunction();
+        String fFunc = createSimpleFinalFunction();
+        String aggDef = aggregateCql(sFunc, fFunc);
+        grantExecuteOnFunction(sFunc);
+        grantExecuteOnFunction(fFunc);
+
+        String aggregate = createAggregate(KEYSPACE, "int", aggDef);
+
+        String cql = String.format("SELECT %s(%s(v1)) FROM %s",
+                                   outerFunc,
+                                   aggregate,
+                                   KEYSPACE + "." + currentTable());
+
+        assertUnauthorized(cql, outerFunc, "int");
+        grantExecuteOnFunction(outerFunc);
+
+        assertUnauthorized(cql, aggregate, "int");
+        grantExecuteOnFunction(aggregate);
+
+        getStatement(cql).checkAccess(clientState);
+    }
+
+    @Test
+    public void aggregateWrappingNonDeterministicFunction() throws Throwable
+    {
+        String innerFunc = createFunction("int",
+                                          "CREATE NON DETERMINISTIC FUNCTION %s(input int) " +
+                                          "RETURNS int " +
+                                          "LANGUAGE java " +
+                                          "AS 'return input;'");
+
+        String sFunc = createSimpleStateFunction();
+        String fFunc = createSimpleFinalFunction();
+        String aggDef = aggregateCql(sFunc, fFunc);
+        grantExecuteOnFunction(sFunc);
+        grantExecuteOnFunction(fFunc);
+
+        String aggregate = createAggregate(KEYSPACE, "int", aggDef);
+
+        String cql = String.format("SELECT %s(%s(v1)) FROM %s",
+                                   aggregate,
+                                   innerFunc,
+                                   KEYSPACE + "." + currentTable());
+
+        assertUnauthorized(cql, aggregate, "int");
+        grantExecuteOnFunction(aggregate);
+
+        assertUnauthorized(cql, innerFunc, "int");
+        grantExecuteOnFunction(innerFunc);
+
+        getStatement(cql).checkAccess(clientState);
+    }
+
+    private void assertPermissionsOnNestedFunctions(String innerFunction, String outerFunction) throws Throwable
+    {
+        String cql = String.format("SELECT k, %s FROM %s WHERE k=0",
+                                   functionCall(outerFunction, functionCall(innerFunction)),
+                                   KEYSPACE + "." + currentTable());
+        // fail fast with an UAE on the first function
+        assertUnauthorized(cql, outerFunction, "int");
+        grantExecuteOnFunction(outerFunction);
+
+        // after granting execute on the first function, still fail due to the inner function
+        assertUnauthorized(cql, innerFunction, "");
+        grantExecuteOnFunction(innerFunction);
+
+        // now execution of both is permitted
+        getStatement(cql).checkAccess(clientState);
+    }
+
+    private void assertPermissionsOnFunction(String cql, String functionName) throws Throwable
+    {
+        assertPermissionsOnFunction(cql, functionName, "");
+    }
+
+    private void assertPermissionsOnFunction(String cql, String functionName, String argTypes) throws Throwable
+    {
+        assertUnauthorized(cql, functionName, argTypes);
+        grantExecuteOnFunction(functionName);
+        getStatement(cql).checkAccess(clientState);
+    }
+
+    private void assertUnauthorized(BatchStatement batch, Iterable<String> functionNames) throws Throwable
+    {
+        try
+        {
+            batch.checkAccess(clientState);
+            fail("Expected an UnauthorizedException, but none was thrown");
+        }
+        catch (UnauthorizedException e)
+        {
+            String functions = String.format("(%s)", Joiner.on("|").join(functionNames));
+            assertTrue(e.getLocalizedMessage()
+                        .matches(String.format("User %s has no EXECUTE permission on <function %s\\(\\)> or any of its parents",
+                                               roleName,
+                                               functions)));
+        }
+    }
+
+    private void assertUnauthorized(String cql, String functionName, String argTypes) throws Throwable
+    {
+        try
+        {
+            getStatement(cql).checkAccess(clientState);
+            fail("Expected an UnauthorizedException, but none was thrown");
+        }
+        catch (UnauthorizedException e)
+        {
+            assertEquals(String.format("User %s has no EXECUTE permission on <function %s(%s)> or any of its parents",
+                                       roleName,
+                                       functionName,
+                                       argTypes),
+                         e.getLocalizedMessage());
+        }
+    }
+
+    private void grantExecuteOnFunction(String functionName)
+    {
+            DatabaseDescriptor.getAuthorizer().grant(AuthenticatedUser.SYSTEM_USER,
+                                                     ImmutableSet.of(Permission.EXECUTE),
+                                                     functionResource(functionName),
+                                                     role);
+    }
+
+    private void revokeExecuteOnFunction(String functionName)
+    {
+        DatabaseDescriptor.getAuthorizer().revoke(AuthenticatedUser.SYSTEM_USER,
+                                                  ImmutableSet.of(Permission.EXECUTE),
+                                                  functionResource(functionName),
+                                                  role);
+    }
+
+    void setupClientState()
+    {
+
+        try
+        {
+            role = RoleResource.role(roleName);
+            // use reflection to set the logged in user so that we don't need to
+            // bother setting up an IRoleManager
+            user = new AuthenticatedUser(roleName);
+            clientState = ClientState.forInternalCalls();
+            Field userField = ClientState.class.getDeclaredField("user");
+            userField.setAccessible(true);
+            userField.set(clientState, user);
+        }
+        catch (IllegalAccessException | NoSuchFieldException e)
+        {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private void setupTable(String tableDef) throws Throwable
+    {
+        createTable(tableDef);
+        // test user needs SELECT & MODIFY on the table regardless of permissions on any function
+        DatabaseDescriptor.getAuthorizer().grant(AuthenticatedUser.SYSTEM_USER,
+                                                 ImmutableSet.of(Permission.SELECT, Permission.MODIFY),
+                                                 DataResource.table(KEYSPACE, currentTable()),
+                                                 RoleResource.role(user.getName()));
+    }
+
+    private String aggregateCql(String sFunc, String fFunc)
+    {
+        return "CREATE AGGREGATE %s(int) " +
+               "SFUNC " + shortFunctionName(sFunc) + " " +
+               "STYPE int " +
+               "FINALFUNC " + shortFunctionName(fFunc) + " " +
+               "INITCOND 0";
+    }
+
+    private String createSimpleStateFunction() throws Throwable
+    {
+        return createFunction("int, int",
+                              "CREATE FUNCTION %s(a int, b int) " +
+                              "RETURNS int " +
+                              "LANGUAGE java " +
+                              "AS 'return Integer.valueOf( (a != null ? a.intValue() : 0 ) + b.intValue());'");
+    }
+
+    private String createSimpleFinalFunction() throws Throwable
+    {
+        return createFunction("int",
+                              "CREATE FUNCTION %s(a int) " +
+                              "RETURNS int " +
+                              "LANGUAGE java " +
+                              "AS 'return a;'");
+    }
+
+    private String createSimpleFunction(boolean deterministic) throws Throwable
+    {
+        return createFunction("",
+                              "CREATE " + (deterministic ? "" : " NON ") +  " DETERMINISTIC FUNCTION %s() " +
+                              "  RETURNS int " +
+                              "  LANGUAGE java " +
+                              "  AS 'return Integer.valueOf(0);'");
+    }
+
+    private String createFunction(String argTypes, String functionDef) throws Throwable
+    {
+        return createFunction(KEYSPACE, argTypes, functionDef);
+    }
+
+    private CQLStatement getStatement(String cql)
+    {
+        return QueryProcessor.getStatement(cql, clientState).statement;
+    }
+
+    private FunctionResource functionResource(String functionName)
+    {
+        // Note that this is somewhat brittle as it assumes that function names are
+        // truly unique. As such, it will break in the face of overloading.
+        // It is here to avoid having to duplicate the functionality of CqlParser
+        // for transforming cql types into AbstractTypes
+        FunctionName fn = parseFunctionName(functionName);
+        List<Function> functions = Functions.find(fn);
+        assertEquals(String.format("Expected a single function definition for %s, but found %s",
+                                   functionName,
+                                   functions.size()),
+                     1, functions.size());
+        return FunctionResource.function(fn.keyspace, fn.name, functions.get(0).argTypes());
+    }
+
+    private String functionCall(String functionName, String...args)
+    {
+        return String.format("%s(%s)", functionName, Joiner.on(",").join(args));
+    }
+
+    static class StubAuthorizer implements IAuthorizer
+    {
+        Map<Pair<String, IResource>, Set<Permission>> userPermissions = new HashMap<>();
+
+        private void clear()
+        {
+            userPermissions.clear();
+        }
+
+        public Set<Permission> authorize(AuthenticatedUser user, IResource resource)
+        {
+            Pair<String, IResource> key = Pair.create(user.getName(), resource);
+            Set<Permission> perms = userPermissions.get(key);
+            return perms != null ? perms : Collections.<Permission>emptySet();
+        }
+
+        public void grant(AuthenticatedUser performer,
+                          Set<Permission> permissions,
+                          IResource resource,
+                          RoleResource grantee) throws RequestValidationException, RequestExecutionException
+        {
+            Pair<String, IResource> key = Pair.create(grantee.getRoleName(), resource);
+            Set<Permission> perms = userPermissions.get(key);
+            if (null == perms)
+            {
+                perms = new HashSet<>();
+                userPermissions.put(key, perms);
+            }
+            perms.addAll(permissions);
+        }
+
+        public void revoke(AuthenticatedUser performer,
+                           Set<Permission> permissions,
+                           IResource resource,
+                           RoleResource revokee) throws RequestValidationException, RequestExecutionException
+        {
+            Pair<String, IResource> key = Pair.create(revokee.getRoleName(), resource);
+            Set<Permission> perms = userPermissions.get(key);
+            if (null != perms)
+                perms.removeAll(permissions);
+            if (perms.isEmpty())
+                userPermissions.remove(key);
+        }
+
+        public Set<PermissionDetails> list(AuthenticatedUser performer,
+                                           Set<Permission> permissions,
+                                           IResource resource,
+                                           RoleResource grantee) throws RequestValidationException, RequestExecutionException
+        {
+            Pair<String, IResource> key = Pair.create(grantee.getRoleName(), resource);
+            Set<Permission> perms = userPermissions.get(key);
+            if (perms == null)
+                return Collections.emptySet();
+
+
+            Set<PermissionDetails> details = new HashSet<>();
+            for (Permission permission : perms)
+            {
+                if (permissions.contains(permission))
+                    details.add(new PermissionDetails(grantee.getRoleName(), resource, permission));
+            }
+            return details;
+        }
+
+        public void revokeAllFrom(RoleResource revokee)
+        {
+            for (Pair<String, IResource> key : userPermissions.keySet())
+                if (key.left.equals(revokee.getRoleName()))
+                    userPermissions.remove(key);
+        }
+
+        public void revokeAllOn(IResource droppedResource)
+        {
+            for (Pair<String, IResource> key : userPermissions.keySet())
+                if (key.right.equals(droppedResource))
+                    userPermissions.remove(key);
+
+        }
+
+        public Set<? extends IResource> protectedResources()
+        {
+            return Collections.emptySet();
+        }
+
+        public void validateConfiguration() throws ConfigurationException
+        {
+
+        }
+
+        public void setup()
+        {
+
+        }
+    }
+}

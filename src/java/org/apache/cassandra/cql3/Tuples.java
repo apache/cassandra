@@ -18,12 +18,15 @@
 package org.apache.cassandra.cql3;
 
 import java.nio.ByteBuffer;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.cql3.Term.MultiColumnRaw;
+import org.apache.cassandra.cql3.functions.Function;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.serializers.MarshalException;
@@ -225,6 +228,11 @@ public class Tuples
         public String toString()
         {
             return tupleToString(elements);
+        }
+
+        public Iterable<Function> getFunctions()
+        {
+            return Terms.getFunctions(elements);
         }
     }
 

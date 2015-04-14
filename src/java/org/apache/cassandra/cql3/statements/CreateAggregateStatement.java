@@ -22,20 +22,16 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-import org.apache.cassandra.auth.Permission;
+import org.apache.cassandra.auth.*;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.Schema;
-import org.apache.cassandra.cql3.CQL3Type;
-import org.apache.cassandra.cql3.ColumnIdentifier;
-import org.apache.cassandra.cql3.ColumnSpecification;
-import org.apache.cassandra.cql3.QueryOptions;
-import org.apache.cassandra.cql3.Term;
+import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.cql3.functions.*;
 import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.exceptions.InvalidRequestException;
-import org.apache.cassandra.exceptions.RequestValidationException;
-import org.apache.cassandra.exceptions.UnauthorizedException;
+import org.apache.cassandra.exceptions.*;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.MigrationManager;
+import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.thrift.ThriftValidation;
 import org.apache.cassandra.transport.Event;
 
@@ -57,6 +53,12 @@ public final class CreateAggregateStatement extends SchemaAlteringStatement
     private UDAggregate udAggregate;
     private boolean replaced;
 
+    private List<AbstractType<?>> argTypes;
+    private AbstractType<?> returnType;
+    private ScalarFunction stateFunction;
+    private ScalarFunction finalFunction;
+    private ByteBuffer initcond;
+
     public CreateAggregateStatement(FunctionName functionName,
                                     List<CQL3Type.Raw> argRawTypes,
                                     String stateFunc,
@@ -76,6 +78,44 @@ public final class CreateAggregateStatement extends SchemaAlteringStatement
         this.ifNotExists = ifNotExists;
     }
 
+    public Prepared prepare()
+    {
+        argTypes = new ArrayList<>(argRawTypes.size());
+        for (CQL3Type.Raw rawType : argRawTypes)
+            argTypes.add(rawType.prepare(functionName.keyspace).getType());
+
+        AbstractType<?> stateType = stateTypeRaw.prepare(functionName.keyspace).getType();
+        FunctionName stateFuncName = new FunctionName(functionName.keyspace, stateFunc);
+        Function f = Functions.find(stateFuncName, stateArguments(stateType, argTypes));
+        if (!(f instanceof ScalarFunction))
+            throw new InvalidRequestException("State function " + stateFuncSig(stateFuncName, stateTypeRaw, argRawTypes) + " does not exist or is not a scalar function");
+        stateFunction = (ScalarFunction)f;
+
+        if (finalFunc != null)
+        {
+            FunctionName finalFuncName = new FunctionName(functionName.keyspace, finalFunc);
+            f = Functions.find(finalFuncName, Collections.<AbstractType<?>>singletonList(stateType));
+            if (!(f instanceof ScalarFunction))
+                throw new InvalidRequestException("Final function " + finalFuncName + "(" + stateTypeRaw + ") does not exist or is not a scalar function");
+            finalFunction = (ScalarFunction) f;
+            returnType = finalFunction.returnType();
+        }
+        else
+        {
+            returnType = stateFunction.returnType();
+            if (!returnType.equals(stateType))
+                throw new InvalidRequestException("State function " + stateFuncSig(stateFunction.name(), stateTypeRaw, argRawTypes) + " return type must be the same as the first argument type (if no final function is used)");
+        }
+
+        if (ival != null)
+        {
+            ColumnSpecification receiver = new ColumnSpecification(functionName.keyspace, "--dummy--", new ColumnIdentifier("(aggregate_initcond)", true), stateType);
+            initcond = ival.prepare(functionName.keyspace, receiver).bindAndGet(QueryOptions.DEFAULT);
+        }
+
+        return super.prepare();
+    }
+
     public void prepareKeyspace(ClientState state) throws InvalidRequestException
     {
         if (!functionName.hasKeyspace() && state.getRawKeyspace() != null)
@@ -87,11 +127,37 @@ public final class CreateAggregateStatement extends SchemaAlteringStatement
         ThriftValidation.validateKeyspaceNotSystem(functionName.keyspace);
     }
 
+    protected void grantPermissionsToCreator(QueryState state)
+    {
+        try
+        {
+            IResource resource = FunctionResource.function(functionName.keyspace, functionName.name, argTypes);
+            DatabaseDescriptor.getAuthorizer().grant(AuthenticatedUser.SYSTEM_USER,
+                                                     resource.applicablePermissions(),
+                                                     resource,
+                                                     RoleResource.role(state.getClientState().getUser().getName()));
+        }
+        catch (RequestExecutionException e)
+        {
+            throw new RuntimeException(e);
+        }
+    }
+
     public void checkAccess(ClientState state) throws UnauthorizedException, InvalidRequestException
     {
-        // TODO CASSANDRA-7557 (function DDL permission)
+        if (Functions.find(functionName, argTypes) != null && orReplace)
+            state.ensureHasPermission(Permission.ALTER, FunctionResource.function(functionName.keyspace,
+                                                                                  functionName.name,
+                                                                                  argTypes));
+        else
+            state.ensureHasPermission(Permission.CREATE, FunctionResource.keyspace(functionName.keyspace));
 
-        state.hasKeyspaceAccess(functionName.keyspace, Permission.CREATE);
+        for (Function referencedFunction : stateFunction.getFunctions())
+            state.ensureHasPermission(Permission.EXECUTE, referencedFunction);
+
+        if (finalFunction != null)
+            for (Function referencedFunction : finalFunction.getFunctions())
+                state.ensureHasPermission(Permission.EXECUTE, referencedFunction);
     }
 
     public void validate(ClientState state) throws InvalidRequestException
@@ -112,37 +178,6 @@ public final class CreateAggregateStatement extends SchemaAlteringStatement
 
     public boolean announceMigration(boolean isLocalOnly) throws RequestValidationException
     {
-        List<AbstractType<?>> argTypes = new ArrayList<>(argRawTypes.size());
-        for (CQL3Type.Raw rawType : argRawTypes)
-            argTypes.add(rawType.prepare(functionName.keyspace).getType());
-
-        FunctionName stateFuncName = new FunctionName(functionName.keyspace, stateFunc);
-        FunctionName finalFuncName;
-
-        ScalarFunction fFinal = null;
-        AbstractType<?> stateType = stateTypeRaw.prepare(functionName.keyspace).getType();
-        Function f = Functions.find(stateFuncName, stateArguments(stateType, argTypes));
-        if (!(f instanceof ScalarFunction))
-            throw new InvalidRequestException("State function " + stateFuncSig(stateFuncName, stateTypeRaw, argRawTypes) + " does not exist or is not a scalar function");
-        ScalarFunction fState = (ScalarFunction)f;
-
-        AbstractType<?> returnType;
-        if (finalFunc != null)
-        {
-            finalFuncName = new FunctionName(functionName.keyspace, finalFunc);
-            f = Functions.find(finalFuncName, Collections.<AbstractType<?>>singletonList(stateType));
-            if (!(f instanceof ScalarFunction))
-                throw new InvalidRequestException("Final function " + finalFuncName + "(" + stateTypeRaw + ") does not exist or is not a scalar function");
-            fFinal = (ScalarFunction) f;
-            returnType = fFinal.returnType();
-        }
-        else
-        {
-            returnType = fState.returnType();
-            if (!returnType.equals(stateType))
-                throw new InvalidRequestException("State function " + stateFuncSig(stateFuncName, stateTypeRaw, argRawTypes) + " return type must be the same as the first argument type (if no final function is used)");
-        }
-
         Function old = Functions.find(functionName, argTypes);
         if (old != null)
         {
@@ -162,16 +197,9 @@ public final class CreateAggregateStatement extends SchemaAlteringStatement
                                                                 functionName, returnType.asCQL3Type(), old.returnType().asCQL3Type()));
         }
 
-        ByteBuffer initcond = null;
-        if (ival != null)
-        {
-            ColumnSpecification receiver = new ColumnSpecification(functionName.keyspace, "--dummy--", new ColumnIdentifier("(aggregate_initcond)", true), stateType);
-            initcond = ival.prepare(functionName.keyspace, receiver).bindAndGet(QueryOptions.DEFAULT);
-        }
-
         udAggregate = new UDAggregate(functionName, argTypes, returnType,
-                                                  fState,
-                                                  fFinal,
+                                                  stateFunction,
+                                                  finalFunction,
                                                   initcond);
         replaced = old != null;
 

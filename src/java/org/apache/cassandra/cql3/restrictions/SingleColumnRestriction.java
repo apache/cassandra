@@ -18,16 +18,13 @@
 package org.apache.cassandra.cql3.restrictions;
 
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.List;
+import java.util.*;
+
+import com.google.common.collect.Iterables;
 
 import org.apache.cassandra.config.ColumnDefinition;
-import org.apache.cassandra.cql3.AbstractMarker;
-import org.apache.cassandra.cql3.Operator;
-import org.apache.cassandra.cql3.QueryOptions;
-import org.apache.cassandra.cql3.Term;
+import org.apache.cassandra.cql3.*;
+import org.apache.cassandra.cql3.functions.Function;
 import org.apache.cassandra.cql3.statements.Bound;
 import org.apache.cassandra.db.IndexExpression;
 import org.apache.cassandra.db.composites.CompositesBuilder;
@@ -111,6 +108,12 @@ public abstract class SingleColumnRestriction extends AbstractRestriction
         public boolean usesFunction(String ksName, String functionName)
         {
             return usesFunction(value, ksName, functionName);
+        }
+
+        @Override
+        public Iterable getFunctions()
+        {
+            return value.getFunctions();
         }
 
         @Override
@@ -220,6 +223,12 @@ public abstract class SingleColumnRestriction extends AbstractRestriction
         }
 
         @Override
+        public Iterable<Function> getFunctions()
+        {
+            return Terms.getFunctions(values);
+        }
+
+        @Override
         protected List<ByteBuffer> getValues(QueryOptions options) throws InvalidRequestException
         {
             List<ByteBuffer> buffers = new ArrayList<>(values.size());
@@ -249,6 +258,12 @@ public abstract class SingleColumnRestriction extends AbstractRestriction
         public boolean usesFunction(String ksName, String functionName)
         {
             return false;
+        }
+
+        @Override
+        public Iterable<Function> getFunctions()
+        {
+            return Collections.emptySet();
         }
 
         @Override
@@ -282,6 +297,12 @@ public abstract class SingleColumnRestriction extends AbstractRestriction
         {
             return (slice.hasBound(Bound.START) && usesFunction(slice.bound(Bound.START), ksName, functionName))
                     || (slice.hasBound(Bound.END) && usesFunction(slice.bound(Bound.END), ksName, functionName));
+        }
+
+        @Override
+        public Iterable<Function> getFunctions()
+        {
+            return slice.getFunctions();
         }
 
         @Override
@@ -480,6 +501,15 @@ public abstract class SingleColumnRestriction extends AbstractRestriction
         {
             return usesFunction(values, ksName, functionName) || usesFunction(keys, ksName, functionName) ||
                    usesFunction(entryKeys, ksName, functionName) || usesFunction(entryValues, ksName, functionName);
+        }
+
+        @Override
+        public Iterable<Function> getFunctions()
+        {
+            return Iterables.concat(Terms.getFunctions(values),
+                                    Terms.getFunctions(keys),
+                                    Terms.getFunctions(entryKeys),
+                                    Terms.getFunctions(entryValues));
         }
 
         @Override

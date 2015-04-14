@@ -17,15 +17,14 @@
  */
 package org.apache.cassandra.cql3.selection;
 
-import java.util.ArrayList;
-import java.util.Iterator;
-import java.util.List;
+import java.util.*;
 
-import com.google.common.base.Function;
+import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
+import org.apache.cassandra.cql3.functions.Function;
 import org.apache.cassandra.cql3.selection.Selector.Factory;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.exceptions.InvalidRequestException;
@@ -96,6 +95,15 @@ final class SelectorFactories implements Iterable<Selector.Factory>
             if (factory != null && factory.usesFunction(ksName, functionName))
                 return true;
         return false;
+    }
+
+    public Iterable<Function> getFunctions()
+    {
+        Iterable<Function> functions = Collections.emptySet();
+        for (Factory factory : factories)
+            if (factory != null)
+                functions = Iterables.concat(functions, factory.getFunctions());
+        return functions;
     }
 
     /**
@@ -179,7 +187,7 @@ final class SelectorFactories implements Iterable<Selector.Factory>
      */
     public List<String> getColumnNames()
     {
-        return Lists.transform(factories, new Function<Selector.Factory, String>()
+        return Lists.transform(factories, new com.google.common.base.Function<Selector.Factory, String>()
         {
             public String apply(Selector.Factory factory)
             {
@@ -195,7 +203,7 @@ final class SelectorFactories implements Iterable<Selector.Factory>
      */
     public List<AbstractType<?>> getReturnTypes()
     {
-        return Lists.transform(factories, new Function<Selector.Factory, AbstractType<?>>()
+        return Lists.transform(factories, new com.google.common.base.Function<Selector.Factory, AbstractType<?>>()
         {
             public AbstractType<?> apply(Selector.Factory factory)
             {

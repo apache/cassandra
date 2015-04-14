@@ -21,18 +21,14 @@ import java.nio.ByteBuffer;
 import java.util.*;
 
 import com.google.common.base.Joiner;
+import com.google.common.collect.Iterables;
 
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
-import org.apache.cassandra.cql3.ColumnIdentifier;
-import org.apache.cassandra.cql3.QueryOptions;
-import org.apache.cassandra.cql3.Relation;
-import org.apache.cassandra.cql3.VariableSpecifications;
+import org.apache.cassandra.cql3.*;
+import org.apache.cassandra.cql3.functions.Function;
 import org.apache.cassandra.cql3.statements.Bound;
-import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.db.IndexExpression;
-import org.apache.cassandra.db.Keyspace;
-import org.apache.cassandra.db.RowPosition;
+import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.composites.Composite;
 import org.apache.cassandra.db.index.SecondaryIndexManager;
 import org.apache.cassandra.dht.*;
@@ -182,6 +178,13 @@ public final class StatementRestrictions
         return  partitionKeyRestrictions.usesFunction(ksName, functionName)
                 || clusteringColumnsRestrictions.usesFunction(ksName, functionName)
                 || nonPrimaryKeyRestrictions.usesFunction(ksName, functionName);
+    }
+
+    public Iterable<Function> getFunctions()
+    {
+        return Iterables.concat(partitionKeyRestrictions.getFunctions(),
+                                clusteringColumnsRestrictions.getFunctions(),
+                                nonPrimaryKeyRestrictions.getFunctions());
     }
 
     private void addSingleColumnRestriction(SingleColumnRestriction restriction) throws InvalidRequestException

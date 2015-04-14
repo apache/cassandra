@@ -17,6 +17,9 @@
  */
 package org.apache.cassandra.cql3;
 
+import java.util.Collections;
+
+import org.apache.cassandra.cql3.functions.Function;
 import org.apache.cassandra.db.marshal.CollectionType;
 import org.apache.cassandra.db.marshal.ListType;
 import org.apache.cassandra.exceptions.InvalidRequestException;
@@ -43,6 +46,11 @@ public abstract class AbstractMarker extends Term.NonTerminal
     public boolean containsBindMarker()
     {
         return true;
+    }
+
+    public Iterable<Function> getFunctions()
+    {
+        return Collections.emptySet();
     }
 
     /**

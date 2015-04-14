@@ -21,11 +21,12 @@ import java.nio.ByteBuffer;
 import java.util.*;
 
 import com.google.common.base.Objects;
+import com.google.common.collect.ImmutableSet;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.exceptions.*;
+import org.apache.cassandra.exceptions.InvalidRequestException;
 
 /**
  * Base class for user-defined-aggregates.
@@ -102,6 +103,11 @@ public class UDAggregate extends AbstractFunction implements AggregateFunction
         return super.usesFunction(ksName, functionName)
             || stateFunction != null && stateFunction.name().keyspace.equals(ksName) && stateFunction.name().name.equals(functionName)
             || finalFunction != null && finalFunction.name().keyspace.equals(ksName) && finalFunction.name().name.equals(functionName);
+    }
+
+    public Iterable<Function> getFunctions()
+    {
+        return ImmutableSet.of(this, stateFunction, finalFunction);
     }
 
     public boolean isAggregate()

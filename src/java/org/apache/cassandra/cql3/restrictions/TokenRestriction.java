@@ -27,6 +27,7 @@ import com.google.common.base.Joiner;
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.Term;
+import org.apache.cassandra.cql3.functions.Function;
 import org.apache.cassandra.cql3.statements.Bound;
 import org.apache.cassandra.db.IndexExpression;
 import org.apache.cassandra.db.composites.CType;
@@ -178,6 +179,12 @@ public abstract class TokenRestriction extends AbstractPrimaryKeyRestrictions
         }
 
         @Override
+        public Iterable<Function> getFunctions()
+        {
+            return value.getFunctions();
+        }
+
+        @Override
         protected PrimaryKeyRestrictions doMergeWith(TokenRestriction otherRestriction) throws InvalidRequestException
         {
             throw invalidRequest("%s cannot be restricted by more than one relation if it includes an Equal",
@@ -230,6 +237,12 @@ public abstract class TokenRestriction extends AbstractPrimaryKeyRestrictions
         {
             return (slice.hasBound(Bound.START) && usesFunction(slice.bound(Bound.START), ksName, functionName))
                     || (slice.hasBound(Bound.END) && usesFunction(slice.bound(Bound.END), ksName, functionName));
+        }
+
+        @Override
+        public Iterable<Function> getFunctions()
+        {
+            return slice.getFunctions();
         }
 
         @Override

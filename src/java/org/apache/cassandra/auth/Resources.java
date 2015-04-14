@@ -56,6 +56,8 @@ public final class Resources
             return RoleResource.fromName(name);
         else if (name.startsWith(DataResource.root().getName()))
             return DataResource.fromName(name);
+        else if (name.startsWith(FunctionResource.root().getName()))
+            return FunctionResource.fromName(name);
         else
             throw new IllegalArgumentException(String.format("Name %s is not valid for any resource type", name));
     }

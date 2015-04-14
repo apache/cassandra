@@ -1207,7 +1207,7 @@ syntax_rules += r'''
 '''
 
 syntax_rules += r'''
-<grantStatement> ::= "GRANT" <permissionExpr> "ON" <resource>  "TO" <rolename>
+<grantStatement> ::= "GRANT" <permissionExpr> "ON" <resource> "TO" <rolename>
                    ;
 
 <revokeStatement> ::= "REVOKE" <permissionExpr> "ON" <resource> "FROM" <rolename>
@@ -1224,6 +1224,7 @@ syntax_rules += r'''
                | "SELECT"
                | "MODIFY"
                | "DESCRIBE"
+               | "EXECUTE"
                ;
 
 <permissionExpr> ::= ( <permission> "PERMISSION"? )
@@ -1232,6 +1233,7 @@ syntax_rules += r'''
 
 <resource> ::= <dataResource>
              | <roleResource>
+             | <functionResource>
              ;
 
 <dataResource> ::= ( "ALL" "KEYSPACES" )
@@ -1242,6 +1244,10 @@ syntax_rules += r'''
 <roleResource> ::= ("ALL" "ROLES")
                  | ("ROLE" <rolename>)
                  ;
+
+<functionResource> ::= ( "ALL" "FUNCTIONS" ("IN KEYSPACE" <keyspaceName>)? )
+                     | ("FUNCTION" <userFunctionName>)
+                     ;
 '''
 
 @completer_for('username', 'name')

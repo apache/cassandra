@@ -21,20 +21,23 @@ import java.nio.ByteBuffer;
 import java.util.*;
 
 import com.google.common.base.Predicate;
+import com.google.common.collect.Iterables;
 import com.google.common.collect.Iterators;
-import static com.google.common.collect.Lists.newArrayList;
 
 import org.apache.cassandra.config.ColumnDefinition;
-import org.apache.cassandra.db.*;
+import org.apache.cassandra.cql3.functions.Function;
+import org.apache.cassandra.db.Cell;
+import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.composites.CellName;
 import org.apache.cassandra.db.composites.CellNameType;
 import org.apache.cassandra.db.composites.Composite;
 import org.apache.cassandra.db.filter.ColumnSlice;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.exceptions.InvalidRequestException;
-import org.apache.cassandra.serializers.CollectionSerializer;
 import org.apache.cassandra.transport.Server;
 import org.apache.cassandra.utils.ByteBufferUtil;
+
+import static com.google.common.collect.Lists.newArrayList;
 
 /**
  * A CQL3 condition on the value of a column or collection element.  For example, "UPDATE .. IF a = 0".
@@ -105,6 +108,20 @@ public class ColumnCondition
                 if (value != null && value.usesFunction(ksName, functionName))
                     return true;
         return false;
+    }
+
+    public Iterable<Function> getFunctions()
+    {
+        Iterable<Function> iter = Collections.emptyList();
+        if (collectionElement != null)
+           iter = Iterables.concat(iter, collectionElement.getFunctions());
+        if (value != null)
+            iter = Iterables.concat(iter, value.getFunctions());
+        if (inValues != null)
+            for (Term value : inValues)
+                if (value != null)
+                    iter = Iterables.concat(iter, value.getFunctions());
+        return iter;
     }
 
     /**

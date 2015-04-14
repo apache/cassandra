@@ -18,11 +18,13 @@
 package org.apache.cassandra.cql3.selection;
 
 import java.nio.ByteBuffer;
+import java.util.Collections;
 
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.cql3.AssignmentTestable;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.ColumnSpecification;
+import org.apache.cassandra.cql3.functions.Function;
 import org.apache.cassandra.cql3.selection.Selection.ResultSetBuilder;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.exceptions.InvalidRequestException;
@@ -43,6 +45,11 @@ public abstract class Selector implements AssignmentTestable
         public boolean usesFunction(String ksName, String functionName)
         {
             return false;
+        }
+
+        public Iterable<Function> getFunctions()
+        {
+            return Collections.emptySet();
         }
 
         /**

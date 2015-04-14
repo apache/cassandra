@@ -17,17 +17,18 @@
  */
 package org.apache.cassandra.cql3;
 
+import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.util.*;
+
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
+import org.apache.cassandra.cql3.functions.Function;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.serializers.MarshalException;
 import org.codehaus.jackson.io.JsonStringEncoder;
 import org.codehaus.jackson.map.ObjectMapper;
-
-import java.io.IOException;
-import java.nio.ByteBuffer;
-import java.util.*;
 
 /** Term-related classes for INSERT JSON support. */
 public class Json
@@ -250,6 +251,12 @@ public class Json
             marker.bind(options);
             Term term = marker.getValue(column);
             return term == null ? null : term.bind(options);
+        }
+
+        @Override
+        public Iterable<Function> getFunctions()
+        {
+            return Collections.emptyList();
         }
     }
 

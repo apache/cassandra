@@ -33,6 +33,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.cql3.QueryHandler;
 import org.apache.cassandra.cql3.QueryProcessor;
+import org.apache.cassandra.cql3.functions.Function;
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.exceptions.AuthenticationException;
 import org.apache.cassandra.exceptions.InvalidRequestException;
@@ -259,6 +260,36 @@ public class ClientState
     }
 
     public void ensureHasPermission(Permission perm, IResource resource) throws UnauthorizedException
+    {
+        if (DatabaseDescriptor.getAuthorizer() instanceof AllowAllAuthorizer)
+            return;
+
+        // Access to built in functions is unrestricted
+        if(resource instanceof FunctionResource && resource.hasParent())
+            if (((FunctionResource)resource).getKeyspace().equals(SystemKeyspace.NAME))
+                return;
+
+        checkPermissionOnResourceChain(perm, resource);
+    }
+
+    // Convenience method called from checkAccess method of CQLStatement
+    // Also avoids needlessly creating lots of FunctionResource objects
+    public void ensureHasPermission(Permission permission, Function function)
+    {
+        // Save creating a FunctionResource is we don't need to
+        if (DatabaseDescriptor.getAuthorizer() instanceof AllowAllAuthorizer)
+            return;
+
+        // built in functions are always available to all
+        if (function.isNative())
+            return;
+
+        checkPermissionOnResourceChain(permission, FunctionResource.function(function.name().keyspace,
+                                                                             function.name().name,
+                                                                             function.argTypes()));
+    }
+
+    private void checkPermissionOnResourceChain(Permission perm, IResource resource)
     {
         for (IResource r : Resources.chain(resource))
             if (authorize(r).contains(perm))

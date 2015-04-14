@@ -58,9 +58,12 @@ public enum Permission
     // permission management
     AUTHORIZE, // required for GRANT and REVOKE of permissions or roles.
 
-    DESCRIBE; // required on the root-level RoleResource to list all Roles
+    DESCRIBE, // required on the root-level RoleResource to list all Roles
+
+    // UDF permissions
+    EXECUTE;  // required to invoke any user defined function or aggregate
 
     public static final Set<Permission> ALL =
-            Sets.immutableEnumSet(EnumSet.range(Permission.CREATE, Permission.DESCRIBE));
+            Sets.immutableEnumSet(EnumSet.range(Permission.CREATE, Permission.EXECUTE));
     public static final Set<Permission> NONE = ImmutableSet.of();
 }

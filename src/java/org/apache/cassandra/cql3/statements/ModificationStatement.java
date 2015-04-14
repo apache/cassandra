@@ -20,7 +20,7 @@ package org.apache.cassandra.cql3.statements;
 import java.nio.ByteBuffer;
 import java.util.*;
 
-import com.google.common.base.Function;
+import com.google.common.base.Predicate;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 
@@ -28,12 +28,12 @@ import org.apache.cassandra.auth.Permission;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.cql3.*;
+import org.apache.cassandra.cql3.functions.Function;
 import org.apache.cassandra.cql3.restrictions.Restriction;
 import org.apache.cassandra.cql3.restrictions.SingleColumnRestriction;
 import org.apache.cassandra.cql3.selection.Selection;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.composites.Composite;
-import org.apache.cassandra.db.composites.Composites;
 import org.apache.cassandra.db.composites.CompositesBuilder;
 import org.apache.cassandra.db.filter.ColumnSlice;
 import org.apache.cassandra.db.filter.SliceQueryFilter;
@@ -47,10 +47,8 @@ import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.utils.Pair;
 
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkFalse;
-
-import static org.apache.cassandra.cql3.statements.RequestValidations.invalidRequest;
-
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkNotNull;
+import static org.apache.cassandra.cql3.statements.RequestValidations.invalidRequest;
 
 /*
  * Abstract parent class of individual modifications, i.e. INSERT, UPDATE and DELETE.
@@ -80,7 +78,8 @@ public abstract class ModificationStatement implements CQLStatement
     private boolean setsStaticColumns;
     private boolean setsRegularColumns;
 
-    private final Function<ColumnCondition, ColumnDefinition> getColumnForCondition = new Function<ColumnCondition, ColumnDefinition>()
+    private final com.google.common.base.Function<ColumnCondition, ColumnDefinition> getColumnForCondition =
+      new com.google.common.base.Function<ColumnCondition, ColumnDefinition>()
     {
         public ColumnDefinition apply(ColumnCondition cond)
         {
@@ -96,23 +95,53 @@ public abstract class ModificationStatement implements CQLStatement
         this.attrs = attrs;
     }
 
-    public boolean usesFunction(String ksName, String functionName)
+    public boolean usesFunction(String ksName, final String functionName)
     {
         if (attrs.usesFunction(ksName, functionName))
             return true;
+
         for (Restriction restriction : processedKeys.values())
-            if (restriction != null && restriction.usesFunction(ksName, functionName))
+            if (restriction.usesFunction(ksName, functionName))
                 return true;
-        for (Operation operation : columnOperations)
-            if (operation != null && operation.usesFunction(ksName, functionName))
-                return true;
-        for (ColumnCondition condition : columnConditions)
-            if (condition != null && condition.usesFunction(ksName, functionName))
-                return true;
-        for (ColumnCondition condition : staticConditions)
-            if (condition != null && condition.usesFunction(ksName, functionName))
-                return true;
+
+        if (columnOperations != null)
+            for (Operation operation : columnOperations)
+                if (operation.usesFunction(ksName, functionName))
+                    return true;
+
+        if (columnConditions != null)
+            for (ColumnCondition condition : columnConditions)
+                if (condition.usesFunction(ksName, functionName))
+                    return true;
+
+        if (staticConditions != null)
+            for (ColumnCondition condition : staticConditions)
+                if (condition.usesFunction(ksName, functionName))
+                    return true;
+
         return false;
+    }
+
+    public Iterable<Function> getFunctions()
+    {
+        Iterable<Function> functions = attrs.getFunctions();
+
+        for (Restriction restriction : processedKeys.values())
+                functions = Iterables.concat(functions, restriction.getFunctions());
+
+        if (columnOperations != null)
+            for (Operation operation : columnOperations)
+                functions = Iterables.concat(functions, operation.getFunctions());
+
+        if (columnConditions != null)
+            for (ColumnCondition condition : columnConditions)
+                functions = Iterables.concat(functions, condition.getFunctions());
+
+        if (staticConditions != null)
+            for (ColumnCondition condition : staticConditions)
+                functions = Iterables.concat(functions, condition.getFunctions());
+
+        return functions;
     }
 
     public abstract boolean requireFullClusteringKey();
@@ -160,6 +189,9 @@ public abstract class ModificationStatement implements CQLStatement
         // CAS updates can be used to simulate a SELECT query, so should require Permission.SELECT as well.
         if (hasConditions())
             state.hasColumnFamilyAccess(keyspace(), columnFamily(), Permission.SELECT);
+
+        for (Function function : getFunctions())
+            state.ensureHasPermission(Permission.EXECUTE, function);
     }
 
     public void validate(ClientState state) throws InvalidRequestException
@@ -302,7 +334,7 @@ public abstract class ModificationStatement implements CQLStatement
             r.appendTo(keyBuilder, options);
         }
 
-        return Lists.transform(keyBuilder.build(), new Function<Composite, ByteBuffer>()
+        return Lists.transform(keyBuilder.build(), new com.google.common.base.Function<Composite, ByteBuffer>()
         {
             @Override
             public ByteBuffer apply(Composite composite)

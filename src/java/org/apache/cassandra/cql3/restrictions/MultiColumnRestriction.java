@@ -21,14 +21,11 @@ import java.nio.ByteBuffer;
 import java.util.*;
 
 import org.apache.cassandra.config.ColumnDefinition;
-import org.apache.cassandra.cql3.AbstractMarker;
-import org.apache.cassandra.cql3.Operator;
-import org.apache.cassandra.cql3.QueryOptions;
-import org.apache.cassandra.cql3.Term;
-import org.apache.cassandra.cql3.Tuples;
+import org.apache.cassandra.cql3.*;
+import org.apache.cassandra.cql3.functions.Function;
 import org.apache.cassandra.cql3.statements.Bound;
 import org.apache.cassandra.db.IndexExpression;
-import org.apache.cassandra.db.composites.*;
+import org.apache.cassandra.db.composites.CompositesBuilder;
 import org.apache.cassandra.db.index.SecondaryIndex;
 import org.apache.cassandra.db.index.SecondaryIndexManager;
 import org.apache.cassandra.exceptions.InvalidRequestException;
@@ -141,6 +138,12 @@ public abstract class MultiColumnRestriction extends AbstractRestriction
         public boolean usesFunction(String ksName, String functionName)
         {
             return usesFunction(value, ksName, functionName);
+        }
+
+        @Override
+        public Iterable<Function> getFunctions()
+        {
+            return value.getFunctions();
         }
 
         @Override
@@ -273,6 +276,12 @@ public abstract class MultiColumnRestriction extends AbstractRestriction
         }
 
         @Override
+        public Iterable<Function> getFunctions()
+        {
+            return Terms.getFunctions(values);
+        }
+
+        @Override
         public String toString()
         {
             return String.format("IN(%s)", values);
@@ -309,6 +318,12 @@ public abstract class MultiColumnRestriction extends AbstractRestriction
         public boolean usesFunction(String ksName, String functionName)
         {
             return false;
+        }
+
+        @Override
+        public Iterable<Function> getFunctions()
+        {
+            return Collections.emptySet();
         }
 
         @Override
@@ -384,6 +399,12 @@ public abstract class MultiColumnRestriction extends AbstractRestriction
         {
             return (slice.hasBound(Bound.START) && usesFunction(slice.bound(Bound.START), ksName, functionName))
                     || (slice.hasBound(Bound.END) && usesFunction(slice.bound(Bound.END), ksName, functionName));
+        }
+
+        @Override
+        public Iterable<Function> getFunctions()
+        {
+            return slice.getFunctions();
         }
 
         @Override

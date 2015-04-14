@@ -187,15 +187,15 @@ public class CassandraRoleManager implements IRoleManager
                                          AuthKeyspace.NAME,
                                          AuthKeyspace.ROLES,
                                          escape(role.getRoleName()),
-                                         options.getSuperuser().get(),
-                                         options.getLogin().get(),
+                                         options.getSuperuser().or(false),
+                                         options.getLogin().or(false),
                                          escape(hashpw(options.getPassword().get())))
                          : String.format("INSERT INTO %s.%s (role, is_superuser, can_login) VALUES ('%s', %s, %s)",
                                          AuthKeyspace.NAME,
                                          AuthKeyspace.ROLES,
                                          escape(role.getRoleName()),
-                                         options.getSuperuser().get(),
-                                         options.getLogin().get());
+                                         options.getSuperuser().or(false),
+                                         options.getLogin().or(false));
         process(insertCql, consistencyForRole(role.getRoleName()));
     }
 

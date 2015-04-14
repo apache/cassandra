@@ -20,12 +20,15 @@ package org.apache.cassandra.cql3.selection;
 import java.nio.ByteBuffer;
 import java.util.*;
 
+import com.google.common.base.Objects;
+import com.google.common.base.Predicate;
+import com.google.common.collect.Iterables;
+import com.google.common.collect.Iterators;
+
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
-import org.apache.cassandra.cql3.ColumnIdentifier;
-import org.apache.cassandra.cql3.ColumnSpecification;
-import org.apache.cassandra.cql3.Json;
-import org.apache.cassandra.cql3.ResultSet;
+import org.apache.cassandra.cql3.*;
+import org.apache.cassandra.cql3.functions.Function;
 import org.apache.cassandra.db.Cell;
 import org.apache.cassandra.db.CounterCell;
 import org.apache.cassandra.db.ExpiringCell;
@@ -33,11 +36,6 @@ import org.apache.cassandra.db.context.CounterContext;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.utils.ByteBufferUtil;
-
-import com.google.common.base.Predicate;
-import com.google.common.base.Objects;
-import com.google.common.collect.Iterables;
-import com.google.common.collect.Iterators;
 
 public abstract class Selection
 {
@@ -179,6 +177,11 @@ public abstract class Selection
     public boolean usesFunction(String ksName, String functionName)
     {
         return false;
+    }
+
+    public Iterable<Function> getFunctions()
+    {
+        return Collections.emptySet();
     }
 
     private static boolean processesSelection(List<RawSelector> rawSelectors)
@@ -483,6 +486,12 @@ public abstract class Selection
         public boolean usesFunction(String ksName, String functionName)
         {
             return factories.usesFunction(ksName, functionName);
+        }
+
+        @Override
+        public Iterable<Function> getFunctions()
+        {
+            return factories.getFunctions();
         }
 
         @Override

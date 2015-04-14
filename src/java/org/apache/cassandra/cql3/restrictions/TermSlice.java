@@ -17,8 +17,13 @@
  */
 package org.apache.cassandra.cql3.restrictions;
 
+import java.util.Collections;
+
+import com.google.common.collect.Iterables;
+
 import org.apache.cassandra.cql3.Operator;
 import org.apache.cassandra.cql3.Term;
+import org.apache.cassandra.cql3.functions.Function;
 import org.apache.cassandra.cql3.statements.Bound;
 import org.apache.cassandra.db.index.SecondaryIndex;
 
@@ -163,5 +168,17 @@ final class TermSlice
                     : index.supportsOperator(Operator.LT);
 
         return supported;
+    }
+
+    public Iterable<Function> getFunctions()
+    {
+        if (hasBound(Bound.START) && hasBound(Bound.END))
+            return Iterables.concat(bound(Bound.START).getFunctions(), bound(Bound.END).getFunctions());
+        else if (hasBound(Bound.START))
+            return bound(Bound.START).getFunctions();
+        else if (hasBound(Bound.END))
+            return bound(Bound.END).getFunctions();
+        else
+            return Collections.emptySet();
     }
 }

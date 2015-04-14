@@ -18,7 +18,11 @@
 package org.apache.cassandra.cql3;
 
 import java.nio.ByteBuffer;
+import java.util.Collections;
 
+import com.google.common.collect.Iterables;
+
+import org.apache.cassandra.cql3.functions.Function;
 import org.apache.cassandra.db.ExpiringCell;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.LongType;
@@ -49,6 +53,18 @@ public class Attributes
     {
         return (timestamp != null && timestamp.usesFunction(ksName, functionName))
             || (timeToLive != null && timeToLive.usesFunction(ksName, functionName));
+    }
+
+    public Iterable<Function> getFunctions()
+    {
+        if (timestamp != null && timeToLive != null)
+            return Iterables.concat(timestamp.getFunctions(), timeToLive.getFunctions());
+        else if (timestamp != null)
+            return timestamp.getFunctions();
+        else if (timeToLive != null)
+            return timeToLive.getFunctions();
+        else
+            return Collections.emptySet();
     }
 
     public boolean isTimestampSet()

@@ -118,16 +118,35 @@ public class UFTest extends CQLTester
 
         Assert.assertEquals(1, Functions.find(parseFunctionName(fSin)).size());
 
-        ResultMessage.Prepared prepared = QueryProcessor.prepare(
+        // create a pairs of Select and Inserts. One statement in each pair uses the function so when we
+        // drop it those statements should be removed from the cache in QueryProcessor. The other statements
+        // should be unaffected.
+
+        ResultMessage.Prepared preparedSelect1 = QueryProcessor.prepare(
                                                     String.format("SELECT key, %s(d) FROM %s.%s", fSin, KEYSPACE, currentTable()),
                                                     ClientState.forInternalCalls(), false);
-        Assert.assertNotNull(QueryProcessor.instance.getPrepared(prepared.statementId));
+        ResultMessage.Prepared preparedSelect2 = QueryProcessor.prepare(
+                                                    String.format("SELECT key FROM %s.%s", KEYSPACE, currentTable()),
+                                                    ClientState.forInternalCalls(), false);
+        ResultMessage.Prepared preparedInsert1 = QueryProcessor.prepare(
+                                                      String.format("INSERT INTO %s.%s (key, d) VALUES (?, %s(?))", KEYSPACE, currentTable(), fSin),
+                                                      ClientState.forInternalCalls(), false);
+        ResultMessage.Prepared preparedInsert2 = QueryProcessor.prepare(
+                                                      String.format("INSERT INTO %s.%s (key, d) VALUES (?, ?)", KEYSPACE, currentTable()),
+                                                      ClientState.forInternalCalls(), false);
+
+        Assert.assertNotNull(QueryProcessor.instance.getPrepared(preparedSelect1.statementId));
+        Assert.assertNotNull(QueryProcessor.instance.getPrepared(preparedSelect2.statementId));
+        Assert.assertNotNull(QueryProcessor.instance.getPrepared(preparedInsert1.statementId));
+        Assert.assertNotNull(QueryProcessor.instance.getPrepared(preparedInsert2.statementId));
 
         execute("DROP FUNCTION " + fSin + "(double);");
 
-        Assert.assertNull(QueryProcessor.instance.getPrepared(prepared.statementId));
-
-        //
+        // the statements which use the dropped function should be removed from cache, with the others remaining
+        Assert.assertNull(QueryProcessor.instance.getPrepared(preparedSelect1.statementId));
+        Assert.assertNotNull(QueryProcessor.instance.getPrepared(preparedSelect2.statementId));
+        Assert.assertNull(QueryProcessor.instance.getPrepared(preparedInsert1.statementId));
+        Assert.assertNotNull(QueryProcessor.instance.getPrepared(preparedInsert2.statementId));
 
         execute("CREATE FUNCTION " + fSin + " ( input double ) " +
                 "RETURNS double " +
@@ -136,14 +155,24 @@ public class UFTest extends CQLTester
 
         Assert.assertEquals(1, Functions.find(fSinName).size());
 
-        prepared = QueryProcessor.prepare(
+        preparedSelect1= QueryProcessor.prepare(
                                          String.format("SELECT key, %s(d) FROM %s.%s", fSin, KEYSPACE, currentTable()),
                                          ClientState.forInternalCalls(), false);
-        Assert.assertNotNull(QueryProcessor.instance.getPrepared(prepared.statementId));
+        preparedInsert1 = QueryProcessor.prepare(
+                                         String.format("INSERT INTO %s.%s (key, d) VALUES (?, %s(?))", KEYSPACE, currentTable(), fSin),
+                                         ClientState.forInternalCalls(), false);
+        Assert.assertNotNull(QueryProcessor.instance.getPrepared(preparedSelect1.statementId));
+        Assert.assertNotNull(QueryProcessor.instance.getPrepared(preparedInsert1.statementId));
 
         dropPerTestKeyspace();
 
-        Assert.assertNull(QueryProcessor.instance.getPrepared(prepared.statementId));
+        // again, only the 2 statements referencing the function should be removed from cache
+        // this time because the statements select from tables in KEYSPACE, only the function
+        // is scoped to KEYSPACE_PER_TEST
+        Assert.assertNull(QueryProcessor.instance.getPrepared(preparedSelect1.statementId));
+        Assert.assertNotNull(QueryProcessor.instance.getPrepared(preparedSelect2.statementId));
+        Assert.assertNull(QueryProcessor.instance.getPrepared(preparedInsert1.statementId));
+        Assert.assertNotNull(QueryProcessor.instance.getPrepared(preparedInsert2.statementId));
     }
 
     @Test

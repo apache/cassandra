@@ -19,11 +19,10 @@ package org.apache.cassandra.cql3.statements;
 
 import java.util.Set;
 
-import org.apache.cassandra.auth.IResource;
-import org.apache.cassandra.auth.Permission;
-import org.apache.cassandra.auth.RoleResource;
+import org.apache.cassandra.auth.*;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.RoleName;
+import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.RequestValidationException;
 import org.apache.cassandra.exceptions.UnauthorizedException;
@@ -52,6 +51,14 @@ public abstract class PermissionsManagementStatement extends AuthorizationStatem
 
         // if a keyspace is omitted when GRANT/REVOKE ON TABLE <table>, we need to correct the resource.
         resource = maybeCorrectResource(resource, state);
+
+        // altering permissions on builtin functions is not supported
+        if (resource instanceof FunctionResource
+            && SystemKeyspace.NAME.equals(((FunctionResource)resource).getKeyspace()))
+        {
+            throw new InvalidRequestException("Altering permissions on builtin functions is not supported");
+        }
+
         if (!resource.exists())
             throw new InvalidRequestException(String.format("Resource %s doesn't exist", resource));
     }

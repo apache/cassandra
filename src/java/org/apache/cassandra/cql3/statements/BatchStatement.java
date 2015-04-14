@@ -21,15 +21,12 @@ import java.nio.ByteBuffer;
 import java.util.*;
 
 import com.google.common.base.Function;
-import com.google.common.collect.*;
-import org.apache.cassandra.config.DatabaseDescriptor;
-
-import org.apache.cassandra.tracing.Tracing;
-
+import com.google.common.collect.Iterables;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.ColumnDefinition;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.composites.Composite;
@@ -37,6 +34,7 @@ import org.apache.cassandra.exceptions.*;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.service.StorageProxy;
+import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.transport.messages.ResultMessage;
 
 /**
@@ -86,6 +84,14 @@ public class BatchStatement implements CQLStatement
             if (statement.usesFunction(ksName, functionName))
                 return true;
         return false;
+    }
+
+    public Iterable<org.apache.cassandra.cql3.functions.Function> getFunctions()
+    {
+        Iterable<org.apache.cassandra.cql3.functions.Function> functions = attrs.getFunctions();
+        for (ModificationStatement statement : statements)
+            functions = Iterables.concat(functions, statement.getFunctions());
+        return functions;
     }
 
     public int getBoundTerms()

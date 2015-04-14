@@ -20,6 +20,9 @@ package org.apache.cassandra.cql3.statements;
 import java.util.ArrayList;
 import java.util.List;
 
+import com.google.common.base.Joiner;
+
+import org.apache.cassandra.auth.FunctionResource;
 import org.apache.cassandra.auth.Permission;
 import org.apache.cassandra.cql3.CQL3Type;
 import org.apache.cassandra.cql3.functions.*;
@@ -43,6 +46,7 @@ public final class DropFunctionStatement extends SchemaAlteringStatement
     private final boolean argsPresent;
 
     private Function old;
+    private List<AbstractType<?>> argTypes;
 
     public DropFunctionStatement(FunctionName functionName,
                                  List<CQL3Type.Raw> argRawTypes,
@@ -53,6 +57,15 @@ public final class DropFunctionStatement extends SchemaAlteringStatement
         this.argRawTypes = argRawTypes;
         this.argsPresent = argsPresent;
         this.ifExists = ifExists;
+    }
+
+    @Override
+    public Prepared prepare() throws InvalidRequestException
+    {
+        argTypes = new ArrayList<>(argRawTypes.size());
+        for (CQL3Type.Raw rawType : argRawTypes)
+            argTypes.add(rawType.prepare(typeKeyspace(rawType)).getType());
+        return super.prepare();
     }
 
     @Override
@@ -70,14 +83,34 @@ public final class DropFunctionStatement extends SchemaAlteringStatement
     @Override
     public void checkAccess(ClientState state) throws UnauthorizedException, InvalidRequestException
     {
-        // TODO CASSANDRA-7557 (function DDL permission)
-
-        state.hasKeyspaceAccess(functionName.keyspace, Permission.DROP);
+        Function function = findFunction();
+        if (function == null)
+        {
+            if (!ifExists)
+                throw new InvalidRequestException(String.format("Unconfigured function %s.%s(%s)",
+                                                                functionName.keyspace,
+                                                                functionName.name,
+                                                                Joiner.on(",").join(argRawTypes)));
+        }
+        else
+        {
+            state.ensureHasPermission(Permission.DROP, FunctionResource.function(function.name().keyspace,
+                                                                                 function.name().name,
+                                                                                 function.argTypes()));
+        }
     }
 
     @Override
     public void validate(ClientState state)
     {
+        List<Function> olds = Functions.find(functionName);
+
+        if (!argsPresent && olds != null && olds.size() > 1)
+            throw new InvalidRequestException(String.format("'DROP FUNCTION %s' matches multiple function definitions; " +
+                                                            "specify the argument types by issuing a statement like " +
+                                                            "'DROP FUNCTION %s (type, type, ...)'. Hint: use cqlsh " +
+                                                            "'DESCRIBE FUNCTION %s' command to find all overloads",
+                                                            functionName, functionName, functionName));
     }
 
     @Override
@@ -90,59 +123,33 @@ public final class DropFunctionStatement extends SchemaAlteringStatement
     @Override
     public boolean announceMigration(boolean isLocalOnly) throws RequestValidationException
     {
-        List<Function> olds = Functions.find(functionName);
-
-        if (!argsPresent && olds != null && olds.size() > 1)
-            throw new InvalidRequestException(String.format("'DROP FUNCTION %s' matches multiple function definitions; " +
-                                                            "specify the argument types by issuing a statement like " +
-                                                            "'DROP FUNCTION %s (type, type, ...)'. Hint: use cqlsh " +
-                                                            "'DESCRIBE FUNCTION %s' command to find all overloads",
-                                                            functionName, functionName, functionName));
-
-        List<AbstractType<?>> argTypes = new ArrayList<>(argRawTypes.size());
-        for (CQL3Type.Raw rawType : argRawTypes)
-            argTypes.add(rawType.prepare(typeKeyspace(rawType)).getType());
-
-        Function old;
-        if (argsPresent)
+        old = findFunction();
+        if (old == null)
         {
-            old = Functions.find(functionName, argTypes);
-            if (old == null || !(old instanceof ScalarFunction))
-            {
-                if (ifExists)
-                    return false;
-                // just build a nicer error message
-                StringBuilder sb = new StringBuilder();
-                for (CQL3Type.Raw rawType : argRawTypes)
-                {
-                    if (sb.length() > 0)
-                        sb.append(", ");
-                    sb.append(rawType);
-                }
-                throw new InvalidRequestException(String.format("Cannot drop non existing function '%s(%s)'",
-                                                                functionName, sb));
-            }
-        }
-        else
-        {
-            if (olds == null || olds.isEmpty() || !(olds.get(0) instanceof ScalarFunction))
-            {
-                if (ifExists)
-                    return false;
-                throw new InvalidRequestException(String.format("Cannot drop non existing function '%s'", functionName));
-            }
-            old = olds.get(0);
+            if (ifExists)
+                return false;
+            else
+                throw new InvalidRequestException(getMissingFunctionError());
         }
 
         List<Function> references = Functions.getReferencesTo(old);
         if (!references.isEmpty())
             throw new InvalidRequestException(String.format("Function '%s' still referenced by %s", old, references));
 
-        this.old = old;
-
         MigrationManager.announceFunctionDrop((UDFunction) old, isLocalOnly);
 
         return true;
+    }
+
+    private String getMissingFunctionError()
+    {
+        // just build a nicer error message
+        StringBuilder sb = new StringBuilder("Cannot drop non existing function '");
+        sb.append(functionName);
+        if (argsPresent)
+            sb.append(Joiner.on(", ").join(argRawTypes));
+        sb.append("'");
+        return sb.toString();
     }
 
     private String typeKeyspace(CQL3Type.Raw rawType)
@@ -151,5 +158,27 @@ public final class DropFunctionStatement extends SchemaAlteringStatement
         if (ks != null)
             return ks;
         return functionName.keyspace;
+    }
+
+    private Function findFunction()
+    {
+        Function old;
+        if (argsPresent)
+        {
+            old = Functions.find(functionName, argTypes);
+            if (old == null || !(old instanceof ScalarFunction))
+            {
+                return null;
+            }
+        }
+        else
+        {
+            List<Function> olds = Functions.find(functionName);
+            if (olds == null || olds.isEmpty() || !(olds.get(0) instanceof ScalarFunction))
+                return null;
+
+            old = olds.get(0);
+        }
+        return old;
     }
 }
