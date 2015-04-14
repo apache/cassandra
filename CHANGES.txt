@@ -1,4 +1,5 @@
 2.0.15:
+ * Fix failed bootstrap/replace attempts being persisted in system.peers (CASSANDRA-9180)
  * Flush system.IndexInfo after marking index built (CASSANDRA-9128)
  * Fix updates to min/max_compaction_threshold through cassandra-cli
    (CASSANDRA-8102)
