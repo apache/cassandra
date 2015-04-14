@@ -75,7 +75,7 @@
  * Use stdout for progress and stats in sstableloader (CASSANDRA-8982)
  * Correctly identify 2i datadir from older versions (CASSANDRA-9116)
 Merged from 2.0:
-2.0.15:
+ * Fix running with java.net.preferIPv6Addresses=true (CASSANDRA-9137)
  * Fix failed bootstrap/replace attempts being persisted in system.peers (CASSANDRA-9180)
  * Flush system.IndexInfo after marking index built (CASSANDRA-9128)
  * Fix updates to min/max_compaction_threshold through cassandra-cli
