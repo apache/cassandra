@@ -38,7 +38,12 @@ public class DropRoleStatement extends AuthenticationStatement
     public void checkAccess(ClientState state) throws UnauthorizedException
     {
         super.checkPermission(state, Permission.DROP, role);
-        if (Roles.hasSuperuserStatus(role) && !state.getUser().isSuper())
+
+        // We only check superuser status for existing roles to avoid
+        // caching info about roles which don't exist (CASSANDRA-9189)
+        if (DatabaseDescriptor.getRoleManager().isExistingRole(role)
+            && Roles.hasSuperuserStatus(role)
+            && !state.getUser().isSuper())
             throw new UnauthorizedException("Only superusers can drop a role with superuser status");
     }
 
