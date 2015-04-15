@@ -72,8 +72,9 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
     static final ApplicationState[] STATES = ApplicationState.values();
     static final List<String> DEAD_STATES = Arrays.asList(VersionedValue.REMOVING_TOKEN, VersionedValue.REMOVED_TOKEN,
                                                           VersionedValue.STATUS_LEFT, VersionedValue.HIBERNATE);
-    static List<String> SILENT_SHUTDOWN_STATES = DEAD_STATES;
+    static ArrayList<String> SILENT_SHUTDOWN_STATES;
     static {
+        SILENT_SHUTDOWN_STATES.addAll(DEAD_STATES);
         SILENT_SHUTDOWN_STATES.add(VersionedValue.STATUS_BOOTSTRAPPING);
     }
 
