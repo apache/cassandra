@@ -191,7 +191,6 @@ public class DataResource implements IResource
     }
 
     /**
-     @Override
      * @return column family of the resource. Throws IllegalStateException if it's not a table-level resource.
      */
     public String getTable()
