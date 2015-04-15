@@ -45,6 +45,7 @@ import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.columniterator.IdentityQueryFilter;
 import org.apache.cassandra.db.filter.*;
+import org.apache.cassandra.db.index.PerRowSecondaryIndexTest;
 import org.apache.cassandra.db.index.SecondaryIndex;
 import org.apache.cassandra.db.marshal.CompositeType;
 import org.apache.cassandra.db.marshal.LexicalUUIDType;
@@ -2171,5 +2172,31 @@ public class ColumnFamilyStoreTest extends SchemaLoader
             }
         });
         System.err.println("Row key: " + rowKey + " Cols: " + transformed);
+    }
+
+    @Test
+    public void testRebuildSecondaryIndex() throws IOException
+    {
+        RowMutation rm;
+
+        rm = new RowMutation("PerRowSecondaryIndex", ByteBufferUtil.bytes("k1"));
+        rm.add("Indexed1", ByteBufferUtil.bytes("indexed"), ByteBufferUtil.bytes("foo"), 1);
+        rm.apply();
+        assertTrue(Arrays.equals("k1".getBytes(), PerRowSecondaryIndexTest.TestIndex.LAST_INDEXED_KEY.array()));
+
+        Keyspace.open("PerRowSecondaryIndex").getColumnFamilyStore("Indexed1").forceBlockingFlush();
+
+        PerRowSecondaryIndexTest.TestIndex.reset();
+
+        ColumnFamilyStore.rebuildSecondaryIndex("PerRowSecondaryIndex", "Indexed1", PerRowSecondaryIndexTest.TestIndex.class.getSimpleName());
+        assertTrue(Arrays.equals("k1".getBytes(), PerRowSecondaryIndexTest.TestIndex.LAST_INDEXED_KEY.array()));
+
+        PerRowSecondaryIndexTest.TestIndex.reset();
+
+        PerRowSecondaryIndexTest.TestIndex.ACTIVE = false;
+        ColumnFamilyStore.rebuildSecondaryIndex("PerRowSecondaryIndex", "Indexed1", PerRowSecondaryIndexTest.TestIndex.class.getSimpleName());
+        assertNull(PerRowSecondaryIndexTest.TestIndex.LAST_INDEXED_KEY);
+
+        PerRowSecondaryIndexTest.TestIndex.reset();
     }
 }
