@@ -1593,7 +1593,7 @@ public class NodeTool
     @Command(name = "getendpoints", description = "Print the end points that owns the key")
     public static class GetEndpoints extends NodeToolCmd
     {
-        @Arguments(usage = "<keyspace> <cfname> <key>", description = "The keyspace, the column family, and the key for which we need to find the endpoint")
+        @Arguments(usage = "<keyspace> <cfname> <key>", description = "The keyspace, the column family, and the partition key for which we need to find the endpoint")
         private List<String> args = new ArrayList<>();
 
         @Override

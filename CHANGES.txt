@@ -1,4 +1,6 @@
 2.1.5
+ * Improve nodetool getendpoints documentation about the partition
+   key parameter (CASSANDRA-6458)
  * Don't check other keyspaces for schema changes when an user-defined
    type is altered (CASSANDRA-9187)
  * Allow takeColumnFamilySnapshot to take a list of tables (CASSANDRA-8348)
