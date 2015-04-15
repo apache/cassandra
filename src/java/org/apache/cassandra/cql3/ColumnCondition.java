@@ -481,7 +481,6 @@ public class ColumnCondition
     static class CollectionBound extends Bound
     {
         private final Term.Terminal value;
-        private final QueryOptions options;
 
         private CollectionBound(ColumnCondition condition, QueryOptions options) throws InvalidRequestException
         {
@@ -489,7 +488,6 @@ public class ColumnCondition
             assert column.type.isCollection() && condition.collectionElement == null;
             assert condition.operator != Operator.IN;
             this.value = condition.value.bind(options);
-            this.options = options;
         }
 
         public boolean appliesTo(Composite rowPrefix, ColumnFamily current, final long now) throws InvalidRequestException
@@ -643,14 +641,12 @@ public class ColumnCondition
     public static class CollectionInBound extends Bound
     {
         private final List<Term.Terminal> inValues;
-        private final QueryOptions options;
 
         private CollectionInBound(ColumnCondition condition, QueryOptions options) throws InvalidRequestException
         {
             super(condition.column, condition.operator);
             assert column.type instanceof CollectionType && condition.collectionElement == null;
             assert condition.operator == Operator.IN;
-            this.options = options;
             inValues = new ArrayList<>();
             if (condition.inValues == null)
             {
