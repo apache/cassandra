@@ -218,7 +218,7 @@ public class CQLSSTableWriter implements Closeable
         {
             for (ByteBuffer key: keys)
             {
-                if (writer.currentKey() == null || !key.equals(writer.currentKey().key))
+                if (writer.shouldStartNewRow() || !key.equals(writer.currentKey().key))
                     writer.newRow(key);
                 insert.addUpdateForKey(writer.currentColumnFamily(), key, clusteringPrefix, params, false);
             }
@@ -532,6 +532,8 @@ public class CQLSSTableWriter implements Closeable
      */
     private static class BufferedWriter extends SSTableSimpleUnsortedWriter
     {
+        private boolean needsSync = false;
+
         public BufferedWriter(File directory, CFMetaData metadata, IPartitioner partitioner, long bufferSizeInMB)
         {
             super(directory, metadata, partitioner, bufferSizeInMB);
@@ -558,6 +560,28 @@ public class CQLSSTableWriter implements Closeable
                     }
                 }
             };
+        }
+
+        @Override
+        protected void replaceColumnFamily() throws IOException
+        {
+            needsSync = true;
+        }
+
+        @Override
+        /**
+         * If we have marked that the column family is being replaced, when we start the next row,
+         * we should sync out the previous partition and create a new row based on the current value.
+         */
+        boolean shouldStartNewRow() throws IOException
+        {
+            if (needsSync)
+            {
+                needsSync = false;
+                super.sync();
+                return true;
+            }
+            return super.shouldStartNewRow();
         }
 
         protected void addColumn(Column column) throws IOException

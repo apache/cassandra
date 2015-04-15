@@ -119,7 +119,7 @@ public class SSTableSimpleUnsortedWriter extends AbstractSSTableSimpleWriter
 
         // We don't want to sync in writeRow() only as this might blow up the bufferSize for wide rows.
         if (currentSize > bufferSize)
-            sync();
+            replaceColumnFamily();
     }
 
     protected ColumnFamily getColumnFamily() throws IOException
@@ -159,7 +159,13 @@ public class SSTableSimpleUnsortedWriter extends AbstractSSTableSimpleWriter
         }
     }
 
-    private void sync() throws IOException
+    // This is overridden by CQLSSTableWriter to hold off replacing column family until the next iteration through
+    protected void replaceColumnFamily() throws IOException
+    {
+        sync();
+    }
+
+    protected void sync() throws IOException
     {
         if (buffer.isEmpty())
             return;
