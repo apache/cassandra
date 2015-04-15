@@ -558,9 +558,16 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
     {
         long sum = 0;
         for (SSTableReader sstable : sstables)
-        {
             sum += sstable.onDiskLength();
-        }
+        return sum;
+    }
+
+    public static long getTotalUncompressedBytes(Iterable<SSTableReader> sstables)
+    {
+        long sum = 0;
+        for (SSTableReader sstable : sstables)
+            sum += sstable.uncompressedLength();
+
         return sum;
     }
 
