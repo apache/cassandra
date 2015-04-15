@@ -64,6 +64,11 @@ class HeartBeatState
         generation += 1;
     }
 
+    void forceHighestPossibleVersionUnsafe()
+    {
+        version = Integer.MAX_VALUE;
+    }
+
     public String toString()
     {
         return String.format("HeartBeat: generation = %d, version = %d", generation, version);

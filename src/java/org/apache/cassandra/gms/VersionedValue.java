@@ -70,6 +70,7 @@ public class VersionedValue implements Comparable<VersionedValue>
     public final static String REMOVED_TOKEN = "removed";
 
     public final static String HIBERNATE = "hibernate";
+    public final static String SHUTDOWN = "shutdown";
 
     // values for ApplicationState.REMOVAL_COORDINATOR
     public final static String REMOVAL_COORDINATOR = "REMOVER";
@@ -206,6 +207,11 @@ public class VersionedValue implements Comparable<VersionedValue>
         public VersionedValue hibernate(boolean value)
         {
             return new VersionedValue(VersionedValue.HIBERNATE + VersionedValue.DELIMITER + value);
+        }
+
+        public VersionedValue shutdown(boolean value)
+        {
+            return new VersionedValue(VersionedValue.SHUTDOWN + VersionedValue.DELIMITER + value);
         }
 
         public VersionedValue datacenter(String dcId)
