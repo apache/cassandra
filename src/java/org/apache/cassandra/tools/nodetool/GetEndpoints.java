@@ -37,12 +37,12 @@ public class GetEndpoints extends NodeToolCmd
     @Override
     public void execute(NodeProbe probe)
     {
-        checkArgument(args.size() == 3, "getendpoints requires ks, cf and key args");
+        checkArgument(args.size() == 3, "getendpoints requires keyspace, table and partition key arguments");
         String ks = args.get(0);
-        String cf = args.get(1);
+        String table = args.get(1);
         String key = args.get(2);
 
-        List<InetAddress> endpoints = probe.getEndpoints(ks, cf, key);
+        List<InetAddress> endpoints = probe.getEndpoints(ks, table, key);
         for (InetAddress endpoint : endpoints)
         {
             System.out.println(endpoint.getHostAddress());
