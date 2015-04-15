@@ -21,6 +21,7 @@ import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
+import java.util.Random;
 import java.util.UUID;
 
 import org.junit.After;
@@ -76,7 +77,9 @@ public class LeveledCompactionStrategyTest extends SchemaLoader
     @Test
     public void testValidationMultipleSSTablePerLevel() throws Exception
     {
-        ByteBuffer value = ByteBuffer.wrap(new byte[100 * 1024]); // 100 KB value, make it easy to have multiple files
+        byte [] b = new byte[100 * 1024];
+        new Random().nextBytes(b);
+        ByteBuffer value = ByteBuffer.wrap(b); // 100 KB value, make it easy to have multiple files
 
         // Enough data to have a level 1 and 2
         int rows = 20;
@@ -98,8 +101,8 @@ public class LeveledCompactionStrategyTest extends SchemaLoader
         waitForLeveling(cfs);
         WrappingCompactionStrategy strategy = (WrappingCompactionStrategy) cfs.getCompactionStrategy();
         // Checking we're not completely bad at math
-        assert strategy.getSSTableCountPerLevel()[1] > 0;
-        assert strategy.getSSTableCountPerLevel()[2] > 0;
+        assertTrue(strategy.getSSTableCountPerLevel()[1] > 0);
+        assertTrue(strategy.getSSTableCountPerLevel()[2] > 0);
 
         Range<Token> range = new Range<>(Util.token(""), Util.token(""));
         int gcBefore = keyspace.getColumnFamilyStore(cfname).gcBefore(System.currentTimeMillis());
@@ -125,7 +128,9 @@ public class LeveledCompactionStrategyTest extends SchemaLoader
     public void testCompactionProgress() throws Exception
     {
         // make sure we have SSTables in L1
-        ByteBuffer value = ByteBuffer.wrap(new byte[100 * 1024]);
+        byte [] b = new byte[100 * 1024];
+        new Random().nextBytes(b);
+        ByteBuffer value = ByteBuffer.wrap(b);
         int rows = 2;
         int columns = 10;
         for (int r = 0; r < rows; r++)
@@ -154,7 +159,7 @@ public class LeveledCompactionStrategyTest extends SchemaLoader
             scanner.next();
 
         // scanner.getCurrentPosition should be equal to total bytes of L1 sstables
-        assert scanner.getCurrentPosition() == SSTableReader.getTotalBytes(sstables);
+        assertEquals(scanner.getCurrentPosition(), SSTableReader.getTotalUncompressedBytes(sstables));
     }
 
     @Test
@@ -206,7 +211,9 @@ public class LeveledCompactionStrategyTest extends SchemaLoader
     @Test
     public void testNewRepairedSSTable() throws Exception
     {
-        ByteBuffer value = ByteBuffer.wrap(new byte[100 * 1024]); // 100 KB value, make it easy to have multiple files
+        byte [] b = new byte[100 * 1024];
+        new Random().nextBytes(b);
+        ByteBuffer value = ByteBuffer.wrap(b); // 100 KB value, make it easy to have multiple files
 
         // Enough data to have a level 1 and 2
         int rows = 20;
