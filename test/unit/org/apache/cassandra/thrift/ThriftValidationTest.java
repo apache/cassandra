@@ -55,9 +55,9 @@ public class ThriftValidationTest
                                     SimpleStrategy.class,
                                     KSMetaData.optsWithRF(1),
                                     SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARD),
-                                    CFMetaData.denseCFMetaData(KEYSPACE1, CF_COUNTER, BytesType.instance).defaultValidator(CounterColumnType.instance),
+                                    SchemaLoader.standardCFMD(KEYSPACE1, CF_COUNTER).defaultValidator(CounterColumnType.instance),
                                     SchemaLoader.standardCFMD(KEYSPACE1, CF_UUID).keyValidator(UUIDType.instance),
-                                    CFMetaData.denseCFMetaData(KEYSPACE1, CF_STANDARDLONG3, IntegerType.instance));
+                                    SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARDLONG3, IntegerType.instance));
     }
     
     @Test(expected=org.apache.cassandra.exceptions.InvalidRequestException.class)

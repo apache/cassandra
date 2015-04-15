@@ -31,6 +31,8 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 
+import org.apache.cassandra.io.compress.CompressionParameters;
+import org.apache.cassandra.io.compress.SnappyCompressor;
 import org.apache.commons.lang3.StringUtils;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -94,7 +96,9 @@ public class ScrubTest
                                     SchemaLoader.standardCFMD(KEYSPACE, CF),
                                     SchemaLoader.standardCFMD(KEYSPACE, CF2),
                                     SchemaLoader.standardCFMD(KEYSPACE, CF3),
-                                    CFMetaData.denseCFMetaData(KEYSPACE, COUNTER_CF, BytesType.instance).defaultValidator(CounterColumnType.instance),
+                                    SchemaLoader.standardCFMD(KEYSPACE, COUNTER_CF)
+                                                .defaultValidator(CounterColumnType.instance)
+                                                .compressionParameters(SchemaLoader.getCompressionParameters()),
                                     SchemaLoader.standardCFMD(KEYSPACE, CF_UUID).keyValidator(UUIDType.instance),
                                     SchemaLoader.indexCFMD(KEYSPACE, CF_INDEX1, true),
                                     SchemaLoader.compositeIndexCFMD(KEYSPACE, CF_INDEX2, true));

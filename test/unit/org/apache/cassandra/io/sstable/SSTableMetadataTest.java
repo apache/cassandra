@@ -69,8 +69,8 @@ public class SSTableMetadataTest
                                     SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARD),
                                     SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARD2),
                                     SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARD3),
-                                    CFMetaData.denseCFMetaData(KEYSPACE1, CF_STANDARDCOMPOSITE2, compositeMaxMin),
-                                    CFMetaData.denseCFMetaData(KEYSPACE1, CF_COUNTER1, BytesType.instance).defaultValidator(CounterColumnType.instance));
+                                    SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARDCOMPOSITE2, compositeMaxMin),
+                                    SchemaLoader.standardCFMD(KEYSPACE1, CF_COUNTER1).defaultValidator(CounterColumnType.instance));
     }
 
     @Test

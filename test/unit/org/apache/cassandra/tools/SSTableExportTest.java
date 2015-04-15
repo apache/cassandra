@@ -81,9 +81,9 @@ public class SSTableExportTest
                                     SimpleStrategy.class,
                                     KSMetaData.optsWithRF(1),
                                     SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARD),
-                                    CFMetaData.denseCFMetaData(KEYSPACE1, CF_COUNTER, BytesType.instance).defaultValidator(CounterColumnType.instance),
+                                    SchemaLoader.standardCFMD(KEYSPACE1, CF_COUNTER).defaultValidator(CounterColumnType.instance),
                                     SchemaLoader.standardCFMD(KEYSPACE1, CF_UUID).keyValidator(UUIDType.instance),
-                                    CFMetaData.denseCFMetaData(KEYSPACE1, CF_VALSWITHQUOTES, BytesType.instance).defaultValidator(UTF8Type.instance),
+                                    SchemaLoader.standardCFMD(KEYSPACE1, CF_VALSWITHQUOTES).defaultValidator(UTF8Type.instance),
                                     SchemaLoader.standardCFMD(KEYSPACE1, "AsciiKeys").keyValidator(AsciiType.instance));
     }
 

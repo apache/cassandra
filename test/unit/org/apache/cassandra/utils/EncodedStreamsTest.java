@@ -58,8 +58,8 @@ public class EncodedStreamsTest
                                 SimpleStrategy.class,
                                 KSMetaData.optsWithRF(1),
                                 SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARD),
-                                CFMetaData.denseCFMetaData(KEYSPACE1, CF_COUNTER, BytesType.instance)
-                                          .defaultValidator(CounterColumnType.instance));
+                                SchemaLoader.standardCFMD(KEYSPACE1, CF_COUNTER)
+                                            .defaultValidator(CounterColumnType.instance));
     }
 
     @Test

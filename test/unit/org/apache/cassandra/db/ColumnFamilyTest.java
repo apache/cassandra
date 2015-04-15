@@ -67,8 +67,8 @@ public class ColumnFamilyTest
                                     SimpleStrategy.class,
                                     KSMetaData.optsWithRF(1),
                                     SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARD1),
-                                    CFMetaData.denseCFMetaData(KEYSPACE1, CF_COUNTER1, BytesType.instance)
-                                              .defaultValidator(CounterColumnType.instance));
+                                    SchemaLoader.standardCFMD(KEYSPACE1, CF_COUNTER1)
+                                                .defaultValidator(CounterColumnType.instance));
     }
 
     // TODO test SuperColumns more

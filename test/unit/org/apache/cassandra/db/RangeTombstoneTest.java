@@ -76,7 +76,7 @@ public class RangeTombstoneTest
         SchemaLoader.createKeyspace(KSNAME,
                                     SimpleStrategy.class,
                                     KSMetaData.optsWithRF(1),
-                                    CFMetaData.denseCFMetaData(KSNAME, CFNAME, IntegerType.instance));
+                                    SchemaLoader.standardCFMD(KSNAME, CFNAME, IntegerType.instance));
     }
 
     @Test

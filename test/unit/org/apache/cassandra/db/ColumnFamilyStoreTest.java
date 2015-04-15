@@ -146,7 +146,7 @@ public class ColumnFamilyStoreTest
                                     SchemaLoader.indexCFMD(KEYSPACE1, CF_INDEX2, false),
                                     SchemaLoader.superCFMD(KEYSPACE1, CF_SUPER1, LongType.instance),
                                     SchemaLoader.superCFMD(KEYSPACE1, CF_SUPER6, LexicalUUIDType.instance, UTF8Type.instance),
-                                    CFMetaData.denseCFMetaData(KEYSPACE1, CF_STANDARDINT, IntegerType.instance));
+                                    SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARDINT, IntegerType.instance));
         SchemaLoader.createKeyspace(KEYSPACE2,
                                     SimpleStrategy.class,
                                     KSMetaData.optsWithRF(1),

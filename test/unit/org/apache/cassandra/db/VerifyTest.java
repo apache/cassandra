@@ -92,12 +92,12 @@ public class VerifyTest
                                     SchemaLoader.standardCFMD(KEYSPACE, CF4),
                                     SchemaLoader.standardCFMD(KEYSPACE, CORRUPT_CF),
                                     SchemaLoader.standardCFMD(KEYSPACE, CORRUPT_CF2),
-                                    CFMetaData.denseCFMetaData(KEYSPACE, COUNTER_CF, BytesType.instance).defaultValidator(CounterColumnType.instance).compressionParameters(compressionParameters),
-                                    CFMetaData.denseCFMetaData(KEYSPACE, COUNTER_CF2, BytesType.instance).defaultValidator(CounterColumnType.instance).compressionParameters(compressionParameters),
-                                    CFMetaData.denseCFMetaData(KEYSPACE, COUNTER_CF3, BytesType.instance).defaultValidator(CounterColumnType.instance),
-                                    CFMetaData.denseCFMetaData(KEYSPACE, COUNTER_CF4, BytesType.instance).defaultValidator(CounterColumnType.instance),
-                                    CFMetaData.denseCFMetaData(KEYSPACE, CORRUPTCOUNTER_CF, BytesType.instance).defaultValidator(CounterColumnType.instance),
-                                    CFMetaData.denseCFMetaData(KEYSPACE, CORRUPTCOUNTER_CF2, BytesType.instance).defaultValidator(CounterColumnType.instance),
+                                    SchemaLoader.standardCFMD(KEYSPACE, COUNTER_CF, BytesType.instance).defaultValidator(CounterColumnType.instance).compressionParameters(compressionParameters),
+                                    SchemaLoader.standardCFMD(KEYSPACE, COUNTER_CF2, BytesType.instance).defaultValidator(CounterColumnType.instance).compressionParameters(compressionParameters),
+                                    SchemaLoader.standardCFMD(KEYSPACE, COUNTER_CF3, BytesType.instance).defaultValidator(CounterColumnType.instance),
+                                    SchemaLoader.standardCFMD(KEYSPACE, COUNTER_CF4, BytesType.instance).defaultValidator(CounterColumnType.instance),
+                                    SchemaLoader.standardCFMD(KEYSPACE, CORRUPTCOUNTER_CF, BytesType.instance).defaultValidator(CounterColumnType.instance),
+                                    SchemaLoader.standardCFMD(KEYSPACE, CORRUPTCOUNTER_CF2, BytesType.instance).defaultValidator(CounterColumnType.instance),
                                     SchemaLoader.standardCFMD(KEYSPACE, CF_UUID).keyValidator(UUIDType.instance));
     }
 

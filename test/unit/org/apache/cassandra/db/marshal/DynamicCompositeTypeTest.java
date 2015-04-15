@@ -72,7 +72,7 @@ public class DynamicCompositeTypeTest
         SchemaLoader.createKeyspace(KEYSPACE1,
                                     SimpleStrategy.class,
                                     KSMetaData.optsWithRF(1),
-                                    CFMetaData.denseCFMetaData(KEYSPACE1, CF_STANDARDDYNCOMPOSITE, dynamicComposite));
+                                    SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARDDYNCOMPOSITE, dynamicComposite));
     }
 
     @Test
