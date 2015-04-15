@@ -37,12 +37,10 @@ import javax.management.ObjectName;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Predicate;
 import com.google.common.collect.*;
-import com.google.common.util.concurrent.AtomicDouble;
 import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.Uninterruptibles;
 
-import org.apache.cassandra.cql3.CQL3Type;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.log4j.Level;
 import org.apache.log4j.LogManager;
@@ -205,11 +203,16 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         SystemKeyspace.updateTokens(tokens);
         tokenMetadata.updateNormalTokens(tokens, FBUtilities.getBroadcastAddress());
         Collection<Token> localTokens = getLocalTokens();
-        List<Pair<ApplicationState, VersionedValue>> states = new ArrayList<Pair<ApplicationState, VersionedValue>>();
-        states.add(Pair.create(ApplicationState.TOKENS, valueFactory.tokens(localTokens)));
-        states.add(Pair.create(ApplicationState.STATUS, valueFactory.normal(localTokens)));
-        Gossiper.instance.addLocalApplicationStates(states);
+        setGossipTokens(localTokens);
         setMode(Mode.NORMAL, false);
+    }
+
+    public void setGossipTokens(Collection<Token> tokens)
+    {
+        List<Pair<ApplicationState, VersionedValue>> states = new ArrayList<Pair<ApplicationState, VersionedValue>>();
+        states.add(Pair.create(ApplicationState.TOKENS, valueFactory.tokens(tokens)));
+        states.add(Pair.create(ApplicationState.STATUS, valueFactory.normal(tokens)));
+        Gossiper.instance.addLocalApplicationStates(states);
     }
 
     public StorageService()
@@ -289,6 +292,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         if (!initialized)
         {
             logger.warn("Starting gossip by operator request");
+            setGossipTokens(getLocalTokens());
+            Gossiper.instance.forceNewerGeneration();
             Gossiper.instance.start((int) (System.currentTimeMillis() / 1000));
             initialized = true;
         }
@@ -1346,7 +1351,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
             if (moveName.equals(VersionedValue.STATUS_BOOTSTRAPPING))
                 handleStateBootstrap(endpoint, pieces);
-            else if (moveName.equals(VersionedValue.STATUS_NORMAL))
+            else if (moveName.equals(VersionedValue.STATUS_NORMAL) || moveName.equals(VersionedValue.SHUTDOWN))
                 handleStateNormal(endpoint, pieces);
             else if (moveName.equals(VersionedValue.REMOVING_TOKEN) || moveName.equals(VersionedValue.REMOVED_TOKEN))
                 handleStateRemoving(endpoint, pieces);
