@@ -299,7 +299,7 @@ public class DateTieredCompactionStrategyTest extends SchemaLoader
         // create 2 sstables
         DecoratedKey key = Util.dk(String.valueOf("expired"));
         Mutation rm = new Mutation(KEYSPACE1, key.getKey());
-        rm.add(CF_STANDARD1, Util.cellname("column"), value, System.currentTimeMillis(), 5);
+        rm.add(CF_STANDARD1, Util.cellname("column"), value, System.currentTimeMillis(), 1);
         rm.apply();
         cfs.forceBlockingFlush();
         SSTableReader expiredSSTable = cfs.getSSTables().iterator().next();
@@ -321,12 +321,13 @@ public class DateTieredCompactionStrategyTest extends SchemaLoader
             dtcs.addSSTable(sstable);
         dtcs.startup();
         assertNull(dtcs.getNextBackgroundTask((int) (System.currentTimeMillis() / 1000)));
-        Thread.sleep(7000);
+        Thread.sleep(2000);
         AbstractCompactionTask t = dtcs.getNextBackgroundTask((int) (System.currentTimeMillis()/1000));
         assertNotNull(t);
         assertEquals(1, Iterables.size(t.sstables));
         SSTableReader sstable = t.sstables.iterator().next();
         assertEquals(sstable, expiredSSTable);
+        cfs.getDataTracker().unmarkCompacting(cfs.getSSTables());
     }
 
 }
