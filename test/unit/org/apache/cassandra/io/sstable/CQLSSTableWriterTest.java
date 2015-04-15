@@ -147,10 +147,12 @@ public class CQLSSTableWriterTest
         File dataDir = new File(tempdir.getAbsolutePath() + File.separator + KS + File.separator + TABLE);
         assert dataDir.mkdirs();
         String schema = "CREATE TABLE ks.test ("
-                      + "  k int PRIMARY KEY,"
-                      + "  v blob"
+                      + "  k int,"
+                      + "  c int,"
+                      + "  v blob,"
+                      + "  PRIMARY KEY (k,c)"
                       + ")";
-        String insert = "INSERT INTO ks.test (k, v) VALUES (?, ?)";
+        String insert = "INSERT INTO ks.test (k, c, v) VALUES (?, ?, ?)";
         CQLSSTableWriter writer = CQLSSTableWriter.builder()
                                                   .inDirectory(dataDir)
                                                   .forTable(schema)
@@ -161,8 +163,8 @@ public class CQLSSTableWriterTest
 
         ByteBuffer val = ByteBuffer.allocate(1024 * 1050);
 
-        writer.addRow(0, val);
-        writer.addRow(1, val);
+        writer.addRow(0, 0, val);
+        writer.addRow(0, 1, val);
         writer.close();
 
         FilenameFilter filterDataFiles = new FilenameFilter()
