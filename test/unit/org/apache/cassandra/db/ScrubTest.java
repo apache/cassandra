@@ -56,6 +56,7 @@ import static org.apache.cassandra.Util.cellname;
 import static org.apache.cassandra.Util.column;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.fail;
+import static org.junit.Assume.assumeTrue;
 
 @RunWith(OrderedJUnit4ClassRunner.class)
 public class ScrubTest extends SchemaLoader
@@ -90,6 +91,9 @@ public class ScrubTest extends SchemaLoader
     @Test
     public void testScrubCorruptedCounterRow() throws IOException, WriteTimeoutException
     {
+        // skip the test when compression is enabled until CASSANDRA-9140 is complete
+        assumeTrue(!Boolean.parseBoolean(System.getProperty("cassandra.test.compression", "false")));
+
         CompactionManager.instance.disableAutoCompaction();
         Keyspace keyspace = Keyspace.open(KEYSPACE);
         ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(COUNTER_CF);
