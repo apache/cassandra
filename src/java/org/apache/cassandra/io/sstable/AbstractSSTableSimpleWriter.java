@@ -188,6 +188,15 @@ public abstract class AbstractSSTableSimpleWriter implements Closeable
         return currentKey;
     }
 
+    /**
+     * Package protected for use by AbstractCQLSSTableWriter.
+     * Not meant to be exposed publicly.
+     */
+    boolean shouldStartNewRow() throws IOException
+    {
+        return currentKey == null;
+    }
+
     protected abstract void writeRow(DecoratedKey key, ColumnFamily columnFamily) throws IOException;
 
     protected abstract ColumnFamily getColumnFamily() throws IOException;
