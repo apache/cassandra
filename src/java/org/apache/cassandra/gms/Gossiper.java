@@ -75,7 +75,6 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
     static List<String> SILENT_SHUTDOWN_STATES = DEAD_STATES;
     static {
         SILENT_SHUTDOWN_STATES.add(VersionedValue.STATUS_BOOTSTRAPPING);
-        SILENT_SHUTDOWN_STATES.add(VersionedValue.STATUS_LEFT);
     }
 
     private ScheduledFuture<?> scheduledGossipTask;
