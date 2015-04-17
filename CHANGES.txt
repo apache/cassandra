@@ -1,4 +1,5 @@
 2.0.15:
+ * Don't initiate snitch reconnection for dead states (CASSANDRA-7292)
  * Fix ArrayIndexOutOfBoundsException in CQLSSTableWriter (CASSANDRA-8978)
  * Add shutdown gossip state to prevent timeouts during rolling restarts (CASSANDRA-8336)
  * Fix running with java.net.preferIPv6Addresses=true (CASSANDRA-9137)
