@@ -44,7 +44,7 @@ import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
 
-public class CFMetaDataTest
+public class LegacySchemaTablesTest
 {
     private static final String KEYSPACE1 = "CFMetaDataTest1";
     private static final String CF_STANDARD1 = "Standard1";

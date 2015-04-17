@@ -50,7 +50,7 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 
 @RunWith(OrderedJUnit4ClassRunner.class)
-public class LegacySchemaTablesTest
+public class DefsTest
 {
     private static final String KEYSPACE1 = "Keyspace1";
     private static final String KEYSPACE3 = "Keyspace3";
