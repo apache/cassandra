@@ -21,10 +21,7 @@ package org.apache.cassandra.locator;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 
-import org.apache.cassandra.gms.ApplicationState;
-import org.apache.cassandra.gms.EndpointState;
-import org.apache.cassandra.gms.IEndpointStateChangeSubscriber;
-import org.apache.cassandra.gms.VersionedValue;
+import org.apache.cassandra.gms.*;
 import org.apache.cassandra.net.MessagingService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -78,13 +75,13 @@ public class ReconnectableSnitchHelper implements IEndpointStateChangeSubscriber
 
     public void onJoin(InetAddress endpoint, EndpointState epState)
     {
-        if (preferLocal && epState.getApplicationState(ApplicationState.INTERNAL_IP) != null)
+        if (preferLocal && !Gossiper.instance.isDeadState(epState) && epState.getApplicationState(ApplicationState.INTERNAL_IP) != null)
             reconnect(endpoint, epState.getApplicationState(ApplicationState.INTERNAL_IP));
     }
 
     public void onChange(InetAddress endpoint, ApplicationState state, VersionedValue value)
     {
-        if (preferLocal && state == ApplicationState.INTERNAL_IP)
+        if (preferLocal && !Gossiper.instance.isDeadState(epState) && state == ApplicationState.INTERNAL_IP)
             reconnect(endpoint, value);
     }
 
