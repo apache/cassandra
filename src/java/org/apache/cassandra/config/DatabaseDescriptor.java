@@ -1274,11 +1274,6 @@ public class DatabaseDescriptor
         conf.commitlog_sync_period_in_ms = periodMillis;
     }
 
-    public static int getCommitLogPeriodicQueueSize()
-    {
-        return conf.commitlog_periodic_queue_size;
-    }
-
     public static Config.CommitLogSync getCommitLogSync()
     {
         return conf.commitlog_sync;
