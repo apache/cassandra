@@ -68,6 +68,8 @@ import static org.junit.Assert.*;
 
 import static org.apache.cassandra.Util.cellname;
 import static org.apache.cassandra.Util.column;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.fail;
 import static org.junit.Assume.assumeTrue;
 
 @RunWith(OrderedJUnit4ClassRunner.class)

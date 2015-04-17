@@ -1193,21 +1193,29 @@ public class CompactionManager implements CompactionManagerMBean
 
             CompactionIterable ci = new CompactionIterable(OperationType.ANTICOMPACTION, scanners.scanners, controller, DatabaseDescriptor.getSSTableFormat());
             Iterator<AbstractCompactedRow> iter = ci.iterator();
-            while(iter.hasNext())
+            metrics.beginCompaction(ci);
+            try
             {
-                AbstractCompactedRow row = iter.next();
-                // if current range from sstable is repaired, save it into the new repaired sstable
-                if (Range.isInRanges(row.key.getToken(), ranges))
+                while (iter.hasNext())
                 {
-                    repairedSSTableWriter.append(row);
-                    repairedKeyCount++;
+                    AbstractCompactedRow row = iter.next();
+                    // if current range from sstable is repaired, save it into the new repaired sstable
+                    if (Range.isInRanges(row.key.getToken(), ranges))
+                    {
+                        repairedSSTableWriter.append(row);
+                        repairedKeyCount++;
+                    }
+                    // otherwise save into the new 'non-repaired' table
+                    else
+                    {
+                        unRepairedSSTableWriter.append(row);
+                        unrepairedKeyCount++;
+                    }
                 }
-                // otherwise save into the new 'non-repaired' table
-                else
-                {
-                    unRepairedSSTableWriter.append(row);
-                    unrepairedKeyCount++;
-                }
+            }
+            finally
+            {
+                metrics.finishCompaction(ci);
             }
             // we have the same readers being rewritten by both writers, so we ask the first one NOT to close them
             // so that the second one can do so safely, without leaving us with references < 0 or any other ugliness

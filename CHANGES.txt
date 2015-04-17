@@ -95,6 +95,7 @@
  * Save repair data to system table (CASSANDRA-5839)
 
 2.1.5
+ * Make anticompaction visible in compactionstats (CASSANDRA-9098)
  * Improve nodetool getendpoints documentation about the partition
    key parameter (CASSANDRA-6458)
  * Don't check other keyspaces for schema changes when an user-defined
