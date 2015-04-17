@@ -140,11 +140,11 @@ public class SigarLibrary
             long swapSize = swap.getTotal();
             if (swapSize > 0)
             {
-                return false;
+                return true;
             }
             else
             {
-                return true;
+                return false;
             }
         }
         catch (SigarException sigarException)
