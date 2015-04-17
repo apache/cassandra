@@ -1,4 +1,5 @@
 2.1.5
+ * Re-add deprecated cold_reads_to_omit param for backwards compat (CASSANDRA-9203)
  * Make anticompaction visible in compactionstats (CASSANDRA-9098)
  * Improve nodetool getendpoints documentation about the partition
    key parameter (CASSANDRA-6458)

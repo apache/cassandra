@@ -29,6 +29,8 @@ public final class SizeTieredCompactionStrategyOptions
     protected static final String MIN_SSTABLE_SIZE_KEY = "min_sstable_size";
     protected static final String BUCKET_LOW_KEY = "bucket_low";
     protected static final String BUCKET_HIGH_KEY = "bucket_high";
+    @Deprecated
+    protected static final String COLD_READS_TO_OMIT_KEY = "cold_reads_to_omit";
 
     protected long minSSTableSize;
     protected double bucketLow;
@@ -91,6 +93,7 @@ public final class SizeTieredCompactionStrategyOptions
         uncheckedOptions.remove(MIN_SSTABLE_SIZE_KEY);
         uncheckedOptions.remove(BUCKET_LOW_KEY);
         uncheckedOptions.remove(BUCKET_HIGH_KEY);
+        uncheckedOptions.remove(COLD_READS_TO_OMIT_KEY);
 
         return uncheckedOptions;
     }
