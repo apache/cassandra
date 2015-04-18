@@ -247,7 +247,10 @@ public class AlterTableStatement extends SchemaAlteringStatement
                         for (ColumnDefinition columnDef : cfm.regularAndStaticColumns())
                         {
                             if (columnDef.name.equals(columnName))
+                            {
                                 toDelete = columnDef;
+                                break;
+                            }
                         }
                         assert toDelete != null;
                         cfm.removeColumnDefinition(toDelete);
