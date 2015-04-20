@@ -93,6 +93,7 @@
  * Resumable bootstrap streaming (CASSANDRA-8838, CASSANDRA-8942)
  * Allow scrub for secondary index (CASSANDRA-5174)
  * Save repair data to system table (CASSANDRA-5839)
+ * fix nodetool names that reference column families (CASSANDRA-8872)
 
 2.1.5
  * Make anticompaction visible in compactionstats (CASSANDRA-9098)
