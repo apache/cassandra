@@ -78,6 +78,8 @@ import org.apache.cassandra.io.util.FileUtils;
 public class ByteBufferUtil
 {
     public static final ByteBuffer EMPTY_BYTE_BUFFER = ByteBuffer.wrap(new byte[0]);
+    /** Represents an unset value in bound variables */
+    public static final ByteBuffer UNSET_BYTE_BUFFER = ByteBuffer.wrap(new byte[]{});
 
     @Inline
     public static int compareUnsigned(ByteBuffer o1, ByteBuffer o2)
@@ -560,4 +562,5 @@ public class ByteBufferUtil
         int length = readShortLength(bb);
         return readBytes(bb, length);
     }
+
 }

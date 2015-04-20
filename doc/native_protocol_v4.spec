@@ -206,6 +206,11 @@ Table of Contents
     [string list]  A [short] n, followed by n [string].
     [bytes]        A [int] n, followed by n bytes if n >= 0. If n < 0,
                    no byte should follow and the value represented is `null`.
+    [value]        A [int] n, followed by n bytes if n >= 0.
+                   If n == -1 no byte should follow and the value represented is `null`.
+                   If n == -2 no byte should follow and the value represented is
+                   `not set` not resulting in any change to the existing value.
+                   n < -2 is an invalid value and results in an error.
     [short bytes]  A [short] n, followed by n bytes if n >= 0.
 
     [option]       A pair of <id><value> where <id> is a [short] representing
@@ -306,7 +311,7 @@ Table of Contents
       in particular influence what the remainder of the message contains.
       A flag is set if the bit corresponding to its `mask` is set. Supported
       flags are, given there mask:
-        0x01: Values. In that case, a [short] <n> followed by <n> [bytes]
+        0x01: Values. In that case, a [short] <n> followed by <n> [value]
               values are provided. Those value are used for bound variables in
               the query. Optionally, if the 0x40 flag is present, each value
               will be preceded by a [string] name, representing the name of
@@ -418,7 +423,7 @@ Table of Contents
        - <n> is a [short] indicating the number (possibly 0) of following values.
        - <name_i> is the optional name of the following <value_i>. It must be present
          if and only if the 0x40 flag is provided for the batch.
-       - <value_i> is the [bytes] to use for bound variable i (of bound variable <name_i>
+       - <value_i> is the [value] to use for bound variable i (of bound variable <name_i>
          if the 0x40 flag is used).
     - <consistency> is the [consistency] level for the operation.
     - <serial_consistency> is only present if the 0x10 flag is set. In that case,

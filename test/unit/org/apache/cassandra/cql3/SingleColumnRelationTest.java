@@ -125,7 +125,7 @@ public class SingleColumnRelationTest extends CQLTester
                    row("first", 2, 6, 2),
                    row("first", 3, 7, 3));
 
-        assertInvalidMessage("Invalid null value for IN restriction",
+        assertInvalidMessage("Invalid null value for column b",
                              "select * from %s where a = ? and b in ? and c in ?", "first", null, Arrays.asList(7, 6));
 
         assertRows(execute("select * from %s where a = ? and c >= ? and b in (?, ?)", "first", 6, 3, 2),
@@ -504,5 +504,50 @@ public class SingleColumnRelationTest extends CQLTester
                              "SELECT * FROM %s WHERE a = ? AND c = ? AND d >= ? AND f = ?", 0, 1, 1, 5);
         assertRows(execute("SELECT * FROM %s WHERE a = ? AND c = ? AND d >= ? AND f = ? ALLOW FILTERING", 0, 1, 1, 5),
                    row(0, 0, 1, 1, 1, 5));
+    }
+
+    @Test
+    public void testFunctionCallWithUnset() throws Throwable
+    {
+        createTable("CREATE TABLE %s (k int PRIMARY KEY, s text, i int)");
+
+        assertInvalidMessage("Invalid unset value for argument in call to function token",
+                             "SELECT * FROM %s WHERE token(k) >= token(?)", unset());
+        assertInvalidMessage("Invalid unset value for argument in call to function blobasint",
+                             "SELECT * FROM %s WHERE k = blobAsInt(?)", unset());
+    }
+
+    @Test
+    public void testLimitWithUnset() throws Throwable
+    {
+        createTable("CREATE TABLE %s (k int PRIMARY KEY, i int)");
+        execute("INSERT INTO %s (k, i) VALUES (1, 1)");
+        execute("INSERT INTO %s (k, i) VALUES (2, 1)");
+        assertRows(execute("SELECT k FROM %s LIMIT ?", unset()), // treat as 'unlimited'
+                row(1),
+                row(2)
+        );
+    }
+
+    @Test
+    public void testWithUnsetValues() throws Throwable
+    {
+        createTable("CREATE TABLE %s (k int, i int, j int, s text, PRIMARY KEY(k,i,j))");
+        createIndex("CREATE INDEX s_index ON %s (s)");
+        // partition key
+        assertInvalidMessage("Invalid unset value for column k", "SELECT * from %s WHERE k = ?", unset());
+        assertInvalidMessage("Invalid unset value for column k", "SELECT * from %s WHERE k IN ?", unset());
+        assertInvalidMessage("Invalid unset value for column k", "SELECT * from %s WHERE k IN(?)", unset());
+        assertInvalidMessage("Invalid unset value for column k", "SELECT * from %s WHERE k IN(?,?)", 1, unset());
+        // clustering column
+        assertInvalidMessage("Invalid unset value for column i", "SELECT * from %s WHERE k = 1 AND i = ?", unset());
+        assertInvalidMessage("Invalid unset value for column i", "SELECT * from %s WHERE k = 1 AND i IN ?", unset());
+        assertInvalidMessage("Invalid unset value for column i", "SELECT * from %s WHERE k = 1 AND i IN(?)", unset());
+        assertInvalidMessage("Invalid unset value for column i", "SELECT * from %s WHERE k = 1 AND i IN(?,?)", 1, unset());
+        assertInvalidMessage("Invalid unset value for column i", "SELECT * from %s WHERE i = ? ALLOW FILTERING", unset());
+        // indexed column
+        assertInvalidMessage("Unsupported unset value for indexed column s", "SELECT * from %s WHERE s = ?", unset());
+        // range
+        assertInvalidMessage("Invalid unset value for column i", "SELECT * from %s WHERE k = 1 AND i > ?", unset());
     }
 }

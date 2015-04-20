@@ -47,7 +47,7 @@ public class ExecuteMessage extends Message.Request
             byte[] id = CBUtil.readBytes(body);
             if (version == 1)
             {
-                List<ByteBuffer> values = CBUtil.readValueList(body);
+                List<ByteBuffer> values = CBUtil.readValueList(body, version);
                 ConsistencyLevel consistency = CBUtil.readConsistencyLevel(body);
                 return new ExecuteMessage(MD5Digest.wrap(id), QueryOptions.fromProtocolV1(consistency, values));
             }

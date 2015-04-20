@@ -60,6 +60,7 @@ import org.apache.cassandra.service.pager.QueryPagers;
 import org.apache.cassandra.thrift.ThriftClientState;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.transport.messages.ResultMessage;
+import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.MD5Digest;
 import org.apache.cassandra.utils.SemanticVersion;
@@ -192,6 +193,8 @@ public class QueryProcessor implements QueryHandler
         {
             throw new InvalidRequestException("Key may not be empty");
         }
+        if (key == ByteBufferUtil.UNSET_BYTE_BUFFER)
+            throw new InvalidRequestException("Key may not be unset");
 
         // check that key can be handled by FBUtilities.writeShortByteArray
         if (key.remaining() > FBUtilities.MAX_UNSIGNED_SHORT)

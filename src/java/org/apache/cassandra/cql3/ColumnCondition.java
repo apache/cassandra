@@ -189,6 +189,8 @@ public class ColumnCondition
         /** Returns true if the operator is satisfied (i.e. "value operator otherValue == true"), false otherwise. */
         protected boolean compareWithOperator(Operator operator, AbstractType<?> type, ByteBuffer value, ByteBuffer otherValue) throws InvalidRequestException
         {
+            if (value == ByteBufferUtil.UNSET_BYTE_BUFFER)
+                throw new InvalidRequestException("Invalid 'unset' value in condition");
             if (value == null)
             {
                 switch (operator)
@@ -278,7 +280,7 @@ public class ColumnCondition
             assert !(column.type instanceof CollectionType) && condition.collectionElement == null;
             assert condition.operator == Operator.IN;
             if (condition.inValues == null)
-                this.inValues = ((Lists.Marker) condition.value).bind(options).getElements();
+                this.inValues = ((Lists.Value) condition.value.bind(options)).getElements();
             else
             {
                 this.inValues = new ArrayList<>(condition.inValues.size());
@@ -389,7 +391,7 @@ public class ColumnCondition
             this.collectionElement = condition.collectionElement.bindAndGet(options);
 
             if (condition.inValues == null)
-                this.inValues = ((Lists.Marker) condition.value).bind(options).getElements();
+                this.inValues = ((Lists.Value) condition.value.bind(options)).getElements();
             else
             {
                 this.inValues = new ArrayList<>(condition.inValues.size());
@@ -656,7 +658,7 @@ public class ColumnCondition
                 if (column.type instanceof ListType)
                 {
                     ListType deserializer = ListType.getInstance(collectionType.valueComparator(), false);
-                    for (ByteBuffer buffer : inValuesMarker.bind(options).elements)
+                    for (ByteBuffer buffer : ((Lists.Value)inValuesMarker.bind(options)).elements)
                     {
                         if (buffer == null)
                             this.inValues.add(null);
@@ -667,7 +669,7 @@ public class ColumnCondition
                 else if (column.type instanceof MapType)
                 {
                     MapType deserializer = MapType.getInstance(collectionType.nameComparator(), collectionType.valueComparator(), false);
-                    for (ByteBuffer buffer : inValuesMarker.bind(options).elements)
+                    for (ByteBuffer buffer : ((Lists.Value)inValuesMarker.bind(options)).elements)
                     {
                         if (buffer == null)
                             this.inValues.add(null);
@@ -678,7 +680,7 @@ public class ColumnCondition
                 else if (column.type instanceof SetType)
                 {
                     SetType deserializer = SetType.getInstance(collectionType.valueComparator(), false);
-                    for (ByteBuffer buffer : inValuesMarker.bind(options).elements)
+                    for (ByteBuffer buffer : ((Lists.Value)inValuesMarker.bind(options)).elements)
                     {
                         if (buffer == null)
                             this.inValues.add(null);

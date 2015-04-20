@@ -17,11 +17,13 @@
  */
 package org.apache.cassandra.cql3.statements;
 
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 
 import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.utils.ByteBufferUtil;
 
 import static org.apache.commons.lang3.ArrayUtils.EMPTY_OBJECT_ARRAY;
 
@@ -137,6 +139,21 @@ public final class RequestValidations
     {
         checkTrue(object != null, messageTemplate, messageArgs);
         return object;
+    }
+
+    /**
+     * Checks that the specified bind marker value is set to a meaningful value.
+     * If it is not a <code>InvalidRequestException</code> will be thrown.
+     *
+     * @param b the <code>ByteBuffer</code> to test
+     * @param messageTemplate the template used to build the error message
+     * @param messageArgs the message arguments
+     * @throws InvalidRequestException if the specified bind marker value is not set to a meaningful value.
+     */
+    public static void checkBindValueSet(ByteBuffer b, String messageTemplate, Object... messageArgs)
+            throws InvalidRequestException
+    {
+        checkTrue(b != ByteBufferUtil.UNSET_BYTE_BUFFER, messageTemplate, messageArgs);
     }
 
     /**

@@ -911,4 +911,26 @@ public class MultiColumnRelationTest extends CQLTester
                        row(1, 1, 1));
         }
     }
+
+    @Test
+    public void testWithUnsetValues() throws Throwable
+    {
+        createTable("CREATE TABLE %s (k int, i int, j int, s text, PRIMARY KEY(k,i,j))");
+        createIndex("CREATE INDEX s_index ON %s (s)");
+
+        assertInvalidMessage("Invalid unset value for tuple field number 0",
+                             "SELECT * from %s WHERE (i, j) = (?,?) ALLOW FILTERING", unset(), 1);
+        assertInvalidMessage("Invalid unset value for tuple field number 0",
+                             "SELECT * from %s WHERE (i, j) IN ((?,?)) ALLOW FILTERING", unset(), 1);
+        assertInvalidMessage("Invalid unset value for tuple field number 1",
+                             "SELECT * from %s WHERE (i, j) > (1,?) ALLOW FILTERING", unset());
+        assertInvalidMessage("Invalid unset value for tuple (i,j)",
+                             "SELECT * from %s WHERE (i, j) = ? ALLOW FILTERING", unset());
+        assertInvalidMessage("Invalid unset value for tuple (j)",
+                             "SELECT * from %s WHERE i = ? AND (j) > ? ALLOW FILTERING", 1, unset());
+        assertInvalidMessage("Invalid unset value for tuple (i,j)",
+                             "SELECT * from %s WHERE (i, j) IN (?, ?) ALLOW FILTERING", unset(), tuple(1, 1));
+        assertInvalidMessage("Invalid unset value for in(i,j)",
+                             "SELECT * from %s WHERE (i, j) IN ? ALLOW FILTERING", unset());
+    }
 }

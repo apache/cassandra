@@ -58,6 +58,7 @@ import static org.apache.cassandra.cql3.statements.RequestValidations.checkFalse
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkNotNull;
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkTrue;
 import static org.apache.cassandra.cql3.statements.RequestValidations.invalidRequest;
+import static org.apache.cassandra.utils.ByteBufferUtil.UNSET_BYTE_BUFFER;
 
 /**
  * Encapsulates a completely parsed SELECT query, including the target
@@ -466,7 +467,9 @@ public class SelectStatement implements CQLStatement
         if (limit != null)
         {
             ByteBuffer b = checkNotNull(limit.bindAndGet(options), "Invalid null value of limit");
-
+            // treat UNSET limit value as 'unlimited'
+            if (b == UNSET_BYTE_BUFFER)
+                return Integer.MAX_VALUE;
             try
             {
                 Int32Type.instance.validate(b);

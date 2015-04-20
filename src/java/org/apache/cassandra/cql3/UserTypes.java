@@ -26,6 +26,7 @@ import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.db.marshal.UserType;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.transport.Server;
+import org.apache.cassandra.utils.ByteBufferUtil;
 
 /**
  * Static helper methods and classes for user types.
@@ -185,6 +186,9 @@ public abstract class UserTypes
             for (int i = 0; i < type.size(); i++)
             {
                 buffers[i] = values.get(i).bindAndGet(options);
+                // Since A UDT value is always written in its entirety Cassandra can't preserve a pre-existing value by 'not setting' the new value. Reject the query.
+                if (buffers[i] == ByteBufferUtil.UNSET_BYTE_BUFFER)
+                    throw new InvalidRequestException(String.format("Invalid unset value for field '%s' of user defined type %s", type.fieldNameAsString(i), type.getNameAsString()));
                 // Inside UDT values, we must force the serialization of collections to v3 whatever protocol
                 // version is in use since we're going to store directly that serialized value.
                 if (version < Server.VERSION_3 && type.fieldType(i).isCollection() && buffers[i] != null)

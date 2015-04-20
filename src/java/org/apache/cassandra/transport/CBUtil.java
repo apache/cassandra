@@ -374,6 +374,25 @@ public abstract class CBUtil
         return ByteBuffer.wrap(readRawBytes(slice));
     }
 
+    public static ByteBuffer readBoundValue(ByteBuf cb, int protocolVersion)
+    {
+        int length = cb.readInt();
+        if (length < 0)
+        {
+            if (protocolVersion < 4) // backward compatibility for pre-version 4
+                return null;
+            if (length == -1)
+                return null;
+            else if (length == -2)
+                return ByteBufferUtil.UNSET_BYTE_BUFFER;
+            else
+                throw new ProtocolException("Invalid ByteBuf length " + length);
+        }
+        ByteBuf slice = cb.readSlice(length);
+
+        return ByteBuffer.wrap(readRawBytes(slice));
+    }
+
     public static void writeValue(byte[] bytes, ByteBuf cb)
     {
         if (bytes == null)
@@ -411,7 +430,7 @@ public abstract class CBUtil
         return 4 + (bytes == null ? 0 : bytes.remaining());
     }
 
-    public static List<ByteBuffer> readValueList(ByteBuf cb)
+    public static List<ByteBuffer> readValueList(ByteBuf cb, int protocolVersion)
     {
         int size = cb.readUnsignedShort();
         if (size == 0)
@@ -419,7 +438,7 @@ public abstract class CBUtil
 
         List<ByteBuffer> l = new ArrayList<ByteBuffer>(size);
         for (int i = 0; i < size; i++)
-            l.add(readValue(cb));
+            l.add(readBoundValue(cb, protocolVersion));
         return l;
     }
 
@@ -438,7 +457,7 @@ public abstract class CBUtil
         return size;
     }
 
-    public static Pair<List<String>, List<ByteBuffer>> readNameAndValueList(ByteBuf cb)
+    public static Pair<List<String>, List<ByteBuffer>> readNameAndValueList(ByteBuf cb, int protocolVersion)
     {
         int size = cb.readUnsignedShort();
         if (size == 0)
@@ -449,7 +468,7 @@ public abstract class CBUtil
         for (int i = 0; i < size; i++)
         {
             s.add(readString(cb));
-            l.add(readValue(cb));
+            l.add(readBoundValue(cb, protocolVersion));
         }
         return Pair.create(s, l);
     }

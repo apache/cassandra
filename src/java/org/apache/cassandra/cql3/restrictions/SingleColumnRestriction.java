@@ -23,9 +23,12 @@ import java.util.*;
 import com.google.common.collect.Iterables;
 
 import org.apache.cassandra.config.ColumnDefinition;
+
 import org.apache.cassandra.cql3.*;
+import org.apache.cassandra.cql3.Term.Terminal;
 import org.apache.cassandra.cql3.functions.Function;
 import org.apache.cassandra.cql3.statements.Bound;
+
 import org.apache.cassandra.db.IndexExpression;
 import org.apache.cassandra.db.composites.CompositesBuilder;
 import org.apache.cassandra.db.index.SecondaryIndex;
@@ -33,9 +36,12 @@ import org.apache.cassandra.db.index.SecondaryIndexManager;
 import org.apache.cassandra.db.marshal.CompositeType;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 
+import static org.apache.cassandra.cql3.statements.RequestValidations.checkNotNull;
+
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkFalse;
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkTrue;
 import static org.apache.cassandra.cql3.statements.RequestValidations.invalidRequest;
+import static org.apache.cassandra.cql3.statements.RequestValidations.checkBindValueSet;
 
 public abstract class SingleColumnRestriction extends AbstractRestriction
 {
@@ -136,6 +142,7 @@ public abstract class SingleColumnRestriction extends AbstractRestriction
         {
             builder.addElementToAll(value.bindAndGet(options));
             checkFalse(builder.containsNull(), "Invalid null value in condition for column %s", columnDef.name);
+            checkFalse(builder.containsUnset(), "Invalid unset value for column %s", columnDef.name);
             return builder;
         }
 
@@ -182,6 +189,7 @@ public abstract class SingleColumnRestriction extends AbstractRestriction
         {
             builder.addEachElementToAll(getValues(options));
             checkFalse(builder.containsNull(), "Invalid null value in condition for column %s", columnDef.name);
+            checkFalse(builder.containsUnset(), "Invalid unset value for column %s", columnDef.name);
             return builder;
         }
 
@@ -269,9 +277,10 @@ public abstract class SingleColumnRestriction extends AbstractRestriction
         @Override
         protected List<ByteBuffer> getValues(QueryOptions options) throws InvalidRequestException
         {
-            Term.MultiItemTerminal lval = (Term.MultiItemTerminal) marker.bind(options);
-            if (lval == null)
-                throw new InvalidRequestException("Invalid null value for IN restriction");
+            Terminal term = marker.bind(options);
+            checkNotNull(term, "Invalid null value for column %s", columnDef.name);
+            checkFalse(term == Constants.UNSET_VALUE, "Invalid unset value for column %s", columnDef.name);
+            Term.MultiItemTerminal lval = (Term.MultiItemTerminal) term;
             return lval.getElements();
         }
 
@@ -326,7 +335,10 @@ public abstract class SingleColumnRestriction extends AbstractRestriction
         @Override
         public CompositesBuilder appendBoundTo(CompositesBuilder builder, Bound bound, QueryOptions options)
         {
-            return builder.addElementToAll(slice.bound(bound).bindAndGet(options));
+            ByteBuffer value = slice.bound(bound).bindAndGet(options);
+            checkBindValueSet(value, "Invalid unset value for column %s", columnDef.name);
+            return builder.addElementToAll(value);
+
         }
 
         @Override

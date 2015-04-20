@@ -17,6 +17,8 @@
  */
 package org.apache.cassandra.cql3;
 
+import static org.apache.cassandra.cql3.Constants.UNSET_VALUE;
+
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
@@ -135,8 +137,8 @@ public abstract class Lists
             {
                 // Collections have this small hack that validate cannot be called on a serialized object,
                 // but compose does the validation (so we're fine).
-                List<?> l = (List<?>)type.getSerializer().deserializeForNativeProtocol(value, version);
-                List<ByteBuffer> elements = new ArrayList<ByteBuffer>(l.size());
+                List<?> l = type.getSerializer().deserializeForNativeProtocol(value, version);
+                List<ByteBuffer> elements = new ArrayList<>(l.size());
                 for (Object element : l)
                     // elements can be null in lists that represent a set of IN values
                     elements.add(element == null ? null : type.getElementsType().decompose(element));
@@ -199,7 +201,7 @@ public abstract class Lists
         {
         }
 
-        public Value bind(QueryOptions options) throws InvalidRequestException
+        public Terminal bind(QueryOptions options) throws InvalidRequestException
         {
             List<ByteBuffer> buffers = new ArrayList<ByteBuffer>(elements.size());
             for (Term t : elements)
@@ -208,6 +210,8 @@ public abstract class Lists
 
                 if (bytes == null)
                     throw new InvalidRequestException("null is not supported inside collections");
+                if (bytes == ByteBufferUtil.UNSET_BYTE_BUFFER)
+                    return UNSET_VALUE;
 
                 // We don't support value > 64K because the serialization format encode the length as an unsigned short.
                 if (bytes.remaining() > FBUtilities.MAX_UNSIGNED_SHORT)
@@ -237,10 +241,14 @@ public abstract class Lists
             assert receiver.type instanceof ListType;
         }
 
-        public Value bind(QueryOptions options) throws InvalidRequestException
+        public Terminal bind(QueryOptions options) throws InvalidRequestException
         {
             ByteBuffer value = options.getValues().get(bindIndex);
-            return value == null ? null : Value.fromSerialized(value, (ListType)receiver.type, options.getProtocolVersion());
+            if (value == null)
+                return null;
+            if (value == ByteBufferUtil.UNSET_BYTE_BUFFER)
+                return UNSET_VALUE;
+            return Value.fromSerialized(value, (ListType)receiver.type, options.getProtocolVersion());
         }
     }
 
@@ -256,7 +264,7 @@ public abstract class Lists
     {
         // Our reference time (1 jan 2010, 00:00:00) in milliseconds.
         private static final long REFERENCE_TIME = 1262304000000L;
-        private static final AtomicReference<PrecisionTime> last = new AtomicReference<PrecisionTime>(new PrecisionTime(Long.MAX_VALUE, 0));
+        private static final AtomicReference<PrecisionTime> last = new AtomicReference<>(new PrecisionTime(Long.MAX_VALUE, 0));
 
         public final long millis;
         public final int nanos;
@@ -293,13 +301,15 @@ public abstract class Lists
 
         public void execute(ByteBuffer rowKey, ColumnFamily cf, Composite prefix, UpdateParameters params) throws InvalidRequestException
         {
-            if (column.type.isMultiCell())
+            Term.Terminal value = t.bind(params.options);
+            if (column.type.isMultiCell() && value != UNSET_VALUE)
             {
                 // delete + append
                 CellName name = cf.getComparator().create(prefix, column);
                 cf.addAtom(params.makeTombstoneForOverwrite(name.slice()));
             }
-            Appender.doAppend(t, cf, prefix, column, params);
+            if (value != UNSET_VALUE)
+                Appender.doAppend(cf, prefix, column, params, value);
         }
     }
 
@@ -336,6 +346,8 @@ public abstract class Lists
 
             if (index == null)
                 throw new InvalidRequestException("Invalid null value for list index");
+            if (index == ByteBufferUtil.UNSET_BYTE_BUFFER)
+                throw new InvalidRequestException("Invalid unset value for list index");
 
             List<Cell> existingList = params.getPrefetchedList(rowKey, column.name);
             int idx = ByteBufferUtil.toInt(index);
@@ -349,7 +361,7 @@ public abstract class Lists
             {
                 cf.addColumn(params.makeTombstone(elementName));
             }
-            else
+            else if (value != ByteBufferUtil.UNSET_BYTE_BUFFER)
             {
                 // We don't support value > 64K because the serialization format encode the length as an unsigned short.
                 if (value.remaining() > FBUtilities.MAX_UNSIGNED_SHORT)
@@ -372,12 +384,13 @@ public abstract class Lists
         public void execute(ByteBuffer rowKey, ColumnFamily cf, Composite prefix, UpdateParameters params) throws InvalidRequestException
         {
             assert column.type.isMultiCell() : "Attempted to append to a frozen list";
-            doAppend(t, cf, prefix, column, params);
+            Term.Terminal value = t.bind(params.options);
+            if (value != UNSET_VALUE)
+                doAppend(cf, prefix, column, params, value);
         }
 
-        static void doAppend(Term t, ColumnFamily cf, Composite prefix, ColumnDefinition column, UpdateParameters params) throws InvalidRequestException
+        static void doAppend(ColumnFamily cf, Composite prefix, ColumnDefinition column, UpdateParameters params, Term.Terminal value) throws InvalidRequestException
         {
-            Term.Terminal value = t.bind(params.options);
             if (column.type.isMultiCell())
             {
                 // If we append null, do nothing. Note that for Setter, we've
@@ -414,7 +427,7 @@ public abstract class Lists
         {
             assert column.type.isMultiCell() : "Attempted to prepend to a frozen list";
             Term.Terminal value = t.bind(params.options);
-            if (value == null)
+            if (value == null || value == UNSET_VALUE)
                 return;
 
             long time = PrecisionTime.REFERENCE_TIME - (System.currentTimeMillis() - PrecisionTime.REFERENCE_TIME);
@@ -454,7 +467,7 @@ public abstract class Lists
             if (existingList.isEmpty())
                 return;
 
-            if (value == null)
+            if (value == null || value == UNSET_VALUE)
                 return;
 
             // Note: below, we will call 'contains' on this toDiscard list for each element of existingList.
@@ -489,6 +502,8 @@ public abstract class Lists
             Term.Terminal index = t.bind(params.options);
             if (index == null)
                 throw new InvalidRequestException("Invalid null value for list index");
+            if (index == Constants.UNSET_VALUE)
+                return;
 
             List<Cell> existingList = params.getPrefetchedList(rowKey, column.name);
             int idx = ByteBufferUtil.toInt(index.get(params.options.getProtocolVersion()));

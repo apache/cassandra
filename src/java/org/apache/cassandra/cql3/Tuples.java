@@ -30,6 +30,7 @@ import org.apache.cassandra.cql3.functions.Function;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.serializers.MarshalException;
+import org.apache.cassandra.utils.ByteBufferUtil;
 
 /**
  * Static helper methods and classes for tuples.
@@ -204,6 +205,9 @@ public class Tuples
             for (int i = 0; i < elements.size(); i++)
             {
                 buffers[i] = elements.get(i).bindAndGet(options);
+                // Since A tuple value is always written in its entirety Cassandra can't preserve a pre-existing value by 'not setting' the new value. Reject the query.
+                if (buffers[i] == ByteBufferUtil.UNSET_BYTE_BUFFER)
+                    throw new InvalidRequestException(String.format("Invalid unset value for tuple field number %d", i));
                 // Inside tuples, we must force the serialization of collections to v3 whatever protocol
                 // version is in use since we're going to store directly that serialized value.
                 if (version < 3 && type.type(i).isCollection())
@@ -387,6 +391,8 @@ public class Tuples
         public Value bind(QueryOptions options) throws InvalidRequestException
         {
             ByteBuffer value = options.getValues().get(bindIndex);
+            if (value == ByteBufferUtil.UNSET_BYTE_BUFFER)
+                throw new InvalidRequestException(String.format("Invalid unset value for tuple %s", receiver.name));
             return value == null ? null : Value.fromSerialized(value, (TupleType)receiver.type);
         }
     }
@@ -405,6 +411,8 @@ public class Tuples
         public InValue bind(QueryOptions options) throws InvalidRequestException
         {
             ByteBuffer value = options.getValues().get(bindIndex);
+            if (value == ByteBufferUtil.UNSET_BYTE_BUFFER)
+                throw new InvalidRequestException(String.format("Invalid unset value for %s", receiver.name));
             return value == null ? null : InValue.fromSerialized(value, (ListType)receiver.type, options);
         }
     }

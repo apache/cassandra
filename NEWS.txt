@@ -58,6 +58,18 @@ New features
    - The node now keeps up when streaming is failed during bootstrapping. You can
      use new `nodetool bootstrap resume` command to continue streaming after resolving
      an issue.
+   - Protocol version 4 specifies that bind variables do not require having a
+     value when executing a statement. Bind variables without a value are
+     called 'unset'. The 'unset' bind variable is serialized as the int
+     value '-2' without following bytes.
+     In an EXECUTE or BATCH request an unset bind value does not modify the value and
+     does not create a tombstone, an unset bind ttl is treated as 'unlimited',
+     an unset bind timestamp is treated as 'now', an unset bind counter operation
+     does not change the counter value.
+     Unset tuple field, UDT field and map key are not allowed.
+     In a QUERY request an unset limit is treated as 'unlimited'.
+     Unset WHERE clauses with unset partition column, clustering column
+     or index column are not allowed.
 
 
 Upgrading

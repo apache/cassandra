@@ -21,7 +21,6 @@ import java.nio.ByteBuffer;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.composites.CellName;
@@ -46,6 +45,8 @@ public abstract class Constants
     {
         STRING, INTEGER, UUID, FLOAT, DATE, TIME, BOOLEAN, HEX;
     }
+
+    public static final Value UNSET_VALUE = new Value(ByteBufferUtil.UNSET_BYTE_BUFFER);
 
     public static final Term.Raw NULL_LITERAL = new Term.Raw()
     {
@@ -288,7 +289,7 @@ public abstract class Constants
             try
             {
                 ByteBuffer value = options.getValues().get(bindIndex);
-                if (value != null)
+                if (value != null && value != ByteBufferUtil.UNSET_BYTE_BUFFER)
                     receiver.type.validate(value);
                 return value;
             }
@@ -301,7 +302,11 @@ public abstract class Constants
         public Value bind(QueryOptions options) throws InvalidRequestException
         {
             ByteBuffer bytes = bindAndGet(options);
-            return bytes == null ? null : new Constants.Value(bytes);
+            if (bytes == null)
+                return null;
+            if (bytes == ByteBufferUtil.UNSET_BYTE_BUFFER)
+                return Constants.UNSET_VALUE;
+            return new Constants.Value(bytes);
         }
     }
 
@@ -316,7 +321,8 @@ public abstract class Constants
         {
             CellName cname = cf.getComparator().create(prefix, column);
             ByteBuffer value = t.bindAndGet(params.options);
-            cf.addColumn(value == null ? params.makeTombstone(cname) : params.makeColumn(cname, value));
+            if (value != ByteBufferUtil.UNSET_BYTE_BUFFER) // use reference equality and not object equality
+                cf.addColumn(value == null ? params.makeTombstone(cname) : params.makeColumn(cname, value));
         }
     }
 
@@ -332,6 +338,9 @@ public abstract class Constants
             ByteBuffer bytes = t.bindAndGet(params.options);
             if (bytes == null)
                 throw new InvalidRequestException("Invalid null value for counter increment");
+            if (bytes == ByteBufferUtil.UNSET_BYTE_BUFFER)
+                return;
+
             long increment = ByteBufferUtil.toLong(bytes);
             CellName cname = cf.getComparator().create(prefix, column);
             cf.addColumn(params.makeCounter(cname, increment));
@@ -350,6 +359,8 @@ public abstract class Constants
             ByteBuffer bytes = t.bindAndGet(params.options);
             if (bytes == null)
                 throw new InvalidRequestException("Invalid null value for counter increment");
+            if (bytes == ByteBufferUtil.UNSET_BYTE_BUFFER)
+                return;
 
             long increment = ByteBufferUtil.toLong(bytes);
             if (increment == Long.MIN_VALUE)

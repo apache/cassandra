@@ -61,7 +61,7 @@ public class BatchMessage extends Message.Request
                     queryOrIds.add(MD5Digest.wrap(CBUtil.readBytes(body)));
                 else
                     throw new ProtocolException("Invalid query kind in BATCH messages. Must be 0 or 1 but got " + kind);
-                variables.add(CBUtil.readValueList(body));
+                variables.add(CBUtil.readValueList(body, version));
             }
             QueryOptions options = version < 3
                                  ? QueryOptions.fromPreV3Batch(CBUtil.readConsistencyLevel(body))

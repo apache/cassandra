@@ -312,13 +312,13 @@ public abstract class QueryOptions
             {
                 if (flags.contains(Flag.NAMES_FOR_VALUES))
                 {
-                    Pair<List<String>, List<ByteBuffer>> namesAndValues = CBUtil.readNameAndValueList(body);
+                    Pair<List<String>, List<ByteBuffer>> namesAndValues = CBUtil.readNameAndValueList(body, version);
                     names = namesAndValues.left;
                     values = namesAndValues.right;
                 }
                 else
                 {
-                    values = CBUtil.readValueList(body);
+                    values = CBUtil.readValueList(body, version);
                 }
             }
 

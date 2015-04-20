@@ -95,6 +95,11 @@ public class UserType extends TupleType
         return fieldNames.get(i);
     }
 
+    public String fieldNameAsString(int i)
+    {
+        return stringFieldNames.get(i);
+    }
+
     public List<ByteBuffer> fieldNames()
     {
         return fieldNames;

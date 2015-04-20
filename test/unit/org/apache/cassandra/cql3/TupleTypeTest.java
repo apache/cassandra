@@ -98,4 +98,17 @@ public class TupleTypeTest extends CQLTester
         assertInvalidSyntax("INSERT INTO %s (k, t) VALUES (0, ())");
         assertInvalid("INSERT INTO %s (k, t) VALUES (0, (2, 'foo', 3.1, 'bar'))");
     }
+
+    @Test
+    public void testTupleWithUnsetValues() throws Throwable
+    {
+        createTable("CREATE TABLE %s (k int PRIMARY KEY, t tuple<int, text, double>)");
+        // invalid positional field substitution
+        assertInvalidMessage("Invalid unset value for tuple field number 1",
+                "INSERT INTO %s (k, t) VALUES(0, (3, ?, 2.1))", unset());
+
+        createIndex("CREATE INDEX tuple_index ON %s (t)");
+        // select using unset
+        assertInvalidMessage("Invalid unset value for tuple field number 0", "SELECT * FROM %s WHERE k = ? and t = (?,?,?)", unset(), unset(), unset(), unset());
+    }
 }

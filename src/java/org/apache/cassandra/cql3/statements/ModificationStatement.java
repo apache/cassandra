@@ -641,10 +641,12 @@ public abstract class ModificationStatement implements CQLStatement
 
         for (IMutation mutation : getMutations(options, true, queryState.getTimestamp()))
         {
-            // We don't use counters internally.
-            assert mutation instanceof Mutation;
+            assert mutation instanceof Mutation || mutation instanceof CounterMutation;
 
-            ((Mutation) mutation).apply();
+            if (mutation instanceof Mutation)
+                ((Mutation) mutation).apply();
+            else if (mutation instanceof CounterMutation)
+                ((CounterMutation) mutation).apply();
         }
         return null;
     }

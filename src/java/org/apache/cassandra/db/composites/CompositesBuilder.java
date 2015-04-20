@@ -21,6 +21,7 @@ import java.nio.ByteBuffer;
 import java.util.*;
 
 import org.apache.cassandra.db.composites.Composite.EOC;
+import org.apache.cassandra.utils.ByteBufferUtil;
 
 import static java.util.Collections.singletonList;
 
@@ -59,6 +60,11 @@ public final class CompositesBuilder
      */
     private boolean hasMissingElements;
 
+    /**
+     * <code>true</code> if the composites contains some <code>unset</code> elements.
+     */
+    private boolean containsUnset;
+
     public CompositesBuilder(CType ctype)
     {
         this.ctype = ctype;
@@ -85,7 +91,8 @@ public final class CompositesBuilder
         {
             if (value == null)
                 containsNull = true;
-
+            if (value == ByteBufferUtil.UNSET_BYTE_BUFFER)
+                containsUnset = true;
             elementsList.get(i).add(value);
         }
         size++;
@@ -128,6 +135,8 @@ public final class CompositesBuilder
 
                     if (value == null)
                         containsNull = true;
+                    if (value == ByteBufferUtil.UNSET_BYTE_BUFFER)
+                        containsUnset = true;
 
                     newComposite.add(values.get(j));
                 }
@@ -177,6 +186,8 @@ public final class CompositesBuilder
 
                     if (value.contains(null))
                         containsNull = true;
+                    if (value.contains(ByteBufferUtil.UNSET_BYTE_BUFFER))
+                        containsUnset = true;
 
                     newComposite.addAll(value);
                 }
@@ -233,6 +244,16 @@ public final class CompositesBuilder
     public boolean hasMissingElements()
     {
         return hasMissingElements;
+    }
+
+    /**
+     * Checks if the composites contains unset elements.
+     *
+     * @return <code>true</code> if the composites contains <code>unset</code> elements, <code>false</code> otherwise.
+     */
+    public boolean containsUnset()
+    {
+        return containsUnset;
     }
 
     /**

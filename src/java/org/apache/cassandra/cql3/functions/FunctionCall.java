@@ -24,6 +24,7 @@ import java.util.List;
 import com.google.common.collect.Iterables;
 
 import org.apache.cassandra.cql3.*;
+import org.apache.cassandra.cql3.statements.RequestValidations;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.serializers.MarshalException;
@@ -65,7 +66,11 @@ public class FunctionCall extends Term.NonTerminal
     {
         List<ByteBuffer> buffers = new ArrayList<>(terms.size());
         for (Term t : terms)
-            buffers.add(t.bindAndGet(options));
+        {
+            ByteBuffer functionArg = t.bindAndGet(options);
+            RequestValidations.checkBindValueSet(functionArg, "Invalid unset value for argument in call to function %s", fun.name().name);
+            buffers.add(functionArg);
+        }
         return executeInternal(options.getProtocolVersion(), fun, buffers);
     }
 

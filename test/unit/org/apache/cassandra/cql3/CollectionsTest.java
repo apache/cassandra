@@ -209,4 +209,104 @@ public class CollectionsTest extends CQLTester
 
         assertRows(execute("SELECT l FROM %s WHERE k = 0"), row((Object) null));
     }
+
+    @Test
+    public void testMapWithUnsetValues() throws Throwable
+    {
+        createTable("CREATE TABLE %s (k int PRIMARY KEY, m map<text,text>)");
+        // set up
+        Object m = map("k", "v");
+        execute("INSERT INTO %s (k, m) VALUES (10, ?)", m);
+        assertRows(execute("SELECT m FROM %s WHERE k = 10"),
+                row(m)
+        );
+
+        // test putting an unset map, should not delete the contents
+        execute("INSERT INTO %s (k, m) VALUES (10, ?)", unset());
+        assertRows(execute("SELECT m FROM %s WHERE k = 10"),
+                row(m)
+        );
+        // test unset variables in a map update operaiotn, should not delete the contents
+        execute("UPDATE %s SET m['k'] = ? WHERE k = 10", unset());
+        assertRows(execute("SELECT m FROM %s WHERE k = 10"),
+                row(m)
+        );
+        assertInvalidMessage("Invalid unset map key", "UPDATE %s SET m[?] = 'foo' WHERE k = 10", unset());
+
+        // test unset value for map key
+        assertInvalidMessage("Invalid unset map key", "DELETE m[?] FROM %s WHERE k = 10", unset());
+    }
+
+    @Test
+    public void testListWithUnsetValues() throws Throwable
+    {
+        createTable("CREATE TABLE %s (k int PRIMARY KEY, l list<text>)");
+        // set up
+        Object l = list("foo", "foo");
+        execute("INSERT INTO %s (k, l) VALUES (10, ?)", l);
+        assertRows(execute("SELECT l FROM %s WHERE k = 10"),
+                row(l)
+        );
+
+        // replace list with unset value
+        execute("INSERT INTO %s (k, l) VALUES (10, ?)", unset());
+        assertRows(execute("SELECT l FROM %s WHERE k = 10"),
+                row(l)
+        );
+
+        // add to position
+        execute("UPDATE %s SET l[1] = ? WHERE k = 10", unset());
+        assertRows(execute("SELECT l FROM %s WHERE k = 10"),
+                row(l)
+        );
+
+        // set in index
+        assertInvalidMessage("Invalid unset value for list index", "UPDATE %s SET l[?] = 'foo' WHERE k = 10", unset());
+
+        // remove element by index
+        execute("DELETE l[?] FROM %s WHERE k = 10", unset());
+        assertRows(execute("SELECT l FROM %s WHERE k = 10"),
+                row(l)
+        );
+
+        // remove all occurrences of element
+        execute("UPDATE %s SET l = l - ? WHERE k = 10", unset());
+        assertRows(execute("SELECT l FROM %s WHERE k = 10"),
+                row(l)
+        );
+
+        // select with in clause
+        assertInvalidMessage("Invalid unset value for column k", "SELECT * FROM %s WHERE k IN ?", unset());
+        assertInvalidMessage("Invalid unset value for column k", "SELECT * FROM %s WHERE k IN (?)", unset());
+    }
+
+    @Test
+    public void testSetWithUnsetValues() throws Throwable
+    {
+        createTable("CREATE TABLE %s (k int PRIMARY KEY, s set<text>)");
+
+        Object s = set("bar", "baz", "foo");
+        execute("INSERT INTO %s (k, s) VALUES (10, ?)", s);
+        assertRows(execute("SELECT s FROM %s WHERE k = 10"),
+                row(s)
+        );
+
+        // replace set with unset value
+        execute("INSERT INTO %s (k, s) VALUES (10, ?)", unset());
+        assertRows(execute("SELECT s FROM %s WHERE k = 10"),
+                row(s)
+        );
+
+        // add to set
+        execute("UPDATE %s SET s = s + ? WHERE k = 10", unset());
+        assertRows(execute("SELECT s FROM %s WHERE k = 10"),
+                row(s)
+        );
+
+        // remove all occurrences of element
+        execute("UPDATE %s SET s = s - ? WHERE k = 10", unset());
+        assertRows(execute("SELECT s FROM %s WHERE k = 10"),
+                row(s)
+        );
+    }
 }

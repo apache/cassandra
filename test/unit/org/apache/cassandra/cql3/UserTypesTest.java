@@ -111,4 +111,19 @@ public class UserTypesTest extends CQLTester
                    row(1, null),
                    row(2, 2));
     }
+
+    @Test
+    public void testUDTWithUnsetValues() throws Throwable
+    {
+        // set up
+        String myType = createType("CREATE TYPE %s (x int, y int)");
+        String myOtherType = createType("CREATE TYPE %s (a frozen<" + myType + ">)");
+        createTable("CREATE TABLE %s (k int PRIMARY KEY, v frozen<" + myType + ">, z frozen<" + myOtherType + ">)");
+
+        assertInvalidMessage("Invalid unset value for field 'y' of user defined type " + myType,
+                "INSERT INTO %s (k, v) VALUES (10, {x:?, y:?})", 1, unset());
+
+        assertInvalidMessage("Invalid unset value for field 'y' of user defined type " + myType,
+                "INSERT INTO %s (k, v, z) VALUES (10, {x:?, y:?}, {a:{x: ?, y: ?}})", 1, 1, 1, unset());
+    }
 }

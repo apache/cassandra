@@ -28,6 +28,7 @@ import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.LongType;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.serializers.MarshalException;
+import org.apache.cassandra.utils.ByteBufferUtil;
 
 /**
  * Utility class for the Parser to gather attributes for modification
@@ -86,6 +87,9 @@ public class Attributes
         if (tval == null)
             throw new InvalidRequestException("Invalid null value of timestamp");
 
+        if (tval == ByteBufferUtil.UNSET_BYTE_BUFFER)
+            return now;
+
         try
         {
             LongType.instance.validate(tval);
@@ -106,6 +110,9 @@ public class Attributes
         ByteBuffer tval = timeToLive.bindAndGet(options);
         if (tval == null)
             throw new InvalidRequestException("Invalid null value of TTL");
+
+        if (tval == ByteBufferUtil.UNSET_BYTE_BUFFER) // treat as unlimited
+            return 0;
 
         try
         {

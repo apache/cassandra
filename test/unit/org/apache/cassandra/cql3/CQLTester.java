@@ -59,6 +59,7 @@ import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.transport.Event;
 import org.apache.cassandra.transport.Server;
 import org.apache.cassandra.transport.messages.ResultMessage;
+import org.apache.cassandra.utils.ByteBufferUtil;
 
 /**
  * Base class for CQL tests.
@@ -317,6 +318,11 @@ public abstract class CQLTester
         if (tables.isEmpty())
             return null;
         return tables.get(tables.size() - 1);
+    }
+
+    protected ByteBuffer unset()
+    {
+        return ByteBufferUtil.UNSET_BYTE_BUFFER;
     }
 
     protected void forcePreparedValues()
@@ -797,6 +803,11 @@ public abstract class CQLTester
             if (value == null)
             {
                 buffers[i] = null;
+                continue;
+            }
+            else if (value == ByteBufferUtil.UNSET_BYTE_BUFFER)
+            {
+                buffers[i] = ByteBufferUtil.UNSET_BYTE_BUFFER;
                 continue;
             }
 

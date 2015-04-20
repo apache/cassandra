@@ -31,6 +31,7 @@ import org.junit.Test;
 import java.nio.ByteBuffer;
 import java.util.*;
 
+import static org.apache.cassandra.utils.ByteBufferUtil.UNSET_BYTE_BUFFER;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.fail;
@@ -82,6 +83,7 @@ public class ColumnConditionTest
         assertTrue(isSatisfiedBy(bound, null, null));
         assertFalse(isSatisfiedBy(bound, ONE, null));
         assertFalse(isSatisfiedBy(bound, null, ONE));
+        assertThrowsIRE(bound, UNSET_BYTE_BUFFER, ONE);
 
         // NEQ
         condition = ColumnCondition.condition(definition, new Constants.Value(ONE), Operator.NEQ);
@@ -95,6 +97,7 @@ public class ColumnConditionTest
         assertFalse(isSatisfiedBy(bound, null, null));
         assertTrue(isSatisfiedBy(bound, ONE, null));
         assertTrue(isSatisfiedBy(bound, null, ONE));
+        assertThrowsIRE(bound, UNSET_BYTE_BUFFER, ONE);
 
         // LT
         condition = ColumnCondition.condition(definition, new Constants.Value(ONE), Operator.LT);
@@ -107,6 +110,7 @@ public class ColumnConditionTest
         assertFalse(isSatisfiedBy(bound, ByteBufferUtil.EMPTY_BYTE_BUFFER, ByteBufferUtil.EMPTY_BYTE_BUFFER));
         assertThrowsIRE(bound, null, ONE);
         assertFalse(isSatisfiedBy(bound, ONE, null));
+        assertThrowsIRE(bound, UNSET_BYTE_BUFFER, ONE);
 
         // LTE
         condition = ColumnCondition.condition(definition, new Constants.Value(ONE), Operator.LTE);
@@ -119,6 +123,7 @@ public class ColumnConditionTest
         assertTrue(isSatisfiedBy(bound, ByteBufferUtil.EMPTY_BYTE_BUFFER, ByteBufferUtil.EMPTY_BYTE_BUFFER));
         assertThrowsIRE(bound, null, ONE);
         assertFalse(isSatisfiedBy(bound, ONE, null));
+        assertThrowsIRE(bound, UNSET_BYTE_BUFFER, ONE);
 
         // GT
         condition = ColumnCondition.condition(definition, new Constants.Value(ONE), Operator.GT);
@@ -131,6 +136,7 @@ public class ColumnConditionTest
         assertFalse(isSatisfiedBy(bound, ByteBufferUtil.EMPTY_BYTE_BUFFER, ByteBufferUtil.EMPTY_BYTE_BUFFER));
         assertThrowsIRE(bound, null, ONE);
         assertFalse(isSatisfiedBy(bound, ONE, null));
+        assertThrowsIRE(bound, UNSET_BYTE_BUFFER, ONE);
 
         // GT
         condition = ColumnCondition.condition(definition, new Constants.Value(ONE), Operator.GTE);
@@ -143,6 +149,7 @@ public class ColumnConditionTest
         assertTrue(isSatisfiedBy(bound, ByteBufferUtil.EMPTY_BYTE_BUFFER, ByteBufferUtil.EMPTY_BYTE_BUFFER));
         assertThrowsIRE(bound, null, ONE);
         assertFalse(isSatisfiedBy(bound, ONE, null));
+        assertThrowsIRE(bound, UNSET_BYTE_BUFFER, ONE);
     }
 
     private static List<ByteBuffer> list(ByteBuffer... values)
