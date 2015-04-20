@@ -178,7 +178,7 @@ public class UserType extends TupleType
         {
             for (Object fieldName : keys)
             {
-                if (!stringFieldNames.contains((String) fieldName))
+                if (!stringFieldNames.contains(fieldName))
                     throw new MarshalException(String.format(
                             "Unknown field '%s' in value of user defined type %s", fieldName, getNameAsString()));
             }

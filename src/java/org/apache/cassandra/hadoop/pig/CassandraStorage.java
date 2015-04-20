@@ -123,7 +123,7 @@ public class CassandraStorage extends AbstractCassandraStorage
                     {
                         if (tuple.size() == 0) // lastRow is a new one
                         {
-                            key = (ByteBuffer)reader.getCurrentKey();
+                            key = reader.getCurrentKey();
                             tuple = keyToTuple(key, cfDef, parseType(cfDef.getKey_validation_class()));
                         }
                         for (Map.Entry<ByteBuffer, Cell> entry : lastRow.entrySet())
@@ -146,18 +146,18 @@ public class CassandraStorage extends AbstractCassandraStorage
                             return null;
                     }
                 }
-                if (key != null && !((ByteBuffer)reader.getCurrentKey()).equals(key)) // key changed
+                if (key != null && !(reader.getCurrentKey()).equals(key)) // key changed
                 {
                     // read too much, hold on to it for next time
-                    lastKey = (ByteBuffer)reader.getCurrentKey();
-                    lastRow = (SortedMap<ByteBuffer, Cell>)reader.getCurrentValue();
+                    lastKey = reader.getCurrentKey();
+                    lastRow = reader.getCurrentValue();
                     // but return what we have so far
                     tuple.append(bag);
                     return tuple;
                 }
                 if (key == null) // only set the key on the first iteration
                 {
-                    key = (ByteBuffer)reader.getCurrentKey();
+                    key = reader.getCurrentKey();
                     if (lastKey != null && !(key.equals(lastKey))) // last key only had one value
                     {
                         if (tuple == null)
@@ -170,7 +170,7 @@ public class CassandraStorage extends AbstractCassandraStorage
                         }
                         tuple.append(bag);
                         lastKey = key;
-                        lastRow = (SortedMap<ByteBuffer, Cell>)reader.getCurrentValue();
+                        lastRow = reader.getCurrentValue();
                         return tuple;
                     }
                     if (tuple == null)
@@ -820,7 +820,7 @@ public class CassandraStorage extends AbstractCassandraStorage
     
     public ByteBuffer nullToBB()
     {
-        return (ByteBuffer) null;
+        return null;
     }
 }
 

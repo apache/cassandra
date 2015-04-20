@@ -67,7 +67,7 @@ public class IntervalTree<C extends Comparable<? super C>, D, I extends Interval
     @SuppressWarnings("unchecked")
     public static <C extends Comparable<? super C>, D, I extends Interval<C, D>> IntervalTree<C, D, I> emptyTree()
     {
-        return (IntervalTree<C, D, I>)EMPTY_TREE;
+        return EMPTY_TREE;
     }
 
     public int intervalCount()

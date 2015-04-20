@@ -311,7 +311,7 @@ public class Range<T extends RingPosition<T>> extends AbstractBounds<T> implemen
         else
         {
             @SuppressWarnings("unchecked")
-            Range<T>[] intersections = (Range<T>[]) new Range[intersectionSet.size()];
+            Range<T>[] intersections = new Range[intersectionSet.size()];
             intersectionSet.toArray(intersections);
             if (intersections.length == 1)
             {
@@ -422,7 +422,7 @@ public class Range<T extends RingPosition<T>> extends AbstractBounds<T> implemen
         Iterator<Range<T>> iter = ranges.iterator();
         Range<T> current = iter.next();
 
-        T min = (T) current.left.minValue();
+        T min = current.left.minValue();
         while (iter.hasNext())
         {
             // If current goes to the end of the ring, we're done

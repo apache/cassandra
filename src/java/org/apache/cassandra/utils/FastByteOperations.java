@@ -349,8 +349,8 @@ public class FastByteOperations
             int wordComparisons = minLength & ~7;
             for (int i = 0; i < wordComparisons ; i += Longs.BYTES)
             {
-                long lw = theUnsafe.getLong(buffer1, memoryOffset1 + (long) i);
-                long rw = theUnsafe.getLong(buffer2, memoryOffset2 + (long) i);
+                long lw = theUnsafe.getLong(buffer1, memoryOffset1 + i);
+                long rw = theUnsafe.getLong(buffer2, memoryOffset2 + i);
 
                 if (lw != rw)
                 {

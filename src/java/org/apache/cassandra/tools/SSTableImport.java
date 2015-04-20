@@ -124,7 +124,7 @@ public class SSTableImport
                     }
                     else if (isCounter())
                     {
-                        timestampOfLastDelete = (long) ((Integer) fields.get(4));
+                        timestampOfLastDelete = ((Integer) fields.get(4));
                     }
                     else if (isRangeTombstone())
                     {

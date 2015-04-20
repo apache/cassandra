@@ -194,7 +194,7 @@ public class Murmur3Partitioner implements IPartitioner
             throw new RuntimeException("No nodes present in the cluster. Has this node finished starting up?");
         // 1-case
         if (sortedTokens.size() == 1)
-            ownerships.put((Token) i.next(), new Float(1.0));
+            ownerships.put(i.next(), new Float(1.0));
         // n-case
         else
         {
@@ -205,7 +205,7 @@ public class Murmur3Partitioner implements IPartitioner
 
             while (i.hasNext())
             {
-                t = (Token) i.next(); ti = BigInteger.valueOf(((LongToken) t).token); // The next token and its value
+                t = i.next(); ti = BigInteger.valueOf(((LongToken) t).token); // The next token and its value
                 float age = new BigDecimal(ti.subtract(tim1).add(ri).mod(ri)).divide(r, 6, BigDecimal.ROUND_HALF_EVEN).floatValue(); // %age = ((T(i) - T(i-1) + R) % R) / R
                 ownerships.put(t, age);                           // save (T(i) -> %age)
                 tim1 = ti;                                        // -> advance loop

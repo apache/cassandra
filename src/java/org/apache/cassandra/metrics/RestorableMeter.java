@@ -158,7 +158,7 @@ public class RestorableMeter
          */
         public RestorableEWMA(long windowInSeconds) {
             this.alpha = 1 - exp((-TICK_INTERVAL / NANOS_PER_SECOND) / windowInSeconds);
-            this.interval = (double) TICK_INTERVAL;
+            this.interval = TICK_INTERVAL;
         }
 
         /**

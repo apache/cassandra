@@ -589,6 +589,6 @@ public class ColumnFamilyRecordReader extends RecordReader<ByteBuffer, SortedMap
 
     public long getPos() throws IOException
     {
-        return (long)iter.rowsRead();
+        return iter.rowsRead();
     }
 }

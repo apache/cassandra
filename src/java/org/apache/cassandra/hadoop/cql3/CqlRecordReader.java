@@ -226,7 +226,7 @@ public class CqlRecordReader extends RecordReader<Long, Row>
 
     public long getPos() throws IOException
     {
-        return (long) rowIterator.totalRead;
+        return rowIterator.totalRead;
     }
 
     public Long createKey()

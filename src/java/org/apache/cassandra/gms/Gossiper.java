@@ -87,9 +87,9 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
 
     public static final long aVeryLongTime = 259200 * 1000; // 3 days
 
-    /** Maximimum difference in generation and version values we are willing to accept about a peer */
+    /** Maximum difference in generation and version values we are willing to accept about a peer */
     private static final long MAX_GENERATION_DIFFERENCE = 86400 * 365;
-    private long FatClientTimeout;
+    private long fatClientTimeout;
     private final Random random = new Random();
     private final Comparator<InetAddress> inetcomparator = new Comparator<InetAddress>()
     {
@@ -195,7 +195,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
     private Gossiper()
     {
         // half of QUARATINE_DELAY, to ensure justRemovedEndpoints has enough leeway to prevent re-gossip
-        FatClientTimeout = (long) (QUARANTINE_DELAY / 2);
+        fatClientTimeout = (QUARANTINE_DELAY / 2);
         /* register with the Failure Detector for receiving Failure detector events */
         FailureDetector.instance.registerFailureDetectionEventListener(this);
 
@@ -738,9 +738,9 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
                 // gossip after FatClientTimeout.  Do not remove dead states here.
                 if (isGossipOnlyMember(endpoint)
                     && !justRemovedEndpoints.containsKey(endpoint)
-                    && TimeUnit.NANOSECONDS.toMillis(nowNano - epState.getUpdateTimestamp()) > FatClientTimeout)
+                    && TimeUnit.NANOSECONDS.toMillis(nowNano - epState.getUpdateTimestamp()) > fatClientTimeout)
                 {
-                    logger.info("FatClient {} has been silent for {}ms, removing from gossip", endpoint, FatClientTimeout);
+                    logger.info("FatClient {} has been silent for {}ms, removing from gossip", endpoint, fatClientTimeout);
                     removeEndpoint(endpoint); // will put it in justRemovedEndpoints to respect quarantine delay
                     evictFromMembership(endpoint); // can get rid of the state immediately
                 }
