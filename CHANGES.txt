@@ -43,7 +43,6 @@
  * Fix cassandra-stress so it respects the CL passed in user mode (CASSANDRA-8948)
  * Fix rare NPE in ColumnDefinition#hasIndexOption() (CASSANDRA-8786)
  * cassandra-stress reports per-operation statistics, plus misc (CASSANDRA-8769)
- * Add SimpleDate (cql date) and Time (cql time) types (CASSANDRA-7523)
  * Use long for key count in cfstats (CASSANDRA-8913)
  * Make SSTableRewriter.abort() more robust to failure (CASSANDRA-8832)
  * Remove cold_reads_to_omit from STCS (CASSANDRA-8860)

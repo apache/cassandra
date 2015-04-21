@@ -33,8 +33,6 @@ class CQLHelpTopics(object):
         one of the following topics:
 
           HELP TIMESTAMP_INPUT
-          HELP DATE_INPUT
-          HELP TIME_INPUT
           HELP BLOB_INPUT
           HELP UUID_INPUT
           HELP BOOLEAN_INPUT
@@ -69,27 +67,6 @@ class CQLHelpTopics(object):
 
         If no time zone is supplied, the current time zone for the Cassandra
         server node will be used.
-        """
-
-    def help_date_input(self):
-        print """
-        Date input
-
-        CQL supports the following format for date specification:
-
-          yyyy-mm-dd
-        """
-
-    def help_time_input(self):
-        print """
-        Time input
-
-        CQL supports the following format for time specification:
-
-          HH:MM:SS
-          HH:MM:SS.mmm
-          HH:MM:SS.mmmuuu
-          HH:MM:SS.mmmuuunnn
         """
 
     def help_blob_input(self):
