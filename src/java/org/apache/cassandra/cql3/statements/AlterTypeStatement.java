@@ -191,6 +191,12 @@ public abstract class AlterTypeStatement extends SchemaAlteringStatement
             List<AbstractType<?>> updatedTypes = updateTypes(ut.fieldTypes(), keyspace, toReplace, updated);
             return updatedTypes == null ? null : new UserType(ut.keyspace, ut.name, new ArrayList<>(ut.fieldNames()), updatedTypes);
         }
+        else if (type instanceof TupleType)
+        {
+            TupleType tt = (TupleType)type;
+            List<AbstractType<?>> updatedTypes = updateTypes(tt.allTypes(), keyspace, toReplace, updated);
+            return updatedTypes == null ? null : new TupleType(updatedTypes);
+        }
         else if (type instanceof CompositeType)
         {
             CompositeType ct = (CompositeType)type;
