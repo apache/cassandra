@@ -313,6 +313,16 @@ public abstract class SecondaryIndex
     public abstract boolean indexes(CellName name);
 
     /**
+     * Returns true if the defined column is indexed by this secondary index.
+     * @param column definition of the column to check
+     * @return whether the supplied column is indexed or not
+     */
+    public boolean indexes(ColumnDefinition column)
+    {
+        return columnDefs.contains(column);
+    }
+
+    /**
      * This is the primary way to create a secondary index instance for a CF column.
      * It will validate the index_options before initializing.
      *
