@@ -237,4 +237,98 @@ public class UserTypesTest extends CQLTester
                     row(4, list(userType(null, 4))));
         }
     }
+
+    @Test
+    public void testAlteringUserTypeNestedWithinTuple() throws Throwable
+    {
+        String type = createType("CREATE TYPE %s (a int, b int)");
+
+        createTable("CREATE TABLE %s (a int PRIMARY KEY, b frozen<tuple<int, " + KEYSPACE + "." + type + ">>)");
+
+        execute("INSERT INTO %s (a, b) VALUES(1, (1, {a:1, b:1}))");
+        assertRows(execute("SELECT * FROM %s"), row(1, tuple(1, userType(1, 1))));
+        flush();
+
+        execute("ALTER TYPE " + KEYSPACE + "." + type + " ADD c int");
+        execute("INSERT INTO %s (a, b) VALUES(2, (2, {a: 2, b: 2, c: 2}))");
+        execute("INSERT INTO %s (a, b) VALUES(3, (3, {a: 3, b: 3}))");
+        execute("INSERT INTO %s (a, b) VALUES(4, (4, {b:4}))");
+
+        assertRows(execute("SELECT * FROM %s"),
+                   row(1, tuple(1, userType(1, 1))),
+                   row(2, tuple(2, userType(2, 2, 2))),
+                   row(3, tuple(3, userType(3, 3, null))),
+                   row(4, tuple(4, userType(null, 4, null))));
+
+        flush();
+
+        assertRows(execute("SELECT * FROM %s"),
+                   row(1, tuple(1, userType(1, 1))),
+                   row(2, tuple(2, userType(2, 2, 2))),
+                   row(3, tuple(3, userType(3, 3, null))),
+                   row(4, tuple(4, userType(null, 4, null))));
+    }
+
+    @Test
+    public void testAlteringUserTypeNestedWithinNestedTuple() throws Throwable
+    {
+        String type = createType("CREATE TYPE %s (a int, b int)");
+
+        createTable("CREATE TABLE %s (a int PRIMARY KEY, b frozen<tuple<int, tuple<int, " + KEYSPACE + "." + type + ">>>)");
+
+        execute("INSERT INTO %s (a, b) VALUES(1, (1, (1, {a:1, b:1})))");
+        assertRows(execute("SELECT * FROM %s"), row(1, tuple(1, tuple(1, userType(1, 1)))));
+        flush();
+
+        execute("ALTER TYPE " + KEYSPACE + "." + type + " ADD c int");
+        execute("INSERT INTO %s (a, b) VALUES(2, (2, (1, {a: 2, b: 2, c: 2})))");
+        execute("INSERT INTO %s (a, b) VALUES(3, (3, (1, {a: 3, b: 3})))");
+        execute("INSERT INTO %s (a, b) VALUES(4, (4, (1, {b:4})))");
+
+        assertRows(execute("SELECT * FROM %s"),
+                   row(1, tuple(1, tuple(1, userType(1, 1)))),
+                   row(2, tuple(2, tuple(1, userType(2, 2, 2)))),
+                   row(3, tuple(3, tuple(1, userType(3, 3, null)))),
+                   row(4, tuple(4, tuple(1, userType(null, 4, null)))));
+
+        flush();
+
+        assertRows(execute("SELECT * FROM %s"),
+                   row(1, tuple(1, tuple(1, userType(1, 1)))),
+                   row(2, tuple(2, tuple(1, userType(2, 2, 2)))),
+                   row(3, tuple(3, tuple(1, userType(3, 3, null)))),
+                   row(4, tuple(4, tuple(1, userType(null, 4, null)))));
+    }
+
+    @Test
+    public void testAlteringUserTypeNestedWithinUserType() throws Throwable
+    {
+        String type = createType("CREATE TYPE %s (a int, b int)");
+        String otherType = createType("CREATE TYPE %s (x frozen<" + KEYSPACE + "." + type + ">)");
+
+        createTable("CREATE TABLE %s (a int PRIMARY KEY, b frozen<" + KEYSPACE + "." + otherType + ">)");
+
+        execute("INSERT INTO %s (a, b) VALUES(1, {x: {a:1, b:1}})");
+        assertRows(execute("SELECT b.x.a, b.x.b FROM %s"), row(1, 1));
+        flush();
+
+        execute("ALTER TYPE " + KEYSPACE + "." + type + " ADD c int");
+        execute("INSERT INTO %s (a, b) VALUES(2, {x: {a: 2, b: 2, c: 2}})");
+        execute("INSERT INTO %s (a, b) VALUES(3, {x: {a: 3, b: 3}})");
+        execute("INSERT INTO %s (a, b) VALUES(4, {x: {b:4}})");
+
+        assertRows(execute("SELECT b.x.a, b.x.b, b.x.c FROM %s"),
+                   row(1, 1, null),
+                   row(2, 2, 2),
+                   row(3, 3, null),
+                   row(null, 4, null));
+
+        flush();
+
+        assertRows(execute("SELECT b.x.a, b.x.b, b.x.c FROM %s"),
+                   row(1, 1, null),
+                   row(2, 2, 2),
+                   row(3, 3, null),
+                   row(null, 4, null));
+    }
 }

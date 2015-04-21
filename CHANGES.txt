@@ -97,8 +97,8 @@
  * fix nodetool names that reference column families (CASSANDRA-8872)
 
 2.1.5
- * Update collection types that use a user-defined type when that UDT is
-   modified (CASSANDRA-9148)
+ * Update tuple and collection types that use a user-defined type when that UDT
+   is modified (CASSANDRA-9148, CASSANDRA-9192)
  * Re-add deprecated cold_reads_to_omit param for backwards compat (CASSANDRA-9203)
  * Make anticompaction visible in compactionstats (CASSANDRA-9098)
  * Improve nodetool getendpoints documentation about the partition
