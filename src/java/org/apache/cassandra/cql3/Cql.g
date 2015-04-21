@@ -1161,8 +1161,6 @@ native_type returns [CQL3Type t]
     | K_VARCHAR   { $t = CQL3Type.Native.VARCHAR; }
     | K_VARINT    { $t = CQL3Type.Native.VARINT; }
     | K_TIMEUUID  { $t = CQL3Type.Native.TIMEUUID; }
-    | K_DATE      { $t = CQL3Type.Native.DATE; }
-    | K_TIME      { $t = CQL3Type.Native.TIME; }
     ;
 
 collection_type returns [CQL3Type.Raw pt]
@@ -1330,8 +1328,6 @@ K_VARINT:      V A R I N T;
 K_TIMEUUID:    T I M E U U I D;
 K_TOKEN:       T O K E N;
 K_WRITETIME:   W R I T E T I M E;
-K_DATE:        D A T E;
-K_TIME:        T I M E;
 
 K_NULL:        N U L L;
 K_NOT:         N O T;

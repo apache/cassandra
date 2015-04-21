@@ -44,7 +44,7 @@ public abstract class Constants
 
     public enum Type
     {
-        STRING, INTEGER, UUID, FLOAT, DATE, TIME, BOOLEAN, HEX;
+        STRING, INTEGER, UUID, FLOAT, BOOLEAN, HEX;
     }
 
     public static final Term.Raw NULL_LITERAL = new Term.Raw()
@@ -179,8 +179,6 @@ public abstract class Constants
                         case TEXT:
                         case INET:
                         case VARCHAR:
-                        case DATE:
-                        case TIME:
                         case TIMESTAMP:
                             return true;
                     }
@@ -190,7 +188,6 @@ public abstract class Constants
                     {
                         case BIGINT:
                         case COUNTER:
-                        case DATE:
                         case DECIMAL:
                         case DOUBLE:
                         case FLOAT:
