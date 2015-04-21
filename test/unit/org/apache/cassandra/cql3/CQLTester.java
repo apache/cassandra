@@ -675,6 +675,11 @@ public abstract class CQLTester
         return new TupleValue(values);
     }
 
+    protected Object userType(Object... values)
+    {
+        return new TupleValue(values).toByteBuffer();
+    }
+
     protected Object list(Object...values)
     {
         return Arrays.asList(values);
