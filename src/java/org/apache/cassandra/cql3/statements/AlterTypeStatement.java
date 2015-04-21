@@ -163,7 +163,14 @@ public abstract class AlterTypeStatement extends SchemaAlteringStatement
             default:
                 // If it's a collection, we still want to modify the comparator because the collection is aliased in it
                 if (def.type instanceof CollectionType)
-                    cfm.comparator = CellNames.fromAbstractType(updateWith(cfm.comparator.asAbstractType(), keyspace, toReplace, updated), cfm.comparator.isDense());
+                {
+                    t = updateWith(cfm.comparator.asAbstractType(), keyspace, toReplace, updated);
+                    // If t == null, all relevant comparators were updated via updateWith, which reaches into types and
+                    // collections
+                    if (t != null)
+                        cfm.comparator = CellNames.fromAbstractType(t, cfm.comparator.isDense());
+                }
+                break;
         }
         return true;
     }

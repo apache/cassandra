@@ -126,4 +126,115 @@ public class UserTypesTest extends CQLTester
         assertInvalidMessage("Invalid unset value for field 'y' of user defined type " + myType,
                 "INSERT INTO %s (k, v, z) VALUES (10, {x:?, y:?}, {a:{x: ?, y: ?}})", 1, 1, 1, unset());
     }
+
+    @Test
+    public void testAlteringUserTypeNestedWithinMap() throws Throwable
+    {
+        // test frozen and non-frozen collections
+        String[] columnTypePrefixes = {"frozen<map<text, ", "map<text, frozen<"};
+        for (String columnTypePrefix : columnTypePrefixes)
+        {
+            String ut1 = createType("CREATE TYPE %s (a int)");
+            String columnType = columnTypePrefix + KEYSPACE + "." + ut1 + ">>";
+
+            createTable("CREATE TABLE %s (x int PRIMARY KEY, y " + columnType + ")");
+
+            execute("INSERT INTO %s (x, y) VALUES(1, {'firstValue':{a:1}})");
+            assertRows(execute("SELECT * FROM %s"), row(1, map("firstValue", userType(1))));
+            flush();
+
+            execute("ALTER TYPE " + KEYSPACE + "." + ut1 + " ADD b int");
+            execute("INSERT INTO %s (x, y) VALUES(2, {'secondValue':{a:2, b:2}})");
+            execute("INSERT INTO %s (x, y) VALUES(3, {'thirdValue':{a:3}})");
+            execute("INSERT INTO %s (x, y) VALUES(4, {'fourthValue':{b:4}})");
+
+            assertRows(execute("SELECT * FROM %s"),
+                    row(1, map("firstValue", userType(1))),
+                    row(2, map("secondValue", userType(2, 2))),
+                    row(3, map("thirdValue", userType(3, null))),
+                    row(4, map("fourthValue", userType(null, 4))));
+
+            flush();
+
+            assertRows(execute("SELECT * FROM %s"),
+                    row(1, map("firstValue", userType(1))),
+                    row(2, map("secondValue", userType(2, 2))),
+                    row(3, map("thirdValue", userType(3, null))),
+                    row(4, map("fourthValue", userType(null, 4))));
+        }
+    }
+
+    @Test
+    public void testAlteringUserTypeNestedWithinSet() throws Throwable
+    {
+        // test frozen and non-frozen collections
+        String[] columnTypePrefixes = {"frozen<set<", "set<frozen<"};
+        for (String columnTypePrefix : columnTypePrefixes)
+        {
+            String ut1 = createType("CREATE TYPE %s (a int)");
+            String columnType = columnTypePrefix + KEYSPACE + "." + ut1 + ">>";
+
+            createTable("CREATE TABLE %s (x int PRIMARY KEY, y " + columnType + ")");
+
+            execute("INSERT INTO %s (x, y) VALUES(1, {1} )");
+            assertRows(execute("SELECT * FROM %s"), row(1, set(userType(1))));
+            flush();
+
+            execute("ALTER TYPE " + KEYSPACE + "." + ut1 + " ADD b int");
+            execute("INSERT INTO %s (x, y) VALUES(2, {{a:2, b:2}})");
+            execute("INSERT INTO %s (x, y) VALUES(3, {{a:3}})");
+            execute("INSERT INTO %s (x, y) VALUES(4, {{b:4}})");
+
+            assertRows(execute("SELECT * FROM %s"),
+                    row(1, set(userType(1))),
+                    row(2, set(userType(2, 2))),
+                    row(3, set(userType(3, null))),
+                    row(4, set(userType(null, 4))));
+
+            flush();
+
+            assertRows(execute("SELECT * FROM %s"),
+                    row(1, set(userType(1))),
+                    row(2, set(userType(2, 2))),
+                    row(3, set(userType(3, null))),
+                    row(4, set(userType(null, 4))));
+        }
+    }
+
+    @Test
+    public void testAlteringUserTypeNestedWithinList() throws Throwable
+    {
+        // test frozen and non-frozen collections
+        String[] columnTypePrefixes = {"frozen<list<", "list<frozen<"};
+        for (String columnTypePrefix : columnTypePrefixes)
+        {
+            String ut1 = createType("CREATE TYPE %s (a int)");
+            String columnType = columnTypePrefix + KEYSPACE + "." + ut1 + ">>";
+
+            createTable("CREATE TABLE %s (x int PRIMARY KEY, y " + columnType + ")");
+
+            execute("INSERT INTO %s (x, y) VALUES(1, [1] )");
+            assertRows(execute("SELECT * FROM %s"), row(1, list(userType(1))));
+            flush();
+
+            execute("ALTER TYPE " + KEYSPACE + "." + ut1 + " ADD b int");
+            execute("INSERT INTO %s (x, y) VALUES(2, [{a:2, b:2}])");
+            execute("INSERT INTO %s (x, y) VALUES(3, [{a:3}])");
+            execute("INSERT INTO %s (x, y) VALUES(4, [{b:4}])");
+
+            assertRows(execute("SELECT * FROM %s"),
+                    row(1, list(userType(1))),
+                    row(2, list(userType(2, 2))),
+                    row(3, list(userType(3, null))),
+                    row(4, list(userType(null, 4))));
+
+            flush();
+
+            assertRows(execute("SELECT * FROM %s"),
+                    row(1, list(userType(1))),
+                    row(2, list(userType(2, 2))),
+                    row(3, list(userType(3, null))),
+                    row(4, list(userType(null, 4))));
+        }
+    }
 }

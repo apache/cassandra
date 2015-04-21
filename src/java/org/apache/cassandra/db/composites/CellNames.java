@@ -63,6 +63,7 @@ public abstract class CellNames
             }
             else
             {
+                assert type != null;
                 return new SimpleSparseCellNameType(type);
             }
         }
