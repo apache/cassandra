@@ -162,7 +162,7 @@ public abstract class AlterTypeStatement extends SchemaAlteringStatement
                 break;
             default:
                 // If it's a collection, we still want to modify the comparator because the collection is aliased in it
-                if (def.type instanceof CollectionType)
+                if (def.type instanceof CollectionType && def.type.isMultiCell())
                 {
                     t = updateWith(cfm.comparator.asAbstractType(), keyspace, toReplace, updated);
                     // If t == null, all relevant comparators were updated via updateWith, which reaches into types and
