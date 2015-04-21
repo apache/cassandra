@@ -156,6 +156,7 @@ public class SecondaryIndexManager
      */
     public void maybeBuildSecondaryIndexes(Collection<SSTableReader> sstables, Set<String> idxNames)
     {
+        idxNames = filterByColumn(idxNames);
         if (idxNames.isEmpty())
             return;
 
@@ -703,6 +704,24 @@ public class SecondaryIndexManager
         return !oldCell.name().equals(newCell.name())
             || !oldCell.value().equals(newCell.value())
             || oldCell.timestamp() != newCell.timestamp();
+    }
+
+    private Set<String> filterByColumn(Set<String> idxNames)
+    {
+        Set<SecondaryIndex> indexes = getIndexesByNames(idxNames);
+        Set<String> filtered = new HashSet<>(idxNames.size());
+        for (SecondaryIndex candidate : indexes)
+        {
+            for (ColumnDefinition column : baseCfs.metadata.allColumns())
+            {
+                if (candidate.indexes(column))
+                {
+                    filtered.add(candidate.getIndexName());
+                    break;
+                }
+            }
+        }
+        return filtered;
     }
 
     public static interface Updater

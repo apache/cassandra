@@ -30,6 +30,7 @@ import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
+import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.UntypedResultSet;
@@ -146,13 +147,21 @@ public class PerRowSecondaryIndexTest extends SchemaLoader
 
     public static class TestIndex extends PerRowSecondaryIndex
     {
+        public static volatile boolean ACTIVE = true;
         public static ColumnFamily LAST_INDEXED_ROW;
         public static ByteBuffer LAST_INDEXED_KEY;
 
         public static void reset()
         {
+            ACTIVE = true;
             LAST_INDEXED_KEY = null;
             LAST_INDEXED_ROW = null;
+        }
+
+        @Override
+        public boolean indexes(ColumnDefinition column)
+        {
+            return ACTIVE;
         }
 
         @Override
@@ -188,7 +197,7 @@ public class PerRowSecondaryIndexTest extends SchemaLoader
         @Override
         public String getIndexName()
         {
-            return null;
+            return this.getClass().getSimpleName();
         }
 
         @Override
