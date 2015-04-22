@@ -351,7 +351,7 @@ public abstract class Lists
 
             List<Cell> existingList = params.getPrefetchedList(rowKey, column.name);
             int idx = ByteBufferUtil.toInt(index);
-            if (existingList == null)
+            if (existingList == null || existingList.size() == 0)
                 throw new InvalidRequestException("Attempted to set an element on a list which is null");
             if (idx < 0 || idx >= existingList.size())
                 throw new InvalidRequestException(String.format("List index %d out of bound, list has size %d", idx, existingList.size()));
@@ -507,7 +507,7 @@ public abstract class Lists
 
             List<Cell> existingList = params.getPrefetchedList(rowKey, column.name);
             int idx = ByteBufferUtil.toInt(index.get(params.options.getProtocolVersion()));
-            if (existingList == null)
+            if (existingList == null || existingList.size() == 0)
                 throw new InvalidRequestException("Attempted to delete an element from a list which is null");
             if (idx < 0 || idx >= existingList.size())
                 throw new InvalidRequestException(String.format("List index %d out of bound, list has size %d", idx, existingList.size()));

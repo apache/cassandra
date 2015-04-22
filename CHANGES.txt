@@ -97,6 +97,7 @@
  * fix nodetool names that reference column families (CASSANDRA-8872)
 
 2.1.5
+ * Fix deleting from an empty list (CASSANDRA-9198)
  * Update tuple and collection types that use a user-defined type when that UDT
    is modified (CASSANDRA-9148, CASSANDRA-9192)
  * Re-add deprecated cold_reads_to_omit param for backwards compat (CASSANDRA-9203)
