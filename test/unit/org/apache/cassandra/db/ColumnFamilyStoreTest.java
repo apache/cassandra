@@ -115,6 +115,7 @@ public class ColumnFamilyStoreTest
     public static final String CF_STANDARD2 = "Standard2";
     public static final String CF_STANDARD3 = "Standard3";
     public static final String CF_STANDARD4 = "Standard4";
+    public static final String CF_STANDARD5 = "Standard5";
     public static final String CF_STANDARDINT = "StandardInteger1";
     public static final String CF_SUPER1 = "Super1";
     public static final String CF_SUPER6 = "Super6";
@@ -142,6 +143,7 @@ public class ColumnFamilyStoreTest
                                     SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARD2),
                                     SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARD3),
                                     SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARD4),
+                                    SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARD5),
                                     SchemaLoader.indexCFMD(KEYSPACE1, CF_INDEX1, true),
                                     SchemaLoader.indexCFMD(KEYSPACE1, CF_INDEX2, false),
                                     SchemaLoader.superCFMD(KEYSPACE1, CF_SUPER1, LongType.instance),
@@ -1874,7 +1876,7 @@ public class ColumnFamilyStoreTest
     public void testLoadNewSSTablesAvoidsOverwrites() throws Throwable
     {
         String ks = KEYSPACE1;
-        String cf = CF_STANDARD1;
+        String cf = CF_STANDARD5;
         ColumnFamilyStore cfs = Keyspace.open(ks).getColumnFamilyStore(cf);
         cfs.truncateBlocking();
         SSTableDeletingTask.waitForDeletions();

@@ -57,15 +57,20 @@ public class SSTableRewriter
     static
     {
         long interval = DatabaseDescriptor.getSSTablePreempiveOpenIntervalInMB() * (1L << 20);
-        if (interval < 0 || FBUtilities.isWindows())
+        if (interval < 0)
             interval = Long.MAX_VALUE;
         preemptiveOpenInterval = interval;
     }
 
     @VisibleForTesting
-    static void overrideOpenInterval(long size)
+    public static void overrideOpenInterval(long size)
     {
         preemptiveOpenInterval = size;
+    }
+    @VisibleForTesting
+    public static long getOpenInterval()
+    {
+        return preemptiveOpenInterval;
     }
 
     private final DataTracker dataTracker;
@@ -280,6 +285,9 @@ public class SSTableRewriter
     {
         if (isOffline)
             return;
+        if (preemptiveOpenInterval == Long.MAX_VALUE)
+            return;
+
         List<SSTableReader> toReplace = new ArrayList<>();
         List<SSTableReader> replaceWith = new ArrayList<>();
         final List<DecoratedKey> invalidateKeys = new ArrayList<>();

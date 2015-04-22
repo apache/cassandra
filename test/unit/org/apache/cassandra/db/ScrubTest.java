@@ -54,6 +54,7 @@ import org.apache.cassandra.exceptions.RequestExecutionException;
 import org.apache.cassandra.exceptions.WriteTimeoutException;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
+import org.apache.cassandra.io.sstable.SSTableRewriter;
 import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.locator.SimpleStrategy;
@@ -166,6 +167,21 @@ public class ScrubTest
         // verify that we can read all of the rows, and there is now one less row
         rows = cfs.getRangeSlice(Util.range("", ""), null, new IdentityQueryFilter(), 1000);
         assertEquals(1, rows.size());
+    }
+
+    @Test
+    public void testScrubCorruptedCounterRowNoEarlyOpen() throws IOException, WriteTimeoutException
+    {
+        long oldOpenVal = SSTableRewriter.getOpenInterval();
+        try
+        {
+            SSTableRewriter.overrideOpenInterval(Long.MAX_VALUE);
+            testScrubCorruptedCounterRow();
+        }
+        finally
+        {
+            SSTableRewriter.overrideOpenInterval(oldOpenVal);
+        }
     }
 
     @Test
