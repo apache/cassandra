@@ -23,7 +23,7 @@ import re
 from .basecase import BaseTestCase, cqlsh
 from .cassconnect import testrun_cqlsh
 
-BEL = '\x07' # the terminal-bell character
+BEL = '\x07'  # the terminal-bell character
 CTRL_C = '\x03'
 TAB = '\t'
 
@@ -34,6 +34,7 @@ TAB = '\t'
 COMPLETION_RESPONSE_TIME = 0.5
 
 completion_separation_re = re.compile(r'\s+')
+
 
 class CqlshCompletionCase(BaseTestCase):
     def setUp(self):
@@ -67,7 +68,7 @@ class CqlshCompletionCase(BaseTestCase):
         if choice_output == BEL:
             choice_output = ''
 
-        self.cqlsh.send(CTRL_C) # cancel any current line
+        self.cqlsh.send(CTRL_C)  # cancel any current line
         self.cqlsh.read_to_next_prompt()
 
         choice_lines = choice_output.splitlines()
@@ -127,11 +128,12 @@ class CqlshCompletionCase(BaseTestCase):
                                        other_choices_ok=other_choices_ok,
                                        split_completed_lines=split_completed_lines)
         finally:
-            self.cqlsh.send(CTRL_C) # cancel any current line
+            self.cqlsh.send(CTRL_C)  # cancel any current line
             self.cqlsh.read_to_next_prompt()
 
     def strategies(self):
         return self.module.CqlRuleSet.replication_strategies
+
 
 class TestCqlshCompletion(CqlshCompletionCase):
     cqlver = '3.1.6'
@@ -162,7 +164,6 @@ class TestCqlshCompletion(CqlshCompletionCase):
                                      'users',
                                      'has_all_types',
                                      'system.',
-                                     'system_auth.',
                                      'empty_composite_table',
                                      'empty_table',
                                      'undefined_values_table',
@@ -173,9 +174,9 @@ class TestCqlshCompletion(CqlshCompletionCase):
                                      'songs'),
                             other_choices_ok=True)
         self.trycompletions('INSERT INTO twenty_rows_composite_table',
-                            immediate=' ')
+                            immediate=' (a, b ')
         self.trycompletions('INSERT INTO twenty_rows_composite_table ',
-                            choices=['(', 'JSON'])
+                            immediate='(a, b ')
         self.trycompletions('INSERT INTO twenty_rows_composite_table (a, b ',
                             choices=(')', ','))
         self.trycompletions('INSERT INTO twenty_rows_composite_table (a, b, ',
@@ -301,18 +302,17 @@ class TestCqlshCompletion(CqlshCompletionCase):
              "VALUES ( 'eggs', 'sausage', 'spam') USING TTL 0 AND TIMESTAMP 0 AND "),
             choices=[])
 
-
     def test_complete_in_update(self):
         self.trycompletions("UPD", immediate="ATE ")
         self.trycompletions("UPDATE ",
-                            choices=['twenty_rows_table', 'system_auth.',
+                            choices=['twenty_rows_table',
                                      'users', 'has_all_types', 'system.',
                                      'ascii_with_special_chars',
                                      'empty_composite_table', 'empty_table',
                                      'undefined_values_table',
                                      'dynamic_columns',
                                      'twenty_rows_composite_table',
-                                     'utf8_with_special_chars', 'ks.',
+                                     'utf8_with_special_chars',
                                      'system_traces.', 'songs'],
                             other_choices_ok=True)
 
@@ -346,7 +346,7 @@ class TestCqlshCompletion(CqlshCompletionCase):
         self.trycompletions("UPDATE empty_table SET lonelycol = 'eggs' WHERE lonel",
                             choices=['<quotedName>', '<identifier>'])
         self.trycompletions("UPDATE empty_table SET lonelycol = 'eggs' WHERE lonelykey ",
-                            choices=['=', '<=', '>=', '>', '<', 'CONTAINS', 'IN', '['])
+                            choices=['=', '<=', '>=', '>', '<', 'CONTAINS', 'IN'])
         self.trycompletions("UPDATE empty_table SET lonelycol = 'eggs' WHERE lonelykey = 0.0 ",
                             choices=['AND', 'IF', ';'])
         self.trycompletions("UPDATE empty_table SET lonelycol = 'eggs' WHERE lonelykey = 0.0 AND ",
