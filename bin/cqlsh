@@ -1452,7 +1452,7 @@ class Shell(cmd.Cmd):
             raise SyntaxError("Unknown direction %s" % direction)
 
         timeend = time.time()
-        print "%d rows %s in %s." % (rows, verb, describe_interval(timeend - timestart))
+        print "\n%d rows %s in %s." % (rows, verb, describe_interval(timeend - timestart))
 
     def perform_csv_import(self, ks, cf, columns, fname, opts):
         dialect_options = self.csv_dialect_defaults.copy()
@@ -1511,28 +1511,13 @@ class Shell(cmd.Cmd):
             for process in processes:
                 process.start()
 
-            last_checkpoint_time = time.time()
-            current_rate = 0.0
+            meter = RateMeter(10000)
             for current_record, row in enumerate(reader, start=1):
                 # write to the child process
                 pipes[current_record % num_processes].send((current_record, row))
 
                 # update the progress and current rate periodically
-                if (current_record % 10000) == 0:
-                    new_checkpoint_time = time.time()
-                    new_rate = 10000.0 / (new_checkpoint_time - last_checkpoint_time)
-                    last_checkpoint_time = new_checkpoint_time
-
-                    # smooth the rate a bit
-                    if current_rate == 0.0:
-                        current_rate = new_rate
-                    else:
-                        current_rate = (current_rate + new_rate) / 2.0
-
-                    output = 'Processed %s rows; Write: %.2f rows/s\r' % \
-                             (current_record, current_rate)
-                    sys.stdout.write(output)
-                    sys.stdout.flush()
+                meter.increment()
 
                 # check for any errors reported by the children
                 if (current_record % 100) == 0:
@@ -1758,7 +1743,8 @@ class Shell(cmd.Cmd):
             except IOError, e:
                 self.printerr("Can't open %r for writing: %s" % (fname, e))
                 return 0
-        wmeter = meter.Meter()
+
+        meter = RateMeter(10000)
         try:
             dtformats = DateTimeFormat(self.display_timestamp_format, self.display_date_format, self.display_nanotime_format)
             dump = self.prep_export_dump(ks, cf, columns)
@@ -1771,12 +1757,11 @@ class Shell(cmd.Cmd):
                                  date_time_format=dtformats,
                                  float_precision=self.display_float_precision).strval
                 writer.writerow(map(fmt, row.values()))
-                wmeter.mark_written()
-            wmeter.done()
+                meter.increment()
         finally:
             if do_close:
                 csvdest.close()
-        return wmeter.num_finished()
+        return meter.current_record
 
     def prep_export_dump(self, ks, cf, columns):
         if columns is None:
@@ -2075,6 +2060,34 @@ class Shell(cmd.Cmd):
         if shownum:
             text = '%s:%d:%s' % (self.stdin.name, self.lineno, text)
         self.writeresult(text, color, newline=newline, out=sys.stderr)
+
+
+class RateMeter(object):
+
+    def __init__(self, log_rate):
+        self.log_rate = log_rate
+        self.last_checkpoint_time = time.time()
+        self.current_rate = 0.0
+        self.current_record = 0
+
+    def increment(self):
+        self.current_record += 1
+
+        if (self.current_record % self.log_rate) == 0:
+            new_checkpoint_time = time.time()
+            new_rate = self.log_rate / (new_checkpoint_time - self.last_checkpoint_time)
+            self.last_checkpoint_time = new_checkpoint_time
+
+            # smooth the rate a bit
+            if self.current_rate == 0.0:
+                self.current_rate = new_rate
+            else:
+                self.current_rate = (self.current_rate + new_rate) / 2.0
+
+            output = 'Processed %s rows; Write: %.2f rows/s\r' % \
+                     (self.current_record, self.current_rate)
+            sys.stdout.write(output)
+            sys.stdout.flush()
 
 
 class SwitchCommand(object):
