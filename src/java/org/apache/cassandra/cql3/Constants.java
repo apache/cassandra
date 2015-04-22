@@ -319,10 +319,12 @@ public abstract class Constants
 
         public void execute(ByteBuffer rowKey, ColumnFamily cf, Composite prefix, UpdateParameters params) throws InvalidRequestException
         {
-            CellName cname = cf.getComparator().create(prefix, column);
             ByteBuffer value = t.bindAndGet(params.options);
             if (value != ByteBufferUtil.UNSET_BYTE_BUFFER) // use reference equality and not object equality
+            {
+                CellName cname = cf.getComparator().create(prefix, column);
                 cf.addColumn(value == null ? params.makeTombstone(cname) : params.makeColumn(cname, value));
+            }
         }
     }
 
