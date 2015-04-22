@@ -264,7 +264,7 @@ public class BatchStatement implements CQLStatement
             {
                 Tracing.trace(format, ksCfPairs, size, failThreshold, size - failThreshold, " (see batch_size_fail_threshold_in_kb)");
                 logger.error(format, ksCfPairs, size, failThreshold, size - failThreshold, " (see batch_size_fail_threshold_in_kb)");
-                throw new InvalidRequestException(String.format("Batch too large"));
+                throw new InvalidRequestException("Batch too large");
             }
             else if (logger.isWarnEnabled())
             {

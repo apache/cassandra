@@ -501,7 +501,7 @@ public class CompactionManager implements CompactionManagerMBean
             cfs.getDataTracker().unmarkCompacting(sstables);
         }
 
-        logger.info(String.format("Completed anticompaction successfully"));
+        logger.info("Completed anticompaction successfully");
     }
 
     public void performMaximal(final ColumnFamilyStore cfStore, boolean splitOutput)
