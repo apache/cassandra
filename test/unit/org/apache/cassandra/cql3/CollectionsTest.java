@@ -107,6 +107,11 @@ public class CollectionsTest extends CQLTester
             row(set("v7"))
         );
 
+        execute("DELETE s[?] FROM %s WHERE k = 0", set("v7"));
+
+        // Deleting an element that does not exist will succeed
+        execute("DELETE s[?] FROM %s WHERE k = 0", set("v7"));
+
         execute("DELETE s FROM %s WHERE k = 0");
 
         assertRows(execute("SELECT s FROM %s WHERE k = 0"),
@@ -148,6 +153,31 @@ public class CollectionsTest extends CQLTester
 
         assertRows(execute("SELECT m FROM %s WHERE k = 0"),
             row(map("v5", 5, "v6", 6, "v7", 7))
+        );
+
+        execute("DELETE m[?] FROM %s WHERE k = 0", "v7");
+
+        assertRows(execute("SELECT m FROM %s WHERE k = 0"),
+            row(map("v5", 5, "v6", 6))
+        );
+
+        execute("DELETE m[?] FROM %s WHERE k = 0", "v6");
+
+        assertRows(execute("SELECT m FROM %s WHERE k = 0"),
+            row(map("v5", 5))
+        );
+
+        execute("DELETE m[?] FROM %s WHERE k = 0", "v5");
+
+        assertRows(execute("SELECT m FROM %s WHERE k = 0"),
+            row((Object)null)
+        );
+
+        // Deleting a non-existing key should succeed
+        execute("DELETE m[?] FROM %s WHERE k = 0", "v5");
+
+        assertRows(execute("SELECT m FROM %s WHERE k = 0"),
+            row((Object) null)
         );
 
         // The empty map is parsed as an empty set (because we don't have enough info at parsing
@@ -203,9 +233,7 @@ public class CollectionsTest extends CQLTester
         assertInvalidMessage("Attempted to set an element on a list which is null",
                              "UPDATE %s SET l[0] = ? WHERE k=0", list("v10"));
 
-        assertInvalidMessage("Attempted to delete an element from a list which is null",
-                             "UPDATE %s SET l = l - ? WHERE k=0 ",
-                             list("v11"));
+        execute("UPDATE %s SET l = l - ? WHERE k=0 ", list("v11"));
 
         assertRows(execute("SELECT l FROM %s WHERE k = 0"), row((Object) null));
     }
