@@ -43,6 +43,14 @@ public class DateTieredCompactionStrategy extends AbstractCompactionStrategy
         super(cfs, options);
         this.estimatedRemainingTasks = 0;
         this.options = new DateTieredCompactionStrategyOptions(options);
+        if (!options.containsKey(AbstractCompactionStrategy.TOMBSTONE_COMPACTION_INTERVAL_OPTION) && !options.containsKey(AbstractCompactionStrategy.TOMBSTONE_THRESHOLD_OPTION))
+        {
+            disableTombstoneCompactions = true;
+            logger.debug("Disabling tombstone compactions for DTCS");
+        }
+        else
+            logger.debug("Enabling tombstone compactions for DTCS");
+
     }
 
     @Override
