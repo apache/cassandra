@@ -68,14 +68,14 @@ public class LeveledManifest
     private final ColumnFamilyStore cfs;
     private final List<SSTableReader>[] generations;
     private final RowPosition[] lastCompactedKeys;
-    private final int maxSSTableSizeInBytes;
+    private final long maxSSTableSizeInBytes;
     private final SizeTieredCompactionStrategyOptions options;
     private final int [] compactionCounter;
 
     private LeveledManifest(ColumnFamilyStore cfs, int maxSSTableSizeInMB, SizeTieredCompactionStrategyOptions options)
     {
         this.cfs = cfs;
-        this.maxSSTableSizeInBytes = maxSSTableSizeInMB * 1024 * 1024;
+        this.maxSSTableSizeInBytes = maxSSTableSizeInMB * 1024L * 1024L;
         this.options = options;
 
         // allocate enough generations for a PB of data, with a 1-MB sstable size.  (Note that if maxSSTableSize is
