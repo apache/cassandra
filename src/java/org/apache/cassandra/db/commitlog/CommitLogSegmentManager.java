@@ -89,7 +89,7 @@ public class CommitLogSegmentManager
      * New segment creation is initially disabled because we'll typically get some "free" segments
      * recycled after log replay.
      */
-    private volatile boolean createReserveSegments = false;
+    volatile boolean createReserveSegments = false;
 
     private Thread managerThread;
     private volatile boolean run = true;

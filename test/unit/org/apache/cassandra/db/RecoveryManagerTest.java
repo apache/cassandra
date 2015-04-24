@@ -72,7 +72,6 @@ public class RecoveryManagerTest
     public void testNothingToRecover() throws IOException
     {
         CommitLog.instance.resetUnsafe(true);
-        CommitLog.instance.recover();
     }
 
     @Test
@@ -100,7 +99,6 @@ public class RecoveryManagerTest
         keyspace2.getColumnFamilyStore("Standard3").clearUnsafe();
 
         CommitLog.instance.resetUnsafe(false); // disassociate segments from live CL
-        CommitLog.instance.recover();
 
         assertColumns(Util.getColumnFamily(keyspace1, dk, "Standard1"), "col1");
         assertColumns(Util.getColumnFamily(keyspace2, dk, "Standard3"), "col2");
@@ -127,7 +125,6 @@ public class RecoveryManagerTest
         keyspace1.getColumnFamilyStore("Counter1").clearUnsafe();
 
         CommitLog.instance.resetUnsafe(false); // disassociate segments from live CL
-        CommitLog.instance.recover();
 
         cf = Util.getColumnFamily(keyspace1, dk, "Counter1");
 
@@ -157,7 +154,6 @@ public class RecoveryManagerTest
         }
         keyspace1.getColumnFamilyStore("Standard1").clearUnsafe();
         CommitLog.instance.resetUnsafe(false); // disassociate segments from live CL
-        CommitLog.instance.recover();
 
         ColumnFamily cf = Util.getColumnFamily(keyspace1, dk, "Standard1");
         Assert.assertEquals(6, cf.getColumnCount());
@@ -194,7 +190,6 @@ public class RecoveryManagerTest
 
         keyspace1.getColumnFamilyStore("Standard1").clearUnsafe();
         CommitLog.instance.resetUnsafe(false); // disassociate segments from live CL
-        CommitLog.instance.recover();
 
         cf = Util.getColumnFamily(keyspace1, dk, "Standard1");
         Assert.assertEquals(2, cf.getColumnCount());

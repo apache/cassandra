@@ -119,6 +119,8 @@ public class CommitLog implements CommitLogMBean
      */
     public int recover() throws IOException
     {
+        assert !allocator.createReserveSegments;
+
         // Allocator could be in the process of initial startup with 0 active and available segments. We need to wait for
         // the allocation manager to finish allocation and add it to available segments so we don't get an invalid response
         // on allocator.manages(...) below by grabbing a file off the filesystem before it's added to the CLQ.

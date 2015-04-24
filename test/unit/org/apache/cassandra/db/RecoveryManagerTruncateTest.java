@@ -73,7 +73,6 @@ public class RecoveryManagerTruncateTest
 		// and now truncate it
 		cfs.truncateBlocking();
         CommitLog.instance.resetUnsafe(false);
-		CommitLog.instance.recover();
 
 		// and validate truncation.
 		assertNull(getFromTable(keyspace, "Standard1", "keymulti", "col1"));
