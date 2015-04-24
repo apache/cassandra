@@ -112,20 +112,6 @@ public class ListSerializer<T> extends CollectionSerializer<List<T>>
     }
 
     /**
-     * Deserializes a serialized list and returns a list of unserialized (ByteBuffer) elements.
-     */
-    public List<ByteBuffer> deserializeToByteBufferCollection(ByteBuffer bytes, int version)
-    {
-        ByteBuffer input = bytes.duplicate();
-        int n = readCollectionSize(input, version);
-        List<ByteBuffer> l = new ArrayList<>(n);
-        for (int i = 0; i < n; i++)
-            l.add(readValue(input, version));
-
-        return l;
-    }
-
-    /**
      * Returns the element at the given index in a list.
      * @param serializedList a serialized list
      * @param index the index to get
