@@ -17,17 +17,12 @@
  */
 package org.apache.cassandra.db.compaction;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Set;
+import java.nio.ByteBuffer;
+import java.util.*;
+import java.util.concurrent.ExecutionException;
 
 import com.google.common.primitives.Longs;
+import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
@@ -68,6 +63,16 @@ public class CompactionAwareWriterTest
                                     SchemaLoader.standardCFMD(KEYSPACE1, CF));
 
     }
+
+    @Before
+    public void clear()
+    {
+        // avoid one test affecting the next one
+        Keyspace ks = Keyspace.open(KEYSPACE1);
+        ColumnFamilyStore cfs = ks.getColumnFamilyStore(CF);
+        cfs.clearUnsafe();
+    }
+
     @Test
     public void testDefaultCompactionWriter()
     {
@@ -97,8 +102,8 @@ public class CompactionAwareWriterTest
         populate(cfs, rowCount);
         Set<SSTableReader> sstables = new HashSet<>(cfs.getSSTables());
         long beforeSize = sstables.iterator().next().onDiskLength();
-        int sstableCount = (int)beforeSize/10;
-        CompactionAwareWriter writer = new MaxSSTableSizeWriter(cfs, sstables, sstables, sstableCount, 0, false, OperationType.COMPACTION);
+        int sstableSize = (int)beforeSize/10;
+        CompactionAwareWriter writer = new MaxSSTableSizeWriter(cfs, sstables, sstables, sstableSize, 0, false, OperationType.COMPACTION);
         int rows = compact(cfs, sstables, writer);
         assertEquals(10, cfs.getSSTables().size());
         assertEquals(rowCount, rows);
@@ -130,7 +135,9 @@ public class CompactionAwareWriterTest
                                 });
         for (SSTableReader sstable : sortedSSTables)
         {
-            assertEquals(expectedSize, sstable.onDiskLength(), 10000);
+            // we dont create smaller files than this, everything will be in the last file
+            if (expectedSize > SplittingSizeTieredCompactionWriter.DEFAULT_SMALLEST_SSTABLE_BYTES)
+                assertEquals(expectedSize, sstable.onDiskLength(), expectedSize / 100); // allow 1% diff in estimated vs actual size
             expectedSize /= 2;
         }
         assertEquals(rowCount, rows);
@@ -144,14 +151,15 @@ public class CompactionAwareWriterTest
         Keyspace ks = Keyspace.open(KEYSPACE1);
         ColumnFamilyStore cfs = ks.getColumnFamilyStore(CF);
         cfs.disableAutoCompaction();
-        int rowCount = 10000;
+        int rowCount = 20000;
+        int targetSSTableCount = 50;
         populate(cfs, rowCount);
         Set<SSTableReader> sstables = new HashSet<>(cfs.getSSTables());
         long beforeSize = sstables.iterator().next().onDiskLength();
-        int sstableCount = (int)beforeSize/100;
-        CompactionAwareWriter writer = new MajorLeveledCompactionWriter(cfs, sstables, sstables, sstableCount, false, OperationType.COMPACTION);
+        int sstableSize = (int)beforeSize/targetSSTableCount;
+        CompactionAwareWriter writer = new MajorLeveledCompactionWriter(cfs, sstables, sstables, sstableSize, false, OperationType.COMPACTION);
         int rows = compact(cfs, sstables, writer);
-        assertEquals(100, cfs.getSSTables().size());
+        assertEquals(targetSSTableCount, cfs.getSSTables().size());
         int [] levelCounts = new int[5];
         assertEquals(rowCount, rows);
         for (SSTableReader sstable : cfs.getSSTables())
@@ -160,7 +168,7 @@ public class CompactionAwareWriterTest
         }
         assertEquals(0, levelCounts[0]);
         assertEquals(10, levelCounts[1]);
-        assertEquals(90, levelCounts[2]);
+        assertEquals(targetSSTableCount - 10, levelCounts[2]); // note that if we want more levels, fix this
         for (int i = 3; i < levelCounts.length; i++)
             assertEquals(0, levelCounts[i]);
         validateData(cfs, rowCount);
@@ -190,17 +198,32 @@ public class CompactionAwareWriterTest
     private void populate(ColumnFamilyStore cfs, int count)
     {
         long timestamp = System.currentTimeMillis();
+        byte [] payload = new byte[1000];
+        new Random().nextBytes(payload);
+        ByteBuffer b = ByteBuffer.wrap(payload);
         for (int i = 0; i < count; i++)
         {
             DecoratedKey key = Util.dk(Integer.toString(i));
             Mutation rm = new Mutation(KEYSPACE1, key.getKey());
             for (int j = 0; j < 10; j++)
                 rm.add(CF,  Util.cellname(Integer.toString(j)),
-                        ByteBufferUtil.EMPTY_BYTE_BUFFER,
+                        b,
                         timestamp);
             rm.applyUnsafe();
         }
         cfs.forceBlockingFlush();
+        if (cfs.getSSTables().size() > 1)
+        {
+            // we want just one big sstable to avoid doing actual compaction in compact() above
+            try
+            {
+                cfs.forceMajorCompaction();
+            }
+            catch (Throwable t)
+            {
+                throw new RuntimeException(t);
+            }
+        }
         assert cfs.getSSTables().size() == 1 : cfs.getSSTables();
     }
     private void validateData(ColumnFamilyStore cfs, int rowCount)

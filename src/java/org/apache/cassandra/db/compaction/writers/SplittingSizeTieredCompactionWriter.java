@@ -46,7 +46,7 @@ public class SplittingSizeTieredCompactionWriter extends CompactionAwareWriter
 {
     private static final Logger logger = LoggerFactory.getLogger(SplittingSizeTieredCompactionWriter.class);
 
-    private static final long DEFAULT_SMALLEST_SSTABLE_BYTES = 50_000_000;
+    public static final long DEFAULT_SMALLEST_SSTABLE_BYTES = 50_000_000;
     private final double[] ratios;
     private final SSTableRewriter sstableWriter;
     private final long totalSize;
