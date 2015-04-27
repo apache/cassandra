@@ -44,6 +44,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.*;
+import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.io.FSError;
 import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.io.util.FileUtils;
@@ -91,6 +92,7 @@ public class Directories
 
     public static final String BACKUPS_SUBDIR = "backups";
     public static final String SNAPSHOT_SUBDIR = "snapshots";
+    public static final String TRANSACTIONS_SUBDIR = "transactions";
     public static final String SECONDARY_INDEX_NAME_SEPARATOR = ".";
 
     public static final DataDirectory[] dataDirectories;
@@ -466,6 +468,35 @@ public class Directories
         }
     }
 
+    public static File getTransactionsDirectory(File folder)
+    {
+        return getOrCreate(folder, TRANSACTIONS_SUBDIR);
+    }
+
+    public List<File> getExistingDirectories(String subFolder)
+    {
+        List<File> ret = new ArrayList<>();
+        for (File dir : dataPaths)
+        {
+            File subDir = getExistingDirectory(dir, subFolder);
+            if (subDir != null)
+                ret.add(subDir);
+
+        }
+        return ret;
+    }
+
+    public static File getExistingDirectory(File folder, String subFolder)
+    {
+        File subDir = new File(folder, join(subFolder));
+        if (subDir.exists())
+        {
+            assert(subDir.isDirectory());
+            return subDir;
+        }
+        return null;
+    }
+
     public SSTableLister sstableLister()
     {
         return new SSTableLister();
@@ -521,6 +552,7 @@ public class Directories
     public class SSTableLister
     {
         private boolean skipTemporary;
+        private boolean onlyTemporary;
         private boolean includeBackups;
         private boolean onlyBackups;
         private int nbFiles;
@@ -533,6 +565,14 @@ public class Directories
             if (filtered)
                 throw new IllegalStateException("list() has already been called");
             skipTemporary = b;
+            return this;
+        }
+
+        public SSTableLister onlyTemporary(boolean b)
+        {
+            if (filtered)
+                throw new IllegalStateException("list() has already been called");
+            onlyTemporary = b;
             return this;
         }
 
@@ -593,21 +633,25 @@ public class Directories
 
                 if (snapshotName != null)
                 {
-                    getSnapshotDirectory(location, snapshotName).listFiles(getFilter());
+                    getSnapshotDirectory(location, snapshotName).listFiles(getFilter(location));
                     continue;
                 }
 
                 if (!onlyBackups)
-                    location.listFiles(getFilter());
+                    location.listFiles(getFilter(location));
 
                 if (includeBackups)
-                    getBackupsDirectory(location).listFiles(getFilter());
+                    getBackupsDirectory(location).listFiles(getFilter(location));
             }
             filtered = true;
         }
 
-        private FileFilter getFilter()
+        private FileFilter getFilter(File location)
         {
+           final Set<File> temporaryFiles = skipTemporary || onlyTemporary
+                                            ? LifecycleTransaction.getTemporaryFiles(metadata, location)
+                                            : Collections.<File>emptySet();
+
             return new FileFilter()
             {
                 // This function always return false since accepts adds to the components map
@@ -624,7 +668,10 @@ public class Directories
                     if (!pair.left.ksname.equals(metadata.ksName) || !pair.left.cfname.equals(metadata.cfName))
                         return false;
 
-                    if (skipTemporary && pair.left.type.isTemporary)
+                    if (skipTemporary && temporaryFiles.contains(file))
+                        return false;
+
+                    if (onlyTemporary && !temporaryFiles.contains(file))
                         return false;
 
                     Set<Component> previous = components.get(pair.left);

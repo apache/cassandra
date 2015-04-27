@@ -149,9 +149,8 @@ public class MetadataSerializer implements IMetadataSerializer
 
     private void rewriteSSTableMetadata(Descriptor descriptor, Map<MetadataType, MetadataComponent> currentComponents) throws IOException
     {
-        Descriptor tmpDescriptor = descriptor.asType(Descriptor.Type.TEMP);
-
-        try (DataOutputStreamPlus out = new BufferedDataOutputStreamPlus(new FileOutputStream(tmpDescriptor.filenameFor(Component.STATS))))
+        String filePath = descriptor.tmpFilenameFor(Component.STATS);
+        try (DataOutputStreamPlus out = new BufferedDataOutputStreamPlus(new FileOutputStream(filePath)))
         {
             serialize(currentComponents, out);
             out.flush();
@@ -159,7 +158,7 @@ public class MetadataSerializer implements IMetadataSerializer
         // we cant move a file on top of another file in windows:
         if (FBUtilities.isWindows())
             FileUtils.delete(descriptor.filenameFor(Component.STATS));
-        FileUtils.renameWithConfirm(tmpDescriptor.filenameFor(Component.STATS), descriptor.filenameFor(Component.STATS));
+        FileUtils.renameWithConfirm(filePath, descriptor.filenameFor(Component.STATS));
 
     }
 }

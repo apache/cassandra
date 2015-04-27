@@ -43,7 +43,6 @@ public class Upgrader
     private final LifecycleTransaction transaction;
     private final File directory;
 
-    private final OperationType compactionType = OperationType.UPGRADE_SSTABLES;
     private final CompactionController controller;
     private final CompactionStrategyManager strategyManager;
     private final long estimatedRows;
@@ -80,23 +79,23 @@ public class Upgrader
                 sstableMetadataCollector.addAncestor(i);
         }
         sstableMetadataCollector.sstableLevel(sstable.getSSTableLevel());
-        return SSTableWriter.create(Descriptor.fromFilename(cfs.getTempSSTablePath(directory)),
+        return SSTableWriter.create(Descriptor.fromFilename(cfs.getSSTablePath(directory)),
                                     estimatedRows,
                                     repairedAt,
                                     cfs.metadata,
                                     cfs.partitioner,
                                     sstableMetadataCollector,
-                                    SerializationHeader.make(cfs.metadata, Sets.newHashSet(sstable)));
+                                    SerializationHeader.make(cfs.metadata, Sets.newHashSet(sstable)),
+                                    transaction);
     }
 
-    public void upgrade()
+    public void upgrade(boolean keepOriginals)
     {
         outputHandler.output("Upgrading " + sstable);
-
         int nowInSec = FBUtilities.nowInSeconds();
-        try (SSTableRewriter writer = new SSTableRewriter(cfs, transaction, CompactionTask.getMaxDataAge(transaction.originals()), true);
+        try (SSTableRewriter writer = new SSTableRewriter(cfs, transaction, CompactionTask.getMaxDataAge(transaction.originals()), true).keepOriginals(keepOriginals);
              AbstractCompactionStrategy.ScannerList scanners = strategyManager.getScanners(transaction.originals());
-             CompactionIterator iter = new CompactionIterator(compactionType, scanners.scanners, controller, nowInSec, UUIDGen.getTimeUUID()))
+             CompactionIterator iter = new CompactionIterator(transaction.opType(), scanners.scanners, controller, nowInSec, UUIDGen.getTimeUUID()))
         {
             writer.switchWriter(createCompactionWriter(sstable.getSSTableMetadata().repairedAt));
             while (iter.hasNext())

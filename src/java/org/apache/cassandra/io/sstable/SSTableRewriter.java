@@ -17,11 +17,9 @@
  */
 package org.apache.cassandra.io.sstable;
 
-import java.io.File;
 import java.util.*;
 
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.util.concurrent.Runnables;
 
 import org.apache.cassandra.cache.InstrumentingCache;
 import org.apache.cassandra.cache.KeyCacheKey;
@@ -69,6 +67,7 @@ public class SSTableRewriter extends Transactional.AbstractTransactional impleme
 
     private final List<SSTableWriter> writers = new ArrayList<>();
     private final boolean isOffline; // true for operations that are performed without Cassandra running (prevents updates of Tracker)
+    private boolean keepOriginals; // true if we do not want to obsolete the originals
 
     private SSTableWriter writer;
     private Map<DecoratedKey, RowIndexEntry> cachedKeys = new HashMap<>();
@@ -95,7 +94,14 @@ public class SSTableRewriter extends Transactional.AbstractTransactional impleme
         this.cfs = cfs;
         this.maxAge = maxAge;
         this.isOffline = isOffline;
+        this.keepOriginals = false;
         this.preemptiveOpenInterval = preemptiveOpenInterval;
+    }
+
+    public SSTableRewriter keepOriginals(boolean val)
+    {
+        keepOriginals = val;
+        return this;
     }
 
     private static long calculateOpenInterval(boolean shouldOpenEarly)
@@ -189,6 +195,7 @@ public class SSTableRewriter extends Transactional.AbstractTransactional impleme
     {
         for (SSTableWriter writer : writers)
             accumulate = writer.commit(accumulate);
+
         accumulate = transaction.commit(accumulate);
         return accumulate;
     }
@@ -280,17 +287,19 @@ public class SSTableRewriter extends Transactional.AbstractTransactional impleme
             if (writer != null)
             {
                 writer.abort();
+
+                transaction.untrackNew(writer);
                 writers.remove(writer);
             }
             writer = newWriter;
+
             return;
         }
 
-        SSTableReader reader = null;
         if (preemptiveOpenInterval != Long.MAX_VALUE)
         {
             // we leave it as a tmp file, but we open it and add it to the Tracker
-            reader = writer.setMaxDataAge(maxAge).openFinalEarly();
+            SSTableReader reader = writer.setMaxDataAge(maxAge).openFinalEarly();
             transaction.update(reader, false);
             moveStarts(reader, reader.last);
             transaction.checkpoint();
@@ -357,8 +366,7 @@ public class SSTableRewriter extends Transactional.AbstractTransactional impleme
         if (throwLate)
             throw new RuntimeException("exception thrown after all sstables finished, for testing");
 
-        // TODO: do we always want to avoid obsoleting if offline?
-        if (!isOffline)
+        if (!keepOriginals)
             transaction.obsoleteOriginals();
 
         transaction.prepareToCommit();

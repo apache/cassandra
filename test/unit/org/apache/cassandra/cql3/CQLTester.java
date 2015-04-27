@@ -282,7 +282,7 @@ public abstract class CQLTester
                         schemaChange(String.format("DROP TYPE IF EXISTS %s.%s", KEYSPACE, typesToDrop.get(i)));
 
                     // Dropping doesn't delete the sstables. It's not a huge deal but it's cleaner to cleanup after us
-                    // Thas said, we shouldn't delete blindly before the SSTableDeletingTask for the table we drop
+                    // Thas said, we shouldn't delete blindly before the TransactionLogs.SSTableTidier for the table we drop
                     // have run or they will be unhappy. Since those taks are scheduled on StorageService.tasks and that's
                     // mono-threaded, just push a task on the queue to find when it's empty. No perfect but good enough.
 

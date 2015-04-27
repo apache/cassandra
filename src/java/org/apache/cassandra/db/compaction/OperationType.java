@@ -32,13 +32,27 @@ public enum OperationType
     TOMBSTONE_COMPACTION("Tombstone Compaction"),
     UNKNOWN("Unknown compaction type"),
     ANTICOMPACTION("Anticompaction after repair"),
-    VERIFY("Verify");
+    VERIFY("Verify"),
+    FLUSH("Flush"),
+    STREAM("Stream"),
+    WRITE("Write");
 
-    private final String type;
+    public final String type;
+    public final String fileName;
 
     OperationType(String type)
     {
         this.type = type;
+        this.fileName = type.toLowerCase().replace(" ", "");
+    }
+
+    public static OperationType fromFileName(String fileName)
+    {
+        for (OperationType opType : OperationType.values())
+            if (opType.fileName.equals(fileName))
+                return opType;
+
+        throw new IllegalArgumentException("Invalid fileName for operation type: " + fileName);
     }
 
     public String toString()

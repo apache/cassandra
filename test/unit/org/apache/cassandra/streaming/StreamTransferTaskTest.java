@@ -87,7 +87,7 @@ public class StreamTransferTaskTest
         f.get();
 
         // when timeout runs on second file, task should be completed
-        f = task.scheduleTimeout(1, 1, TimeUnit.MILLISECONDS);
+        f = task.scheduleTimeout(1, 10, TimeUnit.MILLISECONDS);
         task.complete(1);
         try
         {
@@ -97,6 +97,7 @@ public class StreamTransferTaskTest
         catch (CancellationException ex)
         {
         }
+
         assertEquals(StreamSession.State.WAIT_COMPLETE, session.state());
 
         // when all streaming are done, time out task should not be scheduled.

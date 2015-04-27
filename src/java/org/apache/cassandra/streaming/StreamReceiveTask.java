@@ -17,9 +17,6 @@
  */
 package org.apache.cassandra.streaming;
 
-import java.io.File;
-import java.io.IOError;
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
@@ -31,6 +28,8 @@ import org.apache.cassandra.concurrent.NamedThreadFactory;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
+import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.SSTableWriter;
 import org.apache.cassandra.utils.Pair;
@@ -49,6 +48,9 @@ public class StreamReceiveTask extends StreamTask
     // total size of files to receive
     private final long totalSize;
 
+    // Transaction tracking new files received
+    public final LifecycleTransaction txn;
+
     // true if task is done (either completed or aborted)
     private boolean done = false;
 
@@ -60,6 +62,9 @@ public class StreamReceiveTask extends StreamTask
         super(session, cfId);
         this.totalFiles = totalFiles;
         this.totalSize = totalSize;
+        // this is an "offline" transaction, as we currently manually expose the sstables once done;
+        // this should be revisited at a later date, so that LifecycleTransaction manages all sstable state changes
+        this.txn = LifecycleTransaction.offline(OperationType.STREAM, Schema.instance.getCFMetaData(cfId));
         this.sstables = new ArrayList<>(totalFiles);
     }
 
@@ -111,19 +116,15 @@ public class StreamReceiveTask extends StreamTask
                 for (SSTableWriter writer : task.sstables)
                     writer.abort();
                 task.sstables.clear();
+                task.txn.abort();
                 return;
             }
             ColumnFamilyStore cfs = Keyspace.open(kscf.left).getColumnFamilyStore(kscf.right);
 
-            File lockfiledir = cfs.directories.getWriteableLocationAsFile(task.sstables.size() * 256L);
-            if (lockfiledir == null)
-                throw new IOError(new IOException("All disks full"));
-            StreamLockfile lockfile = new StreamLockfile(lockfiledir, UUID.randomUUID());
-            lockfile.create(task.sstables);
             List<SSTableReader> readers = new ArrayList<>();
             for (SSTableWriter writer : task.sstables)
                 readers.add(writer.finish(true));
-            lockfile.delete();
+            task.txn.finish();
             task.sstables.clear();
 
             try (Refs<SSTableReader> refs = Refs.ref(readers))
@@ -151,6 +152,7 @@ public class StreamReceiveTask extends StreamTask
         done = true;
         for (SSTableWriter writer : sstables)
             writer.abort();
+        txn.abort();
         sstables.clear();
     }
 }

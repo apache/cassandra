@@ -20,9 +20,11 @@ package org.apache.cassandra.io.util;
 import java.io.*;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
+import java.nio.charset.Charset;
 import java.nio.file.*;
 import java.text.DecimalFormat;
 import java.util.Arrays;
+import java.util.List;
 
 import org.apache.cassandra.config.Config;
 import sun.nio.ch.DirectBuffer;
@@ -306,6 +308,29 @@ public class FileUtils
         }
     }
 
+    /** Return true if file is contained in folder */
+    public static boolean isContained(File folder, File file)
+    {
+        String folderPath = getCanonicalPath(folder);
+        String filePath = getCanonicalPath(file);
+
+        return filePath.startsWith(folderPath);
+    }
+
+    /** Convert absolute path into a path relative to the base path */
+    public static String getRelativePath(String basePath, String absolutePath)
+    {
+        try
+        {
+            return Paths.get(basePath).relativize(Paths.get(absolutePath)).toString();
+        }
+        catch(Exception ex)
+        {
+            String absDataPath = FileUtils.getCanonicalPath(basePath);
+            return Paths.get(absDataPath).relativize(Paths.get(absolutePath)).toString();
+        }
+    }
+
     public static boolean isCleanerAvailable()
     {
         return canCleanDirectBuffers;
@@ -554,5 +579,45 @@ public class FileUtils
             toCheck = toCheck.getParentFile();
         }
         return false;
+    }
+
+    public static void append(File file, String ... lines)
+    {
+        if (file.exists())
+            write(file, StandardOpenOption.APPEND, lines);
+        else
+            write(file, StandardOpenOption.CREATE, lines);
+    }
+
+    public static void replace(File file, String ... lines)
+    {
+        write(file, StandardOpenOption.TRUNCATE_EXISTING, lines);
+    }
+
+    public static void write(File file, StandardOpenOption op, String ... lines)
+    {
+        try
+        {
+            Files.write(file.toPath(),
+                        Arrays.asList(lines),
+                        Charset.forName("utf-8"),
+                        op);
+        }
+        catch (IOException ex)
+        {
+            throw new RuntimeException(ex);
+        }
+    }
+
+    public static List<String> readLines(File file)
+    {
+        try
+        {
+            return Files.readAllLines(file.toPath(), Charset.forName("utf-8"));
+        }
+        catch (IOException ex)
+        {
+            throw new RuntimeException(ex);
+        }
     }
 }

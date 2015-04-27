@@ -49,7 +49,7 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.WrappedRunnable;
-
+import static junit.framework.Assert.assertNotNull;
 @RunWith(OrderedJUnit4ClassRunner.class)
 public class ColumnFamilyStoreTest
 {
@@ -349,8 +349,8 @@ public class ColumnFamilyStoreTest
 
         for (int version = 1; version <= 2; ++version)
         {
-            Descriptor existing = new Descriptor(cfs.directories.getDirectoryForNewSSTables(), KEYSPACE2, CF_STANDARD1, version, Descriptor.Type.FINAL);
-            Descriptor desc = new Descriptor(Directories.getBackupsDirectory(existing), KEYSPACE2, CF_STANDARD1, version, Descriptor.Type.FINAL);
+            Descriptor existing = new Descriptor(cfs.directories.getDirectoryForNewSSTables(), KEYSPACE2, CF_STANDARD1, version);
+            Descriptor desc = new Descriptor(Directories.getBackupsDirectory(existing), KEYSPACE2, CF_STANDARD1, version);
             for (Component c : new Component[]{ Component.DATA, Component.PRIMARY_INDEX, Component.FILTER, Component.STATS })
                 assertTrue("Cannot find backed-up file:" + desc.filenameFor(c), new File(desc.filenameFor(c)).exists());
         }
@@ -389,126 +389,10 @@ public class ColumnFamilyStoreTest
 //        assertEquals(ByteBufferUtil.bytes("B"), cfSliced.getColumn(CellNames.compositeDense(superColName, ByteBufferUtil.bytes("b"))).value());
 //    }
 
-    // TODO: fix once SSTableSimpleWriter's back in
-//    @Test
-//    public void testRemoveUnfinishedCompactionLeftovers() throws Throwable
-//    {
-//        String ks = KEYSPACE1;
-//        String cf = CF_STANDARD3; // should be empty
-//
-//        final CFMetaData cfmeta = Schema.instance.getCFMetaData(ks, cf);
-//        Directories dir = new Directories(cfmeta);
-//        ByteBuffer key = bytes("key");
-//
-//        // 1st sstable
-//        SSTableSimpleWriter writer = new SSTableSimpleWriter(dir.getDirectoryForNewSSTables(), cfmeta, StorageService.getPartitioner());
-//        writer.newRow(key);
-//        writer.addColumn(bytes("col"), bytes("val"), 1);
-//        writer.close();
-//
-//        Map<Descriptor, Set<Component>> sstables = dir.sstableLister().list();
-//        assertEquals(1, sstables.size());
-//
-//        Map.Entry<Descriptor, Set<Component>> sstableToOpen = sstables.entrySet().iterator().next();
-//        final SSTableReader sstable1 = SSTableReader.open(sstableToOpen.getKey());
-//
-//        // simulate incomplete compaction
-//        writer = new SSTableSimpleWriter(dir.getDirectoryForNewSSTables(),
-//                                         cfmeta, StorageService.getPartitioner())
-//        {
-//            protected SSTableWriter getWriter()
-//            {
-//                MetadataCollector collector = new MetadataCollector(cfmeta.comparator);
-//                collector.addAncestor(sstable1.descriptor.generation); // add ancestor from previously written sstable
-//                return SSTableWriter.create(createDescriptor(directory, metadata.ksName, metadata.cfName, DatabaseDescriptor.getSSTableFormat()),
-//                        0L,
-//                        ActiveRepairService.UNREPAIRED_SSTABLE,
-//                        metadata,
-//                        DatabaseDescriptor.getPartitioner(),
-//                        collector);
-//            }
-//        };
-//        writer.newRow(key);
-//        writer.addColumn(bytes("col"), bytes("val"), 1);
-//        writer.close();
-//
-//        // should have 2 sstables now
-//        sstables = dir.sstableLister().list();
-//        assertEquals(2, sstables.size());
-//
-//        SSTableReader sstable2 = SSTableReader.open(sstable1.descriptor);
-//        UUID compactionTaskID = SystemKeyspace.startCompaction(
-//                Keyspace.open(ks).getColumnFamilyStore(cf),
-//                Collections.singleton(sstable2));
-//
-//        Map<Integer, UUID> unfinishedCompaction = new HashMap<>();
-//        unfinishedCompaction.put(sstable1.descriptor.generation, compactionTaskID);
-//        ColumnFamilyStore.removeUnfinishedCompactionLeftovers(cfmeta, unfinishedCompaction);
-//
-//        // 2nd sstable should be removed (only 1st sstable exists in set of size 1)
-//        sstables = dir.sstableLister().list();
-//        assertEquals(1, sstables.size());
-//        assertTrue(sstables.containsKey(sstable1.descriptor));
-//
-//        Map<Pair<String, String>, Map<Integer, UUID>> unfinished = SystemKeyspace.getUnfinishedCompactions();
-//        assertTrue(unfinished.isEmpty());
-//        sstable1.selfRef().release();
-//        sstable2.selfRef().release();
-//    }
 
     // TODO: Fix once SSTableSimpleWriter's back in
     // @see <a href="https://issues.apache.org/jira/browse/CASSANDRA-6086">CASSANDRA-6086</a>
-//    @Test
-//    public void testFailedToRemoveUnfinishedCompactionLeftovers() throws Throwable
-//    {
-//        final String ks = KEYSPACE1;
-//        final String cf = CF_STANDARD4; // should be empty
-//
-//        final CFMetaData cfmeta = Schema.instance.getCFMetaData(ks, cf);
-//        Directories dir = new Directories(cfmeta);
-//        ByteBuffer key = bytes("key");
-//
-//        // Write SSTable generation 3 that has ancestors 1 and 2
-//        final Set<Integer> ancestors = Sets.newHashSet(1, 2);
-//        SSTableSimpleWriter writer = new SSTableSimpleWriter(dir.getDirectoryForNewSSTables(),
-//                                                cfmeta, StorageService.getPartitioner())
-//        {
-//            protected SSTableWriter getWriter()
-//            {
-//                MetadataCollector collector = new MetadataCollector(cfmeta.comparator);
-//                for (int ancestor : ancestors)
-//                    collector.addAncestor(ancestor);
-//                String file = new Descriptor(directory, ks, cf, 3, Descriptor.Type.TEMP).filenameFor(Component.DATA);
-//                return SSTableWriter.create(Descriptor.fromFilename(file),
-//                        0L,
-//                        ActiveRepairService.UNREPAIRED_SSTABLE,
-//                        metadata,
-//                        StorageService.getPartitioner(),
-//                        collector);
-//            }
-//        };
-//        writer.newRow(key);
-//        writer.addColumn(bytes("col"), bytes("val"), 1);
-//        writer.close();
-//
-//        Map<Descriptor, Set<Component>> sstables = dir.sstableLister().list();
-//        assert sstables.size() == 1;
-//
-//        Map.Entry<Descriptor, Set<Component>> sstableToOpen = sstables.entrySet().iterator().next();
-//        final SSTableReader sstable1 = SSTableReader.open(sstableToOpen.getKey());
-//
-//        // simulate we don't have generation in compaction_history
-//        Map<Integer, UUID> unfinishedCompactions = new HashMap<>();
-//        UUID compactionTaskID = UUID.randomUUID();
-//        for (Integer ancestor : ancestors)
-//            unfinishedCompactions.put(ancestor, compactionTaskID);
-//        ColumnFamilyStore.removeUnfinishedCompactionLeftovers(cfmeta, unfinishedCompactions);
-//
-//        // SSTable should not be deleted
-//        sstables = dir.sstableLister().list();
-//        assert sstables.size() == 1;
-//        assert sstables.containsKey(sstable1.descriptor);
-//    }
+
 
     // TODO: Fix once SSTableSimpleWriter's back in
 //    @Test
@@ -624,5 +508,31 @@ public class ColumnFamilyStoreTest
             }
         }
         assertEquals(count, found);
+    }
+
+    @Test
+    public void testScrubDataDirectories() throws Throwable
+    {
+        ColumnFamilyStore cfs = Keyspace.open(KEYSPACE1).getColumnFamilyStore(CF_STANDARD1);
+
+        ColumnFamilyStore.scrubDataDirectories(cfs.metadata);
+
+        new RowUpdateBuilder(cfs.metadata, 2, "key").clustering("name").add("val", "2").build().applyUnsafe();
+        cfs.forceBlockingFlush();
+
+        // Nuke the metadata and reload that sstable
+        Collection<SSTableReader> ssTables = cfs.getSSTables();
+        assertEquals(1, ssTables.size());
+        SSTableReader ssTable = ssTables.iterator().next();
+
+        String dataFileName = ssTable.descriptor.filenameFor(Component.DATA);
+        String tmpDataFileName = ssTable.descriptor.tmpFilenameFor(Component.DATA);
+        new File(dataFileName).renameTo(new File(tmpDataFileName));
+
+        ColumnFamilyStore.scrubDataDirectories(cfs.metadata);
+
+        List<File> ssTableFiles = new Directories(cfs.metadata).sstableLister().listFiles();
+        assertNotNull(ssTableFiles);
+        assertEquals(0, ssTableFiles.size());
     }
 }

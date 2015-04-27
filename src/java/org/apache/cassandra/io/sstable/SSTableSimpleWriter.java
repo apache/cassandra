@@ -26,7 +26,6 @@ import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.dht.IPartitioner;
-import org.apache.cassandra.io.sstable.format.SSTableWriter;
 
 /**
  * A SSTable writer that assumes rows are in (partitioner) sorted order.
@@ -43,14 +42,14 @@ class SSTableSimpleWriter extends AbstractSSTableSimpleWriter
     protected DecoratedKey currentKey;
     protected PartitionUpdate update;
 
-    private SSTableWriter writer;
+    private SSTableTxnWriter writer;
 
     protected SSTableSimpleWriter(File directory, CFMetaData metadata, IPartitioner partitioner, PartitionColumns columns)
     {
         super(directory, metadata, partitioner, columns);
     }
 
-    private SSTableWriter getOrCreateWriter()
+    private SSTableTxnWriter getOrCreateWriter()
     {
         if (writer == null)
             writer = createWriter();

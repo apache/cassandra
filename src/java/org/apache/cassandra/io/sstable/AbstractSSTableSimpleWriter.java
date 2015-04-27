@@ -32,7 +32,6 @@ import org.apache.cassandra.db.rows.EncodingStats;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.io.sstable.format.SSTableFormat;
-import org.apache.cassandra.io.sstable.format.SSTableWriter;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.utils.Pair;
 
@@ -60,18 +59,19 @@ abstract class AbstractSSTableSimpleWriter implements Closeable
         this.formatType = type;
     }
 
-    protected SSTableWriter createWriter()
+    protected SSTableTxnWriter createWriter()
     {
-        return SSTableWriter.create(createDescriptor(directory, metadata.ksName, metadata.cfName, formatType),
+        return SSTableTxnWriter.create(createDescriptor(directory, metadata.ksName, metadata.cfName, formatType),
                                     0,
                                     ActiveRepairService.UNREPAIRED_SSTABLE,
+                                    0,
                                     new SerializationHeader(metadata, columns, EncodingStats.NO_STATS));
     }
 
     private static Descriptor createDescriptor(File directory, final String keyspace, final String columnFamily, final SSTableFormat.Type fmt)
     {
         int maxGen = getNextGeneration(directory, columnFamily);
-        return new Descriptor(directory, keyspace, columnFamily, maxGen + 1, Descriptor.Type.TEMP, fmt);
+        return new Descriptor(directory, keyspace, columnFamily, maxGen + 1, fmt);
     }
 
     private static int getNextGeneration(File directory, final String columnFamily)

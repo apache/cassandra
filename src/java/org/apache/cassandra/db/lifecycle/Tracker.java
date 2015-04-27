@@ -42,6 +42,7 @@ import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.metrics.StorageMetrics;
 import org.apache.cassandra.notifications.*;
 import org.apache.cassandra.utils.Pair;
+import org.apache.cassandra.utils.Throwables;
 import org.apache.cassandra.utils.concurrent.OpOrder;
 
 import static com.google.common.base.Predicates.and;
@@ -162,9 +163,11 @@ public class Tracker
                 accumulate = merge(accumulate, t);
             }
         }
+
         StorageMetrics.load.inc(add - subtract);
         cfstore.metric.liveDiskSpaceUsed.inc(add - subtract);
-        // we don't subtract from total until the sstable is deleted
+
+        // we don't subtract from total until the sstable is deleted, see TransactionLogs.SSTableTidier
         cfstore.metric.totalDiskSpaceUsed.inc(add);
         return accumulate;
     }
@@ -224,28 +227,46 @@ public class Tracker
      */
     public Throwable dropSSTables(final Predicate<SSTableReader> remove, OperationType operationType, Throwable accumulate)
     {
-        Pair<View, View> result = apply(new Function<View, View>()
+        try (TransactionLogs txnLogs = new TransactionLogs(operationType, cfstore.metadata, this))
         {
-            public View apply(View view)
-            {
+            Pair<View, View> result = apply(view -> {
                 Set<SSTableReader> toremove = copyOf(filter(view.sstables, and(remove, notIn(view.compacting))));
                 return updateLiveSet(toremove, emptySet()).apply(view);
+            });
+
+            Set<SSTableReader> removed = Sets.difference(result.left.sstables, result.right.sstables);
+            assert Iterables.all(removed, remove);
+
+            // It is important that any method accepting/returning a Throwable never throws an exception, and does its best
+            // to complete the instructions given to it
+            List<TransactionLogs.Obsoletion> obsoletions = new ArrayList<>();
+            accumulate = prepareForObsoletion(removed, txnLogs, obsoletions, accumulate);
+            try
+            {
+                txnLogs.finish();
+                if (!removed.isEmpty())
+                {
+                    accumulate = markObsolete(obsoletions, accumulate);
+                    accumulate = updateSizeTracking(removed, emptySet(), accumulate);
+                    accumulate = release(selfRefs(removed), accumulate);
+                    // notifySSTablesChanged -> LeveledManifest.promote doesn't like a no-op "promotion"
+                    accumulate = notifySSTablesChanged(removed, Collections.<SSTableReader>emptySet(), txnLogs.getType(), accumulate);
+                }
             }
-        });
-
-        Set<SSTableReader> removed = Sets.difference(result.left.sstables, result.right.sstables);
-        assert Iterables.all(removed, remove);
-
-        if (!removed.isEmpty())
-        {
-            // notifySSTablesChanged -> LeveledManifest.promote doesn't like a no-op "promotion"
-            accumulate = notifySSTablesChanged(removed, Collections.<SSTableReader>emptySet(), operationType, accumulate);
-            accumulate = updateSizeTracking(removed, emptySet(), accumulate);
-            accumulate = markObsolete(this, removed, accumulate);
-            accumulate = release(selfRefs(removed), accumulate);
+            catch (Throwable t)
+            {
+                accumulate = abortObsoletion(obsoletions, accumulate);
+                accumulate = Throwables.merge(accumulate, t);
+            }
         }
+        catch (Throwable t)
+        {
+            accumulate = Throwables.merge(accumulate, t);
+        }
+
         return accumulate;
     }
+
 
     /**
      * Removes every SSTable in the directory from the Tracker's view.
@@ -369,7 +390,6 @@ public class Tracker
         File backupsDir = Directories.getBackupsDirectory(sstable.descriptor);
         sstable.createLinks(FileUtils.getCanonicalPath(backupsDir));
     }
-
 
     // NOTIFICATION
 

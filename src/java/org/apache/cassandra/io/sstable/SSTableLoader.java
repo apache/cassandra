@@ -28,6 +28,7 @@ import com.google.common.collect.Multimap;
 
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
@@ -78,13 +79,17 @@ public class SSTableLoader implements StreamEventHandler
 
         directory.list(new FilenameFilter()
         {
+            final Map<File, Set<File>> allTemporaryFiles = new HashMap<>();
             public boolean accept(File dir, String name)
             {
-                if (new File(dir, name).isDirectory())
+                File file = new File(dir, name);
+
+                if (file.isDirectory())
                     return false;
+
                 Pair<Descriptor, Component> p = SSTable.tryComponentFromFilename(dir, name);
                 Descriptor desc = p == null ? null : p.left;
-                if (p == null || !p.right.equals(Component.DATA) || desc.type.isTemporary)
+                if (p == null || !p.right.equals(Component.DATA))
                     return false;
 
                 if (!new File(desc.filenameFor(Component.PRIMARY_INDEX)).exists())
@@ -97,6 +102,19 @@ public class SSTableLoader implements StreamEventHandler
                 if (metadata == null)
                 {
                     outputHandler.output(String.format("Skipping file %s: table %s.%s doesn't exist", name, keyspace, desc.cfname));
+                    return false;
+                }
+
+                Set<File> temporaryFiles = allTemporaryFiles.get(dir);
+                if (temporaryFiles == null)
+                {
+                    temporaryFiles = LifecycleTransaction.getTemporaryFiles(metadata, dir);
+                    allTemporaryFiles.put(dir, temporaryFiles);
+                }
+
+                if (temporaryFiles.contains(file))
+                {
+                    outputHandler.output(String.format("Skipping temporary file %s", name));
                     return false;
                 }
 

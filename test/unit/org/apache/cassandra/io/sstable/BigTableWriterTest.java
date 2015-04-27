@@ -61,19 +61,19 @@ public class BigTableWriterTest extends AbstractTransactionalTest
     {
         final File file;
         final Descriptor descriptor;
-        final SSTableWriter writer;
+        final SSTableTxnWriter writer;
 
         private TestableBTW() throws IOException
         {
-            this(cfs.getTempSSTablePath(cfs.directories.getDirectoryForNewSSTables()));
+            this(cfs.getSSTablePath(cfs.directories.getDirectoryForNewSSTables()));
         }
 
         private TestableBTW(String file) throws IOException
         {
-            this(file, SSTableWriter.create(file, 0, 0, new SerializationHeader(cfs.metadata, cfs.metadata.partitionColumns(), EncodingStats.NO_STATS)));
+            this(file, SSTableTxnWriter.create(file, 0, 0, new SerializationHeader(cfs.metadata, cfs.metadata.partitionColumns(), EncodingStats.NO_STATS)));
         }
 
-        private TestableBTW(String file, SSTableWriter sw) throws IOException
+        private TestableBTW(String file, SSTableTxnWriter sw) throws IOException
         {
             super(sw);
             this.file = new File(file);
@@ -91,22 +91,19 @@ public class BigTableWriterTest extends AbstractTransactionalTest
 
         protected void assertInProgress() throws Exception
         {
-            assertExists(Descriptor.Type.TEMP, Component.DATA, Component.PRIMARY_INDEX);
-            assertNotExists(Descriptor.Type.TEMP, Component.FILTER, Component.SUMMARY);
-            assertNotExists(Descriptor.Type.FINAL, Component.DATA, Component.PRIMARY_INDEX, Component.FILTER, Component.SUMMARY);
+            assertExists(Component.DATA, Component.PRIMARY_INDEX);
+            assertNotExists(Component.FILTER, Component.SUMMARY);
             Assert.assertTrue(file.length() > 0);
         }
 
         protected void assertPrepared() throws Exception
         {
-            assertNotExists(Descriptor.Type.TEMP, Component.DATA, Component.PRIMARY_INDEX, Component.FILTER, Component.SUMMARY);
-            assertExists(Descriptor.Type.FINAL, Component.DATA, Component.PRIMARY_INDEX, Component.FILTER, Component.SUMMARY);
+            assertExists(Component.DATA, Component.PRIMARY_INDEX, Component.FILTER, Component.SUMMARY);
         }
 
         protected void assertAborted() throws Exception
         {
-            assertNotExists(Descriptor.Type.TEMP, Component.DATA, Component.PRIMARY_INDEX, Component.FILTER, Component.SUMMARY);
-            assertNotExists(Descriptor.Type.FINAL, Component.DATA, Component.PRIMARY_INDEX, Component.FILTER, Component.SUMMARY);
+            assertNotExists(Component.DATA, Component.PRIMARY_INDEX, Component.FILTER, Component.SUMMARY);
             Assert.assertFalse(file.exists());
         }
 
@@ -115,15 +112,15 @@ public class BigTableWriterTest extends AbstractTransactionalTest
             assertPrepared();
         }
 
-        private void assertExists(Descriptor.Type type, Component ... components)
+        private void assertExists(Component ... components)
         {
             for (Component component : components)
-                Assert.assertTrue(new File(descriptor.asType(type).filenameFor(component)).exists());
+                Assert.assertTrue(new File(descriptor.filenameFor(component)).exists());
         }
-        private void assertNotExists(Descriptor.Type type, Component ... components)
+        private void assertNotExists(Component ... components)
         {
             for (Component component : components)
-                Assert.assertFalse(type.toString() + " " + component.toString(), new File(descriptor.asType(type).filenameFor(component)).exists());
+                Assert.assertFalse(component.toString(), new File(descriptor.filenameFor(component)).exists());
         }
     }
 

@@ -63,7 +63,7 @@ public class CompactionController implements AutoCloseable
         refreshOverlaps();
     }
 
-    void maybeRefreshOverlaps()
+    public void maybeRefreshOverlaps()
     {
         for (SSTableReader reader : overlappingSSTables)
         {

@@ -60,18 +60,14 @@ import org.apache.cassandra.db.partitions.*;
 import org.apache.cassandra.dht.*;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.exceptions.ConfigurationException;
-import org.apache.cassandra.io.FSReadError;
 import org.apache.cassandra.io.compress.CompressionParameters;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.*;
 import org.apache.cassandra.io.sstable.format.*;
-import org.apache.cassandra.io.sstable.metadata.CompactionMetadata;
-import org.apache.cassandra.io.sstable.metadata.MetadataType;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.metrics.TableMetrics.Sampler;
 import org.apache.cassandra.service.CacheService;
 import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.streaming.StreamLockfile;
 import org.apache.cassandra.utils.*;
 import org.apache.cassandra.utils.concurrent.*;
 import org.apache.cassandra.utils.TopKSampler.SamplerResult;
@@ -522,45 +518,20 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     {
         Directories directories = new Directories(metadata);
 
-        // clear ephemeral snapshots that were not properly cleared last session (CASSANDRA-7357)
+         // clear ephemeral snapshots that were not properly cleared last session (CASSANDRA-7357)
         clearEphemeralSnapshots(directories);
 
-        // remove any left-behind SSTables from failed/stalled streaming
-        FileFilter filter = new FileFilter()
-        {
-            public boolean accept(File pathname)
-            {
-                return pathname.getPath().endsWith(StreamLockfile.FILE_EXT);
-            }
-        };
-        for (File dir : directories.getCFDirectories())
-        {
-            File[] lockfiles = dir.listFiles(filter);
-            // lock files can be null if I/O error happens
-            if (lockfiles == null || lockfiles.length == 0)
-                continue;
-            logger.info("Removing SSTables from failed streaming session. Found {} files to cleanup.", lockfiles.length);
+        logger.debug("Removing temporary or obsoleted files from unfinished operations for table", metadata.cfName);
+        LifecycleTransaction.removeUnfinishedLeftovers(metadata);
 
-            for (File lockfile : lockfiles)
-            {
-                StreamLockfile streamLockfile = new StreamLockfile(lockfile);
-                streamLockfile.cleanup();
-                streamLockfile.delete();
-            }
-        }
-
-        logger.debug("Removing compacted SSTable files from {} (see http://wiki.apache.org/cassandra/MemtableSSTable)", metadata.cfName);
-
+        logger.debug("Further extra check for orphan sstable files for {}", metadata.cfName);
         for (Map.Entry<Descriptor,Set<Component>> sstableFiles : directories.sstableLister().list().entrySet())
         {
             Descriptor desc = sstableFiles.getKey();
             Set<Component> components = sstableFiles.getValue();
 
-            if (desc.type.isTemporary)
-            {
-                SSTable.delete(desc, components);
-                continue;
-            }
+            for (File tmpFile : desc.getTemporaryFiles())
+                tmpFile.delete();
 
             File dataFile = new File(desc.filenameFor(Component.DATA));
             if (components.contains(Component.DATA) && dataFile.length() > 0)
@@ -571,7 +542,9 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             logger.warn("Removing orphans for {}: {}", desc, components);
             for (Component component : components)
             {
-                FileUtils.deleteWithConfirm(desc.filenameFor(component));
+                File file = new File(desc.filenameFor(component));
+                if (file.exists())
+                    FileUtils.deleteWithConfirm(desc.filenameFor(component));
             }
         }
 
@@ -596,91 +569,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                 CFMetaData indexMetadata = SecondaryIndex.newIndexMetadata(metadata, def);
                 if (indexMetadata != null)
                     scrubDataDirectories(indexMetadata);
-            }
-        }
-    }
-
-    /**
-     * Replacing compacted sstables is atomic as far as observers of Tracker are concerned, but not on the
-     * filesystem: first the new sstables are renamed to "live" status (i.e., the tmp marker is removed), then
-     * their ancestors are removed.
-     *
-     * If an unclean shutdown happens at the right time, we can thus end up with both the new ones and their
-     * ancestors "live" in the system.  This is harmless for normal data, but for counters it can cause overcounts.
-     *
-     * To prevent this, we record sstables being compacted in the system keyspace.  If we find unfinished
-     * compactions, we remove the new ones (since those may be incomplete -- under LCS, we may create multiple
-     * sstables from any given ancestor).
-     */
-    public static void removeUnfinishedCompactionLeftovers(CFMetaData metadata, Map<Integer, UUID> unfinishedCompactions)
-    {
-        Directories directories = new Directories(metadata);
-
-        Set<Integer> allGenerations = new HashSet<>();
-        for (Descriptor desc : directories.sstableLister().list().keySet())
-            allGenerations.add(desc.generation);
-
-        // sanity-check unfinishedCompactions
-        Set<Integer> unfinishedGenerations = unfinishedCompactions.keySet();
-        if (!allGenerations.containsAll(unfinishedGenerations))
-        {
-            HashSet<Integer> missingGenerations = new HashSet<>(unfinishedGenerations);
-            missingGenerations.removeAll(allGenerations);
-            logger.debug("Unfinished compactions of {}.{} reference missing sstables of generations {}",
-                         metadata.ksName, metadata.cfName, missingGenerations);
-        }
-
-        // remove new sstables from compactions that didn't complete, and compute
-        // set of ancestors that shouldn't exist anymore
-        Set<Integer> completedAncestors = new HashSet<>();
-        for (Map.Entry<Descriptor, Set<Component>> sstableFiles : directories.sstableLister().skipTemporary(true).list().entrySet())
-        {
-            Descriptor desc = sstableFiles.getKey();
-
-            Set<Integer> ancestors;
-            try
-            {
-                CompactionMetadata compactionMetadata = (CompactionMetadata) desc.getMetadataSerializer().deserialize(desc, MetadataType.COMPACTION);
-                ancestors = compactionMetadata.ancestors;
-            }
-            catch (IOException e)
-            {
-                throw new FSReadError(e, desc.filenameFor(Component.STATS));
-            }
-            catch (NullPointerException e)
-            {
-                throw new FSReadError(e, "Failed to remove unfinished compaction leftovers (file: " + desc.filenameFor(Component.STATS) + ").  See log for details.");
-            }
-
-            if (!ancestors.isEmpty()
-                && unfinishedGenerations.containsAll(ancestors)
-                && allGenerations.containsAll(ancestors))
-            {
-                // any of the ancestors would work, so we'll just lookup the compaction task ID with the first one
-                UUID compactionTaskID = unfinishedCompactions.get(ancestors.iterator().next());
-                assert compactionTaskID != null;
-                logger.debug("Going to delete unfinished compaction product {}", desc);
-                SSTable.delete(desc, sstableFiles.getValue());
-                SystemKeyspace.finishCompaction(compactionTaskID);
-            }
-            else
-            {
-                completedAncestors.addAll(ancestors);
-            }
-        }
-
-        // remove old sstables from compactions that did complete
-        for (Map.Entry<Descriptor, Set<Component>> sstableFiles : directories.sstableLister().list().entrySet())
-        {
-            Descriptor desc = sstableFiles.getKey();
-            if (completedAncestors.contains(desc.generation))
-            {
-                // if any of the ancestors were participating in a compaction, finish that compaction
-                logger.debug("Going to delete leftover compaction ancestor {}", desc);
-                SSTable.delete(desc, sstableFiles.getValue());
-                UUID compactionTaskID = unfinishedCompactions.get(desc.generation);
-                if (compactionTaskID != null)
-                    SystemKeyspace.finishCompaction(unfinishedCompactions.get(desc.generation));
             }
         }
     }
@@ -750,8 +638,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
             if (currentDescriptors.contains(descriptor))
                 continue; // old (initialized) SSTable found, skipping
-            if (descriptor.type.isTemporary) // in the process of being written
-                continue;
 
             if (!descriptor.isCompatible())
                 throw new RuntimeException(String.format("Can't open incompatible SSTable! Current version %s, found file: %s",
@@ -780,7 +666,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                                                descriptor.ksname,
                                                descriptor.cfname,
                                                fileIndexGenerator.incrementAndGet(),
-                                               Descriptor.Type.FINAL,
                                                descriptor.formatType);
             }
             while (new File(newDescriptor.filenameFor(Component.DATA)).exists());
@@ -851,24 +736,23 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return name;
     }
 
-    public String getTempSSTablePath(File directory)
+    public String getSSTablePath(File directory)
     {
-        return getTempSSTablePath(directory, DatabaseDescriptor.getSSTableFormat().info.getLatestVersion(), DatabaseDescriptor.getSSTableFormat());
+        return getSSTablePath(directory, DatabaseDescriptor.getSSTableFormat().info.getLatestVersion(), DatabaseDescriptor.getSSTableFormat());
     }
 
-    public String getTempSSTablePath(File directory, SSTableFormat.Type format)
+    public String getSSTablePath(File directory, SSTableFormat.Type format)
     {
-        return getTempSSTablePath(directory, format.info.getLatestVersion(), format);
+        return getSSTablePath(directory, format.info.getLatestVersion(), format);
     }
 
-    private String getTempSSTablePath(File directory, Version version, SSTableFormat.Type format)
+    private String getSSTablePath(File directory, Version version, SSTableFormat.Type format)
     {
         Descriptor desc = new Descriptor(version,
                                          directory,
                                          keyspace.getName(),
                                          name,
                                          fileIndexGenerator.incrementAndGet(),
-                                         Descriptor.Type.TEMP,
                                          format);
         return desc.filenameFor(Component.DATA);
     }
@@ -1881,11 +1765,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     public Map<String, Pair<Long,Long>> getSnapshotDetails()
     {
         return directories.getSnapshotDetails();
-    }
-
-    public boolean hasUnreclaimedSpace()
-    {
-        return metric.liveDiskSpaceUsed.getCount() < metric.totalDiskSpaceUsed.getCount();
     }
 
     /**

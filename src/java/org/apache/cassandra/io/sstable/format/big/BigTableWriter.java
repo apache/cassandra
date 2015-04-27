@@ -22,6 +22,7 @@ import java.util.Map;
 import java.util.Set;
 
 import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.io.sstable.*;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.SSTableWriter;
@@ -45,7 +46,6 @@ import org.apache.cassandra.utils.FilterFactory;
 import org.apache.cassandra.utils.IFilter;
 import org.apache.cassandra.utils.concurrent.Transactional;
 
-import static org.apache.cassandra.utils.Throwables.merge;
 import org.apache.cassandra.utils.SyncUtil;
 
 public class BigTableWriter extends SSTableWriter
@@ -58,9 +58,17 @@ public class BigTableWriter extends SSTableWriter
     private DecoratedKey lastWrittenKey;
     private FileMark dataMark;
 
-    public BigTableWriter(Descriptor descriptor, Long keyCount, Long repairedAt, CFMetaData metadata, IPartitioner partitioner, MetadataCollector metadataCollector, SerializationHeader header)
+    public BigTableWriter(Descriptor descriptor, 
+                          Long keyCount, 
+                          Long repairedAt, 
+                          CFMetaData metadata, 
+                          IPartitioner partitioner, 
+                          MetadataCollector metadataCollector, 
+                          SerializationHeader header,
+                          LifecycleTransaction txn)
     {
         super(descriptor, keyCount, repairedAt, metadata, partitioner, metadataCollector, header);
+        txn.trackNew(this); // must track before any files are created
 
         if (compression)
         {
@@ -76,6 +84,10 @@ public class BigTableWriter extends SSTableWriter
             dbuilder = SegmentedFile.getBuilder(DatabaseDescriptor.getDiskAccessMode(), false);
         }
         iwriter = new IndexWriter(keyCount, dataFile);
+
+        // txnLogs will delete if safe to do so (early readers)
+        iwriter.indexFile.deleteFile(false);
+        dataFile.deleteFile(false);
     }
 
     public void mark()
@@ -220,18 +232,6 @@ public class BigTableWriter extends SSTableWriter
         }
     }
 
-    private Descriptor makeTmpLinks()
-    {
-        // create temp links if they don't already exist
-        Descriptor link = descriptor.asType(Descriptor.Type.TEMPLINK);
-        if (!new File(link.filenameFor(Component.PRIMARY_INDEX)).exists())
-        {
-            FileUtils.createHardLink(new File(descriptor.filenameFor(Component.PRIMARY_INDEX)), new File(link.filenameFor(Component.PRIMARY_INDEX)));
-            FileUtils.createHardLink(new File(descriptor.filenameFor(Component.DATA)), new File(link.filenameFor(Component.DATA)));
-        }
-        return link;
-    }
-
     @SuppressWarnings("resource")
     public SSTableReader openEarly()
     {
@@ -242,11 +242,10 @@ public class BigTableWriter extends SSTableWriter
 
         StatsMetadata stats = statsMetadata();
         assert boundary.indexLength > 0 && boundary.dataLength > 0;
-        Descriptor link = makeTmpLinks();
-        // open the reader early, giving it a FINAL descriptor type so that it is indistinguishable for other consumers
-        SegmentedFile ifile = iwriter.builder.complete(link.filenameFor(Component.PRIMARY_INDEX), boundary.indexLength);
-        SegmentedFile dfile = dbuilder.complete(link.filenameFor(Component.DATA), boundary.dataLength);
-        SSTableReader sstable = SSTableReader.internalOpen(descriptor.asType(Descriptor.Type.FINAL),
+        // open the reader early
+        SegmentedFile ifile = iwriter.builder.complete(descriptor.filenameFor(Component.PRIMARY_INDEX), boundary.indexLength);
+        SegmentedFile dfile = dbuilder.complete(descriptor.filenameFor(Component.DATA), boundary.dataLength);
+        SSTableReader sstable = SSTableReader.internalOpen(descriptor,
                                                            components, metadata,
                                                            partitioner, ifile,
                                                            dfile, iwriter.summary.build(partitioner, boundary),
@@ -263,7 +262,8 @@ public class BigTableWriter extends SSTableWriter
         // we must ensure the data is completely flushed to disk
         dataFile.sync();
         iwriter.indexFile.sync();
-        return openFinal(makeTmpLinks(), SSTableReader.OpenReason.EARLY);
+
+        return openFinal(descriptor, SSTableReader.OpenReason.EARLY);
     }
 
     @SuppressWarnings("resource")
@@ -276,7 +276,7 @@ public class BigTableWriter extends SSTableWriter
         // finalize in-memory state for the reader
         SegmentedFile ifile = iwriter.builder.complete(desc.filenameFor(Component.PRIMARY_INDEX));
         SegmentedFile dfile = dbuilder.complete(desc.filenameFor(Component.DATA));
-        SSTableReader sstable = SSTableReader.internalOpen(desc.asType(Descriptor.Type.FINAL),
+        SSTableReader sstable = SSTableReader.internalOpen(desc,
                                                            components,
                                                            this.metadata,
                                                            partitioner,
@@ -314,11 +314,8 @@ public class BigTableWriter extends SSTableWriter
             // save the table of components
             SSTable.appendTOC(descriptor, components);
 
-            // rename to final
-            rename(descriptor, components);
-
             if (openResult)
-                finalReader = openFinal(descriptor.asType(Descriptor.Type.FINAL), SSTableReader.OpenReason.NORMAL);
+                finalReader = openFinal(descriptor, SSTableReader.OpenReason.NORMAL);
         }
 
         protected Throwable doCommit(Throwable accumulate)
@@ -339,26 +336,6 @@ public class BigTableWriter extends SSTableWriter
         {
             accumulate = iwriter.abort(accumulate);
             accumulate = dataFile.abort(accumulate);
-
-            accumulate = delete(descriptor, accumulate);
-            if (!openResult)
-                accumulate = delete(descriptor.asType(Descriptor.Type.FINAL), accumulate);
-            return accumulate;
-        }
-
-        private Throwable delete(Descriptor desc, Throwable accumulate)
-        {
-            try
-            {
-                Set<Component> components = SSTable.discoverComponentsFor(desc);
-                if (!components.isEmpty())
-                    SSTable.delete(desc, components);
-            }
-            catch (Throwable t)
-            {
-                logger.error(String.format("Failed deleting temp components for %s", descriptor), t);
-                accumulate = merge(accumulate, t);
-            }
             return accumulate;
         }
     }
@@ -366,7 +343,7 @@ public class BigTableWriter extends SSTableWriter
     private static void writeMetadata(Descriptor desc, Map<MetadataType, MetadataComponent> components)
     {
         File file = new File(desc.filenameFor(Component.STATS));
-        try (SequentialWriter out = SequentialWriter.open(file);)
+        try (SequentialWriter out = SequentialWriter.open(file))
         {
             desc.getMetadataSerializer().serialize(components, out.stream);
             out.setDescriptor(desc).finish();

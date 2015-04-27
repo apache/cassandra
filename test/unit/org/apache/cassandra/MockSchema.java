@@ -60,7 +60,7 @@ public class MockSchema
     private static final AtomicInteger id = new AtomicInteger();
     public static final Keyspace ks = Keyspace.mockKS(KeyspaceMetadata.create("mockks", KeyspaceParams.simpleTransient(1)));
 
-    private static final IndexSummary indexSummary;
+    public static final IndexSummary indexSummary;
     private static final SegmentedFile segmentedFile = new BufferedSegmentedFile(new ChannelProxy(temp("mocksegmentedfile")), 0);
 
     public static Memtable memtable(ColumnFamilyStore cfs)
@@ -88,8 +88,7 @@ public class MockSchema
         Descriptor descriptor = new Descriptor(cfs.directories.getDirectoryForNewSSTables(),
                                                cfs.keyspace.getName(),
                                                cfs.getColumnFamilyName(),
-                                               generation,
-                                               Descriptor.Type.FINAL);
+                                               generation);
         Set<Component> components = ImmutableSet.of(Component.DATA, Component.PRIMARY_INDEX, Component.FILTER, Component.TOC);
         for (Component component : components)
         {
@@ -132,8 +131,13 @@ public class MockSchema
 
     public static ColumnFamilyStore newCFS()
     {
+        return newCFS(ks.getName());
+    }
+
+    public static ColumnFamilyStore newCFS(String ksname)
+    {
         String cfname = "mockcf" + (id.incrementAndGet());
-        CFMetaData metadata = newCFMetaData(ks.getName(), cfname);
+        CFMetaData metadata = newCFMetaData(ksname, cfname);
         return new ColumnFamilyStore(ks, cfname, Murmur3Partitioner.instance, 0, metadata, new Directories(metadata), false, false);
     }
 

@@ -34,7 +34,6 @@ import org.apache.cassandra.db.rows.EncodingStats;
 import org.apache.cassandra.db.rows.UnfilteredSerializer;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.dht.IPartitioner;
-import org.apache.cassandra.io.sstable.format.SSTableWriter;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 
 /**
@@ -131,11 +130,13 @@ class SSTableSimpleUnsortedWriter extends AbstractSSTableSimpleWriter
         try
         {
             diskWriter.join();
+            checkForWriterException();
         }
-        catch (InterruptedException e)
+        catch (Throwable e)
         {
             throw new RuntimeException(e);
         }
+
         checkForWriterException();
     }
 
@@ -203,7 +204,7 @@ class SSTableSimpleUnsortedWriter extends AbstractSSTableSimpleWriter
                     if (b == SENTINEL)
                         return;
 
-                    try (SSTableWriter writer = createWriter())
+                        try (SSTableTxnWriter writer = createWriter())
                     {
                         for (Map.Entry<DecoratedKey, PartitionUpdate> entry : b.entrySet())
                             writer.append(entry.getValue().unfilteredIterator());

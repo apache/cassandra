@@ -22,6 +22,7 @@ import java.nio.charset.Charset;
 import java.util.*;
 import java.util.concurrent.CopyOnWriteArraySet;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Predicates;
 import com.google.common.collect.Collections2;
 import com.google.common.collect.Sets;
@@ -38,7 +39,6 @@ import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.io.util.RandomAccessReader;
 import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.utils.concurrent.RefCounted;
 import org.apache.cassandra.utils.memory.HeapAllocator;
 import org.apache.cassandra.utils.Pair;
 
@@ -71,7 +71,7 @@ public abstract class SSTable
 
     protected SSTable(Descriptor descriptor, CFMetaData metadata, IPartitioner partitioner)
     {
-        this(descriptor, new HashSet<Component>(), metadata, partitioner);
+        this(descriptor, new HashSet<>(), metadata, partitioner);
     }
 
     protected SSTable(Descriptor descriptor, Set<Component> components, CFMetaData metadata, IPartitioner partitioner)
@@ -113,7 +113,9 @@ public abstract class SSTable
 
             FileUtils.deleteWithConfirm(desc.filenameFor(component));
         }
-        FileUtils.delete(desc.filenameFor(Component.SUMMARY));
+
+        if (components.contains(Component.SUMMARY))
+            FileUtils.delete(desc.filenameFor(Component.SUMMARY));
 
         logger.debug("Deleted {}", desc);
         return true;
@@ -148,6 +150,15 @@ public abstract class SSTable
     public String getKeyspaceName()
     {
         return descriptor.ksname;
+    }
+
+    @VisibleForTesting
+    public List<String> getAllFilePaths()
+    {
+        List<String> ret = new ArrayList<>();
+        for (Component component : components)
+            ret.add(descriptor.filenameFor(component));
+        return ret;
     }
 
     /**

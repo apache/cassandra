@@ -259,11 +259,12 @@ public class IndexSummaryManager implements IndexSummaryManagerMBean
         {
             for (SSTableReader sstable : ImmutableList.copyOf(txn.originals()))
             {
-                // We can't change the sampling level of sstables with the old format, because the serialization format
-                // doesn't include the sampling level.  Leave this one as it is.  (See CASSANDRA-8993 for details.)
-                logger.trace("SSTable {} cannot be re-sampled due to old sstable format", sstable);
                 if (!sstable.descriptor.version.hasSamplingLevel())
                 {
+                    // We can't change the sampling level of sstables with the old format, because the serialization format
+                    // doesn't include the sampling level.  Leave this one as it is.  (See CASSANDRA-8993 for details.)
+                    logger.trace("SSTable {} cannot be re-sampled due to old sstable format", sstable);
+
                     oldFormatSSTables.add(sstable);
                     txn.cancel(sstable);
                 }

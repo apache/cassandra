@@ -79,6 +79,8 @@ public class SequentialWriter extends OutputStream implements WritableByteChanne
     // due to lack of multiple-inheritance, we proxy our transactional implementation
     protected class TransactionalProxy extends AbstractTransactional
     {
+        private boolean deleteFile = true;
+
         @Override
         protected Throwable doPreCleanup(Throwable accumulate)
         {
@@ -118,7 +120,10 @@ public class SequentialWriter extends OutputStream implements WritableByteChanne
 
         protected Throwable doAbort(Throwable accumulate)
         {
-            return FileUtils.deleteWithConfirm(filePath, false, accumulate);
+            if (deleteFile)
+                return FileUtils.deleteWithConfirm(filePath, false, accumulate);
+            else
+                return accumulate;
         }
     }
 
@@ -485,6 +490,11 @@ public class SequentialWriter extends OutputStream implements WritableByteChanne
     protected TransactionalProxy txnProxy()
     {
         return new TransactionalProxy();
+    }
+
+    public void deleteFile(boolean val)
+    {
+        txnProxy.deleteFile = val;
     }
 
     public void releaseFileHandle()

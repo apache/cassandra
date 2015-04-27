@@ -39,7 +39,7 @@ import org.slf4j.LoggerFactory;
 import com.sun.management.GarbageCollectionNotificationInfo;
 import com.sun.management.GcInfo;
 
-import org.apache.cassandra.io.sstable.SSTableDeletingTask;
+import org.apache.cassandra.db.lifecycle.TransactionLogs;
 import org.apache.cassandra.utils.StatusLogger;
 
 public class GCInspector implements NotificationListener, GCInspectorMXBean
@@ -193,10 +193,10 @@ public class GCInspector implements NotificationListener, GCInspectorMXBean
     }
 
     /*
-     * Assume that a GC type is an old generation collection so SSTableDeletingTask.rescheduleFailedTasks()
+     * Assume that a GC type is an old generation collection so TransactionLogs.rescheduleFailedTasks()
      * should be invoked.
      *
-     * Defaults to not invoking SSTableDeletingTask.rescheduleFailedTasks() on unrecognized GC names
+     * Defaults to not invoking TransactionLogs.rescheduleFailedTasks() on unrecognized GC names
      */
     private static boolean assumeGCIsOldGen(GarbageCollectorMXBean gc)
     {
@@ -214,7 +214,7 @@ public class GCInspector implements NotificationListener, GCInspectorMXBean
                 return true;
             default:
                 //Assume not old gen otherwise, don't call
-                //SSTableDeletingTask.rescheduleFailedTasks()
+                //TransactionLogs.rescheduleFailedTasks()
                 return false;
         }
     }
@@ -284,7 +284,7 @@ public class GCInspector implements NotificationListener, GCInspectorMXBean
 
             // if we just finished an old gen collection and we're still using a lot of memory, try to reduce the pressure
             if (gcState.assumeGCIsOldGen)
-                SSTableDeletingTask.rescheduleFailedTasks();
+                TransactionLogs.rescheduleFailedDeletions();
         }
     }
 

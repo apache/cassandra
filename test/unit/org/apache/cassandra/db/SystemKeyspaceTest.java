@@ -17,11 +17,15 @@
  */
 package org.apache.cassandra.db;
 
+import java.io.File;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.*;
 
+import org.apache.commons.io.FileUtils;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
@@ -30,6 +34,7 @@ import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.dht.ByteOrderedPartitioner.BytesToken;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.CassandraVersion;
@@ -39,6 +44,8 @@ import static org.junit.Assert.assertTrue;
 
 public class SystemKeyspaceTest
 {
+    public static final String MIGRATION_SSTABLES_ROOT = "migration-sstable-root";
+
     @BeforeClass
     public static void prepSnapshotTracker()
     {
@@ -143,6 +150,47 @@ public class SystemKeyspaceTest
         assertDeletedOrDeferred(baseline + 10);
 
         Keyspace.clearSnapshot(null, SystemKeyspace.NAME);
+    }
+
+    @Test
+    public void testMigrateDataDirs() throws IOException
+    {
+        Path migrationSSTableRoot = Paths.get(System.getProperty(MIGRATION_SSTABLES_ROOT), "2.2");
+        Path dataDir = Paths.get(DatabaseDescriptor.getAllDataFileLocations()[0]);
+
+        FileUtils.copyDirectory(migrationSSTableRoot.toFile(), dataDir.toFile());
+
+        assertEquals(5, numLegacyFiles()); // see test data
+
+        SystemKeyspace.migrateDataDirs();
+
+        assertEquals(0, numLegacyFiles());
+    }
+
+    private static int numLegacyFiles()
+    {
+        int ret = 0;
+        Iterable<String> dirs = Arrays.asList(DatabaseDescriptor.getAllDataFileLocations());
+        for (String dataDir : dirs)
+        {
+            File dir = new File(dataDir);
+            for (File ksdir : dir.listFiles((d, n) -> d.isDirectory()))
+            {
+                for (File cfdir : ksdir.listFiles((d, n) -> d.isDirectory()))
+                {
+                    if (Descriptor.isLegacyFile(cfdir.getName()))
+                    {
+                        ret++;
+                    }
+                    else
+                    {
+                        File[] legacyFiles = cfdir.listFiles((d, n) -> Descriptor.isLegacyFile(n));
+                        ret += legacyFiles.length;
+                    }
+                }
+            }
+        }
+        return ret;
     }
 
     private String getOlderVersionString()

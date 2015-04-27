@@ -21,6 +21,11 @@ package org.apache.cassandra.db.compaction;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 
+import org.junit.BeforeClass;
+import org.junit.Ignore;
+import org.junit.Test;
+import org.junit.runner.RunWith;
+
 import org.apache.cassandra.OrderedJUnit4ClassRunner;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
@@ -33,11 +38,6 @@ import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
-
-import org.junit.BeforeClass;
-import org.junit.Ignore;
-import org.junit.Test;
-import org.junit.runner.RunWith;
 
 import static org.junit.Assert.*;
 
@@ -394,21 +394,25 @@ public class CompactionsTest
         cf.addColumn(Util.column("a", "a", 3));
         cf.deletionInfo().add(new RangeTombstone(Util.cellname("0"), Util.cellname("b"), 2, (int) (System.currentTimeMillis()/1000)),cfmeta.comparator);
 
-        SSTableWriter writer = SSTableWriter.create(Descriptor.fromFilename(cfs.getTempSSTablePath(dir.getDirectoryForNewSSTables())), 0, 0, 0);
+        Descriptor desc = Descriptor.fromFilename(cfs.getSSTablePath(dir.getDirectoryForNewSSTables()));
+        try(SSTableTxnWriter writer = SSTableTxnWriter.create(desc, 0, 0, 0))
+        {
+            writer.append(Util.dk("0"), cf);
+            writer.append(Util.dk("1"), cf);
+            writer.append(Util.dk("3"), cf);
 
+            cfs.addSSTable(writer.closeAndOpenReader());
+        }
 
-        writer.append(Util.dk("0"), cf);
-        writer.append(Util.dk("1"), cf);
-        writer.append(Util.dk("3"), cf);
-
-        cfs.addSSTable(writer.closeAndOpenReader());
-        writer = SSTableWriter.create(Descriptor.fromFilename(cfs.getTempSSTablePath(dir.getDirectoryForNewSSTables())), 0, 0, 0);
-
-        writer.append(Util.dk("0"), cf);
-        writer.append(Util.dk("1"), cf);
-        writer.append(Util.dk("2"), cf);
-        writer.append(Util.dk("3"), cf);
-        cfs.addSSTable(writer.closeAndOpenReader());
+        desc = Descriptor.fromFilename(cfs.getSSTablePath(dir.getDirectoryForNewSSTables()));
+        try (SSTableTxnWriter writer = SSTableTxnWriter.create(desc, 0, 0, 0))
+        {
+            writer.append(Util.dk("0"), cf);
+            writer.append(Util.dk("1"), cf);
+            writer.append(Util.dk("2"), cf);
+            writer.append(Util.dk("3"), cf);
+            cfs.addSSTable(writer.closeAndOpenReader());
+        }
 
         Collection<SSTableReader> toCompact = cfs.getSSTables();
         assert toCompact.size() == 2;
@@ -437,35 +441,6 @@ public class CompactionsTest
         }
 
         assertEquals(keys, k);
-    }
-
-    @Test
-    public void testCompactionLog() throws Exception
-    {
-        SystemKeyspace.discardCompactionsInProgress();
-
-        String cf = "Standard4";
-        ColumnFamilyStore cfs = Keyspace.open(KEYSPACE1).getColumnFamilyStore(cf);
-        SchemaLoader.insertData(KEYSPACE1, cf, 0, 1);
-        cfs.forceBlockingFlush();
-
-        Collection<SSTableReader> sstables = cfs.getSSTables();
-        assertFalse(sstables.isEmpty());
-        Set<Integer> generations = Sets.newHashSet(Iterables.transform(sstables, new Function<SSTableReader, Integer>()
-        {
-            public Integer apply(SSTableReader sstable)
-            {
-                return sstable.descriptor.generation;
-            }
-        }));
-        UUID taskId = SystemKeyspace.startCompaction(cfs, sstables);
-        Map<Pair<String, String>, Map<Integer, UUID>> compactionLogs = SystemKeyspace.getUnfinishedCompactions();
-        Set<Integer> unfinishedCompactions = compactionLogs.get(Pair.create(KEYSPACE1, cf)).keySet();
-        assertTrue(unfinishedCompactions.containsAll(generations));
-
-        SystemKeyspace.finishCompaction(taskId);
-        compactionLogs = SystemKeyspace.getUnfinishedCompactions();
-        assertFalse(compactionLogs.containsKey(Pair.create(KEYSPACE1, cf)));
     }
 
     private void testDontPurgeAccidentaly(String k, String cfname) throws InterruptedException

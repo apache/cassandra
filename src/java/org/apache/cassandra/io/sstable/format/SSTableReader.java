@@ -26,7 +26,6 @@ import java.util.concurrent.atomic.AtomicLong;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Predicate;
-import com.google.common.collect.Iterables;
 import com.google.common.collect.Iterators;
 import com.google.common.collect.Ordering;
 import com.google.common.primitives.Longs;
@@ -35,7 +34,6 @@ import com.google.common.util.concurrent.RateLimiter;
 import com.clearspring.analytics.stream.cardinality.CardinalityMergeException;
 import com.clearspring.analytics.stream.cardinality.HyperLogLogPlus;
 import com.clearspring.analytics.stream.cardinality.ICardinality;
-import com.codahale.metrics.Counter;
 import org.apache.cassandra.cache.CachingOptions;
 import org.apache.cassandra.cache.InstrumentingCache;
 import org.apache.cassandra.cache.KeyCacheKey;
@@ -47,7 +45,7 @@ import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.db.commitlog.ReplayPosition;
 import org.apache.cassandra.db.index.SecondaryIndex;
-import org.apache.cassandra.db.lifecycle.Tracker;
+import org.apache.cassandra.db.lifecycle.TransactionLogs;
 import org.apache.cassandra.dht.*;
 import org.apache.cassandra.io.FSError;
 import org.apache.cassandra.io.compress.CompressionMetadata;
@@ -651,6 +649,11 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
         keyCache = CacheService.instance.keyCache;
     }
 
+    public boolean isKeyCacheSetup()
+    {
+        return keyCache != null;
+    }
+
     private void load(ValidationMetadata validation) throws IOException
     {
         if (metadata.getBloomFilterFpChance() == 1.0)
@@ -989,7 +992,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
         }
     }
 
-    // runOnClose must NOT be an anonymous or non-static inner class, nor must it retain a reference chain to this reader
+    // These runnables must NOT be an anonymous or non-static inner class, nor must it retain a reference chain to this reader
     public void runOnClose(final Runnable runOnClose)
     {
         synchronized (tidy.global)
@@ -1166,6 +1169,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
             long newSize = bytesOnDisk();
             StorageMetrics.load.inc(newSize - oldSize);
             parent.metric.liveDiskSpaceUsed.inc(newSize - oldSize);
+            parent.metric.totalDiskSpaceUsed.inc(newSize - oldSize);
 
             return cloneAndReplace(first, OpenReason.METADATA_CHANGE, newSummary);
         }
@@ -1646,7 +1650,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
      * @return true if the this is the first time the file was marked obsolete.  Calling this
      * multiple times is usually buggy (see exceptions in Tracker.unmarkCompacting and removeOldSSTablesSize).
      */
-    public boolean markObsolete(Tracker tracker)
+    public void markObsolete(TransactionLogs.SSTableTidier tidier)
     {
         if (logger.isDebugEnabled())
             logger.debug("Marking {} compacted", getFilename());
@@ -1654,18 +1658,16 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
         synchronized (tidy.global)
         {
             assert !tidy.isReplaced;
+            assert tidy.global.obsoletion == null: this + " was already marked compacted";
+
+            tidy.global.obsoletion = tidier;
+            tidy.global.stopReadMeterPersistence();
         }
-        if (!tidy.global.isCompacted.getAndSet(true))
-        {
-            tidy.type.markObsolete(this, tracker);
-            return true;
-        }
-        return false;
     }
 
     public boolean isMarkedCompacted()
     {
-        return tidy.global.isCompacted.get();
+        return tidy.global.obsoletion != null;
     }
 
     public void markSuspect()
@@ -1759,6 +1761,8 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
         for (Component component : components)
         {
             File sourceFile = new File(descriptor.filenameFor(component));
+            if (!sourceFile.exists())
+                continue;
             File targetLink = new File(snapshotDirectoryPath, sourceFile.getName());
             FileUtils.createHardLink(sourceFile, targetLink);
         }
@@ -2065,12 +2069,12 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
      * InstanceTidier => DescriptorTypeTitdy => GlobalTidy
      *
      * We can create many InstanceTidiers (one for every time we reopen an sstable with MOVED_START for example), but there can only be
-     * two DescriptorTypeTidy (FINAL and TEMPLINK) and only one GlobalTidy for one single logical sstable.
+     * one GlobalTidy for one single logical sstable.
      *
-     * When the InstanceTidier cleansup, it releases its reference to its DescriptorTypeTidy; when all InstanceTidiers
-     * for that type have run, the DescriptorTypeTidy cleansup. DescriptorTypeTidy behaves in the same way towards GlobalTidy.
+     * When the InstanceTidier cleansup, it releases its reference to its GlobalTidy; when all InstanceTidiers
+     * for that type have run, the GlobalTidy cleans up.
      *
-     * For ease, we stash a direct reference to both our type-shared and global tidier
+     * For ease, we stash a direct reference to our global tidier
      */
     private static final class InstanceTidier implements Tidy
     {
@@ -2084,13 +2088,9 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
         private Runnable runOnClose;
         private boolean isReplaced = false;
 
-        // a reference to our shared per-Descriptor.Type tidy instance, that
+        // a reference to our shared tidy instance, that
         // we will release when we are ourselves released
-        private Ref<DescriptorTypeTidy> typeRef;
-
-        // a convenience stashing of the shared per-descriptor-type tidy instance itself
-        // and the per-logical-sstable globally shared state that it is linked to
-        private DescriptorTypeTidy type;
+        private Ref<GlobalTidy> globalRef;
         private GlobalTidy global;
 
         private boolean setup;
@@ -2103,9 +2103,8 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
             this.dfile = reader.dfile;
             this.ifile = reader.ifile;
             // get a new reference to the shared descriptor-type tidy
-            this.typeRef = DescriptorTypeTidy.get(reader);
-            this.type = typeRef.get();
-            this.global = type.globalRef.get();
+            this.globalRef = GlobalTidy.get(reader);
+            this.global = globalRef.get();
             if (!isOffline)
                 global.ensureReadMeter();
         }
@@ -2148,7 +2147,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
                         dfile.close();
                     if (ifile != null)
                         ifile.close();
-                    typeRef.release();
+                    globalRef.release();
                 }
             });
         }
@@ -2167,102 +2166,16 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
     }
 
     /**
-     * One shared between all instances of a given Descriptor.Type.
-     * Performs only two things: the deletion of the sstables for the type,
-     * if necessary; and the shared reference to the globally shared state.
+     * One instance per logical sstable. This both tracks shared cleanup and some shared state related
+     * to the sstable's lifecycle.
      *
      * All InstanceTidiers, on setup(), ask the static get() method for their shared state,
      * and stash a reference to it to be released when they are. Once all such references are
-     * released, the shared tidy will be performed.
-     */
-    static final class DescriptorTypeTidy implements Tidy
-    {
-        // keyed by REAL descriptor (TMPLINK/FINAL), mapping to the shared DescriptorTypeTidy for that descriptor
-        static final ConcurrentMap<Descriptor, Ref<DescriptorTypeTidy>> lookup = new ConcurrentHashMap<>();
-
-        private final Descriptor desc;
-        private final Ref<GlobalTidy> globalRef;
-        private final Set<Component> components;
-        private long sizeOnDelete;
-        private Counter totalDiskSpaceUsed;
-
-        DescriptorTypeTidy(Descriptor desc, SSTableReader sstable)
-        {
-            this.desc = desc;
-            // get a new reference to the shared global tidy
-            this.globalRef = GlobalTidy.get(sstable);
-            this.components = sstable.components;
-        }
-
-        void markObsolete(SSTableReader instance, Tracker tracker)
-        {
-            // the tracker is used only to notify listeners of deletion of the sstable;
-            // since deletion of a non-final file is not really deletion of the sstable,
-            // we don't want to notify the listeners in this event
-            if (tracker != null && tracker.cfstore != null && desc.type == Descriptor.Type.FINAL)
-            {
-                sizeOnDelete = instance.bytesOnDisk();
-                totalDiskSpaceUsed = tracker.cfstore.metric.totalDiskSpaceUsed;
-                tracker.notifyDeleting(instance);
-            }
-        }
-
-        public void tidy()
-        {
-            lookup.remove(desc);
-            boolean isCompacted = globalRef.get().isCompacted.get();
-            globalRef.release();
-            switch (desc.type)
-            {
-                case FINAL:
-                    if (isCompacted)
-                        new SSTableDeletingTask(desc, components, totalDiskSpaceUsed, sizeOnDelete).run();
-                    break;
-                case TEMPLINK:
-                    new SSTableDeletingTask(desc, components, null, 0).run();
-                    break;
-                default:
-                    throw new IllegalStateException();
-            }
-        }
-
-        public String name()
-        {
-            return desc.toString();
-        }
-
-        // get a new reference to the shared DescriptorTypeTidy for this sstable
-        @SuppressWarnings("resource")
-        public static Ref<DescriptorTypeTidy> get(SSTableReader sstable)
-        {
-            Descriptor desc = sstable.descriptor;
-            if (sstable.openReason == OpenReason.EARLY)
-                desc = desc.asType(Descriptor.Type.TEMPLINK);
-            Ref<DescriptorTypeTidy> refc = lookup.get(desc);
-            if (refc != null)
-                return refc.ref();
-            final DescriptorTypeTidy tidy = new DescriptorTypeTidy(desc, sstable);
-            refc = new Ref<>(tidy, tidy);
-            Ref<?> ex = lookup.putIfAbsent(desc, refc);
-            if (ex != null)
-            {
-                refc.close();
-                throw new AssertionError();
-            }
-            return refc;
-        }
-    }
-
-    /**
-     * One instance per logical sstable. This both tracks shared cleanup and some shared state related
-     * to the sstable's lifecycle. All DescriptorTypeTidy instances, on construction, obtain a reference to us
-     * via our static get(). There should only ever be at most two such references extant at any one time,
-     * since only TMPLINK and FINAL type descriptors should be open as readers. When all files of both
-     * kinds have been released, this shared tidy will be performed.
+     * released, this shared tidy will be performed.
      */
     static final class GlobalTidy implements Tidy
     {
-        // keyed by FINAL descriptor, mapping to the shared GlobalTidy for that descriptor
+        // keyed by descriptor, mapping to the shared GlobalTidy for that descriptor
         static final ConcurrentMap<Descriptor, Ref<GlobalTidy>> lookup = new ConcurrentHashMap<>();
 
         private final Descriptor desc;
@@ -2272,14 +2185,12 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
         // the scheduled persistence of the readMeter, that we will cancel once all instances of this logical
         // sstable have been released
         private ScheduledFuture readMeterSyncFuture;
-        // shared state managing if the logical sstable has been compacted; this is used in cleanup both here
-        // and in the FINAL type tidier
-        private final AtomicBoolean isCompacted;
+        // shared state managing if the logical sstable has been compacted; this is used in cleanup
+        private volatile TransactionLogs.SSTableTidier obsoletion;
 
         GlobalTidy(final SSTableReader reader)
         {
             this.desc = reader.descriptor;
-            this.isCompacted = new AtomicBoolean();
         }
 
         void ensureReadMeter()
@@ -2302,7 +2213,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
             {
                 public void run()
                 {
-                    if (!isCompacted.get())
+                    if (obsoletion == null)
                     {
                         meterSyncThrottle.acquire();
                         SystemKeyspace.persistSSTableReadMeter(desc.ksname, desc.cfname, desc.generation, readMeter);
@@ -2311,13 +2222,22 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
             }, 1, 5, TimeUnit.MINUTES);
         }
 
+        private void stopReadMeterPersistence()
+        {
+            if (readMeterSyncFuture != null)
+            {
+                readMeterSyncFuture.cancel(true);
+                readMeterSyncFuture = null;
+            }
+        }
+
         public void tidy()
         {
             lookup.remove(desc);
-            if (readMeterSyncFuture != null)
-                readMeterSyncFuture.cancel(true);
-            if (isCompacted.get())
-                SystemKeyspace.clearSSTableReadMeter(desc.ksname, desc.cfname, desc.generation);
+
+            if (obsoletion != null)
+                obsoletion.run();
+
             // don't ideally want to dropPageCache for the file until all instances have been released
             CLibrary.trySkipCache(desc.filenameFor(Component.DATA), 0, 0);
             CLibrary.trySkipCache(desc.filenameFor(Component.PRIMARY_INDEX), 0, 0);
@@ -2352,7 +2272,6 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
     public static void resetTidying()
     {
         GlobalTidy.lookup.clear();
-        DescriptorTypeTidy.lookup.clear();
     }
 
     public static abstract class Factory

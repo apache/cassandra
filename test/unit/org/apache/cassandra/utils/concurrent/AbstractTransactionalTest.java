@@ -87,9 +87,29 @@ public abstract class AbstractTransactionalTest
         txn = newTest();
         Throwable t = new RuntimeException();
         txn.testing.prepareToCommit();
-        Assert.assertEquals(t, txn.testing.commit(t));
-        Assert.assertEquals(t, txn.testing.abort(t));
-        Assert.assertTrue(t.getSuppressed()[0] instanceof IllegalStateException);
+
+        if (txn.commitCanThrow())
+        {
+            try
+            {
+                txn.testing.commit(t);
+            }
+            catch (Throwable tt)
+            {
+                Assert.assertEquals(t, tt);
+            }
+
+            Assert.assertEquals(t, txn.testing.abort(t));
+            Assert.assertEquals(0, t.getSuppressed().length);
+        }
+        else
+        {
+            Assert.assertEquals(t, txn.testing.commit(t));
+            Assert.assertEquals(t, txn.testing.abort(t));
+            Assert.assertTrue(t.getSuppressed()[0] instanceof IllegalStateException);
+        }
+
+
     }
 
     @Test
@@ -132,5 +152,10 @@ public abstract class AbstractTransactionalTest
         protected abstract void assertPrepared() throws Exception;
         protected abstract void assertAborted() throws Exception;
         protected abstract void assertCommitted() throws Exception;
+
+        protected boolean commitCanThrow()
+        {
+            return false;
+        }
     }
 }
