@@ -204,7 +204,7 @@ public class Schema
     }
 
     /**
-     * Given a keyspace name & column family name, get the column family
+     * Given a keyspace name and column family name, get the column family
      * meta data. If the keyspace name or column family name is not valid
      * this function returns null.
      *

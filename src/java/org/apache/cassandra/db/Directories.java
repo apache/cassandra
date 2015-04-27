@@ -55,16 +55,18 @@ import org.apache.cassandra.utils.Pair;
  * Encapsulate handling of paths to the data files.
  *
  * Since v2.1, the directory layout is the following:
+ * <pre> {@code
  *   /<path_to_data_dir>/ks/cf1-cfId/ks-cf1-ka-1-Data.db
  *                         /cf2-cfId/ks-cf2-ka-1-Data.db
  *                         ...
+ * } </pre>                      
  *
  * cfId is an hex encoded CFID.
  *
  * For backward compatibility, Directories uses older directory layout if exists.
  *
  * In addition, more that one 'root' data directory can be specified so that
- * <path_to_data_dir> potentially represents multiple locations.
+ * {@code <path_to_data_dir>} potentially represents multiple locations.
  * Note that in the case of multiple locations, the manifest for the leveled
  * compaction is only in one of the location.
  *

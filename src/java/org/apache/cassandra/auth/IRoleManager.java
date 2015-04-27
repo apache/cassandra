@@ -27,7 +27,7 @@ import org.apache.cassandra.exceptions.RequestValidationException;
 /**
  * Responsible for managing roles (which also includes what
  * used to be known as users), including creation, deletion,
- * alteration and the granting & revoking of roles to other
+ * alteration and the granting and revoking of roles to other
  * roles.
  */
 public interface IRoleManager

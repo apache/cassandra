@@ -31,9 +31,10 @@ import com.google.common.base.Function;
 /**
  * Base class for DataOutput implementations that does not have an optimized implementations of Plus methods
  * and does no buffering.
- * <p/>
+ * <p>
  * Unlike BufferedDataOutputStreamPlus this is capable of operating as an unbuffered output stream.
  * Currently necessary because SequentialWriter implements its own buffering along with mark/reset/truncate.
+ * </p>
  */
 public abstract class UnbufferedDataOutputStreamPlus extends DataOutputStreamPlus
 {

@@ -30,8 +30,9 @@ import javax.management.*;
 
 /**
  * Makes integrating 3.0 metrics API with 2.0.
- * <p/>
+ * <p>
  * The 3.0 API comes with poor JMX integration
+ * </p>
  */
 public class CassandraMetricsRegistry extends MetricRegistry
 {

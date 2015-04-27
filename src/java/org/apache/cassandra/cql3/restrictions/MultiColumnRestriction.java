@@ -85,7 +85,7 @@ public abstract class MultiColumnRestriction extends AbstractRestriction
      * Returns the names of the columns that are specified within this <code>Restrictions</code> and the other one
      * as a comma separated <code>String</code>.
      *
-     * @param otherRestrictions the other restrictions
+     * @param otherRestriction the other restrictions
      * @return the names of the columns that are specified within this <code>Restrictions</code> and the other one
      * as a comma separated <code>String</code>.
      */

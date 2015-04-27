@@ -53,6 +53,7 @@ public class RepairOption
      * Available options are:
      *
      * <table>
+     *     <caption>Repair Options</caption>
      *     <thead>
      *         <tr>
      *             <th>key</th>

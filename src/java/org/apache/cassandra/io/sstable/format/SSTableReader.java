@@ -71,7 +71,9 @@ import static org.apache.cassandra.db.Directories.SECONDARY_INDEX_NAME_SEPARATOR
  * to replace some existing sstables. However once created, an sstablereader may also be modified.
  *
  * A reader's OpenReason describes its current stage in its lifecycle, as follows:
- *
+ * 
+ * 
+ * <pre> {@code
  * NORMAL
  * From:       None        => Reader has been read from disk, either at startup or from a flushed memtable
  *             EARLY       => Reader is the final result of a compaction
@@ -93,6 +95,7 @@ import static org.apache.cassandra.db.Directories.SECONDARY_INDEX_NAME_SEPARATOR
  * From:       NORMAL      => Reader has seen low traffic and the amount of memory available for index summaries is
  *                            constrained, so its index summary has been downsampled.
  *         METADATA_CHANGE => Same
+ * } </pre>
  *
  * Note that in parallel to this, there are two different Descriptor types; TMPLINK and FINAL; the latter corresponds
  * to NORMAL state readers and all readers that replace a NORMAL one. TMPLINK is used for EARLY state readers and

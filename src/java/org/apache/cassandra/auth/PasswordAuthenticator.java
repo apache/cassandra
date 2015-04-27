@@ -48,7 +48,7 @@ import static org.apache.cassandra.auth.CassandraRoleManager.consistencyForRole;
  * Since 3.0, the management of roles (creation, modification,
  * querying etc is the responsibility of IRoleManager. Use of
  * PasswordAuthenticator requires the use of CassandraRoleManager
- * for storage & retrieval of encryted passwords.
+ * for storage and retrieval of encrypted passwords.
  */
 public class PasswordAuthenticator implements IAuthenticator
 {

@@ -510,7 +510,7 @@ public class NodeProbe implements AutoCloseable
      * 
      * @param snapshotName
      *            the name of the snapshot.
-     * @param columnfamilylist
+     * @param columnFamilyList
      *            list of columnfamily from different keyspace in the form of ks1.cf1 ks2.cf2
      */
     public void takeMultipleColumnFamilySnapshot(String snapshotName, String... columnFamilyList)

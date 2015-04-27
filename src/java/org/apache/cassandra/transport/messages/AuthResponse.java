@@ -28,7 +28,7 @@ import org.apache.cassandra.transport.*;
 
 /**
  * A SASL token message sent from client to server. Some SASL
- * mechanisms & clients may send an initial token before
+ * mechanisms and clients may send an initial token before
  * receiving a challenge from the server.
  */
 public class AuthResponse extends Message.Request
