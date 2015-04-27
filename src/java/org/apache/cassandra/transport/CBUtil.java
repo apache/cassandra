@@ -46,7 +46,7 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 /**
  * ByteBuf utility methods.
  * Note that contrarily to ByteBufferUtil, these method do "read" the
- * ByteBuf advancing it's (read) position. They also write by
+ * ByteBuf advancing its (read) position. They also write by
  * advancing the write position. Functions are also provided to create
  * ByteBuf while avoiding copies.
  */
@@ -93,7 +93,7 @@ public abstract class CBUtil
         }
         catch (IndexOutOfBoundsException e)
         {
-            throw new ProtocolException("Not enough bytes to read an UTF8 serialized string preceded by it's 2 bytes length");
+            throw new ProtocolException("Not enough bytes to read an UTF8 serialized string preceded by its 2 bytes length");
         }
     }
 
@@ -141,7 +141,7 @@ public abstract class CBUtil
         }
         catch (IndexOutOfBoundsException e)
         {
-            throw new ProtocolException("Not enough bytes to read an UTF8 serialized string preceded by it's 4 bytes length");
+            throw new ProtocolException("Not enough bytes to read an UTF8 serialized string preceded by its 4 bytes length");
         }
     }
 
@@ -168,7 +168,7 @@ public abstract class CBUtil
         }
         catch (IndexOutOfBoundsException e)
         {
-            throw new ProtocolException("Not enough bytes to read a byte array preceded by it's 2 bytes length");
+            throw new ProtocolException("Not enough bytes to read a byte array preceded by its 2 bytes length");
         }
     }
 

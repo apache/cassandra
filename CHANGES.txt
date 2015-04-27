@@ -18,7 +18,7 @@
  * Delay "node up" and "node added" notifications until native protocol server is started (CASSANDRA-8236)
  * Compressed Commit Log (CASSANDRA-6809)
  * Optimise IntervalTree (CASSANDRA-8988)
- * Add a key-value payload for third party usage (CASSANDRA-8553)
+ * Add a key-value payload for third party usage (CASSANDRA-8553, 9212)
  * Bump metrics-reporter-config dependency for metrics 3.0 (CASSANDRA-8149)
  * Partition intra-cluster message streams by size, not type (CASSANDRA-8789)
  * Add WriteFailureException to native protocol, notify coordinator of
