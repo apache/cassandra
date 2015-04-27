@@ -83,6 +83,7 @@
  * Use stdout for progress and stats in sstableloader (CASSANDRA-8982)
  * Correctly identify 2i datadir from older versions (CASSANDRA-9116)
 Merged from 2.0:
+ * Avoid overflow when calculating max sstable size in LCS (CASSANDRA-9235)
  * Make sstable blacklisting work with compression (CASSANDRA-9138)
  * Do not attempt to rebuild indexes if no index accepts any column (CASSANDRA-9196)
  * Don't initiate snitch reconnection for dead states (CASSANDRA-7292)
