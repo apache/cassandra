@@ -133,7 +133,7 @@ public class OutboundTcpConnection extends Thread
 
     public OutboundTcpConnection(OutboundTcpConnectionPool pool)
     {
-        super("WRITE-" + pool.endPoint());
+        super("MessagingService-Outgoing-" + pool.endPoint());
         this.poolReference = pool;
         cs = newCoalescingStrategy(pool.endPoint().getHostAddress());
     }
