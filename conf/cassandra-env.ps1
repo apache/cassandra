@@ -389,6 +389,7 @@ Function SetCassandraEnvironment
     $env:JVM_OPTS="$env:JVM_OPTS -XX:MaxTenuringThreshold=1"
     $env:JVM_OPTS="$env:JVM_OPTS -XX:CMSInitiatingOccupancyFraction=75"
     $env:JVM_OPTS="$env:JVM_OPTS -XX:+UseCMSInitiatingOccupancyOnly"
+    $env:JVM_OPTS="$env:JVM_OPTS -XX:-PerfDisableSharedMem"
     $env:JVM_OPTS="$env:JVM_OPTS -XX:+UseTLAB"
     if (($env:JVM_VERSION.CompareTo("1.7") -eq 1) -and ($env:JVM_ARCH -eq "64-Bit"))
     {
@@ -454,4 +455,6 @@ Function SetCassandraEnvironment
     $env:JVM_OPTS="$env:JVM_OPTS $JVM_EXTRA_OPTS"
 
     $env:JVM_OPTS = "$env:JVM_OPTS -Dlog4j.configuration=log4j-server.properties"
+
+    #$env:JVM_OPTS="$env:JVM_OPTS -XX:+UnlockCommercialFeatures -XX:+FlightRecorder"
 }
