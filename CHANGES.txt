@@ -97,6 +97,10 @@
  * Save repair data to system table (CASSANDRA-5839)
  * fix nodetool names that reference column families (CASSANDRA-8872)
 
+2.1.6
+Merged from 2.0:
+ * IncomingTcpConnection thread is not named (CASSANDRA-9262)
+
 2.1.5
  * Fix deleting from an empty list (CASSANDRA-9198)
  * Update tuple and collection types that use a user-defined type when that UDT
