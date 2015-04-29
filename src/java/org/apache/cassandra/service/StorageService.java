@@ -992,26 +992,22 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     {
         try
         {
-            // if we don't have system_auth keyspace at this point, then create it manually
-            // otherwise, create any necessary tables as we may be upgrading in which case
-            // the ks exists with the only the legacy tables defined
+            // if we don't have system_auth keyspace at this point, then create it
             if (Schema.instance.getKSMetaData(AuthKeyspace.NAME) == null)
-            {
                 maybeAddKeyspace(AuthKeyspace.definition());
-            }
-            else
-            {
-                for (Map.Entry<String, CFMetaData> table : AuthKeyspace.definition().cfMetaData().entrySet())
-                {
-                    if (Schema.instance.getCFMetaData(AuthKeyspace.NAME, table.getKey()) == null)
-                        maybeAddTable(table.getValue());
-                }
-            }
         }
         catch (Exception e)
         {
             throw new AssertionError(e); // shouldn't ever happen.
         }
+
+        // create any necessary tables as we may be upgrading in which case
+        // the ks exists with the only the legacy tables defined.
+        // Also, the addKeyspace above can be racy if multiple nodes are started
+        // concurrently - see CASSANDRA-9201
+        for (Map.Entry<String, CFMetaData> table : AuthKeyspace.definition().cfMetaData().entrySet())
+            if (Schema.instance.getCFMetaData(AuthKeyspace.NAME, table.getKey()) == null)
+                maybeAddTable(table.getValue());
 
         DatabaseDescriptor.getRoleManager().setup();
         DatabaseDescriptor.getAuthenticator().setup();
