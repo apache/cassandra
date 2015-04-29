@@ -36,20 +36,12 @@ public class GossipDigestSynVerbHandler implements IVerbHandler<GossipDigestSyn>
     public void doVerb(MessageIn<GossipDigestSyn> message, int id)
     {
         InetAddress from = message.from;
-        
         if (logger.isTraceEnabled())
             logger.trace("Received a GossipDigestSynMessage from {}", from);
-        
         if (!Gossiper.instance.isEnabled())
         {
             if (logger.isTraceEnabled())
                 logger.trace("Ignoring GossipDigestSynMessage because gossip is disabled");
-            return;
-        }
-        
-        if (!Gossiper.instance.shouldAckAfterShutdown(from))
-        {
-            logger.debug("Temporarily ignoring SYN from shutdown node {}", from);
             return;
         }
 

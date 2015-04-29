@@ -33,6 +33,7 @@ import javax.management.ObjectName;
 
 import com.google.common.base.Function;
 import com.google.common.collect.Lists;
+import com.google.common.collect.Sets;
 
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
 import org.slf4j.Logger;
@@ -885,6 +886,7 @@ public final class MessagingService implements MessagingServiceMBean
     private static class SocketThread extends Thread
     {
         private final ServerSocket server;
+        private final Set<Closeable> connections = Sets.newConcurrentHashSet();
 
         SocketThread(ServerSocket server, String name)
         {
@@ -919,9 +921,10 @@ public final class MessagingService implements MessagingServiceMBean
                     socket.setSoTimeout(0);
 
                     Thread thread = isStream
-                                  ? new IncomingStreamingConnection(version, socket)
-                                  : new IncomingTcpConnection(version, MessagingService.getBits(header, 2, 1) == 1, socket);
+                                  ? new IncomingStreamingConnection(version, socket, connections)
+                                  : new IncomingTcpConnection(version, MessagingService.getBits(header, 2, 1) == 1, socket, connections);
                     thread.start();
+                    connections.add((Closeable) thread);
                 }
                 catch (AsynchronousCloseException e)
                 {
@@ -947,6 +950,10 @@ public final class MessagingService implements MessagingServiceMBean
         {
             logger.debug("Closing accept() thread");
             server.close();
+            for (Closeable connection : connections) 
+            {
+                connection.close();
+            }
         }
 
         private boolean authenticate(Socket socket)

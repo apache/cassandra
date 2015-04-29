@@ -21,6 +21,7 @@ import java.io.*;
 import java.net.InetAddress;
 import java.net.Socket;
 import java.net.SocketException;
+import java.util.Set;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -30,21 +31,23 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.UnknownColumnFamilyException;
 import org.apache.cassandra.gms.Gossiper;
 
-public class IncomingTcpConnection extends Thread
+public class IncomingTcpConnection extends Thread implements Closeable
 {
     private static final Logger logger = LoggerFactory.getLogger(IncomingTcpConnection.class);
 
     private final int version;
     private final boolean compressed;
     private final Socket socket;
+    private final Set<Closeable> group;
     public InetAddress from;
 
-    public IncomingTcpConnection(int version, boolean compressed, Socket socket)
+    public IncomingTcpConnection(int version, boolean compressed, Socket socket, Set<Closeable> group)
     {
         super("MessagingService-Incoming-" + socket.getInetAddress());
         this.version = version;
         this.compressed = compressed;
         this.socket = socket;
+        this.group = group;
         if (DatabaseDescriptor.getInternodeRecvBufferSize() != null)
         {
             try
@@ -89,6 +92,26 @@ public class IncomingTcpConnection extends Thread
         finally
         {
             close();
+        }
+    }
+    
+    @Override
+    public void close()
+    {
+        try
+        {
+            if (!socket.isClosed())
+            {
+                socket.close();
+            }
+        }
+        catch (IOException e)
+        {
+            logger.debug("Error closing socket", e);
+        }
+        finally
+        {
+            group.remove(this);
         }
     }
 
@@ -161,17 +184,5 @@ public class IncomingTcpConnection extends Thread
             logger.debug("Received connection from newer protocol version {}. Ignoring message", version);
         }
         return message.from;
-    }
-
-    private void close()
-    {
-        try
-        {
-            socket.close();
-        }
-        catch (IOException e)
-        {
-            logger.debug("Error closing socket", e);
-        }
     }
 }

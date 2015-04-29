@@ -1,6 +1,6 @@
 2.0.15:
  * IncomingTcpConnection thread is not named (CASSANDRA-9262)
- * Ignore gossip SYNs after shutdown (CASSANDRA-9238)
+ * Close incoming connections when MessagingService is stopped (CASSANDRA-9238)
  * Avoid overflow when calculating max sstable size in LCS (CASSANDRA-9235)
  * Make sstable blacklisting work with compression (CASSANDRA-9138)
  * Do not attempt to rebuild indexes if no index accepts any column (CASSANDRA-9196)
