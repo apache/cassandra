@@ -101,6 +101,7 @@
 2.1.6
 Merged from 2.0:
  * IncomingTcpConnection thread is not named (CASSANDRA-9262)
+ * Close incoming connections when MessagingService is stopped (CASSANDRA-9238)
 
 2.1.5
  * Fix deleting from an empty list (CASSANDRA-9198)
