@@ -1,4 +1,5 @@
 2.1.6
+ * GCInspector logs very different times (CASSANDRA-9124)
  * Fix deleting from an empty list (CASSANDRA-9198)
  * Update tuple and collection types that use a user-defined type when that UDT
    is modified (CASSANDRA-9148, CASSANDRA-9192)
