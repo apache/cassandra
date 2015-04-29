@@ -107,9 +107,6 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
 
     /* unreachable member set */
     private final Map<InetAddress, Long> unreachableEndpoints = new ConcurrentHashMap<InetAddress, Long>();
-    
-    /* shutdown member set */
-    private final Map<InetAddress, Long> shutdownEndpoints = new ConcurrentHashMap<InetAddress, Long>();
 
     /* initial seeds for joining the cluster */
     private final Set<InetAddress> seeds = new ConcurrentSkipListSet<InetAddress>(inetcomparator);
@@ -310,24 +307,6 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
             return 0L;
     }
 
-    public boolean shouldAckAfterShutdown(InetAddress endpoint)
-    {
-        Long shutdownTimestamp = shutdownEndpoints.get(endpoint);
-        Integer shutdownAnnounce = Integer.getInteger("cassandra.shutdown_announce_in_ms", 2000);
-        // Do not temporarily answer to SYN messages coming from shutdown nodes, to avoid reconnecting:
-        if (shutdownTimestamp != null && (System.currentTimeMillis() - shutdownTimestamp) < (shutdownAnnounce * 2))
-        {
-            return false;
-        }
-        // Otherwise, if allowed to answer, remove the node from the shutdown set
-        // (and do this only here, rather than in sendGossip too, to avoid racing between different calling threads):
-        else
-        {
-            shutdownEndpoints.remove(endpoint);
-            return true;
-        }
-    }
-    
     private boolean isShutdown(InetAddress endpoint)
     {
         EndpointState epState = endpointStateMap.get(endpoint);
@@ -376,7 +355,6 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
             return;
         epState.addApplicationState(ApplicationState.STATUS, StorageService.instance.valueFactory.shutdown(true));
         epState.getHeartBeatState().forceHighestPossibleVersionUnsafe();
-        shutdownEndpoints.put(endpoint, System.currentTimeMillis());
         markDead(endpoint, epState);
         FailureDetector.instance.forceConviction(endpoint);
     }
@@ -650,10 +628,6 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         /* Generate a random number from 0 -> size */
         int index = (size == 1) ? 0 : random.nextInt(size);
         InetAddress to = liveEndpoints.get(index);
-        Long shutdownTimestamp = shutdownEndpoints.get(to);
-        Integer shutdownAnnounce = Integer.getInteger("cassandra.shutdown_announce_in_ms", 2000);
-        if (shutdownTimestamp != null && (System.currentTimeMillis() - shutdownTimestamp) < (shutdownAnnounce * 2))
-            return false;
         if (logger.isTraceEnabled())
             logger.trace("Sending a GossipDigestSyn to {} ...", to);
         MessagingService.instance().sendOneWay(message, to);
