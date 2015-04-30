@@ -53,6 +53,11 @@ public class SchemaLoader
     @BeforeClass
     public static void loadSchema() throws ConfigurationException
     {
+        loadSchema(null);
+    }
+
+    public static void loadSchema(Integer compressionChunkLength) throws ConfigurationException
+    {
         prepareServer();
 
         // Migrations aren't happy if gossiper is not started.  Even if we don't use migrations though,
@@ -61,7 +66,7 @@ public class SchemaLoader
 
         // if you're messing with low-level sstable stuff, it can be useful to inject the schema directly
         // Schema.instance.load(schemaDefinition());
-        for (KSMetaData ksm : schemaDefinition())
+        for (KSMetaData ksm : schemaDefinition(compressionChunkLength))
             MigrationManager.announceNewKeyspace(ksm);
     }
 
@@ -103,7 +108,7 @@ public class SchemaLoader
         Gossiper.instance.stop();
     }
 
-    public static Collection<KSMetaData> schemaDefinition() throws ConfigurationException
+    public static Collection<KSMetaData> schemaDefinition(Integer compressionChunkLength) throws ConfigurationException
     {
         List<KSMetaData> schema = new ArrayList<KSMetaData>();
 
@@ -319,7 +324,7 @@ public class SchemaLoader
 
 
         if (Boolean.parseBoolean(System.getProperty("cassandra.test.compression", "false")))
-            useCompression(schema);
+            useCompression(schema, compressionChunkLength);
 
         return schema;
     }
@@ -363,13 +368,15 @@ public class SchemaLoader
                                                                 .setIndex("indexe1", IndexType.CUSTOM, indexOptions));
     }
 
-    private static void useCompression(List<KSMetaData> schema)
+    private static void useCompression(List<KSMetaData> schema, Integer chunkLength) throws ConfigurationException
     {
         for (KSMetaData ksm : schema)
         {
             for (CFMetaData cfm : ksm.cfMetaData().values())
             {
-                cfm.compressionParameters(new CompressionParameters(SnappyCompressor.instance));
+                cfm.compressionParameters(new CompressionParameters(SnappyCompressor.instance,
+                                                                    chunkLength,
+                                                                    Collections.<String, String>emptyMap()));
             }
         }
     }
