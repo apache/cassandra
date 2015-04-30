@@ -65,7 +65,7 @@ public class SizeTieredCompactionStrategy extends AbstractCompactionStrategy
         }
     };
 
-    protected SizeTieredCompactionStrategyOptions options;
+    protected SizeTieredCompactionStrategyOptions sizeTieredOptions;
     protected volatile int estimatedRemainingTasks;
     private final Set<SSTableReader> sstables = new HashSet<>();
 
@@ -73,7 +73,7 @@ public class SizeTieredCompactionStrategy extends AbstractCompactionStrategy
     {
         super(cfs, options);
         this.estimatedRemainingTasks = 0;
-        this.options = new SizeTieredCompactionStrategyOptions(options);
+        this.sizeTieredOptions = new SizeTieredCompactionStrategyOptions(options);
     }
 
     private List<SSTableReader> getNextBackgroundSSTables(final int gcBefore)
@@ -87,7 +87,7 @@ public class SizeTieredCompactionStrategy extends AbstractCompactionStrategy
 
         Iterable<SSTableReader> candidates = filterSuspectSSTables(Sets.intersection(cfs.getUncompactingSSTables(), sstables));
 
-        List<List<SSTableReader>> buckets = getBuckets(createSSTableAndLengthPairs(candidates), options.bucketHigh, options.bucketLow, options.minSSTableSize);
+        List<List<SSTableReader>> buckets = getBuckets(createSSTableAndLengthPairs(candidates), sizeTieredOptions.bucketHigh, sizeTieredOptions.bucketLow, sizeTieredOptions.minSSTableSize);
         logger.debug("Compaction buckets are {}", buckets);
         updateEstimatedCompactionsByTasks(buckets);
         List<SSTableReader> mostInteresting = mostInterestingBucket(buckets, minThreshold, maxThreshold);
