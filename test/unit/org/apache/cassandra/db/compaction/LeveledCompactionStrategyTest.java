@@ -104,6 +104,9 @@ public class LeveledCompactionStrategyTest
     public void testGrouperLevels() throws Exception{
         ByteBuffer value = ByteBuffer.wrap(new byte[100 * 1024]); // 100 KB value, make it easy to have multiple files
 
+        //Need entropy to prevent compression so size is predictable with compression enabled/disabled
+        new Random().nextBytes(value.array());
+
         // Enough data to have a level 1 and 2
         int rows = 20;
         int columns = 10;
