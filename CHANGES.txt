@@ -1,4 +1,6 @@
 2.0.15:
+ * Do more agressive ttl expiration checks to be able to
+   drop more sstables (CASSANDRA-8243)
  * IncomingTcpConnection thread is not named (CASSANDRA-9262)
  * Close incoming connections when MessagingService is stopped (CASSANDRA-9238)
  * Avoid overflow when calculating max sstable size in LCS (CASSANDRA-9235)
