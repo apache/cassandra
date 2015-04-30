@@ -119,7 +119,9 @@ public class CommitLog implements CommitLogMBean
      */
     public int recover() throws IOException
     {
-        assert !allocator.createReserveSegments;
+        // If createReserveSegments is already flipped, the CLSM is running and recovery has already taken place.
+        if (allocator.createReserveSegments)
+            return 0;
 
         // Allocator could be in the process of initial startup with 0 active and available segments. We need to wait for
         // the allocation manager to finish allocation and add it to available segments so we don't get an invalid response
@@ -384,8 +386,7 @@ public class CommitLog implements CommitLogMBean
     public int resetUnsafe(boolean deleteSegments) throws IOException
     {
         stopUnsafe(deleteSegments);
-        startUnsafe();
-        return recover();
+        return startUnsafe();
     }
 
     /**
@@ -408,10 +409,11 @@ public class CommitLog implements CommitLogMBean
     /**
      * FOR TESTING PURPOSES.  See CommitLogAllocator
      */
-    public void startUnsafe()
+    public int startUnsafe() throws IOException
     {
         allocator.startUnsafe();
         executor.startUnsafe();
+        return recover();
     }
 
     /**

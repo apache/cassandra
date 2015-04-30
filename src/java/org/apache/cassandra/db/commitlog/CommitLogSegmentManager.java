@@ -413,7 +413,7 @@ public class CommitLogSegmentManager
      * Throws a flag that enables the behavior of keeping at least one spare segment
      * available at all times.
      */
-    public void enableReserveSegmentCreation()
+    void enableReserveSegmentCreation()
     {
         createReserveSegments = true;
         wakeManager();

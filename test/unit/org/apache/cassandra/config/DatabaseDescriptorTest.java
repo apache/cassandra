@@ -18,6 +18,7 @@
 */
 package org.apache.cassandra.config;
 
+import java.io.IOException;
 import java.net.Inet4Address;
 import java.net.Inet6Address;
 import java.net.InetAddress;
@@ -76,7 +77,7 @@ public class DatabaseDescriptorTest
 
     // this came as a result of CASSANDRA-995
     @Test
-    public void testTransKsMigration() throws ConfigurationException
+    public void testTransKsMigration() throws ConfigurationException, IOException
     {
         SchemaLoader.cleanupAndLeaveDirs();
         Schema.instance.loadFromDisk();
