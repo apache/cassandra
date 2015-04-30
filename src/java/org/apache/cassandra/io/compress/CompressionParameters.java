@@ -102,7 +102,6 @@ public class CompressionParameters
         if (liveMetadata == null)
             return;
 
-        assert this.liveMetadata == null || this.liveMetadata == liveMetadata;
         this.liveMetadata = liveMetadata;
     }
 
