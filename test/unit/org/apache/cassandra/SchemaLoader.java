@@ -445,8 +445,13 @@ public class SchemaLoader
 
     public static CompressionParameters getCompressionParameters()
     {
+        return getCompressionParameters(null);
+    }
+
+    public static CompressionParameters getCompressionParameters(Integer chunkSize)
+    {
         if (Boolean.parseBoolean(System.getProperty("cassandra.test.compression", "false")))
-            return new CompressionParameters(SnappyCompressor.instance);
+            return new CompressionParameters(SnappyCompressor.instance, chunkSize, Collections.<String, String>emptyMap());
         else
             return new CompressionParameters(null);
     }

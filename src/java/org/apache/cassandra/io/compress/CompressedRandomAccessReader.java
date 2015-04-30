@@ -180,6 +180,7 @@ public class CompressedRandomAccessReader extends RandomAccessReader
             }
             catch (IOException e)
             {
+                buffer.limit(0);
                 throw new CorruptBlockException(getPath(), chunk);
             }
 
@@ -240,6 +241,7 @@ public class CompressedRandomAccessReader extends RandomAccessReader
             }
             catch (IOException e)
             {
+                buffer.limit(0);
                 throw new CorruptBlockException(getPath(), chunk);
             }
             finally
