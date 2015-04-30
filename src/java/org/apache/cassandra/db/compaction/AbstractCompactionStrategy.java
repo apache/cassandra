@@ -66,6 +66,7 @@ public abstract class AbstractCompactionStrategy
     protected float tombstoneThreshold;
     protected long tombstoneCompactionInterval;
     protected boolean uncheckedTombstoneCompaction;
+    protected boolean disableTombstoneCompactions = false;
 
     /**
      * pause/resume/getNextBackgroundTask must synchronize.  This guarantees that after pause completes,
@@ -358,6 +359,8 @@ public abstract class AbstractCompactionStrategy
      */
     protected boolean worthDroppingTombstones(SSTableReader sstable, int gcBefore)
     {
+        if (disableTombstoneCompactions)
+            return false;
         // since we use estimations to calculate, there is a chance that compaction will not drop tombstones actually.
         // if that happens we will end up in infinite compaction loop, so first we check enough if enough time has
         // elapsed since SSTable created.
