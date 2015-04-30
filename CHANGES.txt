@@ -1,4 +1,5 @@
 2.0.15:
+ * Allow scrub to handle corrupted compressed chunks (CASSANDRA-9140)
  * Fix assertion error when resetlocalschema is run during repair (CASSANDRA-9249)
  * Disable single sstable tombstone compactions for DTCS by default (CASSANDRA-9234)
  * Do more agressive ttl expiration checks to be able to

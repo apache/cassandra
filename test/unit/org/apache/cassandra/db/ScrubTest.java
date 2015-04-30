@@ -21,6 +21,7 @@ package org.apache.cassandra.db;
  */
 
 import java.io.*;
+import java.nio.ByteBuffer;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -31,13 +32,14 @@ import java.util.concurrent.ExecutionException;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.exceptions.RequestExecutionException;
+import org.apache.cassandra.io.compress.CompressionMetadata;
 import org.apache.cassandra.utils.UUIDGen;
 import org.apache.commons.lang3.StringUtils;
+import org.junit.BeforeClass;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
 import org.apache.cassandra.OrderedJUnit4ClassRunner;
-import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
@@ -50,8 +52,10 @@ import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.io.sstable.*;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
+import static junit.framework.Assert.assertNotNull;
 import static org.apache.cassandra.Util.column;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 import static org.junit.Assume.assumeTrue;
 
@@ -62,6 +66,13 @@ public class ScrubTest extends SchemaLoader
     public String CF = "Standard1";
     public String CF3 = "Standard2";
     public String COUNTER_CF = "Counter1";
+    private static Integer COMPRESSION_CHUNK_LENGTH = 4096;
+
+    @BeforeClass
+    public static void loadSchema() throws IOException, ConfigurationException
+    {
+        loadSchema(false, COMPRESSION_CHUNK_LENGTH);
+    }
 
     @Test
     public void testScrubOneRow() throws IOException, ExecutionException, InterruptedException, ConfigurationException
@@ -88,7 +99,69 @@ public class ScrubTest extends SchemaLoader
     @Test
     public void testScrubCorruptedCounterRow() throws IOException, InterruptedException, ExecutionException
     {
-        // skip the test when compression is enabled until CASSANDRA-9140 is complete
+        // When compression is enabled, for testing corrupted chunks we need enough partitions to cover
+        // at least 3 chunks of size COMPRESSION_CHUNK_LENGTH
+        int numPartitions = 1000;
+
+        CompactionManager.instance.disableAutoCompaction();
+        Keyspace keyspace = Keyspace.open(KEYSPACE);
+        ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(COUNTER_CF);
+        cfs.clearUnsafe();
+
+        fillCounterCF(cfs, numPartitions);
+
+        List<Row> rows = cfs.getRangeSlice(Util.range("", ""), null, new IdentityQueryFilter(), numPartitions*10);
+        assertEquals(numPartitions, rows.size());
+        assertEquals(1, cfs.getSSTables().size());
+
+        SSTableReader sstable = cfs.getSSTables().iterator().next();
+
+        //make sure to override at most 1 chunk when compression is enabled
+        overrideWithGarbage(sstable, ByteBufferUtil.bytes("0"), ByteBufferUtil.bytes("1"));
+
+        // with skipCorrupted == false, the scrub is expected to fail
+        Scrubber scrubber = new Scrubber(cfs, sstable, false);
+        try
+        {
+            scrubber.scrub();
+            fail("Expected a CorruptSSTableException to be thrown");
+        }
+        catch (IOError err) {}
+
+        // with skipCorrupted == true, the corrupt row will be skipped
+        Scrubber.ScrubResult scrubResult;
+        scrubber = new Scrubber(cfs, sstable, true);
+        scrubResult = scrubber.scrubWithResult();
+        scrubber.close();
+        cfs.replaceCompactedSSTables(Collections.singletonList(sstable), Collections.singletonList(scrubber.getNewSSTable()), OperationType.SCRUB);
+
+        assertNotNull(scrubResult);
+
+        boolean compression = Boolean.parseBoolean(System.getProperty("cassandra.test.compression", "false"));
+        if (compression)
+        {
+            assertEquals(0, scrubResult.emptyRows);
+            assertEquals(numPartitions, scrubResult.badRows + scrubResult.goodRows);
+            //because we only corrupted 1 chunk and we chose enough partitions to cover at least 3 chunks
+            assertTrue(scrubResult.goodRows >= scrubResult.badRows * 2);
+        }
+        else
+        {
+            assertEquals(0, scrubResult.emptyRows);
+            assertEquals(1, scrubResult.badRows);
+            assertEquals(numPartitions-1, scrubResult.goodRows);
+        }
+        assertEquals(1, cfs.getSSTables().size());
+
+        rows = cfs.getRangeSlice(Util.range("", ""), null, new IdentityQueryFilter(), 1000);
+        assertEquals(scrubResult.goodRows, rows.size());
+    }
+
+
+    @Test
+    public void testScrubCorruptedRowInSmallFile() throws IOException, InterruptedException, ExecutionException
+    {
+        // cannot test this with compression
         assumeTrue(!Boolean.parseBoolean(System.getProperty("cassandra.test.compression", "false")));
 
         CompactionManager.instance.disableAutoCompaction();
@@ -102,17 +175,7 @@ public class ScrubTest extends SchemaLoader
         assertEquals(2, rows.size());
 
         SSTableReader sstable = cfs.getSSTables().iterator().next();
-
-        // overwrite one row with garbage
-        long row0Start = sstable.getPosition(RowPosition.forKey(ByteBufferUtil.bytes("0"), sstable.partitioner), SSTableReader.Operator.EQ).position;
-        long row1Start = sstable.getPosition(RowPosition.forKey(ByteBufferUtil.bytes("1"), sstable.partitioner), SSTableReader.Operator.EQ).position;
-        long startPosition = row0Start < row1Start ? row0Start : row1Start;
-        long endPosition = row0Start < row1Start ? row1Start : row0Start;
-
-        RandomAccessFile file = new RandomAccessFile(sstable.getFilename(), "rw");
-        file.seek(startPosition);
-        file.writeBytes(StringUtils.repeat('z', (int) (endPosition - startPosition)));
-        file.close();
+        overrideWithGarbage(sstable, ByteBufferUtil.bytes("0"), ByteBufferUtil.bytes("1"));
 
         // with skipCorrupted == false, the scrub is expected to fail
         Scrubber scrubber = new Scrubber(cfs, sstable, false);
@@ -133,6 +196,34 @@ public class ScrubTest extends SchemaLoader
         // verify that we can read all of the rows, and there is now one less row
         rows = cfs.getRangeSlice(Util.range("", ""), null, new IdentityQueryFilter(), 1000);
         assertEquals(1, rows.size());
+    }
+
+    @Test
+    public void testScrubOneRowWithCorruptedKey() throws IOException, ExecutionException, InterruptedException, ConfigurationException
+    {
+        // cannot test this with compression
+        assumeTrue(!Boolean.parseBoolean(System.getProperty("cassandra.test.compression", "false")));
+
+        CompactionManager.instance.disableAutoCompaction();
+        Keyspace keyspace = Keyspace.open(KEYSPACE);
+        ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(CF);
+        cfs.clearUnsafe();
+
+        List<Row> rows;
+
+        // insert data and verify we get it back w/ range query
+        fillCF(cfs, 4);
+        rows = cfs.getRangeSlice(Util.range("", ""), null, new IdentityQueryFilter(), 1000);
+        assertEquals(4, rows.size());
+
+        SSTableReader sstable = cfs.getSSTables().iterator().next();
+        overrideWithGarbage(sstable, 0, 2);
+
+        CompactionManager.instance.performScrub(cfs, false);
+
+        // check data is still there
+        rows = cfs.getRangeSlice(Util.range("", ""), null, new IdentityQueryFilter(), 1000);
+        assertEquals(4, rows.size());
     }
 
     @Test
@@ -237,6 +328,42 @@ public class ScrubTest extends SchemaLoader
         List<Row> rows = cfs.getRangeSlice(Util.range("", ""), null, new IdentityQueryFilter(), 1000);
         assert isRowOrdered(rows) : "Scrub failed: " + rows;
         assert rows.size() == 6 : "Got " + rows.size();
+    }
+
+    private void overrideWithGarbage(SSTableReader sstable, ByteBuffer key1, ByteBuffer key2) throws IOException
+    {
+        boolean compression = Boolean.parseBoolean(System.getProperty("cassandra.test.compression", "false"));
+        long startPosition, endPosition;
+
+        if (compression)
+        { // overwrite with garbage the compression chunks from key1 to key2
+            CompressionMetadata compData = CompressionMetadata.create(sstable.getFilename());
+
+            CompressionMetadata.Chunk chunk1 = compData.chunkFor(
+                    sstable.getPosition(RowPosition.forKey(key1, sstable.partitioner), SSTableReader.Operator.EQ).position);
+            CompressionMetadata.Chunk chunk2 = compData.chunkFor(
+                    sstable.getPosition(RowPosition.forKey(key2, sstable.partitioner), SSTableReader.Operator.EQ).position);
+
+            startPosition = Math.min(chunk1.offset, chunk2.offset);
+            endPosition = Math.max(chunk1.offset + chunk1.length, chunk2.offset + chunk2.length);
+        }
+        else
+        { // overwrite with garbage from key1 to key2
+            long row0Start = sstable.getPosition(RowPosition.forKey(key1, sstable.partitioner), SSTableReader.Operator.EQ).position;
+            long row1Start = sstable.getPosition(RowPosition.forKey(key2, sstable.partitioner), SSTableReader.Operator.EQ).position;
+            startPosition = Math.min(row0Start, row1Start);
+            endPosition = Math.max(row0Start, row1Start);
+        }
+
+        overrideWithGarbage(sstable, startPosition, endPosition);
+    }
+
+    private void overrideWithGarbage(SSTable sstable, long startPosition, long endPosition) throws IOException
+    {
+        RandomAccessFile file = new RandomAccessFile(sstable.getFilename(), "rw");
+        file.seek(startPosition);
+        file.writeBytes(StringUtils.repeat('z', (int) (endPosition - startPosition)));
+        file.close();
     }
 
     private static boolean isRowOrdered(List<Row> rows)
