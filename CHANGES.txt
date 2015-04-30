@@ -5,10 +5,10 @@
  * Update tuple and collection types that use a user-defined type when that UDT
    is modified (CASSANDRA-9148, CASSANDRA-9192)
 Merged from 2.0:
+ * Fix assertion error when resetlocalschema is run during repair (CASSANDRA-9249)
  * Disable single sstable tombstone compactions for DTCS by default (CASSANDRA-9234)
  * IncomingTcpConnection thread is not named (CASSANDRA-9262)
  * Close incoming connections when MessagingService is stopped (CASSANDRA-9238)
-
 
 2.1.5
  * Re-add deprecated cold_reads_to_omit param for backwards compat (CASSANDRA-9203)
