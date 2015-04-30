@@ -45,6 +45,7 @@ import com.github.tjake.ICRC32;
 
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.concurrent.StageManager;
+import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.exceptions.ConfigurationException;
@@ -78,7 +79,9 @@ public class CommitLogReplayer
     private byte[] buffer;
     private byte[] uncompressedBuffer;
 
-    CommitLogReplayer(ReplayPosition globalPosition, Map<UUID, ReplayPosition> cfPositions)
+    private final ReplayFilter replayFilter;
+
+    CommitLogReplayer(ReplayPosition globalPosition, Map<UUID, ReplayPosition> cfPositions, ReplayFilter replayFilter)
     {
         this.keyspacesRecovered = new NonBlockingHashSet<Keyspace>();
         this.futures = new ArrayList<Future<?>>();
@@ -90,6 +93,7 @@ public class CommitLogReplayer
         this.checksum = CRC32Factory.instance.create();
         this.cfPositions = cfPositions;
         this.globalPosition = globalPosition;
+        this.replayFilter = replayFilter;
     }
 
     public static CommitLogReplayer create()
@@ -97,6 +101,7 @@ public class CommitLogReplayer
         // compute per-CF and global replay positions
         Map<UUID, ReplayPosition> cfPositions = new HashMap<UUID, ReplayPosition>();
         Ordering<ReplayPosition> replayPositionOrdering = Ordering.from(ReplayPosition.comparator);
+        ReplayFilter replayFilter = ReplayFilter.create();
         for (ColumnFamilyStore cfs : ColumnFamilyStore.all())
         {
             // it's important to call RP.gRP per-cf, before aggregating all the positions w/ the Ordering.min call
@@ -104,16 +109,36 @@ public class CommitLogReplayer
             // list (otherwise we'll just start replay from the first flush position that we do have, which is not correct).
             ReplayPosition rp = ReplayPosition.getReplayPosition(cfs.getSSTables());
 
-            // but, if we've truncted the cf in question, then we need to need to start replay after the truncation
+            // but, if we've truncated the cf in question, then we need to need to start replay after the truncation
             ReplayPosition truncatedAt = SystemKeyspace.getTruncatedPosition(cfs.metadata.cfId);
             if (truncatedAt != null)
-                rp = replayPositionOrdering.max(Arrays.asList(rp, truncatedAt));
+            {
+                // Point in time restore is taken to mean that the tables need to be recovered even if they were
+                // deleted at a later point in time. Any truncation record after that point must thus be cleared prior
+                // to recovery (CASSANDRA-9195).
+                long restoreTime = CommitLog.instance.archiver.restorePointInTime;
+                long truncatedTime = SystemKeyspace.getTruncatedAt(cfs.metadata.cfId);
+                if (truncatedTime > restoreTime)
+                {
+                    if (replayFilter.includes(cfs.metadata))
+                    {
+                        logger.info("Restore point in time is before latest truncation of table {}.{}. Clearing truncation record.",
+                                    cfs.metadata.ksName,
+                                    cfs.metadata.cfName);
+                        SystemKeyspace.removeTruncationRecord(cfs.metadata.cfId);
+                    }
+                }
+                else
+                {
+                    rp = replayPositionOrdering.max(Arrays.asList(rp, truncatedAt));
+                }
+            }
 
             cfPositions.put(cfs.metadata.cfId, rp);
         }
         ReplayPosition globalPosition = replayPositionOrdering.min(cfPositions.values());
         logger.debug("Global replay position is {} from columnfamilies {}", globalPosition, FBUtilities.toString(cfPositions));
-        return new CommitLogReplayer(globalPosition, cfPositions);
+        return new CommitLogReplayer(globalPosition, cfPositions, replayFilter);
     }
 
     public void recover(File[] clogs) throws IOException
@@ -173,6 +198,8 @@ public class CommitLogReplayer
     {
         public abstract Iterable<ColumnFamily> filter(Mutation mutation);
 
+        public abstract boolean includes(CFMetaData metadata);
+
         public static ReplayFilter create()
         {
             // If no replaylist is supplied an empty array of strings is used to replay everything.
@@ -189,7 +216,8 @@ public class CommitLogReplayer
                 Keyspace ks = Schema.instance.getKeyspaceInstance(pair[0]);
                 if (ks == null)
                     throw new IllegalArgumentException("Unknown keyspace " + pair[0]);
-                if (ks.getColumnFamilyStore(pair[1]) == null)
+                ColumnFamilyStore cfs = ks.getColumnFamilyStore(pair[1]);
+                if (cfs == null)
                     throw new IllegalArgumentException(String.format("Unknown table %s.%s", pair[0], pair[1]));
 
                 toReplay.put(pair[0], pair[1]);
@@ -203,6 +231,11 @@ public class CommitLogReplayer
         public Iterable<ColumnFamily> filter(Mutation mutation)
         {
             return mutation.getColumnFamilies();
+        }
+
+        public boolean includes(CFMetaData metadata)
+        {
+            return true;
         }
     }
 
@@ -229,11 +262,15 @@ public class CommitLogReplayer
                 }
             });
         }
+
+        public boolean includes(CFMetaData metadata)
+        {
+            return toReplay.containsEntry(metadata.ksName, metadata.cfName);
+        }
     }
 
     public void recover(File file) throws IOException
     {
-        final ReplayFilter replayFilter = ReplayFilter.create();
         CommitLogDescriptor desc = CommitLogDescriptor.fromFileName(file.getName());
         RandomAccessReader reader = RandomAccessReader.open(new File(file.getAbsolutePath()));
         try

@@ -362,11 +362,11 @@ public class CommitLogStressTest
         }
     }
     
-    class Replayer extends CommitLogReplayer {
-
+    class Replayer extends CommitLogReplayer
+    {
         Replayer()
         {
-            super(discardedPos, null);
+            super(discardedPos, null, ReplayFilter.create());
         }
 
         int hash = 0;
