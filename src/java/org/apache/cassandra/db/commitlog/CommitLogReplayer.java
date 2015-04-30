@@ -34,13 +34,13 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.concurrent.StageManager;
+import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.io.util.FastByteArrayInputStream;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.io.util.RandomAccessReader;
 import org.apache.cassandra.utils.*;
-
 import org.cliffc.high_scale_lib.NonBlockingHashSet;
 
 public class CommitLogReplayer
@@ -58,6 +58,8 @@ public class CommitLogReplayer
     private final PureJavaCrc32 checksum;
     private byte[] buffer;
 
+    private final ReplayFilter replayFilter;
+
     public CommitLogReplayer()
     {
         this.keyspacesRecovered = new NonBlockingHashSet<Keyspace>();
@@ -67,6 +69,8 @@ public class CommitLogReplayer
         // count the number of replayed mutation. We don't really care about atomicity, but we need it to be a reference.
         this.replayedCount = new AtomicInteger();
         this.checksum = new PureJavaCrc32();
+
+        replayFilter = ReplayFilter.create();
 
         // compute per-CF and global replay positions
         cfPositions = new HashMap<UUID, ReplayPosition>();
@@ -81,7 +85,27 @@ public class CommitLogReplayer
             // but, if we've truncted the cf in question, then we need to need to start replay after the truncation
             ReplayPosition truncatedAt = SystemKeyspace.getTruncatedPosition(cfs.metadata.cfId);
             if (truncatedAt != null)
-                rp = replayPositionOrdering.max(Arrays.asList(rp, truncatedAt));
+            {
+                // Point in time restore is taken to mean that the tables need to be recovered even if they were
+                // deleted at a later point in time. Any truncation record after that point must thus be cleared prior
+                // to recovery (CASSANDRA-9195).
+                long restoreTime = CommitLog.instance.archiver.restorePointInTime;
+                long truncatedTime = SystemKeyspace.getTruncatedAt(cfs.metadata.cfId);
+                if (truncatedTime > restoreTime)
+                {
+                    if (replayFilter.includes(cfs.metadata))
+                    {
+                        logger.info("Restore point in time is before latest truncation of table {}.{}. Clearing truncation record.",
+                                    cfs.metadata.ksName,
+                                    cfs.metadata.cfName);
+                        SystemKeyspace.removeTruncationRecord(cfs.metadata.cfId);
+                    }
+                }
+                else
+                {
+                    rp = replayPositionOrdering.max(Arrays.asList(rp, truncatedAt));
+                }
+            }
 
             cfPositions.put(cfs.metadata.cfId, rp);
         }
@@ -167,6 +191,8 @@ public class CommitLogReplayer
     {
         public abstract Iterable<ColumnFamily> filter(Mutation mutation);
 
+        public abstract boolean includes(CFMetaData metadata);
+
         public static ReplayFilter create()
         {
             // If no replaylist is supplied an empty array of strings is used to replay everything.
@@ -183,7 +209,8 @@ public class CommitLogReplayer
                 Keyspace ks = Schema.instance.getKeyspaceInstance(pair[0]);
                 if (ks == null)
                     throw new IllegalArgumentException("Unknown keyspace " + pair[0]);
-                if (ks.getColumnFamilyStore(pair[1]) == null)
+                ColumnFamilyStore cfs = ks.getColumnFamilyStore(pair[1]);
+                if (cfs == null)
                     throw new IllegalArgumentException(String.format("Unknown table %s.%s", pair[0], pair[1]));
 
                 toReplay.put(pair[0], pair[1]);
@@ -197,6 +224,11 @@ public class CommitLogReplayer
         public Iterable<ColumnFamily> filter(Mutation mutation)
         {
             return mutation.getColumnFamilies();
+        }
+
+        public boolean includes(CFMetaData metadata)
+        {
+            return true;
         }
     }
 
@@ -223,11 +255,15 @@ public class CommitLogReplayer
                 }
             });
         }
+
+        public boolean includes(CFMetaData metadata)
+        {
+            return toReplay.containsEntry(metadata.ksName, metadata.cfName);
+        }
     }
 
     public void recover(File file) throws IOException
     {
-        final ReplayFilter replayFilter = ReplayFilter.create();
         logger.info("Replaying {}", file.getPath());
         CommitLogDescriptor desc = CommitLogDescriptor.fromFileName(file.getName());
         final long segmentId = desc.id;
