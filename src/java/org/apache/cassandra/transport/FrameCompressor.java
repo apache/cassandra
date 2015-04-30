@@ -51,15 +51,7 @@ public interface FrameCompressor
                 JVMStabilityInspector.inspectThrowable(e);
                 i = null;
             }
-            catch (NoClassDefFoundError e)
-            {
-                i = null;
-            }
-            catch (SnappyError e)
-            {
-                i = null;
-            }
-            catch (UnsatisfiedLinkError e)
+            catch (NoClassDefFoundError | SnappyError | UnsatisfiedLinkError e)
             {
                 i = null;
             }

@@ -317,14 +317,11 @@ public abstract class AbstractColumnFamilyInputFormat<K, Y> extends InputFormat<
         {
             map = client.describe_local_ring(ConfigHelper.getInputKeyspace(conf));
         }
-        catch (InvalidRequestException e)
-        {
-            throw new RuntimeException(e);
-        }
         catch (TException e)
         {
             throw new RuntimeException(e);
         }
+        
         return map;
     }
 

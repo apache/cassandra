@@ -138,12 +138,9 @@ public class CassandraMetricsRegistry extends MetricRegistry
         } catch (InstanceAlreadyExistsException e)
         {
             logger.debug("Metric bean already exists", e);
-        } catch (MBeanRegistrationException e)
+        } catch (MBeanRegistrationException | NotCompliantMBeanException e)
         {
             logger.debug("Unable to register metric bean", e);
-        } catch (NotCompliantMBeanException e)
-        {
-            logger.warn("Unable to register metric bean", e);
         }
     }
 

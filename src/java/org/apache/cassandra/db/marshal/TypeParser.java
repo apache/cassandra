@@ -347,12 +347,7 @@ public class TypeParser
             Field field = typeClass.getDeclaredField("instance");
             return (AbstractType<?>) field.get(null);
         }
-        catch (NoSuchFieldException e)
-        {
-            // Trying with empty parser
-            return getRawAbstractType(typeClass, EMPTY_PARSER);
-        }
-        catch (IllegalAccessException e)
+        catch (NoSuchFieldException | IllegalAccessException e)
         {
             // Trying with empty parser
             return getRawAbstractType(typeClass, EMPTY_PARSER);
@@ -368,13 +363,7 @@ public class TypeParser
             Method method = typeClass.getDeclaredMethod("getInstance", TypeParser.class);
             return (AbstractType<?>) method.invoke(null, parser);
         }
-        catch (NoSuchMethodException e)
-        {
-            // Trying to see if we have an instance field and apply the default parameter to it
-            AbstractType<?> type = getRawAbstractType(typeClass);
-            return AbstractType.parseDefaultParameters(type, parser);
-        }
-        catch (IllegalAccessException e)
+        catch (NoSuchMethodException | IllegalAccessException e)
         {
             // Trying to see if we have an instance field and apply the default parameter to it
             AbstractType<?> type = getRawAbstractType(typeClass);
@@ -412,11 +401,7 @@ public class TypeParser
             Method method = typeClass.getDeclaredMethod("getInstance", TypeParser.class);
             return (AbstractType<?>) method.invoke(null, parser);
         }
-        catch (NoSuchMethodException e)
-        {
-            throw new ConfigurationException("Invalid comparator class " + typeClass.getName() + ": must define a public static instance field or a public static method getInstance(TypeParser).");
-        }
-        catch (IllegalAccessException e)
+        catch (NoSuchMethodException | IllegalAccessException e)
         {
             throw new ConfigurationException("Invalid comparator class " + typeClass.getName() + ": must define a public static instance field or a public static method getInstance(TypeParser).");
         }

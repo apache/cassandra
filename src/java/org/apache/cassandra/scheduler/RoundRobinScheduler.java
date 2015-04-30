@@ -86,12 +86,7 @@ public class RoundRobinScheduler implements IRequestScheduler
                 weightedQueue.put(t, timeoutMS);
                 // the scheduler will release us when a slot is available
             }
-            catch (TimeoutException e)
-            {
-                queueSize.acquireUninterruptibly();
-                throw e;
-            }
-            catch (InterruptedException e)
+            catch (TimeoutException | InterruptedException e)
             {
                 queueSize.acquireUninterruptibly();
                 throw e;

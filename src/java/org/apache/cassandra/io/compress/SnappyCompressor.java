@@ -63,15 +63,7 @@ public class SnappyCompressor implements ICompressor
             JVMStabilityInspector.inspectThrowable(e);
             return false;
         }
-        catch (NoClassDefFoundError e)
-        {
-            return false;
-        }
-        catch (SnappyError e)
-        {
-            return false;
-        }
-        catch (UnsatisfiedLinkError e)
+        catch (NoClassDefFoundError | SnappyError | UnsatisfiedLinkError e)
         {
             return false;
         }

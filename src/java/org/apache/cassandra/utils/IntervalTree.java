@@ -349,15 +349,7 @@ public class IntervalTree<C extends Comparable<? super C>, D, I extends Interval
                 }
                 return new IntervalTree<C, D, I>(intervals);
             }
-            catch (InstantiationException e)
-            {
-                throw new RuntimeException(e);
-            }
-            catch (InvocationTargetException e)
-            {
-                throw new RuntimeException(e);
-            }
-            catch (IllegalAccessException e)
+            catch (InstantiationException | InvocationTargetException | IllegalAccessException e)
             {
                 throw new RuntimeException(e);
             }

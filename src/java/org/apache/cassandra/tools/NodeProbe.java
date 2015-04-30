@@ -851,11 +851,7 @@ public class NodeProbe implements AutoCloseable
         {
             hhProxy.truncateAllHints();
         }
-        catch (ExecutionException e)
-        {
-            throw new RuntimeException("Error while executing truncate hints", e);
-        }
-        catch (InterruptedException e)
+        catch (ExecutionException | InterruptedException e)
         {
             throw new RuntimeException("Error while executing truncate hints", e);
         }

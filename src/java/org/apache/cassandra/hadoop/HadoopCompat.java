@@ -234,11 +234,7 @@ public class HadoopCompat {
         try {
             return (Counter)
                     GENERIC_COUNTER_CONSTRUCTOR.newInstance(name, displayName, value);
-        } catch (InstantiationException e) {
-            throw new IllegalArgumentException("Can't instantiate Counter", e);
-        } catch (IllegalAccessException e) {
-            throw new IllegalArgumentException("Can't instantiate Counter", e);
-        } catch (InvocationTargetException e) {
+        } catch (InstantiationException | IllegalAccessException | InvocationTargetException e) {
             throw new IllegalArgumentException("Can't instantiate Counter", e);
         }
     }
@@ -249,9 +245,7 @@ public class HadoopCompat {
     private static Object invoke(Method method, Object obj, Object... args) {
         try {
             return method.invoke(obj, args);
-        } catch (IllegalAccessException e) {
-            throw new IllegalArgumentException("Can't invoke method " + method.getName(), e);
-        } catch (InvocationTargetException e) {
+        } catch (IllegalAccessException | InvocationTargetException e) {
             throw new IllegalArgumentException("Can't invoke method " + method.getName(), e);
         }
     }

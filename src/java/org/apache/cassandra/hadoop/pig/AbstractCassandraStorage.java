@@ -217,11 +217,7 @@ public abstract class AbstractCassandraStorage extends LoadFunc implements Store
                         validator = LongType.instance; 
                     validators.put(cd.name, validator);
                 }
-                catch (ConfigurationException e)
-                {
-                    throw new IOException(e);
-                }
-                catch (SyntaxException e)
+                catch (ConfigurationException | SyntaxException e)
                 {
                     throw new IOException(e);
                 }
