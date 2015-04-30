@@ -2,8 +2,6 @@ package org.apache.cassandra.utils;
 
 import java.util.*;
 
-import org.apache.cassandra.utils.AsymmetricOrdering.Op;
-
 /**
  * A class for iterating sequentially through an ordered collection and efficiently
  * finding the overlapping set of matching intervals.
@@ -24,8 +22,6 @@ public class OverlapIterator<I extends Comparable<? super I>, V>
     final Set<V> overlaps = new HashSet<>();
     final Set<V> accessible = Collections.unmodifiableSet(overlaps);
 
-    I mostRecent;
-
     public OverlapIterator(Collection<Interval<I, V>> intervals)
     {
         sortedByMax = new ArrayList<>(intervals);
@@ -42,7 +38,7 @@ public class OverlapIterator<I extends Comparable<? super I>, V>
     public void update(I point)
     {
         // we don't use binary search here since we expect points to be a superset of the min/max values
-        mostRecent = point;
+
         // add those we are now after the start of
         while (nextToInclude < sortedByMin.size() && sortedByMin.get(nextToInclude).min.compareTo(point) <= 0)
             overlaps.add(sortedByMin.get(nextToInclude++).data);
