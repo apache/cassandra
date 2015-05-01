@@ -281,7 +281,7 @@ public class CommitLogReplayer
                     return;
                 if (globalPosition.segment == desc.id)
                     reader.seek(globalPosition.position);
-                replaySyncSection(reader, -1, desc, replayFilter);
+                replaySyncSection(reader, -1, desc);
                 return;
             }
 
@@ -365,7 +365,7 @@ public class CommitLogReplayer
                         continue;
                     }
 
-                if (!replaySyncSection(sectionReader, replayEnd, desc, replayFilter))
+                if (!replaySyncSection(sectionReader, replayEnd, desc))
                     break;
             }
         }
@@ -397,8 +397,7 @@ public class CommitLogReplayer
      *
      * @return Whether replay should continue with the next section.
      */
-    private boolean replaySyncSection(FileDataInput reader, int end, CommitLogDescriptor desc,
-            final ReplayFilter replayFilter) throws IOException, FileNotFoundException
+    private boolean replaySyncSection(FileDataInput reader, int end, CommitLogDescriptor desc) throws IOException, FileNotFoundException
     {
          /* read the logs populate Mutation and apply */
         while (reader.getFilePointer() < end && !reader.isEOF())
@@ -460,7 +459,7 @@ public class CommitLogReplayer
                 // but just in case there is no harm in trying them (since we still read on an entry boundary)
                 continue;
             }
-            replayMutation(buffer, serializedSize, reader.getFilePointer(), desc, replayFilter);
+            replayMutation(buffer, serializedSize, reader.getFilePointer(), desc);
         }
         return true;
     }
@@ -469,7 +468,7 @@ public class CommitLogReplayer
      * Deserializes and replays a commit log entry.
      */
     void replayMutation(byte[] inputBuffer, int size,
-            final long entryLocation, final CommitLogDescriptor desc, final ReplayFilter replayFilter) throws IOException,
+            final long entryLocation, final CommitLogDescriptor desc) throws IOException,
             FileNotFoundException
     {
         FastByteArrayInputStream bufIn = new FastByteArrayInputStream(inputBuffer, 0, size);
