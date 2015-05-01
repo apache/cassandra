@@ -57,6 +57,7 @@
    (CASSANDRA-8808)
  * Fix MT mismatch between empty and GC-able data (CASSANDRA-8979)
  * Fix incorrect validation when snapshotting single table (CASSANDRA-8056)
+ * Fix streaming hang when retrying (CASSANDRA-9132)
 
 
 2.0.14

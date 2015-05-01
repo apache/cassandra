@@ -46,8 +46,15 @@ public class IncomingFileMessage extends StreamMessage
             {
                 return new IncomingFileMessage(reader.read(in), header);
             }
+            catch (IOException eof)
+            {
+                // Reading from remote failed(i.e. reached EOF before reading expected length of data).
+                // This can be caused by network/node failure thus we are not retrying
+                throw eof;
+            }
             catch (Throwable e)
             {
+                // Otherwise, we can retry
                 session.doRetry(header, e);
                 return null;
             }
