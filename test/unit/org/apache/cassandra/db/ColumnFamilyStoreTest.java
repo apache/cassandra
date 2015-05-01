@@ -43,6 +43,8 @@ import java.util.concurrent.TimeUnit;
 import com.google.common.base.Function;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Sets;
+
+import org.apache.cassandra.db.index.PerRowSecondaryIndexTest;
 import org.apache.cassandra.io.sstable.*;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.SSTableWriter;
@@ -111,6 +113,7 @@ public class ColumnFamilyStoreTest
     public static final String KEYSPACE1 = "ColumnFamilyStoreTest1";
     public static final String KEYSPACE2 = "ColumnFamilyStoreTest2";
     public static final String KEYSPACE3 = "ColumnFamilyStoreTest3";
+    public static final String KEYSPACE4 = "PerRowSecondaryIndex";
     public static final String CF_STANDARD1 = "Standard1";
     public static final String CF_STANDARD2 = "Standard2";
     public static final String CF_STANDARD3 = "Standard3";
@@ -160,6 +163,10 @@ public class ColumnFamilyStoreTest
                                     SimpleStrategy.class,
                                     KSMetaData.optsWithRF(5),
                                     SchemaLoader.indexCFMD(KEYSPACE3, CF_INDEX1, true));
+        SchemaLoader.createKeyspace(KEYSPACE4,
+                                    SimpleStrategy.class,
+                                    KSMetaData.optsWithRF(1),
+                                    SchemaLoader.perRowIndexedCFMD(KEYSPACE4, "Indexed1"));
     }
 
     @Test
@@ -2242,5 +2249,35 @@ public class ColumnFamilyStoreTest
             }
         });
         System.err.println("Row key: " + rowKey + " Cols: " + transformed);
+    }
+
+    @Test
+    public void testRebuildSecondaryIndex() throws IOException
+    {
+        CellName indexedCellName = cellname("indexed");
+        Mutation rm;
+
+        rm = new Mutation(KEYSPACE4, ByteBufferUtil.bytes("k1"));
+        rm.add("Indexed1", indexedCellName, ByteBufferUtil.bytes("foo"), 1);
+        rm.apply();
+        assertTrue(Arrays.equals("k1".getBytes(), PerRowSecondaryIndexTest.TestIndex.LAST_INDEXED_KEY.array()));
+
+        ColumnFamilyStore cfs = Keyspace.open("PerRowSecondaryIndex").getColumnFamilyStore("Indexed1");
+        cfs.forceBlockingFlush();
+
+        PerRowSecondaryIndexTest.TestIndex.reset();
+
+        ColumnFamilyStore.rebuildSecondaryIndex("PerRowSecondaryIndex", "Indexed1", PerRowSecondaryIndexTest.TestIndex.class.getSimpleName());
+        assertTrue(Arrays.equals("k1".getBytes(), PerRowSecondaryIndexTest.TestIndex.LAST_INDEXED_KEY.array()));
+
+        PerRowSecondaryIndexTest.TestIndex.reset();
+
+        ColumnDefinition indexedColumnDef = cfs.metadata.getColumnDefinition(indexedCellName);
+        cfs.indexManager.getIndexForColumn(indexedColumnDef.name.bytes).getColumnDefs().remove(indexedColumnDef);
+
+        ColumnFamilyStore.rebuildSecondaryIndex("PerRowSecondaryIndex", "Indexed1", PerRowSecondaryIndexTest.TestIndex.class.getSimpleName());
+        assertNull(PerRowSecondaryIndexTest.TestIndex.LAST_INDEXED_KEY);
+
+        PerRowSecondaryIndexTest.TestIndex.reset();
     }
 }

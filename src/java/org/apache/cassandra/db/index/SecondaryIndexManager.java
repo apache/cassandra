@@ -714,7 +714,7 @@ public class SecondaryIndexManager
         {
             for (ColumnDefinition column : baseCfs.metadata.allColumns())
             {
-                if (candidate.indexes(column))
+                if (candidate.getColumnDefs().contains(column))
                 {
                     filtered.add(candidate.getIndexName());
                     break;
