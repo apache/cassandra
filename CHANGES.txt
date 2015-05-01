@@ -114,6 +114,7 @@ Merged from 2.0:
  * Disable single sstable tombstone compactions for DTCS by default (CASSANDRA-9234)
  * IncomingTcpConnection thread is not named (CASSANDRA-9262)
  * Close incoming connections when MessagingService is stopped (CASSANDRA-9238)
+ * Fix streaming hang when retrying (CASSANDRA-9132)
 
 
 2.1.5
