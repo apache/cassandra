@@ -44,8 +44,7 @@ import javax.management.openmbean.TabularData;
 import com.google.common.base.Predicate;
 import com.google.common.base.Throwables;
 import com.google.common.collect.*;
-import com.google.common.util.concurrent.Futures;
-import com.google.common.util.concurrent.RateLimiter;
+import com.google.common.util.concurrent.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -404,7 +403,7 @@ public class CompactionManager implements CompactionManagerMBean
         });
     }
 
-    public Future<?> submitAntiCompaction(final ColumnFamilyStore cfs,
+    public ListenableFuture<?> submitAntiCompaction(final ColumnFamilyStore cfs,
                                           final Collection<Range<Token>> ranges,
                                           final Refs<SSTableReader> sstables,
                                           final long repairedAt)
@@ -434,7 +433,9 @@ public class CompactionManager implements CompactionManagerMBean
             return Futures.immediateCancelledFuture();
         }
 
-        return executor.submit(runnable);
+        ListenableFutureTask<?> task = ListenableFutureTask.create(runnable, null);
+        executor.submit(task);
+        return task;
     }
 
     /**
