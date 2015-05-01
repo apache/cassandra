@@ -206,17 +206,21 @@ public class Memtable
     {
         AtomicSortedColumns previous = rows.get(key);
 
+        long initialSize = 0;
         if (previous == null)
         {
             AtomicSortedColumns empty = cf.cloneMeShallow(AtomicSortedColumns.factory, false);
             // We'll add the columns later. This avoids wasting works if we get beaten in the putIfAbsent
             previous = rows.putIfAbsent(new DecoratedKey(key.token, allocator.clone(key.key)), empty);
             if (previous == null)
+            {
                 previous = empty;
+                initialSize += 1;
+            }
         }
 
         final Pair<Long, Long> pair = previous.addAllWithSizeDelta(cf, allocator, localCopyFunction, indexer);
-        currentSize.addAndGet(pair.left);
+        currentSize.addAndGet(initialSize + pair.left);
         currentOperations.addAndGet(cf.getColumnCount() + (cf.isMarkedForDelete() ? 1 : 0) + cf.deletionInfo().rangeCount());
         return pair.right;
     }
