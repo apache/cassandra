@@ -1,4 +1,5 @@
 2.0.15:
+ * Fix index selection during rebuild with certain table layouts (CASSANDRA-9281)
  * Fix partition-level-delete-only workload accounting (CASSANDRA-9194)
  * Allow scrub to handle corrupted compressed chunks (CASSANDRA-9140)
  * Fix assertion error when resetlocalschema is run during repair (CASSANDRA-9249)
@@ -57,8 +58,10 @@
  * Fix MT mismatch between empty and GC-able data (CASSANDRA-8979)
  * Fix incorrect validation when snapshotting single table (CASSANDRA-8056)
 
+
 2.0.14
  * Bind JMX to localhost unless explicitly configured otherwise (CASSANDRA-9085)
+
 
 2.0.13:
  * Add offline tool to relevel sstables (CASSANDRA-8301)

@@ -2177,14 +2177,16 @@ public class ColumnFamilyStoreTest extends SchemaLoader
     @Test
     public void testRebuildSecondaryIndex() throws IOException
     {
+        ByteBuffer indexedColumnName = ByteBufferUtil.bytes("indexed");
         RowMutation rm;
 
         rm = new RowMutation("PerRowSecondaryIndex", ByteBufferUtil.bytes("k1"));
-        rm.add("Indexed1", ByteBufferUtil.bytes("indexed"), ByteBufferUtil.bytes("foo"), 1);
+        rm.add("Indexed1", indexedColumnName, ByteBufferUtil.bytes("foo"), 1);
         rm.apply();
         assertTrue(Arrays.equals("k1".getBytes(), PerRowSecondaryIndexTest.TestIndex.LAST_INDEXED_KEY.array()));
 
-        Keyspace.open("PerRowSecondaryIndex").getColumnFamilyStore("Indexed1").forceBlockingFlush();
+        ColumnFamilyStore cfs = Keyspace.open("PerRowSecondaryIndex").getColumnFamilyStore("Indexed1");
+        cfs.forceBlockingFlush();
 
         PerRowSecondaryIndexTest.TestIndex.reset();
 
@@ -2193,7 +2195,9 @@ public class ColumnFamilyStoreTest extends SchemaLoader
 
         PerRowSecondaryIndexTest.TestIndex.reset();
 
-        PerRowSecondaryIndexTest.TestIndex.ACTIVE = false;
+        ColumnDefinition indexedColumnDef = cfs.metadata.getColumnDefinition(indexedColumnName);
+        cfs.indexManager.getIndexForColumn(indexedColumnName).getColumnDefs().remove(indexedColumnDef);
+
         ColumnFamilyStore.rebuildSecondaryIndex("PerRowSecondaryIndex", "Indexed1", PerRowSecondaryIndexTest.TestIndex.class.getSimpleName());
         assertNull(PerRowSecondaryIndexTest.TestIndex.LAST_INDEXED_KEY);
 
