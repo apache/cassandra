@@ -112,20 +112,7 @@ public class RepairMessageVerbHandler implements IVerbHandler<RepairMessage>
                 case ANTICOMPACTION_REQUEST:
                     logger.debug("Got anticompaction request");
                     AnticompactionRequest anticompactionRequest = (AnticompactionRequest) message.payload;
-                    try
-                    {
-                        List<Future<?>> futures = ActiveRepairService.instance.doAntiCompaction(anticompactionRequest.parentRepairSession);
-                        FBUtilities.waitOnFutures(futures);
-                    }
-                    catch (Exception e)
-                    {
-                        throw new RuntimeException(e);
-                    }
-                    finally
-                    {
-                        ActiveRepairService.instance.removeParentRepairSession(anticompactionRequest.parentRepairSession);
-                    }
-
+                    ActiveRepairService.instance.doAntiCompaction(anticompactionRequest.parentRepairSession);
                     break;
 
                 default:

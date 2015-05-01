@@ -6,6 +6,7 @@
  * Update tuple and collection types that use a user-defined type when that UDT
    is modified (CASSANDRA-9148, CASSANDRA-9192)
  * Use higher timeout for prepair and snapshot in repair (CASSANDRA-9261)
+ * Fix anticompaction blocking ANTI_ENTROPY stage (CASSANDRA-9151)
 Merged from 2.0:
  * Fix index selection during rebuild with certain table layouts (CASSANDRA-9281)
  * Fix partition-level-delete-only workload accounting (CASSANDRA-9194)

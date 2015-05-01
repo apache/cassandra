@@ -50,8 +50,7 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Multimap;
 import com.google.common.collect.Multiset;
 import com.google.common.collect.Sets;
-import com.google.common.util.concurrent.Futures;
-import com.google.common.util.concurrent.RateLimiter;
+import com.google.common.util.concurrent.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -387,7 +386,7 @@ public class CompactionManager implements CompactionManagerMBean
         });
     }
 
-    public Future<?> submitAntiCompaction(final ColumnFamilyStore cfs,
+    public ListenableFuture<?> submitAntiCompaction(final ColumnFamilyStore cfs,
                                           final Collection<Range<Token>> ranges,
                                           final Refs<SSTableReader> sstables,
                                           final long repairedAt)
@@ -417,7 +416,9 @@ public class CompactionManager implements CompactionManagerMBean
             return Futures.immediateCancelledFuture();
         }
 
-        return executor.submit(runnable);
+        ListenableFutureTask<?> task = ListenableFutureTask.create(runnable, null);
+        executor.submit(task);
+        return task;
     }
 
     /**
@@ -483,7 +484,7 @@ public class CompactionManager implements CompactionManagerMBean
             cfs.getDataTracker().unmarkCompacting(sstables);
         }
 
-        logger.info(String.format("Completed anticompaction successfully"));
+        logger.info("Completed anticompaction successfully");
     }
 
     public void performMaximal(final ColumnFamilyStore cfStore) throws InterruptedException, ExecutionException
