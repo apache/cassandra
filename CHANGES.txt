@@ -99,6 +99,7 @@
  * fix nodetool names that reference column families (CASSANDRA-8872)
 
 2.1.6
+ * Reduce runWithCompactionsDisabled poll interval to 1ms (CASSANDRA-9271)
  * Fix PITR commitlog replay (CASSANDRA-9195)
  * GCInspector logs very different times (CASSANDRA-9124)
  * Fix deleting from an empty list (CASSANDRA-9198)
