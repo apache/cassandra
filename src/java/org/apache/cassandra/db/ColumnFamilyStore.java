@@ -2582,7 +2582,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                 while (System.nanoTime() - start < delay)
                 {
                     if (CompactionManager.instance.isCompacting(selfWithIndexes))
-                        Uninterruptibles.sleepUninterruptibly(100, TimeUnit.MILLISECONDS);
+                        Uninterruptibles.sleepUninterruptibly(1, TimeUnit.MILLISECONDS);
                     else
                         break;
                 }
