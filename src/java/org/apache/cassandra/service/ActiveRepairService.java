@@ -266,7 +266,7 @@ public class ActiveRepairService
         {
             PrepareMessage message = new PrepareMessage(parentRepairSession, cfIds, options.getRanges(), options.isIncremental());
             MessageOut<RepairMessage> msg = message.createMessage();
-            MessagingService.instance().sendRRWithFailure(msg, neighbour, callback);
+            MessagingService.instance().sendRR(msg, neighbour, callback, TimeUnit.HOURS.toMillis(1), true);
         }
         try
         {
