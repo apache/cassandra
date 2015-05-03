@@ -66,35 +66,37 @@ public class QueryFilter
                                   List<? extends Iterator<? extends OnDiskAtom>> toCollate,
                                   int gcBefore)
     {
-        collateOnDiskAtom(returnCF, toCollate, filter, gcBefore, timestamp);
+        collateOnDiskAtom(returnCF, toCollate, filter, this.key, gcBefore, timestamp);
     }
 
     public static void collateOnDiskAtom(ColumnFamily returnCF,
                                          List<? extends Iterator<? extends OnDiskAtom>> toCollate,
                                          IDiskAtomFilter filter,
+                                         DecoratedKey key,
                                          int gcBefore,
                                          long timestamp)
     {
         List<Iterator<Cell>> filteredIterators = new ArrayList<>(toCollate.size());
         for (Iterator<? extends OnDiskAtom> iter : toCollate)
             filteredIterators.add(gatherTombstones(returnCF, iter));
-        collateColumns(returnCF, filteredIterators, filter, gcBefore, timestamp);
+        collateColumns(returnCF, filteredIterators, filter, key, gcBefore, timestamp);
     }
 
     // When there is only a single source of atoms, we can skip the collate step
     public void collateOnDiskAtom(ColumnFamily returnCF, Iterator<? extends OnDiskAtom> toCollate, int gcBefore)
     {
-        filter.collectReducedColumns(returnCF, gatherTombstones(returnCF, toCollate), gcBefore, timestamp);
+        filter.collectReducedColumns(returnCF, gatherTombstones(returnCF, toCollate), this.key, gcBefore, timestamp);
     }
 
     public void collateColumns(ColumnFamily returnCF, List<? extends Iterator<Cell>> toCollate, int gcBefore)
     {
-        collateColumns(returnCF, toCollate, filter, gcBefore, timestamp);
+        collateColumns(returnCF, toCollate, filter, this.key, gcBefore, timestamp);
     }
 
     public static void collateColumns(ColumnFamily returnCF,
                                       List<? extends Iterator<Cell>> toCollate,
                                       IDiskAtomFilter filter,
+                                      DecoratedKey key,
                                       int gcBefore,
                                       long timestamp)
     {
@@ -103,8 +105,7 @@ public class QueryFilter
         Iterator<Cell> reduced = toCollate.size() == 1
                                ? toCollate.get(0)
                                : MergeIterator.get(toCollate, comparator, getReducer(comparator));
-
-        filter.collectReducedColumns(returnCF, reduced, gcBefore, timestamp);
+        filter.collectReducedColumns(returnCF, reduced, key, gcBefore, timestamp);
     }
 
     private static MergeIterator.Reducer<Cell, Cell> getReducer(final Comparator<Cell> comparator)

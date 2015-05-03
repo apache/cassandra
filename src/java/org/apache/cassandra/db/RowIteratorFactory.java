@@ -96,7 +96,7 @@ public class RowIteratorFactory
                 if (cached == null || !cfs.isFilterFullyCoveredBy(filter, cached, now))
                 {
                     // not cached: collate
-                    QueryFilter.collateOnDiskAtom(returnCF, colIters, filter, gcBefore, now);
+                    QueryFilter.collateOnDiskAtom(returnCF, colIters, filter, key, gcBefore, now);
                 }
                 else
                 {
