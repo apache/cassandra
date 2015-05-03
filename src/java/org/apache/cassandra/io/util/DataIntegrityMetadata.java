@@ -99,7 +99,6 @@ public class DataIntegrityMetadata
         private final RandomAccessReader dataReader;
         private final Descriptor descriptor;
         private long storedDigestValue;
-        private long calculatedDigestValue;
 
         public FileDigestValidator(Descriptor descriptor) throws IOException
         {
@@ -126,7 +125,7 @@ public class DataIntegrityMetadata
             byte[] chunk = new byte[64 * 1024];
 
             while( checkedInputStream.read(chunk) > 0 ) { }
-            calculatedDigestValue = checkedInputStream.getChecksum().getValue();
+            long calculatedDigestValue = checkedInputStream.getChecksum().getValue();
             if (storedDigestValue != calculatedDigestValue) {
                 throw new IOException("Corrupted SSTable : " + descriptor.filenameFor(Component.DATA));
             }
