@@ -24,7 +24,6 @@ import java.util.*;
 
 import com.google.common.collect.AbstractIterator;
 import com.google.common.collect.Iterators;
-import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -36,6 +35,7 @@ import org.apache.cassandra.db.composites.CellName;
 import org.apache.cassandra.db.composites.CellNameType;
 import org.apache.cassandra.db.composites.Composite;
 import org.apache.cassandra.io.IVersionedSerializer;
+import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.io.util.FileDataInput;
 import org.apache.cassandra.tracing.Tracing;
@@ -194,7 +194,7 @@ public class SliceQueryFilter implements IDiskAtomFilter
         return reversed ? comparator.columnReverseComparator() : comparator.columnComparator(false);
     }
 
-    public void collectReducedColumns(ColumnFamily container, Iterator<Cell> reducedColumns, int gcBefore, long now)
+    public void collectReducedColumns(ColumnFamily container, Iterator<Cell> reducedColumns, DecoratedKey key, int gcBefore, long now)
     {
         columnCounter = columnCounter(container.getComparator(), now);
         DeletionInfo.InOrderTester tester = container.deletionInfo().inOrderTester(reversed);
@@ -227,16 +227,18 @@ public class SliceQueryFilter implements IDiskAtomFilter
             container.maybeAppendColumn(cell, tester, gcBefore);
         }
 
-        boolean warnTombstones = respectTombstoneThresholds() && columnCounter.ignored() > DatabaseDescriptor.getTombstoneWarnThreshold();
+        boolean warnTombstones = logger.isWarnEnabled() && respectTombstoneThresholds() && columnCounter.ignored() > DatabaseDescriptor.getTombstoneWarnThreshold();
         if (warnTombstones)
         {
-            logger.warn("Read {} live and {} tombstoned cells in {}.{} (see tombstone_warn_threshold). {} columns were requested, slices={}",
-                        columnCounter.live(),
-                        columnCounter.ignored(),
-                        container.metadata().ksName,
-                        container.metadata().cfName,
-                        count,
-                        getSlicesInfo(container));
+            String msg = String.format("Read %d live and %d tombstoned cells in %s.%s for key: %1.512s (see tombstone_warn_threshold). %d columns were requested, slices=%1.512s",
+                                       columnCounter.live(),
+                                       columnCounter.ignored(),
+                                       container.metadata().ksName,
+                                       container.metadata().cfName,
+                                       container.metadata().getKeyValidator().getString(key.getKey()),
+                                       count,
+                                       getSlicesInfo(container));
+            logger.warn(msg);
         }
         Tracing.trace("Read {} live and {} tombstoned cells{}",
                       columnCounter.live(),

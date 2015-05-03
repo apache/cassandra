@@ -306,7 +306,7 @@ public abstract class ExtendedFilter
             Iterator<Cell> iter = filter.getColumnIterator(data);
             try
             {
-                filter.collectReducedColumns(pruned, QueryFilter.gatherTombstones(pruned, iter), cfs.gcBefore(timestamp), timestamp);
+                filter.collectReducedColumns(pruned, QueryFilter.gatherTombstones(pruned, iter), rowKey, cfs.gcBefore(timestamp), timestamp);
             }
             catch (TombstoneOverwhelmingException e)
             {
