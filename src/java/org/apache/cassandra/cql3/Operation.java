@@ -57,11 +57,6 @@ public abstract class Operation
         this.t = t;
     }
 
-    public boolean usesFunction(String ksName, String functionName)
-    {
-        return t != null && t.usesFunction(ksName, functionName);
-    }
-
     public Iterable<Function> getFunctions()
     {
         return t != null ? t.getFunctions() : Collections.<Function>emptySet();

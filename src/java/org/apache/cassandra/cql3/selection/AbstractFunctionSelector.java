@@ -68,11 +68,6 @@ abstract class AbstractFunctionSelector<T extends Function> extends Selector
                 return fun.returnType();
             }
 
-            public boolean usesFunction(String ksName, String functionName)
-            {
-                return fun.usesFunction(ksName, functionName);
-            }
-
             public Iterable<Function> getFunctions()
             {
                 return Iterables.concat(fun.getFunctions(), factories.getFunctions());

@@ -158,7 +158,7 @@ public class UFIdentificationTest extends CQLTester
 
     @Test @Ignore
     // Technically, attributes like timestamp and ttl are Terms so could potentially
-    // resolve to function calls (& so you can call usesFunction & getFunctions on them)
+    // resolve to function calls (& so you can call getFunctions on them)
     // However, this is currently disallowed by CQL syntax
     public void testModificationStatementWithAttributesFromFunction() throws Throwable
     {

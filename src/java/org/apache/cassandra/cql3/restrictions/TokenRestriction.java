@@ -173,12 +173,6 @@ public abstract class TokenRestriction extends AbstractPrimaryKeyRestrictions
         }
 
         @Override
-        public boolean usesFunction(String ksName, String functionName)
-        {
-            return usesFunction(value, ksName, functionName);
-        }
-
-        @Override
         public Iterable<Function> getFunctions()
         {
             return value.getFunctions();
@@ -230,13 +224,6 @@ public abstract class TokenRestriction extends AbstractPrimaryKeyRestrictions
         public List<ByteBuffer> bounds(Bound b, QueryOptions options) throws InvalidRequestException
         {
             return Collections.singletonList(slice.bound(b).bindAndGet(options));
-        }
-
-        @Override
-        public boolean usesFunction(String ksName, String functionName)
-        {
-            return (slice.hasBound(Bound.START) && usesFunction(slice.bound(Bound.START), ksName, functionName))
-                    || (slice.hasBound(Bound.END) && usesFunction(slice.bound(Bound.END), ksName, functionName));
         }
 
         @Override

@@ -97,19 +97,6 @@ public class ColumnCondition
         return new ColumnCondition(column, collectionElement, inMarker, null, Operator.IN);
     }
 
-    public boolean usesFunction(String ksName, String functionName)
-    {
-        if (collectionElement != null && collectionElement.usesFunction(ksName, functionName))
-            return true;
-        if (value != null && value.usesFunction(ksName, functionName))
-            return true;
-        if (inValues != null)
-            for (Term value : inValues)
-                if (value != null && value.usesFunction(ksName, functionName))
-                    return true;
-        return false;
-    }
-
     public Iterable<Function> getFunctions()
     {
         Iterable<Function> iter = Collections.emptyList();

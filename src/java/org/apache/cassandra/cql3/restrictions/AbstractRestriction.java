@@ -18,18 +18,16 @@
 package org.apache.cassandra.cql3.restrictions;
 
 import java.nio.ByteBuffer;
-import java.util.List;
 
 import org.apache.cassandra.cql3.ColumnSpecification;
 import org.apache.cassandra.cql3.QueryOptions;
-import org.apache.cassandra.cql3.Term;
 import org.apache.cassandra.cql3.statements.Bound;
 import org.apache.cassandra.db.composites.CompositesBuilder;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 
+import static org.apache.cassandra.cql3.statements.RequestValidations.checkBindValueSet;
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkFalse;
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkNotNull;
-import static org.apache.cassandra.cql3.statements.RequestValidations.checkBindValueSet;
 
 /**
  * Base class for <code>Restriction</code>s
@@ -98,35 +96,5 @@ abstract class AbstractRestriction  implements Restriction
         checkBindValueSet(value, "Unsupported unset value for indexed column %s", columnSpec.name);
         checkFalse(value.remaining() > 0xFFFF, "Index expression values may not be larger than 64K");
         return value;
-    }
-
-    /**
-     * Checks if the specified term is using the specified function.
-     *
-     * @param term the term to check
-     * @param ksName the function keyspace name
-     * @param functionName the function name
-     * @return <code>true</code> if the specified term is using the specified function, <code>false</code> otherwise.
-     */
-    protected static final boolean usesFunction(Term term, String ksName, String functionName)
-    {
-        return term != null && term.usesFunction(ksName, functionName);
-    }
-
-    /**
-     * Checks if one of the specified term is using the specified function.
-     *
-     * @param terms the terms to check
-     * @param ksName the function keyspace name
-     * @param functionName the function name
-     * @return <code>true</code> if onee of the specified term is using the specified function, <code>false</code> otherwise.
-     */
-    protected static final boolean usesFunction(List<Term> terms, String ksName, String functionName)
-    {
-        if (terms != null)
-            for (Term value : terms)
-                if (usesFunction(value, ksName, functionName))
-                    return true;
-        return false;
     }
 }

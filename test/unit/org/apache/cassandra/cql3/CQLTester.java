@@ -303,7 +303,9 @@ public abstract class CQLTester
     private static boolean containsAny(String filename, List<String> tables)
     {
         for (int i = 0, m = tables.size(); i < m; i++)
-            if (filename.contains(tables.get(i)))
+            // don't accidentally delete in-use directories with the
+            // same prefix as a table to delete, i.e. table_1 & table_11
+            if (filename.contains(tables.get(i) + "-"))
                 return true;
         return false;
     }

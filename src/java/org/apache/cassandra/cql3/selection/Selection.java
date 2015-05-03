@@ -174,11 +174,6 @@ public abstract class Selection
         return columns.size() - 1;
     }
 
-    public boolean usesFunction(String ksName, String functionName)
-    {
-        return false;
-    }
-
     public Iterable<Function> getFunctions()
     {
         return Collections.emptySet();
@@ -480,12 +475,6 @@ public abstract class Selection
 
             if (factories.doesAggregation() && !factories.containsOnlyAggregateFunctions())
                 throw new InvalidRequestException("the select clause must either contain only aggregates or no aggregate");
-        }
-
-        @Override
-        public boolean usesFunction(String ksName, String functionName)
-        {
-            return factories.usesFunction(ksName, functionName);
         }
 
         @Override

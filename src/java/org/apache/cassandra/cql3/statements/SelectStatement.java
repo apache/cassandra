@@ -106,15 +106,6 @@ public class SelectStatement implements CQLStatement
         this.limit = limit;
     }
 
-    @Override
-    public boolean usesFunction(String ksName, String functionName)
-    {
-        return selection.usesFunction(ksName, functionName)
-                || restrictions.usesFunction(ksName, functionName)
-                || (limit != null && limit.usesFunction(ksName, functionName));
-    }
-
-    @Override
     public Iterable<Function> getFunctions()
     {
         return Iterables.concat(selection.getFunctions(),

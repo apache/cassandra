@@ -18,52 +18,40 @@
 package org.apache.cassandra.cql3;
 
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
-import java.util.concurrent.*;
+import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import com.google.common.base.Predicate;
+import com.google.common.collect.Iterables;
+import com.google.common.collect.Iterators;
 import com.google.common.primitives.Ints;
-import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap;
-import com.googlecode.concurrentlinkedhashmap.EntryWeigher;
-import com.googlecode.concurrentlinkedhashmap.EvictionListener;
-
-import org.antlr.runtime.*;
-import org.apache.cassandra.exceptions.CassandraException;
-import org.apache.cassandra.service.MigrationListener;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap;
+import com.googlecode.concurrentlinkedhashmap.EntryWeigher;
+import com.googlecode.concurrentlinkedhashmap.EvictionListener;
+import org.antlr.runtime.*;
 import org.apache.cassandra.concurrent.ScheduledExecutors;
-import org.apache.cassandra.cql3.functions.*;
-
+import org.apache.cassandra.cql3.functions.Function;
+import org.apache.cassandra.cql3.functions.FunctionName;
+import org.apache.cassandra.cql3.functions.Functions;
 import org.apache.cassandra.cql3.statements.*;
 import org.apache.cassandra.db.*;
-import org.apache.cassandra.db.composites.CType;
-import org.apache.cassandra.db.composites.CellName;
-import org.apache.cassandra.db.composites.CellNameType;
-import org.apache.cassandra.db.composites.Composite;
+import org.apache.cassandra.db.composites.*;
 import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.exceptions.InvalidRequestException;
-import org.apache.cassandra.exceptions.RequestExecutionException;
-import org.apache.cassandra.exceptions.RequestValidationException;
-import org.apache.cassandra.exceptions.SyntaxException;
+import org.apache.cassandra.exceptions.*;
 import org.apache.cassandra.metrics.CQLMetrics;
-import org.apache.cassandra.service.ClientState;
-import org.apache.cassandra.service.MigrationManager;
-import org.apache.cassandra.service.QueryState;
+import org.apache.cassandra.service.*;
 import org.apache.cassandra.service.pager.QueryPager;
 import org.apache.cassandra.service.pager.QueryPagers;
 import org.apache.cassandra.thrift.ThriftClientState;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.transport.messages.ResultMessage;
-import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.utils.MD5Digest;
-import org.apache.cassandra.utils.SemanticVersion;
+import org.apache.cassandra.utils.*;
 import org.github.jamm.MemoryMeter;
 
 public class QueryProcessor implements QueryHandler
@@ -628,22 +616,37 @@ public class QueryProcessor implements QueryHandler
             removeInvalidPreparedStatements(ksName, cfName);
         }
 
-        public void onDropFunction(String ksName, String functionName, List<AbstractType<?>> argTypes) {
+        public void onDropFunction(String ksName, String functionName, List<AbstractType<?>> argTypes)
+        {
             removeInvalidPreparedStatementsForFunction(preparedStatements.values().iterator(), ksName, functionName);
             removeInvalidPreparedStatementsForFunction(thriftPreparedStatements.values().iterator(), ksName, functionName);
         }
+
         public void onDropAggregate(String ksName, String aggregateName, List<AbstractType<?>> argTypes)
         {
             removeInvalidPreparedStatementsForFunction(preparedStatements.values().iterator(), ksName, aggregateName);
             removeInvalidPreparedStatementsForFunction(thriftPreparedStatements.values().iterator(), ksName, aggregateName);
         }
 
-        private static void removeInvalidPreparedStatementsForFunction(Iterator<ParsedStatement.Prepared> iterator,
-                                                                String ksName, String functionName)
+        private static void removeInvalidPreparedStatementsForFunction(Iterator<ParsedStatement.Prepared> statements,
+                                                                       final String ksName,
+                                                                       final String functionName)
         {
-            while (iterator.hasNext())
-                if (iterator.next().statement.usesFunction(ksName, functionName))
-                    iterator.remove();
+            final Predicate<Function> matchesFunction = new Predicate<Function>()
+            {
+                public boolean apply(Function f)
+                {
+                    return ksName.equals(f.name().keyspace) && functionName.equals(f.name().name);
+                }
+            };
+
+            Iterators.removeIf(statements, new Predicate<ParsedStatement.Prepared>()
+            {
+                public boolean apply(ParsedStatement.Prepared statement)
+                {
+                    return Iterables.any(statement.statement.getFunctions(), matchesFunction);
+                }
+            });
         }
     }
 }

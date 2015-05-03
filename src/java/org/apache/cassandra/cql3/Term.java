@@ -70,8 +70,6 @@ public interface Term
      */
     public abstract boolean containsBindMarker();
 
-    boolean usesFunction(String ksName, String functionName);
-
     Iterable<Function> getFunctions();
 
     /**
@@ -122,11 +120,6 @@ public interface Term
         public void collectMarkerSpecification(VariableSpecifications boundNames) {}
         public Terminal bind(QueryOptions options) { return this; }
 
-        public boolean usesFunction(String ksName, String functionName)
-        {
-            return false;
-        }
-
         public Set<Function> getFunctions()
         {
             return Collections.emptySet();
@@ -168,14 +161,6 @@ public interface Term
      */
     public abstract class NonTerminal implements Term
     {
-        // TODO - this is not necessarily false, yet isn't overridden in concrete classes
-        // representing collection literals
-        // e,g "UPDATE table SET map_col = { key_function() : val_function() }) WHERE ....
-        public boolean usesFunction(String ksName, String functionName)
-        {
-            return false;
-        }
-
         public ByteBuffer bindAndGet(QueryOptions options) throws InvalidRequestException
         {
             Terminal t = bind(options);

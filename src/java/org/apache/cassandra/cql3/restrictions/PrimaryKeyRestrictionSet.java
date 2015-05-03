@@ -141,12 +141,6 @@ final class PrimaryKeyRestrictionSet extends AbstractPrimaryKeyRestrictions
     }
 
     @Override
-    public boolean usesFunction(String ksName, String functionName)
-    {
-        return restrictions.usesFunction(ksName, functionName);
-    }
-
-    @Override
     public Iterable<Function> getFunctions()
     {
         return restrictions.getFunctions();

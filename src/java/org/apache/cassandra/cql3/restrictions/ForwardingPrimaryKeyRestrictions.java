@@ -45,12 +45,6 @@ abstract class ForwardingPrimaryKeyRestrictions implements PrimaryKeyRestriction
     protected abstract PrimaryKeyRestrictions getDelegate();
 
     @Override
-    public boolean usesFunction(String ksName, String functionName)
-    {
-        return getDelegate().usesFunction(ksName, functionName);
-    }
-
-    @Override
     public Iterable<Function> getFunctions()
     {
         return getDelegate().getFunctions();

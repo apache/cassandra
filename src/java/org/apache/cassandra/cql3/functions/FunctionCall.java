@@ -41,11 +41,6 @@ public class FunctionCall extends Term.NonTerminal
         this.terms = terms;
     }
 
-    public boolean usesFunction(String ksName, String functionName)
-    {
-        return fun.usesFunction(ksName, functionName);
-    }
-
     public Iterable<Function> getFunctions()
     {
         return Iterables.concat(Terms.getFunctions(terms), fun.getFunctions());

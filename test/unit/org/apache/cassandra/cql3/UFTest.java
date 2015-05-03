@@ -29,6 +29,7 @@ import com.datastax.driver.core.*;
 import org.apache.cassandra.cql3.functions.FunctionName;
 import org.apache.cassandra.cql3.functions.Functions;
 import org.apache.cassandra.cql3.functions.UDFunction;
+import org.apache.cassandra.db.marshal.CollectionType;
 import org.apache.cassandra.exceptions.FunctionExecutionException;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.service.ClientState;
@@ -173,6 +174,122 @@ public class UFTest extends CQLTester
         Assert.assertNotNull(QueryProcessor.instance.getPrepared(preparedSelect2.statementId));
         Assert.assertNull(QueryProcessor.instance.getPrepared(preparedInsert1.statementId));
         Assert.assertNotNull(QueryProcessor.instance.getPrepared(preparedInsert2.statementId));
+    }
+
+    @Test
+    public void testDropFunctionDropsPreparedStatementsWithDelayedValues() throws Throwable
+    {
+        // test that dropping a function removes stmts which use
+        // it to provide a DelayedValue collection from the
+        // cache in QueryProcessor
+        checkDelayedValuesCorrectlyIdentifyFunctionsInUse(false);
+    }
+
+    @Test
+    public void testDropKeyspaceContainingFunctionDropsPreparedStatementsWithDelayedValues() throws Throwable
+    {
+        // test that dropping a function removes stmts which use
+        // it to provide a DelayedValue collection from the
+        // cache in QueryProcessor
+        checkDelayedValuesCorrectlyIdentifyFunctionsInUse(true);
+    }
+
+    private ResultMessage.Prepared prepareStatementWithDelayedValue(CollectionType.Kind kind, String function)
+    {
+        String collectionType;
+        String literalArgs;
+        switch (kind)
+        {
+            case LIST:
+                collectionType = "list<double>";
+                literalArgs = String.format("[%s(0.0)]", function);
+                break;
+            case SET:
+                collectionType = "set<double>";
+                literalArgs = String.format("{%s(0.0)}", function);
+                break;
+            case MAP:
+                collectionType = "map<double, double>";
+                literalArgs = String.format("{%s(0.0):0.0}", function);
+                break;
+            default:
+                Assert.fail("Unsupported collection type " + kind);
+                collectionType = null;
+                literalArgs = null;
+        }
+
+        createTable("CREATE TABLE %s (" +
+                    " key int PRIMARY KEY," +
+                    " val " + collectionType + ")");
+
+        ResultMessage.Prepared prepared = QueryProcessor.prepare(
+                                                                String.format("INSERT INTO %s.%s (key, val) VALUES (?, %s)",
+                                                                             KEYSPACE,
+                                                                             currentTable(),
+                                                                             literalArgs),
+                                                                ClientState.forInternalCalls(), false);
+        Assert.assertNotNull(QueryProcessor.instance.getPrepared(prepared.statementId));
+        return prepared;
+    }
+
+    private ResultMessage.Prepared prepareStatementWithDelayedValueTuple(String function)
+    {
+        createTable("CREATE TABLE %s (" +
+                    " key int PRIMARY KEY," +
+                    " val tuple<double> )");
+
+        ResultMessage.Prepared prepared = QueryProcessor.prepare(
+                                                                String.format("INSERT INTO %s.%s (key, val) VALUES (?, (%s(0.0)))",
+                                                                             KEYSPACE,
+                                                                             currentTable(),
+                                                                             function),
+                                                                ClientState.forInternalCalls(), false);
+        Assert.assertNotNull(QueryProcessor.instance.getPrepared(prepared.statementId));
+        return prepared;
+    }
+
+    public void checkDelayedValuesCorrectlyIdentifyFunctionsInUse(boolean dropKeyspace) throws Throwable
+    {
+        // prepare a statement which doesn't use any function for a control
+        createTable("CREATE TABLE %s (" +
+                    " key int PRIMARY KEY," +
+                    " val double)");
+        ResultMessage.Prepared control = QueryProcessor.prepare(
+                                                               String.format("INSERT INTO %s.%s (key, val) VALUES (?, ?)",
+                                                                            KEYSPACE,
+                                                                            currentTable()),
+                                                               ClientState.forInternalCalls(), false);
+        Assert.assertNotNull(QueryProcessor.instance.getPrepared(control.statementId));
+
+        // a function that we'll drop and verify that statements which use it to
+        // provide a DelayedValue are removed from the cache in QueryProcessor
+        String function = createFunction(KEYSPACE_PER_TEST, "double",
+                                        "CREATE FUNCTION %s ( input double ) " +
+                                        "RETURNS double " +
+                                        "LANGUAGE javascript " +
+                                        "AS 'input'");
+        Assert.assertEquals(1, Functions.find(parseFunctionName(function)).size());
+
+        List<ResultMessage.Prepared> prepared = new ArrayList<>();
+        // prepare statements which use the function to provide a DelayedValue
+        prepared.add(prepareStatementWithDelayedValue(CollectionType.Kind.LIST, function));
+        prepared.add(prepareStatementWithDelayedValue(CollectionType.Kind.SET, function));
+        prepared.add(prepareStatementWithDelayedValue(CollectionType.Kind.MAP, function));
+        prepared.add(prepareStatementWithDelayedValueTuple(function));
+
+        // what to drop - the function is scoped to the per-test keyspace, but the prepared statements
+        // select from the per-fixture keyspace. So if we drop the per-test keyspace, the function
+        // should be removed along with the statements that reference it. The control statement should
+        // remain present in the cache. Likewise, if we actually drop the function itself the control
+        // statement should not be removed, but the others should be
+        if (dropKeyspace)
+            dropPerTestKeyspace();
+        else
+            execute("DROP FUNCTION " + function);
+
+        Assert.assertNotNull(QueryProcessor.instance.getPrepared(control.statementId));
+        for (ResultMessage.Prepared removed : prepared)
+            Assert.assertNull(QueryProcessor.instance.getPrepared(removed.statementId));
     }
 
     @Test

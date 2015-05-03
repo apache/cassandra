@@ -98,16 +98,12 @@ public class UDAggregate extends AbstractFunction implements AggregateFunction
         return stateFunction == function || finalFunction == function;
     }
 
-    public boolean usesFunction(String ksName, String functionName)
-    {
-        return super.usesFunction(ksName, functionName)
-            || stateFunction != null && stateFunction.name().keyspace.equals(ksName) && stateFunction.name().name.equals(functionName)
-            || finalFunction != null && finalFunction.name().keyspace.equals(ksName) && finalFunction.name().name.equals(functionName);
-    }
-
     public Iterable<Function> getFunctions()
     {
-        return ImmutableSet.of(this, stateFunction, finalFunction);
+        if (finalFunction != null)
+            return ImmutableSet.of(this, stateFunction, finalFunction);
+        else
+            return ImmutableSet.of(this, stateFunction);
     }
 
     public boolean isAggregate()

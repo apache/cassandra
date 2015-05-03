@@ -65,12 +65,7 @@ public abstract class ParsedStatement
         }
     }
 
-    public boolean usesFunction(String ksName, String functionName)
-    {
-        return false;
-    }
-
-    public List<Function> getFunctions()
+    public Iterable<Function> getFunctions()
     {
         return Collections.emptyList();
     }

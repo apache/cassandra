@@ -23,12 +23,10 @@ import java.util.*;
 import com.google.common.collect.Iterables;
 
 import org.apache.cassandra.config.ColumnDefinition;
-
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.cql3.Term.Terminal;
 import org.apache.cassandra.cql3.functions.Function;
 import org.apache.cassandra.cql3.statements.Bound;
-
 import org.apache.cassandra.db.IndexExpression;
 import org.apache.cassandra.db.composites.CompositesBuilder;
 import org.apache.cassandra.db.index.SecondaryIndex;
@@ -36,12 +34,11 @@ import org.apache.cassandra.db.index.SecondaryIndexManager;
 import org.apache.cassandra.db.marshal.CompositeType;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 
-import static org.apache.cassandra.cql3.statements.RequestValidations.checkNotNull;
-
+import static org.apache.cassandra.cql3.statements.RequestValidations.checkBindValueSet;
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkFalse;
+import static org.apache.cassandra.cql3.statements.RequestValidations.checkNotNull;
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkTrue;
 import static org.apache.cassandra.cql3.statements.RequestValidations.invalidRequest;
-import static org.apache.cassandra.cql3.statements.RequestValidations.checkBindValueSet;
 
 public abstract class SingleColumnRestriction extends AbstractRestriction
 {
@@ -108,12 +105,6 @@ public abstract class SingleColumnRestriction extends AbstractRestriction
         {
             super(columnDef);
             this.value = value;
-        }
-
-        @Override
-        public boolean usesFunction(String ksName, String functionName)
-        {
-            return usesFunction(value, ksName, functionName);
         }
 
         @Override
@@ -225,12 +216,6 @@ public abstract class SingleColumnRestriction extends AbstractRestriction
         }
 
         @Override
-        public boolean usesFunction(String ksName, String functionName)
-        {
-            return usesFunction(values, ksName, functionName);
-        }
-
-        @Override
         public Iterable<Function> getFunctions()
         {
             return Terms.getFunctions(values);
@@ -260,12 +245,6 @@ public abstract class SingleColumnRestriction extends AbstractRestriction
         {
             super(columnDef);
             this.marker = marker;
-        }
-
-        @Override
-        public boolean usesFunction(String ksName, String functionName)
-        {
-            return false;
         }
 
         @Override
@@ -299,13 +278,6 @@ public abstract class SingleColumnRestriction extends AbstractRestriction
         {
             super(columnDef);
             slice = TermSlice.newInstance(bound, inclusive, term);
-        }
-
-        @Override
-        public boolean usesFunction(String ksName, String functionName)
-        {
-            return (slice.hasBound(Bound.START) && usesFunction(slice.bound(Bound.START), ksName, functionName))
-                    || (slice.hasBound(Bound.END) && usesFunction(slice.bound(Bound.END), ksName, functionName));
         }
 
         @Override
@@ -506,13 +478,6 @@ public abstract class SingleColumnRestriction extends AbstractRestriction
         public int numberOfEntries()
         {
             return entryKeys.size();
-        }
-
-        @Override
-        public boolean usesFunction(String ksName, String functionName)
-        {
-            return usesFunction(values, ksName, functionName) || usesFunction(keys, ksName, functionName) ||
-                   usesFunction(entryKeys, ksName, functionName) || usesFunction(entryValues, ksName, functionName);
         }
 
         @Override

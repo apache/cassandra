@@ -63,14 +63,10 @@ public interface Restriction
     public Collection<ColumnDefinition> getColumnDefs();
 
     /**
-     * Returns <code>true</code> if one of the restrictions use the specified function.
-     *
-     * @param ksName the keyspace name
-     * @param functionName the function name
-     * @return <code>true</code> if one of the restrictions use the specified function, <code>false</code> otherwise.
+     * Return an Iterable over all of the functions (both native and user-defined) used by any component
+     * of the restriction
+     * @return functions all functions found (may contain duplicates)
      */
-    public boolean usesFunction(String ksName, String functionName);
-
     public Iterable<Function> getFunctions();
 
     /**

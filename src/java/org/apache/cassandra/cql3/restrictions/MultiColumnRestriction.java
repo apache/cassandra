@@ -135,12 +135,6 @@ public abstract class MultiColumnRestriction extends AbstractRestriction
         }
 
         @Override
-        public boolean usesFunction(String ksName, String functionName)
-        {
-            return usesFunction(value, ksName, functionName);
-        }
-
-        @Override
         public Iterable<Function> getFunctions()
         {
             return value.getFunctions();
@@ -270,12 +264,6 @@ public abstract class MultiColumnRestriction extends AbstractRestriction
         }
 
         @Override
-        public boolean usesFunction(String ksName, String functionName)
-        {
-            return usesFunction(values, ksName, functionName);
-        }
-
-        @Override
         public Iterable<Function> getFunctions()
         {
             return Terms.getFunctions(values);
@@ -312,12 +300,6 @@ public abstract class MultiColumnRestriction extends AbstractRestriction
         {
             super(columnDefs);
             this.marker = marker;
-        }
-
-        @Override
-        public boolean usesFunction(String ksName, String functionName)
-        {
-            return false;
         }
 
         @Override
@@ -392,13 +374,6 @@ public abstract class MultiColumnRestriction extends AbstractRestriction
         public boolean hasBound(Bound b)
         {
             return slice.hasBound(b);
-        }
-
-        @Override
-        public boolean usesFunction(String ksName, String functionName)
-        {
-            return (slice.hasBound(Bound.START) && usesFunction(slice.bound(Bound.START), ksName, functionName))
-                    || (slice.hasBound(Bound.END) && usesFunction(slice.bound(Bound.END), ksName, functionName));
         }
 
         @Override

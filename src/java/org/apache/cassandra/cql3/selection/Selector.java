@@ -42,11 +42,6 @@ public abstract class Selector implements AssignmentTestable
      */
     public static abstract class Factory
     {
-        public boolean usesFunction(String ksName, String functionName)
-        {
-            return false;
-        }
-
         public Iterable<Function> getFunctions()
         {
             return Collections.emptySet();

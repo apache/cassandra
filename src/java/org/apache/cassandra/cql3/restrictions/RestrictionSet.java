@@ -81,16 +81,6 @@ final class RestrictionSet implements Restrictions, Iterable<Restriction>
     }
 
     @Override
-    public boolean usesFunction(String ksName, String functionName)
-    {
-        for (Restriction restriction : restrictions.values())
-            if (restriction.usesFunction(ksName, functionName))
-                return true;
-
-        return false;
-    }
-
-    @Override
     public Iterable<Function> getFunctions()
     {
         com.google.common.base.Function<Restriction, Iterable<Function>> transform =

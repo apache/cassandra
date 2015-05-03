@@ -173,13 +173,6 @@ public final class StatementRestrictions
             addSingleColumnRestriction((SingleColumnRestriction) restriction);
     }
 
-    public boolean usesFunction(String ksName, String functionName)
-    {
-        return  partitionKeyRestrictions.usesFunction(ksName, functionName)
-                || clusteringColumnsRestrictions.usesFunction(ksName, functionName)
-                || nonPrimaryKeyRestrictions.usesFunction(ksName, functionName);
-    }
-
     public Iterable<Function> getFunctions()
     {
         return Iterables.concat(partitionKeyRestrictions.getFunctions(),

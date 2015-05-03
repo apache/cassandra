@@ -50,8 +50,6 @@ public interface Function
      */
     public boolean isAggregate();
 
-    boolean usesFunction(String ksName, String functionName);
-
     Iterable<Function> getFunctions();
 
     boolean hasReferenceTo(Function function);

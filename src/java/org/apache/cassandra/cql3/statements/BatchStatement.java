@@ -76,16 +76,6 @@ public class BatchStatement implements CQLStatement
         this.hasConditions = hasConditions;
     }
 
-    public boolean usesFunction(String ksName, String functionName)
-    {
-        if (attrs.usesFunction(ksName, functionName))
-            return true;
-        for (ModificationStatement statement : statements)
-            if (statement.usesFunction(ksName, functionName))
-                return true;
-        return false;
-    }
-
     public Iterable<org.apache.cassandra.cql3.functions.Function> getFunctions()
     {
         Iterable<org.apache.cassandra.cql3.functions.Function> functions = attrs.getFunctions();

@@ -20,7 +20,6 @@ package org.apache.cassandra.cql3.statements;
 import java.nio.ByteBuffer;
 import java.util.*;
 
-import com.google.common.base.Predicate;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 
@@ -93,33 +92,6 @@ public abstract class ModificationStatement implements CQLStatement
         this.boundTerms = boundTerms;
         this.cfm = cfm;
         this.attrs = attrs;
-    }
-
-    public boolean usesFunction(String ksName, final String functionName)
-    {
-        if (attrs.usesFunction(ksName, functionName))
-            return true;
-
-        for (Restriction restriction : processedKeys.values())
-            if (restriction.usesFunction(ksName, functionName))
-                return true;
-
-        if (columnOperations != null)
-            for (Operation operation : columnOperations)
-                if (operation.usesFunction(ksName, functionName))
-                    return true;
-
-        if (columnConditions != null)
-            for (ColumnCondition condition : columnConditions)
-                if (condition.usesFunction(ksName, functionName))
-                    return true;
-
-        if (staticConditions != null)
-            for (ColumnCondition condition : staticConditions)
-                if (condition.usesFunction(ksName, functionName))
-                    return true;
-
-        return false;
     }
 
     public Iterable<Function> getFunctions()
