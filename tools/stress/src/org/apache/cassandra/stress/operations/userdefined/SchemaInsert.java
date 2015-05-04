@@ -32,7 +32,6 @@ import com.datastax.driver.core.Statement;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.stress.generate.*;
 import org.apache.cassandra.stress.settings.StressSettings;
-import org.apache.cassandra.stress.settings.ValidationType;
 import org.apache.cassandra.stress.util.JavaDriverClient;
 import org.apache.cassandra.stress.util.ThriftClient;
 import org.apache.cassandra.stress.util.Timer;
@@ -44,7 +43,7 @@ public class SchemaInsert extends SchemaStatement
 
     public SchemaInsert(Timer timer, StressSettings settings, PartitionGenerator generator, SeedManager seedManager, Distribution batchSize, RatioDistribution useRatio, Integer thriftId, PreparedStatement statement, ConsistencyLevel cl, BatchStatement.Type batchType)
     {
-        super(timer, settings, new DataSpec(generator, seedManager, batchSize, useRatio), statement, thriftId, cl, ValidationType.NOT_FAIL);
+        super(timer, settings, new DataSpec(generator, seedManager, batchSize, useRatio), statement, thriftId, cl);
         this.batchType = batchType;
     }
 
@@ -85,14 +84,7 @@ public class SchemaInsert extends SchemaStatement
                     stmt = batch;
                 }
 
-                try
-                {
-                    validate(client.getSession().execute(stmt));
-                }
-                catch (ClassCastException e)
-                {
-                    e.printStackTrace();
-                }
+                client.getSession().execute(stmt);
             }
             return true;
         }
@@ -113,7 +105,7 @@ public class SchemaInsert extends SchemaStatement
             {
                 while (iterator.hasNext())
                 {
-                    validate(client.execute_prepared_cql3_query(thriftId, iterator.getToken(), thriftRowArgs(iterator.next()), settings.command.consistencyLevel));
+                    client.execute_prepared_cql3_query(thriftId, iterator.getToken(), thriftRowArgs(iterator.next()), settings.command.consistencyLevel);
                     rowCount += 1;
                 }
             }

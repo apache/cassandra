@@ -24,6 +24,7 @@ package org.apache.cassandra.stress.settings;
 import java.io.File;
 import java.net.URI;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -75,11 +76,13 @@ public class SettingsCommandUser extends SettingsCommand
         final SeedManager seeds = new SeedManager(settings);
         return new SampledOpDistributionFactory<String>(ratios, clustering)
         {
-            protected Operation get(Timer timer, PartitionGenerator generator, String key)
+            protected List<? extends Operation> get(Timer timer, PartitionGenerator generator, String key)
             {
                 if (key.equalsIgnoreCase("insert"))
-                    return profile.getInsert(timer, generator, seeds, settings);
-                return profile.getQuery(key, timer, generator, seeds, settings);
+                    return Collections.singletonList(profile.getInsert(timer, generator, seeds, settings));
+                if (key.equalsIgnoreCase("validate"))
+                    return profile.getValidate(timer, generator, seeds, settings);
+                return Collections.singletonList(profile.getQuery(key, timer, generator, seeds, settings));
             }
 
             protected PartitionGenerator newGenerator()

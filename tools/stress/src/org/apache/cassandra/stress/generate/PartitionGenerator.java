@@ -101,4 +101,13 @@ public class PartitionGenerator
             return clusteringComponents.get(c).type.decompose(v);
         return valueComponents.get(c - clusteringComponents.size()).type.decompose(v);
     }
+
+    public Object convert(int c, ByteBuffer v)
+    {
+        if (c < 0)
+            return partitionKey.get(-1-c).type.compose(v);
+        if (c < clusteringComponents.size())
+            return clusteringComponents.get(c).type.compose(v);
+        return valueComponents.get(c - clusteringComponents.size()).type.compose(v);
+    }
 }

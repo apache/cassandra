@@ -23,9 +23,16 @@ package org.apache.cassandra.stress.generate;
 
 public class Row
 {
+    private static final Object[] EMPTY_ROW_DATA = new Object[0];
 
-    final Object[] partitionKey;
-    final Object[] row;
+    public final Object[] partitionKey;
+    public final Object[] row;
+
+    public Row(Object[] partitionKey)
+    {
+        this.partitionKey = partitionKey;
+        this.row = EMPTY_ROW_DATA;
+    }
 
     public Row(Object[] partitionKey, Object[] row)
     {
@@ -40,4 +47,8 @@ public class Row
         return row[column];
     }
 
+    public Row copy()
+    {
+        return new Row(partitionKey.clone(), row.clone());
+    }
 }

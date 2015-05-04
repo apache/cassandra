@@ -34,7 +34,6 @@ import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.stress.Operation;
 import org.apache.cassandra.stress.generate.Row;
 import org.apache.cassandra.stress.settings.StressSettings;
-import org.apache.cassandra.stress.settings.ValidationType;
 import org.apache.cassandra.stress.util.JavaDriverClient;
 import org.apache.cassandra.stress.util.Timer;
 import org.apache.cassandra.thrift.CqlResult;
@@ -46,18 +45,16 @@ public abstract class SchemaStatement extends Operation
     final PreparedStatement statement;
     final Integer thriftId;
     final ConsistencyLevel cl;
-    final ValidationType validationType;
     final int[] argumentIndex;
     final Object[] bindBuffer;
 
     public SchemaStatement(Timer timer, StressSettings settings, DataSpec spec,
-                           PreparedStatement statement, Integer thriftId, ConsistencyLevel cl, ValidationType validationType)
+                           PreparedStatement statement, Integer thriftId, ConsistencyLevel cl)
     {
         super(timer, settings, spec);
         this.statement = statement;
         this.thriftId = thriftId;
         this.cl = cl;
-        this.validationType = validationType;
         argumentIndex = new int[statement.getVariables().size()];
         bindBuffer = new Object[argumentIndex.length];
         int i = 0;
@@ -84,36 +81,6 @@ public abstract class SchemaStatement extends Operation
         for (int i : argumentIndex)
             args.add(spec.partitionGenerator.convert(i, row.get(i)));
         return args;
-    }
-
-    void validate(ResultSet rs)
-    {
-        switch (validationType)
-        {
-            case NOT_FAIL:
-                return;
-            case NON_ZERO:
-                if (rs.all().size() == 0)
-                    throw new IllegalStateException("Expected non-zero results");
-                break;
-            default:
-                throw new IllegalStateException("Unsupported validation type");
-        }
-    }
-
-    void validate(CqlResult rs)
-    {
-        switch (validationType)
-        {
-            case NOT_FAIL:
-                return;
-            case NON_ZERO:
-                if (rs.getRowsSize() == 0)
-                    throw new IllegalStateException("Expected non-zero results");
-                break;
-            default:
-                throw new IllegalStateException("Unsupported validation type");
-        }
     }
 
     @Override
