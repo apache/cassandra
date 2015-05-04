@@ -140,7 +140,7 @@ public class CrcCheckChanceTest extends CQLTester
         }
 
         DatabaseDescriptor.setCompactionThroughputMbPerSec(1);
-        List<Future<?>> futures = CompactionManager.instance.submitMaximal(cfs, CompactionManager.GC_ALL); 
+        List<Future<?>> futures = CompactionManager.instance.submitMaximal(cfs, CompactionManager.getDefaultGcBefore(cfs), false); 
         execute("DROP TABLE %s");
 
         try
