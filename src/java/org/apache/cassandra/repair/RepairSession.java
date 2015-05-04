@@ -276,7 +276,7 @@ public class RepairSession extends AbstractFuture<RepairSessionResult> implement
             {
                 logger.error(String.format("[repair #%s] Session completed with the following error", getId()), t);
                 Tracing.traceRepair("Session completed with the following error: {}", t);
-                setException(t);
+                forceShutdown(t);
             }
         });
     }
