@@ -32,20 +32,120 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 import org.slf4j.Logger;
-import org.slf4j.helpers.SubstituteLogger;
+import org.slf4j.helpers.MarkerIgnoringBase;
 
 
 public class NoSpamLoggerTest
 {
     Map<Level, Queue<Pair<String, Object[]>>> logged = new HashMap<>();
 
-   Logger mock = new SubstituteLogger(null)
+   Logger mock = new MarkerIgnoringBase()
    {
+
+       public boolean isTraceEnabled()
+       {
+           return false;
+       }
+
+       public void trace(String s)
+       {
+
+       }
+
+       public void trace(String s, Object o)
+       {
+
+       }
+
+       public void trace(String s, Object o, Object o1)
+       {
+
+       }
+
+       public void trace(String s, Object... objects)
+       {
+
+       }
+
+       public void trace(String s, Throwable throwable)
+       {
+
+       }
+
+       public boolean isDebugEnabled()
+       {
+           return false;
+       }
+
+       public void debug(String s)
+       {
+
+       }
+
+       public void debug(String s, Object o)
+       {
+
+       }
+
+       public void debug(String s, Object o, Object o1)
+       {
+
+       }
+
+       public void debug(String s, Object... objects)
+       {
+
+       }
+
+       public void debug(String s, Throwable throwable)
+       {
+
+       }
+
+       public boolean isInfoEnabled()
+       {
+           return false;
+       }
+
+       public void info(String s)
+       {
+
+       }
+
+       public void info(String s, Object o)
+       {
+
+       }
+
+       public void info(String s, Object o, Object o1)
+       {
+
+       }
 
        @Override
        public void info(String statement, Object... args)
        {
            logged.get(Level.INFO).offer(Pair.create(statement, args));
+       }
+
+       public void info(String s, Throwable throwable)
+       {
+
+       }
+
+       public boolean isWarnEnabled()
+       {
+           return false;
+       }
+
+       public void warn(String s)
+       {
+
+       }
+
+       public void warn(String s, Object o)
+       {
+
        }
 
        @Override
@@ -54,10 +154,45 @@ public class NoSpamLoggerTest
            logged.get(Level.WARN).offer(Pair.create(statement, args));
        }
 
+       public void warn(String s, Object o, Object o1)
+       {
+
+       }
+
+       public void warn(String s, Throwable throwable)
+       {
+
+       }
+
+       public boolean isErrorEnabled()
+       {
+           return false;
+       }
+
+       public void error(String s)
+       {
+
+       }
+
+       public void error(String s, Object o)
+       {
+
+       }
+
+       public void error(String s, Object o, Object o1)
+       {
+
+       }
+
        @Override
        public void error(String statement, Object... args)
        {
            logged.get(Level.ERROR).offer(Pair.create(statement, args));
+       }
+
+       public void error(String s, Throwable throwable)
+       {
+
        }
 
        @Override
@@ -123,7 +258,7 @@ public class NoSpamLoggerTest
 
        now += 5;
 
-       NoSpamLogger.log( mock, l, 5,  TimeUnit.NANOSECONDS, statement, param);
+       NoSpamLogger.log(mock, l, 5, TimeUnit.NANOSECONDS, statement, param);
 
        assertEquals(2, logged.get(l).size());
    }
