@@ -21,10 +21,7 @@ package org.apache.cassandra.stress.settings;
  */
 
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 import org.apache.cassandra.stress.Operation;
 import org.apache.cassandra.stress.generate.DistributionFactory;
@@ -58,9 +55,9 @@ public class SettingsCommandPreDefinedMixed extends SettingsCommandPreDefined
         final SeedManager seeds = new SeedManager(settings);
         return new SampledOpDistributionFactory<Command>(ratios, clustering)
         {
-            protected Operation get(Timer timer, PartitionGenerator generator, Command key)
+            protected List<? extends Operation> get(Timer timer, PartitionGenerator generator, Command key)
             {
-                return PredefinedOperation.operation(key, timer, generator, seeds, settings, add);
+                return Collections.singletonList(PredefinedOperation.operation(key, timer, generator, seeds, settings, add));
             }
 
             protected PartitionGenerator newGenerator()

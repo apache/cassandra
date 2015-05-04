@@ -21,11 +21,9 @@ package org.apache.cassandra.stress.operations;
  */
 
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
+import org.apache.cassandra.stress.generate.*;
 import org.apache.cassandra.stress.util.Timing;
 import org.apache.commons.math3.distribution.EnumeratedDistribution;
 import org.apache.commons.math3.util.Pair;
@@ -46,7 +44,7 @@ public abstract class SampledOpDistributionFactory<T> implements OpDistributionF
         this.clustering = clustering;
     }
 
-    protected abstract Operation get(Timer timer, PartitionGenerator generator, T key);
+    protected abstract List<? extends Operation> get(Timer timer, PartitionGenerator generator, T key);
     protected abstract PartitionGenerator newGenerator();
 
     public OpDistribution get(Timing timing, int sampleCount)
@@ -54,8 +52,11 @@ public abstract class SampledOpDistributionFactory<T> implements OpDistributionF
         PartitionGenerator generator = newGenerator();
         List<Pair<Operation, Double>> operations = new ArrayList<>();
         for (Map.Entry<T, Double> ratio : ratios.entrySet())
-            operations.add(new Pair<>(get(timing.newTimer(ratio.getKey().toString(), sampleCount), generator, ratio.getKey()),
-                                      ratio.getValue()));
+        {
+            List<? extends Operation> ops = get(timing.newTimer(ratio.getKey().toString(), sampleCount), generator, ratio.getKey());
+            for (Operation op : ops)
+                operations.add(new Pair<>(op, ratio.getValue() / ops.size()));
+        }
         return new SampledOpDistribution(new EnumeratedDistribution<>(operations), clustering.get());
     }
 
@@ -76,7 +77,13 @@ public abstract class SampledOpDistributionFactory<T> implements OpDistributionF
             {
                 public OpDistribution get(Timing timing, int sampleCount)
                 {
-                    return new FixedOpDistribution(SampledOpDistributionFactory.this.get(timing.newTimer(ratio.getKey().toString(), sampleCount), newGenerator(), ratio.getKey()));
+                    List<? extends Operation> ops = SampledOpDistributionFactory.this.get(timing.newTimer(ratio.getKey().toString(), sampleCount), newGenerator(), ratio.getKey());
+                    if (ops.size() == 1)
+                        return new FixedOpDistribution(ops.get(0));
+                    List<Pair<Operation, Double>> ratios = new ArrayList<>();
+                    for (Operation op : ops)
+                        ratios.add(new Pair<>(op, 1d / ops.size()));
+                    return new SampledOpDistribution(new EnumeratedDistribution<Operation>(ratios), new DistributionFixed(1));
                 }
 
                 public String desc()

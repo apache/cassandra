@@ -88,7 +88,9 @@ public class StressAction implements Runnable
         // warmup - do 50k iterations; by default hotspot compiles methods after 10k invocations
         PrintStream warmupOutput = new PrintStream(new OutputStream() { @Override public void write(int b) throws IOException { } } );
         int iterations = 50000 * settings.node.nodes.size();
-        int threads = 20;
+        int threads = 100;
+        if (iterations > settings.command.count && settings.command.count > 0)
+            return;
 
         if (settings.rate.maxThreads > 0)
             threads = Math.min(threads, settings.rate.maxThreads);

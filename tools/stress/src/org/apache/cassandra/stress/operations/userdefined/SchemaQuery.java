@@ -33,7 +33,6 @@ import com.datastax.driver.core.ResultSet;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.stress.generate.*;
 import org.apache.cassandra.stress.settings.StressSettings;
-import org.apache.cassandra.stress.settings.ValidationType;
 import org.apache.cassandra.stress.util.JavaDriverClient;
 import org.apache.cassandra.stress.util.ThriftClient;
 import org.apache.cassandra.stress.util.Timer;
@@ -52,9 +51,9 @@ public class SchemaQuery extends SchemaStatement
     final Object[][] randomBuffer;
     final Random random = new Random();
 
-    public SchemaQuery(Timer timer, StressSettings settings, PartitionGenerator generator, SeedManager seedManager, Integer thriftId, PreparedStatement statement, ConsistencyLevel cl, ValidationType validationType, ArgSelect argSelect)
+    public SchemaQuery(Timer timer, StressSettings settings, PartitionGenerator generator, SeedManager seedManager, Integer thriftId, PreparedStatement statement, ConsistencyLevel cl, ArgSelect argSelect)
     {
-        super(timer, settings, new DataSpec(generator, seedManager, new DistributionFixed(1), argSelect == ArgSelect.MULTIROW ? statement.getVariables().size() : 1), statement, thriftId, cl, validationType);
+        super(timer, settings, new DataSpec(generator, seedManager, new DistributionFixed(1), argSelect == ArgSelect.MULTIROW ? statement.getVariables().size() : 1), statement, thriftId, cl);
         this.argSelect = argSelect;
         randomBuffer = new Object[argumentIndex.length][argumentIndex.length];
     }
@@ -71,7 +70,6 @@ public class SchemaQuery extends SchemaStatement
         public boolean run() throws Exception
         {
             ResultSet rs = client.getSession().execute(bindArgs());
-            validate(rs);
             rowCount = rs.all().size();
             partitionCount = Math.min(1, rowCount);
             return true;
@@ -90,7 +88,6 @@ public class SchemaQuery extends SchemaStatement
         public boolean run() throws Exception
         {
             CqlResult rs = client.execute_prepared_cql3_query(thriftId, partitions.get(0).getToken(), thriftArgs(), ThriftConversion.toThrift(cl));
-            validate(rs);
             rowCount = rs.getRowsSize();
             partitionCount = Math.min(1, rowCount);
             return true;

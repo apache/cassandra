@@ -43,6 +43,7 @@ import org.apache.cassandra.stress.generate.*;
 import org.apache.cassandra.stress.generate.values.*;
 import org.apache.cassandra.stress.operations.userdefined.SchemaInsert;
 import org.apache.cassandra.stress.operations.userdefined.SchemaQuery;
+import org.apache.cassandra.stress.operations.userdefined.ValidatingSchemaQuery;
 import org.apache.cassandra.stress.settings.*;
 import org.apache.cassandra.stress.util.JavaDriverClient;
 import org.apache.cassandra.stress.util.ThriftClient;
@@ -75,6 +76,7 @@ public class StressProfile implements Serializable
     transient volatile RatioDistributionFactory selectchance;
     transient volatile PreparedStatement insertStatement;
     transient volatile Integer thriftInsertId;
+    transient volatile List<ValidatingSchemaQuery.Factory> validationFactories;
 
     transient volatile Map<String, SchemaQuery.ArgSelect> argSelects;
     transient volatile Map<String, PreparedStatement> queryStatements;
@@ -265,12 +267,11 @@ public class StressProfile implements Serializable
             }
         }
 
-        // TODO validation
         name = name.toLowerCase();
         if (!queryStatements.containsKey(name))
             throw new IllegalArgumentException("No query defined with name " + name);
         return new SchemaQuery(timer, settings, generator, seeds, thriftQueryIds.get(name), queryStatements.get(name),
-                               ThriftConversion.fromThrift(settings.command.consistencyLevel), ValidationType.NOT_FAIL, argSelects.get(name));
+                               ThriftConversion.fromThrift(settings.command.consistencyLevel), argSelects.get(name));
     }
 
     public SchemaInsert getInsert(Timer timer, PartitionGenerator generator, SeedManager seedManager, StressSettings settings)
@@ -386,6 +387,26 @@ public class StressProfile implements Serializable
         }
 
         return new SchemaInsert(timer, settings, generator, seedManager, partitions.get(), selectchance.get(), thriftInsertId, insertStatement, ThriftConversion.fromThrift(settings.command.consistencyLevel), batchType);
+    }
+
+    public List<ValidatingSchemaQuery> getValidate(Timer timer, PartitionGenerator generator, SeedManager seedManager, StressSettings settings)
+    {
+        if (validationFactories == null)
+        {
+            synchronized (this)
+            {
+                if (validationFactories == null)
+                {
+                    maybeLoadSchemaInfo(settings);
+                    validationFactories = ValidatingSchemaQuery.create(tableMetaData, settings);
+                }
+            }
+        }
+
+        List<ValidatingSchemaQuery> queries = new ArrayList<>();
+        for (ValidatingSchemaQuery.Factory factory : validationFactories)
+            queries.add(factory.create(timer, settings, generator, seedManager, ThriftConversion.fromThrift(settings.command.consistencyLevel)));
+        return queries;
     }
 
     private static <E> E select(E first, String key, String defValue, Map<String, String> map, Function<String, E> builder)
