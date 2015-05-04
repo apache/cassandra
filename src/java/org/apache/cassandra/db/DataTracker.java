@@ -229,17 +229,6 @@ public class DataTracker
      */
     public void unmarkCompacting(Iterable<SSTableReader> unmark)
     {
-        boolean isValid = cfstore.isValid();
-        if (!isValid)
-        {
-            // The CF has been dropped.  We don't know if the original compaction suceeded or failed,
-            // which makes it difficult to know if the sstable reference has already been released.
-            // A "good enough" approach is to mark the sstables involved obsolete, which if compaction succeeded
-            // is harmlessly redundant, and if it failed ensures that at least the sstable will get deleted on restart.
-            for (SSTableReader sstable : unmark)
-                sstable.markObsolete();
-        }
-
         View currentView, newView;
         do
         {
@@ -248,7 +237,7 @@ public class DataTracker
         }
         while (!view.compareAndSet(currentView, newView));
 
-        if (!isValid)
+        if (!cfstore.isValid())
         {
             // when the CFS is invalidated, it will call unreferenceSSTables().  However, unreferenceSSTables only deals
             // with sstables that aren't currently being compacted.  If there are ongoing compactions that finish or are
@@ -333,6 +322,8 @@ public class DataTracker
         do
         {
             currentView = view.get();
+            if (!currentView.compacting.isEmpty())
+                logger.error("Set of compacting sstables is non-empty when invalidating sstables {}", currentView.compacting);
             notCompacting = currentView.nonCompactingSStables();
             newView = currentView.replace(notCompacting, Collections.<SSTableReader>emptySet());
         }
