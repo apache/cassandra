@@ -98,6 +98,7 @@
  * fix nodetool names that reference column families (CASSANDRA-8872)
 
 2.1.6
+ * Add support for rate limiting log messages (CASSANDRA-9029)
  * Log the partition key with tombstone warnings (CASSANDRA-8561)
  * Reduce runWithCompactionsDisabled poll interval to 1ms (CASSANDRA-9271)
  * Fix PITR commitlog replay (CASSANDRA-9195)
