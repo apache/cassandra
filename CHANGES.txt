@@ -98,6 +98,7 @@
  * fix nodetool names that reference column families (CASSANDRA-8872)
 
 2.1.6
+ * Fix error when dropping table during compaction (CASSANDRA-9251)
  * cassandra-stress supports validation operations over user profiles (CASSANDRA-8773)
  * Add support for rate limiting log messages (CASSANDRA-9029)
  * Log the partition key with tombstone warnings (CASSANDRA-8561)
