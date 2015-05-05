@@ -131,8 +131,6 @@ public class ValidatingSchemaQuery extends Operation
                     valueIndex[i++] = spec.partitionGenerator.indexOf(definition.getName());
             }
 
-            List<Object[]> prev1 = new ArrayList<>();
-            List<Object[]> prev2 = new ArrayList<>();
             rowCount = 0;
             Iterator<com.datastax.driver.core.Row> results = rs.iterator();
             if (!statements[statementIndex].inclusiveStart && iter.hasNext())
@@ -148,24 +146,16 @@ public class ValidatingSchemaQuery extends Operation
 
                 rowCount++;
                 com.datastax.driver.core.Row actualRow = results.next();
-                Object[] vs1 = new Object[actualRow.getColumnDefinitions().size()];
-                Object[] vs2 = vs1.clone();
                 for (int i = 0 ; i < actualRow.getColumnDefinitions().size() ; i++)
                 {
                     Object expectedValue = expectedRow.get(valueIndex[i]);
                     Object actualValue = spec.partitionGenerator.convert(valueIndex[i], actualRow.getBytesUnsafe(i));
-                    vs1[i] = expectedValue;
-                    vs2[i] = actualValue;
                     if (!expectedValue.equals(actualValue))
                         return false;
                 }
-                prev1.add(vs1);
-                prev2.add(vs2);
             }
             partitionCount = Math.min(1, rowCount);
-            if (!rs.isExhausted())
-                return false;
-            return true;
+            return rs.isExhausted();
         }
     }
 
