@@ -1,4 +1,5 @@
 2.0.15:
+ * (cqlsh) Add SERIAL and LOCAL_SERIAL consistency levels (CASSANDRA-8051)
  * Fix index selection during rebuild with certain table layouts (CASSANDRA-9281)
  * Fix partition-level-delete-only workload accounting (CASSANDRA-9194)
  * Allow scrub to handle corrupted compressed chunks (CASSANDRA-9140)
