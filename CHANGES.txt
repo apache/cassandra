@@ -1,4 +1,5 @@
 2.1.6
+ * Add support for top-k custom 2i queries (CASSANDRA-8717)
  * Fix error when dropping table during compaction (CASSANDRA-9251)
  * cassandra-stress supports validation operations over user profiles (CASSANDRA-8773)
  * Add support for rate limiting log messages (CASSANDRA-9029)
