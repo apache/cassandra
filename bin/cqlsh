@@ -217,6 +217,7 @@ my_commands_ending_with_newline = (
     'help',
     '?',
     'consistency',
+    'serial',
     'describe',
     'desc',
     'show',
@@ -248,6 +249,7 @@ cqlsh_extra_syntax_rules = r'''
 
 <specialCommand> ::= <describeCommand>
                    | <consistencyCommand>
+                   | <serialConsistencyCommand>
                    | <showCommand>
                    | <sourceCommand>
                    | <captureCommand>
@@ -286,6 +288,13 @@ cqlsh_extra_syntax_rules = r'''
                      | "LOCAL_SERIAL"
                      | "LOCAL_ONE"
                      ;
+
+<serialConsistencyCommand> ::= "SERIAL" "CONSISTENCY" ( level=<serialConsistencyLevel> )?
+                             ;
+
+<serialConsistencyLevel> ::= "SERIAL"
+                           | "LOCAL_SERIAL"
+                           ;
 
 <showCommand> ::= "SHOW" what=( "VERSION" | "HOST" | "SESSION" sessionid=<uuid> )
                 ;
@@ -654,6 +663,7 @@ class Shell(cmd.Cmd):
         self.stdin = stdin
         self.query_out = sys.stdout
         self.consistency_level = cassandra.ConsistencyLevel.ONE
+        self.serial_consistency_level = cassandra.ConsistencyLevel.SERIAL;
         # the python driver returns BLOBs as string, but we expect them as bytearrays
         cassandra.cqltypes.BytesType.deserialize = staticmethod(lambda byts, protocol_version: bytearray(byts))
         cassandra.cqltypes.CassandraType.support_empty_values = True
@@ -1032,7 +1042,7 @@ class Shell(cmd.Cmd):
         self.tracing_enabled = tracing_was_enabled
 
     def perform_statement(self, statement):
-        stmt = SimpleStatement(statement, consistency_level=self.consistency_level, fetch_size=self.default_page_size if self.use_paging else None)
+        stmt = SimpleStatement(statement, consistency_level=self.consistency_level, serial_consistency_level=self.serial_consistency_level, fetch_size=self.default_page_size if self.use_paging else None)
         result = self.perform_simple_statement(stmt)
         if self.tracing_enabled:
             if stmt.trace:
@@ -1958,7 +1968,9 @@ class Shell(cmd.Cmd):
 
            Valid consistency levels:
 
-           ANY, ONE, TWO, THREE, QUORUM, ALL, LOCAL_ONE, LOCAL_QUORUM and EACH_QUORUM.
+           ANY, ONE, TWO, THREE, QUORUM, ALL, LOCAL_ONE, LOCAL_QUORUM, EACH_QUORUM, SERIAL and LOCAL_SERIAL.
+
+           SERIAL and LOCAL_SERIAL may be used only for SELECTs; will be rejected with updates.
 
         CONSISTENCY
 
@@ -1971,6 +1983,32 @@ class Shell(cmd.Cmd):
 
         self.consistency_level = cassandra.ConsistencyLevel.name_to_value[level.upper()]
         print 'Consistency level set to %s.' % (level.upper(),)
+
+    def do_serial(self, parsed):
+        """
+        SERIAL CONSISTENCY [cqlsh only]
+
+           Overrides serial consistency level (default level is SERIAL).
+
+        SERIAL CONSISTENCY <level>
+
+           Sets consistency level for future conditional updates.
+
+           Valid consistency levels:
+
+           SERIAL, LOCAL_SERIAL.
+
+        SERIAL CONSISTENCY
+
+           SERIAL CONSISTENCY with no arguments shows the current consistency level.
+        """
+        level = parsed.get_binding('level')
+        if level is None:
+            print 'Current serial consistency level is %s.' % (cassandra.ConsistencyLevel.value_to_name[self.serial_consistency_level])
+            return
+
+        self.serial_consistency_level = cassandra.ConsistencyLevel.name_to_value[level.upper()]
+        print 'Serial consistency level set to %s.' % (level.upper(),)
 
     def do_exit(self, parsed=None):
         """
