@@ -23,9 +23,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 
-import org.junit.Before;
-import org.junit.BeforeClass;
-import org.junit.Test;
+import org.junit.*;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -33,6 +31,7 @@ import org.apache.cassandra.db.*;
 import org.apache.cassandra.exceptions.StartupException;
 import org.apache.cassandra.io.util.FileUtils;
 
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
@@ -40,6 +39,7 @@ public class StartupChecksTest
 {
     public static final String INVALID_LEGACY_SSTABLE_ROOT_PROP = "invalid-legacy-sstable-root";
     StartupChecks startupChecks;
+    Path sstableDir;
 
     @BeforeClass
     public static void setupServer()
@@ -48,14 +48,24 @@ public class StartupChecksTest
     }
 
     @Before
-    public void setup()
+    public void setup() throws IOException
     {
         for (ColumnFamilyStore cfs : Keyspace.open(SystemKeyspace.NAME).getColumnFamilyStores())
             cfs.clearUnsafe();
         for (File dataDir : Directories.getKSChildDirectories(SystemKeyspace.NAME))
             FileUtils.deleteRecursive(dataDir);
 
+        File dataDir = new File(DatabaseDescriptor.getAllDataFileLocations()[0]);
+        sstableDir = Paths.get(dataDir.getAbsolutePath(), "Keyspace1", "Standard1");
+        Files.createDirectories(sstableDir);
+
         startupChecks = new StartupChecks();
+    }
+
+    @After
+    public void tearDown() throws IOException
+    {
+        FileUtils.deleteRecursive(sstableDir.toFile());
     }
 
     @Test
@@ -63,9 +73,6 @@ public class StartupChecksTest
     {
         startupChecks = startupChecks.withTest(StartupChecks.checkSSTablesFormat);
 
-        File dataDir = new File(DatabaseDescriptor.getAllDataFileLocations()[0]);
-        Path sstableDir = Paths.get(dataDir.getAbsolutePath(), "Keyspace1", "Standard1");
-        Files.createDirectories(sstableDir);
         copyInvalidLegacySSTables(sstableDir);
 
         verifyFailure(startupChecks, "Detected unreadable sstables");
@@ -84,6 +91,29 @@ public class StartupChecksTest
         startupChecks.verify();
     }
 
+    @Test
+    public void compatibilityCheckIgnoresNonDbFiles() throws Exception
+    {
+        startupChecks = startupChecks.withTest(StartupChecks.checkSSTablesFormat);
+
+        copyLegacyNonSSTableFiles(sstableDir);
+        assertFalse(sstableDir.toFile().listFiles().length == 0);
+
+        startupChecks.verify();
+    }
+
+    private void copyLegacyNonSSTableFiles(Path targetDir) throws IOException
+    {
+
+        Path legacySSTableRoot = Paths.get(System.getProperty(INVALID_LEGACY_SSTABLE_ROOT_PROP),
+                                          "Keyspace1",
+                                          "Standard1");
+        for (String filename : new String[]{"Keyspace1-Standard1-ic-0-TOC.txt",
+                                            "Keyspace1-Standard1-ic-0-Digest.sha1",
+                                            "legacyleveled.json"})
+            Files.copy(Paths.get(legacySSTableRoot.toString(), filename), targetDir.resolve(filename));
+    }
+
     private void copyInvalidLegacySSTables(Path targetDir) throws IOException
     {
         File legacySSTableRoot = Paths.get(System.getProperty(INVALID_LEGACY_SSTABLE_ROOT_PROP),
@@ -93,7 +123,6 @@ public class StartupChecksTest
             Files.copy(f.toPath(), targetDir.resolve(f.getName()));
 
     }
-
 
     private void verifyFailure(StartupChecks tests, String message)
     {

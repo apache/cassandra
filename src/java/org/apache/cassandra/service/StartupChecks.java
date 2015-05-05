@@ -225,6 +225,9 @@ public class StartupChecks
             {
                 public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException
                 {
+                    if (!file.toString().endsWith(".db"))
+                        return FileVisitResult.CONTINUE;
+
                     try
                     {
                         if (!Descriptor.fromFilename(file.toString()).isCompatible())
