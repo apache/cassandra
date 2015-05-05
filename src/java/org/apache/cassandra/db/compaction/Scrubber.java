@@ -184,7 +184,7 @@ public class Scrubber implements Closeable
                     if (key == null)
                         throw new IOError(new IOException("Unable to read row key from data file"));
 
-                    if (!key.getKey().equals(currentIndexKey))
+                    if (currentIndexKey != null && !key.getKey().equals(currentIndexKey))
                     {
                         throw new IOError(new IOException(String.format("Key from data file (%s) does not match key from index file (%s)",
                                 ByteBufferUtil.bytesToHex(key.getKey()), ByteBufferUtil.bytesToHex(currentIndexKey))));
