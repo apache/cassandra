@@ -22,11 +22,14 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.List;
 
-import org.apache.cassandra.hadoop.AbstractBulkOutputFormat;
 import org.apache.cassandra.hadoop.ConfigHelper;
+import org.apache.cassandra.hadoop.HadoopCompat;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.mapred.JobConf;
+import org.apache.hadoop.mapreduce.JobContext;
+import org.apache.hadoop.mapreduce.OutputCommitter;
+import org.apache.hadoop.mapreduce.OutputFormat;
 import org.apache.hadoop.mapreduce.RecordWriter;
 import org.apache.hadoop.mapreduce.TaskAttemptContext;
 import org.apache.hadoop.util.Progressable;
@@ -35,7 +38,7 @@ import org.apache.hadoop.util.Progressable;
  * The <code>CqlBulkOutputFormat</code> acts as a Hadoop-specific
  * OutputFormat that allows reduce tasks to store keys (and corresponding
  * bound variable values) as CQL rows (and respective columns) in a given
- * ColumnFamily.
+ * table.
  *
  * <p>
  * As is the case with the {@link org.apache.cassandra.hadoop.cql3.CqlOutputFormat}, 
@@ -48,13 +51,14 @@ import org.apache.hadoop.util.Progressable;
  * simple.
  * </p>
  */
-public class CqlBulkOutputFormat extends AbstractBulkOutputFormat<Object, List<ByteBuffer>>
+public class CqlBulkOutputFormat extends OutputFormat<Object, List<ByteBuffer>>
+        implements org.apache.hadoop.mapred.OutputFormat<Object, List<ByteBuffer>>
 {   
   
-    private static final String OUTPUT_CQL_SCHEMA_PREFIX = "cassandra.columnfamily.schema.";
-    private static final String OUTPUT_CQL_INSERT_PREFIX = "cassandra.columnfamily.insert.";
+    private static final String OUTPUT_CQL_SCHEMA_PREFIX = "cassandra.table.schema.";
+    private static final String OUTPUT_CQL_INSERT_PREFIX = "cassandra.table.insert.";
     private static final String DELETE_SOURCE = "cassandra.output.delete.source";
-    private static final String COLUMNFAMILY_ALIAS_PREFIX = "cqlbulkoutputformat.columnfamily.alias.";
+    private static final String TABLE_ALIAS_PREFIX = "cqlbulkoutputformat.table.alias.";
   
     /** Fills the deprecated OutputFormat interface for streaming. */
     @Deprecated
@@ -75,33 +79,60 @@ public class CqlBulkOutputFormat extends AbstractBulkOutputFormat<Object, List<B
     {
         return new CqlBulkRecordWriter(context);
     }
+
+    @Override
+    public void checkOutputSpecs(JobContext context)
+    {
+        checkOutputSpecs(HadoopCompat.getConfiguration(context));
+    }
+
+    private void checkOutputSpecs(Configuration conf)
+    {
+        if (ConfigHelper.getOutputKeyspace(conf) == null)
+        {
+            throw new UnsupportedOperationException("you must set the keyspace with setTable()");
+        }
+    }
+
+    /** Fills the deprecated OutputFormat interface for streaming. */
+    @Deprecated
+    public void checkOutputSpecs(org.apache.hadoop.fs.FileSystem filesystem, org.apache.hadoop.mapred.JobConf job) throws IOException
+    {
+        checkOutputSpecs(job);
+    }
+
+    @Override
+    public OutputCommitter getOutputCommitter(TaskAttemptContext context) throws IOException, InterruptedException
+    {
+        return new NullOutputCommitter();
+    }
     
-    public static void setColumnFamilySchema(Configuration conf, String columnFamily, String schema)
+    public static void setTableSchema(Configuration conf, String columnFamily, String schema)
     {
         conf.set(OUTPUT_CQL_SCHEMA_PREFIX + columnFamily, schema);
     }
 
-    public static void setColumnFamilyInsertStatement(Configuration conf, String columnFamily, String insertStatement)
+    public static void setTableInsertStatement(Configuration conf, String columnFamily, String insertStatement)
     {
         conf.set(OUTPUT_CQL_INSERT_PREFIX + columnFamily, insertStatement);
     }
     
-    public static String getColumnFamilySchema(Configuration conf, String columnFamily)
+    public static String getTableSchema(Configuration conf, String columnFamily)
     {
         String schema = conf.get(OUTPUT_CQL_SCHEMA_PREFIX + columnFamily);
         if (schema == null)
         { 
-            throw new UnsupportedOperationException("You must set the ColumnFamily schema using setColumnFamilySchema.");
+            throw new UnsupportedOperationException("You must set the Table schema using setTableSchema.");
         }
         return schema; 
     }
     
-    public static String getColumnFamilyInsertStatement(Configuration conf, String columnFamily)
+    public static String getTableInsertStatement(Configuration conf, String columnFamily)
     {
         String insert = conf.get(OUTPUT_CQL_INSERT_PREFIX + columnFamily); 
         if (insert == null)
         {
-            throw new UnsupportedOperationException("You must set the ColumnFamily insert statement using setColumnFamilySchema.");
+            throw new UnsupportedOperationException("You must set the Table insert statement using setTableSchema.");
         }
         return insert;
     }
@@ -116,13 +147,31 @@ public class CqlBulkOutputFormat extends AbstractBulkOutputFormat<Object, List<B
         return conf.getBoolean(DELETE_SOURCE, false);
     }
     
-    public static void setColumnFamilyAlias(Configuration conf, String alias, String columnFamily)
+    public static void setTableAlias(Configuration conf, String alias, String columnFamily)
     {
-        conf.set(COLUMNFAMILY_ALIAS_PREFIX + alias, columnFamily);
+        conf.set(TABLE_ALIAS_PREFIX + alias, columnFamily);
     }
     
-    public static String getColumnFamilyForAlias(Configuration conf, String alias)
+    public static String getTableForAlias(Configuration conf, String alias)
     {
-        return conf.get(COLUMNFAMILY_ALIAS_PREFIX + alias);
+        return conf.get(TABLE_ALIAS_PREFIX + alias);
+    }
+
+    public static class NullOutputCommitter extends OutputCommitter
+    {
+        public void abortTask(TaskAttemptContext taskContext) { }
+
+        public void cleanupJob(JobContext jobContext) { }
+
+        public void commitTask(TaskAttemptContext taskContext) { }
+
+        public boolean needsTaskCommit(TaskAttemptContext taskContext)
+        {
+            return false;
+        }
+
+        public void setupJob(JobContext jobContext) { }
+
+        public void setupTask(TaskAttemptContext taskContext) { }
     }
 }

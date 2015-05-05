@@ -75,6 +75,9 @@ New features
 Upgrading
 ---------
    - Pig's CqlStorage has been removed, use CqlNativeStorage instead
+   - Pig's CassandraStorage has been deprecated. CassandraStorage
+     should only be used against tables created via thrift.
+     Use CqlNativeStorage for all other tables.
    - IAuthenticator been updated to remove responsibility for user/role
      maintenance and is now solely responsible for validating credentials,
      This is primarily done via SASL, though an optional method exists for

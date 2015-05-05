@@ -21,13 +21,9 @@ import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
+import org.apache.cassandra.cql3.CQL3Type;
 import org.apache.cassandra.exceptions.*;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
@@ -42,7 +38,7 @@ public class TypeParser
     private int idx;
 
     // A cache of parsed string, specially useful for DynamicCompositeType
-    private static final Map<String, AbstractType<?>> cache = new HashMap<String, AbstractType<?>>();
+    private static final Map<String, AbstractType<?>> cache = new HashMap<>();
 
     public static final TypeParser EMPTY_PARSER = new TypeParser("", 0);
 
@@ -98,9 +94,48 @@ public class TypeParser
         return parse(compareWith == null ? null : compareWith.toString());
     }
 
-    public static String getShortName(AbstractType<?> type)
+    public static String parseCqlNativeType(String str)
     {
-        return type.getClass().getSimpleName();
+        return CQL3Type.Native.valueOf(str.trim().toUpperCase(Locale.ENGLISH)).getType().toString();
+    }
+
+    public static String parseCqlCollectionOrFrozenType(String str) throws SyntaxException
+    {
+        str = str.trim().toLowerCase();
+        switch (str)
+        {
+            case "map": return "MapType";
+            case "set": return "SetType";
+            case "list": return "ListType";
+            case "frozen": return "FrozenType";
+            default: throw new SyntaxException("Invalid type name" + str);
+        }
+    }
+
+    /**
+     * Turns user facing type names into Abstract Types, 'text' -> UTF8Type
+     */
+    public static AbstractType<?> parseCqlName(String str) throws SyntaxException, ConfigurationException
+    {
+        return parse(parseCqlNameRecurse(str));
+    }
+
+    private static String parseCqlNameRecurse(String str) throws SyntaxException
+    {
+        if (str.indexOf(',') >= 0 && (!str.contains("<") || (str.indexOf(',') < str.indexOf('<'))))
+        {
+            String[] parseString = str.split(",", 2);
+            return parseCqlNameRecurse(parseString[0]) + "," + parseCqlNameRecurse(parseString[1]);
+        }
+        else if (str.contains("<"))
+        {
+            String[] parseString = str.trim().split("<", 2);
+            return parseCqlCollectionOrFrozenType(parseString[0]) + "(" + parseCqlNameRecurse(parseString[1].substring(0, parseString[1].length()-1)) + ")";
+        }
+        else
+        {
+            return parseCqlNativeType(str);
+        }
     }
 
     /**
@@ -126,7 +161,7 @@ public class TypeParser
         if (str.charAt(idx) != '(')
             throw new IllegalStateException();
 
-        Map<String, String> map = new HashMap<String, String>();
+        Map<String, String> map = new HashMap<>();
         ++idx; // skipping '('
 
         while (skipBlankAndComma())
@@ -157,7 +192,7 @@ public class TypeParser
 
     public List<AbstractType<?>> getTypeParameters() throws SyntaxException, ConfigurationException
     {
-        List<AbstractType<?>> list = new ArrayList<AbstractType<?>>();
+        List<AbstractType<?>> list = new ArrayList<>();
 
         if (isEOS())
             return list;
@@ -191,7 +226,7 @@ public class TypeParser
 
     public Map<Byte, AbstractType<?>> getAliasParameters() throws SyntaxException, ConfigurationException
     {
-        Map<Byte, AbstractType<?>> map = new HashMap<Byte, AbstractType<?>>();
+        Map<Byte, AbstractType<?>> map = new HashMap<>();
 
         if (isEOS())
             return map;
@@ -384,11 +419,7 @@ public class TypeParser
             Field field = typeClass.getDeclaredField("instance");
             return (AbstractType<?>) field.get(null);
         }
-        catch (NoSuchFieldException e)
-        {
-            throw new ConfigurationException("Invalid comparator class " + typeClass.getName() + ": must define a public static instance field or a public static method getInstance(TypeParser).");
-        }
-        catch (IllegalAccessException e)
+        catch (NoSuchFieldException | IllegalAccessException e)
         {
             throw new ConfigurationException("Invalid comparator class " + typeClass.getName() + ": must define a public static instance field or a public static method getInstance(TypeParser).");
         }
@@ -487,12 +518,6 @@ public class TypeParser
             ++idx;
 
         return str.substring(i, idx);
-    }
-
-    public char readNextChar()
-    {
-        skipBlank();
-        return str.charAt(idx++);
     }
 
     /**

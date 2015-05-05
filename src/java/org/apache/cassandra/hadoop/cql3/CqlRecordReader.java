@@ -37,13 +37,15 @@ import org.slf4j.LoggerFactory;
 import com.datastax.driver.core.Cluster;
 import com.datastax.driver.core.ColumnDefinitions;
 import com.datastax.driver.core.ColumnMetadata;
+import com.datastax.driver.core.Metadata;
 import com.datastax.driver.core.ResultSet;
 import com.datastax.driver.core.Row;
 import com.datastax.driver.core.Session;
+import com.datastax.driver.core.TableMetadata;
+import com.datastax.driver.core.Token;
 import com.datastax.driver.core.TupleValue;
 import com.datastax.driver.core.UDTValue;
-import org.apache.cassandra.schema.LegacySchemaTables;
-import org.apache.cassandra.db.SystemKeyspace;
+import com.google.common.reflect.TypeToken;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.hadoop.ColumnFamilySplit;
@@ -493,9 +495,21 @@ public class CqlRecordReader extends RecordReader<Long, Row>
         }
 
         @Override
+        public <T> List<T> getList(int i, TypeToken<T> typeToken)
+        {
+            return row.getList(i, typeToken);
+        }
+
+        @Override
         public <T> List<T> getList(String name, Class<T> elementsClass)
         {
             return row.getList(name, elementsClass);
+        }
+
+        @Override
+        public <T> List<T> getList(String s, TypeToken<T> typeToken)
+        {
+            return row.getList(s, typeToken);
         }
 
         @Override
@@ -505,9 +519,21 @@ public class CqlRecordReader extends RecordReader<Long, Row>
         }
 
         @Override
+        public <T> Set<T> getSet(int i, TypeToken<T> typeToken)
+        {
+            return row.getSet(i, typeToken);
+        }
+
+        @Override
         public <T> Set<T> getSet(String name, Class<T> elementsClass)
         {
             return row.getSet(name, elementsClass);
+        }
+
+        @Override
+        public <T> Set<T> getSet(String s, TypeToken<T> typeToken)
+        {
+            return row.getSet(s, typeToken);
         }
 
         @Override
@@ -517,9 +543,21 @@ public class CqlRecordReader extends RecordReader<Long, Row>
         }
 
         @Override
+        public <K, V> Map<K, V> getMap(int i, TypeToken<K> typeToken, TypeToken<V> typeToken1)
+        {
+            return row.getMap(i, typeToken, typeToken1);
+        }
+
+        @Override
         public <K, V> Map<K, V> getMap(String name, Class<K> keysClass, Class<V> valuesClass)
         {
             return row.getMap(name, keysClass, valuesClass);
+        }
+
+        @Override
+        public <K, V> Map<K, V> getMap(String s, TypeToken<K> typeToken, TypeToken<V> typeToken1)
+        {
+            return row.getMap(s, typeToken, typeToken1);
         }
 
         @Override
@@ -544,6 +582,24 @@ public class CqlRecordReader extends RecordReader<Long, Row>
         public TupleValue getTupleValue(String name)
         {
             return row.getTupleValue(name);
+        }
+
+        @Override
+        public Token getToken(int i)
+        {
+            return row.getToken(i);
+        }
+
+        @Override
+        public Token getToken(String name)
+        {
+            return row.getToken(name);
+        }
+
+        @Override
+        public Token getPartitionKeyToken()
+        {
+            return row.getPartitionKeyToken();
         }
     }
 
@@ -604,36 +660,21 @@ public class CqlRecordReader extends RecordReader<Long, Row>
 
     private void fetchKeys()
     {
-        String query = String.format("SELECT column_name, component_index, type " +
-                                     "FROM %s.%s " +
-                                     "WHERE keyspace_name = '%s' AND columnfamily_name = '%s'",
-                                     SystemKeyspace.NAME,
-                                     LegacySchemaTables.COLUMNS,
-                                     keyspace,
-                                     cfName);
-
         // get CF meta data
-        List<Row> rows = session.execute(query).all();
-        if (rows.isEmpty())
+        TableMetadata tableMetadata = session.getCluster()
+                                             .getMetadata()
+                                             .getKeyspace(Metadata.quote(keyspace))
+                                             .getTable(Metadata.quote(cfName));
+        if (tableMetadata == null)
         {
             throw new RuntimeException("No table metadata found for " + keyspace + "." + cfName);
         }
-        int numberOfPartitionKeys = 0;
-        for (Row row : rows)
-            if (row.getString(2).equals("partition_key"))
-                numberOfPartitionKeys++;
-        String[] partitionKeyArray = new String[numberOfPartitionKeys];
-        for (Row row : rows)
+        //Here we assume that tableMetadata.getPartitionKey() always
+        //returns the list of columns in order of component_index
+        for (ColumnMetadata partitionKey : tableMetadata.getPartitionKey())
         {
-            String type = row.getString(2);
-            String column = row.getString(0);
-            if (type.equals("partition_key"))
-            {
-                int componentIndex = row.isNull(1) ? 0 : row.getInt(1);
-                partitionKeyArray[componentIndex] = column;
-            }
+            partitionKeys.add(partitionKey.getName());
         }
-        partitionKeys.addAll(Arrays.asList(partitionKeyArray));
     }
 
     private String quote(String identifier)
