@@ -64,6 +64,11 @@ public abstract class PerColumnSecondaryIndex extends SecondaryIndex
         return getIndexName();
     }
 
+    public boolean validate(ByteBuffer rowKey, Cell cell)
+    {
+        return validate(cell);
+    }
+
     public boolean validate(Cell cell)
     {
         return cell.value().remaining() < FBUtilities.MAX_UNSIGNED_SHORT;

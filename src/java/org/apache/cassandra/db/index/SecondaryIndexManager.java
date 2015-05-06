@@ -666,14 +666,14 @@ public class SecondaryIndexManager
             index.setIndexRemoved();
     }
 
-    public boolean validate(Cell cell)
+    public SecondaryIndex validate(ByteBuffer rowKey, Cell cell)
     {
         for (SecondaryIndex index : indexFor(cell.name()))
         {
-            if (!index.validate(cell))
-                return false;
+            if (!index.validate(rowKey, cell))
+                return index;
         }
-        return true;
+        return null;
     }
 
     static boolean shouldCleanupOldValue(Cell oldCell, Cell newCell)

@@ -358,7 +358,7 @@ public abstract class SecondaryIndex
         return index;
     }
 
-    public abstract boolean validate(Cell cell);
+    public abstract boolean validate(ByteBuffer rowKey, Cell cell);
 
     public abstract long estimateResultRows();
 

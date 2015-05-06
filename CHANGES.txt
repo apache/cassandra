@@ -99,6 +99,7 @@
  * fix nodetool names that reference column families (CASSANDRA-8872)
 
 2.1.6
+ * Validate the indexed column rather than the cell's contents. (CASSANDRA-9057)
  * Add support for top-k custom 2i queries (CASSANDRA-8717)
  * Fix error when dropping table during compaction (CASSANDRA-9251)
  * cassandra-stress supports validation operations over user profiles (CASSANDRA-8773)
