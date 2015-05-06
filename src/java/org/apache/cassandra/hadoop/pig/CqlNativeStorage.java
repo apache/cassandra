@@ -499,8 +499,8 @@ public class CqlNativeStorage extends LoadFunc implements StoreFuncInterface, Lo
         for (ColumnInfo cdef : cfInfo.getColumns())
         {
             ResourceFieldSchema valSchema = new ResourceFieldSchema();
-            AbstractType validator = validators.get(cdef.getName());
-            valSchema.setName(new String(cdef.getName()));
+            AbstractType<?> validator = validators.get(ByteBufferUtil.bytes(cdef.getName()));
+            valSchema.setName(cdef.getName());
             valSchema.setType(StorageHelper.getPigType(validator));
             allSchemaFields.add(valSchema);
         }
@@ -901,7 +901,7 @@ public class CqlNativeStorage extends LoadFunc implements StoreFuncInterface, Lo
         String[] partitionKeys = new String[tableMetadata.getPartitionKey().size()];
         for (int i = 0; i < tableMetadata.getPartitionKey().size(); i++)
         {
-            partitionKeys[i] = new String(tableMetadata.getPartitionKey().get(i).getName());
+            partitionKeys[i] = tableMetadata.getPartitionKey().get(i).getName();
         }
         return partitionKeys;
     }
