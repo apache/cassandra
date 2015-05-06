@@ -185,5 +185,11 @@ public abstract class AbstractSimplePerColumnSecondaryIndex extends PerColumnSec
     public long estimateResultRows()
     {
         return getIndexCfs().getMeanColumns();
-    } 
+    }
+
+    public boolean validate(ByteBuffer rowKey, Cell cell)
+    {
+        return getIndexedValue(rowKey, cell).remaining() < FBUtilities.MAX_UNSIGNED_SHORT
+            && makeIndexColumnName(rowKey, cell).toByteBuffer().remaining() < FBUtilities.MAX_UNSIGNED_SHORT;
+    }
 }

@@ -673,7 +673,7 @@ public class CassandraServer implements Cassandra.Iface
             throw new org.apache.cassandra.exceptions.InvalidRequestException("missing mandatory super column name for super CF " + column_parent.column_family);
         }
         ThriftValidation.validateColumnNames(metadata, column_parent, Arrays.asList(column.name));
-        ThriftValidation.validateColumnData(metadata, column_parent.super_column, column);
+        ThriftValidation.validateColumnData(metadata, key, column_parent.super_column, column);
 
         org.apache.cassandra.db.Mutation mutation;
         try
@@ -766,7 +766,7 @@ public class CassandraServer implements Cassandra.Iface
             });
             ThriftValidation.validateColumnNames(metadata, new ColumnParent(column_family), names);
             for (Column column : updates)
-                ThriftValidation.validateColumnData(metadata, null, column);
+                ThriftValidation.validateColumnData(metadata, key, null, column);
 
             CFMetaData cfm = Schema.instance.getCFMetaData(cState.getKeyspace(), column_family);
             ColumnFamily cfUpdates = ArrayBackedSortedColumns.factory.create(cfm);
@@ -858,7 +858,7 @@ public class CassandraServer implements Cassandra.Iface
 
                 for (Mutation m : columnFamilyMutations.getValue())
                 {
-                    ThriftValidation.validateMutation(metadata, m);
+                    ThriftValidation.validateMutation(metadata, key, m);
 
                     if (m.deletion != null)
                     {

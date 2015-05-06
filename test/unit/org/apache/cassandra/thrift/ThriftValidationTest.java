@@ -31,6 +31,7 @@ import org.apache.cassandra.locator.LocalStrategy;
 import org.apache.cassandra.locator.NetworkTopologyStrategy;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
+import java.nio.ByteBuffer;
 import java.util.Arrays;
 
 import static org.junit.Assert.assertNotNull;
@@ -92,7 +93,8 @@ public class ThriftValidationTest extends SchemaLoader
         Column column = new Column(ByteBufferUtil.bytes("id"));
         column.setValue(ByteBufferUtil.bytes("not a long"));
         column.setTimestamp(1234);
-        ThriftValidation.validateColumnData(newMetadata, null, column);
+        ByteBuffer key = ByteBufferUtil.bytes("key");
+        ThriftValidation.validateColumnData(newMetadata, key, null, column);
     }
 
     @Test
@@ -107,7 +109,8 @@ public class ThriftValidationTest extends SchemaLoader
         Column column = new Column(ByteBufferUtil.bytes(CFMetaData.DEFAULT_KEY_ALIAS));
         column.setValue(ByteBufferUtil.bytes("not a uuid"));
         column.setTimestamp(1234);
-        ThriftValidation.validateColumnData(metaData, null, column);
+        ByteBuffer key = ByteBufferUtil.bytes("key");
+        ThriftValidation.validateColumnData(metaData, key, null, column);
 
         IndexExpression expression = new IndexExpression(ByteBufferUtil.bytes(CFMetaData.DEFAULT_KEY_ALIAS), IndexOperator.EQ, ByteBufferUtil.bytes("a"));
         ThriftValidation.validateFilterClauses(metaData, Arrays.asList(expression));
@@ -124,7 +127,8 @@ public class ThriftValidationTest extends SchemaLoader
         Column column = new Column(ByteBufferUtil.bytes(CFMetaData.DEFAULT_COLUMN_ALIAS + 1));
         column.setValue(ByteBufferUtil.bytes("not a long"));
         column.setTimestamp(1234);
-        ThriftValidation.validateColumnData(metaData, null, column);
+        ByteBuffer key = ByteBufferUtil.bytes("key");
+        ThriftValidation.validateColumnData(metaData, key, null, column);
     }
 
     @Test

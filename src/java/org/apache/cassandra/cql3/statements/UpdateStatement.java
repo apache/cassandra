@@ -25,6 +25,7 @@ import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.composites.Composite;
+import org.apache.cassandra.db.index.SecondaryIndex;
 import org.apache.cassandra.db.index.SecondaryIndexManager;
 import org.apache.cassandra.exceptions.*;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -112,16 +113,17 @@ public class UpdateStatement extends ModificationStatement
         // validateIndexedColumns trigger a call to Keyspace.open() which we want to be able to avoid in some case
         //(e.g. when using CQLSSTableWriter)
         if (validateIndexedColumns)
-            validateIndexedColumns(cf);
+            validateIndexedColumns(key, cf);
     }
 
     /**
      * Checks that the value of the indexed columns is valid.
      *
+     * @param key row key for the column family
      * @param cf the column family
      * @throws InvalidRequestException if one of the values is invalid
      */
-    private void validateIndexedColumns(ColumnFamily cf) throws InvalidRequestException
+    private void validateIndexedColumns(ByteBuffer key, ColumnFamily cf) throws InvalidRequestException
     {
         SecondaryIndexManager indexManager = Keyspace.open(cfm.ksName).getColumnFamilyStore(cfm.cfId).indexManager;
         if (indexManager.hasIndexes())
@@ -129,12 +131,15 @@ public class UpdateStatement extends ModificationStatement
             for (Cell cell : cf)
             {
                 // Indexed values must be validated by any applicable index. See CASSANDRA-3057/4240/8081 for more details
-                if (!indexManager.validate(cell))
+                SecondaryIndex failedIndex = indexManager.validate(key, cell);
+                if (failedIndex != null)
+                {
                     throw new InvalidRequestException(String.format("Can't index column value of size %d for index %s on %s.%s",
                                                                     cell.value().remaining(),
-                                                                    cfm.getColumnDefinition(cell.name()).getIndexName(),
+                                                                    failedIndex.getIndexName(),
                                                                     cfm.ksName,
                                                                     cfm.cfName));
+                }
             }
         }
     }

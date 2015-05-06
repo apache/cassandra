@@ -20,6 +20,7 @@ package org.apache.cassandra.db.index;
 import java.nio.ByteBuffer;
 import java.nio.charset.CharacterCodingException;
 
+import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.concurrent.OpOrder;
 import org.apache.cassandra.db.Cell;
 import org.apache.cassandra.db.ColumnFamily;
@@ -56,6 +57,12 @@ public abstract class PerRowSecondaryIndex extends SecondaryIndex
         {
             throw new RuntimeException(e);
         }
+    }
+
+
+    public boolean validate(ByteBuffer rowKey, Cell cell)
+    {
+        return validate(cell);
     }
 
     public boolean validate(Cell cell)
