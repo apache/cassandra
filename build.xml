@@ -62,6 +62,7 @@
     <property name="test.runners" value="1"/>
     <property name="test.unit.src" value="${test.dir}/unit"/>
     <property name="test.long.src" value="${test.dir}/long"/>
+    <property name="test.burn.src" value="${test.dir}/burn"/>
     <property name="test.microbench.src" value="${test.dir}/microbench"/>
     <property name="test.pig.src" value="${test.dir}/pig"/>
     <property name="dist.dir" value="${build.dir}/dist"/>
@@ -96,6 +97,7 @@
 
     <property name="test.timeout" value="60000" />
     <property name="test.long.timeout" value="600000" />
+    <property name="test.burn.timeout" value="600000" />
 
     <!-- default for cql tests. Can be override by -Dcassandra.test.use_prepared=false -->
     <property name="cassandra.test.use_prepared" value="true" />
@@ -1092,6 +1094,7 @@
 	 <compilerarg value="-XDignore.symbol.file"/>
      <src path="${test.unit.src}"/>
      <src path="${test.long.src}"/>
+     <src path="${test.burn.src}"/>
      <src path="${test.pig.src}"/>
      <src path="${test.microbench.src}"/>
     </javac>
@@ -1302,6 +1305,12 @@
     </testmacro>
   </target>
 
+  <target name="test-burn" depends="build-test" description="Execute functional tests">
+    <testmacro suitename="burn" inputdir="${test.burn.src}"
+               timeout="${test.burn.timeout}">
+    </testmacro>
+  </target>
+
   <target name="long-test" depends="build-test" description="Execute functional tests">
     <testmacro suitename="long" inputdir="${test.long.src}"
                timeout="${test.long.timeout}">
@@ -1389,7 +1398,7 @@
 
   <target name="test-all" 
           depends="test,long-test,test-compression,pig-test,test-clientutil-jar" 
-          description="Run all tests" />
+          description="Run all tests except for those under test-burn" />
   
   <!-- Use JaCoCo ant extension without needing externally saved lib -->
   <target name="jacoco-init" depends="maven-ant-tasks-init">
