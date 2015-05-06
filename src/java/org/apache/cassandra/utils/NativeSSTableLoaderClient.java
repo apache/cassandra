@@ -100,7 +100,7 @@ public class NativeSSTableLoaderClient extends SSTableLoader.Client
     {
         Map<String, CFMetaData> tables = new HashMap<>();
 
-        String query = String.format("SELECT columnfamily_name, cf_id, type, comparator, subcomparator FROM %s.%s WHERE keyspace_name = '%s'",
+        String query = String.format("SELECT columnfamily_name, cf_id, type, comparator, subcomparator, is_dense FROM %s.%s WHERE keyspace_name = '%s'",
                                      SystemKeyspace.NAME,
                                      LegacySchemaTables.COLUMNFAMILIES,
                                      keyspace);
