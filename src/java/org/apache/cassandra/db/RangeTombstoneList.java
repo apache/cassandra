@@ -459,7 +459,6 @@ public class RangeTombstoneList implements Iterable<RangeTombstone>, IMeasurable
             {
                 if (idx < 0 || idx < finish)
                     return endOfData();
-
                 // We want to make sure the range are stricly included within the queried slice as this
                 // make it easier to combine things when iterator over successive slices. This means that
                 // for the first and last range we might have to "cut" the range returned.

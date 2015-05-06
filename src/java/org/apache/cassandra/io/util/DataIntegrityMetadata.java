@@ -198,6 +198,7 @@ public class DataIntegrityMetadata
                 {
                     ByteBuffer byteBuffer = ByteBuffer.allocate(4);
                     byteBuffer.putInt(incrementalChecksumValue);
+                    assert byteBuffer.arrayOffset() == 0;
                     fullChecksum.update(byteBuffer.array(), 0, byteBuffer.array().length);
                 }
                 incrementalChecksum.reset();

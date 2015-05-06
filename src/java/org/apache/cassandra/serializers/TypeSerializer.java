@@ -23,11 +23,17 @@ import java.nio.ByteBuffer;
 public interface TypeSerializer<T>
 {
     public ByteBuffer serialize(T value);
+
+    /*
+     * Does not modify the position or limit of the buffer even temporarily.
+     */
     public T deserialize(ByteBuffer bytes);
 
     /*
      * Validate that the byte array is a valid sequence for the type this represents.
      * This guarantees deserialize() can be called without errors.
+     *
+     * Does not modify the position or limit of the buffer even temporarily
      */
     public void validate(ByteBuffer bytes) throws MarshalException;
 

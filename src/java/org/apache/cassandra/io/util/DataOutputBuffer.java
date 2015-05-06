@@ -106,6 +106,7 @@ public class DataOutputBuffer extends BufferedDataOutputStreamPlus
 
     public byte[] getData()
     {
+        assert buffer.arrayOffset() == 0;
         return buffer.array();
     }
 

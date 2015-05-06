@@ -1476,12 +1476,14 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         TabularDataSupport result = new TabularDataSupport(COUNTER_TYPE);
         for (Counter<ByteBuffer> counter : samplerResults.topK)
         {
-            byte[] key = counter.getItem().array();
+            //Not duplicating the buffer for safety because AbstractSerializer and ByteBufferUtil.bytesToHex
+            //don't modify position or limit
+            ByteBuffer key = counter.getItem();
             result.put(new CompositeDataSupport(COUNTER_COMPOSITE_TYPE, COUNTER_NAMES, new Object[] {
-                    Hex.bytesToHex(key), // raw
+                    ByteBufferUtil.bytesToHex(key), // raw
                     counter.getCount(),  // count
                     counter.getError(),  // error
-                    metadata.getKeyValidator().getString(ByteBuffer.wrap(key)) })); // string
+                    metadata.getKeyValidator().getString(key) })); // string
         }
         return new CompositeDataSupport(SAMPLING_RESULT, SAMPLER_NAMES, new Object[]{
                 samplerResults.cardinality, result});
@@ -1561,7 +1563,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         {
             if (!manifestFile.getParentFile().exists())
                 manifestFile.getParentFile().mkdirs();
-            
+
             try (PrintStream out = new PrintStream(manifestFile))
             {
                 final JSONObject manifestJSON = new JSONObject();
