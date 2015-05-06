@@ -148,6 +148,7 @@ public class LongBTreeTest
                             for (Integer key : randomSelection(tree, random))
                                 if (key != searchIterator.next(key))
                                     errors.incrementAndGet();
+                            searchIterator = new BTreeSearchIterator<Integer, Integer, Integer>(tree, ICMP);
                             for (Integer key : randomMix(tree, random))
                                 if (key != searchIterator.next(key))
                                     if (BTree.find(tree, ICMP, key) == key)
@@ -455,13 +456,15 @@ public class LongBTreeTest
         final float proportion = rnd.nextFloat();
         return Iterables.transform(new BTreeSet<>(iter, ICMP), new Function<Integer, Integer>()
         {
-            int last = Integer.MIN_VALUE;
+            long last = Integer.MIN_VALUE;
 
             public Integer apply(Integer v)
             {
+                long last = this.last;
+                this.last = v;
                 if (rnd.nextFloat() < proportion)
-                    return last = v;
-                return last = (v - last) / 2;
+                    return v;
+                return (int)((v - last) / 2);
             }
         });
     }
