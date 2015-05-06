@@ -507,9 +507,8 @@ class CqlRecordWriter extends RecordWriter<Map<String, ByteBuffer>, List<ByteBuf
         public List<InetAddress> getEndpoints(TokenRange range)
         {
             Set<Host> hostSet = rangeMap.get(range);
-            List<Host> hosts = Arrays.asList(rangeMap.get(range).toArray(new Host[rangeMap.get(range).size()]));
-            List<InetAddress> addresses = new ArrayList<>(hosts.size());
-            for (Host host: hosts)
+            List<InetAddress> addresses = new ArrayList<>(hostSet.size());
+            for (Host host: hostSet)
             {
                 addresses.add(host.getAddress());
             }
