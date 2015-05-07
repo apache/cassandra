@@ -163,6 +163,13 @@ public class PagedRangeCommand extends AbstractRangeCommand
                     AbstractBounds.rowPositionSerializer.deserialize(in, MessagingService.globalPartitioner(), version);
 
             CFMetaData metadata = Schema.instance.getCFMetaData(keyspace, columnFamily);
+            if (metadata == null)
+            {
+                String message = String.format("Got paged range command for nonexistent table %s.%s.  If the table was just " +
+                        "created, this is likely due to the schema not being fully propagated.  Please wait for schema " +
+                        "agreement on table creation." , keyspace, columnFamily);
+                throw new UnknownColumnFamilyException(message, null);
+            }
 
             SliceQueryFilter predicate = metadata.comparator.sliceQueryFilterSerializer().deserialize(in, version);
 
