@@ -200,8 +200,14 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     public volatile VersionedValue.VersionedValueFactory valueFactory = new VersionedValue.VersionedValueFactory(getPartitioner());
 
     private Thread drainOnShutdown = null;
+    private boolean inShutdownHook = false;
 
     public static final StorageService instance = new StorageService();
+
+    public boolean isInShutdownHook()
+    {
+        return inShutdownHook;
+    }
 
     public static IPartitioner getPartitioner()
     {
@@ -652,6 +658,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             @Override
             public void runMayThrow() throws InterruptedException
             {
+                inShutdownHook = true;
                 ExecutorService counterMutationStage = StageManager.getStage(Stage.COUNTER_MUTATION);
                 ExecutorService mutationStage = StageManager.getStage(Stage.MUTATION);
                 if (mutationStage.isShutdown() && counterMutationStage.isShutdown())
