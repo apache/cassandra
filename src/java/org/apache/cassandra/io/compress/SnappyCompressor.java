@@ -96,6 +96,8 @@ public class SnappyCompressor implements ICompressor
 
     public int uncompress(ByteBuffer input, ByteBuffer output) throws IOException
     {
+        if (input.hasArray() && output.hasArray())
+            return Snappy.rawUncompress(input.array(), input.arrayOffset() + input.position(), input.remaining(), output.array(), output.arrayOffset() + output.position());
         return Snappy.uncompress(input, output);
     }
 

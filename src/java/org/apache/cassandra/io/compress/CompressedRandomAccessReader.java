@@ -42,17 +42,11 @@ import org.apache.cassandra.utils.FBUtilities;
  */
 public class CompressedRandomAccessReader extends RandomAccessReader
 {
-    private static final boolean useMmap = DatabaseDescriptor.getDiskAccessMode() == Config.DiskAccessMode.mmap;
-
     public static CompressedRandomAccessReader open(ChannelProxy channel, CompressionMetadata metadata)
-    {
-        return open(channel, metadata, null);
-    }
-    public static CompressedRandomAccessReader open(ChannelProxy channel, CompressionMetadata metadata, CompressedPoolingSegmentedFile owner)
     {
         try
         {
-            return new CompressedRandomAccessReader(channel, metadata, owner);
+            return new CompressedRandomAccessReader(channel, metadata, null);
         }
         catch (FileNotFoundException e)
         {
@@ -60,9 +54,19 @@ public class CompressedRandomAccessReader extends RandomAccessReader
         }
     }
 
+    public static CompressedRandomAccessReader open(ICompressedFile file)
+    {
+        try
+        {
+            return new CompressedRandomAccessReader(file.channel(), file.getMetadata(), file);
+        }
+        catch (FileNotFoundException e)
+        {
+            throw new RuntimeException(e);
+        }
+    }
 
-    private TreeMap<Long, MappedByteBuffer> chunkSegments;
-    private int MAX_SEGMENT_SIZE = Integer.MAX_VALUE;
+    private final TreeMap<Long, MappedByteBuffer> chunkSegments;
 
     private final CompressionMetadata metadata;
 
@@ -75,61 +79,24 @@ public class CompressedRandomAccessReader extends RandomAccessReader
     // raw checksum bytes
     private ByteBuffer checksumBytes;
 
-    protected CompressedRandomAccessReader(ChannelProxy channel, CompressionMetadata metadata, PoolingSegmentedFile owner) throws FileNotFoundException
+    protected CompressedRandomAccessReader(ChannelProxy channel, CompressionMetadata metadata, ICompressedFile file) throws FileNotFoundException
     {
-        super(channel, metadata.chunkLength(), metadata.compressedFileLength, metadata.compressor().useDirectOutputByteBuffers(), owner);
+        super(channel, metadata.chunkLength(), metadata.compressedFileLength, metadata.compressor().useDirectOutputByteBuffers(), file instanceof PoolingSegmentedFile ? (PoolingSegmentedFile) file : null);
         this.metadata = metadata;
         checksum = new Adler32();
 
-        if (!useMmap)
+        chunkSegments = file == null ? null : file.chunkSegments();
+        if (chunkSegments == null)
         {
-            compressed = ByteBuffer.wrap(new byte[metadata.compressor().initialCompressedBufferLength(metadata.chunkLength())]);
+            compressed = super.allocateBuffer(metadata.compressor().initialCompressedBufferLength(metadata.chunkLength()), metadata.compressor().useDirectOutputByteBuffers());
             checksumBytes = ByteBuffer.wrap(new byte[4]);
         }
-        else
-        {
-            try
-            {
-                createMappedSegments();
-            }
-            catch (IOException e)
-            {
-                throw new IOError(e);
-            }
-        }
-    }
-
-    private void createMappedSegments() throws IOException
-    {
-        chunkSegments = new TreeMap<>();
-        long offset = 0;
-        long lastSegmentOffset = 0;
-        long segmentSize = 0;
-
-        while (offset < metadata.dataLength)
-        {
-            CompressionMetadata.Chunk chunk = metadata.chunkFor(offset);
-
-            //Reached a new mmap boundary
-            if (segmentSize + chunk.length + 4 > MAX_SEGMENT_SIZE)
-            {
-                chunkSegments.put(lastSegmentOffset, channel.map(FileChannel.MapMode.READ_ONLY, lastSegmentOffset, segmentSize));
-                lastSegmentOffset += segmentSize;
-                segmentSize = 0;
-            }
-
-            segmentSize += chunk.length + 4; //checksum
-            offset += metadata.chunkLength();
-        }
-
-        if (segmentSize > 0)
-            chunkSegments.put(lastSegmentOffset, channel.map(FileChannel.MapMode.READ_ONLY, lastSegmentOffset, segmentSize));
     }
 
     protected ByteBuffer allocateBuffer(int bufferSize, boolean useDirect)
     {
         assert Integer.bitCount(bufferSize) == 1;
-        return useMmap && useDirect
+        return useDirect
                 ? ByteBuffer.allocateDirect(bufferSize)
                 : ByteBuffer.allocate(bufferSize);
     }
@@ -138,16 +105,9 @@ public class CompressedRandomAccessReader extends RandomAccessReader
     public void deallocate()
     {
         super.deallocate();
-
-        if (chunkSegments != null)
-        {
-            for (Map.Entry<Long, MappedByteBuffer> entry : chunkSegments.entrySet())
-            {
-                FileUtils.clean(entry.getValue());
-            }
-        }
-
-        chunkSegments = null;
+        if (compressed != null)
+            FileUtils.clean(compressed);
+        compressed = null;
     }
 
     private void reBufferStandard()
@@ -175,7 +135,7 @@ public class CompressedRandomAccessReader extends RandomAccessReader
             int decompressedBytes;
             try
             {
-                decompressedBytes = metadata.compressor().uncompress(compressed.array(), 0, chunk.length, buffer.array(), 0);
+                decompressedBytes = metadata.compressor().uncompress(compressed, buffer);
                 buffer.limit(decompressedBytes);
             }
             catch (IOException e)
@@ -186,8 +146,8 @@ public class CompressedRandomAccessReader extends RandomAccessReader
 
             if (metadata.parameters.getCrcCheckChance() > ThreadLocalRandom.current().nextDouble())
             {
-
-                checksum.update(compressed.array(), 0, chunk.length);
+                compressed.position(0);
+                FBUtilities.directCheckSum(checksum, compressed);
 
                 if (checksum(chunk) != (int) checksum.getValue())
                     throw new CorruptBlockException(getPath(), chunk);
@@ -226,7 +186,7 @@ public class CompressedRandomAccessReader extends RandomAccessReader
             Map.Entry<Long, MappedByteBuffer> entry = chunkSegments.floorEntry(chunk.offset);
             long segmentOffset = entry.getKey();
             int chunkOffset = Ints.checkedCast(chunk.offset - segmentOffset);
-            MappedByteBuffer compressedChunk = entry.getValue();
+            ByteBuffer compressedChunk = entry.getValue().duplicate();
 
             compressedChunk.position(chunkOffset);
             compressedChunk.limit(chunkOffset + chunk.length);
@@ -284,7 +244,7 @@ public class CompressedRandomAccessReader extends RandomAccessReader
     @Override
     protected void reBuffer()
     {
-        if (useMmap)
+        if (chunkSegments != null)
         {
             reBufferMmap();
         }
@@ -305,7 +265,7 @@ public class CompressedRandomAccessReader extends RandomAccessReader
 
     public int getTotalBufferSize()
     {
-        return super.getTotalBufferSize() + (useMmap ? 0 : compressed.capacity());
+        return super.getTotalBufferSize() + (chunkSegments != null ? 0 : compressed.capacity());
     }
 
     @Override

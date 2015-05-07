@@ -65,8 +65,8 @@ public class RandomAccessReader extends AbstractDataInput implements FileDataInp
     {
         int size = (int) Math.min(fileLength, bufferSize);
         return useDirectBuffer
-                ? ByteBuffer.allocate(size)
-                : ByteBuffer.allocateDirect(size);
+                ? ByteBuffer.allocateDirect(size)
+                : ByteBuffer.allocate(size);
     }
 
     public static RandomAccessReader open(ChannelProxy channel, long overrideSize, PoolingSegmentedFile owner)

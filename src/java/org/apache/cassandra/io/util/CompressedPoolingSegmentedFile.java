@@ -17,6 +17,10 @@
 */
 package org.apache.cassandra.io.util;
 
+import java.nio.MappedByteBuffer;
+import java.nio.channels.FileChannel;
+import java.util.TreeMap;
+
 import com.google.common.util.concurrent.RateLimiter;
 
 import org.apache.cassandra.io.compress.CompressedRandomAccessReader;
@@ -27,31 +31,56 @@ import org.apache.cassandra.io.compress.CompressionMetadata;
 public class CompressedPoolingSegmentedFile extends PoolingSegmentedFile implements ICompressedFile
 {
     public final CompressionMetadata metadata;
+    private final TreeMap<Long, MappedByteBuffer> chunkSegments;
 
     public CompressedPoolingSegmentedFile(ChannelProxy channel, CompressionMetadata metadata)
     {
-        super(new Cleanup(channel, metadata), channel, metadata.dataLength, metadata.compressedFileLength);
+        this(channel, metadata, CompressedSegmentedFile.createMappedSegments(channel, metadata));
+    }
+
+    private CompressedPoolingSegmentedFile(ChannelProxy channel, CompressionMetadata metadata, TreeMap<Long, MappedByteBuffer> chunkSegments)
+    {
+        super(new Cleanup(channel, metadata, chunkSegments), channel, metadata.dataLength, metadata.compressedFileLength);
         this.metadata = metadata;
+        this.chunkSegments = chunkSegments;
     }
 
     private CompressedPoolingSegmentedFile(CompressedPoolingSegmentedFile copy)
     {
         super(copy);
         this.metadata = copy.metadata;
+        this.chunkSegments = copy.chunkSegments;
+    }
+
+    public ChannelProxy channel()
+    {
+        return channel;
+    }
+
+    public TreeMap<Long, MappedByteBuffer> chunkSegments()
+    {
+        return chunkSegments;
     }
 
     protected static final class Cleanup extends PoolingSegmentedFile.Cleanup
     {
         final CompressionMetadata metadata;
-        protected Cleanup(ChannelProxy channel, CompressionMetadata metadata)
+        final TreeMap<Long, MappedByteBuffer> chunkSegments;
+        protected Cleanup(ChannelProxy channel, CompressionMetadata metadata, TreeMap<Long, MappedByteBuffer> chunkSegments)
         {
             super(channel);
             this.metadata = metadata;
+            this.chunkSegments = chunkSegments;
         }
         public void tidy()
         {
             super.tidy();
             metadata.close();
+            if (chunkSegments != null)
+            {
+                for (MappedByteBuffer segment : chunkSegments.values())
+                    FileUtils.clean(segment);
+            }
         }
     }
 
@@ -82,17 +111,17 @@ public class CompressedPoolingSegmentedFile extends PoolingSegmentedFile impleme
 
     public RandomAccessReader createReader()
     {
-        return CompressedRandomAccessReader.open(channel, metadata, null);
+        return CompressedRandomAccessReader.open(this);
     }
 
     public RandomAccessReader createThrottledReader(RateLimiter limiter)
     {
-        return CompressedThrottledReader.open(channel, metadata, limiter);
+        return CompressedThrottledReader.open(this, limiter);
     }
 
     protected RandomAccessReader createPooledReader()
     {
-        return CompressedRandomAccessReader.open(channel, metadata, this);
+        return CompressedRandomAccessReader.open(this);
     }
 
     public CompressionMetadata getMetadata()

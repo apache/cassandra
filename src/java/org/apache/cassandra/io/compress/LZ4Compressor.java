@@ -83,6 +83,7 @@ public class LZ4Compressor implements ICompressor
                 | ((input[inputOffset + 1] & 0xFF) << 8)
                 | ((input[inputOffset + 2] & 0xFF) << 16)
                 | ((input[inputOffset + 3] & 0xFF) << 24);
+
         final int compressedLength;
         try
         {
@@ -104,6 +105,9 @@ public class LZ4Compressor implements ICompressor
 
     public int uncompress(ByteBuffer input, ByteBuffer output) throws IOException
     {
+        if (input.hasArray() && output.hasArray())
+            return uncompress(input.array(), input.arrayOffset() + input.position(), input.remaining(), output.array(), output.arrayOffset() + output.position());
+
         int pos = input.position();
         final int decompressedLength = (input.get(pos) & 0xFF)
                 | ((input.get(pos + 1) & 0xFF) << 8)
@@ -132,7 +136,7 @@ public class LZ4Compressor implements ICompressor
     @Override
     public boolean useDirectOutputByteBuffers()
     {
-        return false;
+        return true;
     }
 
     public Set<String> supportedOptions()

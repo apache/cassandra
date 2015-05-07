@@ -17,8 +17,14 @@
  */
 package org.apache.cassandra.io.util;
 
+import java.nio.MappedByteBuffer;
+import java.nio.channels.FileChannel;
+import java.util.TreeMap;
+
 import com.google.common.util.concurrent.RateLimiter;
 
+import org.apache.cassandra.config.Config;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.compress.CompressedRandomAccessReader;
 import org.apache.cassandra.io.compress.CompressedSequentialWriter;
 import org.apache.cassandra.io.compress.CompressedThrottledReader;
@@ -27,31 +33,88 @@ import org.apache.cassandra.io.compress.CompressionMetadata;
 public class CompressedSegmentedFile extends SegmentedFile implements ICompressedFile
 {
     public final CompressionMetadata metadata;
+    private static final boolean useMmap = DatabaseDescriptor.getDiskAccessMode() == Config.DiskAccessMode.mmap;
+    private static int MAX_SEGMENT_SIZE = Integer.MAX_VALUE;
+    private final TreeMap<Long, MappedByteBuffer> chunkSegments;
 
     public CompressedSegmentedFile(ChannelProxy channel, CompressionMetadata metadata)
     {
-        super(new Cleanup(channel, metadata), channel, metadata.dataLength, metadata.compressedFileLength);
+        this(channel, metadata, createMappedSegments(channel, metadata));
+    }
+
+    public CompressedSegmentedFile(ChannelProxy channel, CompressionMetadata metadata, TreeMap<Long, MappedByteBuffer> chunkSegments)
+    {
+        super(new Cleanup(channel, metadata, chunkSegments), channel, metadata.dataLength, metadata.compressedFileLength);
         this.metadata = metadata;
+        this.chunkSegments = chunkSegments;
     }
 
     private CompressedSegmentedFile(CompressedSegmentedFile copy)
     {
         super(copy);
         this.metadata = copy.metadata;
+        this.chunkSegments = copy.chunkSegments;
+    }
+
+    public ChannelProxy channel()
+    {
+        return channel;
+    }
+
+    public TreeMap<Long, MappedByteBuffer> chunkSegments()
+    {
+        return chunkSegments;
+    }
+
+    static TreeMap<Long, MappedByteBuffer> createMappedSegments(ChannelProxy channel, CompressionMetadata metadata)
+    {
+        if (!useMmap)
+            return null;
+        TreeMap<Long, MappedByteBuffer> chunkSegments = new TreeMap<>();
+        long offset = 0;
+        long lastSegmentOffset = 0;
+        long segmentSize = 0;
+
+        while (offset < metadata.dataLength)
+        {
+            CompressionMetadata.Chunk chunk = metadata.chunkFor(offset);
+
+            //Reached a new mmap boundary
+            if (segmentSize + chunk.length + 4 > MAX_SEGMENT_SIZE)
+            {
+                chunkSegments.put(lastSegmentOffset, channel.map(FileChannel.MapMode.READ_ONLY, lastSegmentOffset, segmentSize));
+                lastSegmentOffset += segmentSize;
+                segmentSize = 0;
+            }
+
+            segmentSize += chunk.length + 4; //checksum
+            offset += metadata.chunkLength();
+        }
+
+        if (segmentSize > 0)
+            chunkSegments.put(lastSegmentOffset, channel.map(FileChannel.MapMode.READ_ONLY, lastSegmentOffset, segmentSize));
+        return chunkSegments;
     }
 
     private static final class Cleanup extends SegmentedFile.Cleanup
     {
         final CompressionMetadata metadata;
-        protected Cleanup(ChannelProxy channel, CompressionMetadata metadata)
+        final TreeMap<Long, MappedByteBuffer> chunkSegments;
+        protected Cleanup(ChannelProxy channel, CompressionMetadata metadata, TreeMap<Long, MappedByteBuffer> chunkSegments)
         {
             super(channel);
             this.metadata = metadata;
+            this.chunkSegments = chunkSegments;
         }
         public void tidy()
         {
             super.tidy();
             metadata.close();
+            if (chunkSegments != null)
+            {
+                for (MappedByteBuffer segment : chunkSegments.values())
+                    FileUtils.clean(segment);
+            }
         }
     }
 
@@ -97,12 +160,12 @@ public class CompressedSegmentedFile extends SegmentedFile implements ICompresse
 
     public RandomAccessReader createReader()
     {
-        return CompressedRandomAccessReader.open(channel, metadata);
+        return CompressedRandomAccessReader.open(this);
     }
 
     public RandomAccessReader createThrottledReader(RateLimiter limiter)
     {
-        return CompressedThrottledReader.open(channel, metadata, limiter);
+        return CompressedThrottledReader.open(this, limiter);
     }
 
     public CompressionMetadata getMetadata()
