@@ -82,7 +82,7 @@ public class CompressedStreamReader extends StreamReader
         {
             for (Pair<Long, Long> section : sections)
             {
-                assert in.getBytesRead() < totalSize;
+                assert cis.getTotalCompressedBytesRead() <= totalSize;
                 int sectionLength = (int) (section.right - section.left);
 
                 // skip to beginning of section inside chunk
