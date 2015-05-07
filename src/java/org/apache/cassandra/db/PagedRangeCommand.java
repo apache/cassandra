@@ -24,6 +24,7 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
 
+import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.filter.*;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.io.IVersionedSerializer;
@@ -153,6 +154,15 @@ public class PagedRangeCommand extends AbstractRangeCommand
         {
             String keyspace = in.readUTF();
             String columnFamily = in.readUTF();
+
+            if (Schema.instance.getCFMetaData(keyspace, columnFamily) == null)
+            {
+                String message = String.format("Got paged range command for nonexistent table %s.%s.  If the table was just " +
+                        "created, this is likely due to the schema not being fully propagated.  Please wait for schema " +
+                        "agreement on table creation." , keyspace, columnFamily);
+                throw new UnknownColumnFamilyException(message, null);
+            }
+
             long timestamp = in.readLong();
 
             AbstractBounds<RowPosition> keyRange = AbstractBounds.serializer.deserialize(in, version).toRowBounds();

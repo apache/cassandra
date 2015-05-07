@@ -120,6 +120,14 @@ class SliceByNamesReadCommandSerializer implements IVersionedSerializer<ReadComm
         long timestamp = version < MessagingService.VERSION_20 ? System.currentTimeMillis() : in.readLong();
 
         CFMetaData metadata = Schema.instance.getCFMetaData(keyspaceName, cfName);
+        if (metadata == null)
+        {
+            String message = String.format("Got slice command for nonexistent table %s.%s.  If the table was just " +
+                    "created, this is likely due to the schema not being fully propagated.  Please wait for schema " +
+                    "agreement on table creation." , keyspaceName, cfName);
+            throw new UnknownColumnFamilyException(message, null);
+        }
+
         ReadCommand command;
         if (version < MessagingService.VERSION_20)
         {
