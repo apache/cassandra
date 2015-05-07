@@ -292,7 +292,7 @@ public abstract class SecondaryIndex
     /**
      * Returns true if the provided column name is indexed by this secondary index.
      *
-     * The default implement checks whether the name is one the columnDef name,
+     * The default implementation checks whether the name is one the columnDef name,
      * but this should be overriden but subclass if needed.
      */
     public boolean indexes(ByteBuffer name)
@@ -303,6 +303,16 @@ public abstract class SecondaryIndex
                 return true;
         }
         return false;
+    }
+    
+    /**
+     * Returns true if the provided column definition is indexed by this secondary index.
+     *
+     * The default implementation checks whether it is contained in this index column definitions set.
+     */
+    public boolean indexes(ColumnDefinition cdef)
+    {
+        return columnDefs.contains(cdef);
     }
 
     /**
