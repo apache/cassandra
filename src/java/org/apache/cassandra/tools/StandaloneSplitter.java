@@ -42,7 +42,6 @@ public class StandaloneSplitter
     public static final int DEFAULT_SSTABLE_SIZE = 50;
 
     private static final String TOOL_NAME = "sstablessplit";
-    private static final String VERBOSE_OPTION = "verbose";
     private static final String DEBUG_OPTION = "debug";
     private static final String HELP_OPTION = "help";
     private static final String NO_SNAPSHOT_OPTION = "no-snapshot";
@@ -152,6 +151,10 @@ public class StandaloneSplitter
                 try
                 {
                     new SSTableSplitter(cfs, sstable, options.sizeInMB).split();
+
+                    // Remove the sstable (it's been copied by split and snapshotted)
+                    sstable.markObsolete();
+                    sstable.selfRef().release();
                 }
                 catch (Exception e)
                 {
@@ -185,7 +188,6 @@ public class StandaloneSplitter
         public final List<String> filenames;
 
         public boolean debug;
-        public boolean verbose;
         public boolean snapshot;
         public int sizeInMB;
 
@@ -217,7 +219,6 @@ public class StandaloneSplitter
                 }
                 Options opts = new Options(Arrays.asList(args));
                 opts.debug = cmd.hasOption(DEBUG_OPTION);
-                opts.verbose = cmd.hasOption(VERBOSE_OPTION);
                 opts.snapshot = !cmd.hasOption(NO_SNAPSHOT_OPTION);
                 opts.sizeInMB = DEFAULT_SSTABLE_SIZE;
 
@@ -244,7 +245,6 @@ public class StandaloneSplitter
         {
             CmdLineOptions options = new CmdLineOptions();
             options.addOption(null, DEBUG_OPTION,          "display stack traces");
-            options.addOption("v",  VERBOSE_OPTION,        "verbose output");
             options.addOption("h",  HELP_OPTION,           "display this help message");
             options.addOption(null, NO_SNAPSHOT_OPTION,    "don't snapshot the sstables before splitting");
             options.addOption("s",  SIZE_OPTION, "size",   "maximum size in MB for the output sstables (default: " + DEFAULT_SSTABLE_SIZE + ")");

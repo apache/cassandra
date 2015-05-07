@@ -99,6 +99,7 @@
  * fix nodetool names that reference column families (CASSANDRA-8872)
 
 2.1.6
+ * Delete processed sstables in sstablesplit/sstableupgrade (CASSANDRA-8606)
  * Improve sstable exclusion from partition tombstones (CASSANDRA-9298)
  * Validate the indexed column rather than the cell's contents for 2i (CASSANDRA-9057)
  * Add support for top-k custom 2i queries (CASSANDRA-8717)
