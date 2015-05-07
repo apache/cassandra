@@ -148,6 +148,13 @@ class SliceFromReadCommandSerializer implements IVersionedSerializer<ReadCommand
         String cfName = in.readUTF();
         long timestamp = in.readLong();
         CFMetaData metadata = Schema.instance.getCFMetaData(keyspaceName, cfName);
+        if (metadata == null)
+        {
+            String message = String.format("Got slice command for nonexistent table %s.%s.  If the table was just " +
+                    "created, this is likely due to the schema not being fully propagated.  Please wait for schema " +
+                    "agreement on table creation.", keyspaceName, cfName);
+            throw new UnknownColumnFamilyException(message, null);
+        }
         SliceQueryFilter filter = metadata.comparator.sliceQueryFilterSerializer().deserialize(in, version);
         return new SliceFromReadCommand(keyspaceName, key, cfName, timestamp, filter).setIsDigestQuery(isDigest);
     }
