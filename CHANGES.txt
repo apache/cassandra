@@ -115,6 +115,8 @@
  * Use higher timeout for prepair and snapshot in repair (CASSANDRA-9261)
  * Fix anticompaction blocking ANTI_ENTROPY stage (CASSANDRA-9151)
 Merged from 2.0:
+2.0.15:
+ * Overload SecondaryIndex#indexes to accept the column definition (CASSANDRA-9314)
  * (cqlsh) Add SERIAL and LOCAL_SERIAL consistency levels (CASSANDRA-8051)
  * Fix index selection during rebuild with certain table layouts (CASSANDRA-9281)
  * Fix partition-level-delete-only workload accounting (CASSANDRA-9194)

@@ -157,7 +157,7 @@ public class SecondaryIndexManager
     {
         idxNames = filterByColumn(idxNames);
         if (idxNames.isEmpty())
-            return;
+            return;        
 
         logger.info(String.format("Submitting index build of %s for data in %s",
                                   idxNames, StringUtils.join(sstables, ", ")));
@@ -700,7 +700,7 @@ public class SecondaryIndexManager
         {
             for (ColumnDefinition column : baseCfs.metadata.allColumns())
             {
-                if (candidate.getColumnDefs().contains(column))
+                if (candidate.indexes(column))
                 {
                     filtered.add(candidate.getIndexName());
                     break;

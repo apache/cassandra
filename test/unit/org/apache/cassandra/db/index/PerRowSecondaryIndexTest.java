@@ -169,15 +169,29 @@ public class PerRowSecondaryIndexTest
 
     public static class TestIndex extends PerRowSecondaryIndex
     {
+        public static volatile boolean ACTIVE = true;
         public static ColumnFamily LAST_INDEXED_ROW;
         public static ByteBuffer LAST_INDEXED_KEY;
 
         public static void reset()
         {
+            ACTIVE = true;
             LAST_INDEXED_KEY = null;
             LAST_INDEXED_ROW = null;
         }
 
+        @Override
+        public boolean indexes(CellName name)
+        {
+            return ACTIVE;
+        }
+        
+        @Override
+        public boolean indexes(ColumnDefinition cdef)
+        {
+            return ACTIVE;
+        }
+        
         @Override
         public void index(ByteBuffer rowKey, ColumnFamily cf)
         {
@@ -245,12 +259,6 @@ public class PerRowSecondaryIndexTest
         public ColumnFamilyStore getIndexCfs()
         {
             return baseCfs;
-        }
-
-        @Override
-        public boolean indexes(CellName name)
-        {
-            return true;
         }
 
         @Override
