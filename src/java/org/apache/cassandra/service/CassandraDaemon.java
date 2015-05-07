@@ -173,6 +173,7 @@ public class CassandraDaemon
             }
         });
 
+        StorageService.instance.populateTokenMetadata();
         // load schema from disk
         Schema.instance.loadFromDisk();
 

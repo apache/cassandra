@@ -565,6 +565,21 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             MessagingService.instance().listen(FBUtilities.getLocalAddress());
     }
 
+    public void populateTokenMetadata()
+    {
+        if (Boolean.parseBoolean(System.getProperty("cassandra.load_ring_state", "true")))
+        {
+            logger.info("Populating token metadata from system tables");
+            Multimap<InetAddress, Token> loadedTokens = SystemKeyspace.loadTokens();
+            if (!shouldBootstrap()) // if we have not completed bootstrapping, we should not add ourselves as a normal token
+                loadedTokens.putAll(FBUtilities.getBroadcastAddress(), SystemKeyspace.getSavedTokens());
+            for (InetAddress ep : loadedTokens.keySet())
+                tokenMetadata.updateNormalTokens(loadedTokens.get(ep), ep);
+
+            logger.info("Token metadata: {}", tokenMetadata);
+        }
+    }
+
     public synchronized void initServer() throws ConfigurationException
     {
         initServer(RING_DELAY);
@@ -605,7 +620,6 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                 }
                 else
                 {
-                    tokenMetadata.updateNormalTokens(loadedTokens.get(ep), ep);
                     if (loadedHostIds.containsKey(ep))
                         tokenMetadata.updateHostId(loadedHostIds.get(ep), ep);
                     Gossiper.instance.addSavedEndpoint(ep);

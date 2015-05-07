@@ -1,4 +1,5 @@
 2.2
+ * Populate TokenMetadata early during startup (CASSANDRA-9317)
  * Make Functions.declared thread-safe
  * Add client warnings to native protocol v4 (CASSANDRA-8930)
  * Allow roles cache to be invalidated (CASSANDRA-8967)
