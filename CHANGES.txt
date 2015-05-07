@@ -1,4 +1,5 @@
 2.1.6
+ * Improve sstable exclusion from partition tombstones (CASSANDRA-9298)
  * Validate the indexed column rather than the cell's contents for 2i (CASSANDRA-9057)
  * Add support for top-k custom 2i queries (CASSANDRA-8717)
  * Fix error when dropping table during compaction (CASSANDRA-9251)

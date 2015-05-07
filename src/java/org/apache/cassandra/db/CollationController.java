@@ -77,11 +77,11 @@ public class CollationController
         boolean isEmpty = true;
         Tracing.trace("Acquiring sstable references");
         ColumnFamilyStore.ViewFragment view = cfs.select(cfs.viewFilter(filter.key));
+        DeletionInfo returnDeletionInfo = container.deletionInfo();
 
         try
         {
             Tracing.trace("Merging memtable contents");
-            long mostRecentRowTombstone = Long.MIN_VALUE;
             for (Memtable memtable : view.memtables)
             {
                 ColumnFamily cf = memtable.getColumnFamily(filter.key);
@@ -98,7 +98,6 @@ public class CollationController
                         container.addColumn(cell);
                     }
                 }
-                mostRecentRowTombstone = container.deletionInfo().getTopLevelDeletion().markedForDeleteAt;
             }
 
             // avoid changing the filter columns of the original filter
@@ -116,7 +115,7 @@ public class CollationController
                 // if we've already seen a row tombstone with a timestamp greater
                 // than the most recent update to this sstable, we're done, since the rest of the sstables
                 // will also be older
-                if (sstable.getMaxTimestamp() < mostRecentRowTombstone)
+                if (sstable.getMaxTimestamp() < returnDeletionInfo.getTopLevelDeletion().markedForDeleteAt)
                     break;
 
                 long currentMaxTs = sstable.getMaxTimestamp();
@@ -136,7 +135,6 @@ public class CollationController
                     while (iter.hasNext())
                         container.addAtom(iter.next());
                 }
-                mostRecentRowTombstone = container.deletionInfo().getTopLevelDeletion().markedForDeleteAt;
             }
 
             // we need to distinguish between "there is no data at all for this row" (BF will let us rebuild that efficiently)
@@ -244,7 +242,6 @@ public class CollationController
              */
             Collections.sort(view.sstables, SSTableReader.maxTimestampComparator);
             List<SSTableReader> skippedSSTables = null;
-            long mostRecentRowTombstone = Long.MIN_VALUE;
             long minTimestamp = Long.MAX_VALUE;
             int nonIntersectingSSTables = 0;
 
@@ -253,7 +250,7 @@ public class CollationController
                 minTimestamp = Math.min(minTimestamp, sstable.getMinTimestamp());
                 // if we've already seen a row tombstone with a timestamp greater
                 // than the most recent update to this sstable, we can skip it
-                if (sstable.getMaxTimestamp() < mostRecentRowTombstone)
+                if (sstable.getMaxTimestamp() < returnDeletionInfo.getTopLevelDeletion().markedForDeleteAt)
                     break;
 
                 if (!filter.shouldInclude(sstable))
@@ -275,9 +272,6 @@ public class CollationController
                 if (iter.getColumnFamily() != null)
                 {
                     ColumnFamily cf = iter.getColumnFamily();
-                    if (cf.isMarkedForDelete())
-                        mostRecentRowTombstone = cf.deletionInfo().getTopLevelDeletion().markedForDeleteAt;
-
                     returnCF.delete(cf);
                     sstablesIterated++;
                 }
