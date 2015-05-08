@@ -25,13 +25,14 @@ import java.nio.ByteBuffer;
 import java.util.SortedSet;
 import java.util.TreeSet;
 
+import com.google.common.base.Predicate;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.KSMetaData;
+import org.apache.cassandra.db.commitlog.CommitLogTestReplayer;
 import org.apache.cassandra.db.composites.*;
 import org.apache.cassandra.db.filter.NamesQueryFilter;
 import org.apache.cassandra.db.filter.SliceQueryFilter;
@@ -132,81 +133,28 @@ public class ReadMessageTest
         rm.add("Standard1", Util.cellname("commit2"), ByteBufferUtil.bytes("abcd"), 0);
         rm.apply();
 
+        Checker checker = new Checker();
+        CommitLogTestReplayer.examineCommitLog(checker);
+
+        assertTrue(checker.commitLogMessageFound);
+        assertFalse(checker.noCommitLogMessageFound);
+    }
+
+    static class Checker implements Predicate<Mutation>
+    {
         boolean commitLogMessageFound = false;
         boolean noCommitLogMessageFound = false;
 
-        File commitLogDir = new File(DatabaseDescriptor.getCommitLogLocation());
-
-        byte[] commitBytes = "commit".getBytes("UTF-8");
-
-        for(String filename : commitLogDir.list())
+        public boolean apply(Mutation mutation)
         {
-            BufferedInputStream is = null;
-            try
+            for (ColumnFamily cf : mutation.getColumnFamilies())
             {
-                is = new BufferedInputStream(new FileInputStream(commitLogDir.getAbsolutePath()+File.separator+filename));
-
-                if (!isEmptyCommitLog(is))
-                {
-                    while (findPatternInStream(commitBytes, is))
-                    {
-                        char c = (char)is.read();
-
-                        if (c == '1')
-                            commitLogMessageFound = true;
-                        else if (c == '2')
-                            noCommitLogMessageFound = true;
-                    }
-                }
+                if (cf.getColumn(Util.cellname("commit1")) != null)
+                    commitLogMessageFound = true;
+                if (cf.getColumn(Util.cellname("commit2")) != null)
+                    noCommitLogMessageFound = true;
             }
-            finally
-            {
-                if (is != null)
-                    is.close();
-            }
+            return true;
         }
-
-        assertTrue(commitLogMessageFound);
-        assertFalse(noCommitLogMessageFound);
-    }
-
-    private boolean isEmptyCommitLog(BufferedInputStream is) throws IOException
-    {
-        DataInputStream dis = new DataInputStream(is);
-        byte[] lookahead = new byte[100];
-
-        dis.mark(100);
-        dis.readFully(lookahead);
-        dis.reset();
-
-        for (int i = 0; i < 100; i++)
-        {
-            if (lookahead[i] != 0)
-                return false;
-        }
-
-        return true;
-    }
-
-    private boolean findPatternInStream(byte[] pattern, InputStream is) throws IOException
-    {
-        int patternOffset = 0;
-
-        int b = is.read();
-        while (b != -1)
-        {
-            if (pattern[patternOffset] == ((byte) b))
-            {
-                patternOffset++;
-                if (patternOffset == pattern.length)
-                    return true;
-            }
-            else
-                patternOffset = 0;
-
-            b = is.read();
-        }
-
-        return false;
     }
 }
