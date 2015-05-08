@@ -1,4 +1,5 @@
 3.0
+ * Aggregate UDFs allow SFUNC return type to differ from STYPE if FFUNC specified (CASSANDRA-9321)
  * Failure detector detects and ignores local pauses (CASSANDRA-9183)
  * Remove Thrift dependencies in bundled tools (CASSANDRA-8358)
  * Disable memory mapping of hsperfdata file for JVM statistics (CASSANDRA-9242)

@@ -36,7 +36,7 @@ import org.apache.cassandra.thrift.ThriftValidation;
 import org.apache.cassandra.transport.Event;
 
 /**
- * A <code>CREATE AGGREGATE</code> statement parsed from a CQL query.
+ * A {@code CREATE AGGREGATE} statement parsed from a CQL query.
  */
 public final class CreateAggregateStatement extends SchemaAlteringStatement
 {
@@ -91,20 +91,22 @@ public final class CreateAggregateStatement extends SchemaAlteringStatement
             throw new InvalidRequestException("State function " + stateFuncSig(stateFuncName, stateTypeRaw, argRawTypes) + " does not exist or is not a scalar function");
         stateFunction = (ScalarFunction)f;
 
+        AbstractType<?> stateReturnType = stateFunction.returnType();
+        if (!stateReturnType.equals(stateType))
+            throw new InvalidRequestException("State function " + stateFuncSig(stateFunction.name(), stateTypeRaw, argRawTypes) + " return type must be the same as the first argument type - check STYPE, argument and return types");
+
         if (finalFunc != null)
         {
             FunctionName finalFuncName = new FunctionName(functionName.keyspace, finalFunc);
             f = Functions.find(finalFuncName, Collections.<AbstractType<?>>singletonList(stateType));
             if (!(f instanceof ScalarFunction))
-                throw new InvalidRequestException("Final function " + finalFuncName + "(" + stateTypeRaw + ") does not exist or is not a scalar function");
+                throw new InvalidRequestException("Final function " + finalFuncName + '(' + stateTypeRaw + ") does not exist or is not a scalar function");
             finalFunction = (ScalarFunction) f;
             returnType = finalFunction.returnType();
         }
         else
         {
-            returnType = stateFunction.returnType();
-            if (!returnType.equals(stateType))
-                throw new InvalidRequestException("State function " + stateFuncSig(stateFunction.name(), stateTypeRaw, argRawTypes) + " return type must be the same as the first argument type (if no final function is used)");
+            returnType = stateReturnType;
         }
 
         if (ival != null)
@@ -208,7 +210,7 @@ public final class CreateAggregateStatement extends SchemaAlteringStatement
         return true;
     }
 
-    private String stateFuncSig(FunctionName stateFuncName, CQL3Type.Raw stateTypeRaw, List<CQL3Type.Raw> argRawTypes)
+    private static String stateFuncSig(FunctionName stateFuncName, CQL3Type.Raw stateTypeRaw, List<CQL3Type.Raw> argRawTypes)
     {
         StringBuilder sb = new StringBuilder();
         sb.append(stateFuncName.toString()).append('(').append(stateTypeRaw);

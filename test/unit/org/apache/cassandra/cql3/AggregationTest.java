@@ -846,4 +846,32 @@ public class AggregationTest extends CQLTester
                                   "SELECT " + a + "(val) FROM %s");
     }
 
+    @Test
+    public void testWrongStateType() throws Throwable
+    {
+        createTable("CREATE TABLE %s (key int primary key, val int)");
+        execute("INSERT INTO %s (key, val) VALUES (?, ?)", 1, 1);
+
+        String fState = createFunction(KEYSPACE,
+                                       "int, int",
+                                       "CREATE FUNCTION %s(a int, b int) " +
+                                       "RETURNS double " +
+                                       "LANGUAGE java " +
+                                       "AS 'return Double.valueOf(1.0);'");
+
+        String fFinal = createFunction(KEYSPACE,
+                                       "int",
+                                       "CREATE FUNCTION %s(a int) " +
+                                       "RETURNS int " +
+                                       "LANGUAGE java " +
+                                       "AS 'return Integer.valueOf(1);';");
+
+        assertInvalidMessage("return type must be the same as the first argument type - check STYPE, argument and return types",
+                                   "CREATE AGGREGATE %s(int) " +
+                                   "SFUNC " + shortFunctionName(fState) + ' ' +
+                                   "STYPE int " +
+                                   "FINALFUNC " + shortFunctionName(fFinal) + ' ' +
+                                   "INITCOND 1");
+    }
+
 }

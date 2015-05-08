@@ -100,6 +100,8 @@ public class UDAggregate extends AbstractFunction implements AggregateFunction
 
     public Iterable<Function> getFunctions()
     {
+        if (stateFunction == null)
+            return Collections.emptySet();
         if (finalFunction != null)
             return ImmutableSet.of(this, stateFunction, finalFunction);
         else
