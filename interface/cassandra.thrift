@@ -55,7 +55,7 @@ namespace rb CassandraThrift
 # An effort should be made not to break forward-client-compatibility either
 # (e.g. one should avoid removing obsolete fields from the IDL), but no
 # guarantees in this respect are made by the Cassandra project.
-const string VERSION = "20.0.0"
+const string VERSION = "20.1.0"
 
 
 #
@@ -571,6 +571,35 @@ struct CfSplit {
     3: required i64 row_count
 }
 
+/** The ColumnSlice is used to select a set of columns from inside a row. 
+ * If start or finish are unspecified they will default to the start-of
+ * end-of value.
+ * @param start. The start of the ColumnSlice inclusive
+ * @param finish. The end of the ColumnSlice inclusive
+ */
+struct ColumnSlice {
+    1: optional binary start,
+    2: optional binary finish
+}
+
+/**
+ * Used to perform multiple slices on a single row key in one rpc operation
+ * @param key. The row key to be multi sliced
+ * @param column_parent. The column family (super columns are unsupported)
+ * @param column_slices. 0 to many ColumnSlice objects each will be used to select columns
+ * @param reversed. Direction of slice
+ * @param count. Maximum number of columns
+ * @param consistency_level. Level to perform the operation at
+ */
+struct MultiSliceRequest {
+    1: optional binary key,
+    2: optional ColumnParent column_parent,
+    3: optional list<ColumnSlice> column_slices,
+    4: optional bool reversed=false,
+    5: optional i32 count=1000,
+    6: optional ConsistencyLevel consistency_level=ConsistencyLevel.ONE
+}
+
 service Cassandra {
   # auth methods
   void login(1: required AuthenticationRequest auth_request) throws (1:AuthenticationException authnx, 2:AuthorizationException authzx),
@@ -749,7 +778,11 @@ service Cassandra {
   void truncate(1:required string cfname)
        throws (1: InvalidRequestException ire, 2: UnavailableException ue, 3: TimedOutException te),
 
-
+  /**
+  * Select multiple slices of a key in a single RPC operation
+  */
+  list<ColumnOrSuperColumn> get_multi_slice(1:required MultiSliceRequest request)
+       throws (1:InvalidRequestException ire, 2:UnavailableException ue, 3:TimedOutException te),
     
   // Meta-APIs -- APIs to get information about the node or cluster,
   // rather than user data.  The nodeprobe program provides usage examples.
