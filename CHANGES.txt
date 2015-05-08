@@ -118,6 +118,7 @@
    is modified (CASSANDRA-9148, CASSANDRA-9192)
  * Use higher timeout for prepair and snapshot in repair (CASSANDRA-9261)
  * Fix anticompaction blocking ANTI_ENTROPY stage (CASSANDRA-9151)
+ * Repair waits for anticompaction to finish (CASSANDRA-9097)
 Merged from 2.0:
  * Include keyspace and table name in error log for collections over the size
    limit (CASSANDRA-9286)

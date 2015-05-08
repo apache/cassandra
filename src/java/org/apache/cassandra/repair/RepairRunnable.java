@@ -22,6 +22,7 @@ import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import com.google.common.collect.ImmutableMap;
@@ -251,15 +252,16 @@ public class RepairRunnable extends WrappedRunnable implements ProgressEventNoti
 
         // After all repair sessions completes(successful or not),
         // run anticompaction if necessary and send finish notice back to client
+        final Collection<Range<Token>> successfulRanges = new ArrayList<>();
+        final AtomicBoolean hasFailure = new AtomicBoolean();
         final ListenableFuture<List<RepairSessionResult>> allSessions = Futures.successfulAsList(futures);
-        Futures.addCallback(allSessions, new FutureCallback<List<RepairSessionResult>>()
+        ListenableFuture anticompactionResult = Futures.transform(allSessions, new AsyncFunction<List<RepairSessionResult>, Object>()
         {
-            public void onSuccess(List<RepairSessionResult> result)
+            @SuppressWarnings("unchecked")
+            public ListenableFuture apply(List<RepairSessionResult> results) throws Exception
             {
-                boolean hasFailure = false;
                 // filter out null(=failed) results and get successful ranges
-                Collection<Range<Token>> successfulRanges = new ArrayList<>();
-                for (RepairSessionResult sessionResult : result)
+                for (RepairSessionResult sessionResult : results)
                 {
                     if (sessionResult != null)
                     {
@@ -267,20 +269,18 @@ public class RepairRunnable extends WrappedRunnable implements ProgressEventNoti
                     }
                     else
                     {
-                        hasFailure = true;
+                        hasFailure.compareAndSet(false, true);
                     }
                 }
-                try
-                {
-                    ActiveRepairService.instance.finishParentSession(parentSession, allNeighbors, successfulRanges);
-                    SystemDistributedKeyspace.successfulParentRepair(parentSession, successfulRanges);
-                }
-                catch (Exception e)
-                {
-                    logger.error("Error in incremental repair", e);
-                    SystemDistributedKeyspace.failParentRepair(parentSession, e);
-                }
-                if (hasFailure)
+                return ActiveRepairService.instance.finishParentSession(parentSession, allNeighbors, successfulRanges);
+            }
+        });
+        Futures.addCallback(anticompactionResult, new FutureCallback<Object>()
+        {
+            public void onSuccess(Object result)
+            {
+                SystemDistributedKeyspace.successfulParentRepair(parentSession, successfulRanges);
+                if (hasFailure.get())
                 {
                     fireProgressEvent(tag, new ProgressEvent(ProgressEventType.ERROR, progress.get(), totalProgress,
                                                              "Some repair failed"));

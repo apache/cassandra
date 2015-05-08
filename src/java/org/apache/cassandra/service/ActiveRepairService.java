@@ -25,15 +25,12 @@ import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Multimap;
 import com.google.common.collect.Sets;
-import com.google.common.util.concurrent.ListeningExecutorService;
-import com.google.common.util.concurrent.MoreExecutors;
-
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
+import com.google.common.util.concurrent.ListeningExecutorService;
 import com.google.common.util.concurrent.MoreExecutors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -52,6 +49,7 @@ import org.apache.cassandra.net.IAsyncCallbackWithFailure;
 import org.apache.cassandra.net.MessageIn;
 import org.apache.cassandra.net.MessageOut;
 import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.repair.AnticompactionTask;
 import org.apache.cassandra.repair.RepairJobDesc;
 import org.apache.cassandra.repair.RepairParallelism;
 import org.apache.cassandra.repair.RepairSession;
@@ -59,7 +57,6 @@ import org.apache.cassandra.repair.messages.*;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.UUIDGen;
 import org.apache.cassandra.utils.concurrent.Ref;
-
 import org.apache.cassandra.utils.concurrent.Refs;
 
 /**
@@ -313,18 +310,18 @@ public class ActiveRepairService
      * @param parentSession Parent session ID
      * @param neighbors Repair participants (not including self)
      * @param successfulRanges Ranges that repaired successfully
-     * @throws InterruptedException
-     * @throws ExecutionException
      */
-    public synchronized void finishParentSession(UUID parentSession, Set<InetAddress> neighbors, Collection<Range<Token>> successfulRanges) throws InterruptedException, ExecutionException
+    public synchronized ListenableFuture finishParentSession(UUID parentSession, Set<InetAddress> neighbors, Collection<Range<Token>> successfulRanges)
     {
-        for (InetAddress neighbor : neighbors)
-        {
-            AnticompactionRequest acr = new AnticompactionRequest(parentSession, successfulRanges);
-            MessageOut<RepairMessage> req = acr.createMessage();
-            MessagingService.instance().sendOneWay(req, neighbor);
-        }
-        doAntiCompaction(parentSession, successfulRanges).get();
+            List<ListenableFuture<?>> tasks = new ArrayList<>(neighbors.size() + 1);
+            for (InetAddress neighbor : neighbors)
+            {
+                AnticompactionTask task = new AnticompactionTask(parentSession, neighbor, successfulRanges);
+                tasks.add(task);
+                task.run(); // 'run' is just sending message
+            }
+            tasks.add(doAntiCompaction(parentSession, successfulRanges));
+            return Futures.successfulAsList(tasks);
     }
 
     public ParentRepairSession getParentRepairSession(UUID parentSessionId)
