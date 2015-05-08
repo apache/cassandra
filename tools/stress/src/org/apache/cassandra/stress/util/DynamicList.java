@@ -153,10 +153,11 @@ public class DynamicList<E>
     public void remove(Node<E> node)
     {
         lock.writeLock().lock();
-        node.value = null;
         try
         {
             assert node.value != null;
+            node.value = null;
+
             size--;
 
             // go up through each level in the skip list, unlinking this node; this entails
