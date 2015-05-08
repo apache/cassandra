@@ -24,6 +24,8 @@ import java.util.UUID;
 import java.util.concurrent.Future;
 
 import com.google.common.base.Predicate;
+import com.google.common.util.concurrent.ListenableFuture;
+import com.google.common.util.concurrent.MoreExecutors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -53,7 +55,7 @@ import org.apache.cassandra.utils.Pair;
 public class RepairMessageVerbHandler implements IVerbHandler<RepairMessage>
 {
     private static final Logger logger = LoggerFactory.getLogger(RepairMessageVerbHandler.class);
-    public void doVerb(MessageIn<RepairMessage> message, int id)
+    public void doVerb(final MessageIn<RepairMessage> message, final int id)
     {
         // TODO add cancel/interrupt message
         RepairJobDesc desc = message.payload.desc;
@@ -112,7 +114,15 @@ public class RepairMessageVerbHandler implements IVerbHandler<RepairMessage>
                 case ANTICOMPACTION_REQUEST:
                     logger.debug("Got anticompaction request");
                     AnticompactionRequest anticompactionRequest = (AnticompactionRequest) message.payload;
-                    ActiveRepairService.instance.doAntiCompaction(anticompactionRequest.parentRepairSession);
+                    ListenableFuture<?> compactionDone = ActiveRepairService.instance.doAntiCompaction(anticompactionRequest.parentRepairSession);
+                    compactionDone.addListener(new Runnable()
+                    {
+                        @Override
+                        public void run()
+                        {
+                            MessagingService.instance().sendReply(new MessageOut(MessagingService.Verb.INTERNAL_RESPONSE), id, message.from);
+                        }
+                    }, MoreExecutors.sameThreadExecutor());
                     break;
 
                 default:

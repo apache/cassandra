@@ -142,6 +142,8 @@ import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.OutputHandler;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.WrappedRunnable;
+
+import com.google.common.util.concurrent.*;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -163,9 +165,6 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Multimap;
 import com.google.common.collect.Sets;
-import com.google.common.util.concurrent.FutureCallback;
-import com.google.common.util.concurrent.Futures;
-import com.google.common.util.concurrent.Uninterruptibles;
 
 /**
  * This abstraction contains the token/identifier of this node
@@ -2949,9 +2948,20 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                 }
                 if (!fullRepair)
                 {
-                    ActiveRepairService.instance.finishParentSession(parentSession, allNeighbors, successful);
+                    ListenableFuture future = ActiveRepairService.instance.finishParentSession(parentSession, allNeighbors, successful);
+                    future.addListener(new Runnable()
+                    {
+                        @Override
+                        public void run()
+                        {
+                            sendNotification("repair", String.format("Repair command #%d finished", cmd), new int[]{cmd, ActiveRepairService.Status.FINISHED.ordinal()});
+                        }
+                    }, MoreExecutors.sameThreadExecutor());
                 }
-                sendNotification("repair", String.format("Repair command #%d finished", cmd), new int[]{cmd, ActiveRepairService.Status.FINISHED.ordinal()});
+                else
+                {
+                    sendNotification("repair", String.format("Repair command #%d finished", cmd), new int[]{cmd, ActiveRepairService.Status.FINISHED.ordinal()});
+                }
             }
         }, null);
     }

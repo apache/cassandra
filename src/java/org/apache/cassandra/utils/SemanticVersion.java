@@ -32,7 +32,7 @@ import com.google.common.base.Objects;
  */
 public class SemanticVersion implements Comparable<SemanticVersion>
 {
-    private static final String VERSION_REGEXP = "(\\d+)\\.(\\d+)\\.(\\d+)(\\-[.\\w]+)?(\\+[.\\w]+)?";
+    private static final String VERSION_REGEXP = "(\\d+)\\.(\\d+)\\.(\\d+)(\\-[.\\w]+)?([.+][.\\w]+)?";
     private static final Pattern pattern = Pattern.compile(VERSION_REGEXP);
 
     public final int major;

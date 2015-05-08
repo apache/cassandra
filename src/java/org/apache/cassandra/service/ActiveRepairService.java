@@ -50,7 +50,6 @@ import org.apache.cassandra.net.MessageIn;
 import org.apache.cassandra.net.MessageOut;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.repair.*;
-import org.apache.cassandra.repair.messages.AnticompactionRequest;
 import org.apache.cassandra.repair.messages.PrepareMessage;
 import org.apache.cassandra.repair.messages.RepairMessage;
 import org.apache.cassandra.repair.messages.SyncComplete;
@@ -330,21 +329,24 @@ public class ActiveRepairService
      * @throws InterruptedException
      * @throws ExecutionException
      */
-    public synchronized void finishParentSession(UUID parentSession, Set<InetAddress> neighbors, boolean doAntiCompaction) throws InterruptedException, ExecutionException
+    public synchronized ListenableFuture<?> finishParentSession(UUID parentSession, Set<InetAddress> neighbors, boolean doAntiCompaction) throws InterruptedException, ExecutionException
     {
         if (doAntiCompaction)
         {
+            List<ListenableFuture<?>> tasks = new ArrayList<>(neighbors.size() + 1);
             for (InetAddress neighbor : neighbors)
             {
-                AnticompactionRequest acr = new AnticompactionRequest(parentSession);
-                MessageOut<RepairMessage> req = acr.createMessage();
-                MessagingService.instance().sendOneWay(req, neighbor);
+                AnticompactionTask task = new AnticompactionTask(parentSession, neighbor);
+                tasks.add(task);
+                task.run(); // 'run' is just sending message
             }
-            doAntiCompaction(parentSession).get();
+            tasks.add(doAntiCompaction(parentSession));
+            return Futures.successfulAsList(tasks);
         }
         else
         {
             removeParentRepairSession(parentSession);
+            return Futures.immediateFuture(null);
         }
     }
 
