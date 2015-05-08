@@ -403,6 +403,8 @@ public class LeveledManifest
                         if (max == null || candidate.last.compareTo(max) > 0)
                             max = candidate.last;
                     }
+                    if (min == null || max == null || min.equals(max)) // single partition sstables - we cannot include a high level sstable.
+                        return candidates;
                     Set<SSTableReader> compacting = cfs.getDataTracker().getCompacting();
                     Range<RowPosition> boundaries = new Range<>(min, max);
                     for (SSTableReader sstable : getLevel(i))
