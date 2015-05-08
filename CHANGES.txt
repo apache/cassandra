@@ -1,4 +1,5 @@
 2.0.16:
+ * Clone SliceQueryFilter in AbstractReadCommand implementations (CASSANDRA-8940)
  * Push correct protocol notification for DROP INDEX (CASSANDRA-9310)
  * token-generator - generated tokens too long (CASSANDRA-9300)
 
