@@ -452,7 +452,7 @@ Function SetCassandraEnvironment
     #$env:JVM_OPTS="$env:JVM_OPTS -Dcom.sun.management.jmxremote.password.file=C:/jmxremote.password"
     $env:JVM_OPTS="$env:JVM_OPTS -Dcassandra.jmx.local.port=$JMX_PORT -XX:+DisableExplicitGC"
 
-    $env:JVM_OPTS="$env:JVM_OPTS $JVM_EXTRA_OPTS"
+    $env:JVM_OPTS="$env:JVM_OPTS $env:JVM_EXTRA_OPTS"
 
     $env:JVM_OPTS = "$env:JVM_OPTS -Dlog4j.configuration=log4j-server.properties"
 
