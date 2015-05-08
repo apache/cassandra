@@ -20,6 +20,7 @@ package org.apache.cassandra.db.marshal;
 import java.nio.ByteBuffer;
 import java.util.*;
 
+import org.apache.cassandra.cql3.CFDefinition;
 import org.apache.cassandra.db.Column;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.SyntaxException;
@@ -115,9 +116,9 @@ public class ListType<T> extends CollectionType<List<T>>
         sb.append(getClass().getName()).append(TypeParser.stringifyTypeParameters(Collections.<AbstractType<?>>singletonList(elements)));
     }
 
-    public ByteBuffer serialize(List<Pair<ByteBuffer, Column>> columns)
+    public ByteBuffer serialize(CFDefinition.Name name, List<Pair<ByteBuffer, Column>> columns)
     {
-        columns = enforceLimit(columns);
+        columns = enforceLimit(name, columns);
 
         List<ByteBuffer> bbs = new ArrayList<ByteBuffer>(columns.size());
         int size = 0;

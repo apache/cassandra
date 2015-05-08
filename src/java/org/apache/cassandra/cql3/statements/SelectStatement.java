@@ -1399,7 +1399,7 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
         if (name.type.isCollection())
         {
             List<Pair<ByteBuffer, Column>> collection = group.getCollection(name.name.key);
-            result.add(collection == null ? null : ((CollectionType)name.type).serialize(collection));
+            result.add(collection == null ? null : ((CollectionType)name.type).serialize(name, collection));
         }
         else
         {

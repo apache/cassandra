@@ -23,6 +23,7 @@ import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.cql3.CFDefinition;
 import org.apache.cassandra.cql3.CQL3Type;
 import org.apache.cassandra.db.Column;
 import org.apache.cassandra.serializers.MarshalException;
@@ -58,7 +59,7 @@ public abstract class CollectionType<T> extends AbstractType<T>
 
     protected abstract void appendToStringBuilder(StringBuilder sb);
 
-    public abstract ByteBuffer serialize(List<Pair<ByteBuffer, Column>> columns);
+    public abstract ByteBuffer serialize(CFDefinition.Name name, List<Pair<ByteBuffer, Column>> columns);
 
     @Override
     public String toString()
@@ -108,13 +109,15 @@ public abstract class CollectionType<T> extends AbstractType<T>
         return (ByteBuffer)result.flip();
     }
 
-    protected List<Pair<ByteBuffer, Column>> enforceLimit(List<Pair<ByteBuffer, Column>> columns)
+    protected List<Pair<ByteBuffer, Column>> enforceLimit(CFDefinition.Name name, List<Pair<ByteBuffer, Column>> columns)
     {
         if (columns.size() <= MAX_ELEMENTS)
             return columns;
 
-        logger.error("Detected collection with {} elements, more than the {} limit. Only the first {} elements will be returned to the client. "
-                   + "Please see http://cassandra.apache.org/doc/cql3/CQL.html#collections for more details.", columns.size(), MAX_ELEMENTS, MAX_ELEMENTS);
+        logger.error("Detected collection for table {}.{} with {} elements, more than the {} limit. Only the first {}"
+                     + "elements will be returned to the client. Please see "
+                     + "http://cassandra.apache.org/doc/cql3/CQL.html#collections for more details.",
+                     name.ksName, name.cfName, columns.size(), MAX_ELEMENTS, MAX_ELEMENTS);
         return columns.subList(0, MAX_ELEMENTS);
     }
 

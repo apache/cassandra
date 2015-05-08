@@ -1,4 +1,6 @@
 2.0.15:
+ * Include keyspace and table name in error log for collections over the size
+   limit (CASSANDRA-9286)
  * Avoid potential overlap in LCS with single-partition sstables (CASSANDRA-9322)
  * Log warning message when a table is queried before the schema has fully
    propagated (CASSANDRA-9136)
