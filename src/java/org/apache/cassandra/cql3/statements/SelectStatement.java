@@ -1301,7 +1301,7 @@ public class SelectStatement implements CQLStatement
             List<Cell> cells = row.getMultiCellColumn(def.name);
             ByteBuffer buffer = cells == null
                              ? null
-                             : ((CollectionType)def.type).serializeForNativeProtocol(cells, options.getProtocolVersion());
+                             : ((CollectionType)def.type).serializeForNativeProtocol(def, cells, options.getProtocolVersion());
             result.add(buffer);
             return;
         }
