@@ -80,7 +80,6 @@
  * Move sstable RandomAccessReader to nio2, which allows using the
    FILE_SHARE_DELETE flag on Windows (CASSANDRA-4050)
  * Remove CQL2 (CASSANDRA-5918)
- * Add Thrift get_multi_slice call (CASSANDRA-6757)
  * Optimize fetching multiple cells by name (CASSANDRA-6933)
  * Allow compilation in java 8 (CASSANDRA-7028)
  * Make incremental repair default (CASSANDRA-7250)
@@ -98,6 +97,7 @@
  * Allow scrub for secondary index (CASSANDRA-5174)
  * Save repair data to system table (CASSANDRA-5839)
  * fix nodetool names that reference column families (CASSANDRA-8872)
+
 
 2.1.6
  * Delete processed sstables in sstablesplit/sstableupgrade (CASSANDRA-8606)
