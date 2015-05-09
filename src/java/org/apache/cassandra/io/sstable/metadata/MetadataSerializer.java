@@ -116,9 +116,10 @@ public class MetadataSerializer implements IMetadataSerializer
         for (MetadataType type : types)
         {
             MetadataComponent component = null;
-            if (toc.containsKey(type))
+            Integer offset = toc.get(type);
+            if (offset != null)
             {
-                in.seek(toc.get(type));
+                in.seek(offset);
                 component = type.serializer.deserialize(descriptor.version, in);
             }
             components.put(type, component);
