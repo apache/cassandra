@@ -108,9 +108,10 @@ public class MetadataSerializer implements IMetadataSerializer
         int numComponents = in.readInt();
         // read toc
         Map<MetadataType, Integer> toc = new HashMap<>(numComponents);
+        MetadataType[] values = MetadataType.values();
         for (int i = 0; i < numComponents; i++)
         {
-            toc.put(MetadataType.values()[in.readInt()], in.readInt());
+            toc.put(values[in.readInt()], in.readInt());
         }
         for (MetadataType type : types)
         {
