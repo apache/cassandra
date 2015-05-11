@@ -177,7 +177,7 @@ public abstract class AbstractCommitLogService
 
     public long getCompletedTasks()
     {
-        return written.incrementAndGet();
+        return written.get();
     }
 
     public long getPendingTasks()
