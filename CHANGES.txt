@@ -102,6 +102,7 @@
 
 
 2.1.6
+ * Fix commitlog getCompletedTasks to not increment (CASSANDRA-9339)
  * Fix for harmless exceptions logged as ERROR (CASSANDRA-8564)
  * Delete processed sstables in sstablesplit/sstableupgrade (CASSANDRA-8606)
  * Improve sstable exclusion from partition tombstones (CASSANDRA-9298)
@@ -188,7 +189,7 @@ Merged from 2.0:
  * Fix top partitions reporting wrong cardinality (CASSANDRA-8834)
  * Fix rare NPE in KeyCacheSerializer (CASSANDRA-8067)
  * Pick sstables for validation as late as possible inc repairs (CASSANDRA-8366)
- * Fix commitlog getPendingTasks to not increment (CASSANDRA-8856)
+ * Fix commitlog getPendingTasks to not increment (CASSANDRA-8862)
  * Fix parallelism adjustment in range and secondary index queries
    when the first fetch does not satisfy the limit (CASSANDRA-8856)
  * Check if the filtered sstables is non-empty in STCS (CASSANDRA-8843)
