@@ -56,7 +56,10 @@ public class LeveledManifest
      * that level into lower level compactions
      */
     private static final int NO_COMPACTION_LIMIT = 25;
-
+    // allocate enough generations for a PB of data, with a 1-MB sstable size.  (Note that if maxSSTableSize is
+    // updated, we will still have sstables of the older, potentially smaller size.  So don't make this
+    // dependent on maxSSTableSize.)
+    public static final int MAX_LEVEL_COUNT = (int) Math.log10(1000 * 1000 * 1000);
     private final ColumnFamilyStore cfs;
     @VisibleForTesting
     protected final List<SSTableReader>[] generations;
@@ -71,18 +74,14 @@ public class LeveledManifest
         this.maxSSTableSizeInBytes = maxSSTableSizeInMB * 1024L * 1024L;
         this.options = options;
 
-        // allocate enough generations for a PB of data, with a 1-MB sstable size.  (Note that if maxSSTableSize is
-        // updated, we will still have sstables of the older, potentially smaller size.  So don't make this
-        // dependent on maxSSTableSize.)
-        int n = (int) Math.log10(1000 * 1000 * 1000);
-        generations = new List[n];
-        lastCompactedKeys = new RowPosition[n];
+        generations = new List[MAX_LEVEL_COUNT];
+        lastCompactedKeys = new RowPosition[MAX_LEVEL_COUNT];
         for (int i = 0; i < generations.length; i++)
         {
             generations[i] = new ArrayList<>();
             lastCompactedKeys[i] = cfs.partitioner.getMinimumToken().minKeyBound();
         }
-        compactionCounter = new int[n];
+        compactionCounter = new int[MAX_LEVEL_COUNT];
     }
 
     public static LeveledManifest create(ColumnFamilyStore cfs, int maxSSTableSize, List<SSTableReader> sstables)
@@ -340,7 +339,7 @@ public class LeveledManifest
                     candidates = getOverlappingStarvedSSTables(nextLevel, candidates);
                     if (logger.isDebugEnabled())
                         logger.debug("Compaction candidates for L{} are {}", i, toString(candidates));
-                    return new CompactionCandidate(candidates, nextLevel, cfs.getCompactionStrategy().getMaxSSTableBytes());
+                    return new CompactionCandidate(candidates, nextLevel, cfs.getCompactionStrategyManager().getMaxSSTableBytes());
                 }
                 else
                 {
@@ -355,7 +354,7 @@ public class LeveledManifest
         Collection<SSTableReader> candidates = getCandidatesFor(0);
         if (candidates.isEmpty())
             return null;
-        return new CompactionCandidate(candidates, getNextLevel(candidates), cfs.getCompactionStrategy().getMaxSSTableBytes());
+        return new CompactionCandidate(candidates, getNextLevel(candidates), cfs.getCompactionStrategyManager().getMaxSSTableBytes());
     }
 
     private List<SSTableReader> getSSTablesForSTCS(Collection<SSTableReader> sstables)

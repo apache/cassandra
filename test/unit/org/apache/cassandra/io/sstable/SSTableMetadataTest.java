@@ -201,7 +201,6 @@ public class SSTableMetadataTest
     {
         Keyspace keyspace = Keyspace.open(KEYSPACE1);
         ColumnFamilyStore store = keyspace.getColumnFamilyStore("Standard3");
-        store.getCompactionStrategy();
         for (int j = 0; j < 8; j++)
         {
             DecoratedKey key = Util.dk("row"+j);

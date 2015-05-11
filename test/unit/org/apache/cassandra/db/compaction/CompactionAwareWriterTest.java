@@ -179,7 +179,7 @@ public class CompactionAwareWriterTest
     {
         assert txn.originals().size() == 1;
         int rowsWritten = 0;
-        try (AbstractCompactionStrategy.ScannerList scanners = cfs.getCompactionStrategy().getScanners(txn.originals()))
+        try (AbstractCompactionStrategy.ScannerList scanners = cfs.getCompactionStrategyManager().getScanners(txn.originals()))
         {
             CompactionController controller = new CompactionController(cfs, txn.originals(), cfs.gcBefore(System.currentTimeMillis()));
             ISSTableScanner scanner = scanners.scanners.get(0);

@@ -145,7 +145,7 @@ public class StandaloneScrubber
             }
 
             // Check (and repair) manifests
-            checkManifest(cfs.getCompactionStrategy(), cfs, sstables);
+            checkManifest(cfs.getCompactionStrategyManager(), cfs, sstables);
             CompactionManager.instance.finishCompactionsAndShutdown(5, TimeUnit.MINUTES);
             SSTableDeletingTask.waitForDeletions();
             System.exit(0); // We need that to stop non daemonized threads
@@ -159,11 +159,10 @@ public class StandaloneScrubber
         }
     }
 
-    private static void checkManifest(AbstractCompactionStrategy strategy, ColumnFamilyStore cfs, Collection<SSTableReader> sstables)
+    private static void checkManifest(CompactionStrategyManager strategyManager, ColumnFamilyStore cfs, Collection<SSTableReader> sstables)
     {
-        WrappingCompactionStrategy wrappingStrategy = (WrappingCompactionStrategy)strategy;
-        int maxSizeInMB = (int)((cfs.getCompactionStrategy().getMaxSSTableBytes()) / (1024L * 1024L));
-        if (wrappingStrategy.getWrappedStrategies().size() == 2 && wrappingStrategy.getWrappedStrategies().get(0) instanceof LeveledCompactionStrategy)
+        int maxSizeInMB = (int)((cfs.getCompactionStrategyManager().getMaxSSTableBytes()) / (1024L * 1024L));
+        if (strategyManager.getStrategies().size() == 2 && strategyManager.getStrategies().get(0) instanceof LeveledCompactionStrategy)
         {
             System.out.println("Checking leveled manifest");
             Predicate<SSTableReader> repairedPredicate = new Predicate<SSTableReader>()

@@ -149,7 +149,7 @@ public class CollationController
             // "hoist up" the requested data into a more recent sstable
             if (sstablesIterated > cfs.getMinimumCompactionThreshold()
                 && !cfs.isAutoCompactionDisabled()
-                && cfs.getCompactionStrategy().shouldDefragment())
+                && cfs.getCompactionStrategyManager().shouldDefragment())
             {
                 // !!WARNING!!   if we stop copying our data to a heap-managed object,
                 //               we will need to track the lifetime of this mutation as well

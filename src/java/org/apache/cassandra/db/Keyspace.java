@@ -304,7 +304,7 @@ public class Keyspace
         if (cfs == null)
             return;
 
-        cfs.getCompactionStrategy().shutdown();
+        cfs.getCompactionStrategyManager().shutdown();
         CompactionManager.instance.interruptCompactionForCFs(cfs.concatWithIndexes(), true);
         // wait for any outstanding reads/writes that might affect the CFS
         cfs.keyspace.writeOrder.awaitNewBarrier();

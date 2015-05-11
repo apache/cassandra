@@ -105,7 +105,7 @@ public class CompactionTask extends AbstractCompactionTask
 
         // Note that the current compaction strategy, is not necessarily the one this task was created under.
         // This should be harmless; see comments to CFS.maybeReloadCompactionStrategy.
-        AbstractCompactionStrategy strategy = cfs.getCompactionStrategy();
+        CompactionStrategyManager strategy = cfs.getCompactionStrategyManager();
 
         if (DatabaseDescriptor.isSnapshotBeforeCompaction())
             cfs.snapshotWithoutFlush(System.currentTimeMillis() + "-compact-" + cfs.name);
@@ -159,6 +159,7 @@ public class CompactionTask extends AbstractCompactionTask
             // See CASSANDRA-8019 and CASSANDRA-8399
             try (AbstractCompactionStrategy.ScannerList scanners = strategy.getScanners(actuallyCompact))
             {
+
                 ci = new CompactionIterable(compactionType, scanners.scanners, controller, sstableFormat, taskId);
                 try (CloseableIterator<AbstractCompactedRow> iter = ci.iterator())
                 {
@@ -166,7 +167,7 @@ public class CompactionTask extends AbstractCompactionTask
                         collector.beginCompaction(ci);
                     long lastCheckObsoletion = start;
 
-                    if (!controller.cfs.getCompactionStrategy().isActive)
+                    if (!controller.cfs.getCompactionStrategyManager().isActive)
                         throw new CompactionInterruptedException(ci.getCompactionInfo());
 
                     try (CompactionAwareWriter writer = getCompactionAwareWriter(cfs, transaction, actuallyCompact))

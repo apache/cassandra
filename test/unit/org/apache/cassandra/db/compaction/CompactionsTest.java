@@ -152,9 +152,9 @@ public class CompactionsTest
     public void testSingleSSTableCompactionWithLeveledCompaction() throws Exception
     {
         ColumnFamilyStore store = testSingleSSTableCompaction(LeveledCompactionStrategy.class.getCanonicalName());
-        WrappingCompactionStrategy strategy = (WrappingCompactionStrategy) store.getCompactionStrategy();
+        CompactionStrategyManager strategyManager = store.getCompactionStrategyManager();
         // tombstone removal compaction should not promote level
-        assert strategy.getSSTableCountPerLevel()[0] == 1;
+        assert strategyManager.getSSTableCountPerLevel()[0] == 1;
     }
 
     @Test
