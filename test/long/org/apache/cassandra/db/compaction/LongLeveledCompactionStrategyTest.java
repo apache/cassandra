@@ -31,6 +31,8 @@ import org.apache.cassandra.db.*;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.utils.FBUtilities;
 
+import static org.junit.Assert.assertTrue;
+
 public class LongLeveledCompactionStrategyTest extends SchemaLoader
 {
     @Test
@@ -42,7 +44,8 @@ public class LongLeveledCompactionStrategyTest extends SchemaLoader
         ColumnFamilyStore store = keyspace.getColumnFamilyStore(cfname);
         store.disableAutoCompaction();
 
-        LeveledCompactionStrategy lcs = (LeveledCompactionStrategy)store.getCompactionStrategy();
+        WrappingCompactionStrategy strategy = ((WrappingCompactionStrategy) store.getCompactionStrategy());
+        LeveledCompactionStrategy lcs = (LeveledCompactionStrategy) strategy.getWrappedStrategies().get(1);
 
         ByteBuffer value = ByteBuffer.wrap(new byte[100 * 1024]); // 100 KB value, make it easy to have multiple files
 
@@ -63,26 +66,30 @@ public class LongLeveledCompactionStrategyTest extends SchemaLoader
             store.forceBlockingFlush();
         }
 
+
         // Execute LCS in parallel
         ExecutorService executor = new ThreadPoolExecutor(4, 4,
                                                           Long.MAX_VALUE, TimeUnit.SECONDS,
                                                           new LinkedBlockingDeque<Runnable>());
+
         List<Runnable> tasks = new ArrayList<Runnable>();
         while (true)
         {
             while (true)
             {
-                final AbstractCompactionTask t = lcs.getMaximalTask(Integer.MIN_VALUE).iterator().next();
-                if (t == null)
+                final AbstractCompactionTask nextTask = lcs.getNextBackgroundTask(Integer.MIN_VALUE);
+                if (nextTask == null)
                     break;
+
                 tasks.add(new Runnable()
                 {
                     public void run()
                     {
-                        t.execute(null);
+                        nextTask.execute(null);
                     }
                 });
             }
+
             if (tasks.isEmpty())
                 break;
 
@@ -94,27 +101,28 @@ public class LongLeveledCompactionStrategyTest extends SchemaLoader
             tasks.clear();
         }
 
+
         // Assert all SSTables are lined up correctly.
         LeveledManifest manifest = lcs.manifest;
         int levels = manifest.getLevelCount();
         for (int level = 0; level < levels; level++)
         {
             List<SSTableReader> sstables = manifest.getLevel(level);
+
             // score check
             assert (double) SSTableReader.getTotalBytes(sstables) / manifest.maxBytesForLevel(level) < 1.00;
-            // overlap check for levels greater than 0
-            if (level > 0)
+
+            for (SSTableReader sstable : sstables)
             {
-               for (SSTableReader sstable : sstables)
-               {
-                   Set<SSTableReader> overlaps = LeveledManifest.overlapping(sstable, sstables);
-                   assert overlaps.size() == 1 && overlaps.contains(sstable);
-               }
+                // level check
+                assert level == sstable.getSSTableLevel();
+
+                if (level > 0)
+                {// overlap check for levels greater than 0
+                    Set<SSTableReader> overlaps = LeveledManifest.overlapping(sstable, sstables);
+                    assert overlaps.size() == 1 && overlaps.contains(sstable);
+                }
             }
-        }
-        for (SSTableReader sstable : store.getSSTables())
-        {
-            assert sstable.getSSTableLevel() == sstable.getSSTableLevel();
         }
     }
 }
