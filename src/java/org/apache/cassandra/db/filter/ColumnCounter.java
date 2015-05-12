@@ -29,7 +29,7 @@ import org.apache.cassandra.db.DeletionInfo;
 public class ColumnCounter
 {
     protected int live;
-    protected int ignored;
+    protected int tombstones;
     protected final long timestamp;
 
     public ColumnCounter(long timestamp)
@@ -39,15 +39,15 @@ public class ColumnCounter
 
     public void count(Cell cell, DeletionInfo.InOrderTester tester)
     {
-        if (!isLive(cell, tester, timestamp))
-            ignored++;
-        else
-            live++;
-    }
+        // The cell is shadowed by a higher-level deletion, and won't be retained.
+        // For the purposes of this counter, we don't care if it's a tombstone or not.
+        if (tester.isDeleted(cell))
+            return;
 
-    protected static boolean isLive(Cell cell, DeletionInfo.InOrderTester tester, long timestamp)
-    {
-        return cell.isLive(timestamp) && !tester.isDeleted(cell);
+        if (cell.isLive(timestamp))
+            live++;
+        else
+            tombstones++;
     }
 
     public int live()
@@ -55,9 +55,9 @@ public class ColumnCounter
         return live;
     }
 
-    public int ignored()
+    public int tombstones()
     {
-        return ignored;
+        return tombstones;
     }
 
     public ColumnCounter countAll(ColumnFamily container)
@@ -98,9 +98,12 @@ public class ColumnCounter
 
         public void count(Cell cell, DeletionInfo.InOrderTester tester)
         {
-            if (!isLive(cell, tester, timestamp))
+            if (tester.isDeleted(cell))
+                return;
+
+            if (!cell.isLive(timestamp))
             {
-                ignored++;
+                tombstones++;
                 return;
             }
 

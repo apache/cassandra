@@ -203,28 +203,35 @@ public class SliceQueryFilter implements IDiskAtomFilter
         while (reducedColumns.hasNext())
         {
             Cell cell = reducedColumns.next();
+
             if (logger.isTraceEnabled())
-                logger.trace(String.format("collecting %s of %s: %s",
-                                           columnCounter.live(), count, cell.getString(container.getComparator())));
+                logger.trace("collecting {} of {}: {}", columnCounter.live(), count, cell.getString(container.getComparator()));
+
+            // An expired tombstone will be immediately discarded in memory, and needn't be counted.
+            if (cell.getLocalDeletionTime() < gcBefore)
+                continue;
 
             columnCounter.count(cell, tester);
 
             if (columnCounter.live() > count)
                 break;
 
-            if (respectTombstoneThresholds() && columnCounter.ignored() > DatabaseDescriptor.getTombstoneFailureThreshold())
+            if (respectTombstoneThresholds() && columnCounter.tombstones() > DatabaseDescriptor.getTombstoneFailureThreshold())
             {
-                Tracing.trace("Scanned over {} tombstones; query aborted (see tombstone_failure_threshold)", DatabaseDescriptor.getTombstoneFailureThreshold());
+                Tracing.trace("Scanned over {} tombstones; query aborted (see tombstone_failure_threshold)",
+                              DatabaseDescriptor.getTombstoneFailureThreshold());
                 logger.error("Scanned over {} tombstones in {}.{}; query aborted (see tombstone_failure_threshold)",
-                             DatabaseDescriptor.getTombstoneFailureThreshold(), container.metadata().ksName, container.metadata().cfName);
+                             DatabaseDescriptor.getTombstoneFailureThreshold(),
+                             container.metadata().ksName,
+                             container.metadata().cfName);
                 throw new TombstoneOverwhelmingException();
             }
 
             container.maybeAppendColumn(cell, tester, gcBefore);
         }
 
-        Tracing.trace("Read {} live and {} tombstoned cells", columnCounter.live(), columnCounter.ignored());
-        if (logger.isWarnEnabled() && respectTombstoneThresholds() && columnCounter.ignored() > DatabaseDescriptor.getTombstoneWarnThreshold())
+        Tracing.trace("Read {} live and {} tombstone cells", columnCounter.live(), columnCounter.tombstones());
+        if (logger.isWarnEnabled() && respectTombstoneThresholds() && columnCounter.tombstones() > DatabaseDescriptor.getTombstoneWarnThreshold())
         {
             StringBuilder sb = new StringBuilder();
             CellNameType type = container.metadata().comparator;
@@ -240,9 +247,9 @@ public class SliceQueryFilter implements IDiskAtomFilter
                 sb.append(']');
             }
 
-            String msg = String.format("Read %d live and %d tombstoned cells in %s.%s for key: %1.512s (see tombstone_warn_threshold). %d columns were requested, slices=%1.512s",
+            String msg = String.format("Read %d live and %d tombstone cells in %s.%s for key: %1.512s (see tombstone_warn_threshold). %d columns were requested, slices=%1.512s",
                                        columnCounter.live(),
-                                       columnCounter.ignored(),
+                                       columnCounter.tombstones(),
                                        container.metadata().ksName,
                                        container.metadata().cfName,
                                        container.metadata().getKeyValidator().getString(key.getKey()),
@@ -324,9 +331,9 @@ public class SliceQueryFilter implements IDiskAtomFilter
         return columnCounter == null ? 0 : Math.min(columnCounter.live(), count);
     }
 
-    public int lastIgnored()
+    public int lastTombstones()
     {
-        return columnCounter == null ? 0 : columnCounter.ignored();
+        return columnCounter == null ? 0 : columnCounter.tombstones();
     }
 
     public int lastLive()
@@ -438,8 +445,7 @@ public class SliceQueryFilter implements IDiskAtomFilter
                 slices[i] = type.sliceSerializer().deserialize(in, version);
             boolean reversed = in.readBoolean();
             int count = in.readInt();
-            int compositesToGroup = -1;
-            compositesToGroup = in.readInt();
+            int compositesToGroup = in.readInt();
 
             return new SliceQueryFilter(slices, reversed, count, compositesToGroup);
         }
@@ -464,7 +470,7 @@ public class SliceQueryFilter implements IDiskAtomFilter
     {
         final DeletionInfo delInfo = source.deletionInfo();
         if (!delInfo.hasRanges() || slices.length == 0)
-            return Iterators.<RangeTombstone>emptyIterator();
+            return Iterators.emptyIterator();
 
         return new AbstractIterator<RangeTombstone>()
         {
