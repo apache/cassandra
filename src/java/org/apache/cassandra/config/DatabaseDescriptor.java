@@ -422,6 +422,8 @@ public class DatabaseDescriptor
                                              "setting of 'unlimited'.  Please see the comments in cassandra.yaml " +
                                              "for rpc_server_type and rpc_max_threads.",
                                              false);
+        if (ThriftServer.HSHA.equals(conf.rpc_server_type) && conf.rpc_max_threads > (FBUtilities.getAvailableProcessors() * 2 + 1024))
+            logger.warn("rpc_max_threads setting of {} may be too high for the hsha server and cause unnecessary thread contention, reducing performance", conf.rpc_max_threads);
 
         /* end point snitch */
         if (conf.endpoint_snitch == null)
