@@ -33,6 +33,9 @@ public class DropIndexStatement extends SchemaAlteringStatement
     public final String indexName;
     public final boolean ifExists;
 
+    // initialized in announceMigration()
+    private String indexedCF;
+
     public DropIndexStatement(String indexName, boolean ifExists)
     {
         super(new CFName());
@@ -40,14 +43,20 @@ public class DropIndexStatement extends SchemaAlteringStatement
         this.ifExists = ifExists;
     }
 
-    // We don't override CFStatement#columnFamily as this'd change the
-    // protocol for returned events when we drop an index. We need it
-    // to return null so that SchemaMigrations remain a keyspace,
-    // rather than table, level event (see SchemaAlteringStatement#execute).
-    public String getColumnFamily() throws InvalidRequestException
+    public String columnFamily()
     {
-        CFMetaData cfm = findIndexedCF();
-        return cfm == null ? null : cfm.cfName;
+        if (indexedCF != null)
+            return indexedCF;
+
+        try
+        {
+            CFMetaData cfm = findIndexedCF();
+            return cfm == null ? null : cfm.cfName;
+        }
+        catch (InvalidRequestException ire)
+        {
+            throw new RuntimeException(ire);
+        }
     }
 
     public void checkAccess(ClientState state) throws UnauthorizedException, InvalidRequestException
@@ -77,6 +86,7 @@ public class DropIndexStatement extends SchemaAlteringStatement
             return false;
 
         CFMetaData updatedCfm = updateCFMetadata(cfm);
+        indexedCF = updatedCfm.cfName;
         MigrationManager.announceColumnFamilyUpdate(updatedCfm, false);
         return true;
     }
