@@ -48,6 +48,22 @@ public class FailureDetector implements IFailureDetector, FailureDetectorMBean
     public static final String MBEAN_NAME = "org.apache.cassandra.net:type=FailureDetector";
     private static final int SAMPLE_SIZE = 1000;
     protected static final long INITIAL_VALUE_NANOS = TimeUnit.NANOSECONDS.convert(getInitialValue(), TimeUnit.MILLISECONDS);
+    private static final long DEFAULT_MAX_PAUSE = 5000L * 1000000L; // 5 seconds
+    private static final long MAX_LOCAL_PAUSE_IN_NANOS = getMaxLocalPause();
+    private long lastInterpret = System.nanoTime();
+    private boolean wasPaused = false;
+
+    private static long getMaxLocalPause()
+    {
+        if (System.getProperty("cassandra.max_local_pause_in_ms") != null)
+        {
+            long pause = Long.parseLong(System.getProperty("cassandra.max_local_pause_in_ms"));
+            logger.warn("Overriding max local pause time to {}ms", pause);
+            return pause * 1000000L;
+        }
+        else
+            return DEFAULT_MAX_PAUSE;
+    }
 
     public static final IFailureDetector instance = new FailureDetector();
 
@@ -228,6 +244,19 @@ public class FailureDetector implements IFailureDetector, FailureDetectorMBean
             return;
         }
         long now = System.nanoTime();
+        long diff = now - lastInterpret;
+        lastInterpret = now;
+        if (diff > MAX_LOCAL_PAUSE_IN_NANOS)
+        {
+            logger.warn("Not marking nodes down due to local pause of {} > {}", diff, MAX_LOCAL_PAUSE_IN_NANOS);
+            wasPaused = true;
+            return;
+        }
+        if (wasPaused)
+        {
+            wasPaused = false;
+            return;
+        }
         double phi = hbWnd.phi(now);
         if (logger.isTraceEnabled())
             logger.trace("PHI for " + ep + " : " + phi);
