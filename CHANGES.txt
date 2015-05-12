@@ -3,7 +3,6 @@
  * Don't start Thrift rpc by default (CASSANDRA-9319)
  * Only stream from unrepaired sstables with incremental repair (CASSANDRA-8267)
  * Aggregate UDFs allow SFUNC return type to differ from STYPE if FFUNC specified (CASSANDRA-9321)
- * Failure detector detects and ignores local pauses (CASSANDRA-9183)
  * Remove Thrift dependencies in bundled tools (CASSANDRA-8358)
  * Disable memory mapping of hsperfdata file for JVM statistics (CASSANDRA-9242)
  * Add pre-startup checks to detect potential incompatibilities (CASSANDRA-8049)
@@ -104,6 +103,7 @@
 
 
 2.1.6
+ * Failure detector detects and ignores local pauses (CASSANDRA-9183)
  * Add utility class to support for rate limiting a given log statement (CASSANDRA-9029)
  * Add missing consistency levels to cassandra-stess (CASSANDRA-9361)
  * Fix commitlog getCompletedTasks to not increment (CASSANDRA-9339)
