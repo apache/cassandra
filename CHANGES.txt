@@ -19,6 +19,7 @@
  * Fix anticompaction blocking ANTI_ENTROPY stage (CASSANDRA-9151)
  * Repair waits for anticompaction to finish (CASSANDRA-9097)
 Merged from 2.0:
+ * Fix ReconnectableSnitch reconnecting to peers during upgrade (CASSANDRA-6702)
  * Include keyspace and table name in error log for collections over the size
    limit (CASSANDRA-9286)
  * Avoid potential overlap in LCS with single-partition sstables (CASSANDRA-9322)
