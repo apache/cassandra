@@ -114,6 +114,8 @@ public class Config
     public String broadcast_address;
     public String internode_authenticator;
 
+    /* intentionally left set to true, despite being set to false in stock 2.2 cassandra.yaml
+       we don't want to surprise Thrift users who have the setting blank in the yaml during 2.1->2.2 upgrade */
     public Boolean start_rpc = true;
     public String rpc_address;
     public String rpc_interface;

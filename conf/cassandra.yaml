@@ -458,7 +458,7 @@ native_transport_port: 9042
 # native_transport_max_concurrent_connections_per_ip: -1
 
 # Whether to start the thrift rpc server.
-start_rpc: true
+start_rpc: false
 
 # The address or interface to bind the Thrift RPC service and native transport
 # server to.
