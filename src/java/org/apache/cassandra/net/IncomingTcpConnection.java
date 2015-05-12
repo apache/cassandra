@@ -131,11 +131,14 @@ public class IncomingTcpConnection extends Thread implements Closeable
     {
         // handshake (true) endpoint versions
         DataOutputStream out = new DataOutputStream(socket.getOutputStream());
+        // if this version is < the MS version the other node is trying
+        // to connect with, the other node will disconnect
         out.writeInt(MessagingService.current_version);
         out.flush();
         DataInput in = new DataInputStream(socket.getInputStream());
         int maxVersion = in.readInt();
-
+        // outbound side will reconnect if necessary to upgrade version
+        assert version <= MessagingService.current_version;
         from = CompactEndpointSerializationHelper.deserialize(in);
         // record the (true) version of the endpoint
         MessagingService.instance().setVersion(from, maxVersion);
@@ -161,15 +164,6 @@ public class IncomingTcpConnection extends Thread implements Closeable
         {
             in = new NIODataInputStream(socket.getChannel(), BUFFER_SIZE);
         }
-
-        if (version > MessagingService.current_version)
-        {
-            // save the endpoint so gossip will reconnect to it
-            Gossiper.instance.addSavedEndpoint(from);
-            logger.info("Received messages from newer protocol version {}. Ignoring", version);
-            return;
-        }
-        // outbound side will reconnect if necessary to upgrade version
 
         while (true)
         {
