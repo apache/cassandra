@@ -1,4 +1,5 @@
 2.1.6
+ * Add utility class to support for rate limiting a given log statement (CASSANDRA-9029)
  * Add missing consistency levels to cassandra-stess (CASSANDRA-9361)
  * Fix commitlog getCompletedTasks to not increment (CASSANDRA-9339)
  * Fix for harmless exceptions logged as ERROR (CASSANDRA-8564)
