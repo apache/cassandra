@@ -23,6 +23,7 @@ import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import com.google.common.collect.Lists;
 import com.google.common.util.concurrent.*;
@@ -91,6 +92,9 @@ public class RepairSession extends AbstractFuture<RepairSessionResult> implement
     public final Set<InetAddress> endpoints;
     private final long repairedAt;
 
+    // number of validations left to be performed
+    private final AtomicInteger validationRemaining;
+
     private final AtomicBoolean isFailed = new AtomicBoolean(false);
 
     // Each validation task waits response from replica in validating ConcurrentMap (keyed by CF name and endpoint address)
@@ -134,6 +138,7 @@ public class RepairSession extends AbstractFuture<RepairSessionResult> implement
         this.range = range;
         this.endpoints = endpoints;
         this.repairedAt = repairedAt;
+        this.validationRemaining = new AtomicInteger(cfnames.length);
     }
 
     public UUID getId()
@@ -176,6 +181,14 @@ public class RepairSession extends AbstractFuture<RepairSessionResult> implement
         logger.info("[repair #{}] {}", getId(), message);
         Tracing.traceRepair(message);
         task.treeReceived(tree);
+
+        // Unregister from FailureDetector once we've completed synchronizing Merkle trees.
+        // After this point, we rely on tcp_keepalive for individual sockets to notify us when a connection is down.
+        // See CASSANDRA-3569
+        if (validationRemaining.decrementAndGet() == 0)
+        {
+            FailureDetector.instance.unregisterFailureDetectionEventListener(this);
+        }
     }
 
     /**
