@@ -178,10 +178,6 @@ public class JavaDriverClient
                 return com.datastax.driver.core.ConsistencyLevel.LOCAL_QUORUM;
             case EACH_QUORUM:
                 return com.datastax.driver.core.ConsistencyLevel.EACH_QUORUM;
-            case SERIAL:
-                return com.datastax.driver.core.ConsistencyLevel.SERIAL;
-            case LOCAL_SERIAL:
-                return com.datastax.driver.core.ConsistencyLevel.LOCAL_SERIAL;
             case LOCAL_ONE:
                 return com.datastax.driver.core.ConsistencyLevel.LOCAL_ONE;
         }
