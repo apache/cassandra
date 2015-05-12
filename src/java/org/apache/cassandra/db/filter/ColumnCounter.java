@@ -31,7 +31,7 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 public class ColumnCounter
 {
     protected int live;
-    protected int ignored;
+    protected int tombstones;
     protected final long timestamp;
 
     public ColumnCounter(long timestamp)
@@ -41,15 +41,15 @@ public class ColumnCounter
 
     public void count(Column column, DeletionInfo.InOrderTester tester)
     {
-        if (!isLive(column, tester, timestamp))
-            ignored++;
-        else
-            live++;
-    }
+        // The cell is shadowed by a higher-level deletion, and won't be retained.
+        // For the purposes of this counter, we don't care if it's a tombstone or not.
+        if (tester.isDeleted(column))
+            return;
 
-    protected static boolean isLive(Column column, DeletionInfo.InOrderTester tester, long timestamp)
-    {
-        return column.isLive(timestamp) && (!tester.isDeleted(column));
+        if (column.isLive(timestamp))
+            live++;
+        else
+            tombstones++;
     }
 
     public int live()
@@ -57,9 +57,9 @@ public class ColumnCounter
         return live;
     }
 
-    public int ignored()
+    public int tombstones()
     {
-        return ignored;
+        return tombstones;
     }
 
     public ColumnCounter countAll(ColumnFamily container)
@@ -101,9 +101,12 @@ public class ColumnCounter
 
         public void count(Column column, DeletionInfo.InOrderTester tester)
         {
-            if (!isLive(column, tester, timestamp))
+            if (tester.isDeleted(column))
+                return;
+
+            if (!column.isLive(timestamp))
             {
-                ignored++;
+                tombstones++;
                 return;
             }
 
@@ -119,11 +122,11 @@ public class ColumnCounter
             if (previous == null)
             {
                 // Only the first group can be static
-                previousGroupIsStatic = type.isStaticName(column.name());
+                previousGroupIsStatic = CompositeType.isStaticName(column.name());
             }
             else
             {
-                boolean isSameGroup = previousGroupIsStatic == type.isStaticName(column.name());
+                boolean isSameGroup = previousGroupIsStatic == CompositeType.isStaticName(column.name());
                 if (isSameGroup)
                 {
                     for (int i = 0; i < toGroup; i++)

@@ -200,7 +200,7 @@ public class SliceQueryFilter implements IDiskAtomFilter
             if (columnCounter.live() > count)
                 break;
 
-            if (respectTombstoneThresholds() && columnCounter.ignored() > DatabaseDescriptor.getTombstoneFailureThreshold())
+            if (respectTombstoneThresholds() && columnCounter.tombstones() > DatabaseDescriptor.getTombstoneFailureThreshold())
             {
                 Tracing.trace("Scanned over {} tombstones; query aborted (see tombstone_failure_threshold)", DatabaseDescriptor.getTombstoneFailureThreshold());
                 logger.error("Scanned over {} tombstones in {}.{}; query aborted (see tombstone_failure_threshold)",
@@ -211,8 +211,8 @@ public class SliceQueryFilter implements IDiskAtomFilter
             container.addIfRelevant(column, tester, gcBefore);
         }
 
-        Tracing.trace("Read {} live and {} tombstoned cells", columnCounter.live(), columnCounter.ignored());
-        if (respectTombstoneThresholds() && columnCounter.ignored() > DatabaseDescriptor.getTombstoneWarnThreshold())
+        Tracing.trace("Read {} live and {} tombstone cells", columnCounter.live(), columnCounter.tombstones());
+        if (respectTombstoneThresholds() && columnCounter.tombstones() > DatabaseDescriptor.getTombstoneWarnThreshold())
         {
             StringBuilder sb = new StringBuilder();
             AbstractType<?> type = container.metadata().comparator;
@@ -228,8 +228,13 @@ public class SliceQueryFilter implements IDiskAtomFilter
                 sb.append(']');
             }
 
-            logger.warn("Read {} live and {} tombstoned cells in {}.{} (see tombstone_warn_threshold). {} columns was requested, slices={}",
-                        columnCounter.live(), columnCounter.ignored(), container.metadata().ksName, container.metadata().cfName, count, sb);
+            logger.warn("Read {} live and {} tombstone cells in {}.{} (see tombstone_warn_threshold). {} columns was requested, slices={}",
+                        columnCounter.live(),
+                        columnCounter.tombstones(),
+                        container.metadata().ksName,
+                        container.metadata().cfName,
+                        count,
+                        sb);
         }
     }
 
@@ -305,9 +310,9 @@ public class SliceQueryFilter implements IDiskAtomFilter
         return columnCounter == null ? 0 : Math.min(columnCounter.live(), count);
     }
 
-    public int lastIgnored()
+    public int lastTombstones()
     {
-        return columnCounter == null ? 0 : columnCounter.ignored();
+        return columnCounter == null ? 0 : columnCounter.tombstones();
     }
 
     public int lastLive()
