@@ -1706,7 +1706,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             if (filter.filter instanceof SliceQueryFilter)
             {
                 // Log the number of tombstones scanned on single key queries
-                metric.tombstoneScannedHistogram.update(((SliceQueryFilter) filter.filter).lastIgnored());
+                metric.tombstoneScannedHistogram.update(((SliceQueryFilter) filter.filter).lastTombstones());
                 metric.liveScannedHistogram.update(((SliceQueryFilter) filter.filter).lastLive());
             }
         }

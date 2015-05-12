@@ -29,7 +29,7 @@ import org.apache.cassandra.db.DeletionInfo;
 public class ColumnCounter
 {
     protected int live;
-    protected int ignored;
+    protected int tombstones;
     protected final long timestamp;
 
     public ColumnCounter(long timestamp)
@@ -37,17 +37,23 @@ public class ColumnCounter
         this.timestamp = timestamp;
     }
 
-    public void count(Cell cell, DeletionInfo.InOrderTester tester)
+    /**
+     * @return true if the cell counted as a live cell or a valid tombstone; false if it got immediately discarded for
+     *         being shadowed by a range- or a partition tombstone
+     */
+    public boolean count(Cell cell, DeletionInfo.InOrderTester tester)
     {
-        if (!isLive(cell, tester, timestamp))
-            ignored++;
-        else
-            live++;
-    }
+        // The cell is shadowed by a higher-level deletion, and won't be retained.
+        // For the purposes of this counter, we don't care if it's a tombstone or not.
+        if (tester.isDeleted(cell))
+            return false;
 
-    protected static boolean isLive(Cell cell, DeletionInfo.InOrderTester tester, long timestamp)
-    {
-        return cell.isLive(timestamp) && !tester.isDeleted(cell);
+        if (cell.isLive(timestamp))
+            live++;
+        else
+            tombstones++;
+
+        return true;
     }
 
     public int live()
@@ -55,9 +61,9 @@ public class ColumnCounter
         return live;
     }
 
-    public int ignored()
+    public int tombstones()
     {
-        return ignored;
+        return tombstones;
     }
 
     public ColumnCounter countAll(ColumnFamily container)
@@ -96,18 +102,22 @@ public class ColumnCounter
             assert toGroup == 0 || type != null;
         }
 
-        public void count(Cell cell, DeletionInfo.InOrderTester tester)
+        @Override
+        public boolean count(Cell cell, DeletionInfo.InOrderTester tester)
         {
-            if (!isLive(cell, tester, timestamp))
+            if (tester.isDeleted(cell))
+                return false;
+
+            if (!cell.isLive(timestamp))
             {
-                ignored++;
-                return;
+                tombstones++;
+                return true;
             }
 
             if (toGroup == 0)
             {
                 live = 1;
-                return;
+                return true;
             }
 
             CellName current = cell.name();
@@ -129,7 +139,7 @@ public class ColumnCounter
                 }
 
                 if (isSameGroup)
-                    return;
+                    return true;
 
                 // We want to count the static group as 1 (CQL) row only if it's the only
                 // group in the partition. So, since we have already counted it at this point,
@@ -137,12 +147,14 @@ public class ColumnCounter
                 if (previous.isStatic())
                 {
                     previous = current;
-                    return;
+                    return true;
                 }
             }
 
             live++;
             previous = current;
+
+            return true;
         }
     }
 }

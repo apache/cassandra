@@ -283,10 +283,16 @@ public class ArrayBackedSortedColumns extends ColumnFamily
     public void maybeAppendColumn(Cell cell, DeletionInfo.InOrderTester tester, int gcBefore)
     {
         if (cell.getLocalDeletionTime() >= gcBefore && !tester.isDeleted(cell))
-        {
-            internalAdd(cell);
-            sortedSize++;
-        }
+            appendColumn(cell);
+    }
+
+    /**
+     * Adds a cell, assuming that it sorts *strictly after* the current-last cell in the array.
+     */
+    public void appendColumn(Cell cell)
+    {
+        internalAdd(cell);
+        sortedSize++;
     }
 
     public void addColumn(Cell cell)

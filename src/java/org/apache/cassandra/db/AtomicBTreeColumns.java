@@ -319,6 +319,11 @@ public class AtomicBTreeColumns extends ColumnFamily
         throw new UnsupportedOperationException();
     }
 
+    public void appendColumn(Cell cell)
+    {
+        throw new UnsupportedOperationException();
+    }
+
     public void addAll(ColumnFamily cf)
     {
         throw new UnsupportedOperationException();

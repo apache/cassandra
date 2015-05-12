@@ -205,6 +205,11 @@ public abstract class ColumnFamily implements Iterable<Cell>, IRowCacheEntry
     public abstract void maybeAppendColumn(Cell cell, DeletionInfo.InOrderTester tester, int gcBefore);
 
     /**
+     * Appends a cell. Requires that the cell to add is sorted strictly after the last cell in the container.
+     */
+    public abstract void appendColumn(Cell cell);
+
+    /**
      * Adds all the columns of a given column map to this column map.
      * This is equivalent to:
      *   <code>
