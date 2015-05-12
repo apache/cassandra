@@ -954,8 +954,8 @@ Table of Contents
                      the exception.
                 <received> is an [int] representing the number of nodes having
                            acknowledged the request.
-                <blockfor> is the number of replica whose acknowledgement is
-                           required to achieve <cl>.
+                <blockfor> is an [int] representing the number of replica whose
+                           acknowledgement is required to achieve <cl>.
                 <writeType> is a [string] that describe the type of the write
                             that timeouted. The value of that string can be one
                             of:
@@ -980,9 +980,9 @@ Table of Contents
                      the exception.
                 <received> is an [int] representing the number of nodes having
                            answered the request.
-                <blockfor> is the number of replica whose response is
-                           required to achieve <cl>. Please note that it is
-                           possible to have <received> >= <blockfor> if
+                <blockfor> is an [int] representing the number of replica whose
+                           response is required to achieve <cl>. Please note that
+                           it is possible to have <received> >= <blockfor> if
                            <data_present> is false. And also in the (unlikely)
                            case were <cl> is achieved but the coordinator node
                            timeout while waiting for read-repair
