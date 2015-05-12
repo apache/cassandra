@@ -37,7 +37,7 @@
  * Avoid memory allocation when searching index summary (CASSANDRA-8793)
  * Optimise (Time)?UUIDType Comparisons (CASSANDRA-8730)
  * Make CRC32Ex into a separate maven dependency (CASSANDRA-8836)
- * Use preloaded jemalloc w/ Unsafe (CASSANDRA-8714)
+ * Use preloaded jemalloc w/ Unsafe (CASSANDRA-8714, 9197)
  * Avoid accessing partitioner through StorageProxy (CASSANDRA-8244, 8268)
  * Upgrade Metrics library and remove depricated metrics (CASSANDRA-5657)
  * Serializing Row cache alternative, fully off heap (CASSANDRA-7438)

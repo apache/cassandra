@@ -170,22 +170,10 @@ fi
 #
 find_library()
 {
-    lname=$1
-    shift
-    lext=$1
-    shift
-    while [ ! -z $1 ] ; do
-        path=$1
-        shift
-        for dir in $(echo $path | tr ":" " ") ; do
-            if [ -d $dir ] ; then
-                if [ -f $dir/$lname$lext ] ; then
-                    echo $dir/$lname$lext
-                    return
-                fi
-            fi
-        done
-    done
+    pattern=$1
+    path=$(echo ${2} | tr ":" " ")
+
+    find $path -regex "$pattern" -print 2>/dev/null | head -n 1
 }
 case "`uname -s`" in
     Linux)
@@ -193,15 +181,13 @@ case "`uname -s`" in
             which ldconfig > /dev/null 2>&1
             if [ $? = 0 ] ; then
                 # e.g. for CentOS
-                dirs=`ldconfig -v 2>/dev/null | grep -v ^$'\t' | sed 's/^\([^:]*\):.*$/\1/'`
+                dirs="/lib64 /lib /usr/lib64 /usr/lib `ldconfig -v 2>/dev/null | grep -v ^$'\t' | sed 's/^\([^:]*\):.*$/\1/'`"
             else
                 # e.g. for Debian, OpenSUSE
                 dirs="/lib64 /lib /usr/lib64 /usr/lib `cat /etc/ld.so.conf /etc/ld.so.conf.d/*.conf | grep '^/'`"
             fi
-            CASSANDRA_LIBJEMALLOC=$(find_library libjemalloc .so $dirs)
-        fi
-        if [ -z $CASSANDRA_LIBJEMALLOC ] ; then
-            CASSANDRA_LIBJEMALLOC=$(find_library libjemalloc .so.1 $dirs)
+            dirs=`echo $dirs | tr " " ":"`
+            CASSANDRA_LIBJEMALLOC=$(find_library '.*/libjemalloc\.so\(\.1\)*' $dirs)
         fi
         if [ ! -z $CASSANDRA_LIBJEMALLOC ] ; then
             if [ "-" != "$CASSANDRA_LIBJEMALLOC" ] ; then
@@ -211,7 +197,7 @@ case "`uname -s`" in
     ;;
     Darwin)
         if [ -z $CASSANDRA_LIBJEMALLOC ] ; then
-            CASSANDRA_LIBJEMALLOC=$(find_library libjemalloc .dylib $DYLD_LIBRARY_PATH ${DYLD_FALLBACK_LIBRARY_PATH-$HOME/lib:/usr/local/lib:/lib:/usr/lib})
+            CASSANDRA_LIBJEMALLOC=$(find_library '.*/libjemalloc\.dylib' $DYLD_LIBRARY_PATH:${DYLD_FALLBACK_LIBRARY_PATH-$HOME/lib:/usr/local/lib:/lib:/usr/lib})
         fi
         if [ ! -z $CASSANDRA_LIBJEMALLOC ] ; then
             if [ "-" != "$CASSANDRA_LIBJEMALLOC" ] ; then
