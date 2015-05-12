@@ -22,18 +22,13 @@ import java.nio.ByteBuffer;
 import java.util.Collection;
 import java.util.Collections;
 
-import org.junit.AfterClass;
-import org.junit.Before;
-import org.junit.BeforeClass;
-import org.junit.Test;
+import org.junit.*;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.UntypedResultSet;
-import org.apache.cassandra.db.ArrayBackedSortedColumns;
-import org.apache.cassandra.db.BufferCell;
-import org.apache.cassandra.db.ColumnFamily;
+import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.exceptions.ConfigurationException;
@@ -42,11 +37,10 @@ import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.thrift.*;
 import org.apache.thrift.protocol.TBinaryProtocol;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
-
 import static org.apache.cassandra.utils.ByteBufferUtil.bytes;
 import static org.apache.cassandra.utils.ByteBufferUtil.toInt;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 public class TriggersTest
 {
@@ -61,12 +55,12 @@ public class TriggersTest
     public static void beforeTest() throws ConfigurationException
     {
         SchemaLoader.loadSchema();
+        StorageService.instance.initServer(0);
     }
 
     @Before
     public void setup() throws Exception
     {
-        StorageService.instance.initServer(0);
         if (thriftServer == null || ! thriftServer.isRunning())
         {
             thriftServer = new ThriftServer(InetAddress.getLocalHost(), 9170, 50);
@@ -283,6 +277,29 @@ public class TriggersTest
         }
     }
 
+    @Test(expected=RuntimeException.class)
+    public void ifTriggerThrowsErrorNoMutationsAreApplied() throws Exception
+    {
+        String cf = "cf" + System.nanoTime();
+        try
+        {
+            setupTableWithTrigger(cf, ErrorTrigger.class);
+            String cql = String.format("INSERT INTO %s.%s (k, v1) VALUES (11, 11)", ksName, cf);
+            QueryProcessor.process(cql, ConsistencyLevel.ONE);
+        }
+        catch (Exception e)
+        {
+            Throwable cause = e.getCause();
+            assertTrue((cause instanceof org.apache.cassandra.exceptions.InvalidRequestException));
+            assertTrue(cause.getMessage().equals(ErrorTrigger.MESSAGE));
+            throw e;
+        }
+        finally
+        {
+            assertUpdateNotExecuted(cf, 11);
+        }
+    }
+
     private void setupTableWithTrigger(String cf, Class<? extends ITrigger> triggerImpl)
     throws RequestExecutionException
     {
@@ -350,4 +367,14 @@ public class TriggersTest
             return Collections.singletonList(new Mutation(ksName, key, extraUpdate));
         }
     }
+
+    public static class ErrorTrigger implements ITrigger
+    {
+        public static final String MESSAGE = "Thrown by ErrorTrigger";
+        public Collection<Mutation> augment(ByteBuffer partitionKey, ColumnFamily update)
+        {
+            throw new org.apache.cassandra.exceptions.InvalidRequestException(MESSAGE);
+        }
+    }
+
 }
