@@ -674,6 +674,11 @@ public class DatabaseDescriptor
         return conf.roles_validity_in_ms;
     }
 
+    public static void setRolesValidity(int validity)
+    {
+        conf.roles_validity_in_ms = validity;
+    }
+
     public static int getRolesCacheMaxEntries()
     {
         return conf.roles_cache_max_entries;
@@ -684,6 +689,11 @@ public class DatabaseDescriptor
         return conf.roles_update_interval_in_ms == -1
              ? conf.roles_validity_in_ms
              : conf.roles_update_interval_in_ms;
+    }
+
+    public static void setRolesUpdateInterval(int interval)
+    {
+        conf.roles_update_interval_in_ms = interval;
     }
 
     public static void setPermissionsUpdateInterval(int updateInterval)

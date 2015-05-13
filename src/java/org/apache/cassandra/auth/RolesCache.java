@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.auth;
 
+import java.lang.management.ManagementFactory;
 import java.util.Set;
 import java.util.concurrent.*;
 
@@ -31,19 +32,32 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.concurrent.DebuggableThreadPoolExecutor;
 import org.apache.cassandra.config.DatabaseDescriptor;
 
-public class RolesCache
+import javax.management.MBeanServer;
+import javax.management.ObjectName;
+
+public class RolesCache implements RolesCacheMBean
 {
     private static final Logger logger = LoggerFactory.getLogger(RolesCache.class);
 
+    private final String MBEAN_NAME = "org.apache.cassandra.auth:type=RolesCache";
     private final ThreadPoolExecutor cacheRefreshExecutor = new DebuggableThreadPoolExecutor("RolesCacheRefresh",
                                                                                              Thread.NORM_PRIORITY);
     private final IRoleManager roleManager;
-    private final LoadingCache<RoleResource, Set<RoleResource>> cache;
+    private volatile LoadingCache<RoleResource, Set<RoleResource>> cache;
 
-    public RolesCache(int validityPeriod, int updateInterval, int maxEntries, IRoleManager roleManager)
+    public RolesCache(IRoleManager roleManager)
     {
         this.roleManager = roleManager;
-        this.cache = initCache(validityPeriod, updateInterval, maxEntries);
+        this.cache = initCache(null);
+        try
+        {
+            MBeanServer mbs = ManagementFactory.getPlatformMBeanServer();
+            mbs.registerMBean(this, new ObjectName(MBEAN_NAME));
+        }
+        catch (Exception e)
+        {
+            throw new RuntimeException(e);
+        }
     }
 
     public Set<RoleResource> getRoles(RoleResource role)
@@ -61,49 +75,77 @@ public class RolesCache
         }
     }
 
-    private LoadingCache<RoleResource, Set<RoleResource>> initCache(int validityPeriod,
-                                                                    int updateInterval,
-                                                                    int maxEntries)
+    public void invalidate()
+    {
+        cache = initCache(null);
+    }
+
+    public void setValidity(int validityPeriod)
+    {
+        DatabaseDescriptor.setRolesValidity(validityPeriod);
+        cache = initCache(cache);
+    }
+
+    public int getValidity()
+    {
+        return DatabaseDescriptor.getRolesValidity();
+    }
+
+    public void setUpdateInterval(int updateInterval)
+    {
+        DatabaseDescriptor.setRolesUpdateInterval(updateInterval);
+        cache = initCache(cache);
+    }
+
+    public int getUpdateInterval()
+    {
+        return DatabaseDescriptor.getRolesUpdateInterval();
+    }
+
+
+    private LoadingCache<RoleResource, Set<RoleResource>> initCache(LoadingCache<RoleResource, Set<RoleResource>> existing)
     {
         if (DatabaseDescriptor.getAuthenticator() instanceof AllowAllAuthenticator)
             return null;
 
-        if (validityPeriod <= 0)
+        if (DatabaseDescriptor.getRolesValidity() <= 0)
             return null;
 
-        return CacheBuilder.newBuilder()
-                           .refreshAfterWrite(updateInterval, TimeUnit.MILLISECONDS)
-                           .expireAfterWrite(validityPeriod, TimeUnit.MILLISECONDS)
-                           .maximumSize(maxEntries)
-                           .build(new CacheLoader<RoleResource, Set<RoleResource>>()
-                           {
-                               public Set<RoleResource> load(RoleResource primaryRole)
-                               {
-                                   return roleManager.getRoles(primaryRole, true);
-                               }
+        LoadingCache<RoleResource, Set<RoleResource>> newcache = CacheBuilder.newBuilder()
+                .refreshAfterWrite(DatabaseDescriptor.getRolesUpdateInterval(), TimeUnit.MILLISECONDS)
+                .expireAfterWrite(DatabaseDescriptor.getRolesValidity(), TimeUnit.MILLISECONDS)
+                .maximumSize(DatabaseDescriptor.getRolesCacheMaxEntries())
+                .build(new CacheLoader<RoleResource, Set<RoleResource>>()
+                {
+                    public Set<RoleResource> load(RoleResource primaryRole)
+                    {
+                        return roleManager.getRoles(primaryRole, true);
+                    }
 
-                               public ListenableFuture<Set<RoleResource>> reload(final RoleResource primaryRole,
-                                                                                 final Set<RoleResource> oldValue)
-                               {
-                                   ListenableFutureTask<Set<RoleResource>> task;
-                                   task = ListenableFutureTask.create(new Callable<Set<RoleResource>>()
-                                   {
-                                       public Set<RoleResource> call() throws Exception
-                                       {
-                                           try
-                                           {
-                                               return roleManager.getRoles(primaryRole, true);
-                                           }
-                                           catch (Exception e)
-                                           {
-                                               logger.debug("Error performing async refresh of user roles", e);
-                                               throw e;
-                                           }
-                                       }
-                                   });
-                                   cacheRefreshExecutor.execute(task);
-                                   return task;
-                               }
-                           });
+                    public ListenableFuture<Set<RoleResource>> reload(final RoleResource primaryRole,
+                                                                      final Set<RoleResource> oldValue)
+                    {
+                        ListenableFutureTask<Set<RoleResource>> task;
+                        task = ListenableFutureTask.create(new Callable<Set<RoleResource>>()
+                        {
+                            public Set<RoleResource> call() throws Exception
+                            {
+                                try
+                                {
+                                    return roleManager.getRoles(primaryRole, true);
+                                } catch (Exception e)
+                                {
+                                    logger.debug("Error performing async refresh of user roles", e);
+                                    throw e;
+                                }
+                            }
+                        });
+                        cacheRefreshExecutor.execute(task);
+                        return task;
+                    }
+                });
+        if (existing != null)
+            newcache.putAll(existing.asMap());
+        return newcache;
     }
 }

@@ -1,4 +1,5 @@
 3.0
+ * Allow roles cache to be invalidated (CASSANDRA-8967)
  * Upgrade Snappy (CASSANDRA-9063)
  * Don't start Thrift rpc by default (CASSANDRA-9319)
  * Only stream from unrepaired sstables with incremental repair (CASSANDRA-8267)

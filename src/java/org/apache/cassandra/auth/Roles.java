@@ -23,10 +23,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 
 public class Roles
 {
-    private static final RolesCache cache = new RolesCache(DatabaseDescriptor.getRolesValidity(),
-                                                           DatabaseDescriptor.getRolesUpdateInterval(),
-                                                           DatabaseDescriptor.getRolesCacheMaxEntries(),
-                                                           DatabaseDescriptor.getRoleManager());
+    private static final RolesCache cache = new RolesCache(DatabaseDescriptor.getRoleManager());
 
     /**
      * Get all roles granted to the supplied Role, including both directly granted
