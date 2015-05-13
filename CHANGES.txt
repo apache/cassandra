@@ -21,6 +21,7 @@
  * Use higher timeout for prepair and snapshot in repair (CASSANDRA-9261)
  * Fix anticompaction blocking ANTI_ENTROPY stage (CASSANDRA-9151)
  * Repair waits for anticompaction to finish (CASSANDRA-9097)
+ * Fix streaming not holding ref when stream error (CASSANDRA-9295)
 Merged from 2.0:
  * Fix counting of tombstones for TombstoneOverwhelmingException (CASSANDRA-9299)
  * Fix ReconnectableSnitch reconnecting to peers during upgrade (CASSANDRA-6702)

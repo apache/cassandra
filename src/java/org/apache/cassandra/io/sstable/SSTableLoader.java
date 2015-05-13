@@ -129,7 +129,7 @@ public class SSTableLoader implements StreamEventHandler
                         Ref ref = sstable.tryRef();
                         if (ref == null)
                             throw new IllegalStateException("Could not acquire ref for "+sstable);
-                        StreamSession.SSTableStreamingSections details = new StreamSession.SSTableStreamingSections(sstable, ref, sstableSections, estimatedKeys, ActiveRepairService.UNREPAIRED_SSTABLE);
+                        StreamSession.SSTableStreamingSections details = new StreamSession.SSTableStreamingSections(ref, sstableSections, estimatedKeys, ActiveRepairService.UNREPAIRED_SSTABLE);
                         streamingDetails.put(endpoint, details);
                     }
 

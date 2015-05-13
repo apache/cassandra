@@ -23,7 +23,6 @@ import java.util.List;
 
 import org.apache.cassandra.io.compress.CompressionMetadata;
 import org.apache.cassandra.io.sstable.SSTableReader;
-import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.io.util.DataOutputStreamAndChannel;
 import org.apache.cassandra.streaming.StreamSession;
 import org.apache.cassandra.streaming.StreamWriter;
@@ -47,29 +46,23 @@ public class OutgoingFileMessage extends StreamMessage
 
         public void serialize(OutgoingFileMessage message, DataOutputStreamAndChannel out, int version, StreamSession session) throws IOException
         {
-            FileMessageHeader.serializer.serialize(message.header, out, version);
-
-            final SSTableReader reader = message.sstable;
-            StreamWriter writer = message.header.compressionInfo == null ?
-                    new StreamWriter(reader, message.header.sections, session) :
-                    new CompressedStreamWriter(reader,
-                            message.header.sections,
-                            message.header.compressionInfo, session);
-            writer.write(out.getChannel());
+            message.serialize(out, version, session);
             session.fileSent(message.header);
         }
     };
 
     public final FileMessageHeader header;
-    public final SSTableReader sstable;
-    public final Ref<SSTableReader> ref;
+    private final Ref<SSTableReader> ref;
+    private final String filename;
+    private boolean completed = false;
 
-    public OutgoingFileMessage(SSTableReader sstable, Ref ref, int sequenceNumber, long estimatedKeys, List<Pair<Long, Long>> sections, long repairedAt)
+    public OutgoingFileMessage(Ref<SSTableReader> ref, int sequenceNumber, long estimatedKeys, List<Pair<Long, Long>> sections, long repairedAt)
     {
         super(Type.FILE);
-        this.sstable = sstable;
         this.ref = ref;
 
+        SSTableReader sstable = ref.get();
+        filename = sstable.getFilename();
         CompressionInfo compressionInfo = null;
         if (sstable.compression)
         {
@@ -85,10 +78,36 @@ public class OutgoingFileMessage extends StreamMessage
                                             repairedAt);
     }
 
+    public synchronized void serialize(DataOutputStreamAndChannel out, int version, StreamSession session) throws IOException
+    {
+        if (completed)
+        {
+            return;
+        }
+
+        FileMessageHeader.serializer.serialize(header, out, version);
+
+        final SSTableReader reader = ref.get();
+        StreamWriter writer = header.compressionInfo == null ?
+                                      new StreamWriter(reader, header.sections, session) :
+                                      new CompressedStreamWriter(reader, header.sections,
+                                                                 header.compressionInfo, session);
+        writer.write(out.getChannel());
+    }
+
+    public synchronized void complete()
+    {
+        if (!completed)
+        {
+            completed = true;
+            ref.release();
+        }
+    }
+
     @Override
     public String toString()
     {
-        return "File (" + header + ", file: " + sstable.getFilename() + ")";
+        return "File (" + header + ", file: " + filename + ")";
     }
 }
 

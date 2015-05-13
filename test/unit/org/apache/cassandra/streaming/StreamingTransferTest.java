@@ -212,7 +212,7 @@ public class StreamingTransferTest extends SchemaLoader
         ArrayList<StreamSession.SSTableStreamingSections> details = new ArrayList<>();
         for (SSTableReader sstable : sstables)
         {
-            details.add(new StreamSession.SSTableStreamingSections(sstable, sstables.get(sstable),
+            details.add(new StreamSession.SSTableStreamingSections(sstables.get(sstable),
                                                                    sstable.getPositionsForRanges(ranges),
                                                                    sstable.estimatedKeysForRanges(ranges), sstable.getSSTableMetadata().repairedAt));
         }

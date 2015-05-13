@@ -59,7 +59,7 @@ public final class Refs<T extends RefCounted<T>> extends AbstractCollection<T> i
      * @param referenced the object we have a Ref to
      * @return the Ref to said object
      */
-    public Ref get(T referenced)
+    public Ref<T> get(T referenced)
     {
         return references.get(referenced);
     }
