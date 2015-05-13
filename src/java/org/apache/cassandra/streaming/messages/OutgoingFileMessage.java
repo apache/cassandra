@@ -45,29 +45,23 @@ public class OutgoingFileMessage extends StreamMessage
 
         public void serialize(OutgoingFileMessage message, DataOutputStreamPlus out, int version, StreamSession session) throws IOException
         {
-            FileMessageHeader.serializer.serialize(message.header, out, version);
-
-            final SSTableReader reader = message.sstable;
-            StreamWriter writer = message.header.compressionInfo == null ?
-                    new StreamWriter(reader, message.header.sections, session) :
-                    new CompressedStreamWriter(reader,
-                            message.header.sections,
-                            message.header.compressionInfo, session);
-            writer.write(out);
+            message.serialize(out, version, session);
             session.fileSent(message.header);
         }
     };
 
     public final FileMessageHeader header;
-    public final SSTableReader sstable;
-    public final Ref<SSTableReader> ref;
+    private final Ref<SSTableReader> ref;
+    private final String filename;
+    private boolean completed = false;
 
-    public OutgoingFileMessage(SSTableReader sstable, Ref ref, int sequenceNumber, long estimatedKeys, List<Pair<Long, Long>> sections, long repairedAt, boolean keepSSTableLevel)
+    public OutgoingFileMessage(Ref<SSTableReader> ref, int sequenceNumber, long estimatedKeys, List<Pair<Long, Long>> sections, long repairedAt, boolean keepSSTableLevel)
     {
         super(Type.FILE);
-        this.sstable = sstable;
         this.ref = ref;
 
+        SSTableReader sstable = ref.get();
+        filename = sstable.getFilename();
         CompressionInfo compressionInfo = null;
         if (sstable.compression)
         {
@@ -85,10 +79,36 @@ public class OutgoingFileMessage extends StreamMessage
                                             keepSSTableLevel ? sstable.getSSTableLevel() : 0);
     }
 
+    public synchronized void serialize(DataOutputStreamPlus out, int version, StreamSession session) throws IOException
+    {
+        if (completed)
+        {
+            return;
+        }
+
+        FileMessageHeader.serializer.serialize(header, out, version);
+
+        final SSTableReader reader = ref.get();
+        StreamWriter writer = header.compressionInfo == null ?
+                                      new StreamWriter(reader, header.sections, session) :
+                                      new CompressedStreamWriter(reader, header.sections,
+                                                                 header.compressionInfo, session);
+        writer.write(out);
+    }
+
+    public synchronized void complete()
+    {
+        if (!completed)
+        {
+            completed = true;
+            ref.release();
+        }
+    }
+
     @Override
     public String toString()
     {
-        return "File (" + header + ", file: " + sstable.getFilename() + ")";
+        return "File (" + header + ", file: " + filename + ")";
     }
 }
 
