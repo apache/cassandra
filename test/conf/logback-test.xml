@@ -17,7 +17,9 @@
  under the License.
 -->
 
-<configuration>
+<configuration debug="false">
+  <shutdownHook class="ch.qos.logback.core.hook.DelayingShutdownHook"/>
+
   <appender name="FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
     <file>./build/test/logs/system.log</file>
     <rollingPolicy class="ch.qos.logback.core.rolling.FixedWindowRollingPolicy">
@@ -31,9 +33,17 @@
     </triggeringPolicy>
     <encoder>
       <pattern>%-5level [%thread] %date{ISO8601} %msg%n</pattern>
+      <immediateFlush>false</immediateFlush>
     </encoder>
   </appender>
   
+  <appender name="ASYNCFILE" class="ch.qos.logback.classic.AsyncAppender">
+      <discardingThreshold>0</discardingThreshold>
+      <maxFlushTime>0</maxFlushTime>
+      <queueSize>1024</queueSize>
+      <appender-ref ref="FILE"/>
+  </appender>
+
     <appender name="STDERR" target="System.err" class="ch.qos.logback.core.ConsoleAppender">
     <encoder>
       <pattern>%-5level %date{HH:mm:ss,SSS} %msg%n</pattern>
@@ -53,7 +63,7 @@
   </appender>
         
   <root level="DEBUG">
-    <appender-ref ref="FILE" />
+    <appender-ref ref="ASYNCFILE" />
     <appender-ref ref="STDERR" />
     <appender-ref ref="STDOUT" />
   </root>
