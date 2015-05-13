@@ -843,6 +843,93 @@ public class JsonTest extends CQLTester
     }
 
     @Test
+    public void testInsertJsonSyntaxWithNonNativeMapKeys() throws Throwable
+    {
+        // JSON doesn't allow non-string keys, so we accept string representations of any type as map keys and
+        // return maps with string keys when necessary.
+
+        String typeName = createType("CREATE TYPE %s (a int)");
+        createTable("CREATE TABLE %s (" +
+                "k int PRIMARY KEY, " +
+                "intmap map<int, boolean>, " +
+                "bigintmap map<bigint, boolean>, " +
+                "varintmap map<varint, boolean>, " +
+                "booleanmap map<boolean, boolean>, " +
+                "floatmap map<float, boolean>, " +
+                "doublemap map<double, boolean>, " +
+                "decimalmap map<decimal, boolean>, " +
+                "tuplemap map<frozen<tuple<int, text>>, boolean>, " +
+                "udtmap map<frozen<" + typeName + ">, boolean>, " +
+                "setmap map<frozen<set<int>>, boolean>, " +
+                "listmap map<frozen<list<int>>, boolean>, " +
+                "textsetmap map<frozen<set<text>>, boolean>, " +
+                "nestedsetmap map<frozen<map<set<text>, text>>, boolean>, " +
+                "frozensetmap frozen<map<set<int>, boolean>>)");
+
+        // int keys
+        execute("INSERT INTO %s JSON ?", "{\"k\": 0, \"intmap\": {\"0\": true, \"1\": false}}");
+        assertRows(execute("SELECT JSON k, intmap FROM %s"), row("{\"k\": 0, \"intmap\": {\"0\": true, \"1\": false}}"));
+
+        // bigint keys
+        execute("INSERT INTO %s JSON ?", "{\"k\": 0, \"bigintmap\": {\"0\": true, \"1\": false}}");
+        assertRows(execute("SELECT JSON k, bigintmap FROM %s"), row("{\"k\": 0, \"bigintmap\": {\"0\": true, \"1\": false}}"));
+
+        // varint keys
+        execute("INSERT INTO %s JSON ?", "{\"k\": 0, \"varintmap\": {\"0\": true, \"1\": false}}");
+        assertRows(execute("SELECT JSON k, varintmap FROM %s"), row("{\"k\": 0, \"varintmap\": {\"0\": true, \"1\": false}}"));
+
+        // boolean keys
+        execute("INSERT INTO %s JSON ?", "{\"k\": 0, \"booleanmap\": {\"true\": true, \"false\": false}}");
+        assertRows(execute("SELECT JSON k, booleanmap FROM %s"), row("{\"k\": 0, \"booleanmap\": {\"false\": false, \"true\": true}}"));
+
+        // float keys
+        execute("INSERT INTO %s JSON ?", "{\"k\": 0, \"floatmap\": {\"1.23\": true, \"4.56\": false}}");
+        assertRows(execute("SELECT JSON k, floatmap FROM %s"), row("{\"k\": 0, \"floatmap\": {\"1.23\": true, \"4.56\": false}}"));
+
+        // double keys
+        execute("INSERT INTO %s JSON ?", "{\"k\": 0, \"doublemap\": {\"1.23\": true, \"4.56\": false}}");
+        assertRows(execute("SELECT JSON k, doublemap FROM %s"), row("{\"k\": 0, \"doublemap\": {\"1.23\": true, \"4.56\": false}}"));
+
+        // decimal keys
+        execute("INSERT INTO %s JSON ?", "{\"k\": 0, \"decimalmap\": {\"1.23\": true, \"4.56\": false}}");
+        assertRows(execute("SELECT JSON k, decimalmap FROM %s"), row("{\"k\": 0, \"decimalmap\": {\"1.23\": true, \"4.56\": false}}"));
+
+        // tuple<int, text> keys
+        execute("INSERT INTO %s JSON ?", "{\"k\": 0, \"tuplemap\": {\"[0, \\\"a\\\"]\": true, \"[1, \\\"b\\\"]\": false}}");
+        assertRows(execute("SELECT JSON k, tuplemap FROM %s"), row("{\"k\": 0, \"tuplemap\": {\"[0, \\\"a\\\"]\": true, \"[1, \\\"b\\\"]\": false}}"));
+
+        // UDT keys
+        execute("INSERT INTO %s JSON ?", "{\"k\": 0, \"udtmap\": {\"{\\\"a\\\": 0}\": true, \"{\\\"a\\\": 1}\": false}}");
+        assertRows(execute("SELECT JSON k, udtmap FROM %s"), row("{\"k\": 0, \"udtmap\": {\"{\\\"a\\\": 0}\": true, \"{\\\"a\\\": 1}\": false}}"));
+
+        // set<int> keys
+        execute("INSERT INTO %s JSON ?", "{\"k\": 0, \"setmap\": {\"[0, 1, 2]\": true, \"[3, 4, 5]\": false}}");
+        assertRows(execute("SELECT JSON k, setmap FROM %s"), row("{\"k\": 0, \"setmap\": {\"[0, 1, 2]\": true, \"[3, 4, 5]\": false}}"));
+
+        // list<int> keys
+        execute("INSERT INTO %s JSON ?", "{\"k\": 0, \"listmap\": {\"[0, 1, 2]\": true, \"[3, 4, 5]\": false}}");
+        assertRows(execute("SELECT JSON k, listmap FROM %s"), row("{\"k\": 0, \"listmap\": {\"[0, 1, 2]\": true, \"[3, 4, 5]\": false}}"));
+
+        // set<text> keys
+        execute("INSERT INTO %s JSON ?", "{\"k\": 0, \"textsetmap\": {\"[\\\"0\\\", \\\"1\\\"]\": true, \"[\\\"3\\\", \\\"4\\\"]\": false}}");
+        assertRows(execute("SELECT JSON k, textsetmap FROM %s"), row("{\"k\": 0, \"textsetmap\": {\"[\\\"0\\\", \\\"1\\\"]\": true, \"[\\\"3\\\", \\\"4\\\"]\": false}}"));
+
+        // map<set<text>, text> keys
+        String innerKey1 = "[\"0\", \"1\"]";
+        String fullKey1 = String.format("{\"%s\": \"%s\"}", new String(Json.JSON_STRING_ENCODER.quoteAsString(innerKey1)), "a");
+        String stringKey1 = new String(Json.JSON_STRING_ENCODER.quoteAsString(fullKey1));
+        String innerKey2 = "[\"3\", \"4\"]";
+        String fullKey2 = String.format("{\"%s\": \"%s\"}", new String(Json.JSON_STRING_ENCODER.quoteAsString(innerKey2)), "b");
+        String stringKey2 = new String(Json.JSON_STRING_ENCODER.quoteAsString(fullKey2));
+        execute("INSERT INTO %s JSON ?", "{\"k\": 0, \"nestedsetmap\": {\"" + stringKey1 + "\": true, \"" + stringKey2 + "\": false}}");
+        assertRows(execute("SELECT JSON k, nestedsetmap FROM %s"), row("{\"k\": 0, \"nestedsetmap\": {\"" + stringKey1 + "\": true, \"" + stringKey2 + "\": false}}"));
+
+        // set<int> keys in a frozen map
+        execute("INSERT INTO %s JSON ?", "{\"k\": 0, \"frozensetmap\": {\"[0, 1, 2]\": true, \"[3, 4, 5]\": false}}");
+        assertRows(execute("SELECT JSON k, frozensetmap FROM %s"), row("{\"k\": 0, \"frozensetmap\": {\"[0, 1, 2]\": true, \"[3, 4, 5]\": false}}"));
+    }
+
+    @Test
     public void testInsertJsonSyntaxWithTuplesAndUDTs() throws Throwable
     {
         String typeName = createType("CREATE TYPE %s (a int, b frozen<set<int>>, c tuple<int, int>)");

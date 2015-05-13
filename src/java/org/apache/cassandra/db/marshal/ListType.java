@@ -20,6 +20,7 @@ package org.apache.cassandra.db.marshal;
 import java.nio.ByteBuffer;
 import java.util.*;
 
+import org.apache.cassandra.cql3.Json;
 import org.apache.cassandra.cql3.Lists;
 import org.apache.cassandra.cql3.Term;
 import org.apache.cassandra.db.Cell;
@@ -180,6 +181,9 @@ public class ListType<T> extends CollectionType<List<T>>
     @Override
     public Term fromJSONObject(Object parsed) throws MarshalException
     {
+        if (parsed instanceof String)
+            parsed = Json.decodeJson((String) parsed);
+
         if (!(parsed instanceof List))
             throw new MarshalException(String.format(
                     "Expected a list, but got a %s: %s", parsed.getClass().getSimpleName(), parsed));

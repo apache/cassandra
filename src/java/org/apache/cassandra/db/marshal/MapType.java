@@ -20,6 +20,7 @@ package org.apache.cassandra.db.marshal;
 import java.nio.ByteBuffer;
 import java.util.*;
 
+import org.apache.cassandra.cql3.Json;
 import org.apache.cassandra.cql3.Maps;
 import org.apache.cassandra.cql3.Term;
 import org.apache.cassandra.db.Cell;
@@ -200,6 +201,9 @@ public class MapType<K, V> extends CollectionType<Map<K, V>>
     @Override
     public Term fromJSONObject(Object parsed) throws MarshalException
     {
+        if (parsed instanceof String)
+            parsed = Json.decodeJson((String) parsed);
+
         if (!(parsed instanceof Map))
             throw new MarshalException(String.format(
                     "Expected a map, but got a %s: %s", parsed.getClass().getSimpleName(), parsed));
@@ -229,7 +233,13 @@ public class MapType<K, V> extends CollectionType<Map<K, V>>
             if (i > 0)
                 sb.append(", ");
 
-            sb.append(keys.toJSONString(CollectionSerializer.readValue(buffer, protocolVersion), protocolVersion));
+            // map keys must be JSON strings, so convert non-string keys to strings
+            String key = keys.toJSONString(CollectionSerializer.readValue(buffer, protocolVersion), protocolVersion);
+            if (key.startsWith("\""))
+                sb.append(key);
+            else
+                sb.append('"').append(Json.JSON_STRING_ENCODER.quoteAsString(key)).append('"');
+
             sb.append(": ");
             sb.append(values.toJSONString(CollectionSerializer.readValue(buffer, protocolVersion), protocolVersion));
         }

@@ -25,10 +25,7 @@ import java.util.List;
 
 import com.google.common.base.Objects;
 
-import org.apache.cassandra.cql3.CQL3Type;
-import org.apache.cassandra.cql3.Constants;
-import org.apache.cassandra.cql3.Term;
-import org.apache.cassandra.cql3.Tuples;
+import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.SyntaxException;
 import org.apache.cassandra.serializers.*;
@@ -233,6 +230,9 @@ public class TupleType extends AbstractType<ByteBuffer>
     @Override
     public Term fromJSONObject(Object parsed) throws MarshalException
     {
+        if (parsed instanceof String)
+            parsed = Json.decodeJson((String) parsed);
+
         if (!(parsed instanceof List))
             throw new MarshalException(String.format(
                     "Expected a list representation of a tuple, but got a %s: %s", parsed.getClass().getSimpleName(), parsed));

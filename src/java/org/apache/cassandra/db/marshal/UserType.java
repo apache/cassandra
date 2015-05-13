@@ -145,6 +145,9 @@ public class UserType extends TupleType
     @Override
     public Term fromJSONObject(Object parsed) throws MarshalException
     {
+        if (parsed instanceof String)
+            parsed = Json.decodeJson((String) parsed);
+
         if (!(parsed instanceof Map))
             throw new MarshalException(String.format(
                     "Expected a map, but got a %s: %s", parsed.getClass().getSimpleName(), parsed));

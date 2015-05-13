@@ -39,6 +39,18 @@ public class Json
 
     public static final ColumnIdentifier JSON_COLUMN_ID = new ColumnIdentifier("[json]", true);
 
+    public static Object decodeJson(String json)
+    {
+        try
+        {
+            return JSON_OBJECT_MAPPER.readValue(json, Object.class);
+        }
+        catch (IOException exc)
+        {
+            throw new MarshalException("Error decoding JSON string: " + exc.getMessage());
+        }
+    }
+
     public interface Raw
     {
         public Prepared prepareAndCollectMarkers(CFMetaData metadata, Collection<ColumnDefinition> receivers, VariableSpecifications boundNames);
