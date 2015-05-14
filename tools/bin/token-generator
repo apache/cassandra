@@ -30,24 +30,38 @@ from tempfile import NamedTemporaryFile
 
 description = '''Given a list of numbers indicating the number of nodes
 in each separate datacenter, outputs a recommended list of tokens to use
-with RandomPartitioner: one for each node in each datacenter.
+with Murmur3Partitioner (by default) or with RandomPartitioner.
+The list contains one token for each node in each datacenter.
 '''
 
 usage = "%prog <nodes_in_dc1> [<nodes_in_dc2> [...]]"
 
 parser = optparse.OptionParser(description=description, usage=usage)
+
+def part_murmur3(option, opt, value, parser):
+    parser.values.ringoffset=-(1<<63)
+    parser.values.ringrange=(1<<64)
+    return
+def part_random(option, opt, value, parser):
+    parser.values.ringoffset=0
+    parser.values.ringrange=(1<<127)
+    return
+parser.add_option('--murmur3', action='callback', callback=part_murmur3,
+                  help='Generate tokens for Murmur3Partitioner (default).')
+parser.add_option('--random', action='callback', callback=part_random,
+                  help='Generate tokens for RandomPartitioner.')
+parser.add_option('--ringoffset', type='int',
+                  help=optparse.SUPPRESS_HELP)
 parser.add_option('--ringrange', type='int',
-                  help='Specify a numeric maximum token value for your ring, '
-                       'different from the default value of 2^127.')
+                  help=optparse.SUPPRESS_HELP)
+
 parser.add_option('--graph', action='store_true',
                   help='Show a rendering of the generated tokens as line '
                        'segments in a circle, colored according to datacenter')
 parser.add_option('-n', '--nts', action='store_const', dest='strat', const='nts',
-                  help='Optimize multi-cluster distribution for '
-                       'NetworkTopologyStrategy [default]')
+                  help=optparse.SUPPRESS_HELP)
 parser.add_option('-o', '--onts', action='store_const', dest='strat', const='onts',
-                  help='Optimize multi-cluster distribution for '
-                       'OldNetworkTopologyStrategy')
+                  help=optparse.SUPPRESS_HELP)
 
 parser.add_option('--test', action='store_true',
                   help='Run in test mode, outputting an HTML file to display '
@@ -58,8 +72,11 @@ parser.add_option('--browser-wait-time', type='float', help=optparse.SUPPRESS_HE
 parser.add_option('--test-colors', help=optparse.SUPPRESS_HELP)
 parser.add_option('--test-graphsize', type='int', help=optparse.SUPPRESS_HELP)
 
+
 parser.set_defaults(
-    ringrange=(1<<127),
+    # default is Murmur3
+    ringoffset=-(1<<63),
+    ringrange=(1<<64),
 
     # whether to create (and try to display) graph output
     graph=False,
@@ -94,7 +111,8 @@ class Ring:
     MIN_DC_OFFSET_DIVIDER = 235
     offset_spacer = 2
 
-    def __init__(self, dc_counts, ringrange, strategy='nts'):
+    def __init__(self, dc_counts, ringoffset, ringrange, strategy='nts'):
+        self.ringoffset = ringoffset
         self.ringrange = ringrange
         self.dc_counts = dc_counts
         self.calculate_offset_tokens = getattr(self, 'calc_offset_tokens_' + strategy)
@@ -110,13 +128,18 @@ class Ring:
         division = max(lowest_division, self.MIN_DC_OFFSET_DIVIDER)
         return -self.ringrange // division
 
+    def bound_token(self, tok):
+        if tok < self.ringoffset:
+            tok += self.ringrange
+        return tok
+
     def calc_offset_tokens_nts(self):
         dc_offset = self.best_per_dc_offset()
         dcs = []
         for (dcnum, dccount) in enumerate(self.dc_counts):
             offset = dcnum * dc_offset
             arcsize = self.ringrange // (dccount or 1)
-            dcs.append([(n * arcsize + offset) % self.ringrange for n in xrange(dccount)])
+            dcs.append(sorted([self.bound_token((n * arcsize + offset) - self.ringoffset % self.ringrange) for n in xrange(dccount)]))
         return dcs
 
     def calc_offset_tokens_onts(self):
@@ -127,7 +150,7 @@ class Ring:
 
         final = [[] for x in dcs_by_count]
         for pos, dc in enumerate(layout):
-            final[dc].append(pos * self.ringrange // len(layout))
+            final[dc].append(self.ringoffset + pos * self.ringrange // len(layout))
         return final
 
 
@@ -139,8 +162,8 @@ def print_tokens(tokens, tokenwidth, indent=0):
         for tnum, tok in enumerate(toklist):
             print "%s  Node #%0*d: % *d" % (indentstr, nwidth, tnum + 1, tokenwidth, tok)
 
-def calculate_ideal_tokens(datacenters, ringrange, strategy):
-    return Ring(datacenters, ringrange, strategy).calculate_offset_tokens()
+def calculate_ideal_tokens(datacenters, ringoffset, ringrange, strategy):
+    return Ring(datacenters, ringoffset, ringrange, strategy).calculate_offset_tokens()
 
 def file_to_url(path):
     path = os.path.abspath(path)
@@ -248,7 +271,7 @@ def run_tests(opts):
     tokensets = []
     for test in tests:
         print "Test %r" % (test,)
-        tokens = calculate_ideal_tokens(test, opts.ringrange, opts.strat)
+        tokens = calculate_ideal_tokens(test, opts.ringoffset, opts.ringrange, opts.strat)
         print_tokens(tokens, len(str(opts.ringrange)) + 1, indent=2)
         tokensets.append(tokens)
     return tokensets
@@ -315,7 +338,7 @@ def main(opts, args):
             parser.error('Arguments should be integers.')
         renderer = RingRenderer(ringrange=opts.ringrange, graphsize=opts.graphsize,
                                 colors=opts.colorlist)
-        tokens = calculate_ideal_tokens(datacenters, opts.ringrange, opts.strat)
+        tokens = calculate_ideal_tokens(datacenters, opts.ringoffset, opts.ringrange, opts.strat)
         print_tokens(tokens, len(str(opts.ringrange)) + 1)
         tokensets = [tokens]
 

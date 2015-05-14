@@ -1,3 +1,6 @@
+2.0.16:
+ * token-generator - generated tokens too long (CASSANDRA-9300)
+
 2.0.15:
  * Fix counting of tombstones for TombstoneOverwhelmingException (CASSANDRA-9299)
  * Fix ReconnectableSnitch reconnecting to peers during upgrade (CASSANDRA-6702)
