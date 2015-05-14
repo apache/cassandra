@@ -112,7 +112,8 @@ public class Frame
             // The order of that enum matters!!
             COMPRESSED,
             TRACING,
-            CUSTOM_PAYLOAD;
+            CUSTOM_PAYLOAD,
+            WARNING;
 
             private static final Flag[] ALL_VALUES = values();
 

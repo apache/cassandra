@@ -38,6 +38,7 @@ import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.io.util.FileDataInput;
+import org.apache.cassandra.service.ClientWarn;
 import org.apache.cassandra.tracing.Tracing;
 
 public class SliceQueryFilter implements IDiskAtomFilter
@@ -241,6 +242,7 @@ public class SliceQueryFilter implements IDiskAtomFilter
                                        container.metadata().getKeyValidator().getString(key.getKey()),
                                        count,
                                        getSlicesInfo(container));
+            ClientWarn.warn(msg);
             logger.warn(msg);
         }
         Tracing.trace("Read {} live and {} tombstone cells{}",
