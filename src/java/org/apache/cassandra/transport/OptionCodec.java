@@ -30,7 +30,7 @@ public class OptionCodec<T extends Enum<T> & OptionCodec.Codecable<T>>
 {
     public interface Codecable<T extends Enum<T>>
     {
-        public int getId();
+        public int getId(int version);
 
         public Object readValue(ByteBuf cb, int version);
         public void writeValue(Object value, ByteBuf cb, int version);
@@ -48,13 +48,13 @@ public class OptionCodec<T extends Enum<T> & OptionCodec.Codecable<T>>
         T[] values = klass.getEnumConstants();
         int maxId = -1;
         for (T opt : values)
-            maxId = Math.max(maxId, opt.getId());
+            maxId = Math.max(maxId, opt.getId(Server.CURRENT_VERSION));
         ids = (T[])Array.newInstance(klass, maxId + 1);
         for (T opt : values)
         {
-            if (ids[opt.getId()] != null)
-                throw new IllegalStateException(String.format("Duplicate option id %d", opt.getId()));
-            ids[opt.getId()] = opt;
+            if (ids[opt.getId(Server.CURRENT_VERSION)] != null)
+                throw new IllegalStateException(String.format("Duplicate option id %d", opt.getId(Server.CURRENT_VERSION)));
+            ids[opt.getId(Server.CURRENT_VERSION)] = opt;
         }
     }
 
@@ -91,7 +91,7 @@ public class OptionCodec<T extends Enum<T> & OptionCodec.Codecable<T>>
         for (Map.Entry<T, Object> entry : options.entrySet())
         {
             T opt = entry.getKey();
-            cb.writeShort(opt.getId());
+            cb.writeShort(opt.getId(version));
             opt.writeValue(entry.getValue(), cb, version);
         }
         return cb;
@@ -108,7 +108,7 @@ public class OptionCodec<T extends Enum<T> & OptionCodec.Codecable<T>>
     {
         T opt = option.left;
         Object obj = option.right;
-        dest.writeShort(opt.getId());
+        dest.writeShort(opt.getId(version));
         opt.writeValue(obj, dest, version);
     }
 

@@ -39,6 +39,7 @@ public class SimpleDateType extends AbstractType<Integer>
         return ByteBufferUtil.compareUnsigned(o1, o2);
     }
 
+    @Override
     public boolean isByteOrderComparable()
     {
         return true;
@@ -61,7 +62,6 @@ public class SimpleDateType extends AbstractType<Integer>
         return this == otherType || otherType == IntegerType.instance;
     }
 
-    @Override
     public Term fromJSONObject(Object parsed) throws MarshalException
     {
         try

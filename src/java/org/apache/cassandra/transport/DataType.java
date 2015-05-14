@@ -24,6 +24,8 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.List;
 
+import com.google.common.annotations.VisibleForTesting;
+
 import io.netty.buffer.ByteBuf;
 
 import org.apache.cassandra.exceptions.RequestValidationException;
@@ -32,35 +34,36 @@ import org.apache.cassandra.utils.Pair;
 
 public enum DataType implements OptionCodec.Codecable<DataType>
 {
-    CUSTOM   (0,  null),
-    ASCII    (1,  AsciiType.instance),
-    BIGINT   (2,  LongType.instance),
-    BLOB     (3,  BytesType.instance),
-    BOOLEAN  (4,  BooleanType.instance),
-    COUNTER  (5,  CounterColumnType.instance),
-    DECIMAL  (6,  DecimalType.instance),
-    DOUBLE   (7,  DoubleType.instance),
-    FLOAT    (8,  FloatType.instance),
-    INT      (9,  Int32Type.instance),
-    TEXT     (10, UTF8Type.instance),
-    TIMESTAMP(11, TimestampType.instance),
-    UUID     (12, UUIDType.instance),
-    VARCHAR  (13, UTF8Type.instance),
-    VARINT   (14, IntegerType.instance),
-    TIMEUUID (15, TimeUUIDType.instance),
-    INET     (16, InetAddressType.instance),
-    DATE     (17, DateType.instance),
-    TIME     (18, TimeType.instance),
-    LIST     (32, null),
-    MAP      (33, null),
-    SET      (34, null),
-    UDT      (48, null),
-    TUPLE    (49, null);
+    CUSTOM   (0,  null, 1),
+    ASCII    (1,  AsciiType.instance, 1),
+    BIGINT   (2,  LongType.instance, 1),
+    BLOB     (3,  BytesType.instance, 1),
+    BOOLEAN  (4,  BooleanType.instance, 1),
+    COUNTER  (5,  CounterColumnType.instance, 1),
+    DECIMAL  (6,  DecimalType.instance, 1),
+    DOUBLE   (7,  DoubleType.instance, 1),
+    FLOAT    (8,  FloatType.instance, 1),
+    INT      (9,  Int32Type.instance, 1),
+    TEXT     (10, UTF8Type.instance, 1),
+    TIMESTAMP(11, TimestampType.instance, 1),
+    UUID     (12, UUIDType.instance, 1),
+    VARCHAR  (13, UTF8Type.instance, 1),
+    VARINT   (14, IntegerType.instance, 1),
+    TIMEUUID (15, TimeUUIDType.instance, 1),
+    INET     (16, InetAddressType.instance, 1),
+    DATE     (17, SimpleDateType.instance, 4),
+    TIME     (18, TimeType.instance, 4),
+    LIST     (32, null, 1),
+    MAP      (33, null, 1),
+    SET      (34, null, 1),
+    UDT      (48, null, 3),
+    TUPLE    (49, null, 3);
 
 
     public static final OptionCodec<DataType> codec = new OptionCodec<DataType>(DataType.class);
 
     private final int id;
+    private final int protocolVersion;
     private final AbstractType type;
     private static final Map<AbstractType, DataType> dataTypeMap = new HashMap<AbstractType, DataType>();
     static
@@ -72,14 +75,17 @@ public enum DataType implements OptionCodec.Codecable<DataType>
         }
     }
 
-    private DataType(int id, AbstractType type)
+    DataType(int id, AbstractType type, int protocolVersion)
     {
         this.id = id;
         this.type = type;
+        this.protocolVersion = protocolVersion;
     }
 
-    public int getId()
+    public int getId(int version)
     {
+        if (version < protocolVersion)
+            return DataType.CUSTOM.getId(version);
         return id;
     }
 
@@ -123,6 +129,13 @@ public enum DataType implements OptionCodec.Codecable<DataType>
 
     public void writeValue(Object value, ByteBuf cb, int version)
     {
+        // Serialize as CUSTOM if client on the other side's version is < required for type
+        if (version < protocolVersion)
+        {
+            CBUtil.writeString(value.toString(), cb);
+            return;
+        }
+
         switch (this)
         {
             case CUSTOM:
@@ -162,6 +175,10 @@ public enum DataType implements OptionCodec.Codecable<DataType>
 
     public int serializedValueSize(Object value, int version)
     {
+        // Serialize as CUSTOM if client on the other side's version is < required for type
+        if (version < protocolVersion)
+            return CBUtil.sizeOfString(value.toString());
+
         switch (this)
         {
             case CUSTOM:
@@ -230,16 +247,19 @@ public enum DataType implements OptionCodec.Codecable<DataType>
                 throw new AssertionError();
             }
 
-            if (type instanceof UserType && version >= 3)
+            if (type instanceof UserType && version >= UDT.protocolVersion)
                 return Pair.<DataType, Object>create(UDT, type);
 
-            if (type instanceof TupleType && version >= 3)
+            if (type instanceof TupleType && version >= TUPLE.protocolVersion)
                 return Pair.<DataType, Object>create(TUPLE, type);
 
             return Pair.<DataType, Object>create(CUSTOM, type.toString());
         }
         else
         {
+            // Fall back to CUSTOM if target doesn't know this data type
+            if (version < dt.protocolVersion)
+                return Pair.<DataType, Object>create(CUSTOM, type.toString());
             return Pair.create(dt, null);
         }
     }
@@ -271,5 +291,11 @@ public enum DataType implements OptionCodec.Codecable<DataType>
         {
             throw new ProtocolException(e.getMessage());
         }
+    }
+
+    @VisibleForTesting
+    public int getProtocolVersion()
+    {
+        return protocolVersion;
     }
 }

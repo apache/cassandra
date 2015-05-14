@@ -45,6 +45,7 @@ public class TimeType extends AbstractType<Long>
         return decompose(TimeSerializer.timeStringToLong(source));
     }
 
+    @Override
     public boolean isByteOrderComparable()
     {
         return true;
@@ -62,7 +63,6 @@ public class TimeType extends AbstractType<Long>
         return this == otherType || otherType == LongType.instance;
     }
 
-    @Override
     public Term fromJSONObject(Object parsed) throws MarshalException
     {
         try
@@ -82,6 +82,7 @@ public class TimeType extends AbstractType<Long>
         return '"' + TimeSerializer.instance.toString(TimeSerializer.instance.deserialize(buffer)) + '"';
     }
 
+    @Override
     public CQL3Type asCQL3Type()
     {
         return CQL3Type.Native.TIME;
