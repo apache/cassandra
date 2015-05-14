@@ -30,13 +30,6 @@ public interface Function
     public AbstractType<?> returnType();
 
     /**
-     * Checks whether the function is a pure function (as in doesn't depend on, nor produce side effects) or not.
-     *
-     * @return <code>true</code> if the function is a pure function, <code>false</code> otherwise.
-     */
-    public boolean isPure();
-
-    /**
      * Checks whether the function is a native/hard coded one or not.
      *
      * @return <code>true</code> if the function is a native/hard coded one, <code>false</code> otherwise.

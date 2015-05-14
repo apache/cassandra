@@ -52,8 +52,7 @@ public final class JavaSourceUDFFactory
                                List<ColumnIdentifier> argNames,
                                List<AbstractType<?>> argTypes,
                                AbstractType<?> returnType,
-                               String body,
-                               boolean deterministic)
+                               String body)
     throws InvalidRequestException
     {
         // argDataTypes is just the C* internal argTypes converted to the Java Driver DataType
@@ -99,11 +98,11 @@ public final class JavaSourceUDFFactory
                 cc.toClass().getDeclaredConstructor(
                    FunctionName.class, List.class, List.class, DataType[].class,
                    AbstractType.class, DataType.class,
-                   String.class, boolean.class);
+                   String.class);
             return (UDFunction) ctor.newInstance(
                    name, argNames, argTypes, argDataTypes,
                    returnType, returnDataType,
-                   body, deterministic);
+                   body);
         }
         catch (NotFoundException | CannotCompileException | NoSuchMethodException | LinkageError | InstantiationException | IllegalAccessException e)
         {
@@ -145,9 +144,8 @@ public final class JavaSourceUDFFactory
                "com.datastax.driver.core.DataType[] argDataTypes, " +
                "org.apache.cassandra.db.marshal.AbstractType returnType, " +
                "com.datastax.driver.core.DataType returnDataType, " +
-               "String body," +
-               "boolean deterministic)\n{" +
-               "  super(name, argNames, argTypes, argDataTypes, returnType, returnDataType, \"java\", body, deterministic);\n" +
+               "String body)\n{" +
+               "  super(name, argNames, argTypes, argDataTypes, returnType, returnDataType, \"java\", body);\n" +
                "}";
     }
 

@@ -160,7 +160,6 @@ public class LegacySchemaTables
                 + "argument_names list<text>,"
                 + "argument_types list<text>,"
                 + "body text,"
-                + "is_deterministic boolean,"
                 + "language text,"
                 + "return_type text,"
                 + "PRIMARY KEY ((keyspace_name), function_name, signature))");
@@ -1284,7 +1283,6 @@ public class LegacySchemaTables
         }
 
         adder.add("body", function.body());
-        adder.add("is_deterministic", function.isDeterministic());
         adder.add("language", function.language());
         adder.add("return_type", function.returnType().toString());
     }
@@ -1333,13 +1331,12 @@ public class LegacySchemaTables
 
         AbstractType<?> returnType = parseType(row.getString("return_type"));
 
-        boolean isDeterministic = row.getBoolean("is_deterministic");
         String language = row.getString("language");
         String body = row.getString("body");
 
         try
         {
-            return UDFunction.create(name, argNames, argTypes, returnType, language, body, isDeterministic);
+            return UDFunction.create(name, argNames, argTypes, returnType, language, body);
         }
         catch (InvalidRequestException e)
         {

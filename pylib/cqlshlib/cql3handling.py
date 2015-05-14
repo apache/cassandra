@@ -1023,7 +1023,6 @@ syntax_rules += r'''
 
 <createFunctionStatement> ::= "CREATE" ("OR" "REPLACE")? "FUNCTION"
                             ("IF" "NOT" "EXISTS")?
-                            ("NON"? "DETERMINISTIC")?
                             <userFunctionName>
                             ( "(" ( newcol=<cident> <storageType>
                               ( "," [newcolname]=<cident> <storageType> )* )?

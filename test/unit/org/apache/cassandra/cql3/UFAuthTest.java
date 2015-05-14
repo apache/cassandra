@@ -78,9 +78,9 @@ public class UFAuthTest extends CQLTester
     }
 
     @Test
-    public void nonDeterministicFunctionInSelection() throws Throwable
+    public void functionInSelection() throws Throwable
     {
-        String functionName = createSimpleFunction(false);
+        String functionName = createSimpleFunction();
         String cql = String.format("SELECT k, %s FROM %s WHERE k = 1;",
                                    functionCall(functionName),
                                    KEYSPACE + "." + currentTable());
@@ -88,19 +88,9 @@ public class UFAuthTest extends CQLTester
     }
 
     @Test
-    public void deterministicFunctionInSelection() throws Throwable
+    public void functionInSelectPKRestriction() throws Throwable
     {
-        String functionName = createSimpleFunction(true);
-        String cql = String.format("SELECT k, %s FROM %s WHERE k = 1;",
-                                   functionCall(functionName),
-                                   KEYSPACE + "." + currentTable());
-        assertPermissionsOnFunction(cql, functionName);
-    }
-
-    @Test
-    public void nonDeterministicFunctionInSelectPKRestriction() throws Throwable
-    {
-        String functionName = createSimpleFunction(false);
+        String functionName = createSimpleFunction();
         String cql = String.format("SELECT * FROM %s WHERE k = %s",
                                    KEYSPACE + "." + currentTable(),
                                    functionCall(functionName));
@@ -108,19 +98,9 @@ public class UFAuthTest extends CQLTester
     }
 
     @Test
-    public void deterministicFunctionInSelectPKRestriction() throws Throwable
+    public void functionInSelectClusteringRestriction() throws Throwable
     {
-        String functionName = createSimpleFunction(true);
-        String cql = String.format("SELECT * FROM %s WHERE k = %s",
-                                   KEYSPACE + "." + currentTable(),
-                                   functionCall(functionName));
-        assertPermissionsOnFunction(cql, functionName);
-    }
-
-    @Test
-    public void nonDeterministicFunctionInSelectClusteringRestriction() throws Throwable
-    {
-        String functionName = createSimpleFunction(false);
+        String functionName = createSimpleFunction();
         String cql = String.format("SELECT * FROM %s WHERE k = 0 AND v1 = %s",
                                    KEYSPACE + "." + currentTable(),
                                    functionCall(functionName));
@@ -128,19 +108,9 @@ public class UFAuthTest extends CQLTester
     }
 
     @Test
-    public void deterministicFunctionInSelectClusteringRestriction() throws Throwable
+    public void functionInSelectInRestriction() throws Throwable
     {
-        String functionName = createSimpleFunction(true);
-        String cql = String.format("SELECT * FROM %s WHERE k = 0 AND v1 = %s",
-                                   KEYSPACE + "." + currentTable(),
-                                   functionCall(functionName));
-        assertPermissionsOnFunction(cql, functionName);
-    }
-
-    @Test
-    public void nonDeterministicFunctionInSelectInRestriction() throws Throwable
-    {
-        String functionName = createSimpleFunction(false);
+        String functionName = createSimpleFunction();
         String cql = String.format("SELECT * FROM %s WHERE k IN (%s, %s)",
                                    KEYSPACE + "." + currentTable(),
                                    functionCall(functionName),
@@ -149,21 +119,10 @@ public class UFAuthTest extends CQLTester
     }
 
     @Test
-    public void deterministicFunctionInSelectInRestriction() throws Throwable
-    {
-        String functionName = createSimpleFunction(true);
-        String cql = String.format("SELECT * FROM %s WHERE k IN (%s, %s)",
-                                   KEYSPACE + "." + currentTable(),
-                                   functionCall(functionName),
-                                   functionCall(functionName));
-        assertPermissionsOnFunction(cql, functionName);
-    }
-
-    @Test
-    public void nonDeterministicFunctionInSelectMultiColumnInRestriction() throws Throwable
+    public void functionInSelectMultiColumnInRestriction() throws Throwable
     {
         setupTable("CREATE TABLE %s (k int, v1 int, v2 int, v3 int, PRIMARY KEY (k, v1, v2))");
-        String functionName = createSimpleFunction(false);
+        String functionName = createSimpleFunction();
         String cql = String.format("SELECT * FROM %s WHERE k=0 AND (v1, v2) IN ((%s, %s))",
                                    KEYSPACE + "." + currentTable(),
                                    functionCall(functionName),
@@ -172,23 +131,10 @@ public class UFAuthTest extends CQLTester
     }
 
     @Test
-    public void deterministicFunctionInSelectMultiColumnInRestriction() throws Throwable
+    public void functionInSelectMultiColumnEQRestriction() throws Throwable
     {
         setupTable("CREATE TABLE %s (k int, v1 int, v2 int, v3 int, PRIMARY KEY (k, v1, v2))");
-        String functionName = createSimpleFunction(true);
-        String cql = String.format("SELECT * FROM %s WHERE k=0 AND (v1, v2) IN ((%s, %s))",
-                                   KEYSPACE + "." + currentTable(),
-                                   functionCall(functionName),
-                                   functionCall(functionName));
-        assertPermissionsOnFunction(cql, functionName);
-    }
-
-
-    @Test
-    public void nonDeterministicFunctionInSelectMultiColumnEQRestriction() throws Throwable
-    {
-        setupTable("CREATE TABLE %s (k int, v1 int, v2 int, v3 int, PRIMARY KEY (k, v1, v2))");
-        String functionName = createSimpleFunction(false);
+        String functionName = createSimpleFunction();
         String cql = String.format("SELECT * FROM %s WHERE k=0 AND (v1, v2) = (%s, %s)",
                                    KEYSPACE + "." + currentTable(),
                                    functionCall(functionName),
@@ -197,34 +143,10 @@ public class UFAuthTest extends CQLTester
     }
 
     @Test
-    public void deterministicFunctionInSelectMultiColumnEQRestriction() throws Throwable
+    public void functionInSelectMultiColumnSliceRestriction() throws Throwable
     {
         setupTable("CREATE TABLE %s (k int, v1 int, v2 int, v3 int, PRIMARY KEY (k, v1, v2))");
-        String functionName = createSimpleFunction(true);
-        String cql = String.format("SELECT * FROM %s WHERE k=0 AND (v1, v2) = (%s, %s)",
-                                   KEYSPACE + "." + currentTable(),
-                                   functionCall(functionName),
-                                   functionCall(functionName));
-        assertPermissionsOnFunction(cql, functionName);
-    }
-
-    @Test
-    public void nonDeterministicFunctionInSelectMultiColumnSliceRestriction() throws Throwable
-    {
-        setupTable("CREATE TABLE %s (k int, v1 int, v2 int, v3 int, PRIMARY KEY (k, v1, v2))");
-        String functionName = createSimpleFunction(false);
-        String cql = String.format("SELECT * FROM %s WHERE k=0 AND (v1, v2) > (%s, %s)",
-                                   KEYSPACE + "." + currentTable(),
-                                   functionCall(functionName),
-                                   functionCall(functionName));
-        assertPermissionsOnFunction(cql, functionName);
-    }
-
-    @Test
-    public void deterministicFunctionInSelectMultiColumnSliceRestriction() throws Throwable
-    {
-        setupTable("CREATE TABLE %s (k int, v1 int, v2 int, v3 int, PRIMARY KEY (k, v1, v2))");
-        String functionName = createSimpleFunction(true);
+        String functionName = createSimpleFunction();
         String cql = String.format("SELECT * FROM %s WHERE k=0 AND (v1, v2) < (%s, %s)",
                                    KEYSPACE + "." + currentTable(),
                                    functionCall(functionName),
@@ -233,9 +155,9 @@ public class UFAuthTest extends CQLTester
     }
 
     @Test
-    public void nonDeterministicFunctionInSelectTokenEQRestriction() throws Throwable
+    public void functionInSelectTokenEQRestriction() throws Throwable
     {
-        String functionName = createSimpleFunction(false);
+        String functionName = createSimpleFunction();
         String cql = String.format("SELECT * FROM %s WHERE token(k) = token(%s)",
                                    KEYSPACE + "." + currentTable(),
                                    functionCall(functionName));
@@ -243,48 +165,19 @@ public class UFAuthTest extends CQLTester
     }
 
     @Test
-    public void deterministicFunctionInSelectTokenEQRestriction() throws Throwable
+    public void functionInSelectTokenSliceRestriction() throws Throwable
     {
-        String functionName = createSimpleFunction(true);
-        String cql = String.format("SELECT * FROM %s WHERE token(k) = token(%s)",
-                                   KEYSPACE + "." + currentTable(),
-                                   functionCall(functionName));
-        assertPermissionsOnFunction(cql, functionName);
-    }
-
-    @Test
-    public void nonDeterministicFunctionInSelectTokenSliceRestriction() throws Throwable
-    {
-        String functionName = createSimpleFunction(false);
-        String cql = String.format("SELECT * FROM %s WHERE token(k) > token(%s)",
-                                   KEYSPACE + "." + currentTable(),
-                                   functionCall(functionName));
-        assertPermissionsOnFunction(cql, functionName);
-    }
-
-    @Test
-    public void deterministicFunctionInSelectTokenSliceRestriction() throws Throwable
-    {
-        String functionName = createSimpleFunction(true);
+        String functionName = createSimpleFunction();
         String cql = String.format("SELECT * FROM %s WHERE token(k) < token(%s)",
                                    KEYSPACE + "." + currentTable(),
                                    functionCall(functionName));
         assertPermissionsOnFunction(cql, functionName);
     }
-    @Test
-    public void nonDeterministicFunctionInPKForInsert() throws Throwable
-    {
-        String functionName = createSimpleFunction(false);
-        String cql = String.format("INSERT INTO %s (k, v1 ,v2) VALUES (%s, 0, 0)",
-                                   KEYSPACE + "." + currentTable(),
-                                   functionCall(functionName));
-        assertPermissionsOnFunction(cql, functionName);
-    }
 
     @Test
-    public void deterministicFunctionInPKForInsert() throws Throwable
+    public void functionInPKForInsert() throws Throwable
     {
-        String functionName = createSimpleFunction(true);
+        String functionName = createSimpleFunction();
         String cql = String.format("INSERT INTO %s (k, v1, v2) VALUES (%s, 0, 0)",
                                    KEYSPACE + "." + currentTable(),
                                    functionCall(functionName));
@@ -292,9 +185,9 @@ public class UFAuthTest extends CQLTester
     }
 
     @Test
-    public void nonDeterministicFunctionInClusteringValuesForInsert() throws Throwable
+    public void functionInClusteringValuesForInsert() throws Throwable
     {
-        String functionName = createSimpleFunction(false);
+        String functionName = createSimpleFunction();
         String cql = String.format("INSERT INTO %s (k, v1, v2) VALUES (0, %s, 0)",
                                    KEYSPACE + "." + currentTable(),
                                    functionCall(functionName));
@@ -302,19 +195,9 @@ public class UFAuthTest extends CQLTester
     }
 
     @Test
-    public void deterministicFunctionInClusteringValuesForInsert() throws Throwable
+    public void functionInPKForDelete() throws Throwable
     {
-        String functionName = createSimpleFunction(true);
-        String cql = String.format("INSERT INTO %s (k, v1, v2) VALUES (0, %s, 0)",
-                                   KEYSPACE + "." + currentTable(),
-                                   functionCall(functionName));
-        assertPermissionsOnFunction(cql, functionName);
-    }
-
-    @Test
-    public void nonDeterministicFunctionInPKForDelete() throws Throwable
-    {
-        String functionName = createSimpleFunction(false);
+        String functionName = createSimpleFunction();
         String cql = String.format("DELETE FROM %s WHERE k = %s",
                                    KEYSPACE + "." + currentTable(),
                                    functionCall(functionName));
@@ -322,30 +205,9 @@ public class UFAuthTest extends CQLTester
     }
 
     @Test
-    public void deterministicFunctionInPKForDelete() throws Throwable
+    public void functionInClusteringValuesForDelete() throws Throwable
     {
-        String functionName = createSimpleFunction(true);
-        String cql = String.format("DELETE FROM %s WHERE k = %s",
-                                   KEYSPACE + "." + currentTable(),
-                                   functionCall(functionName));
-        assertPermissionsOnFunction(cql, functionName);
-    }
-
-    @Test
-    public void nonDeterministicFunctionInClusteringValuesForDelete() throws Throwable
-    {
-        String functionName = createSimpleFunction(false);
-        String cql = String.format("DELETE FROM %s WHERE k = 0 AND v1 = %s",
-                                   KEYSPACE + "." + currentTable(),
-                                   functionCall(functionName));
-        assertPermissionsOnFunction(cql, functionName);
-    }
-
-    @Test
-
-    public void deterministicFunctionInClusteringValuesForDelete() throws Throwable
-    {
-        String functionName = createSimpleFunction(true);
+        String functionName = createSimpleFunction();
         String cql = String.format("DELETE FROM %s WHERE k = 0 AND v1 = %s",
                                    KEYSPACE + "." + currentTable(),
                                    functionCall(functionName));
@@ -359,7 +221,7 @@ public class UFAuthTest extends CQLTester
         List<String> functions = new ArrayList<>();
         for (int i = 0; i < 3; i++)
         {
-            String functionName = createSimpleFunction(false);
+            String functionName = createSimpleFunction();
             ModificationStatement stmt =
             (ModificationStatement) getStatement(String.format("INSERT INTO %s (k, v1, v2) " +
                                                                "VALUES (%s, %s, %s)",
@@ -382,21 +244,9 @@ public class UFAuthTest extends CQLTester
     }
 
     @Test
-    public void testNestedNonDeterministicFunctions() throws Throwable
+    public void testNestedFunctions() throws Throwable
     {
-        String innerFunctionName = createSimpleFunction(false);
-        String outerFunctionName = createFunction("int",
-                                                  "CREATE NON DETERMINISTIC FUNCTION %s(input int) " +
-                                                  " RETURNS int" +
-                                                  " LANGUAGE java" +
-                                                  " AS 'return Integer.valueOf(0);'");
-        assertPermissionsOnNestedFunctions(innerFunctionName, outerFunctionName);
-    }
-
-    @Test
-    public void testNestedDeterministicFunctions() throws Throwable
-    {
-        String innerFunctionName = createSimpleFunction(true);
+        String innerFunctionName = createSimpleFunction();
         String outerFunctionName = createFunction("int",
                                                   "CREATE FUNCTION %s(input int) " +
                                                   " RETURNS int" +
@@ -406,30 +256,10 @@ public class UFAuthTest extends CQLTester
     }
 
     @Test
-    public void testNestedMixedFunctions() throws Throwable
-    {
-        String innerFunctionName = createSimpleFunction(true);
-        String outerFunctionName = createFunction("int",
-                                                  "CREATE NON DETERMINISTIC FUNCTION %s(input int) " +
-                                                  " RETURNS int" +
-                                                  " LANGUAGE java" +
-                                                  " AS 'return Integer.valueOf(0);'");
-        assertPermissionsOnNestedFunctions(innerFunctionName, outerFunctionName);
-
-        innerFunctionName = createSimpleFunction(false);
-        outerFunctionName = createFunction("int",
-                                           "CREATE FUNCTION %s(input int) " +
-                                           " RETURNS int" +
-                                           " LANGUAGE java" +
-                                           " AS 'return Integer.valueOf(0);'");
-        assertPermissionsOnNestedFunctions(innerFunctionName, outerFunctionName);
-    }
-
-    @Test
-    public void nonDeterministicFunctionInStaticColumnRestrictionInSelect() throws Throwable
+    public void functionInStaticColumnRestrictionInSelect() throws Throwable
     {
         setupTable("CREATE TABLE %s (k int, s int STATIC, v1 int, v2 int, PRIMARY KEY(k, v1))");
-        String functionName = createSimpleFunction(false);
+        String functionName = createSimpleFunction();
         String cql = String.format("SELECT k FROM %s WHERE k = 0 AND s = %s",
                                    KEYSPACE + "." + currentTable(),
                                    functionCall(functionName));
@@ -437,41 +267,19 @@ public class UFAuthTest extends CQLTester
     }
 
     @Test
-    public void deterministicFunctionInStaticColumnRestrictionInSelect() throws Throwable
+    public void functionInRegularCondition() throws Throwable
     {
-        setupTable("CREATE TABLE %s (k int, s int STATIC, v1 int, v2 int, PRIMARY KEY(k, v1))");
-        String functionName = createSimpleFunction(true);
-        String cql = String.format("SELECT k FROM %s WHERE k = 0 AND s = %s",
-                                   KEYSPACE + "." + currentTable(),
-                                   functionCall(functionName));
-        assertPermissionsOnFunction(cql, functionName);
-    }
-
-    @Test
-    public void nonDeterministicFunctionInRegularCondition() throws Throwable
-    {
-        String functionName = createSimpleFunction(false);
+        String functionName = createSimpleFunction();
         String cql = String.format("UPDATE %s SET v2 = 0 WHERE k = 0 AND v1 = 0 IF v2 = %s",
                                    KEYSPACE + "." + currentTable(),
                                    functionCall(functionName));
         assertPermissionsOnFunction(cql, functionName);
     }
-
     @Test
-    public void deterministicFunctionInRegularCondition() throws Throwable
-    {
-        String functionName = createSimpleFunction(true);
-        String cql = String.format("UPDATE %s SET v2 = 0 WHERE k = 0 AND v1 = 0 IF v2 = %s",
-                                   KEYSPACE + "." + currentTable(),
-                                   functionCall(functionName));
-        assertPermissionsOnFunction(cql, functionName);
-    }
-
-    @Test
-    public void nonDeterministicFunctionInStaticColumnCondition() throws Throwable
+    public void functionInStaticColumnCondition() throws Throwable
     {
         setupTable("CREATE TABLE %s (k int, s int STATIC, v1 int, v2 int, PRIMARY KEY(k, v1))");
-        String functionName = createSimpleFunction(false);
+        String functionName = createSimpleFunction();
         String cql = String.format("UPDATE %s SET v2 = 0 WHERE k = 0 AND v1 = 0 IF s = %s",
                                    KEYSPACE + "." + currentTable(),
                                    functionCall(functionName));
@@ -479,21 +287,10 @@ public class UFAuthTest extends CQLTester
     }
 
     @Test
-    public void deterministicFunctionInStaticColumnCondition() throws Throwable
-    {
-        setupTable("CREATE TABLE %s (k int, s int STATIC, v1 int, v2 int, PRIMARY KEY(k, v1))");
-        String functionName = createSimpleFunction(true);
-        String cql = String.format("UPDATE %s SET v2 = 0 WHERE k = 0 AND v1 = 0 IF s = %s",
-                                   KEYSPACE + "." + currentTable(),
-                                   functionCall(functionName));
-        assertPermissionsOnFunction(cql, functionName);
-    }
-
-    @Test
-    public void nonDeterministicFunctionInCollectionLiteralCondition() throws Throwable
+    public void functionInCollectionLiteralCondition() throws Throwable
     {
         setupTable("CREATE TABLE %s (k int, v1 int, m_val map<int, int>, PRIMARY KEY(k))");
-        String functionName = createSimpleFunction(false);
+        String functionName = createSimpleFunction();
         String cql = String.format("UPDATE %s SET v1 = 0 WHERE k = 0 IF m_val = {%s : %s}",
                                    KEYSPACE + "." + currentTable(),
                                    functionCall(functionName),
@@ -502,34 +299,10 @@ public class UFAuthTest extends CQLTester
     }
 
     @Test
-    public void deterministicFunctionInCollectionLiteralCondition() throws Throwable
+    public void functionInCollectionElementCondition() throws Throwable
     {
         setupTable("CREATE TABLE %s (k int, v1 int, m_val map<int, int>, PRIMARY KEY(k))");
-        String functionName = createSimpleFunction(true);
-        String cql = String.format("UPDATE %s SET v1 = 0 WHERE k = 0 IF m_val = {%s : %s}",
-                                   KEYSPACE + "." + currentTable(),
-                                   functionCall(functionName),
-                                   functionCall(functionName));
-        assertPermissionsOnFunction(cql, functionName);
-    }
-
-    @Test
-    public void nonDeterministicFunctionInCollectionElementCondition() throws Throwable
-    {
-        setupTable("CREATE TABLE %s (k int, v1 int, m_val map<int, int>, PRIMARY KEY(k))");
-        String functionName = createSimpleFunction(false);
-        String cql = String.format("UPDATE %s SET v1 = 0 WHERE k = 0 IF m_val[%s] = %s",
-                                   KEYSPACE + "." + currentTable(),
-                                   functionCall(functionName),
-                                   functionCall(functionName));
-        assertPermissionsOnFunction(cql, functionName);
-    }
-
-    @Test
-    public void deterministicFunctionInCollectionElementCondition() throws Throwable
-    {
-        setupTable("CREATE TABLE %s (k int, v1 int, m_val map<int, int>, PRIMARY KEY(k))");
-        String functionName = createSimpleFunction(true);
+        String functionName = createSimpleFunction();
         String cql = String.format("UPDATE %s SET v1 = 0 WHERE k = 0 IF m_val[%s] = %s",
                                    KEYSPACE + "." + currentTable(),
                                    functionCall(functionName),
@@ -546,7 +319,7 @@ public class UFAuthTest extends CQLTester
         getStatement(cql).checkAccess(clientState);
 
         // with non-terminal arguments, so evaluated at execution
-        String functionName = createSimpleFunction(false);
+        String functionName = createSimpleFunction();
         grantExecuteOnFunction(functionName);
         cql = String.format("UPDATE %s SET v2 = 0 WHERE k = blobasint(intasblob(%s))",
                             KEYSPACE + "." + currentTable(),
@@ -612,10 +385,10 @@ public class UFAuthTest extends CQLTester
     }
 
     @Test
-    public void nonDeterministicFunctionWrappingAggregate() throws Throwable
+    public void functionWrappingAggregate() throws Throwable
     {
         String outerFunc = createFunction("int",
-                                          "CREATE NON DETERMINISTIC FUNCTION %s(input int) " +
+                                          "CREATE FUNCTION %s(input int) " +
                                           "RETURNS int " +
                                           "LANGUAGE java " +
                                           "AS 'return input;'");
@@ -643,10 +416,10 @@ public class UFAuthTest extends CQLTester
     }
 
     @Test
-    public void aggregateWrappingNonDeterministicFunction() throws Throwable
+    public void aggregateWrappingFunction() throws Throwable
     {
         String innerFunc = createFunction("int",
-                                          "CREATE NON DETERMINISTIC FUNCTION %s(input int) " +
+                                          "CREATE FUNCTION %s(input int) " +
                                           "RETURNS int " +
                                           "LANGUAGE java " +
                                           "AS 'return input;'");
@@ -809,10 +582,10 @@ public class UFAuthTest extends CQLTester
                               "AS 'return a;'");
     }
 
-    private String createSimpleFunction(boolean deterministic) throws Throwable
+    private String createSimpleFunction() throws Throwable
     {
         return createFunction("",
-                              "CREATE " + (deterministic ? "" : " NON ") +  " DETERMINISTIC FUNCTION %s() " +
+                              "CREATE FUNCTION %s() " +
                               "  RETURNS int " +
                               "  LANGUAGE java " +
                               "  AS 'return Integer.valueOf(0);'");

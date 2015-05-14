@@ -45,7 +45,6 @@ public final class CreateFunctionStatement extends SchemaAlteringStatement
     private FunctionName functionName;
     private final String language;
     private final String body;
-    private final boolean deterministic;
 
     private final List<ColumnIdentifier> argNames;
     private final List<CQL3Type.Raw> argRawTypes;
@@ -59,7 +58,6 @@ public final class CreateFunctionStatement extends SchemaAlteringStatement
     public CreateFunctionStatement(FunctionName functionName,
                                    String language,
                                    String body,
-                                   boolean deterministic,
                                    List<ColumnIdentifier> argNames,
                                    List<CQL3Type.Raw> argRawTypes,
                                    CQL3Type.Raw rawReturnType,
@@ -69,7 +67,6 @@ public final class CreateFunctionStatement extends SchemaAlteringStatement
         this.functionName = functionName;
         this.language = language;
         this.body = body;
-        this.deterministic = deterministic;
         this.argNames = argNames;
         this.argRawTypes = argRawTypes;
         this.rawReturnType = rawReturnType;
@@ -161,7 +158,7 @@ public final class CreateFunctionStatement extends SchemaAlteringStatement
                                                                 functionName, returnType.asCQL3Type(), old.returnType().asCQL3Type()));
         }
 
-        this.udFunction = UDFunction.create(functionName, argNames, argTypes, returnType, language, body, deterministic);
+        this.udFunction = UDFunction.create(functionName, argNames, argTypes, returnType, language, body);
         this.replaced = old != null;
 
         MigrationManager.announceNewFunction(udFunction, isLocalOnly);

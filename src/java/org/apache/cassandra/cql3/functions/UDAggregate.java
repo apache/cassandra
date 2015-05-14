@@ -113,11 +113,6 @@ public class UDAggregate extends AbstractFunction implements AggregateFunction
         return true;
     }
 
-    public boolean isPure()
-    {
-        return false;
-    }
-
     public boolean isNative()
     {
         return false;

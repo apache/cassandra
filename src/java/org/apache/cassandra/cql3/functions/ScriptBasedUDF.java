@@ -67,11 +67,10 @@ public class ScriptBasedUDF extends UDFunction
                    List<AbstractType<?>> argTypes,
                    AbstractType<?> returnType,
                    String language,
-                   String body,
-                   boolean deterministic)
+                   String body)
     throws InvalidRequestException
     {
-        super(name, argNames, argTypes, returnType, language, body, deterministic);
+        super(name, argNames, argTypes, returnType, language, body);
 
         Compilable scriptEngine = scriptEngines.get(language);
         if (scriptEngine == null)

@@ -46,7 +46,6 @@ public abstract class UDFunction extends AbstractFunction implements ScalarFunct
 
     protected final String language;
     protected final String body;
-    protected final boolean isDeterministic;
 
     protected final DataType[] argDataTypes;
     protected final DataType returnDataType;
@@ -56,11 +55,10 @@ public abstract class UDFunction extends AbstractFunction implements ScalarFunct
                          List<AbstractType<?>> argTypes,
                          AbstractType<?> returnType,
                          String language,
-                         String body,
-                         boolean isDeterministic)
+                         String body)
     {
         this(name, argNames, argTypes, UDHelper.driverTypes(argTypes), returnType,
-             UDHelper.driverType(returnType), language, body, isDeterministic);
+             UDHelper.driverType(returnType), language, body);
     }
 
     protected UDFunction(FunctionName name,
@@ -70,15 +68,13 @@ public abstract class UDFunction extends AbstractFunction implements ScalarFunct
                          AbstractType<?> returnType,
                          DataType returnDataType,
                          String language,
-                         String body,
-                         boolean isDeterministic)
+                         String body)
     {
         super(name, argTypes, returnType);
         assert new HashSet<>(argNames).size() == argNames.size() : "duplicate argument names";
         this.argNames = argNames;
         this.language = language;
         this.body = body;
-        this.isDeterministic = isDeterministic;
         this.argDataTypes = argDataTypes;
         this.returnDataType = returnDataType;
     }
@@ -88,14 +84,13 @@ public abstract class UDFunction extends AbstractFunction implements ScalarFunct
                                     List<AbstractType<?>> argTypes,
                                     AbstractType<?> returnType,
                                     String language,
-                                    String body,
-                                    boolean isDeterministic)
+                                    String body)
     throws InvalidRequestException
     {
         switch (language)
         {
-            case "java": return JavaSourceUDFFactory.buildUDF(name, argNames, argTypes, returnType, body, isDeterministic);
-            default: return new ScriptBasedUDF(name, argNames, argTypes, returnType, language, body, isDeterministic);
+            case "java": return JavaSourceUDFFactory.buildUDF(name, argNames, argTypes, returnType, body);
+            default: return new ScriptBasedUDF(name, argNames, argTypes, returnType, language, body);
         }
     }
 
@@ -116,7 +111,7 @@ public abstract class UDFunction extends AbstractFunction implements ScalarFunct
                                                   String body,
                                                   final InvalidRequestException reason)
     {
-        return new UDFunction(name, argNames, argTypes, returnType, language, body, true)
+        return new UDFunction(name, argNames, argTypes, returnType, language, body)
         {
             public ByteBuffer execute(int protocolVersion, List<ByteBuffer> parameters) throws InvalidRequestException
             {
@@ -134,11 +129,6 @@ public abstract class UDFunction extends AbstractFunction implements ScalarFunct
         return false;
     }
 
-    public boolean isPure()
-    {
-        return isDeterministic;
-    }
-
     public boolean isNative()
     {
         return false;
@@ -147,11 +137,6 @@ public abstract class UDFunction extends AbstractFunction implements ScalarFunct
     public List<ColumnIdentifier> argNames()
     {
         return argNames;
-    }
-
-    public boolean isDeterministic()
-    {
-        return isDeterministic;
     }
 
     public String body()
@@ -201,14 +186,13 @@ public abstract class UDFunction extends AbstractFunction implements ScalarFunct
             && Functions.typeEquals(argTypes, that.argTypes)
             && Functions.typeEquals(returnType, that.returnType)
             && Objects.equal(language, that.language)
-            && Objects.equal(body, that.body)
-            && Objects.equal(isDeterministic, that.isDeterministic);
+            && Objects.equal(body, that.body);
     }
 
     @Override
     public int hashCode()
     {
-        return Objects.hashCode(name, argNames, argTypes, returnType, language, body, isDeterministic);
+        return Objects.hashCode(name, argNames, argTypes, returnType, language, body);
     }
 
     public void userTypeUpdated(String ksName, String typeName)

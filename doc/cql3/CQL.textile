@@ -590,7 +590,6 @@ __Syntax:__
 
 bc(syntax).. 
 <create-function-stmt> ::= CREATE ( OR REPLACE )? 
-                            ( ( NON )? DETERMINISTIC )?
                             FUNCTION ( IF NOT EXISTS )?
                             ( ( <keyspace> '.' )? <function-name> )?
                             '(' <arg-name> <arg-type> ( ',' <arg-name> <arg-type> )* ')'
@@ -617,8 +616,6 @@ CREATE FUNCTION akeyspace.fname IF NOT EXISTS
     $$;
 
 @CREATE FUNCTION@ creates or replaces a user-defined function.
-
-Functions are either @DETERMINISTIC@ or @NON DETERMINISTIC@. A deterministic function always returns the same value for the same input values. A non-deterministic function may not. Examples of deterministic functions are math functions like _add_ or _sin_. Examples of non-deterministic functions are: _now_ or _random_. Functions are assumed to be deterministic by default.
 
 h4(#functionSignature). Function Signature
 

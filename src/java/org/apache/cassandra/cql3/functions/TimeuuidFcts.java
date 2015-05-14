@@ -35,12 +35,6 @@ public abstract class TimeuuidFcts
         {
             return ByteBuffer.wrap(UUIDGen.getTimeUUIDBytes());
         }
-
-        @Override
-        public boolean isPure()
-        {
-            return false;
-        }
     };
 
     public static final Function minTimeuuidFct = new NativeScalarFunction("mintimeuuid", TimeUUIDType.instance, TimestampType.instance)

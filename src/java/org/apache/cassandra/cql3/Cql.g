@@ -593,12 +593,10 @@ createFunctionStatement returns [CreateFunctionStatement expr]
         boolean orReplace = false;
         boolean ifNotExists = false;
 
-        boolean deterministic = true;
         List<ColumnIdentifier> argsNames = new ArrayList<>();
         List<CQL3Type.Raw> argsTypes = new ArrayList<>();
     }
     : K_CREATE (K_OR K_REPLACE { orReplace = true; })?
-      ((K_NON { deterministic = false; })? K_DETERMINISTIC)?
       K_FUNCTION
       (K_IF K_NOT K_EXISTS { ifNotExists = true; })?
       fn=functionName
@@ -611,7 +609,7 @@ createFunctionStatement returns [CreateFunctionStatement expr]
       K_RETURNS rt = comparatorType
       K_LANGUAGE language = IDENT
       K_AS body = STRING_LITERAL
-      { $expr = new CreateFunctionStatement(fn, $language.text.toLowerCase(), $body.text, deterministic, argsNames, argsTypes, rt, orReplace, ifNotExists); }
+      { $expr = new CreateFunctionStatement(fn, $language.text.toLowerCase(), $body.text, argsNames, argsTypes, rt, orReplace, ifNotExists); }
     ;
 
 dropFunctionStatement returns [DropFunctionStatement expr]
@@ -1550,8 +1548,6 @@ basic_unreserved_keyword returns [String str]
         | K_INITCOND
         | K_RETURNS
         | K_LANGUAGE
-        | K_NON
-        | K_DETERMINISTIC
         | K_JSON
         ) { $str = $k.text; }
     ;
@@ -1680,10 +1676,8 @@ K_FINALFUNC:   F I N A L F U N C;
 K_INITCOND:    I N I T C O N D;
 K_RETURNS:     R E T U R N S;
 K_LANGUAGE:    L A N G U A G E;
-K_NON:         N O N;
 K_OR:          O R;
 K_REPLACE:     R E P L A C E;
-K_DETERMINISTIC: D E T E R M I N I S T I C;
 
 K_JSON:        J S O N;
 
