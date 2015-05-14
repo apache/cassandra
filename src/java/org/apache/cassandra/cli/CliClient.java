@@ -198,7 +198,7 @@ public class CliClient
     {
         sessionState.out.println("Welcome to Cassandra CLI version " + FBUtilities.getReleaseVersionString() + "\n");
 
-        sessionState.out.println("The CLI is deprecated and will be removed in Cassandra 3.0.  Consider migrating to cqlsh.");
+        sessionState.out.println("The CLI is deprecated and will be removed in Cassandra 2.2.  Consider migrating to cqlsh.");
         sessionState.out.println("CQL is fully backwards compatible with Thrift data; see http://www.datastax.com/dev/blog/thrift-to-cql3\n");
 
         sessionState.out.println(getHelp().banner);
