@@ -29,9 +29,9 @@ import io.netty.buffer.ByteBuf;
 public abstract class Event
 {
     public enum Type {
-        TOPOLOGY_CHANGE(Server.VERSION_2),
-        STATUS_CHANGE(Server.VERSION_2),
-        SCHEMA_CHANGE(Server.VERSION_2),
+        TOPOLOGY_CHANGE(Server.VERSION_1),
+        STATUS_CHANGE(Server.VERSION_1),
+        SCHEMA_CHANGE(Server.VERSION_1),
         TRACE_COMPLETE(Server.VERSION_4);
 
         public final int minimumVersion;
