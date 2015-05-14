@@ -1,4 +1,5 @@
 2.2
+ * Make Functions.declared thread-safe
  * Add client warnings to native protocol v4 (CASSANDRA-8930)
  * Allow roles cache to be invalidated (CASSANDRA-8967)
  * Upgrade Snappy (CASSANDRA-9063)

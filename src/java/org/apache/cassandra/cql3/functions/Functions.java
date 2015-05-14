@@ -19,9 +19,11 @@ package org.apache.cassandra.cql3.functions;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
-
-import com.google.common.collect.ArrayListMultimap;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.cql3.*;
@@ -39,7 +41,7 @@ public abstract class Functions
 
     private Functions() {}
 
-    private static final ArrayListMultimap<FunctionName, Function> declared = ArrayListMultimap.create();
+    private static final ConcurrentMap<FunctionName, List<Function>> declared = new ConcurrentHashMap<>();
 
     static
     {
@@ -85,20 +87,31 @@ public abstract class Functions
 
     private static void declare(Function fun)
     {
-        declared.put(fun.name(), fun);
+        synchronized (declared)
+        {
+            List<Function> functions = declared.get(fun.name());
+            if (functions == null)
+            {
+                functions = new CopyOnWriteArrayList<>();
+                List<Function> existing = declared.putIfAbsent(fun.name(), functions);
+                if (existing != null)
+                    functions = existing;
+            }
+            functions.add(fun);
+        }
     }
 
     public static ColumnSpecification makeArgSpec(String receiverKs, String receiverCf, Function fun, int i)
     {
         return new ColumnSpecification(receiverKs,
                                        receiverCf,
-                                       new ColumnIdentifier("arg" + i +  "(" + fun.name().toString().toLowerCase() + ")", true),
+                                       new ColumnIdentifier("arg" + i + '(' + fun.name().toString().toLowerCase() + ')', true),
                                        fun.argTypes().get(i));
     }
 
     public static int getOverloadCount(FunctionName name)
     {
-        return declared.get(name).size();
+        return find(name).size();
     }
 
     /**
@@ -142,13 +155,13 @@ public abstract class Functions
             // function name not fully qualified
             candidates = new ArrayList<>();
             // add 'SYSTEM' (native) candidates
-            candidates.addAll(declared.get(name.asNativeFunction()));
+            candidates.addAll(find(name.asNativeFunction()));
             // add 'current keyspace' candidates
-            candidates.addAll(declared.get(new FunctionName(keyspace, name.name)));
+            candidates.addAll(find(new FunctionName(keyspace, name.name)));
         }
         else
             // function name is fully qualified (keyspace + name)
-            candidates = declared.get(name);
+            candidates = find(name);
 
         if (candidates.isEmpty())
             return null;
@@ -191,13 +204,14 @@ public abstract class Functions
 
     public static List<Function> find(FunctionName name)
     {
-        return declared.get(name);
+        List<Function> functions = declared.get(name);
+        return functions != null ? functions : Collections.<Function>emptyList();
     }
 
     public static Function find(FunctionName name, List<AbstractType<?>> argTypes)
     {
         assert name.hasKeyspace() : "function name not fully qualified";
-        for (Function f : declared.get(name))
+        for (Function f : find(name))
         {
             if (typeEquals(f.argTypes(), argTypes))
                 return f;
@@ -282,11 +296,25 @@ public abstract class Functions
     }
 
     // Same remarks than for addFunction
-    public static void removeFunction(FunctionName name, List<AbstractType<?>> argsTypes)
+    public static void removeFunction(FunctionName name, List<AbstractType<?>> argTypes)
     {
-        Function old = find(name, argsTypes);
-        assert old != null && !old.isNative();
-        declared.remove(old.name(), old);
+        assert name.hasKeyspace() : "function name " + name + " not fully qualified";
+        synchronized (declared)
+        {
+            List<Function> functions = find(name);
+            for (int i = 0; i < functions.size(); i++)
+            {
+                Function f = functions.get(i);
+                if (!typeEquals(f.argTypes(), argTypes))
+                    continue;
+                assert !f.isNative();
+                functions.remove(i);
+                if (functions.isEmpty())
+                    declared.remove(name);
+                return;
+            }
+            assert false : "Function " + name + " not declared";
+        }
     }
 
     // Same remarks than for addFunction
@@ -299,15 +327,19 @@ public abstract class Functions
     public static List<Function> getReferencesTo(Function old)
     {
         List<Function> references = new ArrayList<>();
-        for (Function function : declared.values())
-            if (function.hasReferenceTo(old))
-                references.add(function);
+        for (List<Function> functions : declared.values())
+            for (Function function : functions)
+                if (function.hasReferenceTo(old))
+                    references.add(function);
         return references;
     }
 
     public static Collection<Function> all()
     {
-        return declared.values();
+        List<Function> all = new ArrayList<>();
+        for (List<Function> functions : declared.values())
+            all.addAll(functions);
+        return all;
     }
 
     public static boolean typeEquals(AbstractType<?> t1, AbstractType<?> t2)
