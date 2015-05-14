@@ -1119,7 +1119,7 @@ public final class SystemKeyspace
         try
         {
             DataOutputBuffer out = new DataOutputBuffer();
-            Range.tokenSerializer.serialize(range, out, MessagingService.VERSION_30);
+            Range.tokenSerializer.serialize(range, out, MessagingService.VERSION_22);
             return out.buffer();
         }
         catch (IOException e)
@@ -1135,7 +1135,7 @@ public final class SystemKeyspace
         {
             return (Range<Token>) Range.tokenSerializer.deserialize(ByteStreams.newDataInput(ByteBufferUtil.getArray(rawRange)),
                                                                     partitioner,
-                                                                    MessagingService.VERSION_30);
+                                                                    MessagingService.VERSION_22);
         }
         catch (IOException e)
         {

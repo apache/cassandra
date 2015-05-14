@@ -36,7 +36,6 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Objects;
 import com.github.tjake.ICRC32;
 
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.ParameterizedClass;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.FSReadError;
@@ -57,13 +56,13 @@ public class CommitLogDescriptor
     public static final int VERSION_12 = 2;
     public static final int VERSION_20 = 3;
     public static final int VERSION_21 = 4;
-    public static final int VERSION_30 = 5;
+    public static final int VERSION_22 = 5;
     /**
      * Increment this number if there is a changes in the commit log disc layout or MessagingVersion changes.
      * Note: make sure to handle {@link #getMessagingVersion()}
      */
     @VisibleForTesting
-    public static final int current_version = VERSION_30;
+    public static final int current_version = VERSION_22;
 
     final int version;
     public final long id;
@@ -89,7 +88,7 @@ public class CommitLogDescriptor
         out.putLong(descriptor.id);
         crc.updateInt((int) (descriptor.id & 0xFFFFFFFFL));
         crc.updateInt((int) (descriptor.id >>> 32));
-        if (descriptor.version >= VERSION_30) {
+        if (descriptor.version >= VERSION_22) {
             String parametersString = constructParametersString(descriptor);
             byte[] parametersBytes = parametersString.getBytes(StandardCharsets.UTF_8);
             if (parametersBytes.length != (((short) parametersBytes.length) & 0xFFFF))
@@ -142,7 +141,7 @@ public class CommitLogDescriptor
         checkcrc.updateInt((int) (id & 0xFFFFFFFFL));
         checkcrc.updateInt((int) (id >>> 32));
         int parametersLength = 0;
-        if (version >= VERSION_30) {
+        if (version >= VERSION_22) {
             parametersLength = input.readShort() & 0xFFFF;
             checkcrc.updateInt(parametersLength);
         }
@@ -194,8 +193,8 @@ public class CommitLogDescriptor
                 return MessagingService.VERSION_20;
             case VERSION_21:
                 return MessagingService.VERSION_21;
-            case VERSION_30:
-                return MessagingService.VERSION_30;
+            case VERSION_22:
+                return MessagingService.VERSION_22;
             default:
                 throw new IllegalStateException("Unknown commitlog version " + version);
         }

@@ -45,7 +45,7 @@ import static org.apache.cassandra.auth.CassandraRoleManager.consistencyForRole;
  * PasswordAuthenticator is an IAuthenticator implementation
  * that keeps credentials (rolenames and bcrypt-hashed passwords)
  * internally in C* - in system_auth.roles CQL3 table.
- * Since 3.0, the management of roles (creation, modification,
+ * Since 2.2, the management of roles (creation, modification,
  * querying etc is the responsibility of IRoleManager. Use of
  * PasswordAuthenticator requires the use of CassandraRoleManager
  * for storage and retrieval of encrypted passwords.

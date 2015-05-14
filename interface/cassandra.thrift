@@ -884,7 +884,7 @@ service Cassandra {
 
 
   /**
-   * @deprecated Throws InvalidRequestException since 3.0. Please use the CQL3 version instead.
+   * @deprecated Throws InvalidRequestException since 2.2. Please use the CQL3 version instead.
    */
   CqlResult execute_cql_query(1:required binary query, 2:required Compression compression)
     throws (1:InvalidRequestException ire,
@@ -904,7 +904,7 @@ service Cassandra {
 
 
   /**
-   * @deprecated Throws InvalidRequestException since 3.0. Please use the CQL3 version instead.
+   * @deprecated Throws InvalidRequestException since 2.2. Please use the CQL3 version instead.
    */
   CqlPreparedResult prepare_cql_query(1:required binary query, 2:required Compression compression)
     throws (1:InvalidRequestException ire)
@@ -920,7 +920,7 @@ service Cassandra {
 
 
   /**
-   * @deprecated Throws InvalidRequestException since 3.0. Please use the CQL3 version instead.
+   * @deprecated Throws InvalidRequestException since 2.2. Please use the CQL3 version instead.
    */
   CqlResult execute_prepared_cql_query(1:required i32 itemId, 2:required list<binary> values)
     throws (1:InvalidRequestException ire,

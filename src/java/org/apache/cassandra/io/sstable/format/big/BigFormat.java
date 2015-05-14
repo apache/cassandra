@@ -134,7 +134,7 @@ public class BigFormat implements SSTableFormat
         //             index summaries can be downsampled and the sampling level is persisted
         //             switch uncompressed checksums to adler32
         //             tracks presense of legacy (local and remote) counter shards
-        // la (3.0.0): new file name format
+        // la (2.2.0): new file name format
 
         private final boolean isLatestVersion;
         private final boolean hasSamplingLevel;

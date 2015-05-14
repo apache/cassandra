@@ -1758,7 +1758,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     private boolean isRpcReady(InetAddress endpoint)
     {
-        return MessagingService.instance().getVersion(endpoint) < MessagingService.VERSION_30 ||
+        return MessagingService.instance().getVersion(endpoint) < MessagingService.VERSION_22 ||
                 Gossiper.instance.getEndpointStateForEndpoint(endpoint).isRpcReady();
     }
 

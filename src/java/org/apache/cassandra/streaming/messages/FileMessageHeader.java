@@ -137,10 +137,10 @@ public class FileMessageHeader
             out.writeUTF(header.version);
 
             //We can't stream to a node that doesn't understand a new sstable format
-            if (version < StreamMessage.VERSION_30 && header.format != SSTableFormat.Type.LEGACY && header.format != SSTableFormat.Type.BIG)
-                throw new UnsupportedOperationException("Can't stream non-legacy sstables to nodes < 3.0");
+            if (version < StreamMessage.VERSION_22 && header.format != SSTableFormat.Type.LEGACY && header.format != SSTableFormat.Type.BIG)
+                throw new UnsupportedOperationException("Can't stream non-legacy sstables to nodes < 2.2");
 
-            if (version >= StreamMessage.VERSION_30)
+            if (version >= StreamMessage.VERSION_22)
                 out.writeUTF(header.format.name);
 
             out.writeLong(header.estimatedKeys);
@@ -162,7 +162,7 @@ public class FileMessageHeader
             String sstableVersion = in.readUTF();
 
             SSTableFormat.Type format = SSTableFormat.Type.LEGACY;
-            if (version >= StreamMessage.VERSION_30)
+            if (version >= StreamMessage.VERSION_22)
                 format = SSTableFormat.Type.validate(in.readUTF());
 
             long estimatedKeys = in.readLong();
@@ -182,7 +182,7 @@ public class FileMessageHeader
             size += TypeSizes.NATIVE.sizeof(header.sequenceNumber);
             size += TypeSizes.NATIVE.sizeof(header.version);
 
-            if (version >= StreamMessage.VERSION_30)
+            if (version >= StreamMessage.VERSION_22)
                 size += TypeSizes.NATIVE.sizeof(header.format.name);
 
             size += TypeSizes.NATIVE.sizeof(header.estimatedKeys);

@@ -30,7 +30,7 @@ public interface IAuthorizer
 {
     /**
      * Returns a set of permissions of a user on a resource.
-     * Since Roles were introduced in version 3.0, Cassandra does not distinguish in any
+     * Since Roles were introduced in version 2.2, Cassandra does not distinguish in any
      * meaningful way between users and roles. A role may or may not have login privileges
      * and roles may be granted to other roles. In fact, Cassandra does not really have the
      * concept of a user, except to link a client session to role. AuthenticatedUser can be

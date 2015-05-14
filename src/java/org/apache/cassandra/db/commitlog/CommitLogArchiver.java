@@ -212,7 +212,7 @@ public class CommitLogArchiver
                     descriptor = fromHeader;
                 else descriptor = fromName;
 
-                if (descriptor.version > CommitLogDescriptor.VERSION_30)
+                if (descriptor.version > CommitLogDescriptor.VERSION_22)
                     throw new IllegalStateException("Unsupported commit log version: " + descriptor.version);
 
                 if (descriptor.compression != null) {
