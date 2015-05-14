@@ -324,22 +324,25 @@ public class CassandraDaemon
 
     private void logSystemInfo()
     {
-        try
-        {
-            logger.info("Hostname: {}", InetAddress.getLocalHost().getHostName());
-        }
-        catch (UnknownHostException e1)
-        {
-            logger.info("Could not resolve local host");
-        }
-
-        logger.info("JVM vendor/version: {}/{}", System.getProperty("java.vm.name"), System.getProperty("java.version"));
-        logger.info("Heap size: {}/{}", Runtime.getRuntime().totalMemory(), Runtime.getRuntime().maxMemory());
-
-        for(MemoryPoolMXBean pool: ManagementFactory.getMemoryPoolMXBeans())
-            logger.info("{} {}: {}", pool.getName(), pool.getType(), pool.getPeakUsage());
-
-        logger.info("Classpath: {}", System.getProperty("java.class.path"));
+    	if (logger.isInfoEnabled())
+    	{
+	        try
+	        {
+	            logger.info("Hostname: {}", InetAddress.getLocalHost().getHostName());
+	        }
+	        catch (UnknownHostException e1)
+	        {
+	            logger.info("Could not resolve local host");
+	        }
+	
+	        logger.info("JVM vendor/version: {}/{}", System.getProperty("java.vm.name"), System.getProperty("java.version"));
+	        logger.info("Heap size: {}/{}", Runtime.getRuntime().totalMemory(), Runtime.getRuntime().maxMemory());
+	
+	        for(MemoryPoolMXBean pool: ManagementFactory.getMemoryPoolMXBeans())
+	            logger.info("{} {}: {}", pool.getName(), pool.getType(), pool.getPeakUsage());
+	
+	        logger.info("Classpath: {}", System.getProperty("java.class.path"));
+    	}
     }
 
     /**
