@@ -23,6 +23,7 @@
  * Repair waits for anticompaction to finish (CASSANDRA-9097)
  * Fix streaming not holding ref when stream error (CASSANDRA-9295)
 Merged from 2.0:
+ * token-generator - generated tokens too long (CASSANDRA-9300)
  * Fix counting of tombstones for TombstoneOverwhelmingException (CASSANDRA-9299)
  * Fix ReconnectableSnitch reconnecting to peers during upgrade (CASSANDRA-6702)
  * Include keyspace and table name in error log for collections over the size
