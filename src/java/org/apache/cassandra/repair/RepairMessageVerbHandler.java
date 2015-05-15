@@ -136,6 +136,13 @@ public class RepairMessageVerbHandler implements IVerbHandler<RepairMessage>
                     }, MoreExecutors.sameThreadExecutor());
                     break;
 
+                case CLEANUP:
+                    logger.debug("cleaning up repair");
+                    CleanupMessage cleanup = (CleanupMessage) message.payload;
+                    ActiveRepairService.instance.removeParentRepairSession(cleanup.parentRepairSession);
+                    MessagingService.instance().sendReply(new MessageOut(MessagingService.Verb.INTERNAL_RESPONSE), id, message.from);
+                    break;
+
                 default:
                     ActiveRepairService.instance.handleMessage(message.from, message.payload);
                     break;
