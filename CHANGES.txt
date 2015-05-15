@@ -134,6 +134,7 @@
  * Repair waits for anticompaction to finish (CASSANDRA-9097)
  * Fix streaming not holding ref when stream error (CASSANDRA-9295)
 Merged from 2.0:
+ * Clone SliceQueryFilter in AbstractReadCommand implementations (CASSANDRA-8940)
  * Push correct protocol notification for DROP INDEX (CASSANDRA-9310)
  * token-generator - generated tokens too long (CASSANDRA-9300)
  * Fix counting of tombstones for TombstoneOverwhelmingException (CASSANDRA-9299)
