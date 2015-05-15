@@ -130,6 +130,9 @@ public final class CreateFunctionStatement extends SchemaAlteringStatement
 
     public void validate(ClientState state) throws InvalidRequestException
     {
+        if (!DatabaseDescriptor.enableUserDefinedFunctions())
+            throw new InvalidRequestException("User-defined-functions are disabled in cassandra.yaml - set enable_user_defined_functions=true to enable if you are aware of the security risks");
+
         if (ifNotExists && orReplace)
             throw new InvalidRequestException("Cannot use both 'OR REPLACE' and 'IF NOT EXISTS' directives");
 

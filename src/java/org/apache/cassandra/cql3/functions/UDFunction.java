@@ -27,6 +27,7 @@ import org.slf4j.LoggerFactory;
 import com.datastax.driver.core.DataType;
 import com.datastax.driver.core.ProtocolVersion;
 import com.datastax.driver.core.UserType;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.KSMetaData;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.cql3.*;
@@ -92,6 +93,9 @@ public abstract class UDFunction extends AbstractFunction implements ScalarFunct
                                     String body)
     throws InvalidRequestException
     {
+        if (!DatabaseDescriptor.enableUserDefinedFunctions())
+            throw new InvalidRequestException("User-defined-functions are disabled in cassandra.yaml - set enable_user_defined_functions=true to enable if you are aware of the security risks");
+
         switch (language)
         {
             case "java": return JavaSourceUDFFactory.buildUDF(name, argNames, argTypes, returnType, calledOnNullInput, body);
@@ -131,6 +135,9 @@ public abstract class UDFunction extends AbstractFunction implements ScalarFunct
 
     public final ByteBuffer execute(int protocolVersion, List<ByteBuffer> parameters) throws InvalidRequestException
     {
+        if (!DatabaseDescriptor.enableUserDefinedFunctions())
+            throw new InvalidRequestException("User-defined-functions are disabled in cassandra.yaml - set enable_user_defined_functions=true to enable if you are aware of the security risks");
+
         if (!isCallableWrtNullable(parameters))
             return null;
         return executeUserDefined(protocolVersion, parameters);

@@ -48,6 +48,12 @@ New features
      directory.
    - Support for user-defined functions and user-defined aggregates have
      been added to CQL.
+     ************************************************************************
+     IMPORTANT NOTE: user-defined functions can be used to execute
+     arbitrary and possibly evil code in Cassandra 2.2-beta1.
+     To enable UDFs edit cassandra.yaml and set enable_user_defined_functions
+     to true. CASSANDRA-9402 will add a security manager for UDFs.
+     ************************************************************************
    - Row-cache is now fully off-heap.
    - jemalloc is now automatically preloaded and used on Linux and OS-X if
      installed.
