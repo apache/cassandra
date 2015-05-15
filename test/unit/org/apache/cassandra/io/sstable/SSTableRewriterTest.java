@@ -18,6 +18,7 @@
 package org.apache.cassandra.io.sstable;
 
 import java.io.File;
+import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.concurrent.ThreadLocalRandom;
@@ -779,6 +780,45 @@ public class SSTableRewriterTest extends SchemaLoader
         validateKeys(keyspace);
         SSTableDeletingTask.waitForDeletions();
         validateCFS(cfs);
+    }
+
+    @Test
+    public void testCanonicalView() throws IOException
+    {
+        Keyspace keyspace = Keyspace.open(KEYSPACE);
+        ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(CF);
+        cfs.truncateBlocking();
+
+        SSTableReader s = writeFile(cfs, 1000);
+        cfs.addSSTable(s);
+        Set<SSTableReader> sstables = Sets.newHashSet(cfs.markAllCompacting());
+        assertEquals(1, sstables.size());
+        SSTableRewriter.overrideOpenInterval(10000000);
+        SSTableRewriter writer = new SSTableRewriter(cfs, sstables, 1000, false);
+        boolean checked = false;
+        try (AbstractCompactionStrategy.ScannerList scanners = cfs.getCompactionStrategy().getScanners(sstables))
+        {
+            ISSTableScanner scanner = scanners.scanners.get(0);
+            CompactionController controller = new CompactionController(cfs, sstables, cfs.gcBefore(System.currentTimeMillis()));
+            writer.switchWriter(getWriter(cfs, sstables.iterator().next().descriptor.directory));
+            while (scanner.hasNext())
+            {
+                AbstractCompactedRow row = new LazilyCompactedRow(controller, Collections.singletonList(scanner.next()));
+                writer.append(row);
+                if (!checked && writer.currentWriter().getFilePointer() > 15000000)
+                {
+                    checked = true;
+                    ColumnFamilyStore.ViewFragment viewFragment = cfs.select(ColumnFamilyStore.CANONICAL_SSTABLES);
+                    // canonical view should have only one SSTable which is not opened early.
+                    assertEquals(1, viewFragment.sstables.size());
+                    SSTableReader sstable = viewFragment.sstables.get(0);
+                    assertEquals(s.descriptor, sstable.descriptor);
+                    assertTrue("Found early opened SSTable in canonical view: " + sstable.getFilename(), sstable.openReason != SSTableReader.OpenReason.EARLY);
+                }
+            }
+        }
+        writer.finish();
+        cfs.getDataTracker().unmarkCompacting(sstables);
     }
 
     private void validateKeys(Keyspace ks)
