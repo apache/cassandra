@@ -25,6 +25,7 @@
  * Fix streaming not holding ref when stream error (CASSANDRA-9295)
  * Fix canonical view returning early opened SSTables (CASSANDRA-9396)
 Merged from 2.0:
+ * (cqlsh) Add LOGIN command to switch users (CASSANDRA-7212)
  * Clone SliceQueryFilter in AbstractReadCommand implementations (CASSANDRA-8940)
  * Push correct protocol notification for DROP INDEX (CASSANDRA-9310)
  * token-generator - generated tokens too long (CASSANDRA-9300)
