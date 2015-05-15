@@ -383,6 +383,18 @@ public class ByteBufferUtil
         return bytes.getInt(bytes.position());
     }
 
+    /**
+     * Convert a byte buffer to a short.
+     * Does not change the byte buffer position.
+     *
+     * @param bytes byte buffer to convert to short
+     * @return short representation of the byte buffer
+     */
+    public static short toShort(ByteBuffer bytes)
+    {
+        return bytes.getShort(bytes.position());
+    }
+
     public static long toLong(ByteBuffer bytes)
     {
         return bytes.getLong(bytes.position());
@@ -396,6 +408,11 @@ public class ByteBufferUtil
     public static double toDouble(ByteBuffer bytes)
     {
         return bytes.getDouble(bytes.position());
+    }
+
+    public static ByteBuffer bytes(short s)
+    {
+        return ByteBuffer.allocate(2).putShort(0, s);
     }
 
     public static ByteBuffer bytes(int i)

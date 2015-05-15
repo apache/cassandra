@@ -179,6 +179,24 @@ public class Util
         return bb;
     }
 
+    public static ByteBuffer getBytes(short v)
+    {
+        byte[] bytes = new byte[2];
+        ByteBuffer bb = ByteBuffer.wrap(bytes);
+        bb.putShort(v);
+        bb.rewind();
+        return bb;
+    }
+
+    public static ByteBuffer getBytes(byte v)
+    {
+        byte[] bytes = new byte[1];
+        ByteBuffer bb = ByteBuffer.wrap(bytes);
+        bb.put(v);
+        bb.rewind();
+        return bb;
+    }
+
     public static List<Row> getRangeSlice(ColumnFamilyStore cfs)
     {
         return getRangeSlice(cfs, null);

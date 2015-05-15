@@ -70,6 +70,8 @@ New features
      In a QUERY request an unset limit is treated as 'unlimited'.
      Unset WHERE clauses with unset partition column, clustering column
      or index column are not allowed.
+   - New `ByteType` (cql tinyint). 1-byte signed integer
+   - New `ShortType` (cql smallint). 2-byte signed integer
 
 
 Upgrading

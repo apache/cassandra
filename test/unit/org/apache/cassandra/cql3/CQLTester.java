@@ -1017,6 +1017,12 @@ public abstract class CQLTester
         if (value instanceof ByteBuffer || value instanceof TupleValue || value == null)
             return BytesType.instance;
 
+        if (value instanceof Byte)
+            return ByteType.instance;
+
+        if (value instanceof Short)
+            return ShortType.instance;
+
         if (value instanceof Integer)
             return Int32Type.instance;
 

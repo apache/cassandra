@@ -53,12 +53,13 @@ public enum DataType implements OptionCodec.Codecable<DataType>
     INET     (16, InetAddressType.instance, 1),
     DATE     (17, SimpleDateType.instance, 4),
     TIME     (18, TimeType.instance, 4),
+    SMALLINT (19, ShortType.instance, 4),
+    BYTE     (20, ByteType.instance, 4),
     LIST     (32, null, 1),
     MAP      (33, null, 1),
     SET      (34, null, 1),
     UDT      (48, null, 3),
     TUPLE    (49, null, 3);
-
 
     public static final OptionCodec<DataType> codec = new OptionCodec<DataType>(DataType.class);
 

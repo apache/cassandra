@@ -56,7 +56,6 @@ options {
     public static final Set<String> reservedTypeNames = new HashSet<String>()
     {{
         add("byte");
-        add("smallint");
         add("complex");
         add("enum");
         add("date");
@@ -1453,8 +1452,10 @@ native_type returns [CQL3Type t]
     | K_FLOAT     { $t = CQL3Type.Native.FLOAT; }
     | K_INET      { $t = CQL3Type.Native.INET;}
     | K_INT       { $t = CQL3Type.Native.INT; }
+    | K_SMALLINT  { $t = CQL3Type.Native.SMALLINT; }
     | K_TEXT      { $t = CQL3Type.Native.TEXT; }
     | K_TIMESTAMP { $t = CQL3Type.Native.TIMESTAMP; }
+    | K_TINYINT   { $t = CQL3Type.Native.TINYINT; }
     | K_UUID      { $t = CQL3Type.Native.UUID; }
     | K_VARCHAR   { $t = CQL3Type.Native.VARCHAR; }
     | K_VARINT    { $t = CQL3Type.Native.VARINT; }
@@ -1643,6 +1644,8 @@ K_DOUBLE:      D O U B L E;
 K_FLOAT:       F L O A T;
 K_INET:        I N E T;
 K_INT:         I N T;
+K_SMALLINT:    S M A L L I N T;
+K_TINYINT:     T I N Y I N T;
 K_TEXT:        T E X T;
 K_UUID:        U U I D;
 K_VARCHAR:     V A R C H A R;

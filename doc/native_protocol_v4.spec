@@ -598,6 +598,8 @@ Table of Contents
             0x0010    Inet
             0x0011    Date
             0x0012    Time
+            0x0013    Smallint
+            0x0014    Tinyint
             0x0020    List: the value is an [option], representing the type
                             of the elements of the list.
             0x0021    Map: the value is two [option], representing the types of the
@@ -888,25 +890,47 @@ Table of Contents
   A [int] n indicating the number of elements in the set, followed by n
   elements.  Each element is [bytes] representing the serialized value.
 
-6.13 text
+6.13 smallint
+
+  A two-byte two's complement integer.
+
+
+6.14 text
 
   A sequence of bytes conforming to the UTF-8 specifications.
 
-6.14 timestamp
+6.15 timestamp
 
   An eight-byte two's complement integer representing a millisecond-precision
   offset from the unix epoch (00:00:00, January 1st, 1970).  Negative values
   represent a negative offset from the epoch.
 
-6.15 uuid
+6.16 timeuuid
+
+  A 16 byte sequence representing a version 1 UUID as defined by RFC 4122.
+
+6.17 tinyint
+
+  A one-byte two's complement integer.
+
+6.18 tuple
+
+  A sequence of [bytes] values representing the items in a tuple.  The encoding
+  of each element depends on the data type for that position in the tuple.
+  Null values may be represented by using length -1 for the [bytes]
+  representation of an element.
+
+  Within a tuple, all data types should use the v3 protocol serialization format.
+
+6.19 uuid
 
   A 16 byte sequence representing any valid UUID as defined by RFC 4122.
 
-6.16 varchar
+6.20 varchar
 
   An alias of the "text" type.
 
-6.17 varint
+6.21 varint
 
   A variable-length two's complement encoding of a signed integer.
 
@@ -927,20 +951,6 @@ Table of Contents
   less than 0x80, because a most-significant bit of 1 indicates a negative
   value.  Implementors should pad positive values that have a MSB >= 0x80
   with a leading 0x00 byte.
-
-6.18 timeuuid
-
-  A 16 byte sequence representing a version 1 UUID as defined by RFC 4122.
-
-6.19 tuple
-
-  A sequence of [bytes] values representing the items in a tuple.  The encoding
-  of each element depends on the data type for that position in the tuple.
-  Null values may be represented by using length -1 for the [bytes]
-  representation of an element.
-
-  Within a tuple, all data types should use the v3 protocol serialization format.
-
 
 7. User Defined Types
 
@@ -1141,3 +1151,4 @@ Table of Contents
   * Add custom payload to frames for custom QueryHandler implementations (ignored by Cassandra's standard QueryHandler)
   * Add "TRACE_COMPLETE" event (section 4.2.6).
   * Add warnings to frames for responses for which the server generated a warning during processing, which the client needs to address.
+  * Add the tinyint and smallint data types

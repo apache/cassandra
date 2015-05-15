@@ -1,4 +1,5 @@
 2.2
+ * Add `smallint` and `tinyint` data types (CASSANDRA-8951)
  * Avoid thrift schema creation when native driver is used in stress tool (CASSANDRA-9374)
  * Populate TokenMetadata early during startup (CASSANDRA-9317)
  * Make Functions.declared thread-safe

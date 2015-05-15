@@ -229,6 +229,16 @@ public abstract class UntypedResultSet implements Iterable<UntypedResultSet.Row>
             return BooleanType.instance.compose(data.get(column));
         }
 
+        public byte getByte(String column)
+        {
+            return ByteType.instance.compose(data.get(column));
+        }
+
+        public short getShort(String column)
+        {
+            return ShortType.instance.compose(data.get(column));
+        }
+
         public int getInt(String column)
         {
             return Int32Type.instance.compose(data.get(column));
