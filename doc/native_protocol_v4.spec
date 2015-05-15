@@ -851,69 +851,82 @@ Table of Contents
   A single byte.  A value of 0 denotes "false"; any other value denotes "true".
   (However, it is recommended that a value of 1 be used to represent "true".)
 
-6.5 decimal
+6.5 date
+
+  An unsigned integer representing days with epoch centered at 2^31.
+  (unix epoch January 1st, 1970).
+  A few examples:
+    0:    -5877641-06-23
+    2^31: 1970-1-1
+    2^32: 5881580-07-11
+
+6.6 decimal
 
   The decimal format represents an arbitrary-precision number.  It contains an
   [int] "scale" component followed by a varint encoding (see section 6.17)
   of the unscaled value.  The encoded value represents "<unscaled>E<-scale>".
   In other words, "<unscaled> * 10 ^ (-1 * <scale>)".
 
-6.6 double
+6.7 double
 
   An eight-byte floating point number in the IEEE 754 binary64 format.
 
-6.7 float
+6.8 float
 
   An four-byte floating point number in the IEEE 754 binary32 format.
 
-6.8 inet
+6.9 inet
 
   A 4 byte or 16 byte sequence denoting an IPv4 or IPv6 address, respectively.
 
-6.9 int
+6.10 int
 
   A four-byte two's complement integer.
 
-6.10 list
+6.11 list
 
   A [int] n indicating the number of elements in the list, followed by n
   elements.  Each element is [bytes] representing the serialized value.
 
-6.11 map
+6.12 map
 
   A [int] n indicating the number of key/value pairs in the map, followed by
   n entries.  Each entry is composed of two [bytes] representing the key
   and value.
 
-6.12 set
+6.13 set
 
   A [int] n indicating the number of elements in the set, followed by n
   elements.  Each element is [bytes] representing the serialized value.
 
-6.13 smallint
+6.14 smallint
 
   A two-byte two's complement integer.
 
-
-6.14 text
+6.15 text
 
   A sequence of bytes conforming to the UTF-8 specifications.
 
-6.15 timestamp
+6.16 time
+
+  An eight-byte two's complement long representing nanoseconds since midnight.
+  Valid values are in the range 0 to 86399999999999
+
+6.17 timestamp
 
   An eight-byte two's complement integer representing a millisecond-precision
   offset from the unix epoch (00:00:00, January 1st, 1970).  Negative values
   represent a negative offset from the epoch.
 
-6.16 timeuuid
+6.18 timeuuid
 
   A 16 byte sequence representing a version 1 UUID as defined by RFC 4122.
 
-6.17 tinyint
+6.19 tinyint
 
   A one-byte two's complement integer.
 
-6.18 tuple
+6.20 tuple
 
   A sequence of [bytes] values representing the items in a tuple.  The encoding
   of each element depends on the data type for that position in the tuple.
@@ -922,15 +935,15 @@ Table of Contents
 
   Within a tuple, all data types should use the v3 protocol serialization format.
 
-6.19 uuid
+6.21 uuid
 
   A 16 byte sequence representing any valid UUID as defined by RFC 4122.
 
-6.20 varchar
+6.22 varchar
 
   An alias of the "text" type.
 
-6.21 varint
+6.23 varint
 
   A variable-length two's complement encoding of a signed integer.
 
@@ -1151,4 +1164,5 @@ Table of Contents
   * Add custom payload to frames for custom QueryHandler implementations (ignored by Cassandra's standard QueryHandler)
   * Add "TRACE_COMPLETE" event (section 4.2.6).
   * Add warnings to frames for responses for which the server generated a warning during processing, which the client needs to address.
+  * Add the date and time data types
   * Add the tinyint and smallint data types
