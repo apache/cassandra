@@ -240,7 +240,7 @@ public abstract class AbstractColumnFamilyInputFormat<K, Y> extends InputFormat<
         Map<TokenRange, Set<Host>> map = new HashMap<>();
         Metadata metadata = session.getCluster().getMetadata();
         for (TokenRange tokenRange : metadata.getTokenRanges())
-            map.put(tokenRange, metadata.getReplicas(keyspace, tokenRange));
+            map.put(tokenRange, metadata.getReplicas('"' + keyspace + '"', tokenRange));
         return map;
     }
 
