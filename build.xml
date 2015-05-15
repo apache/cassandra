@@ -1598,7 +1598,7 @@
   <target name="generate-idea-files" depends="build-test" description="Generate IDEA files">
     <echo file="${eclipse.project.name}.iml"><![CDATA[<?xml version="1.0" encoding="UTF-8"?>
 <module type="JAVA_MODULE" version="4">
-  <component name="NewModuleRootManager" LANGUAGE_LEVEL="JDK_1_7" inherit-compiler-output="false">
+  <component name="NewModuleRootManager" LANGUAGE_LEVEL="JDK_1_8" inherit-compiler-output="false">
     <output url="file://$MODULE_DIR$/.idea/out/main" />
     <output-test url="file://$MODULE_DIR$/.idea/out/test" />
     <exclude-output />
@@ -1700,7 +1700,7 @@
 </project>]]></echo>
     <echo file=".idea/misc.xml"><![CDATA[<?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
-<component name="ProjectRootManager" version="2" languageLevel="JDK_1_7" default="false" assert-keyword="true" jdk-15="true" project-jdk-name="1.7" project-jdk-type="JavaSDK" />
+<component name="ProjectRootManager" version="2" languageLevel="JDK_1_8" default="false" assert-keyword="true" jdk-15="true" project-jdk-name="1.8" project-jdk-type="JavaSDK" />
 </project>]]></echo>
     <echo file=".idea/vcs.xml"><![CDATA[<?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
