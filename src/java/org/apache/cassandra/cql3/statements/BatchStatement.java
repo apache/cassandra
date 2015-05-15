@@ -22,9 +22,10 @@ import java.util.*;
 
 import com.google.common.base.Function;
 import com.google.common.collect.Iterables;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
+import org.slf4j.helpers.MessageFormatter;
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.*;
@@ -261,7 +262,7 @@ public class BatchStatement implements CQLStatement
             {
                 logger.warn(format, ksCfPairs, size, warnThreshold, size - warnThreshold, "");
             }
-            ClientWarn.warn(String.format(format, ksCfPairs, size, warnThreshold, size - warnThreshold, ""));
+            ClientWarn.warn(MessageFormatter.arrayFormat(format, new Object[] {ksCfPairs, size, warnThreshold, size - warnThreshold, ""}).getMessage());
         }
     }
 
