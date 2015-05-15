@@ -197,6 +197,7 @@ my_commands_ending_with_newline = (
     'show',
     'source',
     'capture',
+    'login',
     'debug',
     'tracing',
     'expand',
@@ -222,6 +223,7 @@ cqlsh_extra_syntax_rules = r'''
                    | <sourceCommand>
                    | <captureCommand>
                    | <copyCommand>
+                   | <loginCommand>
                    | <debugCommand>
                    | <helpCommand>
                    | <tracingCommand>
@@ -289,6 +291,9 @@ cqlsh_extra_syntax_rules = r'''
 
 <expandCommand> ::= "EXPAND" ( switch=( "ON" | "OFF" ) )?
                    ;
+
+<loginCommand> ::= "LOGIN" username=<username> (password=<stringLiteral>)?
+                 ;
 
 <exitCommand> ::= "exit" | "quit"
                 ;
@@ -1824,6 +1829,35 @@ class Shell(cmd.Cmd):
 
         self.cursor.consistency_level = level.upper()
         print 'Consistency level set to %s.' % (level.upper(),)
+
+    def do_login(self, parsed):
+        """
+        LOGIN [cqlsh only]
+
+           Changes login information without requiring restart.
+
+        LOGIN <username> (<password>)
+
+           Login using the specified username. If password is specified, it will be used
+           otherwise, you will be prompted to enter.
+        """
+        username = parsed.get_binding('username')
+        password = parsed.get_binding('password')
+        if password is None:
+            password = getpass.getpass()
+        else:
+            password = password[1:-1]
+
+        transport = self.transport_factory(self.hostname, self.port, os.environ, CONFIG_FILE)
+        conn = cql.connect(self.hostname, self.port, keyspace=self.current_keyspace, user=username,
+                                password=password, cql_version=self.conn.cql_version,
+                                transport=transport)
+
+        self.username = username
+        self.password = password
+        self.conn=conn
+        self.cursor = self.conn.cursor()
+        self.get_connection_versions()
 
     def do_exit(self, parsed=None):
         """
