@@ -42,6 +42,26 @@ public class ClientWarningsTest extends CQLTester
     }
 
     @Test
+    public void testUnloggedBatchWithProtoV4() throws Exception
+    {
+        createTable("CREATE TABLE %s (pk int PRIMARY KEY, v text)");
+
+        try (SimpleClient client = new SimpleClient(nativeAddr.getHostAddress(), nativePort, Server.VERSION_4))
+        {
+            client.connect(false);
+
+            QueryMessage query = new QueryMessage(createBatchStatement2(1), QueryOptions.DEFAULT);
+            Message.Response resp = client.execute(query);
+            assertEquals(1, resp.getWarnings().size());
+
+            query = new QueryMessage(createBatchStatement2(DatabaseDescriptor.getBatchSizeWarnThreshold()), QueryOptions.DEFAULT);
+            resp = client.execute(query);
+            assertEquals(2, resp.getWarnings().size());
+
+        }
+    }
+
+    @Test
     public void testLargeBatchWithProtoV4() throws Exception
     {
         createTable("CREATE TABLE %s (pk int PRIMARY KEY, v text)");
@@ -78,4 +98,16 @@ public class ClientWarningsTest extends CQLTester
                              currentTable(),
                              StringUtils.repeat('1', minSize));
     }
+
+    private String createBatchStatement2(int minSize)
+    {
+        return String.format("BEGIN UNLOGGED BATCH INSERT INTO %s.%s (pk, v) VALUES (1, '%s'); INSERT INTO %s.%s (pk, v) VALUES (2, '%s'); APPLY BATCH;",
+                             KEYSPACE,
+                             currentTable(),
+                             StringUtils.repeat('1', minSize),
+                             KEYSPACE,
+                             currentTable(),
+                             StringUtils.repeat('1', minSize));
+    }
+
 }

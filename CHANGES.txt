@@ -107,6 +107,7 @@
 
 
 2.1.6
+ * Warn on misuse of unlogged batches (CASSANDRA-9282)
  * Failure detector detects and ignores local pauses (CASSANDRA-9183)
  * Add utility class to support for rate limiting a given log statement (CASSANDRA-9029)
  * Add missing consistency levels to cassandra-stess (CASSANDRA-9361)
