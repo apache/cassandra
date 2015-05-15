@@ -2892,10 +2892,12 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         public List<SSTableReader> apply(DataTracker.View view)
         {
             List<SSTableReader> sstables = new ArrayList<>();
-            sstables.addAll(view.compacting);
+            for (SSTableReader sstable : view.compacting)
+                if (sstable.openReason != SSTableReader.OpenReason.EARLY)
+                    sstables.add(sstable);
             for (SSTableReader sstable : view.sstables)
-            if (!view.compacting.contains(sstable) && sstable.openReason != SSTableReader.OpenReason.EARLY)
-                sstables.add(sstable);
+                if (!view.compacting.contains(sstable) && sstable.openReason != SSTableReader.OpenReason.EARLY)
+                    sstables.add(sstable);
             return sstables;
         }
     };
