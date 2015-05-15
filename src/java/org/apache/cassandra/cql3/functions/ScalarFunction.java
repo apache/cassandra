@@ -27,6 +27,8 @@ import org.apache.cassandra.exceptions.InvalidRequestException;
  */
 public interface ScalarFunction extends Function
 {
+    public boolean isCalledOnNullInput();
+
     /**
      * Applies this function to the specified parameter.
      *

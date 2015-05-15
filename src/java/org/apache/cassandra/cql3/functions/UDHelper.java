@@ -20,22 +20,17 @@ package org.apache.cassandra.cql3.functions;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.reflect.Method;
-import java.util.*;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import java.util.List;
 
 import com.datastax.driver.core.DataType;
-import org.apache.cassandra.cql3.*;
-import org.apache.cassandra.db.marshal.*;
+import org.apache.cassandra.cql3.CQL3Type;
+import org.apache.cassandra.db.marshal.AbstractType;
 
 /**
  * Helper class for User Defined Functions + Aggregates.
  */
 public final class UDHelper
 {
-    protected static final Logger logger = LoggerFactory.getLogger(UDHelper.class);
-
     // TODO make these c'tors and methods public in Java-Driver - see https://datastax-oss.atlassian.net/browse/JAVA-502
     static final MethodHandle methodParseOne;
     static
@@ -56,14 +51,36 @@ public final class UDHelper
     /**
      * Construct an array containing the Java classes for the given Java Driver {@link com.datastax.driver.core.DataType}s.
      *
-     * @param dataTypes array with UDF argument types
+     * @param dataTypes  array with UDF argument types
+     * @param calledOnNullInput whether to allow {@code null} as an argument value
      * @return array of same size with UDF arguments
      */
-    public static Class<?>[] javaTypes(DataType[] dataTypes)
+    public static Class<?>[] javaTypes(DataType[] dataTypes, boolean calledOnNullInput)
     {
         Class<?>[] paramTypes = new Class[dataTypes.length];
         for (int i = 0; i < paramTypes.length; i++)
-            paramTypes[i] = dataTypes[i].asJavaClass();
+        {
+            Class<?> clazz = dataTypes[i].asJavaClass();
+            if (!calledOnNullInput)
+            {
+                // only care about classes that can be used in a data type
+                if (clazz == Integer.class)
+                    clazz = int.class;
+                else if (clazz == Long.class)
+                    clazz = long.class;
+                else if (clazz == Byte.class)
+                    clazz = byte.class;
+                else if (clazz == Short.class)
+                    clazz = short.class;
+                else if (clazz == Float.class)
+                    clazz = float.class;
+                else if (clazz == Double.class)
+                    clazz = double.class;
+                else if (clazz == Boolean.class)
+                    clazz = boolean.class;
+            }
+            paramTypes[i] = clazz;
+        }
         return paramTypes;
     }
 

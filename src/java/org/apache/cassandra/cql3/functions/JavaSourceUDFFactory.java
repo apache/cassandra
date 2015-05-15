@@ -118,6 +118,7 @@ public final class JavaSourceUDFFactory
                                List<ColumnIdentifier> argNames,
                                List<AbstractType<?>> argTypes,
                                AbstractType<?> returnType,
+                               boolean calledOnNullInput,
                                String body)
     throws InvalidRequestException
     {
@@ -126,7 +127,7 @@ public final class JavaSourceUDFFactory
         // returnDataType is just the C* internal returnType converted to the Java Driver DataType
         DataType returnDataType = UDHelper.driverType(returnType);
         // javaParamTypes is just the Java representation for argTypes resp. argDataTypes
-        Class<?>[] javaParamTypes = UDHelper.javaTypes(argDataTypes);
+        Class<?>[] javaParamTypes = UDHelper.javaTypes(argDataTypes, calledOnNullInput);
         // javaReturnType is just the Java representation for returnType resp. returnDataType
         Class<?> javaReturnType = returnDataType.asJavaClass();
 
@@ -226,11 +227,11 @@ public final class JavaSourceUDFFactory
             MethodType methodType = MethodType.methodType(void.class)
                                               .appendParameterTypes(FunctionName.class, List.class, List.class, DataType[].class,
                                                                     AbstractType.class, DataType.class,
-                                                                    String.class);
+                                                                    boolean.class, String.class);
             MethodHandle ctor = MethodHandles.lookup().findConstructor(cls, methodType);
             return (UDFunction) ctor.invokeWithArguments(name, argNames, argTypes, argDataTypes,
                                                          returnType, returnDataType,
-                                                         body);
+                                                         calledOnNullInput, body);
         }
         catch (InvocationTargetException e)
         {
@@ -309,9 +310,14 @@ public final class JavaSourceUDFFactory
                 // cast to Java type
                 .append("                (").append(javaSourceName(paramTypes[i])).append(") ")
                 // generate object representation of input parameter (call UDFunction.compose)
-                .append("compose(protocolVersion, ").append(i).append(", params.get(").append(i).append("))");
+                .append(composeMethod(paramTypes[i])).append("(protocolVersion, ").append(i).append(", params.get(").append(i).append("))");
         }
         return code.toString();
+    }
+
+    private static String composeMethod(Class<?> type)
+    {
+        return (type.isPrimitive()) ? ("compose_" + type.getName()) : "compose";
     }
 
     // Java source UDFs are a very simple compilation task, which allows us to let one class implement

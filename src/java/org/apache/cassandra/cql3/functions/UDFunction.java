@@ -49,16 +49,18 @@ public abstract class UDFunction extends AbstractFunction implements ScalarFunct
 
     protected final DataType[] argDataTypes;
     protected final DataType returnDataType;
+    protected final boolean calledOnNullInput;
 
     protected UDFunction(FunctionName name,
                          List<ColumnIdentifier> argNames,
                          List<AbstractType<?>> argTypes,
                          AbstractType<?> returnType,
+                         boolean calledOnNullInput,
                          String language,
                          String body)
     {
         this(name, argNames, argTypes, UDHelper.driverTypes(argTypes), returnType,
-             UDHelper.driverType(returnType), language, body);
+             UDHelper.driverType(returnType), calledOnNullInput, language, body);
     }
 
     protected UDFunction(FunctionName name,
@@ -67,6 +69,7 @@ public abstract class UDFunction extends AbstractFunction implements ScalarFunct
                          DataType[] argDataTypes,
                          AbstractType<?> returnType,
                          DataType returnDataType,
+                         boolean calledOnNullInput,
                          String language,
                          String body)
     {
@@ -77,20 +80,22 @@ public abstract class UDFunction extends AbstractFunction implements ScalarFunct
         this.body = body;
         this.argDataTypes = argDataTypes;
         this.returnDataType = returnDataType;
+        this.calledOnNullInput = calledOnNullInput;
     }
 
     public static UDFunction create(FunctionName name,
                                     List<ColumnIdentifier> argNames,
                                     List<AbstractType<?>> argTypes,
                                     AbstractType<?> returnType,
+                                    boolean calledOnNullInput,
                                     String language,
                                     String body)
     throws InvalidRequestException
     {
         switch (language)
         {
-            case "java": return JavaSourceUDFFactory.buildUDF(name, argNames, argTypes, returnType, body);
-            default: return new ScriptBasedUDF(name, argNames, argTypes, returnType, language, body);
+            case "java": return JavaSourceUDFFactory.buildUDF(name, argNames, argTypes, returnType, calledOnNullInput, body);
+            default: return new ScriptBasedUDF(name, argNames, argTypes, returnType, calledOnNullInput, language, body);
         }
     }
 
@@ -107,13 +112,14 @@ public abstract class UDFunction extends AbstractFunction implements ScalarFunct
                                                   List<ColumnIdentifier> argNames,
                                                   List<AbstractType<?>> argTypes,
                                                   AbstractType<?> returnType,
+                                                  boolean calledOnNullInput,
                                                   String language,
                                                   String body,
                                                   final InvalidRequestException reason)
     {
-        return new UDFunction(name, argNames, argTypes, returnType, language, body)
+        return new UDFunction(name, argNames, argTypes, returnType, calledOnNullInput, language, body)
         {
-            public ByteBuffer execute(int protocolVersion, List<ByteBuffer> parameters) throws InvalidRequestException
+            public ByteBuffer executeUserDefined(int protocolVersion, List<ByteBuffer> parameters) throws InvalidRequestException
             {
                 throw new InvalidRequestException(String.format("Function '%s' exists but hasn't been loaded successfully "
                                                                 + "for the following reason: %s. Please see the server log for details",
@@ -123,6 +129,23 @@ public abstract class UDFunction extends AbstractFunction implements ScalarFunct
         };
     }
 
+    public final ByteBuffer execute(int protocolVersion, List<ByteBuffer> parameters) throws InvalidRequestException
+    {
+        if (!isCallableWrtNullable(parameters))
+            return null;
+        return executeUserDefined(protocolVersion, parameters);
+    }
+
+    public boolean isCallableWrtNullable(List<ByteBuffer> parameters)
+    {
+        if (!calledOnNullInput)
+            for (ByteBuffer parameter : parameters)
+                if (parameter == null || parameter.remaining() == 0)
+                    return false;
+        return true;
+    }
+
+    protected abstract ByteBuffer executeUserDefined(int protocolVersion, List<ByteBuffer> parameters) throws InvalidRequestException;
 
     public boolean isAggregate()
     {
@@ -132,6 +155,11 @@ public abstract class UDFunction extends AbstractFunction implements ScalarFunct
     public boolean isNative()
     {
         return false;
+    }
+
+    public boolean isCalledOnNullInput()
+    {
+        return calledOnNullInput;
     }
 
     public List<ColumnIdentifier> argNames()
@@ -160,6 +188,36 @@ public abstract class UDFunction extends AbstractFunction implements ScalarFunct
     protected Object compose(int protocolVersion, int argIndex, ByteBuffer value)
     {
         return value == null ? null : argDataTypes[argIndex].deserialize(value, ProtocolVersion.fromInt(protocolVersion));
+    }
+
+    // do not remove - used by generated Java UDFs
+    protected float compose_float(int protocolVersion, int argIndex, ByteBuffer value)
+    {
+        return value == null ? 0f : (float)DataType.cfloat().deserialize(value, ProtocolVersion.fromInt(protocolVersion));
+    }
+
+    // do not remove - used by generated Java UDFs
+    protected double compose_double(int protocolVersion, int argIndex, ByteBuffer value)
+    {
+        return value == null ? 0d : (double)DataType.cdouble().deserialize(value, ProtocolVersion.fromInt(protocolVersion));
+    }
+
+    // do not remove - used by generated Java UDFs
+    protected int compose_int(int protocolVersion, int argIndex, ByteBuffer value)
+    {
+        return value == null ? 0 : (int)DataType.cint().deserialize(value, ProtocolVersion.fromInt(protocolVersion));
+    }
+
+    // do not remove - used by generated Java UDFs
+    protected long compose_long(int protocolVersion, int argIndex, ByteBuffer value)
+    {
+        return value == null ? 0L : (long)DataType.bigint().deserialize(value, ProtocolVersion.fromInt(protocolVersion));
+    }
+
+    // do not remove - used by generated Java UDFs
+    protected boolean compose_boolean(int protocolVersion, int argIndex, ByteBuffer value)
+    {
+        return value != null && (boolean) DataType.cboolean().deserialize(value, ProtocolVersion.fromInt(protocolVersion));
     }
 
     /**

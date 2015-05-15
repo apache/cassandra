@@ -66,11 +66,12 @@ public class ScriptBasedUDF extends UDFunction
                    List<ColumnIdentifier> argNames,
                    List<AbstractType<?>> argTypes,
                    AbstractType<?> returnType,
+                   boolean calledOnNullInput,
                    String language,
                    String body)
     throws InvalidRequestException
     {
-        super(name, argNames, argTypes, returnType, language, body);
+        super(name, argNames, argTypes, returnType, calledOnNullInput, language, body);
 
         Compilable scriptEngine = scriptEngines.get(language);
         if (scriptEngine == null)
@@ -88,7 +89,7 @@ public class ScriptBasedUDF extends UDFunction
         }
     }
 
-    public ByteBuffer execute(int protocolVersion, List<ByteBuffer> parameters) throws InvalidRequestException
+    public ByteBuffer executeUserDefined(int protocolVersion, List<ByteBuffer> parameters) throws InvalidRequestException
     {
         Object[] params = new Object[argTypes.size()];
         for (int i = 0; i < params.length; i++)

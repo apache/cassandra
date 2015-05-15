@@ -249,6 +249,7 @@ public class UFAuthTest extends CQLTester
         String innerFunctionName = createSimpleFunction();
         String outerFunctionName = createFunction("int",
                                                   "CREATE FUNCTION %s(input int) " +
+                                                  " CALLED ON NULL INPUT" +
                                                   " RETURNS int" +
                                                   " LANGUAGE java" +
                                                   " AS 'return Integer.valueOf(0);'");
@@ -389,6 +390,7 @@ public class UFAuthTest extends CQLTester
     {
         String outerFunc = createFunction("int",
                                           "CREATE FUNCTION %s(input int) " +
+                                          "CALLED ON NULL INPUT " +
                                           "RETURNS int " +
                                           "LANGUAGE java " +
                                           "AS 'return input;'");
@@ -420,6 +422,7 @@ public class UFAuthTest extends CQLTester
     {
         String innerFunc = createFunction("int",
                                           "CREATE FUNCTION %s(input int) " +
+                                          "CALLED ON NULL INPUT " +
                                           "RETURNS int " +
                                           "LANGUAGE java " +
                                           "AS 'return input;'");
@@ -568,6 +571,7 @@ public class UFAuthTest extends CQLTester
     {
         return createFunction("int, int",
                               "CREATE FUNCTION %s(a int, b int) " +
+                              "CALLED ON NULL INPUT " +
                               "RETURNS int " +
                               "LANGUAGE java " +
                               "AS 'return Integer.valueOf( (a != null ? a.intValue() : 0 ) + b.intValue());'");
@@ -577,6 +581,7 @@ public class UFAuthTest extends CQLTester
     {
         return createFunction("int",
                               "CREATE FUNCTION %s(a int) " +
+                              "CALLED ON NULL INPUT " +
                               "RETURNS int " +
                               "LANGUAGE java " +
                               "AS 'return a;'");
@@ -586,6 +591,7 @@ public class UFAuthTest extends CQLTester
     {
         return createFunction("",
                               "CREATE FUNCTION %s() " +
+                              "  CALLED ON NULL INPUT " +
                               "  RETURNS int " +
                               "  LANGUAGE java " +
                               "  AS 'return Integer.valueOf(0);'");

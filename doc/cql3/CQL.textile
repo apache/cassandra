@@ -591,8 +591,9 @@ __Syntax:__
 bc(syntax).. 
 <create-function-stmt> ::= CREATE ( OR REPLACE )? 
                             FUNCTION ( IF NOT EXISTS )?
-                            ( ( <keyspace> '.' )? <function-name> )?
+                            ( <keyspace> '.' )? <function-name>
                             '(' <arg-name> <arg-type> ( ',' <arg-name> <arg-type> )* ')'
+                            ( CALLED | RETURNS NULL ) ON NULL INPUT
                             RETURNS <type>
                             LANGUAGE <language>
                             AS <body>
@@ -602,6 +603,7 @@ __Sample:__
 bc(sample). 
 CREATE OR REPLACE FUNCTION somefunction
     ( somearg int, anotherarg text, complexarg frozen<someUDT>, listarg list<bigint> )
+    RETURNS NULL ON NULL INPUT
     RETURNS text
     LANGUAGE java
     AS $$
@@ -609,6 +611,7 @@ CREATE OR REPLACE FUNCTION somefunction
     $$;
 CREATE FUNCTION akeyspace.fname IF NOT EXISTS
     ( someArg int )
+    CALLED ON NULL INPUT
     RETURNS text
     LANGUAGE java
     AS $$
@@ -628,6 +631,11 @@ Note that keyspace names, function names and argument types are subject to the d
 
 @CREATE FUNCTION@ with the optional @OR REPLACE@ keywords either creates a function or replaces an existing one with the same signature. A @CREATE FUNCTION@ without @OR REPLACE@ fails if a function with the same signature already exists.
 
+Behavior on invocation with @null@ values must be defined for each function. There are two options:
+
+# @RETURNS NULL ON NULL INPUT@ declares that the function will always return @null@ if any of the input arguments is @null@.
+# @CALLED ON NULL INPUT@ declares that the function will always be executed.
+
 If the optional @IF NOT EXISTS@ keywords are used, the function will only be created if another function with the same signature does not exist.
 
 @OR REPLACE@ and @IF NOT EXIST@ cannot be used together.
@@ -642,7 +650,7 @@ __Syntax:__
 
 bc(syntax).. 
 <drop-function-stmt> ::= DROP FUNCTION ( IF EXISTS )?
-                         ( ( <keyspace> '.' )? <function-name> )?
+                         ( <keyspace> '.' )? <function-name>
                          ( '(' <arg-type> ( ',' <arg-type> )* ')' )?
 
 p. 
@@ -666,7 +674,7 @@ __Syntax:__
 bc(syntax).. 
 <create-aggregate-stmt> ::= CREATE ( OR REPLACE )? 
                             AGGREGATE ( IF NOT EXISTS )?
-                            ( ( <keyspace> '.' )? <aggregate-name> )?
+                            ( <keyspace> '.' )? <aggregate-name>
                             '(' <arg-type> ( ',' <arg-type> )* ')'
                             SFUNC ( <keyspace> '.' )? <state-functionname>
                             STYPE <state-type>
@@ -698,11 +706,11 @@ Signatures for user-defined aggregates follow the "same rules":#functionSignatur
 
 @STYPE@ defines the type of the state value and must be specified.
 
-The optional @INITCOND@ defines the initial state value for the aggregate. It defaults to @null@.
+The optional @INITCOND@ defines the initial state value for the aggregate. It defaults to @null@. A non-@null@ @INITCOND@ must be specified for state functions that are declared with @RETURNS NULL ON NULL INPUT@.
 
-@SFUNC@ references an existing function to be used as the state modifying function. The type of first argument of the state function must match @STYPE@. The remaining argument types of the state function must match the argument types of the aggregate function.
+@SFUNC@ references an existing function to be used as the state modifying function. The type of first argument of the state function must match @STYPE@. The remaining argument types of the state function must match the argument types of the aggregate function. State is not updated for state functions declared with @RETURNS NULL ON NULL INPUT@ and called with @null@.
 
-The optional @FINALFUNC@ is called just before the aggregate result is returned. It must take only one argument with type @STYPE@. The return type of the @FINALFUNC@ may be a different type.
+The optional @FINALFUNC@ is called just before the aggregate result is returned. It must take only one argument with type @STYPE@. The return type of the @FINALFUNC@ may be a different type. A final function declared with @RETURNS NULL ON NULL INPUT@ means that the aggregate's return value will be @null@, if the last state is @null@.
 
 If no @FINALFUNC@ is defined, the overall return type of the aggregate function is @STYPE@.  If a @FINALFUNC@ is defined, it is the return type of that function.
 
@@ -713,8 +721,8 @@ h3(#dropAggregateStmt). DROP AGGREGATE
 __Syntax:__
 
 bc(syntax).. 
-<drop-function-stmt> ::= DROP AGGREGATE ( IF EXISTS )?
-                         ( ( <keyspace> '.' )? <functionname> )?
+<drop-aggregate-stmt> ::= DROP AGGREGATE ( IF EXISTS )?
+                         ( <keyspace> '.' )? <aggregate-name>
                          ( '(' <arg-type> ( ',' <arg-type> )* ')' )?
 p. 
 
@@ -1447,6 +1455,7 @@ A complete working example for user-defined aggregates (assuming that a keyspace
 
 bc(sample).. 
 CREATE FUNCTION averageState ( state tuple<int,bigint>, val int )
+  CALLED ON NULL INPUT
   RETURNS tuple<int,bigint>
   LANGUAGE java
   AS '
@@ -1458,6 +1467,7 @@ CREATE FUNCTION averageState ( state tuple<int,bigint>, val int )
   ';
 
 CREATE FUNCTION averageFinal ( state tuple<int,bigint> )
+  CALLED ON NULL INPUT
   RETURNS double
   LANGUAGE java
   AS '

@@ -13,12 +13,12 @@ import org.apache.cassandra.exceptions.InvalidRequestException;
 public final class #class_name# extends org.apache.cassandra.cql3.functions.UDFunction
 {
     public #class_name#(FunctionName name, List<ColumnIdentifier> argNames, List<AbstractType<?>> argTypes,
-                        DataType[] argDataTypes, AbstractType<?> returnType, DataType returnDataType, String body)
+                        DataType[] argDataTypes, AbstractType<?> returnType, DataType returnDataType, boolean calledOnNullInput, String body)
     {
-        super(name, argNames, argTypes, argDataTypes, returnType, returnDataType, "java", body);
+        super(name, argNames, argTypes, argDataTypes, returnType, returnDataType, calledOnNullInput, "java", body);
     }
 
-    public ByteBuffer execute(int protocolVersion, List<ByteBuffer> params) throws InvalidRequestException
+    protected ByteBuffer executeUserDefined(int protocolVersion, List<ByteBuffer> params) throws InvalidRequestException
     {
         try
         {
