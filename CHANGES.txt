@@ -1,4 +1,4 @@
-2.2
+2.2.0-beta1
  * Use ecj instead of javassist for UDFs
  * faster async logback configuration for tests (CASSANDRA-9376)
  * Add `smallint` and `tinyint` data types (CASSANDRA-8951)
