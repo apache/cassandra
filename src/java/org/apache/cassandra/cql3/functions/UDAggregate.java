@@ -149,17 +149,27 @@ public class UDAggregate extends AbstractFunction implements AggregateFunction
 
             public void addInput(int protocolVersion, List<ByteBuffer> values) throws InvalidRequestException
             {
-                List<ByteBuffer> copy = new ArrayList<>(values.size() + 1);
-                copy.add(state);
-                copy.addAll(values);
-                state = stateFunction.execute(protocolVersion, copy);
+                List<ByteBuffer> fArgs = new ArrayList<>(values.size() + 1);
+                fArgs.add(state);
+                fArgs.addAll(values);
+                if (stateFunction instanceof UDFunction)
+                {
+                    UDFunction udf = (UDFunction)stateFunction;
+                    if (udf.isCallableWrtNullable(fArgs))
+                        state = udf.executeUserDefined(protocolVersion, fArgs);
+                }
+                else
+                {
+                    state = stateFunction.execute(protocolVersion, fArgs);
+                }
             }
 
             public ByteBuffer compute(int protocolVersion) throws InvalidRequestException
             {
                 if (finalFunction == null)
                     return state;
-                return finalFunction.execute(protocolVersion, Collections.singletonList(state));
+                List<ByteBuffer> fArgs = Collections.singletonList(state);
+                return finalFunction.execute(protocolVersion, fArgs);
             }
 
             public void reset()

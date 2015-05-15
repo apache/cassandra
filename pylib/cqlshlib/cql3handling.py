@@ -1027,6 +1027,7 @@ syntax_rules += r'''
                             ( "(" ( newcol=<cident> <storageType>
                               ( "," [newcolname]=<cident> <storageType> )* )?
                             ")" )?
+                            ("RETURNS" "NULL" | "CALLED") "ON" "NULL" "INPUT"
                             "RETURNS" <storageType>
                             "LANGUAGE" <cident> "AS" <stringLiteral>
                          ;

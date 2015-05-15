@@ -106,9 +106,10 @@ public class AggregationTest extends CQLTester
         String copySign = createFunction(KEYSPACE,
                                          "double, double",
                                          "CREATE OR REPLACE FUNCTION %s(magnitude double, sign double) " +
+                                         "RETURNS NULL ON NULL INPUT " +
                                          "RETURNS double " +
                                          "LANGUAGE JAVA " +
-                                         "AS 'return Double.valueOf(Math.copySign(magnitude.doubleValue(), sign.doubleValue()));';");
+                                         "AS 'return Double.valueOf(Math.copySign(magnitude, sign));';");
 
         assertColumnNames(execute("SELECT max(a), max(unixTimestampOf(b)) FROM %s"), "system.max(a)", "system.max(system.unixtimestampof(b))");
         assertRows(execute("SELECT max(a), max(unixTimestampOf(b)) FROM %s"), row(null, null));
@@ -143,6 +144,7 @@ public class AggregationTest extends CQLTester
         String f = createFunction(KEYSPACE,
                                   "double, double",
                                   "CREATE OR REPLACE FUNCTION %s(state double, val double) " +
+                                  "RETURNS NULL ON NULL INPUT " +
                                   "RETURNS double " +
                                   "LANGUAGE javascript " +
                                   "AS '\"string\";';");
@@ -150,6 +152,7 @@ public class AggregationTest extends CQLTester
         createFunctionOverload(f,
                                "double, double",
                                "CREATE OR REPLACE FUNCTION %s(state int, val int) " +
+                               "RETURNS NULL ON NULL INPUT " +
                                "RETURNS int " +
                                "LANGUAGE javascript " +
                                "AS '\"string\";';");
@@ -158,7 +161,8 @@ public class AggregationTest extends CQLTester
                                    "double",
                                    "CREATE OR REPLACE AGGREGATE %s(double) " +
                                    "SFUNC " + shortFunctionName(f) + " " +
-                                   "STYPE double");
+                                   "STYPE double " +
+                                   "INITCOND 0");
 
         assertLastSchemaChange(Event.SchemaChange.Change.CREATED, Event.SchemaChange.Target.AGGREGATE,
                                KEYSPACE, parseFunctionName(a).name,
@@ -166,7 +170,8 @@ public class AggregationTest extends CQLTester
 
         schemaChange("CREATE OR REPLACE AGGREGATE " + a + "(double) " +
                      "SFUNC " + shortFunctionName(f) + " " +
-                     "STYPE double");
+                     "STYPE double " +
+                     "INITCOND 0");
 
         assertLastSchemaChange(Event.SchemaChange.Change.UPDATED, Event.SchemaChange.Target.AGGREGATE,
                                KEYSPACE, parseFunctionName(a).name,
@@ -176,7 +181,8 @@ public class AggregationTest extends CQLTester
                                 "int",
                                 "CREATE OR REPLACE AGGREGATE %s(int) " +
                                 "SFUNC " + shortFunctionName(f) + " " +
-                                "STYPE int");
+                                "STYPE int " +
+                                "INITCOND 0");
 
         assertLastSchemaChange(Event.SchemaChange.Change.CREATED, Event.SchemaChange.Target.AGGREGATE,
                                KEYSPACE, parseFunctionName(a).name,
@@ -195,6 +201,7 @@ public class AggregationTest extends CQLTester
         String f = createFunction(KEYSPACE,
                                   "double, double",
                                   "CREATE OR REPLACE FUNCTION %s(state double, val double) " +
+                                  "RETURNS NULL ON NULL INPUT " +
                                   "RETURNS double " +
                                   "LANGUAGE javascript " +
                                   "AS '\"string\";';");
@@ -202,6 +209,7 @@ public class AggregationTest extends CQLTester
         createFunctionOverload(f,
                                "double, double",
                                "CREATE OR REPLACE FUNCTION %s(state int, val int) " +
+                               "RETURNS NULL ON NULL INPUT " +
                                "RETURNS int " +
                                "LANGUAGE javascript " +
                                "AS '\"string\";';");
@@ -214,12 +222,14 @@ public class AggregationTest extends CQLTester
                                    "double",
                                    "CREATE OR REPLACE AGGREGATE %s(double) " +
                                    "SFUNC " + shortFunctionName(f) + " " +
-                                   "STYPE double");
+                                   "STYPE double " +
+                                   "INITCOND 0");
         createAggregateOverload(a,
                                 "int",
                                 "CREATE OR REPLACE AGGREGATE %s(int) " +
                                 "SFUNC " + shortFunctionName(f) + " " +
-                                "STYPE int");
+                                "STYPE int " +
+                                "INITCOND 0");
 
         // DROP FUNCTION must not succeed against an aggregate
         assertInvalidMessage("matches multiple function definitions", "DROP FUNCTION " + a);
@@ -243,6 +253,7 @@ public class AggregationTest extends CQLTester
         String f = createFunction(KEYSPACE,
                                   "double, double",
                                   "CREATE OR REPLACE FUNCTION %s(state double, val double) " +
+                                  "RETURNS NULL ON NULL INPUT " +
                                   "RETURNS double " +
                                   "LANGUAGE javascript " +
                                   "AS '\"string\";';");
@@ -251,7 +262,8 @@ public class AggregationTest extends CQLTester
                                    "double",
                                    "CREATE OR REPLACE AGGREGATE %s(double) " +
                                    "SFUNC " + shortFunctionName(f) + " " +
-                                   "STYPE double");
+                                   "STYPE double " +
+                                   "INITCOND 0");
 
         // DROP FUNCTION must not succeed because the function is still referenced by the aggregate
         assertInvalidMessage("still referenced by", "DROP FUNCTION " + f);
@@ -270,6 +282,7 @@ public class AggregationTest extends CQLTester
         String fState = createFunction(KEYSPACE,
                                        "int, int",
                                        "CREATE FUNCTION %s(a int, b int) " +
+                                       "CALLED ON NULL INPUT " +
                                        "RETURNS int " +
                                        "LANGUAGE java " +
                                        "AS 'return Integer.valueOf((a!=null?a.intValue():0) + b.intValue());'");
@@ -277,6 +290,7 @@ public class AggregationTest extends CQLTester
         String fFinal = createFunction(KEYSPACE,
                                        "int",
                                        "CREATE FUNCTION %s(a int) " +
+                                       "CALLED ON NULL INPUT " +
                                        "RETURNS text " +
                                        "LANGUAGE java " +
                                        "AS 'return a.toString();'");
@@ -307,6 +321,7 @@ public class AggregationTest extends CQLTester
         String fState = createFunction(KEYSPACE,
                                        "int, int",
                                        "CREATE FUNCTION %s(a int, b int) " +
+                                       "CALLED ON NULL INPUT " +
                                        "RETURNS int " +
                                        "LANGUAGE java " +
                                        "AS 'return Integer.valueOf((a!=null?a.intValue():0) + b.intValue());'");
@@ -314,6 +329,7 @@ public class AggregationTest extends CQLTester
         String fFinal = createFunction(KEYSPACE,
                                        "int",
                                        "CREATE FUNCTION %s(a int) " +
+                                       "CALLED ON NULL INPUT " +
                                        "RETURNS text " +
                                        "LANGUAGE java " +
                                        "AS 'return a.toString();'");
@@ -340,6 +356,7 @@ public class AggregationTest extends CQLTester
         String fState = createFunction(KEYSPACE,
                                        "int, int",
                                        "CREATE FUNCTION %s(a int, b int) " +
+                                       "CALLED ON NULL INPUT " +
                                        "RETURNS int " +
                                        "LANGUAGE java " +
                                        "AS 'return Integer.valueOf((a!=null?a.intValue():0) + b.intValue());'");
@@ -347,6 +364,7 @@ public class AggregationTest extends CQLTester
         String fFinal = createFunction(KEYSPACE,
                                        "int",
                                        "CREATE FUNCTION %s(a int) " +
+                                       "CALLED ON NULL INPUT " +
                                        "RETURNS text " +
                                        "LANGUAGE java " +
                                        "AS 'return a.toString();'");
@@ -365,6 +383,7 @@ public class AggregationTest extends CQLTester
         String fState = createFunction(KEYSPACE,
                                        "int, int",
                                        "CREATE FUNCTION %s(a int, b int) " +
+                                       "CALLED ON NULL INPUT " +
                                        "RETURNS int " +
                                        "LANGUAGE java " +
                                        "AS 'return Integer.valueOf((a!=null?a.intValue():0) + b.intValue());'");
@@ -372,6 +391,7 @@ public class AggregationTest extends CQLTester
         String fFinal = createFunction(KEYSPACE,
                                        "int",
                                        "CREATE FUNCTION %s(a int) " +
+                                       "CALLED ON NULL INPUT " +
                                        "RETURNS text " +
                                        "LANGUAGE java " +
                                        "AS 'return a.toString();'");
@@ -379,6 +399,7 @@ public class AggregationTest extends CQLTester
         String fState2 = createFunction(KEYSPACE,
                                         "int, int",
                                         "CREATE FUNCTION %s(a double, b double) " +
+                                        "CALLED ON NULL INPUT " +
                                         "RETURNS double " +
                                         "LANGUAGE java " +
                                         "AS 'return Double.valueOf((a!=null?a.doubleValue():0d) + b.doubleValue());'");
@@ -386,6 +407,7 @@ public class AggregationTest extends CQLTester
         String fFinal2 = createFunction(KEYSPACE,
                                         "int",
                                         "CREATE FUNCTION %s(a double) " +
+                                        "CALLED ON NULL INPUT " +
                                         "RETURNS text " +
                                         "LANGUAGE java " +
                                         "AS 'return a.toString();'");
@@ -433,6 +455,7 @@ public class AggregationTest extends CQLTester
         String fState = createFunction(KEYSPACE,
                                        "int, int",
                                        "CREATE FUNCTION %s(a int, b int) " +
+                                       "CALLED ON NULL INPUT " +
                                        "RETURNS int " +
                                        "LANGUAGE java " +
                                        "AS 'return Integer.valueOf((a!=null?a.intValue():0) + b.intValue());'");
@@ -440,6 +463,7 @@ public class AggregationTest extends CQLTester
         String fFinal = createFunction(KEYSPACE,
                                        "int",
                                        "CREATE FUNCTION %s(a int) " +
+                                       "CALLED ON NULL INPUT " +
                                        "RETURNS text " +
                                        "LANGUAGE java " +
                                        "AS 'return a.toString();'");
@@ -474,13 +498,15 @@ public class AggregationTest extends CQLTester
         String fState = createFunction(KEYSPACE,
                                        "int, int",
                                        "CREATE FUNCTION %s(a int, b int) " +
+                                       "CALLED ON NULL INPUT " +
                                        "RETURNS int " +
                                        "LANGUAGE java " +
-                                       "AS 'throw new RuntimeException();'");
+                                       "AS 'throw new RuntimeException(\"thrown to unit test - not a bug\");'");
 
         String fStateOK = createFunction(KEYSPACE,
                                        "int, int",
                                        "CREATE FUNCTION %s(a int, b int) " +
+                                       "CALLED ON NULL INPUT " +
                                        "RETURNS int " +
                                        "LANGUAGE java " +
                                        "AS 'return Integer.valueOf(42);'");
@@ -488,13 +514,15 @@ public class AggregationTest extends CQLTester
         String fFinal = createFunction(KEYSPACE,
                                        "int",
                                        "CREATE FUNCTION %s(a int) " +
+                                       "CALLED ON NULL INPUT " +
                                        "RETURNS text " +
                                        "LANGUAGE java " +
-                                       "AS 'throw new RuntimeException();'");
+                                       "AS 'throw new RuntimeException(\"thrown to unit test - not a bug\");'");
 
         String fFinalOK = createFunction(KEYSPACE,
                                        "int",
                                        "CREATE FUNCTION %s(a int) " +
+                                       "CALLED ON NULL INPUT " +
                                        "RETURNS text " +
                                        "LANGUAGE java " +
                                        "AS 'return \"foobar\";'");
@@ -537,9 +565,10 @@ public class AggregationTest extends CQLTester
         String f = createFunction(KEYSPACE,
                                   "int, int",
                                   "CREATE FUNCTION %s(a int, b int) " +
+                                  "RETURNS NULL ON NULL INPUT " +
                                   "RETURNS int " +
                                   "LANGUAGE java " +
-                                  "AS 'return Integer.valueOf((a!=null?a.intValue():0) + b.intValue());'");
+                                  "AS 'return Integer.valueOf(a + b);'");
 
         assertInvalidMessage("does not exist or is not a scalar function",
                              "CREATE AGGREGATE " + KEYSPACE + ".jSumFooNE2(int) " +
@@ -561,6 +590,7 @@ public class AggregationTest extends CQLTester
         String fState = createFunction(KEYSPACE,
                                        "int, int",
                                        "CREATE FUNCTION %s(a int, b int) " +
+                                       "CALLED ON NULL INPUT " +
                                        "RETURNS int " +
                                        "LANGUAGE java " +
                                        "AS 'return Integer.valueOf((a!=null?a.intValue():0) + b.intValue());'");
@@ -568,6 +598,7 @@ public class AggregationTest extends CQLTester
         String fFinal = createFunction(KEYSPACE,
                                        "int",
                                        "CREATE FUNCTION %s(a int) " +
+                                       "CALLED ON NULL INPUT " +
                                        "RETURNS text " +
                                        "LANGUAGE java " +
                                        "AS 'return a.toString();'");
@@ -602,6 +633,7 @@ public class AggregationTest extends CQLTester
         String fState = createFunction(KEYSPACE,
                                        "int, int",
                                        "CREATE FUNCTION %s(a int, b int) " +
+                                       "CALLED ON NULL INPUT " +
                                        "RETURNS int " +
                                        "LANGUAGE java " +
                                        "AS 'return Integer.valueOf((a!=null?a.intValue():0) + b.intValue());'");
@@ -637,6 +669,7 @@ public class AggregationTest extends CQLTester
         String fState = createFunction(KEYSPACE,
                                        "frozen<tuple<bigint, int>>, int",
                                        "CREATE FUNCTION %s(a frozen<tuple<bigint, int>>, b int) " +
+                                       "CALLED ON NULL INPUT " +
                                        "RETURNS frozen<tuple<bigint, int>> " +
                                        "LANGUAGE java " +
                                        "AS '" +
@@ -648,6 +681,7 @@ public class AggregationTest extends CQLTester
         String fFinal = createFunction(KEYSPACE,
                                        "frozen<tuple<bigint, int>>",
                                        "CREATE FUNCTION %s(a frozen<tuple<bigint, int>>) " +
+                                       "RETURNS NULL ON NULL INPUT " +
                                        "RETURNS double " +
                                        "LANGUAGE java " +
                                        "AS '" +
@@ -680,6 +714,7 @@ public class AggregationTest extends CQLTester
         String fState = createFunction(KEYSPACE,
                                        "int, int",
                                        "CREATE FUNCTION %s(a int, b int) " +
+                                       "RETURNS NULL ON NULL INPUT " +
                                        "RETURNS int " +
                                        "LANGUAGE javascript " +
                                        "AS 'a + b;'");
@@ -687,6 +722,7 @@ public class AggregationTest extends CQLTester
         String fFinal = createFunction(KEYSPACE,
                                        "int",
                                        "CREATE FUNCTION %s(a int) " +
+                                       "RETURNS NULL ON NULL INPUT " +
                                        "RETURNS text " +
                                        "LANGUAGE javascript " +
                                        "AS '\"\"+a'");
@@ -721,6 +757,7 @@ public class AggregationTest extends CQLTester
         String fState = createFunction(KEYSPACE,
                                        "int, int",
                                        "CREATE FUNCTION %s(a int, b int) " +
+                                       "CALLED ON NULL INPUT " +
                                        "RETURNS int " +
                                        "LANGUAGE javascript " +
                                        "AS 'a + b;'");
@@ -754,6 +791,7 @@ public class AggregationTest extends CQLTester
             String fState = createFunction(otherKS,
                                            "int, int",
                                            "CREATE FUNCTION %s(a int, b int) " +
+                                           "CALLED ON NULL INPUT " +
                                            "RETURNS int " +
                                            "LANGUAGE javascript " +
                                            "AS 'a + b;'");
@@ -796,6 +834,7 @@ public class AggregationTest extends CQLTester
         String fState = createFunction(KEYSPACE,
                                        "int, int",
                                        "CREATE FUNCTION %s(a int, b int) " +
+                                       "CALLED ON NULL INPUT " +
                                        "RETURNS int " +
                                        "LANGUAGE javascript " +
                                        "AS 'a + b;'");
@@ -819,6 +858,140 @@ public class AggregationTest extends CQLTester
     }
 
     @Test
+    public void testCalledOnNullInput() throws Throwable
+    {
+        String fStateNonNull = createFunction(KEYSPACE,
+                                              "int, int",
+                                              "CREATE OR REPLACE FUNCTION %s(state int, val int) " +
+                                              "RETURNS NULL ON NULL INPUT " +
+                                              "RETURNS int " +
+                                              "LANGUAGE java\n" +
+                                              "AS 'return Integer.valueOf(state + val);';");
+        String fStateNull = createFunction(KEYSPACE,
+                                           "int, int",
+                                           "CREATE OR REPLACE FUNCTION %s(state int, val int) " +
+                                           "CALLED ON NULL INPUT " +
+                                           "RETURNS int " +
+                                           "LANGUAGE java\n" +
+                                           "AS 'return Integer.valueOf(" +
+                                           "   (state != null ? state.intValue() : 0) " +
+                                           "   + (val != null ? val.intValue() : 0));';");
+        String fStateAlwaysNull = createFunction(KEYSPACE,
+                                           "int, int",
+                                           "CREATE OR REPLACE FUNCTION %s(state int, val int) " +
+                                           "CALLED ON NULL INPUT " +
+                                           "RETURNS int " +
+                                           "LANGUAGE java\n" +
+                                           "AS 'return null;';");
+        String fFinalNonNull = createFunction(KEYSPACE,
+                                              "int",
+                                              "CREATE OR REPLACE FUNCTION %s(state int) " +
+                                              "RETURNS NULL ON NULL INPUT " +
+                                              "RETURNS int " +
+                                              "LANGUAGE java\n" +
+                                              "AS 'return Integer.valueOf(state);';");
+        String fFinalNull = createFunction(KEYSPACE,
+                                           "int",
+                                           "CREATE OR REPLACE FUNCTION %s(state int) " +
+                                           "CALLED ON NULL INPUT " +
+                                           "RETURNS int " +
+                                           "LANGUAGE java\n" +
+                                           "AS 'return state;';");
+
+        assertInvalid("CREATE AGGREGATE " + KEYSPACE + ".invAggr(int) " +
+                      "SFUNC " + shortFunctionName(fStateNonNull) + " " +
+                      "STYPE int");
+        assertInvalid("CREATE AGGREGATE " + KEYSPACE + ".invAggr(int) " +
+                      "SFUNC " + shortFunctionName(fStateNonNull) + " " +
+                      "STYPE int " +
+                      "FINALFUNC " + shortFunctionName(fFinalNonNull));
+
+        String aStateNull = createAggregate(KEYSPACE,
+                                               "int",
+                                               "CREATE AGGREGATE %s(int) " +
+                                               "SFUNC " + shortFunctionName(fStateNull) + " " +
+                                               "STYPE int");
+        String aStateNullFinalNull = createAggregate(KEYSPACE,
+                                                        "int",
+                                                        "CREATE AGGREGATE %s(int) " +
+                                                        "SFUNC " + shortFunctionName(fStateNull) + " " +
+                                                        "STYPE int " +
+                                                        "FINALFUNC " + shortFunctionName(fFinalNull));
+        String aStateNullFinalNonNull = createAggregate(KEYSPACE,
+                                                        "int",
+                                                        "CREATE AGGREGATE %s(int) " +
+                                                        "SFUNC " + shortFunctionName(fStateNull) + " " +
+                                                        "STYPE int " +
+                                                        "FINALFUNC " + shortFunctionName(fFinalNonNull));
+        String aStateNonNull = createAggregate(KEYSPACE,
+                                               "int",
+                                               "CREATE AGGREGATE %s(int) " +
+                                               "SFUNC " + shortFunctionName(fStateNonNull) + " " +
+                                               "STYPE int " +
+                                               "INITCOND 0");
+        String aStateNonNullFinalNull = createAggregate(KEYSPACE,
+                                                        "int",
+                                                        "CREATE AGGREGATE %s(int) " +
+                                                        "SFUNC " + shortFunctionName(fStateNonNull) + " " +
+                                                        "STYPE int " +
+                                                        "FINALFUNC " + shortFunctionName(fFinalNull) + " " +
+                                                        "INITCOND 0");
+        String aStateNonNullFinalNonNull = createAggregate(KEYSPACE,
+                                                           "int",
+                                                           "CREATE AGGREGATE %s(int) " +
+                                                           "SFUNC " + shortFunctionName(fStateNonNull) + " " +
+                                                           "STYPE int " +
+                                                           "FINALFUNC " + shortFunctionName(fFinalNonNull) + " " +
+                                                           "INITCOND 0");
+        String aStateAlwaysNullFinalNull = createAggregate(KEYSPACE,
+                                                           "int",
+                                                           "CREATE AGGREGATE %s(int) " +
+                                                           "SFUNC " + shortFunctionName(fStateAlwaysNull) + " " +
+                                                           "STYPE int " +
+                                                           "FINALFUNC " + shortFunctionName(fFinalNull));
+        String aStateAlwaysNullFinalNonNull = createAggregate(KEYSPACE,
+                                                           "int",
+                                                           "CREATE AGGREGATE %s(int) " +
+                                                           "SFUNC " + shortFunctionName(fStateAlwaysNull) + " " +
+                                                           "STYPE int " +
+                                                           "FINALFUNC " + shortFunctionName(fFinalNonNull));
+
+        createTable("CREATE TABLE %s (key int PRIMARY KEY, i int)");
+
+        execute("INSERT INTO %s (key, i) VALUES (0, null)");
+        execute("INSERT INTO %s (key, i) VALUES (1, 1)");
+        execute("INSERT INTO %s (key, i) VALUES (2, 2)");
+        execute("INSERT INTO %s (key, i) VALUES (3, 3)");
+
+        assertRows(execute("SELECT " + aStateNull + "(i) FROM %s WHERE key = 0"), row(0));
+        assertRows(execute("SELECT " + aStateNullFinalNull + "(i) FROM %s WHERE key = 0"), row(0));
+        assertRows(execute("SELECT " + aStateNullFinalNonNull + "(i) FROM %s WHERE key = 0"), row(0));
+        assertRows(execute("SELECT " + aStateNonNull + "(i) FROM %s WHERE key = 0"), row(0));
+        assertRows(execute("SELECT " + aStateNonNullFinalNull + "(i) FROM %s WHERE key = 0"), row(0));
+        assertRows(execute("SELECT " + aStateNonNullFinalNonNull + "(i) FROM %s WHERE key = 0"), row(0));
+        assertRows(execute("SELECT " + aStateAlwaysNullFinalNull + "(i) FROM %s WHERE key = 0"), row(new Object[]{null}));
+        assertRows(execute("SELECT " + aStateAlwaysNullFinalNonNull + "(i) FROM %s WHERE key = 0"), row(new Object[]{null}));
+
+        assertRows(execute("SELECT " + aStateNull + "(i) FROM %s WHERE key = 1"), row(1));
+        assertRows(execute("SELECT " + aStateNullFinalNull + "(i) FROM %s WHERE key = 1"), row(1));
+        assertRows(execute("SELECT " + aStateNullFinalNonNull + "(i) FROM %s WHERE key = 1"), row(1));
+        assertRows(execute("SELECT " + aStateNonNull + "(i) FROM %s WHERE key = 1"), row(1));
+        assertRows(execute("SELECT " + aStateNonNullFinalNull + "(i) FROM %s WHERE key = 1"), row(1));
+        assertRows(execute("SELECT " + aStateNonNullFinalNonNull + "(i) FROM %s WHERE key = 1"), row(1));
+        assertRows(execute("SELECT " + aStateAlwaysNullFinalNull + "(i) FROM %s WHERE key = 1"), row(new Object[]{null}));
+        assertRows(execute("SELECT " + aStateAlwaysNullFinalNonNull + "(i) FROM %s WHERE key = 1"), row(new Object[]{null}));
+
+        assertRows(execute("SELECT " + aStateNull + "(i) FROM %s WHERE key IN (1, 2, 3)"), row(6));
+        assertRows(execute("SELECT " + aStateNullFinalNull + "(i) FROM %s WHERE key IN (1, 2, 3)"), row(6));
+        assertRows(execute("SELECT " + aStateNullFinalNonNull + "(i) FROM %s WHERE key IN (1, 2, 3)"), row(6));
+        assertRows(execute("SELECT " + aStateNonNull + "(i) FROM %s WHERE key IN (1, 2, 3)"), row(6));
+        assertRows(execute("SELECT " + aStateNonNullFinalNull + "(i) FROM %s WHERE key IN (1, 2, 3)"), row(6));
+        assertRows(execute("SELECT " + aStateNonNullFinalNonNull + "(i) FROM %s WHERE key IN (1, 2, 3)"), row(6));
+        assertRows(execute("SELECT " + aStateAlwaysNullFinalNull + "(i) FROM %s WHERE key IN (1, 2, 3)"), row(new Object[]{null}));
+        assertRows(execute("SELECT " + aStateAlwaysNullFinalNonNull + "(i) FROM %s WHERE key IN (1, 2, 3)"), row(new Object[]{null}));
+    }
+
+    @Test
     public void testBrokenAggregate() throws Throwable
     {
         createTable("CREATE TABLE %s (key int primary key, val int)");
@@ -827,6 +1000,7 @@ public class AggregationTest extends CQLTester
         String fState = createFunction(KEYSPACE,
                                        "int, int",
                                        "CREATE FUNCTION %s(a int, b int) " +
+                                       "CALLED ON NULL INPUT " +
                                        "RETURNS int " +
                                        "LANGUAGE javascript " +
                                        "AS 'a + b;'");
@@ -855,6 +1029,7 @@ public class AggregationTest extends CQLTester
         String fState = createFunction(KEYSPACE,
                                        "int, int",
                                        "CREATE FUNCTION %s(a int, b int) " +
+                                       "CALLED ON NULL INPUT " +
                                        "RETURNS double " +
                                        "LANGUAGE java " +
                                        "AS 'return Double.valueOf(1.0);'");
@@ -862,6 +1037,7 @@ public class AggregationTest extends CQLTester
         String fFinal = createFunction(KEYSPACE,
                                        "int",
                                        "CREATE FUNCTION %s(a int) " +
+                                       "CALLED ON NULL INPUT " +
                                        "RETURNS int " +
                                        "LANGUAGE java " +
                                        "AS 'return Integer.valueOf(1);';");

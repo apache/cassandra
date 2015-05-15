@@ -49,6 +49,7 @@ public final class CreateFunctionStatement extends SchemaAlteringStatement
     private final List<ColumnIdentifier> argNames;
     private final List<CQL3Type.Raw> argRawTypes;
     private final CQL3Type.Raw rawReturnType;
+    private final boolean calledOnNullInput;
 
     private List<AbstractType<?>> argTypes;
     private AbstractType<?> returnType;
@@ -61,6 +62,7 @@ public final class CreateFunctionStatement extends SchemaAlteringStatement
                                    List<ColumnIdentifier> argNames,
                                    List<CQL3Type.Raw> argRawTypes,
                                    CQL3Type.Raw rawReturnType,
+                                   boolean calledOnNullInput,
                                    boolean orReplace,
                                    boolean ifNotExists)
     {
@@ -70,6 +72,7 @@ public final class CreateFunctionStatement extends SchemaAlteringStatement
         this.argNames = argNames;
         this.argRawTypes = argRawTypes;
         this.rawReturnType = rawReturnType;
+        this.calledOnNullInput = calledOnNullInput;
         this.orReplace = orReplace;
         this.ifNotExists = ifNotExists;
     }
@@ -152,13 +155,16 @@ public final class CreateFunctionStatement extends SchemaAlteringStatement
                 throw new InvalidRequestException(String.format("Function %s already exists", old));
             if (!(old instanceof ScalarFunction))
                 throw new InvalidRequestException(String.format("Function %s can only replace a function", old));
+            if (calledOnNullInput != ((ScalarFunction) old).isCalledOnNullInput())
+                throw new InvalidRequestException(String.format("Function %s can only be replaced with %s", old,
+                                                                calledOnNullInput ? "CALLED ON NULL INPUT" : "RETURNS NULL ON NULL INPUT"));
 
             if (!Functions.typeEquals(old.returnType(), returnType))
                 throw new InvalidRequestException(String.format("Cannot replace function %s, the new return type %s is not compatible with the return type %s of existing function",
                                                                 functionName, returnType.asCQL3Type(), old.returnType().asCQL3Type()));
         }
 
-        this.udFunction = UDFunction.create(functionName, argNames, argTypes, returnType, language, body);
+        this.udFunction = UDFunction.create(functionName, argNames, argTypes, returnType, calledOnNullInput, language, body);
         this.replaced = old != null;
 
         MigrationManager.announceNewFunction(udFunction, isLocalOnly);

@@ -594,6 +594,7 @@ createFunctionStatement returns [CreateFunctionStatement expr]
 
         List<ColumnIdentifier> argsNames = new ArrayList<>();
         List<CQL3Type.Raw> argsTypes = new ArrayList<>();
+        boolean calledOnNullInput = false;
     }
     : K_CREATE (K_OR K_REPLACE { orReplace = true; })?
       K_FUNCTION
@@ -605,10 +606,12 @@ createFunctionStatement returns [CreateFunctionStatement expr]
           ( ',' k=ident v=comparatorType { argsNames.add(k); argsTypes.add(v); } )*
         )?
       ')'
+      ( (K_RETURNS K_NULL) | (K_CALLED { calledOnNullInput=true; })) K_ON K_NULL K_INPUT
       K_RETURNS rt = comparatorType
       K_LANGUAGE language = IDENT
       K_AS body = STRING_LITERAL
-      { $expr = new CreateFunctionStatement(fn, $language.text.toLowerCase(), $body.text, argsNames, argsTypes, rt, orReplace, ifNotExists); }
+      { $expr = new CreateFunctionStatement(fn, $language.text.toLowerCase(), $body.text,
+                                            argsNames, argsTypes, rt, calledOnNullInput, orReplace, ifNotExists); }
     ;
 
 dropFunctionStatement returns [DropFunctionStatement expr]
@@ -1550,6 +1553,8 @@ basic_unreserved_keyword returns [String str]
         | K_RETURNS
         | K_LANGUAGE
         | K_JSON
+        | K_CALLED
+        | K_INPUT
         ) { $str = $k.text; }
     ;
 
@@ -1678,6 +1683,8 @@ K_STYPE:       S T Y P E;
 K_FINALFUNC:   F I N A L F U N C;
 K_INITCOND:    I N I T C O N D;
 K_RETURNS:     R E T U R N S;
+K_CALLED:      C A L L E D;
+K_INPUT:       I N P U T;
 K_LANGUAGE:    L A N G U A G E;
 K_OR:          O R;
 K_REPLACE:     R E P L A C E;

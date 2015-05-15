@@ -368,6 +368,7 @@ public class UFIdentificationTest extends CQLTester
     {
         return createFunction(KEYSPACE, type,
            "CREATE FUNCTION %s(input " + type + ")" +
+           " CALLED ON NULL INPUT" +
            " RETURNS " + type +
            " LANGUAGE java" +
            " AS ' return input;'");

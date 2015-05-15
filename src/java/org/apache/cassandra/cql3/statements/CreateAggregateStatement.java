@@ -199,6 +199,9 @@ public final class CreateAggregateStatement extends SchemaAlteringStatement
                                                                 functionName, returnType.asCQL3Type(), old.returnType().asCQL3Type()));
         }
 
+        if (!stateFunction.isCalledOnNullInput() && initcond == null)
+            throw new InvalidRequestException(String.format("Cannot create aggregate %s without INITCOND because state function %s does not accept 'null' arguments", functionName, stateFunc));
+
         udAggregate = new UDAggregate(functionName, argTypes, returnType,
                                                   stateFunction,
                                                   finalFunction,
@@ -220,7 +223,7 @@ public final class CreateAggregateStatement extends SchemaAlteringStatement
         return sb.toString();
     }
 
-    private List<AbstractType<?>> stateArguments(AbstractType<?> stateType, List<AbstractType<?>> argTypes)
+    private static List<AbstractType<?>> stateArguments(AbstractType<?> stateType, List<AbstractType<?>> argTypes)
     {
         List<AbstractType<?>> r = new ArrayList<>(argTypes.size() + 1);
         r.add(stateType);

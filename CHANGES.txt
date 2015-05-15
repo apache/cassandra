@@ -1,5 +1,6 @@
 2.2
- * Use ecj instead of javassist for UDFs
+ * Better support of null for UDF (CASSANDRA-8374)
+ * Use ecj instead of javassist for UDFs (CASSANDRA-8241)
  * faster async logback configuration for tests (CASSANDRA-9376)
  * Add `smallint` and `tinyint` data types (CASSANDRA-8951)
  * Avoid thrift schema creation when native driver is used in stress tool (CASSANDRA-9374)
