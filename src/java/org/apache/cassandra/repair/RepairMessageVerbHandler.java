@@ -21,7 +21,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
-import java.util.concurrent.Future;
 
 import com.google.common.base.Predicate;
 import com.google.common.util.concurrent.ListenableFuture;
@@ -44,7 +43,6 @@ import org.apache.cassandra.net.MessageOut;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.repair.messages.*;
 import org.apache.cassandra.service.ActiveRepairService;
-import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
 
 /**
@@ -123,6 +121,13 @@ public class RepairMessageVerbHandler implements IVerbHandler<RepairMessage>
                             MessagingService.instance().sendReply(new MessageOut(MessagingService.Verb.INTERNAL_RESPONSE), id, message.from);
                         }
                     }, MoreExecutors.sameThreadExecutor());
+                    break;
+
+                case CLEANUP:
+                    logger.debug("cleaning up repair");
+                    CleanupMessage cleanup = (CleanupMessage) message.payload;
+                    ActiveRepairService.instance.removeParentRepairSession(cleanup.parentRepairSession);
+                    MessagingService.instance().sendReply(new MessageOut(MessagingService.Verb.INTERNAL_RESPONSE), id, message.from);
                     break;
 
                 default:

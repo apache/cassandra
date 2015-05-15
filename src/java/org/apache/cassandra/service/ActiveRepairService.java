@@ -325,29 +325,29 @@ public class ActiveRepairService
      *
      * @param parentSession Parent session ID
      * @param neighbors Repair participants (not including self)
-     * @param doAntiCompaction true if repair session needs anti compaction
      * @throws InterruptedException
      * @throws ExecutionException
      */
     public synchronized ListenableFuture<?> finishParentSession(UUID parentSession, Set<InetAddress> neighbors, boolean doAntiCompaction) throws InterruptedException, ExecutionException
     {
+        // We want to remove parent repair session whether we succeeded or not, so send AnticompactionRequest anyway.
+        // Each replica node determines if anticompaction is needed.
+        List<ListenableFuture<?>> tasks = new ArrayList<>(neighbors.size() + 1);
+        for (InetAddress neighbor : neighbors)
+        {
+            AnticompactionTask task = new AnticompactionTask(parentSession, neighbor, doAntiCompaction);
+            tasks.add(task);
+            task.run(); // 'run' is just sending message
+        }
         if (doAntiCompaction)
         {
-            List<ListenableFuture<?>> tasks = new ArrayList<>(neighbors.size() + 1);
-            for (InetAddress neighbor : neighbors)
-            {
-                AnticompactionTask task = new AnticompactionTask(parentSession, neighbor);
-                tasks.add(task);
-                task.run(); // 'run' is just sending message
-            }
             tasks.add(doAntiCompaction(parentSession));
-            return Futures.successfulAsList(tasks);
         }
         else
         {
             removeParentRepairSession(parentSession);
-            return Futures.immediateFuture(null);
         }
+        return Futures.successfulAsList(tasks);
     }
 
     public ParentRepairSession getParentRepairSession(UUID parentSessionId)

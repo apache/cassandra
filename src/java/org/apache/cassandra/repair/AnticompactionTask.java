@@ -28,6 +28,7 @@ import org.apache.cassandra.net.IAsyncCallbackWithFailure;
 import org.apache.cassandra.net.MessageIn;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.repair.messages.AnticompactionRequest;
+import org.apache.cassandra.repair.messages.CleanupMessage;
 import org.apache.cassandra.utils.SemanticVersion;
 
 public class AnticompactionTask extends AbstractFuture<InetAddress> implements Runnable
@@ -40,11 +41,13 @@ public class AnticompactionTask extends AbstractFuture<InetAddress> implements R
 
     private final UUID parentSession;
     private final InetAddress neighbor;
+    private final boolean doAnticompaction;
 
-    public AnticompactionTask(UUID parentSession, InetAddress neighbor)
+    public AnticompactionTask(UUID parentSession, InetAddress neighbor, boolean doAnticompaction)
     {
         this.parentSession = parentSession;
         this.neighbor = neighbor;
+        this.doAnticompaction = doAnticompaction;
     }
 
     public void run()
@@ -53,7 +56,15 @@ public class AnticompactionTask extends AbstractFuture<InetAddress> implements R
         SemanticVersion peerVersion = SystemKeyspace.getReleaseVersion(neighbor);
         if (peerVersion != null && peerVersion.compareTo(VERSION_CHECKER) > 0)
         {
-            MessagingService.instance().sendRR(acr.createMessage(), neighbor, new AnticompactionCallback(this), TimeUnit.DAYS.toMillis(1), true);
+            if (doAnticompaction)
+            {
+                MessagingService.instance().sendRR(acr.createMessage(), neighbor, new AnticompactionCallback(this), TimeUnit.DAYS.toMillis(1), true);
+            }
+            else
+            {
+                // we need to clean up parent session
+                MessagingService.instance().sendRR(new CleanupMessage(parentSession).createMessage(), neighbor, new AnticompactionCallback(this), TimeUnit.DAYS.toMillis(1), true);
+            }
         }
         else
         {
