@@ -17,22 +17,41 @@
  */
 package org.apache.cassandra.cql3.functions;
 
-import java.lang.reflect.Constructor;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.lang.invoke.MethodHandle;
+import java.lang.invoke.MethodHandles;
+import java.lang.invoke.MethodType;
 import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Modifier;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.StringTokenizer;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
+
+import com.google.common.io.ByteStreams;
+
+import org.apache.cassandra.utils.FBUtilities;
+import org.eclipse.jdt.core.compiler.IProblem;
+import org.eclipse.jdt.internal.compiler.*;
+import org.eclipse.jdt.internal.compiler.Compiler;
+import org.eclipse.jdt.internal.compiler.classfmt.ClassFileReader;
+import org.eclipse.jdt.internal.compiler.classfmt.ClassFormatException;
+import org.eclipse.jdt.internal.compiler.env.ICompilationUnit;
+import org.eclipse.jdt.internal.compiler.env.INameEnvironment;
+import org.eclipse.jdt.internal.compiler.env.NameEnvironmentAnswer;
+import org.eclipse.jdt.internal.compiler.impl.CompilerOptions;
+import org.eclipse.jdt.internal.compiler.problem.DefaultProblemFactory;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.datastax.driver.core.DataType;
-import javassist.CannotCompileException;
-import javassist.ClassPool;
-import javassist.CtClass;
-import javassist.CtNewConstructor;
-import javassist.CtNewMethod;
-import javassist.NotFoundException;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.exceptions.InvalidRequestException;
@@ -42,11 +61,58 @@ import org.apache.cassandra.exceptions.InvalidRequestException;
  */
 public final class JavaSourceUDFFactory
 {
-    private static final String GENERATED_CODE_PACKAGE = "org.apache.cassandra.cql3.udf.gen.";
+    private static final String GENERATED_PACKAGE = "org.apache.cassandra.cql3.udf.gen";
 
-    protected static final Logger logger = LoggerFactory.getLogger(JavaSourceUDFFactory.class);
+    static final Logger logger = LoggerFactory.getLogger(JavaSourceUDFFactory.class);
 
     private static final AtomicInteger classSequence = new AtomicInteger();
+
+    private static final ClassLoader baseClassLoader = Thread.currentThread().getContextClassLoader();
+    private static final EcjTargetClassLoader targetClassLoader = new EcjTargetClassLoader();
+    private static final IErrorHandlingPolicy errorHandlingPolicy = DefaultErrorHandlingPolicies.proceedWithAllProblems();
+    private static final IProblemFactory problemFactory = new DefaultProblemFactory(Locale.ENGLISH);
+    private static final CompilerOptions compilerOptions;
+
+    /**
+     * Poor man's template - just a text file splitted at '#' chars.
+     * Each string at an even index is a constant string (just copied),
+     * each string at an odd index is an 'instruction'.
+     */
+    private static final String[] javaSourceTemplate;
+
+    static
+    {
+        Map<String, String> settings = new HashMap<>();
+        settings.put(CompilerOptions.OPTION_LineNumberAttribute,
+                     CompilerOptions.GENERATE);
+        settings.put(CompilerOptions.OPTION_SourceFileAttribute,
+                     CompilerOptions.DISABLED);
+        settings.put(CompilerOptions.OPTION_ReportDeprecation,
+                     CompilerOptions.IGNORE);
+        settings.put(CompilerOptions.OPTION_Source,
+                     CompilerOptions.VERSION_1_7);
+        settings.put(CompilerOptions.OPTION_TargetPlatform,
+                     CompilerOptions.VERSION_1_7);
+
+        compilerOptions = new CompilerOptions(settings);
+        compilerOptions.parseLiteralExpressionsAsConstants = true;
+
+        try (InputStream input = JavaSourceUDFFactory.class.getResource("JavaSourceUDF.txt").openConnection().getInputStream())
+        {
+            ByteArrayOutputStream output = new ByteArrayOutputStream();
+            FBUtilities.copy(input, output, Long.MAX_VALUE);
+            String template = output.toString();
+
+            StringTokenizer st = new StringTokenizer(template, "#");
+            javaSourceTemplate = new String[st.countTokens()];
+            for (int i = 0; st.hasMoreElements(); i++)
+                javaSourceTemplate[i] = st.nextToken();
+        }
+        catch (IOException e)
+        {
+            throw new RuntimeException(e);
+        }
+    }
 
     static UDFunction buildUDF(FunctionName name,
                                List<ColumnIdentifier> argNames,
@@ -66,60 +132,135 @@ public final class JavaSourceUDFFactory
 
         String clsName = generateClassName(name);
 
-        String codeCtor = generateConstructor(clsName);
+        StringBuilder javaSourceBuilder = new StringBuilder();
+        int lineOffset = 1;
+        for (int i = 0; i < javaSourceTemplate.length; i++)
+        {
+            String s = javaSourceTemplate[i];
 
-        // Generate 'execute' method (implements org.apache.cassandra.cql3.functions.Function.execute)
-        String codeExec = generateExecuteMethod(argNames, javaParamTypes);
+            // strings at odd indexes are 'instructions'
+            if ((i & 1) == 1)
+            {
+                switch (s)
+                {
+                    case "class_name":
+                        s = clsName;
+                        break;
+                    case "body":
+                        lineOffset = countNewlines(javaSourceBuilder);
+                        s = body;
+                        break;
+                    case "arguments":
+                        s = generateArguments(javaParamTypes, argNames);
+                        break;
+                    case "argument_list":
+                        s = generateArgumentList(javaParamTypes, argNames);
+                        break;
+                    case "return_type":
+                        s = javaSourceName(javaReturnType);
+                        break;
+                }
+            }
 
-        // Generate the 'executeInternal' method
-        // It is separated to allow return type and argument type checks during compile time via javassist.
-        String codeExecInt = generateExecuteInternalMethod(argNames, body, javaReturnType, javaParamTypes);
+            javaSourceBuilder.append(s);
+        }
 
-        logger.debug("Generating java source UDF for {} with following c'tor and functions:\n{}\n{}\n{}",
-                     name, codeCtor, codeExecInt, codeExec);
+        String targetClassName = GENERATED_PACKAGE + '.' + clsName;
+
+        String javaSource = javaSourceBuilder.toString();
+
+        logger.debug("Compiling Java source UDF '{}' as class '{}' using source:\n{}", name, targetClassName, javaSource);
 
         try
         {
-            ClassPool classPool = ClassPool.getDefault();
+            EcjCompilationUnit compilationUnit = new EcjCompilationUnit(javaSource, targetClassName);
 
-            // get super class
-            CtClass base = classPool.get(UDFunction.class.getName());
+            Compiler compiler = new Compiler(compilationUnit,
+                                             errorHandlingPolicy,
+                                             compilerOptions,
+                                             compilationUnit,
+                                             problemFactory);
+            compiler.compile(new ICompilationUnit[]{ compilationUnit });
 
-            // prepare class to generate
-            CtClass cc = classPool.makeClass(GENERATED_CODE_PACKAGE + clsName, base);
-            cc.setModifiers(cc.getModifiers() | Modifier.FINAL);
+            if (compilationUnit.problemList != null && !compilationUnit.problemList.isEmpty())
+            {
+                boolean fullSource = false;
+                StringBuilder problems = new StringBuilder();
+                for (IProblem problem : compilationUnit.problemList)
+                {
+                    long ln = problem.getSourceLineNumber() - lineOffset;
+                    if (ln < 1L)
+                    {
+                        if (problem.isError())
+                        {
+                            // if generated source around UDF source provided by the user is buggy,
+                            // this code is appended.
+                            problems.append("GENERATED SOURCE ERROR: line ")
+                                    .append(problem.getSourceLineNumber())
+                                    .append(" (in generated source): ")
+                                    .append(problem.getMessage())
+                                    .append('\n');
+                            fullSource = true;
+                        }
+                    }
+                    else
+                    {
+                        problems.append("Line ")
+                                .append(Long.toString(ln))
+                                .append(": ")
+                                .append(problem.getMessage())
+                                .append('\n');
+                    }
+                }
 
-            // add c'tor plus methods (order matters)
-            cc.addConstructor(CtNewConstructor.make(codeCtor, cc));
-            cc.addMethod(CtNewMethod.make(codeExecInt, cc));
-            cc.addMethod(CtNewMethod.make(codeExec, cc));
+                if (fullSource)
+                    throw new InvalidRequestException("Java source compilation failed:\n" + problems + "\n generated source:\n" + javaSource);
+                else
+                    throw new InvalidRequestException("Java source compilation failed:\n" + problems);
+            }
 
-            Constructor ctor =
-                cc.toClass().getDeclaredConstructor(
-                   FunctionName.class, List.class, List.class, DataType[].class,
-                   AbstractType.class, DataType.class,
-                   String.class);
-            return (UDFunction) ctor.newInstance(
-                   name, argNames, argTypes, argDataTypes,
-                   returnType, returnDataType,
-                   body);
-        }
-        catch (NotFoundException | CannotCompileException | NoSuchMethodException | LinkageError | InstantiationException | IllegalAccessException e)
-        {
-            throw new InvalidRequestException(String.format("Could not compile function '%s' from Java source: %s", name, e));
+            Class cls = targetClassLoader.loadClass(targetClassName);
+
+            if (cls.getDeclaredMethods().length != 2 || cls.getDeclaredConstructors().length != 1)
+                throw new InvalidRequestException("Check your source to not define additional Java methods or constructors");
+            MethodType methodType = MethodType.methodType(void.class)
+                                              .appendParameterTypes(FunctionName.class, List.class, List.class, DataType[].class,
+                                                                    AbstractType.class, DataType.class,
+                                                                    String.class);
+            MethodHandle ctor = MethodHandles.lookup().findConstructor(cls, methodType);
+            return (UDFunction) ctor.invokeWithArguments(name, argNames, argTypes, argDataTypes,
+                                                         returnType, returnDataType,
+                                                         body);
         }
         catch (InvocationTargetException e)
         {
             // in case of an ITE, use the cause
             throw new InvalidRequestException(String.format("Could not compile function '%s' from Java source: %s", name, e.getCause()));
         }
+        catch (VirtualMachineError e)
+        {
+            throw e;
+        }
+        catch (Throwable e)
+        {
+            throw new InvalidRequestException(String.format("Could not compile function '%s' from Java source: %s", name, e));
+        }
+    }
+
+    private static int countNewlines(StringBuilder javaSource)
+    {
+        int ln = 0;
+        for (int i = 0; i < javaSource.length(); i++)
+            if (javaSource.charAt(i) == '\n')
+                ln++;
+        return ln;
     }
 
     private static String generateClassName(FunctionName name)
     {
         String qualifiedName = name.toString();
 
-        StringBuilder sb = new StringBuilder(qualifiedName.length()+10);
+        StringBuilder sb = new StringBuilder(qualifiedName.length() + 10);
         sb.append('C');
         for (int i = 0; i < qualifiedName.length(); i++)
         {
@@ -127,130 +268,252 @@ public final class JavaSourceUDFFactory
             if (Character.isJavaIdentifierPart(c))
                 sb.append(c);
         }
-        sb.append('_');
-        sb.append(classSequence.incrementAndGet());
+        sb.append('_')
+          .append(classSequence.incrementAndGet());
         return sb.toString();
     }
 
-    /**
-     * Generates constructor with just a call super class (UDFunction) constructor with constant 'java' as language.
-     */
-    private static String generateConstructor(String clsName)
+    private static String javaSourceName(Class<?> type)
     {
-        return "public " + clsName +
-               "(org.apache.cassandra.cql3.functions.FunctionName name, " +
-               "java.util.List argNames, " +
-               "java.util.List argTypes, " +
-               "com.datastax.driver.core.DataType[] argDataTypes, " +
-               "org.apache.cassandra.db.marshal.AbstractType returnType, " +
-               "com.datastax.driver.core.DataType returnDataType, " +
-               "String body)\n{" +
-               "  super(name, argNames, argTypes, argDataTypes, returnType, returnDataType, \"java\", body);\n" +
-               "}";
+        String n = type.getName();
+        return n.startsWith("java.lang.") ? type.getSimpleName() : n;
     }
 
-    /**
-     * Generate executeInternal method (just there to find return and argument type mismatches in UDF body).
-     *
-     * Generated looks like this:
-     * <code><pre>
-     * private <JAVA_RETURN_TYPE> executeInternal(<JAVA_ARG_TYPE> paramOne, <JAVA_ARG_TYPE> nextParam)
-     * {
-     *     <UDF_BODY>
-     * }
-     * </pre></code>
-     */
-    private static String generateExecuteInternalMethod(List<ColumnIdentifier> argNames, String body, Class<?> returnType, Class<?>[] paramTypes)
+    private static String generateArgumentList(Class<?>[] paramTypes, List<ColumnIdentifier> argNames)
     {
         // initial builder size can just be a guess (prevent temp object allocations)
-        StringBuilder codeInt = new StringBuilder(64 + 32*paramTypes.length + body.length());
-        codeInt.append("private ").append(returnType.getName()).append(" executeInternal(");
+        StringBuilder code = new StringBuilder(32 * paramTypes.length);
         for (int i = 0; i < paramTypes.length; i++)
         {
             if (i > 0)
-                codeInt.append(", ");
-            codeInt.append(paramTypes[i].getName()).
-                    append(' ').
-                    append(argNames.get(i));
+                code.append(", ");
+            code.append(javaSourceName(paramTypes[i]))
+                .append(' ')
+                .append(argNames.get(i));
         }
-        codeInt.append(")\n{").
-                append(body).
-                append('}');
-        return codeInt.toString();
-    }
-
-    /**
-     *
-     * Generate public execute() method implementation.
-     *
-     * Generated looks like this:
-     * <code><pre>
-     *
-     * public java.nio.ByteBuffer execute(int protocolVersion, java.util.List params)
-     * throws org.apache.cassandra.exceptions.InvalidRequestException
-     * {
-     *     try
-     *     {
-     *         Object result = executeInternal(
-     *             (<cast to JAVA_ARG_TYPE>)compose(protocolVersion, 0, (java.nio.ByteBuffer)params.get(0)),
-     *             (<cast to JAVA_ARG_TYPE>)compose(protocolVersion, 1, (java.nio.ByteBuffer)params.get(1)),
-     *             ...
-     *         );
-     *         return decompose(protocolVersion, result);
-     *     }
-     *     catch (Throwable t)
-     *     {
-     *         logger.debug("Invocation of function '{}' failed", this, t);
-     *         if (t instanceof VirtualMachineError)
-     *             throw (VirtualMachineError)t;
-     *         throw org.apache.cassandra.exceptions.FunctionExecutionException.build(this, t);
-     *     }
-     * }
-     * </pre></code>
-     */
-    private static String generateExecuteMethod(List<ColumnIdentifier> argNames, Class<?>[] paramTypes)
-    {
-        // usual methods are 700-800 chars long (prevent temp object allocations)
-        StringBuilder code = new StringBuilder(1024);
-        // overrides org.apache.cassandra.cql3.functions.Function.execute(java.util.List)
-        code.append("public java.nio.ByteBuffer execute(int protocolVersion, java.util.List params)\n" +
-                    "throws org.apache.cassandra.exceptions.InvalidRequestException\n" +
-                    "{\n" +
-                    "  try\n" +
-                    "  {\n" +
-                    "    Object result = executeInternal(");
-        for (int i = 0; i < paramTypes.length; i++)
-        {
-            if (i > 0)
-                code.append(',');
-
-            if (logger.isDebugEnabled())
-                code.append("\n      /* ").append(argNames.get(i)).append(" */ ");
-
-            code.
-                 // cast to Java type
-                 append("\n      (").append(paramTypes[i].getName()).append(")").
-                 // generate object representation of input parameter (call UDFunction.compose)
-                 append("compose(protocolVersion, ").append(i).append(", (java.nio.ByteBuffer)params.get(").append(i).append("))");
-        }
-
-        code.append("\n    );\n" +
-                    // generate serialized return value (returnType is a field in AbstractFunction class), (call UDFunction.decompose)
-                    "    return decompose(protocolVersion, result);\n" +
-                    //
-                    // error handling ...
-                    "  }\n" +
-                    "  catch (Throwable t)\n" +
-                    "  {\n" +
-                    "    logger.debug(\"Invocation of function '{}' failed\", this, t);\n" +
-                    // handle OutOfMemoryError and other fatals not here!
-                    "    if (t instanceof VirtualMachineError)\n" +
-                    "      throw (VirtualMachineError)t;\n" +
-                    "    throw org.apache.cassandra.exceptions.FunctionExecutionException.create(this, t);\n" +
-                    "  }\n" +
-                    "}");
-
         return code.toString();
     }
 
+    private static String generateArguments(Class<?>[] paramTypes, List<ColumnIdentifier> argNames)
+    {
+        StringBuilder code = new StringBuilder(64 * paramTypes.length);
+        for (int i = 0; i < paramTypes.length; i++)
+        {
+            if (i > 0)
+                code.append(",\n");
+
+            if (logger.isDebugEnabled())
+                code.append("                /* parameter '").append(argNames.get(i)).append("' */\n");
+
+            code
+                // cast to Java type
+                .append("                (").append(javaSourceName(paramTypes[i])).append(") ")
+                // generate object representation of input parameter (call UDFunction.compose)
+                .append("compose(protocolVersion, ").append(i).append(", params.get(").append(i).append("))");
+        }
+        return code.toString();
+    }
+
+    // Java source UDFs are a very simple compilation task, which allows us to let one class implement
+    // all interfaces required by ECJ.
+    static final class EcjCompilationUnit implements ICompilationUnit, ICompilerRequestor, INameEnvironment
+    {
+        List<IProblem> problemList;
+        private final String className;
+        private final char[] sourceCode;
+
+        EcjCompilationUnit(String sourceCode, String className)
+        {
+            this.className = className;
+            this.sourceCode = sourceCode.toCharArray();
+        }
+
+        // ICompilationUnit
+
+        @Override
+        public char[] getFileName()
+        {
+            return sourceCode;
+        }
+
+        @Override
+        public char[] getContents()
+        {
+            return sourceCode;
+        }
+
+        @Override
+        public char[] getMainTypeName()
+        {
+            int dot = className.lastIndexOf('.');
+            return ((dot > 0) ? className.substring(dot + 1) : className).toCharArray();
+        }
+
+        @Override
+        public char[][] getPackageName()
+        {
+            StringTokenizer izer = new StringTokenizer(className, ".");
+            char[][] result = new char[izer.countTokens() - 1][];
+            for (int i = 0; i < result.length; i++)
+                result[i] = izer.nextToken().toCharArray();
+            return result;
+        }
+
+        @Override
+        public boolean ignoreOptionalProblems()
+        {
+            return false;
+        }
+
+        // ICompilerRequestor
+
+        @Override
+        public void acceptResult(CompilationResult result)
+        {
+            if (result.hasErrors())
+            {
+                IProblem[] problems = result.getProblems();
+                if (problemList == null)
+                    problemList = new ArrayList<>(problems.length);
+                Collections.addAll(problemList, problems);
+            }
+            else
+            {
+                ClassFile[] classFiles = result.getClassFiles();
+                for (ClassFile classFile : classFiles)
+                    targetClassLoader.addClass(className, classFile.getBytes());
+            }
+        }
+
+        // INameEnvironment
+
+        @Override
+        public NameEnvironmentAnswer findType(char[][] compoundTypeName)
+        {
+            StringBuilder result = new StringBuilder();
+            for (int i = 0; i < compoundTypeName.length; i++)
+            {
+                if (i > 0)
+                    result.append('.');
+                result.append(compoundTypeName[i]);
+            }
+            return findType(result.toString());
+        }
+
+        @Override
+        public NameEnvironmentAnswer findType(char[] typeName, char[][] packageName)
+        {
+            StringBuilder result = new StringBuilder();
+            int i = 0;
+            for (; i < packageName.length; i++)
+            {
+                if (i > 0)
+                    result.append('.');
+                result.append(packageName[i]);
+            }
+            if (i > 0)
+                result.append('.');
+            result.append(typeName);
+            return findType(result.toString());
+        }
+
+        private NameEnvironmentAnswer findType(String className)
+        {
+            if (className.equals(this.className))
+            {
+                return new NameEnvironmentAnswer(this, null);
+            }
+
+            String resourceName = className.replace('.', '/') + ".class";
+
+            try (InputStream is = baseClassLoader.getResourceAsStream(resourceName))
+            {
+                if (is != null)
+                {
+                    byte[] classBytes = ByteStreams.toByteArray(is);
+                    char[] fileName = className.toCharArray();
+                    ClassFileReader classFileReader = new ClassFileReader(classBytes, fileName, true);
+                    return new NameEnvironmentAnswer(classFileReader, null);
+                }
+            }
+            catch (IOException | ClassFormatException exc)
+            {
+                throw new RuntimeException(exc);
+            }
+            return null;
+        }
+
+        private boolean isPackage(String result)
+        {
+            if (result.equals(this.className))
+                return false;
+            String resourceName = result.replace('.', '/') + ".class";
+            try (InputStream is = baseClassLoader.getResourceAsStream(resourceName))
+            {
+                return is == null;
+            }
+            catch (IOException e)
+            {
+                // we are here, since close on is failed. That means it was not null
+                return false;
+            }
+        }
+
+        @Override
+        public boolean isPackage(char[][] parentPackageName, char[] packageName)
+        {
+            StringBuilder result = new StringBuilder();
+            int i = 0;
+            if (parentPackageName != null)
+                for (; i < parentPackageName.length; i++)
+                {
+                    if (i > 0)
+                        result.append('.');
+                    result.append(parentPackageName[i]);
+                }
+
+            if (Character.isUpperCase(packageName[0]) && !isPackage(result.toString()))
+                return false;
+            if (i > 0)
+                result.append('.');
+            result.append(packageName);
+
+            return isPackage(result.toString());
+        }
+
+        @Override
+        public void cleanup()
+        {
+        }
+    }
+
+    static final class EcjTargetClassLoader extends ClassLoader
+    {
+        // This map is usually empty.
+        // It only contains data *during* UDF compilation but not during runtime.
+        //
+        // addClass() is invoked by ECJ after successful compilation of the generated Java source.
+        // loadClass(targetClassName) is invoked by buildUDF() after ECJ returned from successful compilation.
+        //
+        private final Map<String, byte[]> classes = new ConcurrentHashMap<>();
+
+        EcjTargetClassLoader()
+        {
+            super(baseClassLoader);
+        }
+
+        public void addClass(String className, byte[] classData)
+        {
+            classes.put(className, classData);
+        }
+
+        protected Class<?> findClass(String name) throws ClassNotFoundException
+        {
+            // remove the class binary - it's only used once - so it's wasting heap
+            byte[] classData = classes.remove(name);
+
+            return classData != null ? defineClass(name, classData, 0, classData.length)
+                                     : super.findClass(name);
+        }
+    }
 }

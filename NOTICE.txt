@@ -61,8 +61,11 @@ Copyright 2010, Cedric Beust cedric@beust.com
 HLL++ support provided by stream-lib
 (https://github.com/addthis/stream-lib)
 
-Javassist
-(http://www.csg.ci.i.u-tokyo.ac.jp/~chiba/javassist/)
+Eclipse JDT
+Java compilation software for user-defined-functions is provided by Eclipse,
+which is open source software.  The original software and
+related information is available at http://www.eclipse.org/
+(http://www.eclipse.org/jdt/)
 
 SIGAR
 http://sigar.hyperic.com/
