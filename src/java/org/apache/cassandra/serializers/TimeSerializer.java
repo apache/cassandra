@@ -46,7 +46,7 @@ public class TimeSerializer implements TypeSerializer<Long>
             try
             {
                 long result = Long.parseLong(source);
-                if (result < 0 || result > TimeUnit.DAYS.toNanos(1))
+                if (result < 0 || result >= TimeUnit.DAYS.toNanos(1))
                     throw new NumberFormatException("Input long out of bounds: " + source);
                 return result;
             }
