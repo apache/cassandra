@@ -223,6 +223,7 @@ my_commands_ending_with_newline = (
     'show',
     'source',
     'capture',
+    'login',
     'debug',
     'tracing',
     'expand',
@@ -254,6 +255,7 @@ cqlsh_extra_syntax_rules = r'''
                    | <sourceCommand>
                    | <captureCommand>
                    | <copyCommand>
+                   | <loginCommand>
                    | <debugCommand>
                    | <helpCommand>
                    | <tracingCommand>
@@ -334,6 +336,9 @@ cqlsh_extra_syntax_rules = r'''
 
 <pagingCommand> ::= "PAGING" ( switch=( "ON" | "OFF" ) )?
                   ;
+
+<loginCommand> ::= "LOGIN" username=<username> (password=<stringLiteral>)?
+                 ;
 
 <exitCommand> ::= "exit" | "quit"
                 ;
@@ -2009,6 +2014,43 @@ class Shell(cmd.Cmd):
 
         self.serial_consistency_level = cassandra.ConsistencyLevel.name_to_value[level.upper()]
         print 'Serial consistency level set to %s.' % (level.upper(),)
+
+    def do_login(self, parsed):
+        """
+        LOGIN [cqlsh only]
+
+           Changes login information without requiring restart.
+
+        LOGIN <username> (<password>)
+
+           Login using the specified username. If password is specified, it will be used
+           otherwise, you will be prompted to enter.
+        """
+        username = parsed.get_binding('username')
+        password = parsed.get_binding('password')
+        if password is None:
+            password = getpass.getpass()
+        else:
+            password = password[1:-1]
+
+        auth_provider = PlainTextAuthProvider(username=username, password=password)
+
+        conn = Cluster(contact_points=(self.hostname,), port=self.port, cql_version=self.conn.cql_version,
+                       protocol_version=DEFAULT_PROTOCOL_VERSION,
+                       auth_provider=auth_provider,
+                       ssl_options=self.conn.ssl_options,
+                       load_balancing_policy=WhiteListRoundRobinPolicy([self.hostname]))
+
+        if self.current_keyspace:
+            session = conn.connect(self.current_keyspace)
+        else:
+            session = conn.connect()
+
+        # Update after we've connected in case we fail to authenticate
+        self.conn = conn
+        self.auth_provider = auth_provider
+        self.username = username
+        self.session = session
 
     def do_exit(self, parsed=None):
         """
