@@ -1,4 +1,5 @@
 2.2
+ * Add a flag in cassandra.yaml to enable UDFs (CASSANDRA-9404)
  * Better support of null for UDF (CASSANDRA-8374)
  * Use ecj instead of javassist for UDFs (CASSANDRA-8241)
  * faster async logback configuration for tests (CASSANDRA-9376)

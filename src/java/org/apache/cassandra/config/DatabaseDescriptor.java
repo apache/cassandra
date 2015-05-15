@@ -1683,4 +1683,9 @@ public class DatabaseDescriptor
     {
         return conf.otc_coalescing_window_us;
     }
+
+    public static boolean enableUserDefinedFunctions()
+    {
+        return conf.enable_user_defined_functions;
+    }
 }
