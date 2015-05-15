@@ -31,7 +31,9 @@ import com.datastax.driver.core.Row;
 import com.datastax.driver.core.Session;
 import com.datastax.driver.core.TokenRange;
 import org.apache.cassandra.db.SystemKeyspace;
+import org.apache.cassandra.dht.ByteOrderedPartitioner;
 import org.apache.cassandra.dht.IPartitioner;
+import org.apache.cassandra.dht.OrderPreservingPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.hadoop.cql3.*;
@@ -200,6 +202,8 @@ public abstract class AbstractColumnFamilyInputFormat<K, Y> extends InputFormat<
             for (Host endpoint : hosts)
                 endpoints[endpointIndex++] = endpoint.getAddress().getHostName();
 
+            boolean partitionerIsOpp = partitioner instanceof OrderPreservingPartitioner || partitioner instanceof ByteOrderedPartitioner;
+
             for (TokenRange subSplit : subSplits.keySet())
             {
                 List<TokenRange> ranges = subSplit.unwrap();
@@ -207,8 +211,10 @@ public abstract class AbstractColumnFamilyInputFormat<K, Y> extends InputFormat<
                 {
                     ColumnFamilySplit split =
                             new ColumnFamilySplit(
-                                    subrange.getStart().toString().substring(2),
-                                    subrange.getEnd().toString().substring(2),
+                                    partitionerIsOpp ?
+                                            subrange.getStart().toString().substring(2) : subrange.getStart().toString(),
+                                    partitionerIsOpp ?
+                                            subrange.getEnd().toString().substring(2) : subrange.getStart().toString(),
                                     subSplits.get(subSplit),
                                     endpoints);
 
