@@ -817,8 +817,10 @@ public class SSTableRewriterTest extends SchemaLoader
                 }
             }
         }
-        writer.finish();
+        writer.abort();
         cfs.getDataTracker().unmarkCompacting(sstables);
+        truncateCF();
+        validateCFS(cfs);
     }
 
     private void validateKeys(Keyspace ks)
