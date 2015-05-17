@@ -21,7 +21,6 @@ import java.io.File;
 import java.io.IOException;
 import java.lang.management.ManagementFactory;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
@@ -42,7 +41,6 @@ import javax.management.openmbean.OpenDataException;
 import javax.management.openmbean.TabularData;
 
 import com.google.common.base.Predicate;
-import com.google.common.base.Throwables;
 import com.google.common.collect.*;
 import com.google.common.util.concurrent.*;
 import org.slf4j.Logger;
@@ -787,9 +785,9 @@ public class CompactionManager implements CompactionManagerMBean
 
         metrics.beginCompaction(ci);
         Set<SSTableReader> oldSSTable = Sets.newHashSet(sstable);
-        SSTableRewriter writer = new SSTableRewriter(cfs, oldSSTable, sstable.maxDataAge, false);
         List<SSTableReader> finished;
-        try (CompactionController controller = new CompactionController(cfs, sstableSet, getDefaultGcBefore(cfs)))
+        try (SSTableRewriter writer = new SSTableRewriter(cfs, oldSSTable, sstable.maxDataAge, false);
+             CompactionController controller = new CompactionController(cfs, sstableSet, getDefaultGcBefore(cfs)))
         {
             writer.switchWriter(createWriter(cfs, compactionFileLocation, expectedBloomFilterSize, sstable.getSSTableMetadata().repairedAt, sstable));
 
@@ -812,11 +810,6 @@ public class CompactionManager implements CompactionManagerMBean
 
             finished = writer.finish();
             cfs.getDataTracker().markCompactedSSTablesReplaced(oldSSTable, finished, OperationType.CLEANUP);
-        }
-        catch (Throwable e)
-        {
-            writer.abort();
-            throw Throwables.propagate(e);
         }
         finally
         {
@@ -1178,13 +1171,12 @@ public class CompactionManager implements CompactionManagerMBean
         Set<SSTableReader> sstableAsSet = new HashSet<>(anticompactionGroup);
 
         File destination = cfs.directories.getWriteableLocationAsFile(cfs.getExpectedCompactedFileSize(sstableAsSet, OperationType.ANTICOMPACTION));
-        SSTableRewriter repairedSSTableWriter = new SSTableRewriter(cfs, sstableAsSet, groupMaxDataAge, false);
-        SSTableRewriter unRepairedSSTableWriter = new SSTableRewriter(cfs, sstableAsSet, groupMaxDataAge, false);
-
         long repairedKeyCount = 0;
         long unrepairedKeyCount = 0;
         AbstractCompactionStrategy strategy = cfs.getCompactionStrategy();
-        try (AbstractCompactionStrategy.ScannerList scanners = strategy.getScanners(anticompactionGroup);
+        try (SSTableRewriter repairedSSTableWriter = new SSTableRewriter(cfs, sstableAsSet, groupMaxDataAge, false);
+             SSTableRewriter unRepairedSSTableWriter = new SSTableRewriter(cfs, sstableAsSet, groupMaxDataAge, false);
+             AbstractCompactionStrategy.ScannerList scanners = strategy.getScanners(anticompactionGroup);
              CompactionController controller = new CompactionController(cfs, sstableAsSet, CFMetaData.DEFAULT_GC_GRACE_SECONDS))
         {
             int expectedBloomFilterSize = Math.max(cfs.metadata.getMinIndexInterval(), (int)(SSTableReader.getApproximateKeyCount(anticompactionGroup)));
@@ -1221,8 +1213,8 @@ public class CompactionManager implements CompactionManagerMBean
             // we have the same readers being rewritten by both writers, so we ask the first one NOT to close them
             // so that the second one can do so safely, without leaving us with references < 0 or any other ugliness
             List<SSTableReader> anticompactedSSTables = new ArrayList<>();
-            anticompactedSSTables.addAll(repairedSSTableWriter.finish(repairedAt));
-            anticompactedSSTables.addAll(unRepairedSSTableWriter.finish(ActiveRepairService.UNREPAIRED_SSTABLE));
+            anticompactedSSTables.addAll(repairedSSTableWriter.setRepairedAt(repairedAt).finish());
+            anticompactedSSTables.addAll(unRepairedSSTableWriter.setRepairedAt(ActiveRepairService.UNREPAIRED_SSTABLE).finish());
             cfs.getDataTracker().markCompactedSSTablesReplaced(sstableAsSet, anticompactedSSTables, OperationType.ANTICOMPACTION);
 
             logger.debug("Repaired {} keys out of {} for {}/{} in {}", repairedKeyCount,
@@ -1236,8 +1228,6 @@ public class CompactionManager implements CompactionManagerMBean
         {
             JVMStabilityInspector.inspectThrowable(e);
             logger.error("Error anticompacting " + anticompactionGroup, e);
-            repairedSSTableWriter.abort();
-            unRepairedSSTableWriter.abort();
         }
         return 0;
     }

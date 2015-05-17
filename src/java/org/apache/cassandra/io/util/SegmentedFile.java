@@ -37,6 +37,8 @@ import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.concurrent.RefCounted;
 import org.apache.cassandra.utils.concurrent.SharedCloseableImpl;
 
+import static org.apache.cassandra.utils.Throwables.maybeFail;
+
 /**
  * Abstracts a read-only file that has been split into segments, each of which can be represented by an independent
  * FileDataInput. Allows for iteration over the FileDataInputs, or random access to the FileDataInput for a given
@@ -169,21 +171,16 @@ public abstract class SegmentedFile extends SharedCloseableImpl
          * Called after all potential boundaries have been added to apply this Builder to a concrete file on disk.
          * @param channel The channel to the file on disk.
          */
-        protected abstract SegmentedFile complete(ChannelProxy channel, long overrideLength, boolean isFinal);
+        protected abstract SegmentedFile complete(ChannelProxy channel, long overrideLength);
 
         public SegmentedFile complete(String path)
         {
-            return complete(getChannel(path), -1, true);
-        }
-
-        public SegmentedFile complete(String path, boolean isFinal)
-        {
-            return complete(getChannel(path), -1, isFinal);
+            return complete(getChannel(path), -1);
         }
 
         public SegmentedFile complete(String path, long overrideLength)
         {
-            return complete(getChannel(path), overrideLength, false);
+            return complete(getChannel(path), overrideLength);
         }
 
         public void serializeBounds(DataOutput out) throws IOException
@@ -197,10 +194,16 @@ public abstract class SegmentedFile extends SharedCloseableImpl
                 throw new IOException("Cannot deserialize SSTable Summary component because the DiskAccessMode was changed!");
         }
 
-        public void close()
+        public Throwable close(Throwable accumulate)
         {
             if (channel != null)
-                channel.close();
+                return channel.close(accumulate);
+            return accumulate;
+        }
+
+        public void close()
+        {
+            maybeFail(close(null));
         }
 
         private ChannelProxy getChannel(String path)

@@ -41,9 +41,8 @@ public class BufferedPoolingSegmentedFile extends PoolingSegmentedFile
             // only one segment in a standard-io file
         }
 
-        public SegmentedFile complete(ChannelProxy channel, long overrideLength, boolean isFinal)
+        public SegmentedFile complete(ChannelProxy channel, long overrideLength)
         {
-            assert !isFinal || overrideLength <= 0;
             long length = overrideLength > 0 ? overrideLength : channel.size();
             return new BufferedPoolingSegmentedFile(channel, length);
         }

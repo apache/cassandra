@@ -20,7 +20,6 @@ package org.apache.cassandra.io.sstable;
 import java.util.*;
 
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.base.Throwables;
 import com.google.common.collect.ImmutableList;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -33,6 +32,8 @@ import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.SSTableWriter;
 import org.apache.cassandra.utils.CLibrary;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.concurrent.Refs;
+import org.apache.cassandra.utils.concurrent.Transactional;
 
 import static org.apache.cassandra.utils.Throwables.merge;
 
@@ -51,7 +52,7 @@ import static org.apache.cassandra.utils.Throwables.merge;
  * but leave any hard-links in place for the readers we opened to cleanup when they're finished as we would had we finished
  * successfully.
  */
-public class SSTableRewriter
+public class SSTableRewriter extends Transactional.AbstractTransactional implements Transactional
 {
     private static long preemptiveOpenInterval;
     static
@@ -77,7 +78,9 @@ public class SSTableRewriter
     private final ColumnFamilyStore cfs;
 
     private final long maxAge;
-    private final List<SSTableReader> finished = new ArrayList<>();
+    private long repairedAt = -1;
+    // the set of final readers we will expose on commit
+    private final List<SSTableReader> preparedForCommit = new ArrayList<>();
     private final Set<SSTableReader> rewriting; // the readers we are rewriting (updated as they are replaced)
     private final Map<Descriptor, DecoratedKey> originalStarts = new HashMap<>(); // the start key for each reader we are rewriting
     private final Map<Descriptor, Integer> fileDescriptors = new HashMap<>(); // the file descriptors for each reader descriptor we are rewriting
@@ -85,21 +88,18 @@ public class SSTableRewriter
     private SSTableReader currentlyOpenedEarly; // the reader for the most recent (re)opening of the target file
     private long currentlyOpenedEarlyAt; // the position (in MB) in the target file we last (re)opened at
 
-    private final List<SSTableReader> finishedReaders = new ArrayList<>();
-    private final Queue<Finished> finishedEarly = new ArrayDeque<>();
-    // as writers are closed from finishedEarly, their last readers are moved
-    // into discard, so that abort can cleanup after us safely
-    private final List<SSTableReader> discard = new ArrayList<>();
-    private final boolean isOffline; // true for operations that are performed without Cassandra running (prevents updates of DataTracker)
+    private final List<Finished> finishedWriters = new ArrayList<>();
+    // as writers are closed from finishedWriters, their last readers are moved into discard, so that abort can cleanup
+    // after us safely; we use a set so we can add in both prepareToCommit and abort
+    private final Set<SSTableReader> discard = new HashSet<>();
+    // true for operations that are performed without Cassandra running (prevents updates of DataTracker)
+    private final boolean isOffline;
 
     private SSTableWriter writer;
     private Map<DecoratedKey, RowIndexEntry> cachedKeys = new HashMap<>();
-    private State state = State.WORKING;
 
-    private static enum State
-    {
-        WORKING, FINISHED, ABORTED
-    }
+    // for testing (TODO: remove when have byteman setup)
+    private boolean throwEarly, throwLate;
 
     public SSTableRewriter(ColumnFamilyStore cfs, Set<SSTableReader> rewriting, long maxAge, boolean isOffline)
     {
@@ -178,7 +178,7 @@ public class SSTableRewriter
             }
             else
             {
-                SSTableReader reader = writer.openEarly(maxAge);
+                SSTableReader reader = writer.setMaxDataAge(maxAge).openEarly();
                 if (reader != null)
                 {
                     replaceEarlyOpenedFile(currentlyOpenedEarly, reader);
@@ -190,29 +190,19 @@ public class SSTableRewriter
         }
     }
 
-    public void abort()
+    protected Throwable doAbort(Throwable accumulate)
     {
-        switch (state)
-        {
-            case ABORTED:
-                return;
-            case FINISHED:
-                throw new IllegalStateException("Cannot abort - changes have already been committed");
-        }
-        state = State.ABORTED;
-
-        Throwable fail = null;
         try
         {
             moveStarts(null, null, true);
         }
         catch (Throwable t)
         {
-            fail = merge(fail, t);
+            accumulate = merge(accumulate, t);
         }
 
-        // remove already completed SSTables
-        for (SSTableReader sstable : finished)
+        // cleanup any sstables we prepared for commit
+        for (SSTableReader sstable : preparedForCommit)
         {
             try
             {
@@ -221,50 +211,41 @@ public class SSTableRewriter
             }
             catch (Throwable t)
             {
-                fail = merge(fail, t);
+                accumulate = merge(accumulate , t);
             }
         }
+
+        // abort the writers, and add the early opened readers to our discard pile
 
         if (writer != null)
-            finishedEarly.add(new Finished(writer, currentlyOpenedEarly));
+            finishedWriters.add(new Finished(writer, currentlyOpenedEarly));
 
-        // abort the writers
-        for (Finished finished : finishedEarly)
+        for (Finished finished : finishedWriters)
         {
-            try
-            {
-                finished.writer.abort();
-            }
-            catch (Throwable t)
-            {
-                fail = merge(fail, t);
-            }
-            try
-            {
-                if (finished.reader != null)
-                {
-                    // if we've already been opened, add ourselves to the discard pile
-                    discard.add(finished.reader);
-                    finished.reader.markObsolete();
-                }
-            }
-            catch (Throwable t)
-            {
-                fail = merge(fail, t);
-            }
+            accumulate = finished.writer.abort(accumulate);
+
+            // if we've already been opened, add ourselves to the discard pile
+            if (finished.reader != null)
+                discard.add(finished.reader);
         }
 
-        try
-        {
-            replaceWithFinishedReaders(Collections.<SSTableReader>emptyList());
-        }
-        catch (Throwable t)
-        {
-            fail = merge(fail, t);
-        }
+        accumulate = replaceWithFinishedReaders(Collections.<SSTableReader>emptyList(), accumulate);
+        return accumulate;
+    }
 
-        if (fail != null)
-            throw Throwables.propagate(fail);
+    protected Throwable doCommit(Throwable accumulate)
+    {
+        for (Finished f : finishedWriters)
+            accumulate = f.writer.commit(accumulate);
+        accumulate = replaceWithFinishedReaders(preparedForCommit, accumulate);
+
+        return accumulate;
+    }
+
+    protected Throwable doCleanup(Throwable accumulate)
+    {
+        // we have no state of our own to cleanup; Transactional objects cleanup their own state in abort or commit
+        return accumulate;
     }
 
     /**
@@ -369,41 +350,38 @@ public class SSTableRewriter
 
     public void switchWriter(SSTableWriter newWriter)
     {
-        if (writer == null)
+        if (writer == null || writer.getFilePointer() == 0)
         {
+            if (writer != null)
+                writer.abort();
             writer = newWriter;
             return;
         }
 
-        if (writer.getFilePointer() != 0)
+        SSTableReader reader = null;
+        if (preemptiveOpenInterval != Long.MAX_VALUE)
         {
-            // If early re-open is disabled, simply finalize the writer and store it
-            if (preemptiveOpenInterval == Long.MAX_VALUE)
-            {
-                SSTableReader reader = writer.finish(SSTableWriter.FinishType.NORMAL, maxAge, -1);
-                finishedReaders.add(reader);
-            }
-            else
-            {
-                // we leave it as a tmp file, but we open it and add it to the dataTracker
-                SSTableReader reader = writer.finish(SSTableWriter.FinishType.EARLY, maxAge, -1);
-                replaceEarlyOpenedFile(currentlyOpenedEarly, reader);
-                moveStarts(reader, reader.last, false);
-                finishedEarly.add(new Finished(writer, reader));
-            }
+            // we leave it as a tmp file, but we open it and add it to the dataTracker
+            reader = writer.setMaxDataAge(maxAge).openFinalEarly();
+            replaceEarlyOpenedFile(currentlyOpenedEarly, reader);
+            moveStarts(reader, reader.last, false);
         }
-        else
-        {
-            writer.abort();
-        }
+        finishedWriters.add(new Finished(writer, reader));
+
         currentlyOpenedEarly = null;
         currentlyOpenedEarlyAt = 0;
         writer = newWriter;
     }
 
-    public List<SSTableReader> finish()
+    /**
+     * @param repairedAt the repair time, -1 if we should use the time we supplied when we created
+     *                   the SSTableWriter (and called rewriter.switchWriter(..)), actual time if we want to override the
+     *                   repair time.
+     */
+    public SSTableRewriter setRepairedAt(long repairedAt)
     {
-        return finish(-1);
+        this.repairedAt = repairedAt;
+        return this;
     }
 
     /**
@@ -417,94 +395,92 @@ public class SSTableRewriter
      * gymnastics (ie, call DataTracker#markCompactedSSTablesReplaced(..))
      *
      *
-     * @param repairedAt the repair time, -1 if we should use the time we supplied when we created
-     *                   the SSTableWriter (and called rewriter.switchWriter(..)), actual time if we want to override the
-     *                   repair time.
      */
-    public List<SSTableReader> finish(long repairedAt)
+    public List<SSTableReader> finish()
     {
-        return finishAndMaybeThrow(repairedAt, false, false);
+        super.finish();
+        return finished();
     }
 
-    @VisibleForTesting
-    void finishAndThrow(boolean throwEarly)
+    public List<SSTableReader> finished()
     {
-        finishAndMaybeThrow(-1, throwEarly, !throwEarly);
+        assert state() == State.COMMITTED || state() == State.READY_TO_COMMIT;
+        return preparedForCommit;
     }
 
-    private List<SSTableReader> finishAndMaybeThrow(long repairedAt, boolean throwEarly, boolean throwLate)
+    protected void doPrepare()
     {
-        switch (state)
-        {
-            case FINISHED: case ABORTED:
-                throw new IllegalStateException("Cannot finish - changes have already been " + state.toString().toLowerCase());
-        }
-
-        List<SSTableReader> newReaders = new ArrayList<>();
         switchWriter(null);
 
         if (throwEarly)
             throw new RuntimeException("exception thrown early in finish, for testing");
 
         // No early open to finalize and replace
-        if (preemptiveOpenInterval == Long.MAX_VALUE)
+        for (Finished f : finishedWriters)
         {
-            replaceWithFinishedReaders(finishedReaders);
-            if (throwLate)
-                throw new RuntimeException("exception thrown after all sstables finished, for testing");
-            return finishedReaders;
-        }
+            if (f.reader != null)
+                discard.add(f.reader);
 
-        while (!finishedEarly.isEmpty())
-        {
-            Finished f = finishedEarly.peek();
-            if (f.writer.getFilePointer() > 0)
-            {
-                if (f.reader != null)
-                    discard.add(f.reader);
+            f.writer.setRepairedAt(repairedAt).setMaxDataAge(maxAge).setOpenResult(true).prepareToCommit();
+            SSTableReader newReader = f.writer.finished();
 
-                SSTableReader newReader = f.writer.finish(SSTableWriter.FinishType.FINISH_EARLY, maxAge, repairedAt);
+            if (f.reader != null)
+                f.reader.setReplacedBy(newReader);
 
-                if (f.reader != null)
-                    f.reader.setReplacedBy(newReader);
-
-                finished.add(newReader);
-                newReaders.add(newReader);
-            }
-            else
-            {
-                f.writer.abort();
-                assert f.reader == null;
-            }
-            finishedEarly.poll();
+            preparedForCommit.add(newReader);
         }
 
         if (throwLate)
             throw new RuntimeException("exception thrown after all sstables finished, for testing");
+    }
 
-        replaceWithFinishedReaders(newReaders);
-        state = State.FINISHED;
-        return finished;
+    @VisibleForTesting
+    void throwDuringPrepare(boolean throwEarly)
+    {
+        this.throwEarly = throwEarly;
+        this.throwLate = !throwEarly;
     }
 
     // cleanup all our temporary readers and swap in our new ones
-    private void replaceWithFinishedReaders(List<SSTableReader> finished)
+    private Throwable replaceWithFinishedReaders(List<SSTableReader> finished, Throwable accumulate)
     {
         if (isOffline)
         {
             for (SSTableReader reader : discard)
             {
-                if (reader.getCurrentReplacement() == reader)
-                    reader.markObsolete();
-                reader.selfRef().release();
+                try
+                {
+                    if (reader.getCurrentReplacement() == reader)
+                        reader.markObsolete();
+                }
+                catch (Throwable t)
+                {
+                    accumulate = merge(accumulate, t);
+                }
             }
+            accumulate = Refs.release(Refs.selfRefs(discard), accumulate);
         }
         else
         {
-            dataTracker.replaceEarlyOpenedFiles(discard, finished);
-            dataTracker.unmarkCompacting(discard);
+            try
+            {
+                dataTracker.replaceEarlyOpenedFiles(discard, finished);
+            }
+            catch (Throwable t)
+            {
+                accumulate = merge(accumulate, t);
+            }
+            try
+            {
+                dataTracker.unmarkCompacting(discard);
+            }
+            catch (Throwable t)
+            {
+                accumulate = merge(accumulate, t);
+            }
         }
         discard.clear();
+        return accumulate;
     }
 
     private static final class Finished

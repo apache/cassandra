@@ -19,6 +19,8 @@ package org.apache.cassandra.io.sstable;
 
 import java.io.File;
 
+import com.google.common.base.Throwables;
+
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.marshal.AbstractType;
@@ -72,12 +74,11 @@ public class SSTableSimpleWriter extends AbstractSSTableSimpleWriter
         {
             if (currentKey != null)
                 writeRow(currentKey, columnFamily);
-            writer.close();
+            writer.finish(false);
         }
-        catch (FSError e)
+        catch (Throwable t)
         {
-            writer.abort();
-            throw e;
+            throw Throwables.propagate(writer.abort(t));
         }
     }
 

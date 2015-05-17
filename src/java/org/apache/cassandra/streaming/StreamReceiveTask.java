@@ -122,7 +122,7 @@ public class StreamReceiveTask extends StreamTask
             lockfile.create(task.sstables);
             List<SSTableReader> readers = new ArrayList<>();
             for (SSTableWriter writer : task.sstables)
-                readers.add(writer.closeAndOpenReader());
+                readers.add(writer.finish(true));
             lockfile.delete();
             task.sstables.clear();
 

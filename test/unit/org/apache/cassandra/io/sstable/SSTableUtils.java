@@ -217,7 +217,7 @@ public class SSTableUtils
             File datafile = (dest == null) ? tempSSTableFile(ksname, cfname, generation) : new File(dest.filenameFor(Component.DATA));
             SSTableWriter writer = SSTableWriter.create(Descriptor.fromFilename(datafile.getAbsolutePath()), expectedSize, ActiveRepairService.UNREPAIRED_SSTABLE, 0);
             while (appender.append(writer)) { /* pass */ }
-            SSTableReader reader = writer.closeAndOpenReader();
+            SSTableReader reader = writer.finish(true);
             // mark all components for removal
             if (cleanup)
                 for (Component component : reader.components)

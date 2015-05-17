@@ -240,9 +240,9 @@ public class CompactionsTest
         long newSize1 = it.next().uncompressedLength();
         long newSize2 = it.next().uncompressedLength();
         assertEquals("candidate sstable should not be tombstone-compacted because its key range overlap with other sstable",
-                      originalSize1, newSize1);
+                     originalSize1, newSize1);
         assertEquals("candidate sstable should not be tombstone-compacted because its key range overlap with other sstable",
-                      originalSize2, newSize2);
+                     originalSize2, newSize2);
 
         // now let's enable the magic property
         store.metadata.compactionStrategyOptions.put("unchecked_tombstone_compaction", "true");
@@ -401,21 +401,24 @@ public class CompactionsTest
         cf.addColumn(Util.column("a", "a", 3));
         cf.deletionInfo().add(new RangeTombstone(Util.cellname("0"), Util.cellname("b"), 2, (int) (System.currentTimeMillis()/1000)),cfmeta.comparator);
 
-        SSTableWriter writer = SSTableWriter.create(Descriptor.fromFilename(cfs.getTempSSTablePath(dir.getDirectoryForNewSSTables())), 0, 0, 0);
+        try (SSTableWriter writer = SSTableWriter.create(Descriptor.fromFilename(cfs.getTempSSTablePath(dir.getDirectoryForNewSSTables())), 0, 0, 0);)
+        {
+            writer.append(Util.dk("0"), cf);
+            writer.append(Util.dk("1"), cf);
+            writer.append(Util.dk("3"), cf);
 
+            cfs.addSSTable(writer.finish(true));
+        }
 
-        writer.append(Util.dk("0"), cf);
-        writer.append(Util.dk("1"), cf);
-        writer.append(Util.dk("3"), cf);
+        try (SSTableWriter writer = SSTableWriter.create(Descriptor.fromFilename(cfs.getTempSSTablePath(dir.getDirectoryForNewSSTables())), 0, 0, 0);)
+        {
+            writer.append(Util.dk("0"), cf);
+            writer.append(Util.dk("1"), cf);
+            writer.append(Util.dk("2"), cf);
+            writer.append(Util.dk("3"), cf);
+            cfs.addSSTable(writer.finish(true));
+        }
 
-        cfs.addSSTable(writer.closeAndOpenReader());
-        writer = SSTableWriter.create(Descriptor.fromFilename(cfs.getTempSSTablePath(dir.getDirectoryForNewSSTables())), 0, 0, 0);
-
-        writer.append(Util.dk("0"), cf);
-        writer.append(Util.dk("1"), cf);
-        writer.append(Util.dk("2"), cf);
-        writer.append(Util.dk("3"), cf);
-        cfs.addSSTable(writer.closeAndOpenReader());
 
         Collection<SSTableReader> toCompact = cfs.getSSTables();
         assert toCompact.size() == 2;

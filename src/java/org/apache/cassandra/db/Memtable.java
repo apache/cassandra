@@ -27,7 +27,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
-import com.google.common.base.Throwables;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.SSTableWriter;
@@ -341,8 +340,7 @@ public class Memtable
 
             SSTableReader ssTable;
             // errors when creating the writer that may leave empty temp files.
-            SSTableWriter writer = createFlushWriter(cfs.getTempSSTablePath(sstableDirectory));
-            try
+            try (SSTableWriter writer = createFlushWriter(cfs.getTempSSTablePath(sstableDirectory)))
             {
                 boolean trackContention = logger.isDebugEnabled();
                 int heavilyContendedRowCount = 0;
@@ -372,16 +370,13 @@ public class Memtable
 
                 if (writer.getFilePointer() > 0)
                 {
-                    writer.isolateReferences();
-
                     // temp sstables should contain non-repaired data.
-                    ssTable = writer.closeAndOpenReader();
+                    ssTable = writer.finish(true);
                     logger.info(String.format("Completed flushing %s (%d bytes) for commitlog position %s",
                                               ssTable.getFilename(), new File(ssTable.getFilename()).length(), context));
                 }
                 else
                 {
-                    writer.abort();
                     ssTable = null;
                     logger.info("Completed flushing; nothing needed to be retained.  Commitlog position was {}",
                                 context);
@@ -391,11 +386,6 @@ public class Memtable
                     logger.debug(String.format("High update contention in %d/%d partitions of %s ", heavilyContendedRowCount, rows.size(), Memtable.this.toString()));
 
                 return ssTable;
-            }
-            catch (Throwable e)
-            {
-                writer.abort();
-                throw Throwables.propagate(e);
             }
         }
 

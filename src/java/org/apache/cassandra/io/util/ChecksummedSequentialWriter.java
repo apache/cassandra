@@ -20,8 +20,6 @@ package org.apache.cassandra.io.util;
 import java.io.File;
 import java.nio.ByteBuffer;
 
-import org.apache.cassandra.io.sstable.Descriptor;
-
 public class ChecksummedSequentialWriter extends SequentialWriter
 {
     private final SequentialWriter crcWriter;
@@ -44,20 +42,36 @@ public class ChecksummedSequentialWriter extends SequentialWriter
         crcMetadata.appendDirect(toAppend, false);
     }
 
-    public void writeFullChecksum(Descriptor descriptor)
+    protected class TransactionalProxy extends SequentialWriter.TransactionalProxy
     {
-        crcMetadata.writeFullChecksum(descriptor);
+        @Override
+        protected Throwable doCommit(Throwable accumulate)
+        {
+            return crcWriter.commit(accumulate);
+        }
+
+        @Override
+        protected Throwable doAbort(Throwable accumulate)
+        {
+            return super.doAbort(crcWriter.abort(accumulate));
+        }
+
+        @Override
+        protected void doPrepare()
+        {
+            syncInternal();
+            if (descriptor != null)
+                crcMetadata.writeFullChecksum(descriptor);
+            crcWriter.setDescriptor(descriptor).prepareToCommit();
+            // we must cleanup our file handles during prepareCommit for Windows compatibility as we cannot rename an open file;
+            // TODO: once we stop file renaming, remove this for clarity
+            releaseFileHandle();
+        }
     }
 
-    public void close()
+    @Override
+    protected SequentialWriter.TransactionalProxy txnProxy()
     {
-        super.close();
-        crcWriter.close();
-    }
-
-    public void abort()
-    {
-        super.abort();
-        crcWriter.abort();
+        return new TransactionalProxy();
     }
 }

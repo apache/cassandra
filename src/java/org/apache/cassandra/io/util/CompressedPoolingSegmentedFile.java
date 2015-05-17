@@ -96,9 +96,9 @@ public class CompressedPoolingSegmentedFile extends PoolingSegmentedFile impleme
             // only one segment in a standard-io file
         }
 
-        public SegmentedFile complete(ChannelProxy channel, long overrideLength, boolean isFinal)
+        public SegmentedFile complete(ChannelProxy channel, long overrideLength)
         {
-            return new CompressedPoolingSegmentedFile(channel, metadata(channel.filePath(), overrideLength, isFinal));
+            return new CompressedPoolingSegmentedFile(channel, metadata(channel.filePath(), overrideLength));
         }
     }
 

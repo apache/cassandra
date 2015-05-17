@@ -81,7 +81,7 @@ public class CompressedRandomAccessReaderTest
 
             for (int i = 0; i < 20; i++)
                 writer.write("x".getBytes());
-            writer.close();
+            writer.finish();
 
             CompressedRandomAccessReader reader = CompressedRandomAccessReader.open(channel, new CompressionMetadata(filename + ".metadata", f.length()));
             String res = reader.readLine();
@@ -124,7 +124,7 @@ public class CompressedRandomAccessReaderTest
 
             writer.resetAndTruncate(mark);
             writer.write("brown fox jumps over the lazy dog".getBytes());
-            writer.close();
+            writer.finish();
 
             assert f.exists();
             RandomAccessReader reader = compressed
@@ -161,10 +161,11 @@ public class CompressedRandomAccessReaderTest
         metadata.deleteOnExit();
 
         MetadataCollector sstableMetadataCollector = new MetadataCollector(new SimpleDenseCellNameType(BytesType.instance)).replayPosition(null);
-        SequentialWriter writer = new CompressedSequentialWriter(file, metadata.getPath(), new CompressionParameters(SnappyCompressor.instance), sstableMetadataCollector);
-
-        writer.write(CONTENT.getBytes());
-        writer.close();
+        try (SequentialWriter writer = new CompressedSequentialWriter(file, metadata.getPath(), new CompressionParameters(SnappyCompressor.instance), sstableMetadataCollector))
+        {
+            writer.write(CONTENT.getBytes());
+            writer.finish();
+        }
 
         ChannelProxy channel = new ChannelProxy(file);
 
@@ -175,8 +176,6 @@ public class CompressedRandomAccessReaderTest
         RandomAccessReader reader = CompressedRandomAccessReader.open(channel, meta);
         // read and verify compressed data
         assertEquals(CONTENT, reader.readLine());
-        // close reader
-        reader.close();
 
         Random random = new Random();
         RandomAccessFile checksumModifier = null;

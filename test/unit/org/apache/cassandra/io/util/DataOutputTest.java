@@ -180,6 +180,7 @@ public class DataOutputTest
         DataOutputStreamPlus write = new WrappedDataOutputStreamPlus(writer);
         DataInput canon = testWrite(write);
         write.flush();
+        writer.finish();
         write.close();
         DataInputStream test = new DataInputStream(new FileInputStream(file));
         testRead(test, canon);

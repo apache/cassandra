@@ -35,6 +35,11 @@ public class AlwaysPresentFilter implements IFilter
         return this;
     }
 
+    public Throwable close(Throwable accumulate)
+    {
+        return accumulate;
+    }
+
     public long serializedSize() { return 0; }
 
     @Override

@@ -203,12 +203,16 @@ public class IndexSummaryBuilder implements AutoCloseable
         }
     }
 
-    public IndexSummary build(IPartitioner partitioner)
+    public void prepareToCommit()
     {
         // this method should only be called when we've finished appending records, so we truncate the
         // memory we're using to the exact amount required to represent it before building our summary
         entries.setCapacity(entries.length());
         offsets.setCapacity(offsets.length());
+    }
+
+    public IndexSummary build(IPartitioner partitioner)
+    {
         return build(partitioner, null);
     }
 
@@ -238,6 +242,13 @@ public class IndexSummaryBuilder implements AutoCloseable
     {
         entries.close();
         offsets.close();
+    }
+
+    public Throwable close(Throwable accumulate)
+    {
+        accumulate = entries.close(accumulate);
+        accumulate = offsets.close(accumulate);
+        return accumulate;
     }
 
     public static int entriesAtSamplingLevel(int samplingLevel, int maxSummarySize)

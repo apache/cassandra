@@ -864,12 +864,21 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
      * @param ibuilder
      * @param dbuilder
      */
+
     public void saveSummary(SegmentedFile.Builder ibuilder, SegmentedFile.Builder dbuilder)
     {
-        saveSummary(ibuilder, dbuilder, indexSummary);
+        saveSummary(this.descriptor, this.first, this.last, ibuilder, dbuilder, indexSummary);
     }
 
-    private void saveSummary(SegmentedFile.Builder ibuilder, SegmentedFile.Builder dbuilder, IndexSummary summary)
+    private void saveSummary(SegmentedFile.Builder ibuilder, SegmentedFile.Builder dbuilder, IndexSummary newSummary)
+    {
+        saveSummary(this.descriptor, this.first, this.last, ibuilder, dbuilder, newSummary);
+    }
+    /**
+     * Save index summary to Summary.db file.
+     */
+    public static void saveSummary(Descriptor descriptor, DecoratedKey first, DecoratedKey last,
+                                   SegmentedFile.Builder ibuilder, SegmentedFile.Builder dbuilder, IndexSummary summary)
     {
         File summariesFile = new File(descriptor.filenameFor(Component.SUMMARY));
         if (summariesFile.exists())
