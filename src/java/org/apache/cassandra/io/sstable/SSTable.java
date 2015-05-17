@@ -195,7 +195,7 @@ public abstract class SSTable
         }
     }
 
-    private static Set<Component> discoverComponentsFor(Descriptor desc)
+    public static Set<Component> discoverComponentsFor(Descriptor desc)
     {
         Set<Component.Type> knownTypes = Sets.difference(Component.TYPES, Collections.singleton(Component.Type.CUSTOM));
         Set<Component> components = Sets.newHashSetWithExpectedSize(knownTypes.size());

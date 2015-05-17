@@ -48,7 +48,6 @@ public class SplittingSizeTieredCompactionWriter extends CompactionAwareWriter
 
     public static final long DEFAULT_SMALLEST_SSTABLE_BYTES = 50_000_000;
     private final double[] ratios;
-    private final SSTableRewriter sstableWriter;
     private final long totalSize;
     private final Set<SSTableReader> allSSTables;
     private long currentBytesToWrite;
@@ -61,7 +60,7 @@ public class SplittingSizeTieredCompactionWriter extends CompactionAwareWriter
 
     public SplittingSizeTieredCompactionWriter(ColumnFamilyStore cfs, Set<SSTableReader> allSSTables, Set<SSTableReader> nonExpiredSSTables, OperationType compactionType, long smallestSSTable)
     {
-        super(cfs, nonExpiredSSTables);
+        super(cfs, allSSTables, nonExpiredSSTables, false);
         this.allSSTables = allSSTables;
         totalSize = cfs.getExpectedCompactedFileSize(nonExpiredSSTables, compactionType);
         double[] potentialRatios = new double[20];
@@ -83,7 +82,6 @@ public class SplittingSizeTieredCompactionWriter extends CompactionAwareWriter
             }
         }
         ratios = Arrays.copyOfRange(potentialRatios, 0, noPointIndex);
-        sstableWriter = new SSTableRewriter(cfs, allSSTables, CompactionTask.getMaxDataAge(nonExpiredSSTables), false);
         File sstableDirectory = cfs.directories.getLocationForDisk(getWriteDirectory(Math.round(totalSize * ratios[currentRatioIndex])));
         long currentPartitionsToWrite = Math.round(estimatedTotalKeys * ratios[currentRatioIndex]);
         currentBytesToWrite = Math.round(totalSize * ratios[currentRatioIndex]);
@@ -118,18 +116,5 @@ public class SplittingSizeTieredCompactionWriter extends CompactionAwareWriter
             logger.debug("Switching writer, currentPartitionsToWrite = {}", currentPartitionsToWrite);
         }
         return rie != null;
-    }
-
-
-    @Override
-    public void abort()
-    {
-        sstableWriter.abort();
-    }
-
-    @Override
-    public List<SSTableReader> finish()
-    {
-        return sstableWriter.finish();
     }
 }

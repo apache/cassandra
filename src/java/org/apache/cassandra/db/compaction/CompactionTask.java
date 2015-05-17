@@ -167,20 +167,12 @@ public class CompactionTask extends AbstractCompactionTask
                 if (collector != null)
                     collector.beginCompaction(ci);
                 long lastCheckObsoletion = start;
-                CompactionAwareWriter writer = null;
-                try
+
+                if (!controller.cfs.getCompactionStrategy().isActive)
+                    throw new CompactionInterruptedException(ci.getCompactionInfo());
+
+                try (CompactionAwareWriter writer = getCompactionAwareWriter(cfs, sstables, actuallyCompact))
                 {
-                    if (!controller.cfs.getCompactionStrategy().isActive)
-                       throw new CompactionInterruptedException(ci.getCompactionInfo());
-                    if (!iter.hasNext())
-                    {
-                        // don't mark compacted in the finally block, since if there _is_ nondeleted data,
-                        // we need to sync it (via closeAndOpen) first, so there is no period during which
-                        // a crash could cause data loss.
-                        cfs.markObsolete(sstables, compactionType);
-                        return;
-                    }
-                    writer = getCompactionAwareWriter(cfs, sstables, actuallyCompact);
                     estimatedKeys = writer.estimatedKeys();
                     while (iter.hasNext())
                     {
@@ -200,19 +192,6 @@ public class CompactionTask extends AbstractCompactionTask
 
                     // don't replace old sstables yet, as we need to mark the compaction finished in the system table
                     newSStables = writer.finish();
-                }
-                catch (Throwable t)
-                {
-                    try
-                    {
-                        if (writer != null)
-                            writer.abort();
-                    }
-                    catch (Throwable t2)
-                    {
-                        t.addSuppressed(t2);
-                    }
-                    throw t;
                 }
                 finally
                 {

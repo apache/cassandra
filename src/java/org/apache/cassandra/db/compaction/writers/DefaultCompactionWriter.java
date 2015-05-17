@@ -34,6 +34,8 @@ import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.SSTableWriter;
 import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
 
+import static org.apache.cassandra.utils.Throwables.maybeFail;
+
 
 /**
  * The default compaction writer - creates one output file in L0
@@ -41,13 +43,11 @@ import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
 public class DefaultCompactionWriter extends CompactionAwareWriter
 {
     protected static final Logger logger = LoggerFactory.getLogger(DefaultCompactionWriter.class);
-    private final SSTableRewriter sstableWriter;
 
     public DefaultCompactionWriter(ColumnFamilyStore cfs, Set<SSTableReader> allSSTables, Set<SSTableReader> nonExpiredSSTables, boolean offline, OperationType compactionType)
     {
-        super(cfs, nonExpiredSSTables);
+        super(cfs, allSSTables, nonExpiredSSTables, offline);
         logger.debug("Expected bloom filter size : {}", estimatedTotalKeys);
-        sstableWriter = new SSTableRewriter(cfs, allSSTables, maxAge, offline);
         long expectedWriteSize = cfs.getExpectedCompactedFileSize(nonExpiredSSTables, compactionType);
         File sstableDirectory = cfs.directories.getLocationForDisk(getWriteDirectory(expectedWriteSize));
         SSTableWriter writer = SSTableWriter.create(Descriptor.fromFilename(cfs.getTempSSTablePath(sstableDirectory)),
@@ -63,18 +63,6 @@ public class DefaultCompactionWriter extends CompactionAwareWriter
     public boolean append(AbstractCompactedRow row)
     {
         return sstableWriter.append(row) != null;
-    }
-
-    @Override
-    public void abort()
-    {
-        sstableWriter.abort();
-    }
-
-    @Override
-    public List<SSTableReader> finish()
-    {
-        return sstableWriter.finish();
     }
 
     @Override

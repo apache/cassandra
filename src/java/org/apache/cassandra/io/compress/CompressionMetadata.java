@@ -36,9 +36,9 @@ import java.util.SortedSet;
 import java.util.TreeSet;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Throwables;
 import com.google.common.primitives.Longs;
 
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.FSReadError;
@@ -47,12 +47,12 @@ import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.CorruptSSTableException;
 import org.apache.cassandra.io.sstable.Descriptor;
-import org.apache.cassandra.io.sstable.format.Version;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.io.util.Memory;
 import org.apache.cassandra.io.util.SafeMemory;
 import org.apache.cassandra.utils.Pair;
+import org.apache.cassandra.utils.concurrent.Transactional;
 
 /**
  * Holds metadata about compressed file
@@ -265,7 +265,7 @@ public class CompressionMetadata
         chunkOffsets.close();
     }
 
-    public static class Writer
+    public static class Writer extends Transactional.AbstractTransactional implements Transactional
     {
         // path to the file
         private final CompressionParameters parameters;
@@ -274,6 +274,8 @@ public class CompressionMetadata
         private SafeMemory offsets = new SafeMemory(maxCount * 8L);
         private int count = 0;
 
+        // provided by user when setDescriptor
+        private long dataLength, chunkCount;
 
         private Writer(CompressionParameters parameters, String path)
         {
@@ -321,61 +323,60 @@ public class CompressionMetadata
             }
         }
 
-        static enum OpenType
+        // we've written everything; wire up some final metadata state
+        public Writer finalizeLength(long dataLength, int chunkCount)
         {
-            // i.e. FinishType == EARLY; we will use the RefCountedMemory in possibly multiple instances
-            SHARED,
-            // i.e. FinishType == EARLY, but the sstable has been completely written, so we can
-            // finalise the contents and size of the memory, but must retain a reference to it
-            SHARED_FINAL,
-            // i.e. FinishType == NORMAL or FINISH_EARLY, i.e. we have actually finished writing the table
-            // and will never need to open the metadata again, so we can release any references to it here
-            FINAL
+            this.dataLength = dataLength;
+            this.chunkCount = chunkCount;
+            return this;
         }
 
-        public CompressionMetadata open(long dataLength, long compressedLength, OpenType type)
+        public void doPrepare()
         {
-            SafeMemory offsets;
-            int count = this.count;
-            switch (type)
+            assert chunkCount == count;
+
+            // finalize the size of memory used if it won't now change;
+            // unnecessary if already correct size
+            if (offsets.size() != count * 8L)
             {
-                case FINAL: case SHARED_FINAL:
-                    if (this.offsets.size() != count * 8L)
-                    {
-                        // finalize the size of memory used if it won't now change;
-                        // unnecessary if already correct size
-                        SafeMemory tmp = this.offsets.copy(count * 8L);
-                        this.offsets.free();
-                        this.offsets = tmp;
-                    }
-
-                    if (type == OpenType.SHARED_FINAL)
-                    {
-                        offsets = this.offsets.sharedCopy();
-                    }
-                    else
-                    {
-                        offsets = this.offsets;
-                        // null out our reference to the original shared data to catch accidental reuse
-                        // note that since noone is writing to this Writer while we open it, null:ing out this.offsets is safe
-                        this.offsets = null;
-                    }
-                    break;
-
-                case SHARED:
-                    offsets = this.offsets.sharedCopy();
-                    // we should only be opened on a compression data boundary; truncate our size to this boundary
-                    count = (int) (dataLength / parameters.chunkLength());
-                    if (dataLength % parameters.chunkLength() != 0)
-                        count++;
-                    // grab our actual compressed length from the next offset from our the position we're opened to
-                    if (count < this.count)
-                        compressedLength = offsets.getLong(count * 8L);
-                    break;
-
-                default:
-                    throw new AssertionError();
+                SafeMemory tmp = offsets;
+                offsets = offsets.copy(count * 8L);
+                tmp.free();
             }
+
+            // flush the data to disk
+            DataOutputStream out = null;
+            try
+            {
+                out = new DataOutputStream(new BufferedOutputStream(new FileOutputStream(filePath)));
+                writeHeader(out, dataLength, count);
+                for (int i = 0 ; i < count ; i++)
+                    out.writeLong(offsets.getLong(i * 8L));
+            }
+            catch (IOException e)
+            {
+                throw Throwables.propagate(e);
+            }
+            finally
+            {
+                FileUtils.closeQuietly(out);
+            }
+        }
+
+        public CompressionMetadata open(long dataLength, long compressedLength)
+        {
+            SafeMemory offsets = this.offsets.sharedCopy();
+
+            // calculate how many entries we need, if our dataLength is truncated
+            int count = (int) (dataLength / parameters.chunkLength());
+            if (dataLength % parameters.chunkLength() != 0)
+                count++;
+
+            assert count > 0;
+            // grab our actual compressed length from the next offset from our the position we're opened to
+            if (count < this.count)
+                compressedLength = offsets.getLong(count * 8L);
+
             return new CompressionMetadata(filePath, parameters, offsets, count * 8L, dataLength, compressedLength);
         }
 
@@ -402,27 +403,19 @@ public class CompressionMetadata
             count = chunkIndex;
         }
 
-        public void close(long dataLength, int chunks) throws IOException
+        protected Throwable doCleanup(Throwable failed)
         {
-            DataOutputStream out = null;
-            try
-            {
-            	out = new DataOutputStream(new BufferedOutputStream(new FileOutputStream(filePath)));
-	            assert chunks == count;
-	            writeHeader(out, dataLength, chunks);
-                for (int i = 0 ; i < count ; i++)
-                    out.writeLong(offsets.getLong(i * 8L));
-            }
-            finally
-            {
-                FileUtils.closeQuietly(out);
-            }
+            return offsets.close(failed);
         }
 
-        public void abort()
+        protected Throwable doCommit(Throwable accumulate)
         {
-            if (offsets != null)
-                offsets.close();
+            return accumulate;
+        }
+
+        protected Throwable doAbort(Throwable accumulate)
+        {
+            return FileUtils.deleteWithConfirm(filePath, false, accumulate);
         }
     }
 

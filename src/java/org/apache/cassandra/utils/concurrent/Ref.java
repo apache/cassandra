@@ -11,11 +11,13 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
 
-import com.google.common.base.Throwables;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.concurrent.NamedThreadFactory;
+
+import static org.apache.cassandra.utils.Throwables.maybeFail;
+import static org.apache.cassandra.utils.Throwables.merge;
 
 /**
  * An object that needs ref counting does the two following:
@@ -77,14 +79,19 @@ public final class Ref<T> implements RefCounted<T>, AutoCloseable
         state.release(false);
     }
 
+    public Throwable ensureReleased(Throwable accumulate)
+    {
+        return state.ensureReleased(accumulate);
+    }
+
     public void ensureReleased()
     {
-        state.ensureReleased();
+        maybeFail(state.ensureReleased(null));
     }
 
     public void close()
     {
-        state.ensureReleased();
+        ensureReleased();
     }
 
     public T get()
@@ -150,14 +157,15 @@ public final class Ref<T> implements RefCounted<T>, AutoCloseable
             assert released == 0;
         }
 
-        void ensureReleased()
+        Throwable ensureReleased(Throwable accumulate)
         {
             if (releasedUpdater.getAndSet(this, 1) == 0)
             {
-                globalState.release(this);
+                accumulate = globalState.release(this, accumulate);
                 if (DEBUG_ENABLED)
                     debug.deallocate();
             }
+            return accumulate;
         }
 
         void release(boolean leak)
@@ -174,7 +182,7 @@ public final class Ref<T> implements RefCounted<T>, AutoCloseable
                 }
                 return;
             }
-            globalState.release(this);
+            Throwable fail = globalState.release(this, null);
             if (leak)
             {
                 String id = this.toString();
@@ -186,6 +194,8 @@ public final class Ref<T> implements RefCounted<T>, AutoCloseable
             {
                 debug.deallocate();
             }
+            if (fail != null)
+                logger.error("Error when closing {}", globalState, fail);
         }
     }
 
@@ -264,7 +274,7 @@ public final class Ref<T> implements RefCounted<T>, AutoCloseable
         }
 
         // release a single reference, and cleanup if no more are extant
-        void release(Ref.State ref)
+        Throwable release(Ref.State ref, Throwable accumulate)
         {
             locallyExtant.remove(ref);
             if (-1 == counts.decrementAndGet())
@@ -276,10 +286,10 @@ public final class Ref<T> implements RefCounted<T>, AutoCloseable
                 }
                 catch (Throwable t)
                 {
-                    logger.error("Error when closing {}", this, t);
-                    Throwables.propagate(t);
+                    accumulate = merge(accumulate, t);
                 }
             }
+            return accumulate;
         }
 
         int count()

@@ -30,7 +30,7 @@ public class RandomAccessReaderTest
 
         SequentialWriter writer = new SequentialWriter(f, CompressionParameters.DEFAULT_CHUNK_LENGTH, false);
         writer.write(expected.getBytes());
-        writer.close();
+        writer.finish();
 
         assert f.exists();
 
@@ -58,7 +58,7 @@ public class RandomAccessReaderTest
 
         SequentialWriter writer = new SequentialWriter(f, CompressionParameters.DEFAULT_CHUNK_LENGTH, false);
         writer.write(expected.getBytes());
-        writer.close();
+        writer.finish();
 
         assert f.exists();
 
@@ -87,7 +87,7 @@ public class RandomAccessReaderTest
         SequentialWriter writer = new SequentialWriter(f, CompressionParameters.DEFAULT_CHUNK_LENGTH, false);
         for (int i = 0; i < numIterations; i++)
             writer.write(expected.getBytes());
-        writer.close();
+        writer.finish();
 
         assert f.exists();
 
@@ -166,7 +166,7 @@ public class RandomAccessReaderTest
         SequentialWriter writer = new SequentialWriter(f, CompressionParameters.DEFAULT_CHUNK_LENGTH, false);
         for (int i = 0; i < expected.length; i++)
             writer.write(expected[i].getBytes());
-        writer.close();
+        writer.finish();
 
         assert f.exists();
 

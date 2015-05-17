@@ -36,7 +36,6 @@ public class MaxSSTableSizeWriter extends CompactionAwareWriter
 {
     private final long estimatedTotalKeys;
     private final long expectedWriteSize;
-    private final SSTableRewriter sstableWriter;
     private final long maxSSTableSize;
     private final int level;
     private final long estimatedSSTables;
@@ -44,7 +43,7 @@ public class MaxSSTableSizeWriter extends CompactionAwareWriter
 
     public MaxSSTableSizeWriter(ColumnFamilyStore cfs, Set<SSTableReader> allSSTables, Set<SSTableReader> nonExpiredSSTables, long maxSSTableSize, int level, boolean offline, OperationType compactionType)
     {
-        super(cfs, nonExpiredSSTables);
+        super(cfs, allSSTables, nonExpiredSSTables, offline);
         this.allSSTables = allSSTables;
         this.level = level;
         this.maxSSTableSize = maxSSTableSize;
@@ -52,7 +51,6 @@ public class MaxSSTableSizeWriter extends CompactionAwareWriter
         expectedWriteSize = Math.min(maxSSTableSize, totalSize);
         estimatedTotalKeys = SSTableReader.getApproximateKeyCount(nonExpiredSSTables);
         estimatedSSTables = Math.max(1, estimatedTotalKeys / maxSSTableSize);
-        sstableWriter = new SSTableRewriter(cfs, allSSTables, CompactionTask.getMaxDataAge(nonExpiredSSTables), offline);
         File sstableDirectory = cfs.directories.getLocationForDisk(getWriteDirectory(expectedWriteSize));
         SSTableWriter writer = SSTableWriter.create(Descriptor.fromFilename(cfs.getTempSSTablePath(sstableDirectory)),
                                                     estimatedTotalKeys / estimatedSSTables,
@@ -80,18 +78,6 @@ public class MaxSSTableSizeWriter extends CompactionAwareWriter
             sstableWriter.switchWriter(writer);
         }
         return rie != null;
-    }
-
-    @Override
-    public void abort()
-    {
-        sstableWriter.abort();
-    }
-
-    @Override
-    public List<SSTableReader> finish()
-    {
-        return sstableWriter.finish();
     }
 
     @Override

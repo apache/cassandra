@@ -183,9 +183,8 @@ public class MmappedSegmentedFile extends SegmentedFile
             }
         }
 
-        public SegmentedFile complete(ChannelProxy channel, long overrideLength, boolean isFinal)
+        public SegmentedFile complete(ChannelProxy channel, long overrideLength)
         {
-            assert !isFinal || overrideLength <= 0;
             long length = overrideLength > 0 ? overrideLength : channel.size();
             // create the segments
             return new MmappedSegmentedFile(channel, length, createSegments(channel, length));

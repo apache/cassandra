@@ -40,6 +40,9 @@ import org.apache.cassandra.io.sstable.CorruptSSTableException;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 
+import static org.apache.cassandra.utils.Throwables.maybeFail;
+import static org.apache.cassandra.utils.Throwables.merge;
+
 public class FileUtils
 {
     private static final Logger logger = LoggerFactory.getLogger(FileUtils.class);
@@ -107,6 +110,34 @@ public class FileUtils
         return createTempFile(prefix, suffix, new File(System.getProperty("java.io.tmpdir")));
     }
 
+    public static Throwable deleteWithConfirm(String filePath, boolean expect, Throwable accumulate)
+    {
+        return deleteWithConfirm(new File(filePath), expect, accumulate);
+    }
+
+    public static Throwable deleteWithConfirm(File file, boolean expect, Throwable accumulate)
+    {
+        boolean exists = file.exists();
+        assert exists || !expect : "attempted to delete non-existing file " + file.getName();
+        try
+        {
+            if (exists)
+                Files.delete(file.toPath());
+        }
+        catch (Throwable t)
+        {
+            try
+            {
+                throw new FSWriteError(t, file);
+            }
+            catch (Throwable t2)
+            {
+                accumulate = merge(accumulate, t2);
+            }
+        }
+        return accumulate;
+    }
+
     public static void deleteWithConfirm(String file)
     {
         deleteWithConfirm(new File(file));
@@ -114,17 +145,7 @@ public class FileUtils
 
     public static void deleteWithConfirm(File file)
     {
-        assert file.exists() : "attempted to delete non-existing file " + file.getName();
-        if (logger.isDebugEnabled())
-            logger.debug("Deleting {}", file.getName());
-        try
-        {
-            Files.delete(file.toPath());
-        }
-        catch (IOException e)
-        {
-            throw new FSWriteError(e, file);
-        }
+        maybeFail(deleteWithConfirm(file, true, null));
     }
 
     public static void renameWithOutConfirm(String from, String to)

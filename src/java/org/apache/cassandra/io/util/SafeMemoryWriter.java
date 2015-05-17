@@ -71,6 +71,11 @@ public class SafeMemoryWriter extends DataOutputBuffer
         memory.close();
     }
 
+    public Throwable close(Throwable accumulate)
+    {
+        return memory.close(accumulate);
+    }
+
     public long length()
     {
         return tailOffset(memory) +  buffer.position();

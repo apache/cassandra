@@ -76,7 +76,7 @@ public class CompressedInputStreamTest
             index.put(l, writer.getFilePointer());
             writer.stream.writeLong(l);
         }
-        writer.close();
+        writer.finish();
 
         CompressionMetadata comp = CompressionMetadata.create(tmp.getAbsolutePath());
         List<Pair<Long, Long>> sections = new ArrayList<Pair<Long, Long>>();

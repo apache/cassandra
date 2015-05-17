@@ -127,8 +127,8 @@ public class Scrubber implements Closeable
     {
         outputHandler.output(String.format("Scrubbing %s (%s bytes)", sstable, dataFile.length()));
         Set<SSTableReader> oldSSTable = Sets.newHashSet(sstable);
-        SSTableRewriter writer = new SSTableRewriter(cfs, oldSSTable, sstable.maxDataAge, isOffline);
-        try
+
+        try (SSTableRewriter writer = new SSTableRewriter(cfs, oldSSTable, sstable.maxDataAge, isOffline);)
         {
             nextIndexKey = ByteBufferUtil.readWithShortLength(indexFile);
             {
@@ -271,26 +271,27 @@ public class Scrubber implements Closeable
             {
                 // out of order rows, but no bad rows found - we can keep our repairedAt time
                 long repairedAt = badRows > 0 ? ActiveRepairService.UNREPAIRED_SSTABLE : sstable.getSSTableMetadata().repairedAt;
-                SSTableWriter inOrderWriter = CompactionManager.createWriter(cfs, destination, expectedBloomFilterSize, repairedAt, sstable);
-                for (Row row : outOfOrderRows)
-                    inOrderWriter.append(row.key, row.cf);
-                newInOrderSstable = inOrderWriter.closeAndOpenReader(sstable.maxDataAge);
+                try (SSTableWriter inOrderWriter = CompactionManager.createWriter(cfs, destination, expectedBloomFilterSize, repairedAt, sstable);)
+                {
+                    for (Row row : outOfOrderRows)
+                        inOrderWriter.append(row.key, row.cf);
+                    newInOrderSstable = inOrderWriter.finish(-1, sstable.maxDataAge, true);
+                }
                 if (!isOffline)
                     cfs.getDataTracker().addSSTables(Collections.singleton(newInOrderSstable));
                 outputHandler.warn(String.format("%d out of order rows found while scrubbing %s; Those have been written (in order) to a new sstable (%s)", outOfOrderRows.size(), sstable, newInOrderSstable));
             }
 
             // finish obsoletes the old sstable
-            List<SSTableReader> finished = writer.finish(badRows > 0 ? ActiveRepairService.UNREPAIRED_SSTABLE : sstable.getSSTableMetadata().repairedAt);
+            List<SSTableReader> finished = writer.setRepairedAt(badRows > 0 ? ActiveRepairService.UNREPAIRED_SSTABLE : sstable.getSSTableMetadata().repairedAt).finish();
             if (!finished.isEmpty())
                 newSstable = finished.get(0);
             if (!isOffline)
                 cfs.getDataTracker().markCompactedSSTablesReplaced(oldSSTable, finished, OperationType.SCRUB);
         }
-        catch (Throwable t)
+        catch (IOException e)
         {
-            writer.abort();
-            throw Throwables.propagate(t);
+            throw Throwables.propagate(e);
         }
         finally
         {

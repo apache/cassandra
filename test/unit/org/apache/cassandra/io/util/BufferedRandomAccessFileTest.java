@@ -128,7 +128,7 @@ public class BufferedRandomAccessFileTest
             assert data[i] == 0;
         }
 
-        w.close();
+        w.finish();
         r.close();
     }
 
@@ -153,7 +153,7 @@ public class BufferedRandomAccessFileTest
         assert negone == -1 : "We read past the end of the file, should have gotten EOF -1. Instead, " + negone;
 
         r.close();
-        w.close();
+        w.finish();
     }
 
     @Test
@@ -178,7 +178,7 @@ public class BufferedRandomAccessFileTest
         w.write(biggerThenBuffer);
         assertEquals(biggerThenBuffer.length + lessThenBuffer.length, w.length());
 
-        w.close();
+        w.finish();
 
         // will use cachedlength
         RandomAccessReader r = RandomAccessReader.open(tmpFile);
@@ -223,7 +223,7 @@ public class BufferedRandomAccessFileTest
             }
         });
 
-        w.close();
+        w.finish();
         r.close();
     }
 
@@ -233,7 +233,7 @@ public class BufferedRandomAccessFileTest
         SequentialWriter w = createTempFile("brafSeek");
         byte[] data = generateByteArray(RandomAccessReader.DEFAULT_BUFFER_SIZE + 20);
         w.write(data);
-        w.close();
+        w.finish();
 
         final RandomAccessReader file = RandomAccessReader.open(w);
 
@@ -272,7 +272,7 @@ public class BufferedRandomAccessFileTest
     {
         SequentialWriter w = createTempFile("brafSkipBytes");
         w.write(generateByteArray(RandomAccessReader.DEFAULT_BUFFER_SIZE * 2));
-        w.close();
+        w.finish();
 
         RandomAccessReader file = RandomAccessReader.open(w);
 
@@ -320,7 +320,7 @@ public class BufferedRandomAccessFileTest
         r.read(new byte[4]);
         assertEquals(r.getFilePointer(), 20);
 
-        w.close();
+        w.finish();
         r.close();
     }
 
@@ -329,7 +329,7 @@ public class BufferedRandomAccessFileTest
     {
         SequentialWriter file = createTempFile("brafGetPath");
         assert file.getPath().contains("brafGetPath");
-        file.close();
+        file.finish();
     }
 
     @Test
@@ -411,7 +411,7 @@ public class BufferedRandomAccessFileTest
         r.skipBytes(10);
         assertEquals(r.bytesRemaining(), r.length() - 10);
 
-        w.close();
+        w.finish();
         r.close();
     }
 
@@ -443,7 +443,7 @@ public class BufferedRandomAccessFileTest
         byte[] data = generateByteArray(RandomAccessReader.DEFAULT_BUFFER_SIZE + 20);
 
         w.write(data);
-        w.close(); // will flush
+        w.finish();
 
         final RandomAccessReader r = RandomAccessReader.open(new File(w.getPath()));
 
@@ -481,7 +481,7 @@ public class BufferedRandomAccessFileTest
         SequentialWriter w = createTempFile("brafTestMark");
         w.write(new byte[30]);
 
-        w.close();
+        w.finish();
 
         RandomAccessReader file = RandomAccessReader.open(w);
 
@@ -542,10 +542,10 @@ public class BufferedRandomAccessFileTest
         SequentialWriter w2 = createTempFile("fscache2");
 
         w1.write(new byte[30]);
-        w1.close();
+        w1.finish();
 
         w2.write(new byte[30]);
-        w2.close();
+        w2.finish();
 
         for (int i = 0; i < 20; i++)
         {
@@ -652,7 +652,7 @@ public class BufferedRandomAccessFileTest
 
         assertEquals(new String(content), "cccccccccc");
 
-        file.close();
+        file.finish();
         copy.close();
     }
 

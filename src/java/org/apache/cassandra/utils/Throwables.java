@@ -29,4 +29,9 @@ public class Throwables
         return existingFail;
     }
 
+    public static void maybeFail(Throwable fail)
+    {
+        if (fail != null)
+            com.google.common.base.Throwables.propagate(fail);
+    }
 }

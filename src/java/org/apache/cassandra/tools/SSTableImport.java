@@ -71,7 +71,7 @@ public class SSTableImport
     private final boolean isSorted;
 
     private static final JsonFactory factory = new MappingJsonFactory().configure(
-            JsonParser.Feature.INTERN_FIELD_NAMES, false);
+                                                                                 JsonParser.Feature.INTERN_FIELD_NAMES, false);
 
     static
     {
@@ -143,10 +143,10 @@ public class SSTableImport
                 else
                 {
                     assert meta.isCQL3Table() || name.hasRemaining() : "Cell name should not be empty";
-                    value = stringAsType((String) fields.get(1), 
-                            meta.getValueValidator(name.hasRemaining() 
-                                    ? comparator.cellFromByteBuffer(name)
-                                    : meta.comparator.rowMarker(Composites.EMPTY)));
+                    value = stringAsType((String) fields.get(1),
+                                         meta.getValueValidator(name.hasRemaining()
+                                                                ? comparator.cellFromByteBuffer(name)
+                                                                : meta.comparator.rowMarker(Composites.EMPTY)));
                 }
             }
         }
@@ -219,10 +219,10 @@ public class SSTableImport
                 cfamily.addAtom(new RangeTombstone(start, end, col.timestamp, col.localExpirationTime));
                 continue;
             }
-            
+
             assert cfm.isCQL3Table() || col.getName().hasRemaining() : "Cell name should not be empty";
-            CellName cname = col.getName().hasRemaining() ? cfm.comparator.cellFromByteBuffer(col.getName()) 
-                    : cfm.comparator.rowMarker(Composites.EMPTY);
+            CellName cname = col.getName().hasRemaining() ? cfm.comparator.cellFromByteBuffer(col.getName())
+                                                          : cfm.comparator.rowMarker(Composites.EMPTY);
 
             if (col.isExpiring())
             {
@@ -345,13 +345,13 @@ public class SSTableImport
                 break;
         }
 
-        writer.closeAndOpenReader();
+        writer.finish(true);
 
         return importedKeys;
     }
 
     private int importSorted(String jsonFile, ColumnFamily columnFamily, String ssTablePath,
-            IPartitioner partitioner) throws IOException
+                             IPartitioner partitioner) throws IOException
     {
         int importedKeys = 0; // already imported keys count
         long start = System.nanoTime();
@@ -377,55 +377,56 @@ public class SSTableImport
         System.out.printf("Importing %s keys...%n", keyCountToImport);
 
         parser = getParser(jsonFile); // renewing parser
-        SSTableWriter writer = SSTableWriter.create(Descriptor.fromFilename(ssTablePath), keyCountToImport, ActiveRepairService.UNREPAIRED_SSTABLE);
-
-        int lineNumber = 1;
-        DecoratedKey prevStoredKey = null;
-
-        parser.nextToken(); // START_ARRAY
-        while (parser.nextToken() != null)
+        try (SSTableWriter writer = SSTableWriter.create(Descriptor.fromFilename(ssTablePath), keyCountToImport, ActiveRepairService.UNREPAIRED_SSTABLE);)
         {
-            String key = parser.getCurrentName();
-            Map<?, ?> row = parser.readValueAs(new TypeReference<Map<?, ?>>(){});
-            DecoratedKey currentKey = partitioner.decorateKey(getKeyValidator(columnFamily).fromString((String) row.get("key")));
+            int lineNumber = 1;
+            DecoratedKey prevStoredKey = null;
 
-            if (row.containsKey("metadata"))
-                parseMeta((Map<?, ?>) row.get("metadata"), columnFamily, null);
-
-            addColumnsToCF((List<?>) row.get("cells"), columnFamily);
-
-            if (prevStoredKey != null && prevStoredKey.compareTo(currentKey) != -1)
+            parser.nextToken(); // START_ARRAY
+            while (parser.nextToken() != null)
             {
-                System.err
-                        .printf("Line %d: Key %s is greater than previous, collection is not sorted properly. Aborting import. You might need to delete SSTables manually.%n",
-                                lineNumber, key);
-                return -1;
+                String key = parser.getCurrentName();
+                Map<?, ?> row = parser.readValueAs(new TypeReference<Map<?, ?>>(){});
+                DecoratedKey currentKey = partitioner.decorateKey(getKeyValidator(columnFamily).fromString((String) row.get("key")));
+
+                if (row.containsKey("metadata"))
+                    parseMeta((Map<?, ?>) row.get("metadata"), columnFamily, null);
+
+                addColumnsToCF((List<?>) row.get("cells"), columnFamily);
+
+                if (prevStoredKey != null && prevStoredKey.compareTo(currentKey) != -1)
+                {
+                    System.err
+                    .printf("Line %d: Key %s is greater than previous, collection is not sorted properly. Aborting import. You might need to delete SSTables manually.%n",
+                            lineNumber, key);
+                    return -1;
+                }
+
+                // saving decorated key
+                writer.append(currentKey, columnFamily);
+                columnFamily.clear();
+
+                prevStoredKey = currentKey;
+                importedKeys++;
+                lineNumber++;
+
+                long current = System.nanoTime();
+
+                if (TimeUnit.NANOSECONDS.toSeconds(current - start) >= 5) // 5 secs.
+                {
+                    System.out.printf("Currently imported %d keys.%n", importedKeys);
+                    start = current;
+                }
+
+                if (keyCountToImport == importedKeys)
+                    break;
+
             }
 
-            // saving decorated key
-            writer.append(currentKey, columnFamily);
-            columnFamily.clear();
+            writer.finish(true);
 
-            prevStoredKey = currentKey;
-            importedKeys++;
-            lineNumber++;
-
-            long current = System.nanoTime();
-
-            if (TimeUnit.NANOSECONDS.toSeconds(current - start) >= 5) // 5 secs.
-            {
-                System.out.printf("Currently imported %d keys.%n", importedKeys);
-                start = current;
-            }
-
-            if (keyCountToImport == importedKeys)
-                break;
-
+            return importedKeys;
         }
-
-        writer.closeAndOpenReader();
-
-        return importedKeys;
     }
 
     /**
@@ -511,7 +512,7 @@ public class SSTableImport
 
         try
         {
-           new SSTableImport(keyCountToImport, isSorted).importJson(json, keyspace, cfamily, ssTable);
+            new SSTableImport(keyCountToImport, isSorted).importJson(json, keyspace, cfamily, ssTable);
         }
         catch (Exception e)
         {
@@ -527,7 +528,7 @@ public class SSTableImport
     private static void printProgramUsage()
     {
         System.out.printf("Usage: %s -s -K <keyspace> -c <column_family> -n <num_keys> <json> <sstable>%n%n",
-                            SSTableImport.class.getName());
+                          SSTableImport.class.getName());
 
         System.out.println("Options:");
         for (Object o :  options.getOptions())
