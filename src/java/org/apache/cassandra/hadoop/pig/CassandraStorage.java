@@ -992,15 +992,9 @@ public class CassandraStorage extends LoadFunc implements StoreFuncInterface, Lo
 
     /** get column meta data */
     protected List<ColumnDef> getColumnMeta(Cassandra.Client client, boolean cassandraStorage, boolean includeCompactValueColumn)
-            throws org.apache.cassandra.thrift.InvalidRequestException,
-            UnavailableException,
-            TimedOutException,
-            SchemaDisagreementException,
-            TException,
+            throws TException,
             CharacterCodingException,
-            org.apache.cassandra.exceptions.InvalidRequestException,
-            ConfigurationException,
-            NotFoundException
+            ConfigurationException
     {
         String query = String.format("SELECT column_name, validator, index_type, type " +
                         "FROM %s.%s " +
@@ -1069,11 +1063,7 @@ public class CassandraStorage extends LoadFunc implements StoreFuncInterface, Lo
 
     /** get CFMetaData of a column family */
     protected CFMetaData getCFMetaData(String ks, String cf, Cassandra.Client client)
-            throws NotFoundException,
-            org.apache.cassandra.thrift.InvalidRequestException,
-            TException,
-            org.apache.cassandra.exceptions.InvalidRequestException,
-            ConfigurationException
+            throws TException, ConfigurationException
     {
         KsDef ksDef = client.describe_keyspace(ks);
         for (CfDef cfDef : ksDef.cf_defs)
@@ -1231,13 +1221,7 @@ public class CassandraStorage extends LoadFunc implements StoreFuncInterface, Lo
 
     /** return the CfInfo for the column family */
     protected CfDef getCfDef(Cassandra.Client client)
-            throws org.apache.cassandra.thrift.InvalidRequestException,
-            UnavailableException,
-            TimedOutException,
-            SchemaDisagreementException,
-            TException,
-            NotFoundException,
-            org.apache.cassandra.exceptions.InvalidRequestException,
+            throws TException,
             ConfigurationException,
             IOException
     {
