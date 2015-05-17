@@ -522,6 +522,8 @@
       	<dependency groupId="joda-time" artifactId="joda-time" version="2.4" />
 
         <dependency groupId="org.fusesource" artifactId="sigar" version="1.6.4"/>
+      	
+        <dependency groupId="org.eclipse.jdt.core.compiler" artifactId="ecj" />
       </artifact:pom>
       <artifact:pom id="thrift-pom"
                     artifactId="cassandra-thrift"
