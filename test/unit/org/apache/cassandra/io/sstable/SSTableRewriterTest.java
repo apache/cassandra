@@ -776,7 +776,8 @@ public class SSTableRewriterTest extends SchemaLoader
         }
         writer.abort();
         cfs.getDataTracker().unmarkCompacting(sstables);
-        truncateCF();
+        cfs.truncateBlocking();
+        SSTableDeletingTask.waitForDeletions();
         validateCFS(cfs);
     }
 
