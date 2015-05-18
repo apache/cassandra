@@ -1,4 +1,3 @@
-conf/cassandra-topology.yaml etc/cassandra
 conf/cassandra.yaml etc/cassandra
 conf/cassandra-env.sh etc/cassandra
 conf/cassandra-rackdc.properties etc/cassandra
