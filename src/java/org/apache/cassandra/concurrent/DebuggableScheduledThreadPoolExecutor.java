@@ -31,6 +31,11 @@ import org.apache.cassandra.utils.JVMStabilityInspector;
  *
  * DebuggableScheduledThreadPoolExecutor also catches exceptions during Task execution
  * so that they don't supress subsequent invocations of the task.
+ *
+ * Finally, there is a special rejected execution handler for tasks rejected during the shutdown hook.
+ *
+ * For fire and forget tasks (like ref tidy) we can safely ignore the exceptions.
+ * For any callers that care to know their task was rejected we cancel passed task.
  */
 public class DebuggableScheduledThreadPoolExecutor extends ScheduledThreadPoolExecutor
 {
@@ -44,6 +49,10 @@ public class DebuggableScheduledThreadPoolExecutor extends ScheduledThreadPoolEx
             {
                 if (!StorageService.instance.isInShutdownHook())
                     throw new RejectedExecutionException("ScheduledThreadPoolExecutor has shut down.");
+
+                //Give some notification to the caller the task isn't going to run
+                if (task instanceof Future)
+                    ((Future) task).cancel(false);
 
                 logger.debug("ScheduledThreadPoolExecutor has shut down as part of C* shutdown");
             }
