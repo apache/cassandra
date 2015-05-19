@@ -37,6 +37,7 @@ import javax.management.remote.JMXServiceURL;
 import javax.management.remote.rmi.RMIConnectorServer;
 
 import com.google.common.util.concurrent.Uninterruptibles;
+import org.apache.cassandra.gms.Gossiper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -517,28 +518,27 @@ public class CassandraDaemon
         Uninterruptibles.sleepUninterruptibly(GOSSIP_SETTLE_MIN_WAIT_MS, TimeUnit.MILLISECONDS);
         int totalPolls = 0;
         int numOkay = 0;
-        JMXEnabledThreadPoolExecutor gossipStage = (JMXEnabledThreadPoolExecutor)StageManager.getStage(Stage.GOSSIP);
+        int epSize = Gossiper.instance.getEndpointStates().size();
         while (numOkay < GOSSIP_SETTLE_POLL_SUCCESSES_REQUIRED)
         {
             Uninterruptibles.sleepUninterruptibly(GOSSIP_SETTLE_POLL_INTERVAL_MS, TimeUnit.MILLISECONDS);
-            long completed = gossipStage.metrics.completedTasks.getValue();
-            long active = gossipStage.metrics.activeTasks.getValue();
-            long pending = gossipStage.metrics.pendingTasks.getValue();
+            int currentSize = Gossiper.instance.getEndpointStates().size();
             totalPolls++;
-            if (active == 0 && pending == 0)
+            if (currentSize == epSize)
             {
-                logger.debug("Gossip looks settled. CompletedTasks: {}", completed);
+                logger.debug("Gossip looks settled.");
                 numOkay++;
             }
             else
             {
-                logger.info("Gossip not settled after {} polls. Gossip Stage active/pending/completed: {}/{}/{}", totalPolls, active, pending, completed);
+                logger.info("Gossip not settled after {} polls.", totalPolls);
                 numOkay = 0;
             }
+            epSize = currentSize;
             if (forceAfter > 0 && totalPolls > forceAfter)
             {
-                logger.warn("Gossip not settled but startup forced by cassandra.skip_wait_for_gossip_to_settle. Gossip Stage total/active/pending/completed: {}/{}/{}/{}",
-                            totalPolls, active, pending, completed);
+                logger.warn("Gossip not settled but startup forced by cassandra.skip_wait_for_gossip_to_settle. Gossip total polls: {}",
+                            totalPolls);
                 break;
             }
         }

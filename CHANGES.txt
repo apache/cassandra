@@ -1,5 +1,6 @@
 3.0:
  * Decommissioned nodes will not rejoin the cluster (CASSANDRA-8801)
+ * Change gossip stabilization to use endpoit size (CASSANDRA-9401)
 
 2.2
 Merged from 2.1:
