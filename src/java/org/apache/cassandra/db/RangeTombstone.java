@@ -273,6 +273,10 @@ public class RangeTombstone extends Interval<Composite, DeletionTime> implements
         {
             Composite max = type.serializer().deserialize(in);
             DeletionTime dt = DeletionTime.serializer.deserialize(in);
+            // If the max equals the min.end(), we can avoid keeping an extra ByteBuffer in memory by using
+            // min.end() instead of max
+            Composite minEnd = min.end();
+            max = minEnd.equals(max) ? minEnd : max;
             return new RangeTombstone(min, max, dt);
         }
 
