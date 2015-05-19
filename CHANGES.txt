@@ -1,4 +1,9 @@
 2.2
+Merged from 2.1:
+ * Use configured gcgs in anticompaction (CASSANDRA-9397)
+
+
+2.2.0-beta1
  * Introduce Transactional API for internal state changes (CASSANDRA-8984)
  * Add a flag in cassandra.yaml to enable UDFs (CASSANDRA-9404)
  * Better support of null for UDF (CASSANDRA-8374)
@@ -114,7 +119,6 @@
 
 
 2.1.6
- * Use configured gcgs in anticompaction (CASSANDRA-9397)
  * Warn on misuse of unlogged batches (CASSANDRA-9282)
  * Failure detector detects and ignores local pauses (CASSANDRA-9183)
  * Add utility class to support for rate limiting a given log statement (CASSANDRA-9029)
