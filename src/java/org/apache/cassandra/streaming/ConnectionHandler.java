@@ -215,7 +215,12 @@ public class ConnectionHandler
             {
                 socket.close();
             }
-            catch (IOException ignore) {}
+            catch (IOException e)
+            {
+                // Erroring out while closing shouldn't happen but is not really a big deal, so just log
+                // it at DEBUG and ignore otherwise.
+                logger.debug("Unexpected error while closing streaming connection", e);
+            }
         }
     }
 
