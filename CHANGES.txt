@@ -1,3 +1,6 @@
+3.0:
+ * Decommissioned nodes will not rejoin the cluster (CASSANDRA-8801)
+
 2.2
 Merged from 2.1:
  * Use configured gcgs in anticompaction (CASSANDRA-9397)
