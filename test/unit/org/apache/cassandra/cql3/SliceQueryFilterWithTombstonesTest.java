@@ -19,10 +19,11 @@ package org.apache.cassandra.cql3;
 
 import java.util.concurrent.TimeUnit;
 
+import com.google.common.base.Throwables;
+
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
-
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.filter.TombstoneOverwhelmingException;
 
@@ -84,7 +85,10 @@ public class SliceQueryFilterWithTombstonesTest extends CQLTester
         }
         catch (Throwable e)
         {
-            assertTrue(e instanceof TombstoneOverwhelmingException);
+            String error = "Expected exception instanceof TombstoneOverwhelmingException instead got "
+                          + System.lineSeparator()
+                          + Throwables.getStackTraceAsString(e);
+            assertTrue(error, e instanceof TombstoneOverwhelmingException);
         }
     }
 
