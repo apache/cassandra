@@ -3,6 +3,7 @@
  * Change gossip stabilization to use endpoit size (CASSANDRA-9401)
 
 2.2
+ * Ensure that UDF and UDAs are keyspace-isolated (CASSANDRA-9409)
 Merged from 2.1:
  * Use configured gcgs in anticompaction (CASSANDRA-9397)
 

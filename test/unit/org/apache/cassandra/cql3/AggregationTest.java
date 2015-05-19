@@ -1043,11 +1043,94 @@ public class AggregationTest extends CQLTester
                                        "AS 'return Integer.valueOf(1);';");
 
         assertInvalidMessage("return type must be the same as the first argument type - check STYPE, argument and return types",
-                                   "CREATE AGGREGATE %s(int) " +
-                                   "SFUNC " + shortFunctionName(fState) + ' ' +
-                                   "STYPE int " +
-                                   "FINALFUNC " + shortFunctionName(fFinal) + ' ' +
-                                   "INITCOND 1");
+                             "CREATE AGGREGATE %s(int) " +
+                             "SFUNC " + shortFunctionName(fState) + ' ' +
+                             "STYPE int " +
+                             "FINALFUNC " + shortFunctionName(fFinal) + ' ' +
+                             "INITCOND 1");
+    }
+
+    @Test
+    public void testWrongKeyspace() throws Throwable
+    {
+        String typeName = createType("CREATE TYPE %s (txt text, i int)");
+        String type = KEYSPACE + '.' + typeName;
+
+        String fState = createFunction(KEYSPACE_PER_TEST,
+                                       "int, int",
+                                       "CREATE FUNCTION %s(a int, b int) " +
+                                       "CALLED ON NULL INPUT " +
+                                       "RETURNS double " +
+                                       "LANGUAGE java " +
+                                       "AS 'return Double.valueOf(1.0);'");
+
+        String fFinal = createFunction(KEYSPACE_PER_TEST,
+                                       "int",
+                                       "CREATE FUNCTION %s(a int) " +
+                                       "CALLED ON NULL INPUT " +
+                                       "RETURNS int " +
+                                       "LANGUAGE java " +
+                                       "AS 'return Integer.valueOf(1);';");
+
+        String fStateWrong = createFunction(KEYSPACE,
+                                       "int, int",
+                                       "CREATE FUNCTION %s(a int, b int) " +
+                                       "CALLED ON NULL INPUT " +
+                                       "RETURNS double " +
+                                       "LANGUAGE java " +
+                                       "AS 'return Double.valueOf(1.0);'");
+
+        String fFinalWrong = createFunction(KEYSPACE,
+                                       "int",
+                                       "CREATE FUNCTION %s(a int) " +
+                                       "CALLED ON NULL INPUT " +
+                                       "RETURNS int " +
+                                       "LANGUAGE java " +
+                                       "AS 'return Integer.valueOf(1);';");
+
+        assertInvalidMessage(String.format("Statement on keyspace %s cannot refer to a user type in keyspace %s; user types can only be used in the keyspace they are defined in",
+                                           KEYSPACE_PER_TEST, KEYSPACE),
+                             "CREATE AGGREGATE " + KEYSPACE_PER_TEST + ".test_wrong_ks(int) " +
+                             "SFUNC " + shortFunctionName(fState) + ' ' +
+                             "STYPE frozen<" + type + "> " +
+                             "FINALFUNC " + shortFunctionName(fFinal) + ' ' +
+                             "INITCOND 1");
+
+        assertInvalidMessage(String.format("Statement on keyspace %s cannot refer to a user function in keyspace %s; user functions can only be used in the keyspace they are defined in",
+                                           KEYSPACE_PER_TEST, KEYSPACE),
+                             "CREATE AGGREGATE " + KEYSPACE_PER_TEST + ".test_wrong_ks(int) " +
+                             "SFUNC " + fStateWrong + ' ' +
+                             "STYPE frozen<" + type + "> " +
+                             "FINALFUNC " + shortFunctionName(fFinal) + ' ' +
+                             "INITCOND 1");
+
+        assertInvalidMessage(String.format("Statement on keyspace %s cannot refer to a user function in keyspace %s; user functions can only be used in the keyspace they are defined in",
+                                           KEYSPACE_PER_TEST, KEYSPACE),
+                             "CREATE AGGREGATE " + KEYSPACE_PER_TEST + ".test_wrong_ks(int) " +
+                             "SFUNC " + shortFunctionName(fState) + ' ' +
+                             "STYPE frozen<" + type + "> " +
+                             "FINALFUNC " + fFinalWrong + ' ' +
+                             "INITCOND 1");
+    }
+
+    @Test
+    public void testSystemKeyspace() throws Throwable
+    {
+        String fState = createFunction(KEYSPACE,
+                                       "text, text",
+                                       "CREATE FUNCTION %s(a text, b text) " +
+                                       "CALLED ON NULL INPUT " +
+                                       "RETURNS text " +
+                                       "LANGUAGE java " +
+                                       "AS 'return \"foobar\";'");
+
+        createAggregate(KEYSPACE,
+                        "text",
+                        "CREATE AGGREGATE %s(text) " +
+                        "SFUNC " + shortFunctionName(fState) + ' ' +
+                        "STYPE text " +
+                        "FINALFUNC system.varcharasblob " +
+                        "INITCOND 'foobar'");
     }
 
 }
