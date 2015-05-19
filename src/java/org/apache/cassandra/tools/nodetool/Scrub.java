@@ -43,6 +43,11 @@ public class Scrub extends NodeToolCmd
             description = "Skip corrupted partitions even when scrubbing counter tables. (default false)")
     private boolean skipCorrupted = false;
 
+    @Option(title = "no_validate",
+                   name = {"-n", "--no-validate"},
+                   description = "Do not validate columns using column validator")
+    private boolean noValidation = false;
+
     @Override
     public void execute(NodeProbe probe)
     {
@@ -53,7 +58,7 @@ public class Scrub extends NodeToolCmd
         {
             try
             {
-                probe.scrub(System.out, disableSnapshot, skipCorrupted, keyspace, cfnames);
+                probe.scrub(System.out, disableSnapshot, skipCorrupted, !noValidation, keyspace, cfnames);
             } catch (IllegalArgumentException e)
             {
                 throw e;
