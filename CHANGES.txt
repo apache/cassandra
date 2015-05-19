@@ -3,6 +3,7 @@
  * Clone SliceQueryFilter in AbstractReadCommand implementations (CASSANDRA-8940)
  * Push correct protocol notification for DROP INDEX (CASSANDRA-9310)
  * token-generator - generated tokens too long (CASSANDRA-9300)
+ * Add option not to validate atoms during scrub (CASSANDRA-9406)
 
 
 2.0.15:

@@ -234,13 +234,13 @@ public class CompactionManager implements CompactionManagerMBean
         executor.submit(runnable).get();
     }
 
-    public void performScrub(ColumnFamilyStore cfStore, final boolean skipCorrupted) throws InterruptedException, ExecutionException
+    public void performScrub(ColumnFamilyStore cfStore, final boolean skipCorrupted, final boolean checkData) throws InterruptedException, ExecutionException
     {
         performAllSSTableOperation(cfStore, new AllSSTablesOperation()
         {
             public void perform(ColumnFamilyStore store, Iterable<SSTableReader> sstables) throws IOException
             {
-                doScrub(store, sstables, skipCorrupted);
+                doScrub(store, sstables, skipCorrupted, checkData);
             }
         });
     }
@@ -432,16 +432,16 @@ public class CompactionManager implements CompactionManagerMBean
      *
      * @throws IOException
      */
-    private void doScrub(ColumnFamilyStore cfs, Iterable<SSTableReader> sstables, boolean skipCorrupted) throws IOException
+    private void doScrub(ColumnFamilyStore cfs, Iterable<SSTableReader> sstables, boolean skipCorrupted, boolean checkData) throws IOException
     {
         assert !cfs.isIndex();
         for (final SSTableReader sstable : sstables)
-            scrubOne(cfs, sstable, skipCorrupted);
+            scrubOne(cfs, sstable, skipCorrupted, checkData);
     }
 
-    private void scrubOne(ColumnFamilyStore cfs, SSTableReader sstable, boolean skipCorrupted) throws IOException
+    private void scrubOne(ColumnFamilyStore cfs, SSTableReader sstable, boolean skipCorrupted, boolean checkData) throws IOException
     {
-        Scrubber scrubber = new Scrubber(cfs, sstable, skipCorrupted);
+        Scrubber scrubber = new Scrubber(cfs, sstable, skipCorrupted, checkData);
 
         CompactionInfo.Holder scrubInfo = scrubber.getScrubInfo();
         metrics.beginCompaction(scrubInfo);

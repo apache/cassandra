@@ -83,6 +83,7 @@ public class NodeCmd
     private static final Pair<String, String> CFSTATS_IGNORE_OPT = Pair.create("i", "ignore");
     private static final Pair<String, String> RESOLVE_IP = Pair.create("r", "resolve-ip");
     private static final Pair<String, String> SCRUB_SKIP_CORRUPTED_OPT = Pair.create("s", "skip-corrupted");
+    private static final Pair<String, String> SCRUB_NO_VALIDATE = Pair.create("nv", "no-validate");
     private static final Pair<String, String> COMPACT_OPT = Pair.create("c", "compact");
 
     private static final String DEFAULT_HOST = "127.0.0.1";
@@ -114,6 +115,7 @@ public class NodeCmd
         options.addOption(CFSTATS_IGNORE_OPT, false, "ignore the supplied list of keyspace.columnfamiles in statistics");
         options.addOption(RESOLVE_IP, false, "show node domain names instead of IPs");
         options.addOption(SCRUB_SKIP_CORRUPTED_OPT, false, "when scrubbing counter tables, skip corrupted rows");
+        options.addOption(SCRUB_NO_VALIDATE, false, "when scrubbing do not validate columns using column validator");
         options.addOption(COMPACT_OPT, false, "print histograms in a more compact format");
     }
 
@@ -1788,7 +1790,8 @@ public class NodeCmd
                 case SCRUB :
                     boolean disableSnapshot = cmd.hasOption(NO_SNAPSHOT.left);
                     boolean skipCorrupted = cmd.hasOption(SCRUB_SKIP_CORRUPTED_OPT.left);
-                    try { probe.scrub(disableSnapshot, skipCorrupted, keyspace, columnFamilies); }
+                    boolean checkData = !cmd.hasOption(SCRUB_NO_VALIDATE.left);
+                    try { probe.scrub(disableSnapshot, skipCorrupted, checkData, keyspace, columnFamilies); }
                     catch (ExecutionException ee) { err(ee, "Error occurred while scrubbing keyspace " + keyspace); }
                     break;
                 case UPGRADESSTABLES :

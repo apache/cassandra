@@ -2188,8 +2188,13 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public void scrub(boolean disableSnapshot, boolean skipCorrupted, String keyspaceName, String... columnFamilies) throws IOException, ExecutionException, InterruptedException
     {
+        scrub(disableSnapshot, skipCorrupted, true, keyspaceName, columnFamilies);
+    }
+
+    public void scrub(boolean disableSnapshot, boolean skipCorrupted, boolean checkData, String keyspaceName, String... columnFamilies) throws IOException, ExecutionException, InterruptedException
+    {
         for (ColumnFamilyStore cfStore : getValidColumnFamilies(false, false, keyspaceName, columnFamilies))
-            cfStore.scrub(disableSnapshot, skipCorrupted);
+            cfStore.scrub(disableSnapshot, skipCorrupted, checkData);
     }
 
     public void upgradeSSTables(String keyspaceName, boolean excludeCurrentVersion, String... columnFamilies) throws IOException, ExecutionException, InterruptedException
