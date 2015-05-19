@@ -143,8 +143,8 @@ class TestCqlshCompletion(CqlshCompletionCase):
     def test_complete_on_empty_string(self):
         self.trycompletions('', choices=('?', 'ALTER', 'BEGIN', 'CAPTURE', 'CONSISTENCY',
                                          'COPY', 'CREATE', 'DEBUG', 'DELETE', 'DESC', 'DESCRIBE',
-                                         'DROP', 'GRANT', 'HELP', 'INSERT', 'LIST', 'PAGING', 'REVOKE',
-                                         'SELECT', 'SHOW', 'SOURCE', 'TRACING', 'EXPAND', 'TRUNCATE',
+                                         'DROP', 'GRANT', 'HELP', 'INSERT', 'LIST', 'LOGIN', 'PAGING', 'REVOKE',
+                                         'SELECT', 'SHOW', 'SOURCE', 'TRACING', 'EXPAND', 'SERIAL', 'TRUNCATE',
                                          'UPDATE', 'USE', 'exit', 'quit'))
 
     def test_complete_command_words(self):
@@ -229,8 +229,8 @@ class TestCqlshCompletion(CqlshCompletionCase):
              "VALUES ( 'eggs', 'sausage', 'spam');"),
             choices=['?', 'ALTER', 'BEGIN', 'CAPTURE', 'CONSISTENCY', 'COPY',
                      'CREATE', 'DEBUG', 'DELETE', 'DESC', 'DESCRIBE', 'DROP',
-                     'EXPAND', 'GRANT', 'HELP', 'INSERT', 'LIST', 'PAGING',
-                     'REVOKE', 'SELECT', 'SHOW', 'SOURCE', 'TRACING',
+                     'EXPAND', 'GRANT', 'HELP', 'INSERT', 'LIST', 'LOGIN', 'PAGING',
+                     'REVOKE', 'SELECT', 'SHOW', 'SOURCE', 'SERIAL', 'TRACING',
                      'TRUNCATE', 'UPDATE', 'USE', 'exit', 'quit'])
 
         self.trycompletions(
