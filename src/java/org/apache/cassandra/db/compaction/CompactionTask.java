@@ -162,7 +162,7 @@ public class CompactionTask extends AbstractCompactionTask
             // See CASSANDRA-8019 and CASSANDRA-8399
             try (AbstractCompactionStrategy.ScannerList scanners = strategy.getScanners(actuallyCompact))
             {
-                ci = new CompactionIterable(compactionType, scanners.scanners, controller, sstableFormat);
+                ci = new CompactionIterable(compactionType, scanners.scanners, controller, sstableFormat, taskId);
                 Iterator<AbstractCompactedRow> iter = ci.iterator();
                 if (collector != null)
                     collector.beginCompaction(ci);

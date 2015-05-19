@@ -35,6 +35,7 @@ import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.OutputHandler;
+import org.apache.cassandra.utils.UUIDGen;
 
 public class Scrubber implements Closeable
 {
@@ -419,11 +420,13 @@ public class Scrubber implements Closeable
     {
         private final RandomAccessReader dataFile;
         private final SSTableReader sstable;
+        private final UUID scrubCompactionId;
 
         public ScrubInfo(RandomAccessReader dataFile, SSTableReader sstable)
         {
             this.dataFile = dataFile;
             this.sstable = sstable;
+            scrubCompactionId = UUIDGen.getTimeUUID();
         }
 
         public CompactionInfo getCompactionInfo()
@@ -433,7 +436,8 @@ public class Scrubber implements Closeable
                 return new CompactionInfo(sstable.metadata,
                                           OperationType.SCRUB,
                                           dataFile.getFilePointer(),
-                                          dataFile.length());
+                                          dataFile.length(),
+                                          scrubCompactionId);
             }
             catch (Exception e)
             {

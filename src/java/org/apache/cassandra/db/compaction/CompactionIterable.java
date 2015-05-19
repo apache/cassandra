@@ -20,6 +20,7 @@ package org.apache.cassandra.db.compaction;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.UUID;
 
 import com.google.common.collect.ImmutableList;
 
@@ -41,9 +42,13 @@ public class CompactionIterable extends AbstractCompactionIterable
         }
     };
 
-    public CompactionIterable(OperationType type, List<ISSTableScanner> scanners, CompactionController controller, SSTableFormat.Type formatType)
+    public CompactionIterable(OperationType type,
+                              List<ISSTableScanner> scanners,
+                              CompactionController controller,
+                              SSTableFormat.Type formatType,
+                              UUID compactionId)
     {
-        super(controller, type, scanners);
+        super(controller, type, scanners, compactionId);
         this.format = formatType.info;
     }
 

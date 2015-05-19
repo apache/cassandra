@@ -1,6 +1,7 @@
 3.0:
  * Decommissioned nodes will not rejoin the cluster (CASSANDRA-8801)
  * Change gossip stabilization to use endpoit size (CASSANDRA-9401)
+ * Add ability to stop compaction by ID (CASSANDRA-7207)
 
 2.2
  * Ensure that UDF and UDAs are keyspace-isolated (CASSANDRA-9409)

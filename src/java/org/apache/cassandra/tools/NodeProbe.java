@@ -957,6 +957,11 @@ public class NodeProbe implements AutoCloseable
         compactionProxy.stopCompaction(string);
     }
 
+    public void stopById(String compactionId)
+    {
+        compactionProxy.stopCompactionById(compactionId);
+    }
+
     public void setStreamThroughput(int value)
     {
         ssProxy.setStreamThroughputMbPerSec(value);
