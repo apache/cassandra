@@ -33,6 +33,7 @@ import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.OutputHandler;
+import org.apache.cassandra.utils.UUIDGen;
 
 import java.io.Closeable;
 import java.io.File;
@@ -241,11 +242,13 @@ public class Verifier implements Closeable
     {
         private final RandomAccessReader dataFile;
         private final SSTableReader sstable;
+        private final UUID verificationCompactionId;
 
         public VerifyInfo(RandomAccessReader dataFile, SSTableReader sstable)
         {
             this.dataFile = dataFile;
             this.sstable = sstable;
+            verificationCompactionId = UUIDGen.getTimeUUID();
         }
 
         public CompactionInfo getCompactionInfo()
@@ -255,7 +258,8 @@ public class Verifier implements Closeable
                 return new CompactionInfo(sstable.metadata,
                                           OperationType.VERIFY,
                                           dataFile.getFilePointer(),
-                                          dataFile.length());
+                                          dataFile.length(),
+                                          verificationCompactionId);
             }
             catch (Exception e)
             {

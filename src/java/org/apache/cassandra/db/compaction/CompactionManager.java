@@ -28,6 +28,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
@@ -77,6 +78,7 @@ import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.MerkleTree;
 import org.apache.cassandra.utils.WrappedRunnable;
+import org.apache.cassandra.utils.UUIDGen;
 import org.apache.cassandra.utils.concurrent.OpOrder;
 import org.apache.cassandra.utils.concurrent.Refs;
 
@@ -1184,7 +1186,7 @@ public class CompactionManager implements CompactionManagerMBean
             repairedSSTableWriter.switchWriter(CompactionManager.createWriterForAntiCompaction(cfs, destination, expectedBloomFilterSize, repairedAt, sstableAsSet));
             unRepairedSSTableWriter.switchWriter(CompactionManager.createWriterForAntiCompaction(cfs, destination, expectedBloomFilterSize, ActiveRepairService.UNREPAIRED_SSTABLE, sstableAsSet));
 
-            CompactionIterable ci = new CompactionIterable(OperationType.ANTICOMPACTION, scanners.scanners, controller, DatabaseDescriptor.getSSTableFormat());
+            CompactionIterable ci = new CompactionIterable(OperationType.ANTICOMPACTION, scanners.scanners, controller, DatabaseDescriptor.getSSTableFormat(), UUIDGen.getTimeUUID());
             Iterator<AbstractCompactedRow> iter = ci.iterator();
             metrics.beginCompaction(ci);
             try
@@ -1309,7 +1311,7 @@ public class CompactionManager implements CompactionManagerMBean
     {
         public ValidationCompactionIterable(ColumnFamilyStore cfs, List<ISSTableScanner> scanners, int gcBefore)
         {
-            super(OperationType.VALIDATION, scanners, new ValidationCompactionController(cfs, gcBefore), DatabaseDescriptor.getSSTableFormat());
+            super(OperationType.VALIDATION, scanners, new ValidationCompactionController(cfs, gcBefore), DatabaseDescriptor.getSSTableFormat(), UUIDGen.getTimeUUID());
         }
     }
 
@@ -1477,11 +1479,13 @@ public class CompactionManager implements CompactionManagerMBean
     {
         private final SSTableReader sstable;
         private final ISSTableScanner scanner;
+        private final UUID cleanupCompactionId;
 
         public CleanupInfo(SSTableReader sstable, ISSTableScanner scanner)
         {
             this.sstable = sstable;
             this.scanner = scanner;
+            cleanupCompactionId = UUIDGen.getTimeUUID();
         }
 
         public CompactionInfo getCompactionInfo()
@@ -1491,7 +1495,8 @@ public class CompactionManager implements CompactionManagerMBean
                 return new CompactionInfo(sstable.metadata,
                                           OperationType.CLEANUP,
                                           scanner.getCurrentPosition(),
-                                          scanner.getLengthInBytes());
+                                          scanner.getLengthInBytes(),
+                                          cleanupCompactionId);
             }
             catch (Exception e)
             {
@@ -1506,6 +1511,16 @@ public class CompactionManager implements CompactionManagerMBean
         for (Holder holder : CompactionMetrics.getCompactions())
         {
             if (holder.getCompactionInfo().getTaskType() == operation)
+                holder.stop();
+        }
+    }
+
+    public void stopCompactionById(String compactionId)
+    {
+        for (Holder holder : CompactionMetrics.getCompactions())
+        {
+            UUID holderId = holder.getCompactionInfo().compactionId();
+            if (holderId != null && holderId.equals(UUID.fromString(compactionId)))
                 holder.stop();
         }
     }

@@ -52,9 +52,9 @@ public class CompactionStats extends NodeToolCmd
         {
             int compactionThroughput = probe.getCompactionThroughput();
             List<String[]> lines = new ArrayList<>();
-            int[] columnSizes = new int[] { 0, 0, 0, 0, 0, 0, 0 };
+            int[] columnSizes = new int[] { 0, 0, 0, 0, 0, 0, 0, 0 };
 
-            addLine(lines, columnSizes, "compaction type", "keyspace", "table", "completed", "total", "unit", "progress");
+            addLine(lines, columnSizes, "id", "compaction type", "keyspace", "table", "completed", "total", "unit", "progress");
             for (Map<String, String> c : compactions)
             {
                 long total = Long.parseLong(c.get("total"));
@@ -66,7 +66,8 @@ public class CompactionStats extends NodeToolCmd
                 String totalStr = humanReadable ? FileUtils.stringifyFileSize(total) : Long.toString(total);
                 String unit = c.get("unit");
                 String percentComplete = total == 0 ? "n/a" : new DecimalFormat("0.00").format((double) completed / total * 100) + "%";
-                addLine(lines, columnSizes, taskType, keyspace, columnFamily, completedStr, totalStr, unit, percentComplete);
+                String id = c.get("compactionId");
+                addLine(lines, columnSizes, id, taskType, keyspace, columnFamily, completedStr, totalStr, unit, percentComplete);
                 if (taskType.equals(OperationType.COMPACTION.toString()))
                     remainingBytes += total - completed;
             }
@@ -82,7 +83,7 @@ public class CompactionStats extends NodeToolCmd
 
             for (String[] line : lines)
             {
-                System.out.printf(format, line[0], line[1], line[2], line[3], line[4], line[5], line[6]);
+                System.out.printf(format, line[0], line[1], line[2], line[3], line[4], line[5], line[6], line[7]);
             }
 
             String remainingTime = "n/a";
