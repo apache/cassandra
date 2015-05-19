@@ -919,6 +919,29 @@ public class UFTest extends CQLTester
     }
 
     @Test
+    public void testWrongKeyspace() throws Throwable
+    {
+        String typeName = createType("CREATE TYPE %s (txt text, i int)");
+        String type = KEYSPACE + '.' + typeName;
+
+        assertInvalidMessage(String.format("Statement on keyspace %s cannot refer to a user type in keyspace %s; user types can only be used in the keyspace they are defined in",
+                                           KEYSPACE_PER_TEST, KEYSPACE),
+                             "CREATE FUNCTION " + KEYSPACE_PER_TEST + ".test_wrong_ks( val int ) " +
+                             "CALLED ON NULL INPUT " +
+                             "RETURNS frozen<" + type + "> " +
+                             "LANGUAGE java\n" +
+                             "AS $$return val;$$;");
+
+        assertInvalidMessage(String.format("Statement on keyspace %s cannot refer to a user type in keyspace %s; user types can only be used in the keyspace they are defined in",
+                                           KEYSPACE_PER_TEST, KEYSPACE),
+                             "CREATE FUNCTION " + KEYSPACE_PER_TEST + ".test_wrong_ks( val frozen<" + type + "> ) " +
+                             "CALLED ON NULL INPUT " +
+                             "RETURNS int " +
+                             "LANGUAGE java\n" +
+                             "AS $$return val;$$;");
+    }
+
+    @Test
     public void testComplexNullValues() throws Throwable
     {
         String type = KEYSPACE + '.' + createType("CREATE TYPE %s (txt text, i int)");
@@ -1171,22 +1194,6 @@ public class UFTest extends CQLTester
                 executeNet(version, "DROP FUNCTION f_use1");
             }
         }
-    }
-
-    @Test
-    public void testJavaUserTypeOtherKeyspace() throws Throwable
-    {
-        String type = KEYSPACE + '.' + createType("CREATE TYPE %s (txt text, i int)");
-
-        String fName = createFunction(KEYSPACE_PER_TEST, "frozen<" + type + '>',
-                                      "CREATE FUNCTION %s( udt frozen<" + type + "> ) " +
-                                      "RETURNS NULL ON NULL INPUT " +
-                                      "RETURNS frozen<" + type + "> " +
-                                      "LANGUAGE java " +
-                                      "AS $$return " +
-                                      "     udt;$$;");
-
-        execute("DROP FUNCTION " + fName);
     }
 
     @Test

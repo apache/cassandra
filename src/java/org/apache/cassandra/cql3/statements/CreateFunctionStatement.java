@@ -36,7 +36,7 @@ import org.apache.cassandra.thrift.ThriftValidation;
 import org.apache.cassandra.transport.Event;
 
 /**
- * A <code>CREATE FUNCTION</code> statement parsed from a CQL query.
+ * A {@code CREATE FUNCTION} statement parsed from a CQL query.
  */
 public final class CreateFunctionStatement extends SchemaAlteringStatement
 {
@@ -85,9 +85,9 @@ public final class CreateFunctionStatement extends SchemaAlteringStatement
 
         argTypes = new ArrayList<>(argRawTypes.size());
         for (CQL3Type.Raw rawType : argRawTypes)
-            argTypes.add(rawType.prepare(typeKeyspace(rawType)).getType());
+            argTypes.add(rawType.prepare(functionName.keyspace).getType());
 
-        returnType = rawReturnType.prepare(typeKeyspace(rawReturnType)).getType();
+        returnType = rawReturnType.prepare(functionName.keyspace).getType();
         return super.prepare();
     }
 
@@ -173,13 +173,5 @@ public final class CreateFunctionStatement extends SchemaAlteringStatement
         MigrationManager.announceNewFunction(udFunction, isLocalOnly);
 
         return true;
-    }
-
-    private String typeKeyspace(CQL3Type.Raw rawType)
-    {
-        String ks = rawType.keyspace();
-        if (ks != null)
-            return ks;
-        return functionName.keyspace;
     }
 }
