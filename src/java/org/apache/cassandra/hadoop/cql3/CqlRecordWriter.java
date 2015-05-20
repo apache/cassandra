@@ -28,6 +28,7 @@ import org.slf4j.LoggerFactory;
 
 
 import com.datastax.driver.core.exceptions.AuthenticationException;
+import com.datastax.driver.core.exceptions.DriverException;
 import com.datastax.driver.core.exceptions.InvalidQueryException;
 import com.datastax.driver.core.exceptions.NoHostAvailableException;
 import com.datastax.driver.core.BoundStatement;
@@ -321,7 +322,10 @@ class CqlRecordWriter extends RecordWriter<Map<String, ByteBuffer>, List<ByteBuf
                     catch (Exception e)
                     {
                         //If connection died due to Interrupt, just try connecting to the endpoint again.
-                        if (Thread.interrupted()) {
+                        //There are too many ways for the Thread.interrupted() state to be cleared, so
+                        //we can't rely on that here. Until the java driver gives us a better way of knowing
+                        //that this exception came from an InterruptedException, this is the best solution.
+                        if (e instanceof DriverException && e.getMessage().contains("Connection thread interrupted")) {
                             lastException = new IOException(e);
                             iter.previous();
                         }
@@ -334,6 +338,7 @@ class CqlRecordWriter extends RecordWriter<Map<String, ByteBuffer>, List<ByteBuf
                             lastException = new IOException(e);
                             break outer;
                         }
+                        continue;
                     }
 
                     try
