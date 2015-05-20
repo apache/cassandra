@@ -36,6 +36,7 @@ public class IncomingFileMessage extends StreamMessage
 {
     public static Serializer<IncomingFileMessage> serializer = new Serializer<IncomingFileMessage>()
     {
+        @SuppressWarnings("resource")
         public IncomingFileMessage deserialize(ReadableByteChannel in, int version, StreamSession session) throws IOException
         {
             DataInputStream input = new DataInputStream(Channels.newInputStream(in));

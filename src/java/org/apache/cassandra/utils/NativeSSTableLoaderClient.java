@@ -61,9 +61,9 @@ public class NativeSSTableLoaderClient extends SSTableLoader.Client
         if (username != null && password != null)
             builder = builder.withCredentials(username, password);
 
-        try (Cluster cluster = builder.build())
+        try (Cluster cluster = builder.build(); Session session = cluster.connect())
         {
-            Session session = cluster.connect();
+
             Metadata metadata = cluster.getMetadata();
 
             setPartitioner(metadata.getPartitioner());

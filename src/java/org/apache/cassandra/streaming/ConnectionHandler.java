@@ -76,6 +76,7 @@ public class ConnectionHandler
      *
      * @throws IOException
      */
+    @SuppressWarnings("resource")
     public void initiate() throws IOException
     {
         logger.debug("[Stream #{}] Sending stream init for incoming stream", session.planId());
@@ -157,6 +158,7 @@ public class ConnectionHandler
 
         protected abstract String name();
 
+        @SuppressWarnings("resource")
         protected static DataOutputStreamPlus getWriteChannel(Socket socket) throws IOException
         {
             WritableByteChannel out = socket.getChannel();
@@ -175,6 +177,7 @@ public class ConnectionHandler
                  : in;
         }
 
+        @SuppressWarnings("resource")
         public void sendInitMessage(Socket socket, boolean isForOutgoing) throws IOException
         {
             StreamInitMessage message = new StreamInitMessage(
@@ -246,6 +249,7 @@ public class ConnectionHandler
             return "STREAM-IN";
         }
 
+        @SuppressWarnings("resource")
         public void run()
         {
             try
@@ -315,6 +319,7 @@ public class ConnectionHandler
             messageQueue.put(message);
         }
 
+        @SuppressWarnings("resource")
         public void run()
         {
             try

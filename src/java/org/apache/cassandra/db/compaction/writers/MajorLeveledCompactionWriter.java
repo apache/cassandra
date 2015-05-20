@@ -47,6 +47,7 @@ public class MajorLeveledCompactionWriter extends CompactionAwareWriter
     private int sstablesWritten = 0;
     private final boolean skipAncestors;
 
+    @SuppressWarnings("resource")
     public MajorLeveledCompactionWriter(ColumnFamilyStore cfs, LifecycleTransaction txn, Set<SSTableReader> nonExpiredSSTables, long maxSSTableSize, boolean offline, OperationType compactionType)
     {
         super(cfs, txn, nonExpiredSSTables, offline);
@@ -61,6 +62,7 @@ public class MajorLeveledCompactionWriter extends CompactionAwareWriter
         if (skipAncestors)
             logger.warn("Many sstables involved in compaction, skipping storing ancestor information to avoid running out of memory");
 
+        @SuppressWarnings("resource")
         SSTableWriter writer = SSTableWriter.create(Descriptor.fromFilename(cfs.getTempSSTablePath(sstableDirectory)),
                                                     keysPerSSTable,
                                                     minRepairedAt,
@@ -71,6 +73,7 @@ public class MajorLeveledCompactionWriter extends CompactionAwareWriter
     }
 
     @Override
+    @SuppressWarnings("resource")
     public boolean append(AbstractCompactedRow row)
     {
         long posBefore = sstableWriter.currentWriter().getOnDiskFilePointer();

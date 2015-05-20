@@ -40,6 +40,7 @@ class BloomFilterSerializer implements ISerializer<BloomFilter>
         return deserialize(in, false);
     }
 
+    @SuppressWarnings("resource")
     public BloomFilter deserialize(DataInput in, boolean offheap) throws IOException
     {
         int hashes = in.readInt();

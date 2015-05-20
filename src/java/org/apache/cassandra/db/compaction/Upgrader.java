@@ -20,6 +20,8 @@ package org.apache.cassandra.db.compaction;
 import java.io.File;
 import java.util.*;
 
+import com.google.common.base.Throwables;
+
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
@@ -28,6 +30,7 @@ import org.apache.cassandra.io.sstable.*;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.SSTableWriter;
 import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
+import org.apache.cassandra.utils.CloseableIterator;
 import org.apache.cassandra.utils.OutputHandler;
 import org.apache.cassandra.utils.UUIDGen;
 
@@ -83,18 +86,23 @@ public class Upgrader
         outputHandler.output("Upgrading " + sstable);
 
         try (SSTableRewriter writer = new SSTableRewriter(cfs, transaction, CompactionTask.getMaxDataAge(transaction.originals()), true);
-             AbstractCompactionStrategy.ScannerList scanners = strategy.getScanners(transaction.originals()))
+             AbstractCompactionStrategy.ScannerList scanners = strategy.getScanners(transaction.originals());
+             CloseableIterator<AbstractCompactedRow> iter = new CompactionIterable(compactionType, scanners.scanners, controller, DatabaseDescriptor.getSSTableFormat(), UUIDGen.getTimeUUID()).iterator())
         {
-            Iterator<AbstractCompactedRow> iter = new CompactionIterable(compactionType, scanners.scanners, controller, DatabaseDescriptor.getSSTableFormat(), UUIDGen.getTimeUUID()).iterator();
             writer.switchWriter(createCompactionWriter(sstable.getSSTableMetadata().repairedAt));
             while (iter.hasNext())
             {
+                @SuppressWarnings("resource")
                 AbstractCompactedRow row = iter.next();
                 writer.append(row);
             }
 
             writer.finish();
             outputHandler.output("Upgrade of " + sstable + " complete.");
+        }
+        catch (Exception e)
+        {
+            Throwables.propagate(e);
         }
         finally
         {

@@ -653,15 +653,9 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
      */
     private void loadBloomFilter() throws IOException
     {
-        DataInputStream stream = null;
-        try
+        try (DataInputStream stream = new DataInputStream(new BufferedInputStream(new FileInputStream(descriptor.filenameFor(Component.FILTER)))))
         {
-            stream = new DataInputStream(new BufferedInputStream(new FileInputStream(descriptor.filenameFor(Component.FILTER))));
             bf = FilterFactory.deserialize(stream, true);
-        }
-        finally
-        {
-            FileUtils.closeQuietly(stream);
         }
     }
 
@@ -725,9 +719,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
     private void buildSummary(boolean recreateBloomFilter, SegmentedFile.Builder ibuilder, SegmentedFile.Builder dbuilder, boolean summaryLoaded, int samplingLevel) throws IOException
     {
         // we read the positions in a BRAF so we don't have to worry about an entry spanning a mmap boundary.
-        RandomAccessReader primaryIndex = RandomAccessReader.open(new File(descriptor.filenameFor(Component.PRIMARY_INDEX)));
-
-        try
+        try (RandomAccessReader primaryIndex = RandomAccessReader.open(new File(descriptor.filenameFor(Component.PRIMARY_INDEX))))
         {
             long indexSize = primaryIndex.length();
             long histogramCount = sstableMetadata.estimatedRowSize.count();
@@ -768,10 +760,6 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
                     indexSummary = summaryBuilder.build(partitioner);
             }
         }
-        finally
-        {
-            FileUtils.closeQuietly(primaryIndex);
-        }
 
         first = getMinimalKey(first);
         last = getMinimalKey(last);
@@ -787,6 +775,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
      * @param dbuilder
      * @return true if index summary is loaded successfully from Summary.db file.
      */
+    @SuppressWarnings("resource")
     public boolean loadSummary(SegmentedFile.Builder ibuilder, SegmentedFile.Builder dbuilder)
     {
         File summariesFile = new File(descriptor.filenameFor(Component.SUMMARY));
@@ -841,9 +830,10 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
         int expectedIndexInterval = getMinIndexInterval();
         while (segments.hasNext())
         {
-            FileDataInput in = segments.next();
-            try
+            String path = null;
+            try (FileDataInput in = segments.next())
             {
+                path = in.getPath();
                 while (!in.isEOF())
                 {
                     ByteBuffer indexKey = ByteBufferUtil.readWithShortLength(in);
@@ -864,11 +854,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
             catch (IOException e)
             {
                 markSuspect();
-                throw new CorruptSSTableException(e, in.getPath());
-            }
-            finally
-            {
-                FileUtils.closeQuietly(in);
+                throw new CorruptSSTableException(e, path);
             }
         }
 
@@ -901,10 +887,8 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
         if (summariesFile.exists())
             FileUtils.deleteWithConfirm(summariesFile);
 
-        DataOutputStreamPlus oStream = null;
-        try
+        try (DataOutputStreamPlus oStream = new BufferedDataOutputStreamPlus(new FileOutputStream(summariesFile));)
         {
-            oStream = new BufferedDataOutputStreamPlus(new FileOutputStream(summariesFile));
             IndexSummary.serializer.serialize(summary, oStream, descriptor.version.hasSamplingLevel());
             ByteBufferUtil.writeWithLength(first.getKey(), oStream);
             ByteBufferUtil.writeWithLength(last.getKey(), oStream);
@@ -918,10 +902,6 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
             // corrupted hence delete it and let it load it now.
             if (summariesFile.exists())
                 FileUtils.deleteWithConfirm(summariesFile);
-        }
-        finally
-        {
-            FileUtils.closeQuietly(oStream);
         }
     }
 
@@ -1000,6 +980,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
      * @return a new SSTableReader
      * @throws IOException
      */
+    @SuppressWarnings("resource")
     public SSTableReader cloneWithNewSummarySamplingLevel(ColumnFamilyStore parent, int samplingLevel) throws IOException
     {
         assert descriptor.version.hasSamplingLevel();
@@ -1479,9 +1460,10 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
         Iterator<FileDataInput> segments = ifile.iterator(sampledPosition);
         while (segments.hasNext())
         {
-            FileDataInput in = segments.next();
-            try
+            String path = null;
+            try (FileDataInput in = segments.next();)
             {
+                path = in.getPath();
                 while (!in.isEOF())
                 {
                     ByteBuffer indexKey = ByteBufferUtil.readWithShortLength(in);
@@ -1495,11 +1477,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
             catch (IOException e)
             {
                 markSuspect();
-                throw new CorruptSSTableException(e, in.getPath());
-            }
-            finally
-            {
-                FileUtils.closeQuietly(in);
+                throw new CorruptSSTableException(e, path);
             }
         }
 
@@ -2027,6 +2005,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
         }
 
         // get a new reference to the shared DescriptorTypeTidy for this sstable
+        @SuppressWarnings("resource")
         public static Ref<DescriptorTypeTidy> get(SSTableReader sstable)
         {
             Descriptor desc = sstable.descriptor;
@@ -2038,7 +2017,11 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
             final DescriptorTypeTidy tidy = new DescriptorTypeTidy(desc, sstable);
             refc = new Ref<>(tidy, tidy);
             Ref<?> ex = lookup.putIfAbsent(desc, refc);
-            assert ex == null;
+            if (ex != null)
+            {
+                refc.close();
+                throw new AssertionError();
+            }
             return refc;
         }
     }
@@ -2119,6 +2102,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
         }
 
         // get a new reference to the shared GlobalTidy for this sstable
+        @SuppressWarnings("resource")
         public static Ref<GlobalTidy> get(SSTableReader sstable)
         {
             Descriptor descriptor = sstable.descriptor;
@@ -2128,7 +2112,11 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
             final GlobalTidy tidy = new GlobalTidy(sstable);
             refc = new Ref<>(tidy, tidy);
             Ref<?> ex = lookup.putIfAbsent(descriptor, refc);
-            assert ex == null;
+            if (ex != null)
+            {
+                refc.close();
+                throw new AssertionError();
+            }
             return refc;
         }
     }

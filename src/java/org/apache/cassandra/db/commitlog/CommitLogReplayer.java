@@ -268,6 +268,7 @@ public class CommitLogReplayer
         }
     }
 
+    @SuppressWarnings("resource")
     public void recover(File file) throws IOException
     {
         CommitLogDescriptor desc = CommitLogDescriptor.fromFileName(file.getName());
@@ -340,6 +341,7 @@ public class CommitLogReplayer
 
                 FileDataInput sectionReader = reader;
                 if (compressor != null)
+                {
                     try
                     {
                         int start = (int) reader.getFilePointer();
@@ -363,6 +365,7 @@ public class CommitLogReplayer
                         logger.error("Unexpected exception decompressing section {}", e);
                         continue;
                     }
+                }
 
                 if (!replaySyncSection(sectionReader, replayEnd, desc))
                     break;
@@ -469,9 +472,9 @@ public class CommitLogReplayer
     void replayMutation(byte[] inputBuffer, int size,
             final long entryLocation, final CommitLogDescriptor desc) throws IOException
     {
-        FastByteArrayInputStream bufIn = new FastByteArrayInputStream(inputBuffer, 0, size);
+
         final Mutation mutation;
-        try
+        try (FastByteArrayInputStream bufIn = new FastByteArrayInputStream(inputBuffer, 0, size))
         {
             mutation = Mutation.serializer.deserialize(new DataInputStream(bufIn),
                                                        desc.getMessagingVersion(),
@@ -499,15 +502,12 @@ public class CommitLogReplayer
         {
             JVMStabilityInspector.inspectThrowable(t);
             File f = File.createTempFile("mutation", "dat");
-            DataOutputStream out = new DataOutputStream(new FileOutputStream(f));
-            try
+
+            try (DataOutputStream out = new DataOutputStream(new FileOutputStream(f)))
             {
                 out.write(inputBuffer, 0, size);
             }
-            finally
-            {
-                out.close();
-            }
+
             String st = String.format("Unexpected error deserializing mutation; saved to %s and ignored.  This may be caused by replaying a mutation against a table with the same name but incompatible schema.  Exception follows: ",
                                       f.getAbsolutePath());
             logger.error(st, t);

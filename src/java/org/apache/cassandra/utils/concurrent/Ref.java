@@ -49,7 +49,7 @@ import static org.apache.cassandra.utils.Throwables.merge;
  * Once the Ref.GlobalState has been completely released, the Tidy method is called and it removes the global reference
  * to itself so it may also be collected.
  */
-public final class Ref<T> implements RefCounted<T>, AutoCloseable
+public final class Ref<T> implements RefCounted<T>
 {
     static final Logger logger = LoggerFactory.getLogger(Ref.class);
     public static final boolean DEBUG_ENABLED = System.getProperty("cassandra.debugrefcount", "false").equalsIgnoreCase("true");

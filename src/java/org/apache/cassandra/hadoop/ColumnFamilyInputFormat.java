@@ -61,6 +61,7 @@ public class ColumnFamilyInputFormat extends AbstractColumnFamilyInputFormat<Byt
 {
     private static final Logger logger = LoggerFactory.getLogger(ColumnFamilyInputFormat.class);
 
+    @SuppressWarnings("resource")
     public static Cassandra.Client createAuthenticatedClient(String location, int port, Configuration conf) throws Exception
     {
         logger.debug("Creating authenticated client for CF input format");

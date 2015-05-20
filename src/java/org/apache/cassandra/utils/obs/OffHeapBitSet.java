@@ -125,6 +125,7 @@ public class OffHeapBitSet implements IBitSet
         return type.sizeof((int) bytes.size()) + bytes.size();
     }
 
+    @SuppressWarnings("resource")
     public static OffHeapBitSet deserialize(DataInput in) throws IOException
     {
         long byteCount = in.readInt() * 8L;

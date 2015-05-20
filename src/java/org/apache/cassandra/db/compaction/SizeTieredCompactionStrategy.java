@@ -175,6 +175,7 @@ public class SizeTieredCompactionStrategy extends AbstractCompactionStrategy
         return sstr.getReadMeter() == null ? 0.0 : sstr.getReadMeter().twoHourRate() / sstr.estimatedKeys();
     }
 
+    @SuppressWarnings("resource")
     public synchronized AbstractCompactionTask getNextBackgroundTask(int gcBefore)
     {
         if (!isEnabled())
@@ -193,6 +194,7 @@ public class SizeTieredCompactionStrategy extends AbstractCompactionStrategy
         }
     }
 
+    @SuppressWarnings("resource")
     public Collection<AbstractCompactionTask> getMaximalTask(final int gcBefore, boolean splitOutput)
     {
         Iterable<SSTableReader> filteredSSTables = filterSuspectSSTables(sstables);
@@ -206,6 +208,7 @@ public class SizeTieredCompactionStrategy extends AbstractCompactionStrategy
         return Arrays.<AbstractCompactionTask>asList(new CompactionTask(cfs, txn, gcBefore, false));
     }
 
+    @SuppressWarnings("resource")
     public AbstractCompactionTask getUserDefinedTask(Collection<SSTableReader> sstables, final int gcBefore)
     {
         assert !sstables.isEmpty(); // checked for by CM.submitUserDefined

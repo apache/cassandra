@@ -57,7 +57,10 @@ public class RangeSliceReply
 
     public static RangeSliceReply read(byte[] body, int version) throws IOException
     {
-        return serializer.deserialize(new DataInputStream(new FastByteArrayInputStream(body)), version);
+        try (DataInputStream dis = new DataInputStream(new FastByteArrayInputStream(body)))
+        {
+            return serializer.deserialize(dis, version);
+        }
     }
 
     private static class RangeSliceReplySerializer implements IVersionedSerializer<RangeSliceReply>

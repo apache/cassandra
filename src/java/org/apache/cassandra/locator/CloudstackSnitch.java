@@ -174,15 +174,12 @@ public class CloudstackSnitch extends AbstractNetworkTopologySnitch
 
     String csEndpointFromLease(File lease) throws ConfigurationException
     {
-        BufferedReader reader = null;
-
-        String line = null;
+        String line;
         String endpoint = null;
         Pattern identifierPattern = Pattern.compile("^[ \t]*option dhcp-server-identifier (.*);$");
 
-        try 
+        try (BufferedReader reader = new BufferedReader(new FileReader(lease)))
         {
-            reader = new BufferedReader(new FileReader(lease));
             
             while ((line = reader.readLine()) != null) 
             {
@@ -194,14 +191,10 @@ public class CloudstackSnitch extends AbstractNetworkTopologySnitch
                     break;
                 }
             }
-        } 
+        }
         catch (Exception e)  
         {
             throw new ConfigurationException("CloudstackSnitch cannot access lease file.");
-        } 
-        finally
-        {
-        	FileUtils.closeQuietly(reader);
         }
 
         if (endpoint == null) 

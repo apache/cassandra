@@ -34,6 +34,7 @@ public class TFramedTransportFactory implements ITransportFactory
     private static final String THRIFT_FRAMED_TRANSPORT_SIZE_IN_MB = "cassandra.thrift.framed.size_mb";
     private int thriftFramedTransportSizeMb = 15; // 15Mb is the default for C* & Hadoop ConfigHelper
 
+    @SuppressWarnings("resource")
     public TTransport openTransport(String host, int port) throws TTransportException
     {
         TSocket socket = new TSocket(host, port);

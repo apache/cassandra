@@ -114,6 +114,7 @@ public class ColumnFamilyOutputFormat extends OutputFormat<ByteBuffer,List<Mutat
      * @throws Exception set of thrown exceptions may be implementation defined,
      *                   depending on the used transport factory
      */
+    @SuppressWarnings("resource")
     public static Cassandra.Client createAuthenticatedClient(String host, int port, Configuration conf) throws Exception
     {
         logger.debug("Creating authenticated client for CF output format");

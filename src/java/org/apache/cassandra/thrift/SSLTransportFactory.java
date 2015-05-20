@@ -52,6 +52,7 @@ public class SSLTransportFactory implements ITransportFactory
     private String[] cipherSuites;
 
     @Override
+    @SuppressWarnings("resource")
     public TTransport openTransport(String host, int port) throws Exception
     {
         TSSLTransportFactory.TSSLTransportParameters params = new TSSLTransportFactory.TSSLTransportParameters(protocol, cipherSuites);

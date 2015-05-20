@@ -18,7 +18,6 @@
 */
 package org.apache.cassandra.io.util;
 
-import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 
@@ -26,6 +25,7 @@ public class SafeMemoryWriter extends DataOutputBuffer
 {
     private SafeMemory memory;
 
+    @SuppressWarnings("resource")
     public SafeMemoryWriter(long initialCapacity)
     {
         this(new SafeMemory(initialCapacity));

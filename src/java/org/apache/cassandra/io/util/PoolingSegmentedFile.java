@@ -54,6 +54,7 @@ public abstract class PoolingSegmentedFile extends SegmentedFile
         }
     }
 
+    @SuppressWarnings("resource")
     public FileDataInput getSegment(long position)
     {
         RandomAccessReader reader = FileCacheService.instance.get(cacheKey);

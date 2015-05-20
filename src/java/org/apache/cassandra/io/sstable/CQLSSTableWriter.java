@@ -509,6 +509,7 @@ public class CQLSSTableWriter implements Closeable
             }
         }
 
+        @SuppressWarnings("resource")
         public CQLSSTableWriter build()
         {
             if (directory == null)

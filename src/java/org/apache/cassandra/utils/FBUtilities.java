@@ -347,10 +347,8 @@ public class FBUtilities
 
     public static String getReleaseVersionString()
     {
-        InputStream in = null;
-        try
+        try (InputStream in = FBUtilities.class.getClassLoader().getResourceAsStream("org/apache/cassandra/config/version.properties"))
         {
-            in = FBUtilities.class.getClassLoader().getResourceAsStream("org/apache/cassandra/config/version.properties");
             if (in == null)
             {
                 return System.getProperty("cassandra.releaseVersion", "Unknown");
@@ -364,10 +362,6 @@ public class FBUtilities
             JVMStabilityInspector.inspectThrowable(e);
             logger.warn("Unable to load version.properties", e);
             return "debug version";
-        }
-        finally
-        {
-            FileUtils.closeQuietly(in);
         }
     }
 
@@ -718,10 +712,10 @@ public class FBUtilities
 
     public static <T> byte[] serialize(T object, IVersionedSerializer<T> serializer, int version)
     {
-        try
+        int size = (int) serializer.serializedSize(object, version);
+
+        try (DataOutputBuffer buffer = new DataOutputBufferFixed(size))
         {
-            int size = (int) serializer.serializedSize(object, version);
-            DataOutputBuffer buffer = new DataOutputBufferFixed(size);
             serializer.serialize(object, buffer, version);
             assert buffer.getLength() == size && buffer.getData().length == size
                 : String.format("Final buffer length %s to accommodate data size of %s (predicted %s) for %s",

@@ -241,13 +241,14 @@ public abstract class AbstractColumnFamilyInputFormat<K, Y> extends InputFormat<
 
     private Map<TokenRange, Set<Host>> getRangeMap(Configuration conf, String keyspace)
     {
-        Session session = CqlConfigHelper.getInputCluster(ConfigHelper.getInputInitialAddress(conf).split(","), conf).connect();
-
-        Map<TokenRange, Set<Host>> map = new HashMap<>();
-        Metadata metadata = session.getCluster().getMetadata();
-        for (TokenRange tokenRange : metadata.getTokenRanges())
-            map.put(tokenRange, metadata.getReplicas('"' + keyspace + '"', tokenRange));
-        return map;
+        try (Session session = CqlConfigHelper.getInputCluster(ConfigHelper.getInputInitialAddress(conf).split(","), conf).connect())
+        {
+            Map<TokenRange, Set<Host>> map = new HashMap<>();
+            Metadata metadata = session.getCluster().getMetadata();
+            for (TokenRange tokenRange : metadata.getTokenRanges())
+                map.put(tokenRange, metadata.getReplicas('"' + keyspace + '"', tokenRange));
+            return map;
+        }
     }
 
     private Map<TokenRange, Long> describeSplits(String keyspace, String table, TokenRange tokenRange, int splitSize)

@@ -285,6 +285,7 @@ public class BigTableWriter extends SSTableWriter
         return link;
     }
 
+    @SuppressWarnings("resource")
     public SSTableReader openEarly()
     {
         // find the max (exclusive) readable key
@@ -318,6 +319,7 @@ public class BigTableWriter extends SSTableWriter
         return openFinal(makeTmpLinks(), SSTableReader.OpenReason.EARLY);
     }
 
+    @SuppressWarnings("resource")
     private SSTableReader openFinal(Descriptor desc, SSTableReader.OpenReason openReason)
     {
         if (maxDataAge < 0)
@@ -507,15 +509,13 @@ public class BigTableWriter extends SSTableWriter
             if (components.contains(Component.FILTER))
             {
                 String path = descriptor.filenameFor(Component.FILTER);
-                try
+                try (FileOutputStream fos = new FileOutputStream(path);
+                     DataOutputStreamPlus stream = new BufferedDataOutputStreamPlus(fos))
                 {
                     // bloom filter
-                    FileOutputStream fos = new FileOutputStream(path);
-                    DataOutputStreamPlus stream = new BufferedDataOutputStreamPlus(fos);
                     FilterFactory.serialize(bf, stream);
                     stream.flush();
                     SyncUtil.sync(fos);
-                    stream.close();
                 }
                 catch (IOException e)
                 {

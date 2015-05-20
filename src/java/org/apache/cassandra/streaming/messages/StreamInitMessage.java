@@ -83,9 +83,11 @@ public class StreamInitMessage
         try
         {
             int size = (int)StreamInitMessage.serializer.serializedSize(this, version);
-            DataOutputBuffer buffer = new DataOutputBufferFixed(size);
-            StreamInitMessage.serializer.serialize(this, buffer, version);
-            bytes = buffer.getData();
+            try (DataOutputBuffer buffer = new DataOutputBufferFixed(size))
+            {
+                StreamInitMessage.serializer.serialize(this, buffer, version);
+                bytes = buffer.getData();
+            }
         }
         catch (IOException e)
         {

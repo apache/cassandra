@@ -56,6 +56,7 @@ public class SplittingSizeTieredCompactionWriter extends CompactionAwareWriter
         this(cfs, txn, nonExpiredSSTables, compactionType, DEFAULT_SMALLEST_SSTABLE_BYTES);
     }
 
+    @SuppressWarnings("resource")
     public SplittingSizeTieredCompactionWriter(ColumnFamilyStore cfs, LifecycleTransaction txn, Set<SSTableReader> nonExpiredSSTables, OperationType compactionType, long smallestSSTable)
     {
         super(cfs, txn, nonExpiredSSTables, false);
@@ -83,6 +84,7 @@ public class SplittingSizeTieredCompactionWriter extends CompactionAwareWriter
         File sstableDirectory = cfs.directories.getLocationForDisk(getWriteDirectory(Math.round(totalSize * ratios[currentRatioIndex])));
         long currentPartitionsToWrite = Math.round(estimatedTotalKeys * ratios[currentRatioIndex]);
         currentBytesToWrite = Math.round(totalSize * ratios[currentRatioIndex]);
+        @SuppressWarnings("resource")
         SSTableWriter writer = SSTableWriter.create(Descriptor.fromFilename(cfs.getTempSSTablePath(sstableDirectory)),
                                                                             currentPartitionsToWrite,
                                                                             minRepairedAt,
@@ -104,6 +106,7 @@ public class SplittingSizeTieredCompactionWriter extends CompactionAwareWriter
             currentBytesToWrite = Math.round(totalSize * ratios[currentRatioIndex]);
             long currentPartitionsToWrite = Math.round(ratios[currentRatioIndex] * estimatedTotalKeys);
             File sstableDirectory = cfs.directories.getLocationForDisk(getWriteDirectory(Math.round(totalSize * ratios[currentRatioIndex])));
+            @SuppressWarnings("resource")
             SSTableWriter writer = SSTableWriter.create(Descriptor.fromFilename(cfs.getTempSSTablePath(sstableDirectory)),
                                                                                 currentPartitionsToWrite,
                                                                                 minRepairedAt,

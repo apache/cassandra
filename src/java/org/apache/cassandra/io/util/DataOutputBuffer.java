@@ -93,7 +93,7 @@ public class DataOutputBuffer extends BufferedDataOutputStreamPlus
     }
 
     @Override
-    public void close() throws IOException
+    public void close()
     {
     }
 

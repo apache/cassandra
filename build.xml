@@ -68,8 +68,8 @@
     <property name="dist.dir" value="${build.dir}/dist"/>
     <property name="tmp.dir" value="${java.io.tmpdir}"/>
 	
-	<property name="source.version" value="1.7"/>
-	<property name="target.version" value="1.7"/>
+    <property name="source.version" value="1.7"/>
+    <property name="target.version" value="1.7"/>
 	
     <condition property="version" value="${base.version}">
       <isset property="release"/>
@@ -113,6 +113,8 @@
     <property name="jacoco.export.dir" value="${build.dir}/jacoco/" />
     <property name="jacoco.execfile" value="${jacoco.export.dir}/jacoco.exec" />
     <property name="jacoco.version" value="0.7.1.201405082137"/>
+
+    <property name="ecj.version" value="4.4.2"/>
 
     <condition property="maven-ant-tasks.jar.exists">
       <available file="${build.dir}/maven-ant-tasks-${maven-ant-tasks.version}.jar" />
@@ -1047,7 +1049,7 @@
       </tar>
     </target>
 
-    <target name="release" depends="artifacts,rat-init"
+    <target name="release" depends="eclipse-warnings,artifacts,rat-init"
             description="Create and QC release artifacts">
       <checksum forceOverwrite="yes" todir="${build.dir}" fileext=".md5"
                 algorithm="MD5">
@@ -1406,7 +1408,7 @@
   </target>
 
   <target name="test-all" 
-          depends="test,long-test,test-compression,pig-test,test-clientutil-jar" 
+          depends="eclipse-warnings,test,long-test,test-compression,pig-test,test-clientutil-jar" 
           description="Run all tests except for those under test-burn" />
   
   <!-- Use JaCoCo ant extension without needing externally saved lib -->
@@ -1893,6 +1895,40 @@
   	<delete dir=".externalToolBuilders" />
   	<delete dir="build/eclipse-classes" />
   </target>
+
+
+  <target name="eclipse-warnings" depends="build" description="Run eclipse compiler code analysis">        
+        <property name="ecj.log.dir" value="${build.dir}/ecj" />
+        <property name="ecj.warnings.file" value="${ecj.log.dir}/eclipse_compiler_checks.txt"/>
+        <delete dir="${ecj.log.dir}" />
+        <mkdir  dir="${ecj.log.dir}" />
+
+        <property name="ecj.properties" value="${basedir}/eclipse_compiler.properties" />                
+
+        <echo message="Running Eclipse Code Analysis.  Output logged to ${ecj.warnings.file}" />        
+        
+	<java 
+	    jar="${build.dir.lib}/jars/ecj-${ecj.version}.jar"
+            fork="true"
+	    failonerror="true"
+            maxmemory="512m"> 
+            <arg value="-source"/>
+	    <arg value="${source.version}" /> 
+	    <arg value="-target"/>
+	    <arg value="${target.version}" /> 
+	    <arg value="-d" />
+            <arg value="none" />
+	    <arg value="-proc:none" /> 
+            <arg value="-log" />
+            <arg value="${ecj.warnings.file}" /> 
+            <arg value="-properties" />
+            <arg value="${ecj.properties}" />
+            <arg value="-cp" />
+            <arg value="${toString:cassandra.classpath}" />
+            <arg value="${build.src.java}" />
+        </java>
+  </target>
+  
 
   <!-- Publish artifacts to Maven repositories -->
   <target name="mvn-install"

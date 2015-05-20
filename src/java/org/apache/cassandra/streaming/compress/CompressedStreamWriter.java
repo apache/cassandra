@@ -55,14 +55,11 @@ public class CompressedStreamWriter extends StreamWriter
     public void write(DataOutputStreamPlus out) throws IOException
     {
         long totalSize = totalSize();
-        RandomAccessReader file = sstable.openDataReader();
-        final ChannelProxy fc = file.getChannel();
-
-        long progress = 0L;
-        // calculate chunks to transfer. we want to send continuous chunks altogether.
-        List<Pair<Long, Long>> sections = getTransferSections(compressionInfo.chunks);
-        try
+        try (RandomAccessReader file = sstable.openDataReader(); final ChannelProxy fc = file.getChannel())
         {
+            long progress = 0L;
+            // calculate chunks to transfer. we want to send continuous chunks altogether.
+            List<Pair<Long, Long>> sections = getTransferSections(compressionInfo.chunks);
             // stream each of the required sections of the file
             for (final Pair<Long, Long> section : sections)
             {
@@ -75,7 +72,7 @@ public class CompressedStreamWriter extends StreamWriter
                     final long bytesTransferredFinal = bytesTransferred;
                     final int toTransfer = (int) Math.min(CHUNK_SIZE, length - bytesTransferred);
                     limiter.acquire(toTransfer);
-                    long lastWrite = out.applyToChannel( new Function<WritableByteChannel, Long>()
+                    long lastWrite = out.applyToChannel(new Function<WritableByteChannel, Long>()
                     {
                         public Long apply(WritableByteChannel wbc)
                         {
@@ -87,11 +84,6 @@ public class CompressedStreamWriter extends StreamWriter
                     session.progress(sstable.descriptor, ProgressInfo.Direction.OUT, progress, totalSize);
                 }
             }
-        }
-        finally
-        {
-            // no matter what happens close file
-            FileUtils.closeQuietly(file);
         }
     }
 

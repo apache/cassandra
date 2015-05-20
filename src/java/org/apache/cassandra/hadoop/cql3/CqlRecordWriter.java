@@ -116,24 +116,24 @@ class CqlRecordWriter extends RecordWriter<Map<String, ByteBuffer>, List<ByteBuf
         try
         {
             String keyspace = ConfigHelper.getOutputKeyspace(conf);
-            Session client = CqlConfigHelper.getOutputCluster(ConfigHelper.getOutputInitialAddress(conf), conf).connect(keyspace);
-            ringCache = new NativeRingCache(conf);
-            if (client != null)
+            try (Session client = CqlConfigHelper.getOutputCluster(ConfigHelper.getOutputInitialAddress(conf), conf).connect(keyspace))
             {
-                TableMetadata tableMetadata = client.getCluster().getMetadata().getKeyspace(client.getLoggedKeyspace()).getTable(ConfigHelper.getOutputColumnFamily(conf));
-                clusterColumns = tableMetadata.getClusteringColumns();
-                partitionKeyColumns = tableMetadata.getPartitionKey();
+                ringCache = new NativeRingCache(conf);
+                if (client != null)
+                {
+                    TableMetadata tableMetadata = client.getCluster().getMetadata().getKeyspace(client.getLoggedKeyspace()).getTable(ConfigHelper.getOutputColumnFamily(conf));
+                    clusterColumns = tableMetadata.getClusteringColumns();
+                    partitionKeyColumns = tableMetadata.getPartitionKey();
 
-                String cqlQuery = CqlConfigHelper.getOutputCql(conf).trim();
-                if (cqlQuery.toLowerCase().startsWith("insert"))
-                    throw new UnsupportedOperationException("INSERT with CqlRecordWriter is not supported, please use UPDATE/DELETE statement");
-                cql = appendKeyWhereClauses(cqlQuery);
-
-                client.close();
-            }
-            else
-            {
-                throw new IllegalArgumentException("Invalid configuration specified " + conf);
+                    String cqlQuery = CqlConfigHelper.getOutputCql(conf).trim();
+                    if (cqlQuery.toLowerCase().startsWith("insert"))
+                        throw new UnsupportedOperationException("INSERT with CqlRecordWriter is not supported, please use UPDATE/DELETE statement");
+                    cql = appendKeyWhereClauses(cqlQuery);
+                }
+                else
+                {
+                    throw new IllegalArgumentException("Invalid configuration specified " + conf);
+                }
             }
         }
         catch (Exception e)
@@ -489,13 +489,15 @@ class CqlRecordWriter extends RecordWriter<Map<String, ByteBuffer>, List<ByteBuf
         private void refreshEndpointMap()
         {
             String keyspace = ConfigHelper.getOutputKeyspace(conf);
-            Session session = CqlConfigHelper.getOutputCluster(ConfigHelper.getOutputInitialAddress(conf), conf).connect(keyspace);
-            rangeMap = new HashMap<>();
-            metadata = session.getCluster().getMetadata();
-            Set<TokenRange> ranges = metadata.getTokenRanges();
-            for (TokenRange range : ranges)
+            try (Session session = CqlConfigHelper.getOutputCluster(ConfigHelper.getOutputInitialAddress(conf), conf).connect(keyspace))
             {
-                rangeMap.put(range, metadata.getReplicas(keyspace, range));
+                rangeMap = new HashMap<>();
+                metadata = session.getCluster().getMetadata();
+                Set<TokenRange> ranges = metadata.getTokenRanges();
+                for (TokenRange range : ranges)
+                {
+                    rangeMap.put(range, metadata.getReplicas(keyspace, range));
+                }
             }
         }
 

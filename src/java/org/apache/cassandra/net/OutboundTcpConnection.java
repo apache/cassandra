@@ -366,6 +366,7 @@ public class OutboundTcpConnection extends Thread
         }
     }
 
+    @SuppressWarnings("resource")
     private boolean connect()
     {
         if (logger.isDebugEnabled())

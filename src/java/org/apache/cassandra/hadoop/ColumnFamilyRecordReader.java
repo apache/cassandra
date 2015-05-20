@@ -82,6 +82,7 @@ public class ColumnFamilyRecordReader extends RecordReader<ByteBuffer, SortedMap
         this.keyBufferSize = keyBufferSize;
     }
 
+    @SuppressWarnings("resource")
     public void close()
     {
         if (client != null)

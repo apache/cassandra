@@ -521,9 +521,11 @@ public abstract class ColumnFamily implements Iterable<Cell>, IRowCacheEntry
 
     public ByteBuffer toBytes()
     {
-        DataOutputBuffer out = new DataOutputBuffer();
-        serializer.serialize(this, out, MessagingService.current_version);
-        return ByteBuffer.wrap(out.getData(), 0, out.getLength());
+        try (DataOutputBuffer out = new DataOutputBuffer())
+        {
+            serializer.serialize(this, out, MessagingService.current_version);
+            return ByteBuffer.wrap(out.getData(), 0, out.getLength());
+        }
     }
 
 

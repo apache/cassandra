@@ -89,6 +89,7 @@ public class TCustomServerSocket extends TServerTransport
     }
 
     @Override
+    @SuppressWarnings("resource")
     protected TCustomSocket acceptImpl() throws TTransportException
     {
 

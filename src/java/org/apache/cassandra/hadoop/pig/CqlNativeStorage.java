@@ -699,9 +699,8 @@ public class CqlNativeStorage extends LoadFunc implements StoreFuncInterface, Lo
         // Only get the schema if we haven't already gotten it
         if (!properties.containsKey(signature))
         {
-            try
+            try (Session client = CqlConfigHelper.getInputCluster(ConfigHelper.getInputInitialAddress(conf), conf).connect())
             {
-                Session client = CqlConfigHelper.getInputCluster(ConfigHelper.getInputInitialAddress(conf), conf).connect();
                 client.execute("USE " + keyspace);
 
                 // compose the CfDef for the columfamily
@@ -729,9 +728,11 @@ public class CqlNativeStorage extends LoadFunc implements StoreFuncInterface, Lo
     {
         TableInfo tableInfo = new TableInfo(cfDef);
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
-        ObjectOutputStream oos = new ObjectOutputStream( baos );
-        oos.writeObject( tableInfo );
-        oos.close();
+        try (ObjectOutputStream oos = new ObjectOutputStream( baos ))
+        {
+            oos.writeObject(tableInfo);
+        }
+
         return new String( Base64Coder.encode(baos.toByteArray()) );
     }
 
@@ -739,11 +740,11 @@ public class CqlNativeStorage extends LoadFunc implements StoreFuncInterface, Lo
     protected static TableInfo cfdefFromString(String st) throws IOException, ClassNotFoundException
     {
         byte [] data = Base64Coder.decode( st );
-        ObjectInputStream ois = new ObjectInputStream(
-                new ByteArrayInputStream(  data ) );
-        Object o  = ois.readObject();
-        ois.close();
-        return (TableInfo)o;
+        try (ObjectInputStream ois = new ObjectInputStream(new ByteArrayInputStream(data)))
+        {
+            Object o = ois.readObject();
+            return (TableInfo)o;
+        }
     }
 
     /** decompose the query to store the parameters in a map */

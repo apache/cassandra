@@ -99,6 +99,7 @@ public final class SSLFactory
         return socket;
     }
 
+    @SuppressWarnings("resource")
     public static SSLContext createSSLContext(EncryptionOptions options, boolean buildTruststore) throws IOException
     {
         FileInputStream tsf = null;

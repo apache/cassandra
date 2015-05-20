@@ -200,19 +200,13 @@ public class DataIntegrityMetadata
         public void writeFullChecksum(Descriptor descriptor)
         {
             File outFile = new File(descriptor.filenameFor(Component.DIGEST));
-            BufferedWriter out = null;
-            try
+            try (BufferedWriter out =Files.newBufferedWriter(outFile.toPath(), Charsets.UTF_8))
             {
-                out = Files.newBufferedWriter(outFile.toPath(), Charsets.UTF_8);
                 out.write(String.valueOf(fullChecksum.getValue()));
             }
             catch (IOException e)
             {
                 throw new FSWriteError(e, outFile);
-            }
-            finally
-            {
-                FileUtils.closeQuietly(out);
             }
         }
     }

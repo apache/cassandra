@@ -67,6 +67,7 @@ public class THsHaDisruptorServer extends TDisruptorServer
 
     public static class Factory implements TServerFactory
     {
+        @SuppressWarnings("resource")
         public TServer buildTServer(Args args)
         {
             if (DatabaseDescriptor.getClientEncryptionOptions().enabled)
