@@ -90,8 +90,7 @@ public class SystemKeyspaceTest
         assertTrue(getSystemSnapshotFiles().isEmpty());
 
         // now setup system.local as if we're upgrading from a previous version
-        SemanticVersion next = getCurrentReleaseVersion();
-        setupReleaseVersion(new SemanticVersion(String.format("%s.%s.%s", next.major - 1, next.minor, next.patch)));
+        setupReleaseVersion(getOlderVersionString());
         Keyspace.clearSnapshot(null, SystemKeyspace.NAME);
         assertTrue(getSystemSnapshotFiles().isEmpty());
 
@@ -102,15 +101,18 @@ public class SystemKeyspaceTest
         // clear out the snapshots & set the previous recorded version equal to the latest, we shouldn't
         // see any new snapshots created this time.
         Keyspace.clearSnapshot(null, SystemKeyspace.NAME);
-        setupReleaseVersion(getCurrentReleaseVersion());
+        setupReleaseVersion(FBUtilities.getReleaseVersionString());
 
         SystemKeyspace.snapshotOnVersionChange();
         assertTrue(getSystemSnapshotFiles().isEmpty());
     }
 
-    private SemanticVersion getCurrentReleaseVersion()
+    private String getOlderVersionString()
     {
-        return new SemanticVersion(FBUtilities.getReleaseVersionString());
+        String version = FBUtilities.getReleaseVersionString();
+        SemanticVersion semver = new SemanticVersion(version.contains("-") ? version.substring(0, version.indexOf('-'))
+                                                                           : version);
+        return (String.format("%s.%s.%s", semver.major - 1, semver.minor, semver.patch));
     }
 
     private Set<String> getSystemSnapshotFiles()
@@ -124,7 +126,7 @@ public class SystemKeyspaceTest
         return snapshottedTableNames;
     }
 
-    private void setupReleaseVersion(SemanticVersion version)
+    private void setupReleaseVersion(String version)
     {
         // besides the release_version, we also need to insert the cluster_name or the check
         // in SystemKeyspace.checkHealth were we verify it matches DatabaseDescriptor will fail
@@ -133,7 +135,7 @@ public class SystemKeyspaceTest
                                                      version,
                                                      DatabaseDescriptor.getClusterName()));
         String r = readLocalVersion();
-        assertEquals(String.format("Expected %s, got %s", version, r), version.toString(), r);
+        assertEquals(String.format("Expected %s, got %s", version, r), version, r);
     }
 
     private String readLocalVersion()
