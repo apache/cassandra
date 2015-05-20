@@ -1,5 +1,6 @@
 2.2
  * Ensure that UDF and UDAs are keyspace-isolated (CASSANDRA-9409)
+ * Revert CASSANDRA-7807 (tracing completion client notifications) (CASSANDRA-9429)
 Merged from 2.1:
  * Use configured gcgs in anticompaction (CASSANDRA-9397)
 

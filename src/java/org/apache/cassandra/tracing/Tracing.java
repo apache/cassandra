@@ -33,7 +33,6 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.marshal.TimeUUIDType;
 import org.apache.cassandra.net.MessageIn;
 import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.transport.Connection;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.UUIDGen;
 
@@ -113,31 +112,26 @@ public class Tracing
         return instance.state.get() != null;
     }
 
-    public UUID newSession(Connection connection)
+    public UUID newSession()
     {
-        return newSession(connection, TraceType.QUERY);
+        return newSession(TraceType.QUERY);
     }
 
     public UUID newSession(TraceType traceType)
     {
-        return newSession(null, traceType);
+        return newSession(TimeUUIDType.instance.compose(ByteBuffer.wrap(UUIDGen.getTimeUUIDBytes())), traceType);
     }
 
-    public UUID newSession(Connection connection, TraceType traceType)
+    public UUID newSession(UUID sessionId)
     {
-        return newSession(connection, TimeUUIDType.instance.compose(ByteBuffer.wrap(UUIDGen.getTimeUUIDBytes())), traceType, false);
+        return newSession(sessionId, TraceType.QUERY);
     }
 
-    public UUID newSession(Connection connection, UUID sessionId)
-    {
-        return newSession(connection, sessionId, TraceType.QUERY, true);
-    }
-
-    private UUID newSession(Connection connection, UUID sessionId, TraceType traceType, boolean withFinishEvent)
+    private UUID newSession(UUID sessionId, TraceType traceType)
     {
         assert state.get() == null;
 
-        TraceState ts = new TraceState(localAddress, connection, sessionId, traceType, withFinishEvent);
+        TraceState ts = new TraceState(localAddress, sessionId, traceType);
         state.set(ts);
         sessions.put(sessionId, ts);
 
@@ -166,7 +160,7 @@ public class Tracing
             final ByteBuffer sessionId = state.sessionIdBytes;
             final int ttl = state.ttl;
 
-            state.executeMutation(TraceKeyspace.makeStopSessionMutation(sessionId, elapsed, ttl));
+            TraceState.executeMutation(TraceKeyspace.makeStopSessionMutation(sessionId, elapsed, ttl));
 
             state.stop();
             sessions.remove(state.sessionId);
@@ -204,7 +198,7 @@ public class Tracing
         final String command = state.traceType.toString();
         final int ttl = state.ttl;
 
-        state.executeMutation(TraceKeyspace.makeStartSessionMutation(sessionId, client, parameters, request, startedAt, command, ttl));
+        TraceState.executeMutation(TraceKeyspace.makeStartSessionMutation(sessionId, client, parameters, request, startedAt, command, ttl));
 
         return state;
     }
