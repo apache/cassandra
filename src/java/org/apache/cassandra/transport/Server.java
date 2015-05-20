@@ -233,11 +233,6 @@ public class Server implements CassandraDaemon.Server
             groups.get(type).add(ch);
         }
 
-        public boolean isRegistered(Event.Type type, Channel ch)
-        {
-            return groups.get(type).contains(ch);
-        }
-
         public void send(Event event)
         {
             groups.get(event.type).writeAndFlush(new EventMessage(event));

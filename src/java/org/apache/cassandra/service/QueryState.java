@@ -22,7 +22,6 @@ import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
 
 import org.apache.cassandra.tracing.Tracing;
-import org.apache.cassandra.transport.Connection;
 
 /**
  * Represents the state related to a given query.
@@ -77,19 +76,14 @@ public class QueryState
 
     public void createTracingSession()
     {
-        createTracingSession(null);
-    }
-
-    public void createTracingSession(Connection connection)
-    {
         UUID session = this.preparedTracingSession;
         if (session == null)
         {
-            Tracing.instance.newSession(connection);
+            Tracing.instance.newSession();
         }
         else
         {
-            Tracing.instance.newSession(connection, session);
+            Tracing.instance.newSession(session);
             this.preparedTracingSession = null;
         }
     }

@@ -62,8 +62,6 @@ public abstract class Event
                 return StatusChange.deserializeEvent(cb, version);
             case SCHEMA_CHANGE:
                 return SchemaChange.deserializeEvent(cb, version);
-            case TRACE_COMPLETE:
-                return TraceComplete.deserializeEvent(cb, version);
         }
         throw new AssertionError();
     }
@@ -415,58 +413,6 @@ public abstract class Event
                 && Objects.equal(keyspace, scc.keyspace)
                 && Objects.equal(name, scc.name)
                 && Objects.equal(argTypes, scc.argTypes);
-        }
-    }
-
-    /**
-     * @since native protocol v4
-     */
-    public static class TraceComplete extends Event
-    {
-        public final UUID traceSessionId;
-
-        public TraceComplete(UUID traceSessionId)
-        {
-            super(Type.TRACE_COMPLETE);
-            this.traceSessionId = traceSessionId;
-        }
-
-        public static Event deserializeEvent(ByteBuf cb, int version)
-        {
-            UUID traceSessionId = CBUtil.readUUID(cb);
-            return new TraceComplete(traceSessionId);
-        }
-
-        protected void serializeEvent(ByteBuf dest, int version)
-        {
-            CBUtil.writeUUID(traceSessionId, dest);
-        }
-
-        protected int eventSerializedSize(int version)
-        {
-            return CBUtil.sizeOfUUID(traceSessionId);
-        }
-
-        @Override
-        public String toString()
-        {
-            return traceSessionId.toString();
-        }
-
-        @Override
-        public int hashCode()
-        {
-            return Objects.hashCode(traceSessionId);
-        }
-
-        @Override
-        public boolean equals(Object other)
-        {
-            if (!(other instanceof TraceComplete))
-                return false;
-
-            TraceComplete tf = (TraceComplete)other;
-            return Objects.equal(traceSessionId, tf.traceSessionId);
         }
     }
 }

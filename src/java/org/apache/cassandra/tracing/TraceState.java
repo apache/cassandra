@@ -35,8 +35,6 @@ import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.exceptions.OverloadedException;
 import org.apache.cassandra.service.StorageProxy;
-import org.apache.cassandra.transport.Connection;
-import org.apache.cassandra.transport.Event;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.WrappedRunnable;
 import org.apache.cassandra.utils.progress.ProgressEvent;
@@ -60,10 +58,6 @@ public class TraceState implements ProgressEventNotifier
     private final List<ProgressListener> listeners = new CopyOnWriteArrayList<>();
     private String tag;
 
-    private final boolean withFinishEvent;
-    private final AtomicInteger pendingMutations = new AtomicInteger();
-    private final Connection connection;
-
     public enum Status
     {
         IDLE,
@@ -79,24 +73,17 @@ public class TraceState implements ProgressEventNotifier
 
     public TraceState(InetAddress coordinator, UUID sessionId, Tracing.TraceType traceType)
     {
-        this(coordinator, null, sessionId, traceType, false);
-    }
-
-    public TraceState(InetAddress coordinator, Connection connection, UUID sessionId, Tracing.TraceType traceType, boolean withFinishEvent)
-    {
         assert coordinator != null;
         assert sessionId != null;
 
         this.coordinator = coordinator;
-        this.connection = connection;
         this.sessionId = sessionId;
         sessionIdBytes = ByteBufferUtil.bytes(sessionId);
         this.traceType = traceType;
         this.ttl = traceType.getTTL();
         watch = Stopwatch.createStarted();
         this.status = Status.IDLE;
-        this.withFinishEvent = withFinishEvent;
-    }
+}
 
     /**
      * Activate notification with provided {@code tag} name.
@@ -134,19 +121,6 @@ public class TraceState implements ProgressEventNotifier
     {
         status = Status.STOPPED;
         notifyAll();
-        pushEventIfStopped();
-    }
-
-    private void pushEventIfStopped()
-    {
-        if (status == Status.STOPPED && pendingMutations.get() == 0)
-        {
-            // poor-man's prevention of duplicate tracing-finished events
-            pendingMutations.set(Integer.MIN_VALUE);
-
-            if (connection != null && withFinishEvent)
-                connection.sendIfRegistered(new Event.TraceComplete(sessionId));
-        }
     }
 
     /*
@@ -214,23 +188,13 @@ public class TraceState implements ProgressEventNotifier
         }
     }
 
-    void executeMutation(final Mutation mutation)
+    static void executeMutation(final Mutation mutation)
     {
-        pendingMutations.incrementAndGet();
-
         StageManager.getStage(Stage.TRACING).execute(new WrappedRunnable()
         {
             protected void runMayThrow() throws Exception
             {
-                try
-                {
-                    mutateWithCatch(mutation);
-                }
-                finally
-                {
-                    if (pendingMutations.decrementAndGet() == 0)
-                        pushEventIfStopped();
-                }
+            mutateWithCatch(mutation);
             }
         });
     }
