@@ -192,8 +192,8 @@ def strftime(time_format, seconds):
     hours, minutes = divmod(abs(offset) / 60, 60)
     return formatted[:-5] + sign + '{0:0=2}{1:0=2}'.format(hours, minutes)
 
-@formatter_for('date')
-def format_value_uuid(val, colormap, **_):
+@formatter_for('Date')
+def format_value_date(val, colormap, **_):
     return format_python_formatted_type(val, colormap, 'date')
 
 @formatter_for('Time')

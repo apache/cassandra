@@ -20,7 +20,7 @@ from cassandra.metadata import escape_name
 
 
 simple_cql_types = set(('ascii', 'bigint', 'blob', 'boolean', 'counter', 'date', 'decimal', 'double', 'float', 'inet', 'int',
-                        'text', 'time', 'timestamp', 'timeuuid', 'uuid', 'varchar', 'varint'))
+                        'smallint', 'text', 'time', 'timestamp', 'timeuuid', 'tinyint', 'uuid', 'varchar', 'varint'))
 simple_cql_types.difference_update(('set', 'map', 'list'))
 
 from . import helptopics

@@ -38,6 +38,7 @@ class CQLHelpTopics(object):
           HELP BLOB_INPUT
           HELP UUID_INPUT
           HELP BOOLEAN_INPUT
+          HELP INT_INPUT
 
           HELP TEXT_OUTPUT
           HELP TIMESTAMP_OUTPUT
@@ -117,6 +118,17 @@ class CQLHelpTopics(object):
 
         CQL accepts the strings 'true' and 'false' (case insensitive)
         as input for boolean types.
+        """
+
+    def help_int_input(self):
+        print """
+        Integer input
+
+        CQL accepts the following integer types:
+          tinyint  - 1-byte signed integer
+          smallint - 2-byte signed integer
+          int      - 4-byte signed integer
+          bigint   - 8-byte signed integer
         """
 
     def help_timestamp_output(self):
