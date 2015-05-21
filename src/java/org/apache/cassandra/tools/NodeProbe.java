@@ -1080,6 +1080,7 @@ public class NodeProbe implements AutoCloseable
                 case "CompressionRatio":
                 case "EstimatedColumnCountHistogram":
                 case "EstimatedRowSizeHistogram":
+                case "EstimatedRowCount":
                 case "KeyCacheHitRate":
                 case "LiveSSTableCount":
                 case "MaxRowSize":

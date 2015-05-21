@@ -4,6 +4,7 @@
  * Add ability to stop compaction by ID (CASSANDRA-7207)
 Merged from 2.1:
 2.1.6
+ * Improve estimated row count (CASSANDRA-9107)
  * Optimize range tombstone memory footprint (CASSANDRA-8603)
  * Use configured gcgs in anticompaction (CASSANDRA-9397)
 
