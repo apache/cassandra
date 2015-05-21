@@ -225,6 +225,11 @@ public class Memtable
         return builder.toString();
     }
 
+    public int partitionCount()
+    {
+        return rows.size();
+    }
+
     public FlushRunnable flushRunnable()
     {
         return new FlushRunnable(lastReplayPosition.get());
