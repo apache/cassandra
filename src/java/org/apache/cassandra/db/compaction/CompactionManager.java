@@ -1484,7 +1484,7 @@ public class CompactionManager implements CompactionManagerMBean
         while (System.nanoTime() - start < delay)
         {
             if (CompactionManager.instance.isCompacting(cfss))
-                Uninterruptibles.sleepUninterruptibly(100, TimeUnit.MILLISECONDS);
+                Uninterruptibles.sleepUninterruptibly(1, TimeUnit.MILLISECONDS);
             else
                 break;
         }
