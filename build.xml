@@ -360,6 +360,7 @@
           <dependency groupId="org.apache.hadoop" artifactId="hadoop-core" version="1.0.3">
           	<exclusion groupId="org.mortbay.jetty" artifactId="servlet-api"/>
           	<exclusion groupId="commons-logging" artifactId="commons-logging"/>
+          	<exclusion groupId="org.eclipse.jdt" artifactId="core"/>
           </dependency>
           <dependency groupId="org.apache.hadoop" artifactId="hadoop-minicluster" version="1.0.3"/>
           <dependency groupId="org.apache.pig" artifactId="pig" version="0.12.1"/>
