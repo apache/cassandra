@@ -247,7 +247,7 @@ public class DataOutputTest
             test.readInt();
             assert false;
         }
-        catch (EOFException _)
+        catch (EOFException exc)
         {
         }
     }
