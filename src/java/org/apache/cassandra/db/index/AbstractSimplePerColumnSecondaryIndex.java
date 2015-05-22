@@ -57,7 +57,7 @@ public abstract class AbstractSimplePerColumnSecondaryIndex extends PerColumnSec
                                                              indexedCfMetadata.cfName,
                                                              new LocalPartitioner(getIndexKeyComparator()),
                                                              indexedCfMetadata,
-                                                             baseCfs.getDataTracker().loadsstables);
+                                                             baseCfs.getTracker().loadsstables);
     }
 
     protected AbstractType<?> getIndexKeyComparator()
@@ -143,7 +143,7 @@ public abstract class AbstractSimplePerColumnSecondaryIndex extends PerColumnSec
     {
         Future<?> wait;
         // we synchronise on the baseCfs to make sure we are ordered correctly with other flushes to the base CFS
-        synchronized (baseCfs.getDataTracker())
+        synchronized (baseCfs.getTracker())
         {
             wait = indexCfs.forceFlush();
         }

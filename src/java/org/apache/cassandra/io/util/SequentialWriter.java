@@ -77,7 +77,7 @@ public class SequentialWriter extends OutputStream implements WritableByteChanne
     protected class TransactionalProxy extends AbstractTransactional
     {
         @Override
-        protected Throwable doCleanup(Throwable accumulate)
+        protected Throwable doPreCleanup(Throwable accumulate)
         {
             if (directoryFD >= 0)
             {

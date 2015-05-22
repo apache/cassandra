@@ -19,7 +19,6 @@ package org.apache.cassandra.db.compaction;
 
 import java.nio.ByteBuffer;
 import java.util.*;
-import java.util.concurrent.ExecutionException;
 
 import com.google.common.primitives.Longs;
 import org.junit.Before;
@@ -41,11 +40,12 @@ import org.apache.cassandra.db.compaction.writers.MajorLeveledCompactionWriter;
 import org.apache.cassandra.db.compaction.writers.MaxSSTableSizeWriter;
 import org.apache.cassandra.db.compaction.writers.SplittingSizeTieredCompactionWriter;
 import org.apache.cassandra.db.filter.QueryFilter;
+import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.sstable.ISSTableScanner;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.locator.SimpleStrategy;
-import org.apache.cassandra.utils.ByteBufferUtil;
+
 import static org.junit.Assert.assertEquals;
 
 public class CompactionAwareWriterTest
@@ -81,10 +81,10 @@ public class CompactionAwareWriterTest
         int rowCount = 1000;
         cfs.disableAutoCompaction();
         populate(cfs, rowCount);
-        Set<SSTableReader> sstables = new HashSet<>(cfs.getSSTables());
-        long beforeSize = sstables.iterator().next().onDiskLength();
-        CompactionAwareWriter writer = new DefaultCompactionWriter(cfs, sstables, sstables, false, OperationType.COMPACTION);
-        int rows = compact(cfs, sstables, writer);
+        LifecycleTransaction txn = cfs.getTracker().tryModify(cfs.getSSTables(), OperationType.COMPACTION);
+        long beforeSize = txn.originals().iterator().next().onDiskLength();
+        CompactionAwareWriter writer = new DefaultCompactionWriter(cfs, txn, txn.originals(), false, OperationType.COMPACTION);
+        int rows = compact(cfs, txn, writer);
         assertEquals(1, cfs.getSSTables().size());
         assertEquals(rowCount, rows);
         assertEquals(beforeSize, cfs.getSSTables().iterator().next().onDiskLength());
@@ -100,11 +100,11 @@ public class CompactionAwareWriterTest
         cfs.disableAutoCompaction();
         int rowCount = 1000;
         populate(cfs, rowCount);
-        Set<SSTableReader> sstables = new HashSet<>(cfs.getSSTables());
-        long beforeSize = sstables.iterator().next().onDiskLength();
+        LifecycleTransaction txn = cfs.getTracker().tryModify(cfs.getSSTables(), OperationType.COMPACTION);
+        long beforeSize = txn.originals().iterator().next().onDiskLength();
         int sstableSize = (int)beforeSize/10;
-        CompactionAwareWriter writer = new MaxSSTableSizeWriter(cfs, sstables, sstables, sstableSize, 0, false, OperationType.COMPACTION);
-        int rows = compact(cfs, sstables, writer);
+        CompactionAwareWriter writer = new MaxSSTableSizeWriter(cfs, txn, txn.originals(), sstableSize, 0, false, OperationType.COMPACTION);
+        int rows = compact(cfs, txn, writer);
         assertEquals(10, cfs.getSSTables().size());
         assertEquals(rowCount, rows);
         validateData(cfs, rowCount);
@@ -118,10 +118,10 @@ public class CompactionAwareWriterTest
         cfs.disableAutoCompaction();
         int rowCount = 10000;
         populate(cfs, rowCount);
-        Set<SSTableReader> sstables = new HashSet<>(cfs.getSSTables());
-        long beforeSize = sstables.iterator().next().onDiskLength();
-        CompactionAwareWriter writer = new SplittingSizeTieredCompactionWriter(cfs, sstables, sstables, OperationType.COMPACTION, 0);
-        int rows = compact(cfs, sstables, writer);
+        LifecycleTransaction txn = cfs.getTracker().tryModify(cfs.getSSTables(), OperationType.COMPACTION);
+        long beforeSize = txn.originals().iterator().next().onDiskLength();
+        CompactionAwareWriter writer = new SplittingSizeTieredCompactionWriter(cfs, txn, txn.originals(), OperationType.COMPACTION, 0);
+        int rows = compact(cfs, txn, writer);
         long expectedSize = beforeSize / 2;
         List<SSTableReader> sortedSSTables = new ArrayList<>(cfs.getSSTables());
 
@@ -154,11 +154,11 @@ public class CompactionAwareWriterTest
         int rowCount = 20000;
         int targetSSTableCount = 50;
         populate(cfs, rowCount);
-        Set<SSTableReader> sstables = new HashSet<>(cfs.getSSTables());
-        long beforeSize = sstables.iterator().next().onDiskLength();
+        LifecycleTransaction txn = cfs.getTracker().tryModify(cfs.getSSTables(), OperationType.COMPACTION);
+        long beforeSize = txn.originals().iterator().next().onDiskLength();
         int sstableSize = (int)beforeSize/targetSSTableCount;
-        CompactionAwareWriter writer = new MajorLeveledCompactionWriter(cfs, sstables, sstables, sstableSize, false, OperationType.COMPACTION);
-        int rows = compact(cfs, sstables, writer);
+        CompactionAwareWriter writer = new MajorLeveledCompactionWriter(cfs, txn, txn.originals(), sstableSize, false, OperationType.COMPACTION);
+        int rows = compact(cfs, txn, writer);
         assertEquals(targetSSTableCount, cfs.getSSTables().size());
         int [] levelCounts = new int[5];
         assertEquals(rowCount, rows);
@@ -175,13 +175,13 @@ public class CompactionAwareWriterTest
         cfs.truncateBlocking();
     }
 
-    private int compact(ColumnFamilyStore cfs, Set<SSTableReader> sstables, CompactionAwareWriter writer)
+    private int compact(ColumnFamilyStore cfs, LifecycleTransaction txn, CompactionAwareWriter writer)
     {
-        assert sstables.size() == 1;
+        assert txn.originals().size() == 1;
         int rowsWritten = 0;
-        try (AbstractCompactionStrategy.ScannerList scanners = cfs.getCompactionStrategy().getScanners(sstables))
+        try (AbstractCompactionStrategy.ScannerList scanners = cfs.getCompactionStrategy().getScanners(txn.originals()))
         {
-            CompactionController controller = new CompactionController(cfs, sstables, cfs.gcBefore(System.currentTimeMillis()));
+            CompactionController controller = new CompactionController(cfs, txn.originals(), cfs.gcBefore(System.currentTimeMillis()));
             ISSTableScanner scanner = scanners.scanners.get(0);
             while(scanner.hasNext())
             {
@@ -191,7 +191,6 @@ public class CompactionAwareWriterTest
             }
         }
         Collection<SSTableReader> newSSTables = writer.finish();
-        cfs.getDataTracker().markCompactedSSTablesReplaced(sstables, newSSTables, OperationType.COMPACTION);
         return rowsWritten;
     }
 

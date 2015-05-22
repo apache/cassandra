@@ -25,7 +25,6 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.Future;
 
 import com.google.common.base.Function;
-import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -147,7 +146,7 @@ public class Keyspace
     }
 
     /**
-     * Removes every SSTable in the directory from the appropriate DataTracker's view.
+     * Removes every SSTable in the directory from the appropriate Tracker's view.
      * @param directory the unreadable directory, possibly with SSTables in it, but not necessarily.
      */
     public static void removeUnreadableSSTables(File directory)
@@ -274,6 +273,18 @@ public class Keyspace
             logger.debug("Initializing {}.{}", getName(), cfm.cfName);
             initCf(cfm.cfId, cfm.cfName, loadSSTables);
         }
+    }
+
+    private Keyspace(KSMetaData metadata)
+    {
+        this.metadata = metadata;
+        createReplicationStrategy(metadata);
+        this.metric = new KeyspaceMetrics(this);
+    }
+
+    public static Keyspace mockKS(KSMetaData metadata)
+    {
+        return new Keyspace(metadata);
     }
 
     public void createReplicationStrategy(KSMetaData ksm)

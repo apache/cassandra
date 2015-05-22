@@ -70,6 +70,7 @@ public interface Transactional extends AutoCloseable
             ABORTED;
         }
 
+        private boolean permitRedundantTransitions;
         private State state = State.IN_PROGRESS;
 
         // the methods for actually performing the necessary behaviours, that are themselves protected against
@@ -79,9 +80,18 @@ public interface Transactional extends AutoCloseable
         protected abstract Throwable doCommit(Throwable accumulate);
         protected abstract Throwable doAbort(Throwable accumulate);
 
-        // this only needs to perform cleanup of state unique to this instance; any internal
+        // these only needs to perform cleanup of state unique to this instance; any internal
         // Transactional objects will perform cleanup in the commit() or abort() calls
-        protected abstract Throwable doCleanup(Throwable accumulate);
+
+        /**
+         * perform an exception-safe pre-abort cleanup; this will still be run *after* commit
+         */
+        protected Throwable doPreCleanup(Throwable accumulate){ return accumulate; }
+
+        /**
+         * perform an exception-safe post-abort cleanup
+         */
+        protected Throwable doPostCleanup(Throwable accumulate){ return accumulate; }
 
         /**
          * Do any preparatory work prior to commit. This method should throw any exceptions that can be encountered
@@ -94,10 +104,13 @@ public interface Transactional extends AutoCloseable
          */
         public final Throwable commit(Throwable accumulate)
         {
+            if (permitRedundantTransitions && state == State.COMMITTED)
+                return accumulate;
             if (state != State.READY_TO_COMMIT)
-                throw new IllegalStateException("Commit attempted before prepared to commit");
+                throw new IllegalStateException("Cannot commit unless READY_TO_COMMIT; state is " + state);
             accumulate = doCommit(accumulate);
-            accumulate = doCleanup(accumulate);
+            accumulate = doPreCleanup(accumulate);
+            accumulate = doPostCleanup(accumulate);
             state = State.COMMITTED;
             return accumulate;
         }
@@ -123,8 +136,9 @@ public interface Transactional extends AutoCloseable
             }
             state = State.ABORTED;
             // we cleanup first so that, e.g., file handles can be released prior to deletion
-            accumulate = doCleanup(accumulate);
+            accumulate = doPreCleanup(accumulate);
             accumulate = doAbort(accumulate);
+            accumulate = doPostCleanup(accumulate);
             return accumulate;
         }
 
@@ -147,6 +161,8 @@ public interface Transactional extends AutoCloseable
          */
         public final void prepareToCommit()
         {
+            if (permitRedundantTransitions && state == State.READY_TO_COMMIT)
+                return;
             if (state != State.IN_PROGRESS)
                 throw new IllegalStateException("Cannot prepare to commit unless IN_PROGRESS; state is " + state);
 
@@ -182,6 +198,11 @@ public interface Transactional extends AutoCloseable
         public final State state()
         {
             return state;
+        }
+
+        protected void permitRedundantTransitions()
+        {
+            permitRedundantTransitions = true;
         }
     }
 

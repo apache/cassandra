@@ -23,15 +23,16 @@ import java.util.Set;
 import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.concurrent.TimeUnit;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Sets;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.concurrent.ScheduledExecutors;
-import org.apache.cassandra.db.DataTracker;
-import org.apache.cassandra.db.SystemKeyspace;
+import org.apache.cassandra.db.lifecycle.Tracker;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.concurrent.Blocker;
 
 public class SSTableDeletingTask implements Runnable
 {
@@ -42,11 +43,12 @@ public class SSTableDeletingTask implements Runnable
     // Additionally, we need to make sure to delete the data file first, so on restart the others
     // will be recognized as GCable.
     private static final Set<SSTableDeletingTask> failedTasks = new CopyOnWriteArraySet<>();
+    private static final Blocker blocker = new Blocker();
 
     private final SSTableReader referent;
     private final Descriptor desc;
     private final Set<Component> components;
-    private DataTracker tracker;
+    private Tracker tracker;
 
     /**
      * realDescriptor is the actual descriptor for the sstable, the descriptor inside
@@ -70,13 +72,18 @@ public class SSTableDeletingTask implements Runnable
         }
     }
 
-    public void setTracker(DataTracker tracker)
+    public void setTracker(Tracker tracker)
     {
         // the tracker is used only to notify listeners of deletion of the sstable;
         // since deletion of a non-final file is not really deletion of the sstable,
         // we don't want to notify the listeners in this event
-        if (desc.type == Descriptor.Type.FINAL)
-            this.tracker = tracker;
+        assert desc.type == Descriptor.Type.FINAL;
+        this.tracker = tracker;
+    }
+
+    public Tracker getTracker()
+    {
+        return tracker;
     }
 
     public void schedule()
@@ -86,6 +93,7 @@ public class SSTableDeletingTask implements Runnable
 
     public void run()
     {
+        blocker.ask();
         long size = referent.bytesOnDisk();
 
         if (tracker != null)
@@ -119,6 +127,7 @@ public class SSTableDeletingTask implements Runnable
     }
 
     /** for tests */
+    @VisibleForTesting
     public static void waitForDeletions()
     {
         Runnable runnable = new Runnable()
@@ -129,6 +138,12 @@ public class SSTableDeletingTask implements Runnable
         };
 
         FBUtilities.waitOnFuture(ScheduledExecutors.nonPeriodicTasks.schedule(runnable, 0, TimeUnit.MILLISECONDS));
+    }
+
+    @VisibleForTesting
+    public static void pauseDeletions(boolean stop)
+    {
+        blocker.block(stop);
     }
 }
 

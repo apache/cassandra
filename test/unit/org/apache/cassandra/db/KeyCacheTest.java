@@ -43,7 +43,6 @@ import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.locator.SimpleStrategy;
 import org.apache.cassandra.service.CacheService;
 import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.utils.FBUtilities;
 
 import org.apache.cassandra.utils.concurrent.Refs;
 import static org.junit.Assert.assertEquals;
@@ -171,7 +170,7 @@ public class KeyCacheTest
 
         assertKeyCacheSize(2, KEYSPACE1, COLUMN_FAMILY1);
 
-        Set<SSTableReader> readers = cfs.getDataTracker().getSSTables();
+        Set<SSTableReader> readers = cfs.getTracker().getSSTables();
         Refs<SSTableReader> refs = Refs.tryRef(readers);
         if (refs == null)
             throw new IllegalStateException();

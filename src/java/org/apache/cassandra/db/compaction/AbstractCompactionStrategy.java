@@ -30,6 +30,7 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Memtable;
+import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.ConfigurationException;
@@ -175,9 +176,9 @@ public abstract class AbstractCompactionStrategy
      */
     public abstract AbstractCompactionTask getUserDefinedTask(Collection<SSTableReader> sstables, final int gcBefore);
 
-    public AbstractCompactionTask getCompactionTask(Collection<SSTableReader> sstables, final int gcBefore, long maxSSTableBytes)
+    public AbstractCompactionTask getCompactionTask(LifecycleTransaction txn, final int gcBefore, long maxSSTableBytes)
     {
-        return new CompactionTask(cfs, sstables, gcBefore, false);
+        return new CompactionTask(cfs, txn, gcBefore, false);
     }
 
     /**
@@ -231,7 +232,7 @@ public abstract class AbstractCompactionStrategy
      */
     public void replaceFlushed(Memtable memtable, SSTableReader sstable)
     {
-        cfs.getDataTracker().replaceFlushed(memtable, sstable);
+        cfs.getTracker().replaceFlushed(memtable, sstable);
         if (sstable != null)
             CompactionManager.instance.submitBackground(cfs);
     }

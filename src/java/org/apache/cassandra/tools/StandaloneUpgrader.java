@@ -29,7 +29,9 @@ import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.compaction.CompactionManager;
+import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.db.compaction.Upgrader;
+import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.io.sstable.*;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.OutputHandler;
@@ -98,9 +100,9 @@ public class StandaloneUpgrader
 
             for (SSTableReader sstable : readers)
             {
-                try
+                try (LifecycleTransaction txn = LifecycleTransaction.offline(OperationType.UPGRADE_SSTABLES, sstable))
                 {
-                    Upgrader upgrader = new Upgrader(cfs, sstable, handler);
+                    Upgrader upgrader = new Upgrader(cfs, txn, handler);
                     upgrader.upgrade();
 
                     if (!options.keepSource)

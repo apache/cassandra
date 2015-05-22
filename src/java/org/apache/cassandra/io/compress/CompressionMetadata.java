@@ -403,7 +403,7 @@ public class CompressionMetadata
             count = chunkIndex;
         }
 
-        protected Throwable doCleanup(Throwable failed)
+        protected Throwable doPreCleanup(Throwable failed)
         {
             return offsets.close(failed);
         }

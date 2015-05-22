@@ -27,10 +27,12 @@ import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.commons.cli.*;
 
 import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.compaction.SSTableSplitter;
+import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.io.sstable.*;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.Pair;
@@ -145,12 +147,11 @@ public class StandaloneSplitter
             if (options.snapshot)
                 System.out.println(String.format("Pre-split sstables snapshotted into snapshot %s", snapshotName));
 
-            cfs.getDataTracker().markCompacting(sstables, false, true);
             for (SSTableReader sstable : sstables)
             {
-                try
+                try (LifecycleTransaction transaction = LifecycleTransaction.offline(OperationType.UNKNOWN, sstable))
                 {
-                    new SSTableSplitter(cfs, sstable, options.sizeInMB).split();
+                    new SSTableSplitter(cfs, transaction, options.sizeInMB).split();
 
                     // Remove the sstable (it's been copied by split and snapshotted)
                     sstable.markObsolete();

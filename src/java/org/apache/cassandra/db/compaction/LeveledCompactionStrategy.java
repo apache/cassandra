@@ -33,6 +33,7 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.columniterator.OnDiskAtomIterator;
+import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.ConfigurationException;
@@ -115,9 +116,10 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy
                 op = OperationType.COMPACTION;
             }
 
-            if (cfs.getDataTracker().markCompacting(candidate.sstables))
+            LifecycleTransaction txn = cfs.getTracker().tryModify(candidate.sstables, OperationType.COMPACTION);
+            if (txn != null)
             {
-                LeveledCompactionTask newTask = new LeveledCompactionTask(cfs, candidate.sstables, candidate.level, gcBefore, candidate.maxSSTableBytes, false);
+                LeveledCompactionTask newTask = new LeveledCompactionTask(cfs, txn, candidate.level, gcBefore, candidate.maxSSTableBytes, false);
                 newTask.setCompactionType(op);
                 return newTask;
             }
@@ -131,9 +133,10 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy
         Iterable<SSTableReader> filteredSSTables = filterSuspectSSTables(sstables);
         if (Iterables.isEmpty(sstables))
             return null;
-        if (!cfs.getDataTracker().markCompacting(filteredSSTables))
+        LifecycleTransaction txn = cfs.getTracker().tryModify(filteredSSTables, OperationType.COMPACTION);
+        if (txn == null)
             return null;
-        return Arrays.<AbstractCompactionTask>asList(new LeveledCompactionTask(cfs, filteredSSTables, 0, gcBefore, getMaxSSTableBytes(), true));
+        return Arrays.<AbstractCompactionTask>asList(new LeveledCompactionTask(cfs, txn, 0, gcBefore, getMaxSSTableBytes(), true));
 
     }
 
@@ -144,19 +147,19 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy
     }
 
     @Override
-    public AbstractCompactionTask getCompactionTask(Collection<SSTableReader> sstables, int gcBefore, long maxSSTableBytes)
+    public AbstractCompactionTask getCompactionTask(LifecycleTransaction txn, int gcBefore, long maxSSTableBytes)
     {
-        assert sstables.size() > 0;
+        assert txn.originals().size() > 0;
         int level = -1;
         // if all sstables are in the same level, we can set that level:
-        for (SSTableReader sstable : sstables)
+        for (SSTableReader sstable : txn.originals())
         {
             if (level == -1)
                 level = sstable.getSSTableLevel();
             if (level != sstable.getSSTableLevel())
                 level = 0;
         }
-        return new LeveledCompactionTask(cfs, sstables, level, gcBefore, maxSSTableBytes, false);
+        return new LeveledCompactionTask(cfs, txn, level, gcBefore, maxSSTableBytes, false);
     }
 
     /**
@@ -226,7 +229,7 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy
         {
             for (Integer level : byLevel.keySet())
             {
-                // level can be -1 when sstables are added to DataTracker but not to LeveledManifest
+                // level can be -1 when sstables are added to Tracker but not to LeveledManifest
                 // since we don't know which level those sstable belong yet, we simply do the same as L0 sstables.
                 if (level <= 0)
                 {
@@ -402,7 +405,7 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy
             if (sstables.isEmpty())
                 continue;
 
-            Set<SSTableReader> compacting = cfs.getDataTracker().getCompacting();
+            Set<SSTableReader> compacting = cfs.getTracker().getCompacting();
             for (SSTableReader sstable : sstables)
             {
                 if (sstable.getEstimatedDroppableTombstoneRatio(gcBefore) <= tombstoneThreshold)
