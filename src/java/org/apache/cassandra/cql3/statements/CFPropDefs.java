@@ -216,8 +216,8 @@ public class CFPropDefs extends PropertyDefinitions
     {
         Integer val = getInt(field, null);
         if (val != null && val < minimumValue)
-            throw new ConfigurationException(String.format("%s cannot be smaller than %s, (default %s)",
-                                                            field, minimumValue, defaultValue));
+            throw new ConfigurationException(String.format("%s cannot be smaller than %d, (default %d), but was %d",
+                                                            field, minimumValue, defaultValue, Integer.valueOf(val)));
 
     }
 }
