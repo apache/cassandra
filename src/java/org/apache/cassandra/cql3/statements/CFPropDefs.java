@@ -123,9 +123,9 @@ public class CFPropDefs extends PropertyDefinitions
         Integer minIndexInterval = getInt(KW_MIN_INDEX_INTERVAL, null);
         Integer maxIndexInterval = getInt(KW_MAX_INDEX_INTERVAL, null);
         if (minIndexInterval != null && minIndexInterval < 1)
-            throw new ConfigurationException(KW_MIN_INDEX_INTERVAL + " must be greater than 0");
+            throw new ConfigurationException(KW_MIN_INDEX_INTERVAL + " must be greater than 0, but was " + minIndexInterval);
         if (maxIndexInterval != null && minIndexInterval != null && maxIndexInterval < minIndexInterval)
-            throw new ConfigurationException(KW_MAX_INDEX_INTERVAL + " must be greater than " + KW_MIN_INDEX_INTERVAL);
+            throw new ConfigurationException(KW_MAX_INDEX_INTERVAL + " must be greater than " + KW_MIN_INDEX_INTERVAL + ", but was " + maxIndexInterval);
 
         SpeculativeRetry.fromString(getString(KW_SPECULATIVE_RETRY, SpeculativeRetry.RetryType.NONE.name()));
     }
@@ -161,7 +161,7 @@ public class CFPropDefs extends PropertyDefinitions
         else if (val instanceof String) // legacy syntax
         {
             options = CachingOptions.fromString(getSimple(KW_CACHING));
-            logger.warn("Setting caching options with deprecated syntax.");
+            logger.warn("Setting caching options with deprecated syntax. {}", val);
         }
         return options;
     }
@@ -209,7 +209,7 @@ public class CFPropDefs extends PropertyDefinitions
     @Override
     public String toString()
     {
-        return String.format("CFPropDefs(%s)", properties.toString());
+        return String.format("CFPropDefs(%s)", properties);
     }
 
     private void validateMinimumInt(String field, int minimumValue, int defaultValue) throws SyntaxException, ConfigurationException
@@ -217,7 +217,7 @@ public class CFPropDefs extends PropertyDefinitions
         Integer val = getInt(field, null);
         if (val != null && val < minimumValue)
             throw new ConfigurationException(String.format("%s cannot be smaller than %d, (default %d), but was %d",
-                                                            field, minimumValue, defaultValue, Integer.valueOf(val)));
+                                                            field, minimumValue, defaultValue, val));
 
     }
 }
