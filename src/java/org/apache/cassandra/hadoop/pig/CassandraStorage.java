@@ -114,7 +114,6 @@ public class CassandraStorage extends LoadFunc implements StoreFuncInterface, Lo
     // wide row hacks
     private ByteBuffer lastKey;
     private Map<ByteBuffer, Cell> lastRow;
-    private boolean hasNext = true;
 
     public CassandraStorage()
     {
@@ -135,6 +134,7 @@ public class CassandraStorage extends LoadFunc implements StoreFuncInterface, Lo
         return limit;
     }
 
+    @Override
     public void prepareToRead(RecordReader reader, PigSplit split)
     {
         this.reader = reader;
@@ -151,7 +151,7 @@ public class CassandraStorage extends LoadFunc implements StoreFuncInterface, Lo
         {
             while(true)
             {
-                hasNext = reader.nextKeyValue();
+                boolean hasNext = reader.nextKeyValue();
                 if (!hasNext)
                 {
                     if (tuple == null)
