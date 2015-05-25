@@ -50,6 +50,9 @@ public class SSTableIdentityIterator implements Comparable<SSTableIdentityIterat
     private final boolean validateColumns;
     private final String filename;
 
+    // Not every SSTableIdentifyIterator is attached to a sstable, so this can be null.
+    private final SSTableReader sstable;
+
     /**
      * Used to iterate through the columns of a row.
      * @param sstable SSTable we are reading ffrom.
@@ -96,6 +99,7 @@ public class SSTableIdentityIterator implements Comparable<SSTableIdentityIterat
         this.flag = flag;
         this.validateColumns = checkData;
         this.dataVersion = sstable == null ? Descriptor.Version.CURRENT : sstable.descriptor.version;
+        this.sstable = sstable;
 
         try
         {
@@ -132,9 +136,15 @@ public class SSTableIdentityIterator implements Comparable<SSTableIdentityIterat
         {
             // catch here b/c atomIterator is an AbstractIterator; hasNext reads the value
             if (e.getCause() instanceof IOException)
+            {
+                if (sstable != null)
+                    sstable.markSuspect();
                 throw new CorruptSSTableException((IOException)e.getCause(), filename);
+            }
             else
+            {
                 throw e;
+            }
         }
     }
 
@@ -181,22 +191,39 @@ public class SSTableIdentityIterator implements Comparable<SSTableIdentityIterat
     {
         ColumnFamily cf = columnFamily.cloneMeShallow(containerFactory, false);
         // since we already read column count, just pass that value and continue deserialization
-        Iterator<OnDiskAtom> iter = cf.metadata().getOnDiskIterator(in, columnCount, flag, expireBefore, dataVersion);
-        while (iter.hasNext())
-            cf.addAtom(iter.next());
-
-        if (validateColumns)
+        try
         {
-            try
+            Iterator<OnDiskAtom> iter = cf.metadata().getOnDiskIterator(in, columnCount, flag, expireBefore, dataVersion);
+            while (iter.hasNext())
+                cf.addAtom(iter.next());
+
+            if (validateColumns)
             {
-                cf.metadata().validateColumns(cf);
+                try
+                {
+                    cf.metadata().validateColumns(cf);
+                }
+                catch (MarshalException e)
+                {
+                    throw new RuntimeException("Error validating row " + key, e);
+                }
             }
-            catch (MarshalException e)
+            return cf;
+        }
+        catch (IOError e)
+        {
+            // catch here b/c atomIterator is an AbstractIterator; hasNext reads the value
+            if (e.getCause() instanceof IOException)
             {
-                throw new RuntimeException("Error validating row " + key, e);
+                if (sstable != null)
+                    sstable.markSuspect();
+                throw new CorruptSSTableException((IOException)e.getCause(), filename);
+            }
+            else
+            {
+                throw e;
             }
         }
-        return cf;
     }
 
     public int compareTo(SSTableIdentityIterator o)
