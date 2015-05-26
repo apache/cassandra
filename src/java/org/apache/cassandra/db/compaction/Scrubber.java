@@ -191,7 +191,7 @@ public class Scrubber implements Closeable
                     }
 
                     if (dataSizeFromIndex > dataFile.length())
-                        throw new IOError(new IOException("Impossible row size " + dataSizeFromIndex));
+                        throw new IOError(new IOException("Impossible row size (greater than file length): " + dataSizeFromIndex));
 
                     if (dataStart != dataStartFromIndex)
                         outputHandler.warn(String.format("Data file row position %d differs from index file row position %d", dataStart, dataStartFromIndex));
