@@ -55,6 +55,14 @@ public class IncomingFileMessage extends StreamMessage
             }
             catch (Throwable t)
             {
+                // Throwable can be Runtime error containing IOException.
+                // In that case we don't want to retry.
+                Throwable cause = t;
+                while ((cause = cause.getCause()) != null)
+                {
+                   if (cause instanceof IOException)
+                       throw (IOException) cause;
+                }
                 JVMStabilityInspector.inspectThrowable(t);
                 // Otherwise, we can retry
                 session.doRetry(header, t);
