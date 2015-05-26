@@ -1116,6 +1116,7 @@
     <attribute name="exclude" default="" />
     <attribute name="filelist" default="" />
     <attribute name="poffset" default="0"/>
+    <attribute name="outsubdir" default=""/>
     
     <attribute name="usejacoco" default="no"/>
     <sequential>
@@ -1127,6 +1128,7 @@
       <echo message="running @{suitename} tests"/>
       <mkdir dir="${build.test.dir}/cassandra"/>
       <mkdir dir="${build.test.dir}/output"/>
+      <mkdir dir="${build.test.dir}/output/@{outsubdir}"/>
       <junit fork="on" forkmode="@{forkmode}" failureproperty="testfailed" maxmemory="1024m" timeout="@{timeout}">
         <sysproperty key="net.sourceforge.cobertura.datafile" file="${cobertura.datafile}"/>
         <formatter type="xml" usefile="true"/>
@@ -1152,14 +1154,14 @@
             <include name="**/*.jar" />
           </fileset>
         </classpath>
-        <batchtest todir="${build.test.dir}/output">
+        <batchtest todir="${build.test.dir}/output/@{outsubdir}">
             <fileset dir="@{inputdir}" includes="@{filter}" excludes="@{exclude}"/>
             <filelist dir="@{inputdir}" files="@{filelist}"/>
         </batchtest>
       </junit>
       <junitreport todir="${build.test.dir}">
         <fileset dir="${build.test.dir}/output">
-          <include name="TEST-*.xml"/>
+          <include name="**/TEST-*.xml"/>
         </fileset>
         <report format="frames" todir="${build.test.dir}/junitreport"/>
       </junitreport>
@@ -1268,7 +1270,7 @@
       <fileset file="${test.conf}/commitlog_compression.yaml"/>
     </concat>
     <echo>Compressed config: ${compressed_yaml}</echo>
-    <testmacro suitename="unit" inputdir="${test.unit.src}" exclude="**/pig/*.java" timeout="${test.timeout}">
+    <testmacro suitename="unit" inputdir="${test.unit.src}" exclude="**/pig/*.java" timeout="${test.timeout}" outsubdir="compression">
       <jvmarg value="-Dlegacy-sstable-root=${test.data}/legacy-sstables"/>
       <jvmarg value="-Dinvalid-legacy-sstable-root=${test.data}/invalid-legacy-sstables"/>
       <jvmarg value="-Dcorrupt-sstable-root=${test.data}/corrupt-sstables"/>
