@@ -70,11 +70,11 @@ public final class SystemKeyspace
     // Used to indicate that there was a previous version written to the legacy (pre 1.2)
     // system.Versions table, but that we cannot read it. Suffice to say, any upgrade should
     // proceed through 1.2.x before upgrading to the current version.
-    public static final SemanticVersion UNREADABLE_VERSION = new SemanticVersion("0.0.0-unknown");
+    public static final CassandraVersion UNREADABLE_VERSION = new CassandraVersion("0.0.0-unknown");
 
     // Used to indicate that no previous version information was found. When encountered, we assume that
     // Cassandra was not previously installed and we're in the process of starting a fresh node.
-    public static final SemanticVersion NULL_VERSION = new SemanticVersion("0.0.0-absent");
+    public static final CassandraVersion NULL_VERSION = new CassandraVersion("0.0.0-absent");
 
     public static final String NAME = "system";
 
@@ -680,19 +680,19 @@ public final class SystemKeyspace
      * @param ep endpoint address to check
      * @return Release version or null if version is unknown.
      */
-    public static SemanticVersion getReleaseVersion(InetAddress ep)
+    public static CassandraVersion getReleaseVersion(InetAddress ep)
     {
         try
         {
             if (FBUtilities.getBroadcastAddress().equals(ep))
             {
-                return new SemanticVersion(FBUtilities.getReleaseVersionString());
+                return new CassandraVersion(FBUtilities.getReleaseVersionString());
             }
             String req = "SELECT release_version FROM system.%s WHERE peer=?";
             UntypedResultSet result = executeInternal(String.format(req, PEERS), ep);
             if (result != null && result.one().has("release_version"))
             {
-                return new SemanticVersion(result.one().getString("release_version"));
+                return new CassandraVersion(result.one().getString("release_version"));
             }
             // version is unknown
             return null;

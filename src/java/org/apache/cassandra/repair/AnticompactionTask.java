@@ -31,7 +31,7 @@ import org.apache.cassandra.net.IAsyncCallbackWithFailure;
 import org.apache.cassandra.net.MessageIn;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.repair.messages.AnticompactionRequest;
-import org.apache.cassandra.utils.SemanticVersion;
+import org.apache.cassandra.utils.CassandraVersion;
 
 public class AnticompactionTask extends AbstractFuture<InetAddress> implements Runnable
 {
@@ -39,7 +39,7 @@ public class AnticompactionTask extends AbstractFuture<InetAddress> implements R
      * Version that anticompaction response is not supported up to.
      * If Cassandra version is more than this, we need to wait for anticompaction response.
      */
-    private static final SemanticVersion VERSION_CHECKER = new SemanticVersion("2.1.5");
+    private static final CassandraVersion VERSION_CHECKER = new CassandraVersion("2.1.5");
 
     private final UUID parentSession;
     private final InetAddress neighbor;
@@ -55,7 +55,7 @@ public class AnticompactionTask extends AbstractFuture<InetAddress> implements R
     public void run()
     {
         AnticompactionRequest acr = new AnticompactionRequest(parentSession, successfulRanges);
-        SemanticVersion peerVersion = SystemKeyspace.getReleaseVersion(neighbor);
+        CassandraVersion peerVersion = SystemKeyspace.getReleaseVersion(neighbor);
         if (peerVersion != null && peerVersion.compareTo(VERSION_CHECKER) > 0)
         {
             MessagingService.instance().sendRR(acr.createMessage(), neighbor, new AnticompactionCallback(this), TimeUnit.DAYS.toMillis(1), true);

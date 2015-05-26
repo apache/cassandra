@@ -43,7 +43,7 @@ import org.apache.cassandra.thrift.ThriftValidation;
 import org.apache.cassandra.tracing.TraceKeyspace;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.JVMStabilityInspector;
-import org.apache.cassandra.utils.SemanticVersion;
+import org.apache.cassandra.utils.CassandraVersion;
 
 /**
  * State related to a client connection.
@@ -51,7 +51,7 @@ import org.apache.cassandra.utils.SemanticVersion;
 public class ClientState
 {
     private static final Logger logger = LoggerFactory.getLogger(ClientState.class);
-    public static final SemanticVersion DEFAULT_CQL_VERSION = org.apache.cassandra.cql3.QueryProcessor.CQL_VERSION;
+    public static final CassandraVersion DEFAULT_CQL_VERSION = org.apache.cassandra.cql3.QueryProcessor.CQL_VERSION;
 
     private static final Set<IResource> READABLE_SYSTEM_RESOURCES = new HashSet<>();
     private static final Set<IResource> PROTECTED_AUTH_RESOURCES = new HashSet<>();
@@ -352,9 +352,9 @@ public class ClientState
         return user;
     }
 
-    public static SemanticVersion[] getCQLSupportedVersion()
+    public static CassandraVersion[] getCQLSupportedVersion()
     {
-        return new SemanticVersion[]{ QueryProcessor.CQL_VERSION };
+        return new CassandraVersion[]{ QueryProcessor.CQL_VERSION };
     }
 
     private Set<Permission> authorize(IResource resource)

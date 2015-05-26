@@ -31,7 +31,7 @@ import org.apache.cassandra.dht.ByteOrderedPartitioner.BytesToken;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.utils.SemanticVersion;
+import org.apache.cassandra.utils.CassandraVersion;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
@@ -110,7 +110,7 @@ public class SystemKeyspaceTest
     private String getOlderVersionString()
     {
         String version = FBUtilities.getReleaseVersionString();
-        SemanticVersion semver = new SemanticVersion(version.contains("-") ? version.substring(0, version.indexOf('-'))
+        CassandraVersion semver = new CassandraVersion(version.contains("-") ? version.substring(0, version.indexOf('-'))
                                                                            : version);
         return (String.format("%s.%s.%s", semver.major - 1, semver.minor, semver.patch));
     }
