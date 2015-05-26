@@ -189,7 +189,7 @@ public class Scrubber implements Closeable
                         throw new IOError(new IOException("Impossible row size " + dataSize));
 
                     if (dataStart != dataStartFromIndex)
-                        outputHandler.warn(String.format("Data file row position %d different from index file row position %d", dataStart, dataSizeFromIndex));
+                        outputHandler.warn(String.format("Data file row position %d differs from index file row position %d", dataStart, dataStartFromIndex));
 
                     if (dataSize != dataSizeFromIndex)
                         outputHandler.warn(String.format("Data file row size %d different from index file row size %d", dataSize, dataSizeFromIndex));
