@@ -173,10 +173,9 @@ public class Scrubber implements Closeable
                     dataSizeFromIndex = nextRowPositionFromIndex - dataStartFromIndex;
                 }
 
-                long dataSize = dataSizeFromIndex;
                 // avoid an NPE if key is null
                 String keyName = key == null ? "(unreadable key)" : ByteBufferUtil.bytesToHex(key.getKey());
-                outputHandler.debug(String.format("row %s is %s bytes", keyName, dataSize));
+                outputHandler.debug(String.format("row %s is %s bytes", keyName, dataSizeFromIndex));
 
                 assert currentIndexKey != null || indexFile.isEOF();
 
@@ -191,14 +190,11 @@ public class Scrubber implements Closeable
                                 ByteBufferUtil.bytesToHex(key.getKey()), ByteBufferUtil.bytesToHex(currentIndexKey))));
                     }
 
-                    if (dataSize > dataFile.length())
-                        throw new IOError(new IOException("Impossible row size " + dataSize));
+                    if (dataSizeFromIndex > dataFile.length())
+                        throw new IOError(new IOException("Impossible row size " + dataSizeFromIndex));
 
                     if (dataStart != dataStartFromIndex)
                         outputHandler.warn(String.format("Data file row position %d differs from index file row position %d", dataStart, dataStartFromIndex));
-
-                    if (dataSize != dataSizeFromIndex)
-                        outputHandler.warn(String.format("Data file row size %d different from index file row size %d", dataSize, dataSizeFromIndex));
 
                     SSTableIdentityIterator atoms = new SSTableIdentityIterator(sstable, dataFile, key, checkData);
 
@@ -222,7 +218,7 @@ public class Scrubber implements Closeable
                     outputHandler.warn("Error reading row (stacktrace follows):", th);
 
                     if (currentIndexKey != null
-                        && (key == null || !key.getKey().equals(currentIndexKey) || dataStart != dataStartFromIndex || dataSize != dataSizeFromIndex))
+                        && (key == null || !key.getKey().equals(currentIndexKey) || dataStart != dataStartFromIndex))
                     {
                         outputHandler.output(String.format("Retrying from row index; data is %s bytes starting at %s",
                                                   dataSizeFromIndex, dataStartFromIndex));
