@@ -142,9 +142,7 @@ public class CompressedSequentialWriterTest extends SequentialWriterTest
 
     private ByteBuffer makeBB(int size)
     {
-        return compressor.useDirectOutputByteBuffers()
-                ? ByteBuffer.allocateDirect(size)
-                : ByteBuffer.allocate(size);
+        return compressor.preferredBufferType().allocate(size);
     }
 
     private final List<TestableCSW> writers = new ArrayList<>();

@@ -638,7 +638,7 @@ public class FBUtilities
         }
     }
 
-    private static final ThreadLocal<byte[]> localDigestBuffer = new ThreadLocal<byte[]>()
+    private static final ThreadLocal<byte[]> threadLocalScratchBuffer = new ThreadLocal<byte[]>()
     {
         @Override
         protected byte[] initialValue()
@@ -646,6 +646,11 @@ public class FBUtilities
             return new byte[CompressionParameters.DEFAULT_CHUNK_LENGTH];
         }
     };
+
+    public static byte[] getThreadLocalScratchBuffer()
+    {
+        return threadLocalScratchBuffer.get();
+    }
 
     //Java 7 has this method but it's private till Java 8. Thanks JDK!
     public static boolean supportsDirectChecksum()
@@ -674,7 +679,7 @@ public class FBUtilities
         }
 
         //Fallback
-        byte[] buffer = localDigestBuffer.get();
+        byte[] buffer = getThreadLocalScratchBuffer();
 
         int remaining;
         while ((remaining = bb.remaining()) > 0)

@@ -30,6 +30,7 @@ import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Random;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ThreadLocalRandom;
@@ -38,7 +39,6 @@ import java.util.concurrent.atomic.AtomicLong;
 
 import junit.framework.Assert;
 
-import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.RateLimiter;
 
 import org.junit.BeforeClass;
@@ -53,7 +53,6 @@ import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.Cell;
 import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.ColumnSerializer;
-import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.io.util.FastByteArrayInputStream;
 
@@ -110,7 +109,7 @@ public class CommitLogStressTest
             CommitLogStressTest tester = new CommitLogStressTest();
             tester.testFixedSize();
         }
-        catch (Exception e)
+        catch (Throwable e)
         {
             e.printStackTrace(System.err);
         }
@@ -272,7 +271,7 @@ public class CommitLogStressTest
     {
         stop = false;
         for (int ii = 0; ii < NUM_THREADS; ii++) {
-            final CommitlogExecutor t = new CommitlogExecutor(commitLog);
+            final CommitlogExecutor t = new CommitlogExecutor(commitLog, new Random(ii));
             threads.add(t);
             t.start();
         }
@@ -313,7 +312,7 @@ public class CommitLogStressTest
         return maxMemory / (1024 * 1024);
     }
 
-    public static ByteBuffer randomBytes(int quantity, ThreadLocalRandom tlr) {
+    public static ByteBuffer randomBytes(int quantity, Random tlr) {
         ByteBuffer slice = ByteBuffer.allocate(quantity);
         ByteBuffer source = dataSource.duplicate();
         source.position(tlr.nextInt(source.capacity() - quantity));
@@ -329,27 +328,29 @@ public class CommitLogStressTest
         int cells = 0;
         int dataSize = 0;
         final CommitLog commitLog;
+        final Random random;
 
         volatile ReplayPosition rp;
 
-        public CommitlogExecutor(CommitLog commitLog)
+        public CommitlogExecutor(CommitLog commitLog, Random rand)
         {
             this.commitLog = commitLog;
+            this.random = rand;
         }
 
         public void run() {
             RateLimiter rl = rateLimit != 0 ? RateLimiter.create(rateLimit) : null;
-            final ThreadLocalRandom tlr = ThreadLocalRandom.current();
+            final Random rand = random != null ? random : ThreadLocalRandom.current();
             while (!stop) {
                 if (rl != null)
                     rl.acquire();
                 String ks = "Keyspace1";
-                ByteBuffer key = randomBytes(16, tlr);
+                ByteBuffer key = randomBytes(16, rand);
                 Mutation mutation = new Mutation(ks, key);
 
                 for (int ii = 0; ii < numCells; ii++) {
-                    int sz = randomSize ? tlr.nextInt(cellSize) : cellSize;
-                    ByteBuffer bytes = randomBytes(sz, tlr);
+                    int sz = randomSize ? rand.nextInt(cellSize) : cellSize;
+                    ByteBuffer bytes = randomBytes(sz, rand);
                     mutation.add("Standard1", Util.cellname("name" + ii), bytes,
                             System.currentTimeMillis());
                     hash = hash(hash, bytes);
