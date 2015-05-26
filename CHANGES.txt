@@ -5,6 +5,7 @@
  * Push correct protocol notification for DROP INDEX (CASSANDRA-9310)
  * token-generator - generated tokens too long (CASSANDRA-9300)
  * Add option not to validate atoms during scrub (CASSANDRA-9406)
+ * Backport CASSANDRA-3569 (CASSANDRA-9455)
 
 
 2.0.15:
