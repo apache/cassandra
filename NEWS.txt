@@ -18,6 +18,9 @@ using the provided 'sstableupgrade' tool.
 
 New features
 ------------
+   - Windows is now a supported platform. Powershell execution for startup scripts
+     is highly recommended and can be enabled via an administrator command-prompt
+     with: 'powershell set-executionpolicy unrestricted'
    - It is now possible to do major compactions when using leveled compaction.
      Doing that will take all sstables and compact them out in levels. The
      levels will be non overlapping so doing this will still not be something
@@ -27,7 +30,7 @@ New features
      This might be a bit better than old major compactions which created one big
      file on disk.
    - A new tool has been added bin/sstableverify that checks for errors/bitrot
-     in all sstables.  Unlike scrub, this is a non-invasive tool. 
+     in all sstables.  Unlike scrub, this is a non-invasive tool.
    - Authentication & Authorization APIs have been updated to introduce
      roles. Roles and Permissions granted to them are inherited, supporting
      role based access control. The role concept supercedes that of users
@@ -125,11 +128,11 @@ Upgrading
 ---------
     - The option to omit cold sstables with size tiered compaction has been
       removed - it is almost always better to use date tiered compaction for
-      workloads that have cold data. 
+      workloads that have cold data.
 
 2.1.4
 =====
-The default JMX config now listens to localhost only. You must enable 
+The default JMX config now listens to localhost only. You must enable
 the other JMX flags in cassandra-env.sh manually.
 
 2.1.3
@@ -195,12 +198,12 @@ New features
      using LCS, or any data not repaired in your first incremental repair
      will be put back in L0.
    - Bootstrapping now ensures that range movements are consistent,
-     meaning the data for the new node is taken from the node that is no 
+     meaning the data for the new node is taken from the node that is no
      longer a responsible for that range of keys.
      If you want the old behavior (due to a lost node perhaps)
      you can set the following property (-Dcassandra.consistent.rangemovement=false)
-   - It is now possible to use quoted identifiers in triggers' names. 
-     WARNING: if you previously used triggers with capital letters in their 
+   - It is now possible to use quoted identifiers in triggers' names.
+     WARNING: if you previously used triggers with capital letters in their
      names, then you must quote them from now on.
    - Improved stress tool (http://goo.gl/OTNqiQ)
    - New incremental repair option (http://goo.gl/MjohJp, http://goo.gl/f8jSme)
@@ -257,7 +260,7 @@ New features
     - If you are using Leveled Compaction, you can now disable doing size-tiered
       compaction in L0 by starting Cassandra with -Dcassandra.disable_stcs_in_l0
       (see CASSANDRA-6621 for details).
-    - Shuffle and taketoken have been removed.  For clusters that choose to 
+    - Shuffle and taketoken have been removed.  For clusters that choose to
       upgrade to vnodes, creating a new datacenter with vnodes and migrating is
       recommended. See http://goo.gl/Sna2S1 for further information.
 
@@ -434,7 +437,7 @@ Operations
     - VNodes are enabled by default in cassandra.yaml.  initial_token
       for non-vnode deployments has been removed from the example
       yaml, but is still respected if specified.
-    - Major compactions, cleanup, scrub, and upgradesstables will interrupt 
+    - Major compactions, cleanup, scrub, and upgradesstables will interrupt
       any in-progress compactions (but not repair validations) when invoked.
     - Disabling autocompactions by setting min/max compaction threshold to 0
       has been deprecated, instead, use the nodetool commands 'disableautocompaction'
@@ -451,7 +454,7 @@ Operations
       use DESCRIBE FULL SCHEMA if you need the schema of system_* keyspaces.
     - CQL2 has been deprecated, and will be removed entirely in 2.2. See
       CASSANDRA-5918 for details.
-    - Commit log archiver now assumes the client time stamp to be in microsecond 
+    - Commit log archiver now assumes the client time stamp to be in microsecond
       precision, during restore. Please refer to commitlog_archiving.properties.
 
 
