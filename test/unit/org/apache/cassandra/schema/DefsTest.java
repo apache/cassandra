@@ -49,6 +49,8 @@ import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
+import com.google.common.base.Supplier;
+
 @RunWith(OrderedJUnit4ClassRunner.class)
 public class DefsTest
 {
@@ -232,7 +234,7 @@ public class DefsTest
         for (int i = 0; i < 100; i++)
             rm.add(cfm.cfName, cellname("col" + i), ByteBufferUtil.bytes("anyvalue"), 1L);
         rm.applyUnsafe();
-        ColumnFamilyStore store = Keyspace.open(cfm.ksName).getColumnFamilyStore(cfm.cfName);
+        final ColumnFamilyStore store = Keyspace.open(cfm.ksName).getColumnFamilyStore(cfm.cfName);
         Assert.assertNotNull(store);
         store.forceBlockingFlush();
         Assert.assertTrue(store.directories.sstableLister().list().size() > 0);
@@ -256,11 +258,19 @@ public class DefsTest
         Assert.assertFalse("This mutation should have failed since the CF no longer exists.", success);
 
         // verify that the files are gone.
-        for (File file : store.directories.sstableLister().listFiles())
-        {
-            if (file.getPath().endsWith("Data.db") && !new File(file.getPath().replace("Data.db", "Compacted")).exists())
-                throw new AssertionError("undeleted file " + file);
-        }
+        Supplier<Object> lambda = new Supplier<Object>() {
+            @Override
+            public Boolean get() {
+                for (File file : store.directories.sstableLister().listFiles())
+                {
+                    if (file.getPath().endsWith("Data.db") && !new File(file.getPath().replace("Data.db", "Compacted")).exists())
+                        return false;
+                }
+                return true;
+            }
+        };
+        Util.spinAssertEquals(true, lambda, 30);
+
     }
 
     @Test

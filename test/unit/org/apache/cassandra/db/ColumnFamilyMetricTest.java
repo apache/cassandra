@@ -22,12 +22,14 @@ import java.util.Collection;
 
 import org.junit.BeforeClass;
 import org.junit.Test;
-
 import org.apache.cassandra.SchemaLoader;
+import org.apache.cassandra.Util;
 import org.apache.cassandra.config.KSMetaData;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.locator.SimpleStrategy;
 import org.apache.cassandra.utils.ByteBufferUtil;
+
+import com.google.common.base.Supplier;
 
 import static org.junit.Assert.assertEquals;
 import static org.apache.cassandra.Util.cellname;
@@ -48,7 +50,7 @@ public class ColumnFamilyMetricTest
     public void testSizeMetric()
     {
         Keyspace keyspace = Keyspace.open("Keyspace1");
-        ColumnFamilyStore store = keyspace.getColumnFamilyStore("Standard2");
+        final ColumnFamilyStore store = keyspace.getColumnFamilyStore("Standard2");
         store.disableAutoCompaction();
 
         store.truncateBlocking();
@@ -78,10 +80,27 @@ public class ColumnFamilyMetricTest
         store.truncateBlocking();
 
         // after truncate, size metrics should be down to 0
-        assertEquals(0, store.metric.liveDiskSpaceUsed.getCount());
-        assertEquals(0, store.metric.totalDiskSpaceUsed.getCount());
+        Util.spinAssertEquals(
+                0L,
+                new Supplier<Object>()
+                {
+                    public Long get()
+                    {
+                        return store.metric.liveDiskSpaceUsed.getCount();
+                    }
+                },
+                30);
+        Util.spinAssertEquals(
+                0L,
+                new Supplier<Object>()
+                {
+                    public Long get()
+                    {
+                        return store.metric.totalDiskSpaceUsed.getCount();
+                    }
+                },
+                30);
 
         store.enableAutoCompaction();
     }
-
 }

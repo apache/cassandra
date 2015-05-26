@@ -262,6 +262,7 @@ public class SSTableRewriterTest extends SchemaLoader
         SSTableReader s = writeFile(cfs, 1000);
         cfs.addSSTable(s);
         long startStorageMetricsLoad = StorageMetrics.load.getCount();
+        long sBytesOnDisk = s.bytesOnDisk();
         Set<SSTableReader> compacting = Sets.newHashSet(s);
         SSTableRewriter.overrideOpenInterval(10000000);
 
@@ -292,7 +293,7 @@ public class SSTableRewriterTest extends SchemaLoader
         for (SSTableReader x : cfs.getSSTables())
             sum += x.bytesOnDisk();
         assertEquals(sum, cfs.metric.liveDiskSpaceUsed.getCount());
-        assertEquals(startStorageMetricsLoad - s.bytesOnDisk() + sum, StorageMetrics.load.getCount());
+        assertEquals(startStorageMetricsLoad - sBytesOnDisk + sum, StorageMetrics.load.getCount());
         assertEquals(files, sstables.size());
         assertEquals(files, cfs.getSSTables().size());
         SSTableDeletingTask.waitForDeletions();

@@ -29,6 +29,7 @@ import java.util.*;
 import java.util.concurrent.Callable;
 import java.util.concurrent.Future;
 
+import com.google.common.base.Supplier;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 
@@ -67,6 +68,7 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.CounterId;
 import org.apache.hadoop.fs.FileUtil;
 
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 public class Util
@@ -378,5 +380,18 @@ public class Util
         Composite startName = CellNames.simpleDense(ByteBufferUtil.bytes(start));
         Composite endName = CellNames.simpleDense(ByteBufferUtil.bytes(finish));
         return new RangeTombstone(startName, endName, timestamp , localtime);
+    }
+
+
+    public static void spinAssertEquals(Object expected, Supplier<Object> s, int timeoutInSeconds)
+    {
+        long now = System.currentTimeMillis();
+        while (System.currentTimeMillis() - now < now + (1000 * timeoutInSeconds))
+        {
+            if (s.get().equals(expected))
+                break;
+            Thread.yield();
+        }
+        assertEquals(expected, s.get());
     }
 }

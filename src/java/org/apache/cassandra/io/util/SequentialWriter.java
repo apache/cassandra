@@ -36,6 +36,7 @@ import org.apache.cassandra.utils.CLibrary;
 import org.apache.cassandra.utils.concurrent.Transactional;
 
 import static org.apache.cassandra.utils.Throwables.merge;
+import org.apache.cassandra.utils.SyncUtil;
 
 /**
  * Adds buffering, mark, and fsyncing to OutputStream.  We always fsync on close; we may also
@@ -227,7 +228,7 @@ public class SequentialWriter extends OutputStream implements WritableByteChanne
     {
         try
         {
-            channel.force(false);
+            SyncUtil.force(channel, false);
         }
         catch (IOException e)
         {
@@ -244,7 +245,7 @@ public class SequentialWriter extends OutputStream implements WritableByteChanne
 
             if (!directorySynced)
             {
-                CLibrary.trySync(directoryFD);
+                SyncUtil.trySync(directoryFD);
                 directorySynced = true;
             }
 

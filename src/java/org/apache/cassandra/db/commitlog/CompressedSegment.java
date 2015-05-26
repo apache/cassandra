@@ -27,6 +27,7 @@ import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.io.compress.BufferType;
 import org.apache.cassandra.io.compress.ICompressor;
 import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.utils.SyncUtil;
 
 /*
  * Compressed commit log segment. Provides an in-memory buffer for the mutation threads. On sync compresses the written
@@ -120,7 +121,7 @@ public class CompressedSegment extends CommitLogSegment
             // Protected by synchronization on CommitLogSegment.sync().
             writeSyncMarker(compressedBuffer, 0, (int) channel.position(), (int) channel.position() + compressedBuffer.remaining());
             channel.write(compressedBuffer);
-            channel.force(true);
+            SyncUtil.force(channel, true);
         }
         catch (Exception e)
         {
