@@ -56,7 +56,7 @@ import org.github.jamm.MemoryMeter;
 
 public class QueryProcessor implements QueryHandler
 {
-    public static final SemanticVersion CQL_VERSION = new SemanticVersion("3.2.0");
+    public static final CassandraVersion CQL_VERSION = new CassandraVersion("3.2.0");
 
     public static final QueryProcessor instance = new QueryProcessor();
 

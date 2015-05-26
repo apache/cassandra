@@ -17,23 +17,23 @@
  */
 package org.apache.cassandra.utils;
 
-import java.util.regex.Pattern;
-import java.util.regex.Matcher;
 import java.util.Arrays;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
-import org.apache.commons.lang3.StringUtils;
 import com.google.common.base.Objects;
+import org.apache.commons.lang3.StringUtils;
 
 /**
- * Implements semantic versioning as defined at http://semver.org/.
- *
- * Note: The following code uses a slight variation from the document above in
- * that it doesn't allow dashes in pre-release and build identifier.
+ * Implements versioning used in Cassandra and CQL.
+ * <p/>
+ * Note: The following code uses a slight variation from the semver document (http://semver.org).
  */
-public class SemanticVersion implements Comparable<SemanticVersion>
+public class CassandraVersion implements Comparable<CassandraVersion>
 {
     private static final String VERSION_REGEXP = "(\\d+)\\.(\\d+)\\.(\\d+)(\\-[.\\w]+)?([.+][.\\w]+)?";
     private static final Pattern pattern = Pattern.compile(VERSION_REGEXP);
+    private static final Pattern SNAPSHOT = Pattern.compile("-SNAPSHOT");
 
     public final int major;
     public final int minor;
@@ -42,7 +42,7 @@ public class SemanticVersion implements Comparable<SemanticVersion>
     private final String[] preRelease;
     private final String[] build;
 
-    private SemanticVersion(int major, int minor, int patch, String[] preRelease, String[] build)
+    private CassandraVersion(int major, int minor, int patch, String[] preRelease, String[] build)
     {
         this.major = major;
         this.minor = minor;
@@ -52,17 +52,18 @@ public class SemanticVersion implements Comparable<SemanticVersion>
     }
 
     /**
-     * Parse a semantic version from a string.
+     * Parse a version from a string.
      *
      * @param version the string to parse
      * @throws IllegalArgumentException if the provided string does not
-     * represent a semantic version
+     *                                  represent a version
      */
-    public SemanticVersion(String version)
+    public CassandraVersion(String version)
     {
-        Matcher matcher = pattern.matcher(version);
+        String stripped = SNAPSHOT.matcher(version).replaceFirst("");
+        Matcher matcher = pattern.matcher(stripped);
         if (!matcher.matches())
-            throw new IllegalArgumentException("Invalid version value: " + version + " (see http://semver.org/ for details)");
+            throw new IllegalArgumentException("Invalid version value: " + version);
 
         try
         {
@@ -73,13 +74,12 @@ public class SemanticVersion implements Comparable<SemanticVersion>
             String pr = matcher.group(4);
             String bld = matcher.group(5);
 
-            this.preRelease = pr == null || pr.isEmpty() ? null : parseIdentifiers(version, pr);
-            this.build = bld == null || bld.isEmpty() ? null : parseIdentifiers(version, bld);
-
+            this.preRelease = pr == null || pr.isEmpty() ? null : parseIdentifiers(stripped, pr);
+            this.build = bld == null || bld.isEmpty() ? null : parseIdentifiers(stripped, bld);
         }
         catch (NumberFormatException e)
         {
-            throw new IllegalArgumentException("Invalid version value: " + version + " (see http://semver.org/ for details)");
+            throw new IllegalArgumentException("Invalid version value: " + version);
         }
     }
 
@@ -91,12 +91,12 @@ public class SemanticVersion implements Comparable<SemanticVersion>
         for (String part : parts)
         {
             if (!part.matches("\\w+"))
-                throw new IllegalArgumentException("Invalid version value: " + version + " (see http://semver.org/ for details)");
+                throw new IllegalArgumentException("Invalid version value: " + version);
         }
         return parts;
     }
 
-    public int compareTo(SemanticVersion other)
+    public int compareTo(CassandraVersion other)
     {
         if (major < other.major)
             return -1;
@@ -123,17 +123,17 @@ public class SemanticVersion implements Comparable<SemanticVersion>
     /**
      * Returns a version that is backward compatible with this version amongst a list
      * of provided version, or null if none can be found.
-     *
+     * <p/>
      * For instance:
-     *   "2.0.0".findSupportingVersion("2.0.0", "3.0.0") == "2.0.0"
-     *   "2.0.0".findSupportingVersion("2.1.3", "3.0.0") == "2.1.3"
-     *   "2.0.0".findSupportingVersion("3.0.0") == null
-     *   "2.0.3".findSupportingVersion("2.0.0") == "2.0.0"
-     *   "2.1.0".findSupportingVersion("2.0.0") == null
+     * "2.0.0".findSupportingVersion("2.0.0", "3.0.0") == "2.0.0"
+     * "2.0.0".findSupportingVersion("2.1.3", "3.0.0") == "2.1.3"
+     * "2.0.0".findSupportingVersion("3.0.0") == null
+     * "2.0.3".findSupportingVersion("2.0.0") == "2.0.0"
+     * "2.1.0".findSupportingVersion("2.0.0") == null
      */
-    public SemanticVersion findSupportingVersion(SemanticVersion... versions)
+    public CassandraVersion findSupportingVersion(CassandraVersion... versions)
     {
-        for (SemanticVersion version : versions)
+        for (CassandraVersion version : versions)
         {
             if (isSupportedBy(version))
                 return version;
@@ -141,7 +141,7 @@ public class SemanticVersion implements Comparable<SemanticVersion>
         return null;
     }
 
-    public boolean isSupportedBy(SemanticVersion version)
+    public boolean isSupportedBy(CassandraVersion version)
     {
         return major == version.major && this.compareTo(version) <= 0;
     }
@@ -201,14 +201,14 @@ public class SemanticVersion implements Comparable<SemanticVersion>
     @Override
     public boolean equals(Object o)
     {
-        if(!(o instanceof SemanticVersion))
+        if (!(o instanceof CassandraVersion))
             return false;
-        SemanticVersion that = (SemanticVersion)o;
+        CassandraVersion that = (CassandraVersion) o;
         return major == that.major
-            && minor == that.minor
-            && patch == that.patch
-            && Arrays.equals(preRelease, that.preRelease)
-            && Arrays.equals(build, that.build);
+               && minor == that.minor
+               && patch == that.patch
+               && Arrays.equals(preRelease, that.preRelease)
+               && Arrays.equals(build, that.build);
     }
 
     @Override

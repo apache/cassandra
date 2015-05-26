@@ -25,7 +25,7 @@ import io.netty.buffer.ByteBuf;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.transport.*;
-import org.apache.cassandra.utils.SemanticVersion;
+import org.apache.cassandra.utils.CassandraVersion;
 
 /**
  * The initial message of the protocol.
@@ -70,7 +70,7 @@ public class StartupMessage extends Message.Request
 
         try 
         {
-            if (new SemanticVersion(cqlVersion).compareTo(new SemanticVersion("2.99.0")) < 0)
+            if (new CassandraVersion(cqlVersion).compareTo(new CassandraVersion("2.99.0")) < 0)
                 throw new ProtocolException(String.format("CQL version %s is not supported by the binary protocol (supported version are >= 3.0.0)", cqlVersion));
         }
         catch (IllegalArgumentException e)
