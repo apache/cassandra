@@ -1337,6 +1337,26 @@ public class LegacySchemaTables
         String body = row.getString("body");
         boolean calledOnNullInput = row.getBoolean("called_on_null_input");
 
+        org.apache.cassandra.cql3.functions.Function existing = org.apache.cassandra.cql3.functions.Functions.find(name, argTypes);
+        if (existing instanceof UDFunction)
+        {
+            // This check prevents duplicate compilation of effectively the same UDF.
+            // Duplicate compilation attempts can occur on the coordinator node handling the CREATE FUNCTION
+            // statement, since CreateFunctionStatement needs to execute UDFunction.create but schema migration
+            // also needs that (since it needs to handle its own change).
+            UDFunction udf = (UDFunction) existing;
+            if (udf.argNames().equals(argNames) && // arg types checked in Functions.find call
+                udf.returnType().equals(returnType) &&
+                !udf.isAggregate() &&
+                udf.language().equals(language) &&
+                udf.body().equals(body) &&
+                udf.isCalledOnNullInput() == calledOnNullInput)
+            {
+                logger.debug("Skipping duplicate compilation of already existing UDF {}", name);
+                return udf;
+            }
+        }
+
         try
         {
             return UDFunction.create(name, argNames, argTypes, returnType, calledOnNullInput, language, body);
