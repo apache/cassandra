@@ -21,6 +21,7 @@ package org.apache.cassandra.io.util;
 
 import org.apache.cassandra.service.FileCacheService;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.SyncUtil;
 
 import java.io.File;
 import java.io.FileOutputStream;
@@ -36,7 +37,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.apache.cassandra.Util.expectEOF;
 import static org.apache.cassandra.Util.expectException;
-
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.assertEquals;
 
@@ -425,11 +425,11 @@ public class BufferedRandomAccessFileTest
         try (final RandomAccessReader r = RandomAccessReader.open(new File(tmpFile.getPath())))
         {
             assert tmpFile.getPath().equals(r.getPath());
-    
+
             // Create a mark and move the rw there.
             final FileMark mark = r.mark();
             r.reset(mark);
-    
+
             // Expect this call to succeed.
             r.bytesPastMark(mark);
         }
@@ -469,7 +469,7 @@ public class BufferedRandomAccessFileTest
         try (RandomAccessReader copy = RandomAccessReader.open(new File(r.getPath())))
         {
             ByteBuffer contents = copy.readBytes((int) copy.length());
-    
+
             assertEquals(contents.limit(), data.length);
             assertEquals(ByteBufferUtil.compare(contents, data), 0);
         }
@@ -517,12 +517,12 @@ public class BufferedRandomAccessFileTest
         {
             w.write(new byte[30]);
             w.flush();
-    
+
             try (RandomAccessReader r = RandomAccessReader.open(w))
             {
                 r.seek(10);
                 r.mark();
-        
+
                 r.seek(0);
                 r.bytesPastMark();
             }
@@ -680,7 +680,7 @@ public class BufferedRandomAccessFileTest
         f.deleteOnExit();
         FileOutputStream fout = new FileOutputStream(f);
         fout.write(data);
-        fout.getFD().sync();
+        SyncUtil.sync(fout);
         fout.close();
         return f;
     }

@@ -19,11 +19,12 @@ package org.apache.cassandra.db;
 
 import java.nio.ByteBuffer;
 import java.util.Collection;
+import java.util.function.Supplier;
 
 import org.junit.BeforeClass;
 import org.junit.Test;
-
 import org.apache.cassandra.SchemaLoader;
+import org.apache.cassandra.Util;
 import org.apache.cassandra.config.KSMetaData;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.locator.SimpleStrategy;
@@ -78,10 +79,9 @@ public class ColumnFamilyMetricTest
         store.truncateBlocking();
 
         // after truncate, size metrics should be down to 0
-        assertEquals(0, store.metric.liveDiskSpaceUsed.getCount());
-        assertEquals(0, store.metric.totalDiskSpaceUsed.getCount());
+        Util.spinAssertEquals(0L, () -> store.metric.liveDiskSpaceUsed.getCount(), 30);
+        Util.spinAssertEquals(0L, () -> store.metric.totalDiskSpaceUsed.getCount(), 30);
 
         store.enableAutoCompaction();
     }
-
 }

@@ -20,6 +20,7 @@ package org.apache.cassandra.schema;
 
 import java.io.File;
 import java.nio.ByteBuffer;
+import java.util.function.Supplier;
 
 import org.apache.cassandra.OrderedJUnit4ClassRunner;
 import org.apache.cassandra.SchemaLoader;
@@ -256,11 +257,16 @@ public class DefsTest
         Assert.assertFalse("This mutation should have failed since the CF no longer exists.", success);
 
         // verify that the files are gone.
-        for (File file : store.directories.sstableLister().listFiles())
-        {
-            if (file.getPath().endsWith("Data.db") && !new File(file.getPath().replace("Data.db", "Compacted")).exists())
-                throw new AssertionError("undeleted file " + file);
-        }
+        Supplier<Object> lambda = () -> {
+            for (File file : store.directories.sstableLister().listFiles())
+            {
+                if (file.getPath().endsWith("Data.db") && !new File(file.getPath().replace("Data.db", "Compacted")).exists())
+                    return false;
+            }
+            return true;
+        };
+        Util.spinAssertEquals(true, lambda, 30);
+
     }
 
     @Test

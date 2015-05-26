@@ -51,6 +51,7 @@ import org.apache.cassandra.utils.StreamingHistogram;
 import org.apache.cassandra.utils.concurrent.Transactional;
 
 import static org.apache.cassandra.utils.Throwables.merge;
+import org.apache.cassandra.utils.SyncUtil;
 
 public class BigTableWriter extends SSTableWriter
 {
@@ -513,7 +514,7 @@ public class BigTableWriter extends SSTableWriter
                     DataOutputStreamPlus stream = new BufferedDataOutputStreamPlus(fos);
                     FilterFactory.serialize(bf, stream);
                     stream.flush();
-                    fos.getFD().sync();
+                    SyncUtil.sync(fos);
                     stream.close();
                 }
                 catch (IOException e)

@@ -27,6 +27,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.utils.CLibrary;
+import org.apache.cassandra.utils.SyncUtil;
 
 /*
  * Memory-mapped segment. Maps the destination channel into an appropriately-sized memory-mapped buffer in which the
@@ -91,7 +92,7 @@ public class MemoryMappedSegment extends CommitLogSegment
         writeSyncMarker(buffer, startMarker, startMarker, nextMarker);
 
         try {
-            ((MappedByteBuffer) buffer).force();
+            SyncUtil.force((MappedByteBuffer) buffer);
         }
         catch (Exception e) // MappedByteBuffer.force() does not declare IOException but can actually throw it
         {
