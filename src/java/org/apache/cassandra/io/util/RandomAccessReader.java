@@ -23,6 +23,7 @@ import java.nio.ByteBuffer;
 import com.google.common.annotations.VisibleForTesting;
 
 import org.apache.cassandra.io.FSReadError;
+import org.apache.cassandra.io.compress.BufferType;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 public class RandomAccessReader extends AbstractDataInput implements FileDataInput
@@ -45,7 +46,7 @@ public class RandomAccessReader extends AbstractDataInput implements FileDataInp
 
     protected final PoolingSegmentedFile owner;
 
-    protected RandomAccessReader(ChannelProxy channel, int bufferSize, long overrideLength, boolean useDirectBuffer, PoolingSegmentedFile owner)
+    protected RandomAccessReader(ChannelProxy channel, int bufferSize, long overrideLength, BufferType bufferType, PoolingSegmentedFile owner)
     {
         this.channel = channel.sharedCopy();
         this.owner = owner;
@@ -57,16 +58,14 @@ public class RandomAccessReader extends AbstractDataInput implements FileDataInp
         // we can cache file length in read-only mode
         fileLength = overrideLength <= 0 ? channel.size() : overrideLength;
 
-        buffer = allocateBuffer(bufferSize, useDirectBuffer);
+        buffer = allocateBuffer(bufferSize, bufferType);
         buffer.limit(0);
     }
 
-    protected ByteBuffer allocateBuffer(int bufferSize, boolean useDirectBuffer)
+    protected ByteBuffer allocateBuffer(int bufferSize, BufferType bufferType)
     {
         int size = (int) Math.min(fileLength, bufferSize);
-        return useDirectBuffer
-                ? ByteBuffer.allocateDirect(size)
-                : ByteBuffer.allocate(size);
+        return bufferType.allocate(size);
     }
 
     public static RandomAccessReader open(ChannelProxy channel, long overrideSize, PoolingSegmentedFile owner)
@@ -100,7 +99,7 @@ public class RandomAccessReader extends AbstractDataInput implements FileDataInp
 
     private static RandomAccessReader open(ChannelProxy channel, int bufferSize, long overrideSize, PoolingSegmentedFile owner)
     {
-        return new RandomAccessReader(channel, bufferSize, overrideSize, false, owner);
+        return new RandomAccessReader(channel, bufferSize, overrideSize, BufferType.ON_HEAP, owner);
     }
 
     @VisibleForTesting

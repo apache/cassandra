@@ -25,13 +25,15 @@ import java.io.FileNotFoundException;
 
 import com.google.common.util.concurrent.RateLimiter;
 
+import org.apache.cassandra.io.compress.BufferType;
+
 public class ThrottledReader extends RandomAccessReader
 {
     private final RateLimiter limiter;
 
     protected ThrottledReader(ChannelProxy channel, long overrideLength, RateLimiter limiter) throws FileNotFoundException
     {
-        super(channel, RandomAccessReader.DEFAULT_BUFFER_SIZE, overrideLength, false, null);
+        super(channel, RandomAccessReader.DEFAULT_BUFFER_SIZE, overrideLength, BufferType.ON_HEAP, null);
         this.limiter = limiter;
     }
 

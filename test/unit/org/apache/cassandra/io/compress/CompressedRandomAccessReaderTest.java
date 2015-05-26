@@ -110,7 +110,7 @@ public class CompressedRandomAccessReaderTest
             MetadataCollector sstableMetadataCollector = new MetadataCollector(new SimpleDenseCellNameType(BytesType.instance)).replayPosition(null);
             SequentialWriter writer = compressed
                 ? new CompressedSequentialWriter(f, filename + ".metadata", new CompressionParameters(SnappyCompressor.instance), sstableMetadataCollector)
-                : new SequentialWriter(f, CompressionParameters.DEFAULT_CHUNK_LENGTH, false);
+                : SequentialWriter.open(f);
 
             writer.write("The quick ".getBytes());
             FileMark mark = writer.mark();

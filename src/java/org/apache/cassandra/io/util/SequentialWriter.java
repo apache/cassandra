@@ -27,6 +27,7 @@ import java.nio.file.StandardOpenOption;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.FSReadError;
 import org.apache.cassandra.io.FSWriteError;
+import org.apache.cassandra.io.compress.BufferType;
 import org.apache.cassandra.io.compress.CompressedSequentialWriter;
 import org.apache.cassandra.io.compress.CompressionParameters;
 import org.apache.cassandra.io.sstable.Descriptor;
@@ -49,7 +50,6 @@ public class SequentialWriter extends OutputStream implements WritableByteChanne
     private final String filePath;
 
     protected ByteBuffer buffer;
-    private final int fd;
     private int directoryFD;
     // directory should be synced only after first file sync, in other words, only once per file
     private boolean directorySynced = false;
@@ -119,7 +119,7 @@ public class SequentialWriter extends OutputStream implements WritableByteChanne
         }
     }
 
-    public SequentialWriter(File file, int bufferSize, boolean offheap)
+    public SequentialWriter(File file, int bufferSize, BufferType bufferType)
     {
         try
         {
@@ -136,12 +136,10 @@ public class SequentialWriter extends OutputStream implements WritableByteChanne
         filePath = file.getAbsolutePath();
 
         // Allow children to allocate buffer as direct (snappy compression) if necessary
-        buffer = offheap ? ByteBuffer.allocateDirect(bufferSize) : ByteBuffer.allocate(bufferSize);
+        buffer = bufferType.allocate(bufferSize);
 
         this.trickleFsync = DatabaseDescriptor.getTrickleFsync();
         this.trickleFsyncByteInterval = DatabaseDescriptor.getTrickleFsyncIntervalInKb() * 1024;
-
-        fd = CLibrary.getfd(channel);
 
         directoryFD = CLibrary.tryOpenDirectory(file.getParent());
         stream = new WrappedDataOutputStreamPlus(this, this);
@@ -152,7 +150,7 @@ public class SequentialWriter extends OutputStream implements WritableByteChanne
      */
     public static SequentialWriter open(File file)
     {
-        return new SequentialWriter(file, RandomAccessReader.DEFAULT_BUFFER_SIZE, false);
+        return new SequentialWriter(file, RandomAccessReader.DEFAULT_BUFFER_SIZE, BufferType.ON_HEAP);
     }
 
     public static ChecksummedSequentialWriter open(File file, File crcPath)

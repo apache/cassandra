@@ -79,14 +79,15 @@ public class SnappyCompressor implements ICompressor
         return Snappy.maxCompressedLength(chunkLength);
     }
 
-    public int compress(ByteBuffer src, WrappedByteBuffer dest) throws IOException
+    public void compress(ByteBuffer input, ByteBuffer output) throws IOException
     {
-        int result = Snappy.compress(src, dest.buffer);
+        int dlimit = output.limit();
+        Snappy.compress(input, output);
 
-        // Snappy doesn't match LZ4 and Deflate w/regards to state it leaves dest ByteBuffer's counters in
-        dest.buffer.position(dest.buffer.limit());
-        dest.buffer.limit(dest.buffer.capacity());
-        return result;
+        // Snappy doesn't match the ICompressor contract w/regards to state it leaves dest ByteBuffer's counters in
+        output.position(output.limit());
+        output.limit(dlimit);
+        input.position(input.limit());
     }
 
     public int uncompress(byte[] input, int inputOffset, int inputLength, byte[] output, int outputOffset) throws IOException
@@ -94,16 +95,27 @@ public class SnappyCompressor implements ICompressor
         return Snappy.rawUncompress(input, inputOffset, inputLength, output, outputOffset);
     }
 
-    public int uncompress(ByteBuffer input, ByteBuffer output) throws IOException
+    public void uncompress(ByteBuffer input, ByteBuffer output)
+            throws IOException
     {
-        if (input.hasArray() && output.hasArray())
-            return Snappy.rawUncompress(input.array(), input.arrayOffset() + input.position(), input.remaining(), output.array(), output.arrayOffset() + output.position());
-        return Snappy.uncompress(input, output);
+        int dlimit = output.limit();
+        Snappy.uncompress(input, output);
+
+        // Snappy doesn't match the ICompressor contract w/regards to state it leaves dest ByteBuffer's counters in
+        output.position(output.limit());
+        output.limit(dlimit);
+        input.position(input.limit());
     }
 
-    @Override
-    public boolean useDirectOutputByteBuffers()
+    public BufferType preferredBufferType()
     {
-        return true;
+        return BufferType.OFF_HEAP;
+    }
+
+    public boolean supports(BufferType bufferType)
+    {
+        // Snappy can't deal with different input and output buffer types.
+        // To avoid possible problems, pretend it can't support array-backed at all.
+        return bufferType == BufferType.OFF_HEAP;
     }
 }

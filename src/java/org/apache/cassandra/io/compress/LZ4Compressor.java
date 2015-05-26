@@ -55,20 +55,17 @@ public class LZ4Compressor implements ICompressor
         return INTEGER_BYTES + compressor.maxCompressedLength(chunkLength);
     }
 
-    public int compress(ByteBuffer src, WrappedByteBuffer dest) throws IOException
+    public void compress(ByteBuffer input, ByteBuffer output) throws IOException
     {
-        final ByteBuffer buf = dest.buffer;
-        int len = src.remaining();
-        dest.buffer.put((byte) len);
-        dest.buffer.put((byte) (len >>> 8));
-        dest.buffer.put((byte) (len >>> 16));
-        dest.buffer.put((byte) (len >>> 24));
+        int len = input.remaining();
+        output.put((byte) len);
+        output.put((byte) (len >>> 8));
+        output.put((byte) (len >>> 16));
+        output.put((byte) (len >>> 24));
 
-        int start = dest.buffer.position();
         try
         {
-            compressor.compress(src, dest.buffer);
-            return INTEGER_BYTES + (buf.position() - start);
+            compressor.compress(input, output);
         }
         catch (LZ4Exception e)
         {
@@ -103,44 +100,42 @@ public class LZ4Compressor implements ICompressor
         return decompressedLength;
     }
 
-    public int uncompress(ByteBuffer input, ByteBuffer output) throws IOException
+    public void uncompress(ByteBuffer input, ByteBuffer output) throws IOException
     {
-        if (input.hasArray() && output.hasArray())
-            return uncompress(input.array(), input.arrayOffset() + input.position(), input.remaining(), output.array(), output.arrayOffset() + output.position());
+        final int decompressedLength = (input.get() & 0xFF)
+                | ((input.get() & 0xFF) << 8)
+                | ((input.get() & 0xFF) << 16)
+                | ((input.get() & 0xFF) << 24);
 
-        int pos = input.position();
-        final int decompressedLength = (input.get(pos) & 0xFF)
-                | ((input.get(pos + 1) & 0xFF) << 8)
-                | ((input.get(pos + 2) & 0xFF) << 16)
-                | ((input.get(pos + 3) & 0xFF) << 24);
-        int inputLength = input.remaining() - INTEGER_BYTES;
-
-        final int compressedLength;
         try
         {
-            compressedLength = decompressor.decompress(input, input.position() + INTEGER_BYTES, output, output.position(), decompressedLength);
+            int compressedLength = decompressor.decompress(input, input.position(), output, output.position(), decompressedLength);
+            input.position(input.position() + compressedLength);
+            output.position(output.position() + decompressedLength);
         }
         catch (LZ4Exception e)
         {
             throw new IOException(e);
         }
 
-        if (compressedLength != inputLength)
+        if (input.remaining() > 0)
         {
-            throw new IOException("Compressed lengths mismatch - got: "+compressedLength+" vs expected: "+inputLength);
+            throw new IOException("Compressed lengths mismatch - "+input.remaining()+" bytes remain");
         }
-
-        return decompressedLength;
-    }
-
-    @Override
-    public boolean useDirectOutputByteBuffers()
-    {
-        return true;
     }
 
     public Set<String> supportedOptions()
     {
         return new HashSet<>(Arrays.asList(CompressionParameters.CRC_CHECK_CHANCE));
+    }
+
+    public BufferType preferredBufferType()
+    {
+        return BufferType.OFF_HEAP;
+    }
+
+    public boolean supports(BufferType bufferType)
+    {
+        return true;
     }
 }
