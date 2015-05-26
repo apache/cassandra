@@ -335,7 +335,7 @@ public class CacheService implements CacheServiceMBean
     {
         public void serialize(KeyCacheKey key, DataOutput out) throws IOException
         {
-            RowIndexEntry entry = CacheService.instance.keyCache.get(key);
+            RowIndexEntry entry = CacheService.instance.keyCache.getInternal(key);
             if (entry == null)
                 return;
             ByteBufferUtil.writeWithLength(key.key, out);

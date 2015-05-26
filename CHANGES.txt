@@ -1,4 +1,5 @@
 2.0.16:
+ * Fix counting cache serialization in request metrics (CASSANDRA-9466)
  * (cqlsh) Add LOGIN command to switch users (CASSANDRA-7212)
  * Clone SliceQueryFilter in AbstractReadCommand implementations (CASSANDRA-8940)
  * Push correct protocol notification for DROP INDEX (CASSANDRA-9310)
