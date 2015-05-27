@@ -93,7 +93,7 @@ public class RangeSliceQueryPager extends AbstractQueryPager
             return false;
 
         // Same as SliceQueryPager, we ignore a deleted column
-        Column firstColumn = isReversed() ? lastColumn(first.cf) : firstColumn(first.cf);
+        Column firstColumn = isReversed() ? lastColumn(first.cf) : firstNonStaticColumn(first.cf);
         return !first.cf.deletionInfo().isDeleted(firstColumn)
             && firstColumn.isLive(timestamp())
             && lastReturnedName.equals(firstColumn.name());
@@ -102,7 +102,7 @@ public class RangeSliceQueryPager extends AbstractQueryPager
     protected boolean recordLast(Row last)
     {
         lastReturnedKey = last.key;
-        lastReturnedName = (isReversed() ? firstColumn(last.cf) : lastColumn(last.cf)).name();
+        lastReturnedName = (isReversed() ? firstNonStaticColumn(last.cf) : lastColumn(last.cf)).name();
         return true;
     }
 

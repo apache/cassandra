@@ -22,10 +22,12 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 
+import com.google.common.base.Objects;
+import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.columniterator.IdentityQueryFilter;
 import org.apache.cassandra.db.filter.*;
-import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.dht.*;
+import org.apache.cassandra.utils.ByteBufferUtil;
 
 /**
  * Groups key range and column filter for range queries.
@@ -41,7 +43,7 @@ import org.apache.cassandra.dht.*;
  */
 public class DataRange
 {
-    private final AbstractBounds<RowPosition> keyRange;
+    protected final AbstractBounds<RowPosition> keyRange;
     protected IDiskAtomFilter columnFilter;
     protected final boolean selectFullRow;
 
@@ -146,6 +148,8 @@ public class DataRange
         // The slice of columns that we want to fetch for each row, ignoring page start/end issues.
         private final SliceQueryFilter sliceFilter;
 
+        private final CFMetaData cfm;
+
         private final Comparator<ByteBuffer> comparator;
 
         // used to restrict the start of the slice for the first partition in the range
@@ -154,7 +158,11 @@ public class DataRange
         // used to restrict the end of the slice for the last partition in the range
         private final ByteBuffer lastPartitionColumnFinish;
 
-        private Paging(AbstractBounds<RowPosition> range, SliceQueryFilter filter, ByteBuffer firstPartitionColumnStart, ByteBuffer lastPartitionColumnFinish, Comparator<ByteBuffer> comparator)
+        // tracks the last key that we updated the filter for to avoid duplicating work
+        private ByteBuffer lastKeyFilterWasUpdatedFor;
+
+        private Paging(AbstractBounds<RowPosition> range, SliceQueryFilter filter, ByteBuffer firstPartitionColumnStart,
+                       ByteBuffer lastPartitionColumnFinish, CFMetaData cfm, Comparator<ByteBuffer> comparator)
         {
             super(range, filter);
 
@@ -163,14 +171,16 @@ public class DataRange
             assert !(range instanceof Range) || !((Range)range).isWrapAround() || range.right.isMinimum() : range;
 
             this.sliceFilter = filter;
+            this.cfm = cfm;
             this.comparator = comparator;
             this.firstPartitionColumnStart = firstPartitionColumnStart;
             this.lastPartitionColumnFinish = lastPartitionColumnFinish;
+            this.lastKeyFilterWasUpdatedFor = null;
         }
 
-        public Paging(AbstractBounds<RowPosition> range, SliceQueryFilter filter, ByteBuffer columnStart, ByteBuffer columnFinish, AbstractType<?> comparator)
+        public Paging(AbstractBounds<RowPosition> range, SliceQueryFilter filter, ByteBuffer columnStart, ByteBuffer columnFinish, CFMetaData cfm)
         {
-            this(range, filter, columnStart, columnFinish, filter.isReversed() ? comparator.reverseComparator : comparator);
+            this(range, filter, columnStart, columnFinish, cfm, filter.isReversed() ? cfm.comparator.reverseComparator : cfm.comparator);
         }
 
         @Override
@@ -181,7 +191,7 @@ public class DataRange
                 return false;
 
             if (!equals(startKey(), rowKey) && !equals(stopKey(), rowKey))
-                return selectFullRow;
+                return true;
 
             return isFullRowSlice((SliceQueryFilter)columnFilter(rowKey));
         }
@@ -201,10 +211,27 @@ public class DataRange
              * Maybe we should just remove that hack, but in the meantime, we
              * need to keep a reference the last returned filter.
              */
-            columnFilter = equals(startKey(), rowKey) || equals(stopKey(), rowKey)
-                         ? sliceFilter.withUpdatedSlices(slicesForKey(rowKey))
-                         : sliceFilter;
+            if (equals(startKey(), rowKey) || equals(stopKey(), rowKey))
+            {
+                if (!rowKey.equals(lastKeyFilterWasUpdatedFor))
+                {
+                    this.lastKeyFilterWasUpdatedFor = rowKey;
+                    columnFilter = sliceFilter.withUpdatedSlices(slicesForKey(rowKey));
+                }
+            }
+            else
+            {
+                columnFilter = sliceFilter;
+            }
+
             return columnFilter;
+        }
+
+        /** Returns true if the slice includes static columns, false otherwise. */
+        private boolean sliceIncludesStatics(ColumnSlice slice, boolean reversed, CFMetaData cfm)
+        {
+            return cfm.hasStaticColumns() &&
+                    cfm.getStaticColumnNameBuilder().build().compareTo(reversed ? slice.finish : slice.start) >= 0;
         }
 
         private ColumnSlice[] slicesForKey(ByteBuffer key)
@@ -216,19 +243,37 @@ public class DataRange
             ByteBuffer newStart = equals(startKey(), key) && firstPartitionColumnStart.hasRemaining() ? firstPartitionColumnStart : null;
             ByteBuffer newFinish = equals(stopKey(), key) && lastPartitionColumnFinish.hasRemaining() ? lastPartitionColumnFinish : null;
 
-            List<ColumnSlice> newSlices = new ArrayList<ColumnSlice>(sliceFilter.slices.length); // in the common case, we'll have the same number of slices
+            // in the common case, we'll have the same number of slices
+            List<ColumnSlice> newSlices = new ArrayList<>(sliceFilter.slices.length);
 
+            // Check our slices to see if any fall before the page start (in which case they can be removed) or
+            // if they contain the page start (in which case they should start from the page start).  However, if the
+            // slices would include static columns, we need to ensure they are also fetched, and so a separate
+            // slice for the static columns may be required.
+            // Note that if the query is reversed, we can't handle statics by simply adding a separate slice here, so
+            // the reversed case is handled by SliceFromReadCommand instead. See CASSANDRA-8502 for more details.
             for (ColumnSlice slice : sliceFilter.slices)
             {
                 if (newStart != null)
                 {
                     if (slice.isBefore(comparator, newStart))
-                        continue; // we skip that slice
+                    {
+                        if (!sliceFilter.reversed && sliceIncludesStatics(slice, false, cfm))
+                            newSlices.add(new ColumnSlice(ByteBufferUtil.EMPTY_BYTE_BUFFER, cfm.getStaticColumnNameBuilder().buildAsEndOfRange()));
+
+                        continue;
+                    }
 
                     if (slice.includes(comparator, newStart))
-                        slice = new ColumnSlice(newStart, slice.finish);
+                    {
+                        if (!sliceFilter.reversed && sliceIncludesStatics(slice, false, cfm) && !newStart.equals(ByteBufferUtil.EMPTY_BYTE_BUFFER))
+                            newSlices.add(new ColumnSlice(ByteBufferUtil.EMPTY_BYTE_BUFFER, cfm.getStaticColumnNameBuilder().buildAsEndOfRange()));
 
-                    // Whether we've updated the slice or not, we don't have to bother about newStart anymore
+                        slice = new ColumnSlice(newStart, slice.finish);
+                    }
+
+                    // once we see a slice that either includes the page start or is after it, we can stop checking
+                    // against the page start (because the slices are ordered)
                     newStart = null;
                 }
 
@@ -251,6 +296,18 @@ public class DataRange
         {
             columnFilter.updateColumnsLimit(count);
             sliceFilter.updateColumnsLimit(count);
+        }
+
+        @Override
+        public String toString()
+        {
+            return Objects.toStringHelper(this)
+                          .add("keyRange", keyRange)
+                          .add("sliceFilter", sliceFilter)
+                          .add("columnFilter", columnFilter)
+                          .add("firstPartitionColumnStart", firstPartitionColumnStart == null ? "null" : ByteBufferUtil.bytesToHex(firstPartitionColumnStart))
+                          .add("lastPartitionColumnFinish", lastPartitionColumnFinish == null ? "null" : ByteBufferUtil.bytesToHex(lastPartitionColumnFinish))
+                          .toString();
         }
     }
 }

@@ -22,6 +22,7 @@ import java.io.DataOutput;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 
+import org.apache.cassandra.utils.Pair;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -61,7 +62,30 @@ public class SliceFromReadCommand extends ReadCommand
 
     public Row getRow(Keyspace keyspace)
     {
+        CFMetaData cfm = Schema.instance.getCFMetaData(ksName, cfName);
         DecoratedKey dk = StorageService.getPartitioner().decorateKey(key);
+
+        // If we're doing a reversed query and the filter includes static columns, we need to issue two separate
+        // reads in order to guarantee that the static columns are fetched.  See CASSANDRA-8502 for more details.
+        if (filter.reversed && filter.hasStaticSlice(cfm))
+        {
+            logger.debug("Splitting reversed slice with static columns into two reads");
+            Pair<SliceQueryFilter, SliceQueryFilter> newFilters = filter.splitOutStaticSlice(cfm);
+
+            Row normalResults =  keyspace.getRow(new QueryFilter(dk, cfName, newFilters.right, timestamp));
+            Row staticResults =  keyspace.getRow(new QueryFilter(dk, cfName, newFilters.left, timestamp));
+
+            // add the static results to the start of the normal results
+            if (normalResults.cf == null)
+                return staticResults;
+
+            if (staticResults.cf != null)
+                for (Column col : staticResults.cf.getReverseSortedColumns())
+                    normalResults.cf.addColumn(col);
+
+            return normalResults;
+        }
+
         return keyspace.getRow(new QueryFilter(dk, cfName, filter, timestamp));
     }
 

@@ -23,6 +23,7 @@ import java.util.List;
 import java.util.SortedSet;
 import java.util.TreeSet;
 
+import com.google.common.base.Objects;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -156,6 +157,18 @@ public abstract class ExtendedFilter
             default:
                 throw new IllegalStateException();
         }
+    }
+
+    @Override
+    public String toString()
+    {
+        return Objects.toStringHelper(this)
+                      .add("cfs", cfs)
+                      .add("dataRange", dataRange)
+                      .add("maxResults", maxResults)
+                      .add("countCQL3Rows", countCQL3Rows)
+                      .add("currentLimit", currentLimit)
+                      .toString();
     }
 
     public static class WithClauses extends ExtendedFilter

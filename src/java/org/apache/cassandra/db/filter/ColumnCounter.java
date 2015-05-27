@@ -75,10 +75,10 @@ public class ColumnCounter
 
     public static class GroupByPrefix extends ColumnCounter
     {
-        private final CompositeType type;
-        private final int toGroup;
-        private ByteBuffer[] previous;
-        private boolean previousGroupIsStatic;
+        protected final CompositeType type;
+        protected final int toGroup;
+        protected ByteBuffer[] previous;
+        protected boolean previousGroupIsStatic;
 
         /**
          * A column counter that count only 1 for all the columns sharing a
@@ -155,6 +155,65 @@ public class ColumnCounter
 
             live++;
             previous = current;
+        }
+    }
+
+    /**
+     * Similar to GroupByPrefix, but designed to handle counting cells in reverse order.
+     */
+    public static class GroupByPrefixReversed extends GroupByPrefix
+    {
+        public GroupByPrefixReversed(long timestamp, CompositeType type, int toGroup)
+        {
+            super(timestamp, type, toGroup);
+        }
+
+        @Override
+        public void count(Column column, DeletionInfo.InOrderTester tester)
+        {
+            if (tester.isDeleted(column))
+                return;
+
+            if (!column.isLive(timestamp))
+            {
+                tombstones++;
+                return;
+            }
+
+            if (toGroup == 0)
+            {
+                live = 1;
+                return;
+            }
+
+            ByteBuffer[] current = type.split(column.name());
+            assert current.length >= toGroup;
+
+            boolean isStatic = CompositeType.isStaticName(column.name());
+            if (previous == null)
+            {
+                // This is the first group we've seen, and it's static.  In this case we want to return a count of 1,
+                // because there are no other live groups.
+                previousGroupIsStatic = true;
+                previous = current;
+                live++;
+            }
+            else if (isStatic)
+            {
+                // Ignore statics if we've seen any other statics or any other groups
+                return;
+            }
+
+            for (int i = 0; i < toGroup; i++)
+            {
+                if (ByteBufferUtil.compareUnsigned(previous[i], current[i]) != 0)
+                {
+                    // it's a new group
+                    live++;
+                    previous = current;
+                    return;
+                }
+            }
         }
     }
 }

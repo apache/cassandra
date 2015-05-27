@@ -704,6 +704,8 @@ public class MultiColumnRelationTest
     {
         for (String tableSuffix : new String[]{"", "_compact"})
         {
+            execute("DELETE FROM %s.multiple_clustering_reversed" + tableSuffix + " WHERE a=0");
+
             // b and d are reversed in the clustering order
             execute("INSERT INTO %s.multiple_clustering_reversed" + tableSuffix + " (a, b, c, d) VALUES (0, 1, 0, 0)");
             execute("INSERT INTO %s.multiple_clustering_reversed" + tableSuffix + " (a, b, c, d) VALUES (0, 1, 1, 1)");
