@@ -1,4 +1,6 @@
 2.2
+ * Update commitlog archiving examples now that commitlog segments are
+   not recycled (CASSANDRA-9350)
  * Extend Transactional API to sstable lifecycle management (CASSANDRA-8568)
  * (cqlsh) Add support for native protocol 4 (CASSANDRA-9399)
  * Ensure that UDF and UDAs are keyspace-isolated (CASSANDRA-9409)
