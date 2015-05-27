@@ -2040,7 +2040,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                                              boolean countCQL3Rows,
                                              long now)
     {
-        DataRange dataRange = new DataRange.Paging(keyRange, columnRange, columnStart, columnStop, metadata.comparator);
+        DataRange dataRange = new DataRange.Paging(keyRange, columnRange, columnStart, columnStop, metadata);
         return ExtendedFilter.create(this, dataRange, rowFilter, maxResults, countCQL3Rows, now);
     }
 
@@ -2072,7 +2072,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             // create a new SliceQueryFilter that selects all cells, but pass the original slice start and finish
             // through to DataRange.Paging to be used on the first and last partitions
             SliceQueryFilter newFilter = new SliceQueryFilter(ColumnSlice.ALL_COLUMNS_ARRAY, sfilter.isReversed(), sfilter.count);
-            dataRange = new DataRange.Paging(range, newFilter, sfilter.start(), sfilter.finish(), metadata.comparator);
+            dataRange = new DataRange.Paging(range, newFilter, sfilter.start(), sfilter.finish(), metadata);
         }
         else
         {
