@@ -24,16 +24,16 @@ import java.util.*;
 
 import com.google.common.collect.AbstractIterator;
 import com.google.common.collect.Iterators;
+import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.db.composites.*;
+import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.Pair;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.columniterator.OnDiskAtomIterator;
-import org.apache.cassandra.db.composites.CType;
-import org.apache.cassandra.db.composites.CellName;
-import org.apache.cassandra.db.composites.CellNameType;
-import org.apache.cassandra.db.composites.Composite;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.DataOutputPlus;
@@ -111,11 +111,61 @@ public class SliceQueryFilter implements IDiskAtomFilter
         return new SliceQueryFilter(newSlices, reversed, count, compositesToGroup);
     }
 
-    public SliceQueryFilter withUpdatedStart(Composite newStart, CellNameType comparator)
+    /** Returns true if the slice includes static columns, false otherwise. */
+    private boolean sliceIncludesStatics(ColumnSlice slice, CFMetaData cfm)
     {
-        Comparator<Composite> cmp = reversed ? comparator.reverseComparator() : comparator;
+        return cfm.hasStaticColumns() &&
+                slice.includes(reversed ? cfm.comparator.reverseComparator() : cfm.comparator, cfm.comparator.staticPrefix().end());
+    }
 
-        List<ColumnSlice> newSlices = new ArrayList<>(slices.length);
+    public boolean hasStaticSlice(CFMetaData cfm)
+    {
+        for (ColumnSlice slice : slices)
+            if (sliceIncludesStatics(slice, cfm))
+                return true;
+
+        return false;
+    }
+
+    /**
+     * Splits this filter into two SliceQueryFilters: one that slices only the static columns, and one that slices the
+     * remainder of the normal data.
+     *
+     * This should only be called when the filter is reversed and the filter is known to cover static columns (through
+     * hasStaticSlice()).
+     *
+     * @return a pair of (static, normal) SliceQueryFilters
+     */
+    public Pair<SliceQueryFilter, SliceQueryFilter> splitOutStaticSlice(CFMetaData cfm)
+    {
+        assert reversed;
+
+        Composite staticSliceEnd = cfm.comparator.staticPrefix().end();
+        List<ColumnSlice> nonStaticSlices = new ArrayList<>(slices.length);
+        for (ColumnSlice slice : slices)
+        {
+            if (sliceIncludesStatics(slice, cfm))
+                nonStaticSlices.add(new ColumnSlice(slice.start, staticSliceEnd));
+            else
+                nonStaticSlices.add(slice);
+        }
+
+        return Pair.create(
+            new SliceQueryFilter(staticSliceEnd, Composites.EMPTY, true, count, compositesToGroup),
+            new SliceQueryFilter(nonStaticSlices.toArray(new ColumnSlice[nonStaticSlices.size()]), true, count, compositesToGroup));
+    }
+
+    public SliceQueryFilter withUpdatedStart(Composite newStart, CFMetaData cfm)
+    {
+        Comparator<Composite> cmp = reversed ? cfm.comparator.reverseComparator() : cfm.comparator;
+
+        // Check our slices to see if any fall before the new start (in which case they can be removed) or
+        // if they contain the new start (in which case they should start from the page start).  However, if the
+        // slices would include static columns, we need to ensure they are also fetched, and so a separate
+        // slice for the static columns may be required.
+        // Note that if the query is reversed, we can't handle statics by simply adding a separate slice here, so
+        // the reversed case is handled by SliceFromReadCommand instead. See CASSANDRA-8502 for more details.
+        List<ColumnSlice> newSlices = new ArrayList<>();
         boolean pastNewStart = false;
         for (ColumnSlice slice : slices)
         {
@@ -126,12 +176,23 @@ public class SliceQueryFilter implements IDiskAtomFilter
             }
 
             if (slice.isBefore(cmp, newStart))
-                continue;
+            {
+                if (!reversed && sliceIncludesStatics(slice, cfm))
+                    newSlices.add(new ColumnSlice(Composites.EMPTY, cfm.comparator.staticPrefix().end()));
 
-            if (slice.includes(cmp, newStart))
+                continue;
+            }
+            else if (slice.includes(cmp, newStart))
+            {
+                if (!reversed && sliceIncludesStatics(slice, cfm) && !newStart.equals(ByteBufferUtil.EMPTY_BYTE_BUFFER))
+                    newSlices.add(new ColumnSlice(Composites.EMPTY, cfm.comparator.staticPrefix().end()));
+
                 newSlices.add(new ColumnSlice(newStart, slice.finish));
+            }
             else
+            {
                 newSlices.add(slice);
+            }
 
             pastNewStart = true;
         }
@@ -284,12 +345,18 @@ public class SliceQueryFilter implements IDiskAtomFilter
             return new ColumnCounter(now);
         else if (compositesToGroup == 0)
             return new ColumnCounter.GroupByPrefix(now, null, 0);
+        else if (reversed)
+            return new ColumnCounter.GroupByPrefixReversed(now, comparator, compositesToGroup);
         else
             return new ColumnCounter.GroupByPrefix(now, comparator, compositesToGroup);
     }
 
     public void trim(ColumnFamily cf, int trimTo, long now)
     {
+        // each cell can increment the count by at most one, so if we have fewer cells than trimTo, we can skip trimming
+        if (cf.getColumnCount() < trimTo)
+            return;
+
         ColumnCounter counter = columnCounter(cf.getComparator(), now);
 
         Collection<Cell> cells = reversed

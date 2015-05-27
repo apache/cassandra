@@ -12,6 +12,9 @@ Merged from 2.1:
  * Improve estimated row count (CASSANDRA-9107)
  * Optimize range tombstone memory footprint (CASSANDRA-8603)
  * Use configured gcgs in anticompaction (CASSANDRA-9397)
+Merged from 2.0:
+ * Fix null static columns in pages after the first, paged reversed
+   queries (CASSANDRA-8502)
 
 
 2.2.0-beta1

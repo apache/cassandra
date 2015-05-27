@@ -22,6 +22,8 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 
 import com.google.common.base.Objects;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.Schema;
@@ -33,9 +35,12 @@ import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.service.RowDataResolver;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.Pair;
 
 public class SliceFromReadCommand extends ReadCommand
 {
+    private static final Logger logger = LoggerFactory.getLogger(SliceFromReadCommand.class);
+
     static final SliceFromReadCommandSerializer serializer = new SliceFromReadCommandSerializer();
 
     public final SliceQueryFilter filter;
@@ -53,7 +58,30 @@ public class SliceFromReadCommand extends ReadCommand
 
     public Row getRow(Keyspace keyspace)
     {
+        CFMetaData cfm = Schema.instance.getCFMetaData(ksName, cfName);
         DecoratedKey dk = StorageService.getPartitioner().decorateKey(key);
+
+        // If we're doing a reversed query and the filter includes static columns, we need to issue two separate
+        // reads in order to guarantee that the static columns are fetched.  See CASSANDRA-8502 for more details.
+        if (filter.reversed && filter.hasStaticSlice(cfm))
+        {
+            logger.debug("Splitting reversed slice with static columns into two reads");
+            Pair<SliceQueryFilter, SliceQueryFilter> newFilters = filter.splitOutStaticSlice(cfm);
+
+            Row normalResults =  keyspace.getRow(new QueryFilter(dk, cfName, newFilters.right, timestamp));
+            Row staticResults =  keyspace.getRow(new QueryFilter(dk, cfName, newFilters.left, timestamp));
+
+            // add the static results to the start of the normal results
+            if (normalResults.cf == null)
+                return staticResults;
+
+            if (staticResults.cf != null)
+                for (Cell cell : staticResults.cf.getReverseSortedColumns())
+                    normalResults.cf.addColumn(cell);
+
+            return normalResults;
+        }
+
         return keyspace.getRow(new QueryFilter(dk, cfName, filter, timestamp));
     }
 

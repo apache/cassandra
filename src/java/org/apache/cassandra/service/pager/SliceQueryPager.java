@@ -82,7 +82,7 @@ public class SliceQueryPager extends AbstractQueryPager implements SinglePartiti
         // more rows than we're supposed to.  See CASSANDRA-8108 for more details.
         SliceQueryFilter filter = command.filter.withUpdatedCount(Math.min(command.filter.count, pageSize));
         if (lastReturned != null)
-            filter = filter.withUpdatedStart(lastReturned, cfm.comparator);
+            filter = filter.withUpdatedStart(lastReturned, cfm);
 
         logger.debug("Querying next page of slice query; new filter: {}", filter);
         ReadCommand pageCmd = command.withUpdatedFilter(filter);
@@ -96,7 +96,7 @@ public class SliceQueryPager extends AbstractQueryPager implements SinglePartiti
         if (lastReturned == null)
             return false;
 
-        Cell firstCell = isReversed() ? lastCell(first.cf) : firstCell(first.cf);
+        Cell firstCell = isReversed() ? lastCell(first.cf) : firstNonStaticCell(first.cf);
         // Note: we only return true if the column is the lastReturned *and* it is live. If it is deleted, it is ignored by the
         // rest of the paging code (it hasn't been counted as live in particular) and we want to act as if it wasn't there.
         return !first.cf.deletionInfo().isDeleted(firstCell)
@@ -106,7 +106,7 @@ public class SliceQueryPager extends AbstractQueryPager implements SinglePartiti
 
     protected boolean recordLast(Row last)
     {
-        Cell lastCell = isReversed() ? firstCell(last.cf) : lastCell(last.cf);
+        Cell lastCell = isReversed() ? firstNonStaticCell(last.cf) : lastCell(last.cf);
         lastReturned = lastCell.name();
         return true;
     }

@@ -126,9 +126,11 @@ public class AbstractQueryPagerTest
         return cf;
     }
 
-    private CFMetaData createMetadata()
+    private static CFMetaData createMetadata()
     {
-        return new CFMetaData("ks", "cf", ColumnFamilyType.Standard, CellNames.fromAbstractType(Int32Type.instance, false));
+        CFMetaData cfm = new CFMetaData("ks", "cf", ColumnFamilyType.Standard, CellNames.fromAbstractType(Int32Type.instance, false));
+        cfm.rebuild();
+        return cfm;
     }
 
     private static ByteBuffer bb(int i)
@@ -148,7 +150,7 @@ public class AbstractQueryPagerTest
             // We use this to test more thorougly DiscardFirst and DiscardLast (more generic pager behavior is tested in
             // QueryPagerTest). The only thing those method use is the result of the columnCounter() method. So to keep
             // it simple, we fake all actual parameters in the ctor below but just override the columnCounter() method.
-            super(null, 0, false, null, null, 0);
+            super(null, 0, false, createMetadata(), null, 0);
         }
 
         @Override
