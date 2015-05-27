@@ -436,6 +436,7 @@ public final class MessagingService implements MessagingServiceMBean
         listenGate.signalAll();
     }
 
+    @SuppressWarnings("resource")
     private List<ServerSocket> getServerSockets(InetAddress localEp) throws ConfigurationException
     {
         final List<ServerSocket> ss = new ArrayList<ServerSocket>(2);
@@ -471,6 +472,7 @@ public final class MessagingService implements MessagingServiceMBean
             }
             catch (SocketException e)
             {
+                FileUtils.closeQuietly(socket);
                 throw new ConfigurationException("Insufficient permissions to setReuseAddress", e);
             }
             InetSocketAddress address = new InetSocketAddress(localEp, DatabaseDescriptor.getStoragePort());
@@ -480,6 +482,7 @@ public final class MessagingService implements MessagingServiceMBean
             }
             catch (BindException e)
             {
+                FileUtils.closeQuietly(socket);
                 if (e.getMessage().contains("in use"))
                     throw new ConfigurationException(address + " is in use by another process.  Change listen_address:storage_port in cassandra.yaml to values that do not conflict with other services");
                 else if (e.getMessage().contains("Cannot assign requested address"))
@@ -490,6 +493,7 @@ public final class MessagingService implements MessagingServiceMBean
             }
             catch (IOException e)
             {
+                FileUtils.closeQuietly(socket);
                 throw new RuntimeException(e);
             }
             logger.info("Starting Messaging Service on port {}", DatabaseDescriptor.getStoragePort());
@@ -874,6 +878,7 @@ public final class MessagingService implements MessagingServiceMBean
             this.server = server;
         }
 
+        @SuppressWarnings("resource")
         public void run()
         {
             while (!server.isClosed())

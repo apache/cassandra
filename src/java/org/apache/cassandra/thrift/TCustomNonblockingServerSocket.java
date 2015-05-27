@@ -43,6 +43,7 @@ public class TCustomNonblockingServerSocket extends TNonblockingServerSocket
     }
 
     @Override
+    @SuppressWarnings("resource")
     protected TNonblockingSocket acceptImpl() throws TTransportException
     {
         TNonblockingSocket tsocket = super.acceptImpl();

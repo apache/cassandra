@@ -1795,6 +1795,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return repairedSSTables;
     }
 
+    @SuppressWarnings("resource")
     public RefViewFragment selectAndReference(Function<View, List<SSTableReader>> filter)
     {
         while (true)
@@ -1966,6 +1967,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
       *
       * @param range The range of keys and columns within those keys to fetch
      */
+    @SuppressWarnings("resource")
     private AbstractScanIterator getSequentialIterator(final DataRange range, long now)
     {
         assert !(range.keyRange() instanceof Range) || !((Range<?>)range.keyRange()).isWrapAround() || range.keyRange().right.isMinimum() : range.keyRange();
@@ -1980,24 +1982,27 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         {
             protected Row computeNext()
             {
-                // pull a row out of the iterator
-                if (!iterator.hasNext())
-                    return endOfData();
+                while (true)
+                {
+                    // pull a row out of the iterator
+                    if (!iterator.hasNext())
+                        return endOfData();
 
-                Row current = iterator.next();
-                DecoratedKey key = current.key;
+                    Row current = iterator.next();
+                    DecoratedKey key = current.key;
 
-                if (!range.stopKey().isMinimum() && range.stopKey().compareTo(key) < 0)
-                    return endOfData();
+                    if (!range.stopKey().isMinimum() && range.stopKey().compareTo(key) < 0)
+                        return endOfData();
 
-                // skipping outside of assigned range
-                if (!range.contains(key))
-                    return computeNext();
+                    // skipping outside of assigned range
+                    if (!range.contains(key))
+                        continue;
 
-                if (logger.isTraceEnabled())
-                    logger.trace("scanned {}", metadata.getKeyValidator().getString(key.getKey()));
+                    if (logger.isTraceEnabled())
+                        logger.trace("scanned {}", metadata.getKeyValidator().getString(key.getKey()));
 
-                return current;
+                    return current;
+                }
             }
 
             public void close() throws IOException

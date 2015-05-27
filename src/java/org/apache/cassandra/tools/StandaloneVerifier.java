@@ -100,8 +100,8 @@ public class StandaloneVerifier
             {
                 try
                 {
-                    Verifier verifier = new Verifier(cfs, sstable, handler, true);
-                    try
+
+                    try (Verifier verifier = new Verifier(cfs, sstable, handler, true))
                     {
                         verifier.verify(extended);
                     }
@@ -109,10 +109,6 @@ public class StandaloneVerifier
                     {
                         System.err.println(String.format("Error verifying %s: %s", sstable, cs.getMessage()));
                         hasFailed = true;
-                    }
-                    finally
-                    {
-                        verifier.close();
                     }
                 }
                 catch (Exception e)

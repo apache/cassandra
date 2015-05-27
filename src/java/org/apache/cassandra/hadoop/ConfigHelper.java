@@ -543,6 +543,7 @@ public class ConfigHelper
         return client;
     }
 
+    @SuppressWarnings("resource")
     public static Cassandra.Client createConnection(Configuration conf, String host, Integer port) throws IOException
     {
         try

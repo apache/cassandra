@@ -17,9 +17,9 @@
  */
 package org.apache.cassandra.db.compaction;
 
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -44,6 +44,7 @@ import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.db.compaction.CompactionManager.CompactionExecutorStatsCollector;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.service.ActiveRepairService;
+import org.apache.cassandra.utils.CloseableIterator;
 import org.apache.cassandra.utils.UUIDGen;
 
 public class CompactionTask extends AbstractCompactionTask
@@ -159,45 +160,49 @@ public class CompactionTask extends AbstractCompactionTask
             try (AbstractCompactionStrategy.ScannerList scanners = strategy.getScanners(actuallyCompact))
             {
                 ci = new CompactionIterable(compactionType, scanners.scanners, controller, sstableFormat, taskId);
-                Iterator<AbstractCompactedRow> iter = ci.iterator();
-                if (collector != null)
-                    collector.beginCompaction(ci);
-                long lastCheckObsoletion = start;
-
-                if (!controller.cfs.getCompactionStrategy().isActive)
-                    throw new CompactionInterruptedException(ci.getCompactionInfo());
-
-                try (CompactionAwareWriter writer = getCompactionAwareWriter(cfs, transaction, actuallyCompact))
+                try (CloseableIterator<AbstractCompactedRow> iter = ci.iterator())
                 {
-                    estimatedKeys = writer.estimatedKeys();
-                    while (iter.hasNext())
-                    {
-                        if (ci.isStopRequested())
-                            throw new CompactionInterruptedException(ci.getCompactionInfo());
-
-                        AbstractCompactedRow row = iter.next();
-                        if (writer.append(row))
-                            totalKeysWritten++;
-
-                        if (System.nanoTime() - lastCheckObsoletion > TimeUnit.MINUTES.toNanos(1L))
-                        {
-                            controller.maybeRefreshOverlaps();
-                            lastCheckObsoletion = System.nanoTime();
-                        }
-                    }
-
-                    // don't replace old sstables yet, as we need to mark the compaction finished in the system table
-                    newSStables = writer.finish();
-                }
-                finally
-                {
-                    // point of no return -- the new sstables are live on disk; next we'll start deleting the old ones
-                    // (in replaceCompactedSSTables)
-                    if (taskId != null)
-                        SystemKeyspace.finishCompaction(taskId);
-
                     if (collector != null)
-                        collector.finishCompaction(ci);
+                        collector.beginCompaction(ci);
+                    long lastCheckObsoletion = start;
+
+                    if (!controller.cfs.getCompactionStrategy().isActive)
+                        throw new CompactionInterruptedException(ci.getCompactionInfo());
+
+                    try (CompactionAwareWriter writer = getCompactionAwareWriter(cfs, transaction, actuallyCompact))
+                    {
+                        estimatedKeys = writer.estimatedKeys();
+                        while (iter.hasNext())
+                        {
+                            if (ci.isStopRequested())
+                                throw new CompactionInterruptedException(ci.getCompactionInfo());
+
+                            try (AbstractCompactedRow row = iter.next())
+                            {
+                                if (writer.append(row))
+                                    totalKeysWritten++;
+
+                                if (System.nanoTime() - lastCheckObsoletion > TimeUnit.MINUTES.toNanos(1L))
+                                {
+                                    controller.maybeRefreshOverlaps();
+                                    lastCheckObsoletion = System.nanoTime();
+                                }
+                            }
+                        }
+
+                        // don't replace old sstables yet, as we need to mark the compaction finished in the system table
+                        newSStables = writer.finish();
+                    }
+                    finally
+                    {
+                        // point of no return -- the new sstables are live on disk; next we'll start deleting the old ones
+                        // (in replaceCompactedSSTables)
+                        if (taskId != null)
+                            SystemKeyspace.finishCompaction(taskId);
+
+                        if (collector != null)
+                            collector.finishCompaction(ci);
+                    }
                 }
             }
 

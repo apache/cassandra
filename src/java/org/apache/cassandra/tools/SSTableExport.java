@@ -225,8 +225,7 @@ public class SSTableExport
     public static void enumeratekeys(Descriptor desc, PrintStream outs, CFMetaData metadata)
     throws IOException
     {
-        KeyIterator iter = new KeyIterator(desc);
-        try
+        try (KeyIterator iter = new KeyIterator(desc))
         {
             DecoratedKey lastKey = null;
             while (iter.hasNext())
@@ -241,10 +240,6 @@ public class SSTableExport
                 outs.println(metadata.getKeyValidator().getString(key.getKey()));
                 checkStream(outs); // flushes
             }
-        }
-        finally
-        {
-            iter.close();
         }
     }
 
@@ -261,8 +256,8 @@ public class SSTableExport
     public static void export(Descriptor desc, PrintStream outs, Collection<String> toExport, String[] excludes, CFMetaData metadata) throws IOException
     {
         SSTableReader sstable = SSTableReader.open(desc);
-        RandomAccessReader dfile = sstable.openDataReader();
-        try
+
+        try (RandomAccessReader dfile = sstable.openDataReader())
         {
             IPartitioner partitioner = sstable.partitioner;
 
@@ -304,10 +299,6 @@ public class SSTableExport
 
             outs.println("\n]");
             outs.flush();
-        }
-        finally
-        {
-            dfile.close();
         }
     }
 

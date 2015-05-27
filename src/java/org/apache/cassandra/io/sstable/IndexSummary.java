@@ -289,6 +289,7 @@ public class IndexSummary extends WrappedSharedCloseable
             out.write(t.entries, 0, t.entriesLength);
         }
 
+        @SuppressWarnings("resource")
         public IndexSummary deserialize(DataInputStream in, IPartitioner partitioner, boolean haveSamplingLevel, int expectedMinIndexInterval, int maxIndexInterval) throws IOException
         {
             int minIndexInterval = in.readInt();
@@ -321,8 +322,17 @@ public class IndexSummary extends WrappedSharedCloseable
 
             Memory offsets = Memory.allocate(offsetCount * 4);
             Memory entries = Memory.allocate(offheapSize - offsets.size());
-            FBUtilities.copy(in, new MemoryOutputStream(offsets), offsets.size());
-            FBUtilities.copy(in, new MemoryOutputStream(entries), entries.size());
+            try
+            {
+                FBUtilities.copy(in, new MemoryOutputStream(offsets), offsets.size());
+                FBUtilities.copy(in, new MemoryOutputStream(entries), entries.size());
+            }
+            catch (IOException ioe)
+            {
+                offsets.free();
+                entries.free();
+                throw ioe;
+            }
             // our on-disk representation treats the offsets and the summary data as one contiguous structure,
             // in which the offsets are based from the start of the structure. i.e., if the offsets occupy
             // X bytes, the value of the first offset will be X. In memory we split the two regions up, so that

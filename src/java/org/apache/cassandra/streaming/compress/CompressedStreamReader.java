@@ -61,6 +61,7 @@ public class CompressedStreamReader extends StreamReader
      * @throws java.io.IOException if reading the remote sstable fails. Will throw an RTE if local write fails.
      */
     @Override
+    @SuppressWarnings("resource")
     public SSTableWriter read(ReadableByteChannel channel) throws IOException
     {
         logger.debug("reading file from {}, repairedAt = {}", session.peer, repairedAt);

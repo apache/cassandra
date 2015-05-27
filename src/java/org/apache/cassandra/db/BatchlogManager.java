@@ -148,20 +148,17 @@ public class BatchlogManager implements BatchlogManagerMBean
 
     private static ByteBuffer serializeMutations(Collection<Mutation> mutations, int version)
     {
-        DataOutputBuffer buf = new DataOutputBuffer();
-
-        try
+        try (DataOutputBuffer buf = new DataOutputBuffer())
         {
             buf.writeInt(mutations.size());
             for (Mutation mutation : mutations)
                 Mutation.serializer.serialize(mutation, buf, version);
+            return buf.buffer();
         }
         catch (IOException e)
         {
             throw new AssertionError(); // cannot happen.
         }
-
-        return buf.buffer();
     }
 
     private void replayAllFailedBatches() throws ExecutionException, InterruptedException

@@ -402,9 +402,8 @@ public class CompositeType extends AbstractCompositeType
 
         public ByteBuffer build()
         {
-            try
+            try (DataOutputBuffer out = new DataOutputBufferFixed(serializedSize))
             {
-                DataOutputBuffer out = new DataOutputBufferFixed(serializedSize);
                 if (isStatic)
                     out.writeShort(STATIC_MARKER);
 

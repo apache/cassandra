@@ -602,13 +602,9 @@ public class CqlConfigHelper
     private static SSLContext getSSLContext(String truststorePath, String truststorePassword, String keystorePath, String keystorePassword)
             throws NoSuchAlgorithmException, KeyStoreException, CertificateException, IOException, UnrecoverableKeyException, KeyManagementException
     {
-        FileInputStream tsf = null;
-        FileInputStream ksf = null;
         SSLContext ctx = null;
-        try
+        try (FileInputStream tsf = new FileInputStream(truststorePath); FileInputStream ksf = new FileInputStream(keystorePath))
         {
-            tsf = new FileInputStream(truststorePath);
-            ksf = new FileInputStream(keystorePath);
             ctx = SSLContext.getInstance("SSL");
 
             KeyStore ts = KeyStore.getInstance("JKS");
@@ -622,11 +618,6 @@ public class CqlConfigHelper
             kmf.init(ks, keystorePassword.toCharArray());
 
             ctx.init(kmf.getKeyManagers(), tmf.getTrustManagers(), new SecureRandom());
-        }
-        finally
-        {
-            FileUtils.closeQuietly(tsf);
-            FileUtils.closeQuietly(ksf);
         }
         return ctx;
     }

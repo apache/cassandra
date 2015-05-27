@@ -177,19 +177,13 @@ public class FailureDetector implements IFailureDetector, FailureDetectorMBean
     {
         File file = FileUtils.createTempFile("failuredetector-", ".dat");
 
-        OutputStream os = null;
-        try
+        try (OutputStream os = new BufferedOutputStream(new FileOutputStream(file, true)))
         {
-            os = new BufferedOutputStream(new FileOutputStream(file, true));
             os.write(toString().getBytes());
         }
         catch (IOException e)
         {
             throw new FSWriteError(e, file);
-        }
-        finally
-        {
-            FileUtils.closeQuietly(os);
         }
     }
 

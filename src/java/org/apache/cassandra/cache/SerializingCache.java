@@ -155,6 +155,7 @@ public class SerializingCache<K, V> implements ICache<K, V>
         map.clear();
     }
 
+    @SuppressWarnings("resource")
     public V get(K key)
     {
         RefCountedMemory mem = map.get(key);
@@ -172,6 +173,7 @@ public class SerializingCache<K, V> implements ICache<K, V>
         }
     }
 
+    @SuppressWarnings("resource")
     public void put(K key, V value)
     {
         RefCountedMemory mem = serialize(value);
@@ -193,6 +195,7 @@ public class SerializingCache<K, V> implements ICache<K, V>
             old.unreference();
     }
 
+    @SuppressWarnings("resource")
     public boolean putIfAbsent(K key, V value)
     {
         RefCountedMemory mem = serialize(value);
@@ -216,6 +219,7 @@ public class SerializingCache<K, V> implements ICache<K, V>
         return old == null;
     }
 
+    @SuppressWarnings("resource")
     public boolean replace(K key, V oldToReplace, V value)
     {
         // if there is no old value in our map, we fail
@@ -259,6 +263,7 @@ public class SerializingCache<K, V> implements ICache<K, V>
 
     public void remove(K key)
     {
+        @SuppressWarnings("resource")
         RefCountedMemory mem = map.remove(key);
         if (mem != null)
             mem.unreference();

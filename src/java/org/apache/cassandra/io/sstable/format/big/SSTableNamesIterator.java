@@ -95,6 +95,7 @@ class SSTableNamesIterator extends AbstractIterator<OnDiskAtom> implements OnDis
         return fileToClose;
     }
 
+    @SuppressWarnings("resource")
     private void read(SSTableReader sstable, FileDataInput file, RowIndexEntry indexEntry)
     throws IOException
     {
@@ -170,6 +171,7 @@ class SSTableNamesIterator extends AbstractIterator<OnDiskAtom> implements OnDis
         }
     }
 
+    @SuppressWarnings("resource")
     private void readIndexedColumns(CFMetaData metadata,
                                     FileDataInput file,
                                     SortedSet<CellName> columnNames,

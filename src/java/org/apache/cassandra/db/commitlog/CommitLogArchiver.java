@@ -63,11 +63,8 @@ public class CommitLogArchiver
     public CommitLogArchiver()
     {
         Properties commitlog_commands = new Properties();
-        InputStream stream = null;
-        try
+        try (InputStream stream = getClass().getClassLoader().getResourceAsStream("commitlog_archiving.properties"))
         {
-            stream = getClass().getClassLoader().getResourceAsStream("commitlog_archiving.properties");
-
             if (stream == null)
             {
                 logger.debug("No commitlog_archiving properties found; archive + pitr will be disabled");
@@ -113,10 +110,7 @@ public class CommitLogArchiver
         {
             throw new RuntimeException("Unable to load commitlog_archiving.properties", e);
         }
-        finally
-        {
-            FileUtils.closeQuietly(stream);
-        }
+
     }
 
     public void maybeArchive(final CommitLogSegment segment)

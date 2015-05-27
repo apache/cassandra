@@ -177,9 +177,10 @@ public class BigTableReader extends SSTableReader
         Iterator<FileDataInput> segments = ifile.iterator(sampledPosition);
         while (segments.hasNext())
         {
-            FileDataInput in = segments.next();
-            try
+            String path = null;
+            try (FileDataInput in = segments.next())
             {
+                path = in.getPath();
                 while (!in.isEOF())
                 {
                     i++;
@@ -220,11 +221,12 @@ public class BigTableReader extends SSTableReader
                             if (logger.isTraceEnabled())
                             {
                                 // expensive sanity check!  see CASSANDRA-4687
-                                FileDataInput fdi = dfile.getSegment(indexEntry.position);
-                                DecoratedKey keyInDisk = partitioner.decorateKey(ByteBufferUtil.readWithShortLength(fdi));
-                                if (!keyInDisk.equals(key))
-                                    throw new AssertionError(String.format("%s != %s in %s", keyInDisk, key, fdi.getPath()));
-                                fdi.close();
+                                try (FileDataInput fdi = dfile.getSegment(indexEntry.position))
+                                {
+                                    DecoratedKey keyInDisk = partitioner.decorateKey(ByteBufferUtil.readWithShortLength(fdi));
+                                    if (!keyInDisk.equals(key))
+                                        throw new AssertionError(String.format("%s != %s in %s", keyInDisk, key, fdi.getPath()));
+                                }
                             }
 
                             // store exact match for the key
@@ -242,11 +244,7 @@ public class BigTableReader extends SSTableReader
             catch (IOException e)
             {
                 markSuspect();
-                throw new CorruptSSTableException(e, in.getPath());
-            }
-            finally
-            {
-                FileUtils.closeQuietly(in);
+                throw new CorruptSSTableException(e, path);
             }
         }
 

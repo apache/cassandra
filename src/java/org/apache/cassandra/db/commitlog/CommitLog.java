@@ -257,12 +257,10 @@ public class CommitLog implements CommitLogMBean
         }
 
         Allocation alloc = allocator.allocate(mutation, (int) totalSize);
-        try
+        ICRC32 checksum = CRC32Factory.instance.create();
+        final ByteBuffer buffer = alloc.getBuffer();
+        try (BufferedDataOutputStreamPlus dos = new DataOutputBufferFixed(buffer))
         {
-            ICRC32 checksum = CRC32Factory.instance.create();
-            final ByteBuffer buffer = alloc.getBuffer();
-            BufferedDataOutputStreamPlus dos = new DataOutputBufferFixed(buffer);
-
             // checksummed length
             dos.writeInt((int) size);
             checksum.update(buffer, buffer.position() - 4, 4);

@@ -270,20 +270,14 @@ public abstract class SSTable
     protected static void appendTOC(Descriptor descriptor, Collection<Component> components)
     {
         File tocFile = new File(descriptor.filenameFor(Component.TOC));
-        PrintWriter w = null;
-        try
+        try (PrintWriter w = new PrintWriter(new FileWriter(tocFile, true)))
         {
-            w = new PrintWriter(new FileWriter(tocFile, true));
             for (Component component : components)
                 w.println(component.name);
         }
         catch (IOException e)
         {
             throw new FSWriteError(e, tocFile);
-        }
-        finally
-        {
-            FileUtils.closeQuietly(w);
         }
     }
 

@@ -299,53 +299,57 @@ public class SSTableImport
         int importedKeys = 0;
         long start = System.nanoTime();
 
-        JsonParser parser = getParser(jsonFile);
-
-        Object[] data = parser.readValueAs(new TypeReference<Object[]>(){});
+        Object[] data;
+        try (JsonParser parser = getParser(jsonFile))
+        {
+            data = parser.readValueAs(new TypeReference<Object[]>(){});
+        }
 
         keyCountToImport = (keyCountToImport == null) ? data.length : keyCountToImport;
-        SSTableWriter writer = SSTableWriter.create(Descriptor.fromFilename(ssTablePath), keyCountToImport, ActiveRepairService.UNREPAIRED_SSTABLE, 0);
 
-        System.out.printf("Importing %s keys...%n", keyCountToImport);
-
-        // sort by dk representation, but hold onto the hex version
-        SortedMap<DecoratedKey,Map<?, ?>> decoratedKeys = new TreeMap<DecoratedKey,Map<?, ?>>();
-
-        for (Object row : data)
+        try (SSTableWriter writer = SSTableWriter.create(Descriptor.fromFilename(ssTablePath), keyCountToImport, ActiveRepairService.UNREPAIRED_SSTABLE, 0))
         {
-            Map<?,?> rowAsMap = (Map<?, ?>)row;
-            decoratedKeys.put(partitioner.decorateKey(getKeyValidator(columnFamily).fromString((String) rowAsMap.get("key"))), rowAsMap);
-        }
+            System.out.printf("Importing %s keys...%n", keyCountToImport);
 
-        for (Map.Entry<DecoratedKey, Map<?, ?>> row : decoratedKeys.entrySet())
-        {
-            if (row.getValue().containsKey("metadata"))
+            // sort by dk representation, but hold onto the hex version
+            SortedMap<DecoratedKey, Map<?, ?>> decoratedKeys = new TreeMap<DecoratedKey, Map<?, ?>>();
+
+            for (Object row : data)
             {
-                parseMeta((Map<?, ?>) row.getValue().get("metadata"), columnFamily, null);
+                Map<?, ?> rowAsMap = (Map<?, ?>) row;
+                decoratedKeys.put(partitioner.decorateKey(getKeyValidator(columnFamily).fromString((String) rowAsMap.get("key"))), rowAsMap);
             }
 
-            Object columns = row.getValue().get("cells");
-            addColumnsToCF((List<?>) columns, columnFamily);
-
-
-            writer.append(row.getKey(), columnFamily);
-            columnFamily.clear();
-
-            importedKeys++;
-
-            long current = System.nanoTime();
-
-            if (TimeUnit.NANOSECONDS.toSeconds(current - start) >= 5) // 5 secs.
+            for (Map.Entry<DecoratedKey, Map<?, ?>> row : decoratedKeys.entrySet())
             {
-                System.out.printf("Currently imported %d keys.%n", importedKeys);
-                start = current;
+                if (row.getValue().containsKey("metadata"))
+                {
+                    parseMeta((Map<?, ?>) row.getValue().get("metadata"), columnFamily, null);
+                }
+
+                Object columns = row.getValue().get("cells");
+                addColumnsToCF((List<?>) columns, columnFamily);
+
+
+                writer.append(row.getKey(), columnFamily);
+                columnFamily.clear();
+
+                importedKeys++;
+
+                long current = System.nanoTime();
+
+                if (TimeUnit.NANOSECONDS.toSeconds(current - start) >= 5) // 5 secs.
+                {
+                    System.out.printf("Currently imported %d keys.%n", importedKeys);
+                    start = current;
+                }
+
+                if (keyCountToImport == importedKeys)
+                    break;
             }
 
-            if (keyCountToImport == importedKeys)
-                break;
+            writer.finish(true);
         }
-
-        writer.finish(true);
 
         return importedKeys;
     }
@@ -356,28 +360,29 @@ public class SSTableImport
         int importedKeys = 0; // already imported keys count
         long start = System.nanoTime();
 
-        JsonParser parser = getParser(jsonFile);
-
-        if (keyCountToImport == null)
+        try (JsonParser parser = getParser(jsonFile))
         {
-            keyCountToImport = 0;
-            System.out.println("Counting keys to import, please wait... (NOTE: to skip this use -n <num_keys>)");
 
-            parser.nextToken(); // START_ARRAY
-            while (parser.nextToken() != null)
+            if (keyCountToImport == null)
             {
-                parser.skipChildren();
-                if (parser.getCurrentToken() == JsonToken.END_ARRAY)
-                    break;
+                keyCountToImport = 0;
+                System.out.println("Counting keys to import, please wait... (NOTE: to skip this use -n <num_keys>)");
 
-                keyCountToImport++;
+                parser.nextToken(); // START_ARRAY
+                while (parser.nextToken() != null)
+                {
+                    parser.skipChildren();
+                    if (parser.getCurrentToken() == JsonToken.END_ARRAY)
+                        break;
+
+                    keyCountToImport++;
+                }
             }
+            System.out.printf("Importing %s keys...%n", keyCountToImport);
         }
 
-        System.out.printf("Importing %s keys...%n", keyCountToImport);
-
-        parser = getParser(jsonFile); // renewing parser
-        try (SSTableWriter writer = SSTableWriter.create(Descriptor.fromFilename(ssTablePath), keyCountToImport, ActiveRepairService.UNREPAIRED_SSTABLE);)
+        try (JsonParser parser = getParser(jsonFile); // renewing parser
+             SSTableWriter writer = SSTableWriter.create(Descriptor.fromFilename(ssTablePath), keyCountToImport, ActiveRepairService.UNREPAIRED_SSTABLE);)
         {
             int lineNumber = 1;
             DecoratedKey prevStoredKey = null;

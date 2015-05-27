@@ -249,6 +249,7 @@ final class ColumnFamilyRecordWriter extends RecordWriter<ByteBuffer, List<Mutat
                 throw lastException;
         }
 
+        @SuppressWarnings("resource")
         protected void closeInternal()
         {
             if (client != null)

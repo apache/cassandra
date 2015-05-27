@@ -59,18 +59,20 @@ public class MutationVerbHandler implements IVerbHandler<Mutation>
      */
     private void forwardToLocalNodes(Mutation mutation, MessagingService.Verb verb, byte[] forwardBytes, InetAddress from) throws IOException
     {
-        DataInputStream in = new DataInputStream(new FastByteArrayInputStream(forwardBytes));
-        int size = in.readInt();
-
-        // tell the recipients who to send their ack to
-        MessageOut<Mutation> message = new MessageOut<>(verb, mutation, Mutation.serializer).withParameter(Mutation.FORWARD_FROM, from.getAddress());
-        // Send a message to each of the addresses on our Forward List
-        for (int i = 0; i < size; i++)
+        try (DataInputStream in = new DataInputStream(new FastByteArrayInputStream(forwardBytes)))
         {
-            InetAddress address = CompactEndpointSerializationHelper.deserialize(in);
-            int id = in.readInt();
-            Tracing.trace("Enqueuing forwarded write to {}", address);
-            MessagingService.instance().sendOneWay(message, id, address);
+            int size = in.readInt();
+
+            // tell the recipients who to send their ack to
+            MessageOut<Mutation> message = new MessageOut<>(verb, mutation, Mutation.serializer).withParameter(Mutation.FORWARD_FROM, from.getAddress());
+            // Send a message to each of the addresses on our Forward List
+            for (int i = 0; i < size; i++)
+            {
+                InetAddress address = CompactEndpointSerializationHelper.deserialize(in);
+                int id = in.readInt();
+                Tracing.trace("Enqueuing forwarded write to {}", address);
+                MessagingService.instance().sendOneWay(message, id, address);
+            }
         }
     }
 }

@@ -341,6 +341,7 @@ public class ActiveRepairService
      * @param parentRepairSession parent repair session ID
      * @return Future result of all anti-compaction jobs.
      */
+    @SuppressWarnings("resource")
     public ListenableFuture<List<Object>> doAntiCompaction(final UUID parentRepairSession, Collection<Range<Token>> successfulRanges)
     {
         assert parentRepairSession != null;
@@ -420,6 +421,7 @@ public class ActiveRepairService
             this.sstableMap.put(cfId, existingSSTables);
         }
 
+        @SuppressWarnings("resource")
         public synchronized Refs<SSTableReader> getAndReferenceSSTables(UUID cfId)
         {
             Set<SSTableReader> sstables = sstableMap.get(cfId);

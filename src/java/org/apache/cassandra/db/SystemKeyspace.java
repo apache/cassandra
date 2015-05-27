@@ -438,17 +438,16 @@ public final class SystemKeyspace
 
     private static Map<UUID, ByteBuffer> truncationAsMapEntry(ColumnFamilyStore cfs, long truncatedAt, ReplayPosition position)
     {
-        DataOutputBuffer out = new DataOutputBuffer();
-        try
+        try (DataOutputBuffer out = new DataOutputBuffer())
         {
             ReplayPosition.serializer.serialize(position, out);
             out.writeLong(truncatedAt);
+            return Collections.singletonMap(cfs.metadata.cfId, ByteBuffer.wrap(out.getData(), 0, out.getLength()));
         }
         catch (IOException e)
         {
             throw new RuntimeException(e);
         }
-        return Collections.singletonMap(cfs.metadata.cfId, ByteBuffer.wrap(out.getData(), 0, out.getLength()));
     }
 
     public static ReplayPosition getTruncatedPosition(UUID cfId)
@@ -1122,9 +1121,8 @@ public final class SystemKeyspace
 
     private static ByteBuffer rangeToBytes(Range<Token> range)
     {
-        try
+        try (DataOutputBuffer out = new DataOutputBuffer())
         {
-            DataOutputBuffer out = new DataOutputBuffer();
             Range.tokenSerializer.serialize(range, out, MessagingService.VERSION_22);
             return out.buffer();
         }

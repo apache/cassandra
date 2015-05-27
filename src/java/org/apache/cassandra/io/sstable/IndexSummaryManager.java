@@ -202,6 +202,7 @@ public class IndexSummaryManager implements IndexSummaryManagerMBean
      * Returns a Pair of all compacting and non-compacting sstables.  Non-compacting sstables will be marked as
      * compacting.
      */
+    @SuppressWarnings("resource")
     private Pair<List<SSTableReader>, Map<UUID, LifecycleTransaction>> getCompactingAndNonCompactingSSTables()
     {
         List<SSTableReader> allCompacting = new ArrayList<>();

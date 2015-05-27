@@ -39,6 +39,7 @@ import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.io.util.SequentialWriter;
 import org.apache.cassandra.utils.MergeIterator;
 import org.apache.cassandra.utils.StreamingHistogram;
+import org.apache.cassandra.utils.Throwables;
 
 /**
  * LazilyCompactedRow only computes the row bloom filter and column index in memory
@@ -157,13 +158,11 @@ public class LazilyCompactedRow extends AbstractCompactedRow
 
         // no special-case for rows.size == 1, we're actually skipping some bytes here so just
         // blindly updating everything wouldn't be correct
-        DataOutputBuffer out = new DataOutputBuffer();
-
-        // initialize indexBuilder for the benefit of its tombstoneTracker, used by our reducing iterator
-        indexBuilder = new ColumnIndex.Builder(emptyColumnFamily, key.getKey(), out);
-
-        try
+        try (DataOutputBuffer out = new DataOutputBuffer())
         {
+            // initialize indexBuilder for the benefit of its tombstoneTracker, used by our reducing iterator
+            indexBuilder = new ColumnIndex.Builder(emptyColumnFamily, key.getKey(), out);
+
             DeletionTime.serializer.serialize(emptyColumnFamily.deletionInfo().getTopLevelDeletion(), out);
 
             // do not update digest in case of missing or purged row level tombstones, see CASSANDRA-8979
@@ -192,6 +191,7 @@ public class LazilyCompactedRow extends AbstractCompactedRow
 
     public void close()
     {
+        Throwable accumulate = null;
         for (OnDiskAtomIterator row : rows)
         {
             try
@@ -200,10 +200,11 @@ public class LazilyCompactedRow extends AbstractCompactedRow
             }
             catch (IOException e)
             {
-                throw new RuntimeException(e);
+                accumulate = Throwables.merge(accumulate, e);
             }
         }
         closed = true;
+        Throwables.maybeFail(accumulate);
     }
 
     protected class Reducer extends MergeIterator.Reducer<OnDiskAtom, OnDiskAtom>

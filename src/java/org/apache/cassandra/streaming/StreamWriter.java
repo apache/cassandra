@@ -70,18 +70,19 @@ public class StreamWriter
     public void write(DataOutputStreamPlus output) throws IOException
     {
         long totalSize = totalSize();
-        RandomAccessReader file = sstable.openDataReader();
-        ChecksumValidator validator = new File(sstable.descriptor.filenameFor(Component.CRC)).exists()
-                                    ? DataIntegrityMetadata.checksumValidator(sstable.descriptor)
-                                    : null;
-        transferBuffer = validator == null ? new byte[DEFAULT_CHUNK_SIZE] : new byte[validator.chunkSize];
 
-        // setting up data compression stream
-        compressedOutput = new LZFOutputStream(output);
-        long progress = 0L;
 
-        try
+        try(RandomAccessReader file = sstable.openDataReader();
+            ChecksumValidator validator = new File(sstable.descriptor.filenameFor(Component.CRC)).exists()
+                                          ? DataIntegrityMetadata.checksumValidator(sstable.descriptor)
+                                          : null;)
         {
+            transferBuffer = validator == null ? new byte[DEFAULT_CHUNK_SIZE] : new byte[validator.chunkSize];
+
+            // setting up data compression stream
+            compressedOutput = new LZFOutputStream(output);
+            long progress = 0L;
+
             // stream each of the required sections of the file
             for (Pair<Long, Long> section : sections)
             {
@@ -108,12 +109,6 @@ public class StreamWriter
                 // make sure that current section is sent
                 compressedOutput.flush();
             }
-        }
-        finally
-        {
-            // no matter what happens close file
-            FileUtils.closeQuietly(file);
-            FileUtils.closeQuietly(validator);
         }
     }
 

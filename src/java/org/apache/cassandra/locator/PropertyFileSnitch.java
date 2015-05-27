@@ -136,19 +136,13 @@ public class PropertyFileSnitch extends AbstractNetworkTopologySnitch
         HashMap<InetAddress, String[]> reloadedMap = new HashMap<InetAddress, String[]>();
 
         Properties properties = new Properties();
-        InputStream stream = null;
-        try
+        try (InputStream stream = getClass().getClassLoader().getResourceAsStream(SNITCH_PROPERTIES_FILENAME))
         {
-            stream = getClass().getClassLoader().getResourceAsStream(SNITCH_PROPERTIES_FILENAME);
             properties.load(stream);
         }
         catch (Exception e)
         {
             throw new ConfigurationException("Unable to read " + SNITCH_PROPERTIES_FILENAME, e);
-        }
-        finally
-        {
-            FileUtils.closeQuietly(stream);
         }
 
         for (Map.Entry<Object, Object> entry : properties.entrySet())

@@ -143,6 +143,7 @@ public class FileCacheService
         }
     }
 
+    @SuppressWarnings("resource")
     public void put(CacheKey cacheKey, RandomAccessReader instance)
     {
         int memoryUsed = memoryUsage.get();

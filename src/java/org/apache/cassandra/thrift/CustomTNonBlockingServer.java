@@ -37,6 +37,7 @@ public class CustomTNonBlockingServer extends TNonblockingServer
     }
 
     @Override
+    @SuppressWarnings("resource")
     protected boolean requestInvoke(FrameBuffer frameBuffer)
     {
         TNonblockingSocket socket = (TNonblockingSocket)((CustomFrameBuffer)frameBuffer).getTransport();
@@ -47,6 +48,7 @@ public class CustomTNonBlockingServer extends TNonblockingServer
 
     public static class Factory implements TServerFactory
     {
+        @SuppressWarnings("resource")
         public TServer buildTServer(Args args)
         {
             if (DatabaseDescriptor.getClientEncryptionOptions().enabled)

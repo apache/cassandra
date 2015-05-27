@@ -71,6 +71,7 @@ public class SSTableLoader implements StreamEventHandler
         this.connectionsPerHost = connectionsPerHost;
     }
 
+    @SuppressWarnings("resource")
     protected Collection<SSTableReader> openSSTables(final Map<InetAddress, Collection<Range<Token>>> ranges)
     {
         outputHandler.output("Opening sstables and calculating sections to stream");
@@ -126,9 +127,7 @@ public class SSTableLoader implements StreamEventHandler
 
                         List<Pair<Long, Long>> sstableSections = sstable.getPositionsForRanges(tokenRanges);
                         long estimatedKeys = sstable.estimatedKeysForRanges(tokenRanges);
-                        Ref ref = sstable.tryRef();
-                        if (ref == null)
-                            throw new IllegalStateException("Could not acquire ref for "+sstable);
+                        Ref<SSTableReader> ref = sstable.ref();
                         StreamSession.SSTableStreamingSections details = new StreamSession.SSTableStreamingSections(ref, sstableSections, estimatedKeys, ActiveRepairService.UNREPAIRED_SSTABLE);
                         streamingDetails.put(endpoint, details);
                     }

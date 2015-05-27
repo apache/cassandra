@@ -82,6 +82,7 @@ public class SizeEstimatesRecorder extends MigrationListener implements Runnable
         }
     }
 
+    @SuppressWarnings("resource")
     private void recordSizeEstimates(ColumnFamilyStore table, Collection<Range<Token>> localRanges)
     {
         // for each local primary range, estimate (crudely) mean partition size and partitions count.
@@ -90,22 +91,24 @@ public class SizeEstimatesRecorder extends MigrationListener implements Runnable
         {
             // filter sstables that have partitions in this range.
             Refs<SSTableReader> refs = null;
-            while (refs == null)
-            {
-                ColumnFamilyStore.ViewFragment view = table.select(table.viewFilter(Range.makeRowRange(range)));
-                refs = Refs.tryRef(view.sstables);
-            }
-
             long partitionsCount, meanPartitionSize;
+
             try
             {
+                while (refs == null)
+                {
+                    ColumnFamilyStore.ViewFragment view = table.select(table.viewFilter(Range.makeRowRange(range)));
+                    refs = Refs.tryRef(view.sstables);
+                }
+
                 // calculate the estimates.
                 partitionsCount = estimatePartitionsCount(refs, range);
                 meanPartitionSize = estimateMeanPartitionSize(refs);
             }
             finally
             {
-                refs.release();
+                if (refs != null)
+                    refs.release();
             }
 
             estimates.put(range, Pair.create(partitionsCount, meanPartitionSize));

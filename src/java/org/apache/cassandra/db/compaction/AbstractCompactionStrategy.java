@@ -268,6 +268,7 @@ public abstract class AbstractCompactionStrategy
      * allow for a more memory efficient solution if we know the sstable don't overlap (see
      * LeveledCompactionStrategy for instance).
      */
+    @SuppressWarnings("resource")
     public ScannerList getScanners(Collection<SSTableReader> sstables, Range<Token> range)
     {
         RateLimiter limiter = CompactionManager.instance.getRateLimiter();

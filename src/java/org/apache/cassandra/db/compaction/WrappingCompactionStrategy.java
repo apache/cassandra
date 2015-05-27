@@ -344,6 +344,7 @@ public final class WrappingCompactionStrategy extends AbstractCompactionStrategy
     }
 
     @Override
+    @SuppressWarnings("resource")
     public synchronized ScannerList getScanners(Collection<SSTableReader> sstables, Range<Token> range)
     {
         List<SSTableReader> repairedSSTables = new ArrayList<>();

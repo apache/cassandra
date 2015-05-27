@@ -60,9 +60,8 @@ public class PagingState
 
     public ByteBuffer serialize()
     {
-        try
+        try (DataOutputBuffer out = new DataOutputBufferFixed(serializedSize()))
         {
-            DataOutputBuffer out = new DataOutputBufferFixed(serializedSize());
             ByteBufferUtil.writeWithShortLength(partitionKey, out);
             ByteBufferUtil.writeWithShortLength(cellName, out);
             out.writeInt(remaining);
