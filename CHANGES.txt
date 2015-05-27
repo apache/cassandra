@@ -164,6 +164,9 @@ Merged from 2.0:
  * Fix streaming not holding ref when stream error (CASSANDRA-9295)
  * Fix canonical view returning early opened SSTables (CASSANDRA-9396)
 Merged from 2.0:
+ * Fix potential StackOverflow when setting CrcCheckChance over JMX (CASSANDRA-9488)
+ * Fix null static columns in pages after the first, paged reversed
+   queries (CASSANDRA-8502)
  * Fix counting cache serialization in request metrics (CASSANDRA-9466)
  * (cqlsh) Add LOGIN command to switch users (CASSANDRA-7212)
  * Clone SliceQueryFilter in AbstractReadCommand implementations (CASSANDRA-8940)

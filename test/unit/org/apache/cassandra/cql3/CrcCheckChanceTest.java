@@ -56,6 +56,8 @@ public class CrcCheckChanceTest extends CQLTester
         Assert.assertEquals(0.99, indexCfs.metadata.compressionParameters.getCrcCheckChance());
         Assert.assertEquals(0.99, indexCfs.getSSTables().iterator().next().getCompressionMetadata().parameters.getCrcCheckChance());
 
+        //Test for stack overflow
+        cfs.setCrcCheckChance(0.99);
 
         assertRows(execute("SELECT * FROM %s WHERE p=?", "p1"),
                 row("p1", "k1", "sv1", "v1"),
