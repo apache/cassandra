@@ -79,9 +79,9 @@ public class ColumnCounter
 
     public static class GroupByPrefix extends ColumnCounter
     {
-        private final CellNameType type;
-        private final int toGroup;
-        private CellName previous;
+        protected final CellNameType type;
+        protected final int toGroup;
+        protected CellName previous;
 
         /**
          * A column counter that count only 1 for all the columns sharing a
@@ -153,6 +153,63 @@ public class ColumnCounter
 
             live++;
             previous = current;
+
+            return true;
+        }
+    }
+
+    /**
+     * Similar to GroupByPrefix, but designed to handle counting cells in reverse order.
+     */
+    public static class GroupByPrefixReversed extends GroupByPrefix
+    {
+        public GroupByPrefixReversed(long timestamp, CellNameType type, int toGroup)
+        {
+            super(timestamp, type, toGroup);
+        }
+
+        @Override
+        public boolean count(Cell cell, DeletionInfo.InOrderTester tester)
+        {
+            if (tester.isDeleted(cell))
+                return false;
+
+            if (!cell.isLive(timestamp))
+            {
+                tombstones++;
+                return true;
+            }
+
+            if (toGroup == 0)
+            {
+                live = 1;
+                return true;
+            }
+
+            CellName current = cell.name();
+            assert current.size() >= toGroup;
+
+            if (previous == null)
+            {
+                // This is the first group we've seen.  If it happens to be static, we still want to increment the
+                // count because a) there are no-static rows (statics are always last in reversed order), and b) any
+                // static cells we see after this will not increment the count
+                previous = current;
+                live++;
+            }
+            else if (!current.isStatic())  // ignore statics if we've seen any other statics or any other groups
+            {
+                for (int i = 0; i < toGroup; i++)
+                {
+                    if (type.subtype(i).compare(previous.get(i), current.get(i)) != 0)
+                    {
+                        // it's a new group
+                        live++;
+                        previous = current;
+                        return true;
+                    }
+                }
+            }
 
             return true;
         }

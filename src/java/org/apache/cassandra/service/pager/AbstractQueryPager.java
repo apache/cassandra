@@ -17,14 +17,12 @@
  */
 package org.apache.cassandra.service.pager;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Iterator;
+import java.util.*;
 
 import com.google.common.annotations.VisibleForTesting;
 
 import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.ColumnCounter;
@@ -319,13 +317,29 @@ abstract class AbstractQueryPager implements QueryPager
     {
         ColumnCounter counter = columnCounter();
 
-        // Discard the first 'toDiscard' live
+        List<Cell> staticCells = new ArrayList<>(cfm.staticColumns().size());
+
+        // Discard the first 'toDiscard' live, non-static cells
         while (iter.hasNext())
         {
             Cell c = iter.next();
+
+            // if it's a static column, don't count it and save it to add to the trimmed results
+            ColumnDefinition columnDef = cfm.getColumnDefinition(c.name());
+            if (columnDef != null && columnDef.kind == ColumnDefinition.Kind.STATIC)
+            {
+                staticCells.add(c);
+                continue;
+            }
+
             counter.count(c, tester);
+
+            // once we've discarded the required amount, add the rest
             if (counter.live() > toDiscard)
             {
+                for (Cell staticCell : staticCells)
+                    copy.addColumn(staticCell);
+
                 copy.addColumn(c);
                 while (iter.hasNext())
                     copy.addColumn(iter.next());
@@ -355,9 +369,21 @@ abstract class AbstractQueryPager implements QueryPager
         return Math.min(liveCount, toDiscard);
     }
 
-    protected static Cell firstCell(ColumnFamily cf)
+    /**
+     * Returns the first non-static cell in the ColumnFamily.  This is necessary to avoid recording a static column
+     * as the "last" cell seen in a reversed query.  Because we will always query static columns alongside the normal
+     * data for a page, they are not a good indicator of where paging should resume.  When we begin the next page, we
+     * need to start from the last non-static cell.
+     */
+    protected Cell firstNonStaticCell(ColumnFamily cf)
     {
-        return cf.iterator().next();
+        for (Cell cell : cf)
+        {
+            ColumnDefinition def = cfm.getColumnDefinition(cell.name());
+            if (def == null || def.kind != ColumnDefinition.Kind.STATIC)
+                return cell;
+        }
+        return null;
     }
 
     protected static Cell lastCell(ColumnFamily cf)
