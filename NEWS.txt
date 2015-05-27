@@ -53,9 +53,14 @@ New features
      been added to CQL.
      ************************************************************************
      IMPORTANT NOTE: user-defined functions can be used to execute
-     arbitrary and possibly evil code in Cassandra 2.2-beta1.
-     To enable UDFs edit cassandra.yaml and set enable_user_defined_functions
-     to true. CASSANDRA-9402 will add a security manager for UDFs.
+     arbitrary and possibly evil code in Cassandra 2.2, and are
+     therefore disabled by default.  To enable UDFs edit
+     cassandra.yaml and set enable_user_defined_functions to true.
+
+     CASSANDRA-9402 will add a security manager for UDFs in Cassandra
+     3.0.  This will inherently be backwards-incompatible with any 2.2
+     UDF that perform insecure operations such as opening a socket or
+     writing to the filesystem.
      ************************************************************************
    - Row-cache is now fully off-heap.
    - jemalloc is now automatically preloaded and used on Linux and OS-X if
