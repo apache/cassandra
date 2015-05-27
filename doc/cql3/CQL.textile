@@ -1422,6 +1422,7 @@ Note that you can use the double-quoted string syntax to enclose the UDF source 
 
 bc(sample).. 
 CREATE FUNCTION some_function ( arg int )
+  RETURNS NULL ON NULL INPUT
   RETURNS int
   LANGUAGE java
   AS $$ return arg; $$;
@@ -1432,7 +1433,8 @@ p.
 
 bc(sample). 
 CREATE TYPE custom_type (txt text, i int);
-CREATE FUNCTION fct_using_udt ( udtarg frozen<customType> )
+CREATE FUNCTION fct_using_udt ( udtarg frozen<custom_type> )
+  RETURNS NULL ON NULL INPUT
   RETURNS text
   LANGUAGE java
   AS $$ return udtarg.getString("txt"); $$;
@@ -1484,7 +1486,7 @@ CREATE AGGREGATE average ( int )
   FINALFUNC averageFinal
   INITCOND (0, 0);
 
-CREATE TYPE atable (
+CREATE TABLE atable (
   pk int PRIMARY KEY,
   val int);
 INSERT INTO atable (pk, val) VALUES (1,1);
