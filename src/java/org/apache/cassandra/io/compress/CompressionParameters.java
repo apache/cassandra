@@ -116,7 +116,7 @@ public class CompressionParameters
         validateCrcCheckChance(crcCheckChance);
         this.crcCheckChance = crcCheckChance;
 
-        if (liveMetadata != null)
+        if (liveMetadata != null && this != liveMetadata.compressionParameters)
             liveMetadata.compressionParameters.setCrcCheckChance(crcCheckChance);
     }
 
