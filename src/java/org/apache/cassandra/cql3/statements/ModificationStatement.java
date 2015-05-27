@@ -668,7 +668,8 @@ public abstract class ModificationStatement implements CQLStatement, MeasurableF
     private static ResultSet buildCasFailureResultSet(ByteBuffer key, ColumnFamily cf, Iterable<ColumnIdentifier> columnsWithConditions, boolean isBatch)
     throws InvalidRequestException
     {
-        CFDefinition cfDef = cf.metadata().getCfDef();
+        CFMetaData cfm = cf.metadata();
+        CFDefinition cfDef = cfm.getCfDef();
 
         Selection selection;
         if (columnsWithConditions == null)
@@ -694,7 +695,8 @@ public abstract class ModificationStatement implements CQLStatement, MeasurableF
 
         long now = System.currentTimeMillis();
         Selection.ResultSetBuilder builder = selection.resultSetBuilder(now);
-        SelectStatement.forSelection(cfDef, selection).processColumnFamily(key, cf, Collections.<ByteBuffer>emptyList(), now, builder);
+        SelectStatement.forSelection(cfm, selection)
+                       .processColumnFamily(cfDef, key, cf, Collections.<ByteBuffer>emptyList(), now, builder);
 
         return builder.build();
     }

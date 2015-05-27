@@ -46,6 +46,7 @@ import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.pager.*;
 import org.apache.cassandra.db.ConsistencyLevel;
+import org.apache.cassandra.thrift.ColumnDef;
 import org.apache.cassandra.thrift.IndexExpression;
 import org.apache.cassandra.thrift.IndexOperator;
 import org.apache.cassandra.thrift.ThriftValidation;
@@ -68,7 +69,7 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
     private static final int DEFAULT_COUNT_PAGE_SIZE = 10000;
 
     private final int boundTerms;
-    public final CFDefinition cfDef;
+    public final CFMetaData cfm;
     public final Parameters parameters;
     private final Selection selection;
     private final Term limit;
@@ -110,13 +111,13 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
         }
     };
 
-    public SelectStatement(CFDefinition cfDef, int boundTerms, Parameters parameters, Selection selection, Term limit)
+    public SelectStatement(CFMetaData cfm, int boundTerms, Parameters parameters, Selection selection, Term limit)
     {
-        this.cfDef = cfDef;
+        this.cfm = cfm;
         this.boundTerms = boundTerms;
         this.selection = selection;
-        this.keyRestrictions = new Restriction[cfDef.partitionKeyCount()];
-        this.columnRestrictions = new Restriction[cfDef.clusteringColumnsCount()];
+        this.keyRestrictions = new Restriction[cfm.partitionKeyColumns().size()];
+        this.columnRestrictions = new Restriction[cfm.clusteringKeyColumns().size()];
         this.parameters = parameters;
         this.limit = limit;
 
@@ -126,7 +127,7 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
 
     private void initStaticColumnsInfo()
     {
-        if (!cfDef.cfm.hasStaticColumns())
+        if (!cfm.hasStaticColumns())
             return;
 
         // If it's a wildcard, we do select static but not only them
@@ -152,9 +153,9 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
     // Creates a simple select based on the given selection.
     // Note that the results select statement should not be used for actual queries, but only for processing already
     // queried data through processColumnFamily.
-    static SelectStatement forSelection(CFDefinition cfDef, Selection selection)
+    static SelectStatement forSelection(CFMetaData cfm, Selection selection)
     {
-        return new SelectStatement(cfDef, 0, defaultParameters, selection, null);
+        return new SelectStatement(cfm, 0, defaultParameters, selection, null);
     }
 
     public ResultSet.Metadata getResultMetadata()
@@ -195,6 +196,7 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
 
     public ResultMessage.Rows execute(QueryState state, QueryOptions options) throws RequestExecutionException, RequestValidationException
     {
+        CFDefinition cfDef = cfm.getCfDef();
         ConsistencyLevel cl = options.getConsistency();
         List<ByteBuffer> variables = options.getValues();
         if (cl == null)
@@ -208,11 +210,11 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
         Pageable command;
         if (isKeyRange || usesSecondaryIndexing)
         {
-            command = getRangeCommand(variables, limitForQuery, now);
+            command = getRangeCommand(cfDef, variables, limitForQuery, now);
         }
         else
         {
-            List<ReadCommand> commands = getSliceCommands(variables, limitForQuery, now);
+            List<ReadCommand> commands = getSliceCommands(cfDef, variables, limitForQuery, now);
             command = commands == null ? null : new Pageable.ReadCommands(commands, limitForQuery);
         }
 
@@ -225,13 +227,13 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
 
         if (pageSize <= 0 || command == null || !QueryPagers.mayNeedPaging(command, pageSize))
         {
-            return execute(command, cl, variables, limit, now);
+            return execute(cfDef, command, cl, variables, limit, now);
         }
         else
         {
             QueryPager pager = QueryPagers.pager(command, cl, options.getPagingState());
             if (parameters.isCount)
-                return pageCountQuery(pager, variables, pageSize, now, limit);
+                return pageCountQuery(cfDef, pager, variables, pageSize, now, limit);
 
             // We can't properly do post-query ordering if we page (see #6722)
             if (needsPostQueryOrdering())
@@ -239,14 +241,19 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
                                                 + "ORDER BY or the IN and sort client side, or disable paging for this query");
 
             List<Row> page = pager.fetchPage(pageSize);
-            ResultMessage.Rows msg = processResults(page, variables, limit, now);
+            ResultMessage.Rows msg = processResults(cfDef, page, variables, limit, now);
             if (!pager.isExhausted())
                 msg.result.metadata.setHasMorePages(pager.state());
             return msg;
         }
     }
 
-    private ResultMessage.Rows execute(Pageable command, ConsistencyLevel cl, List<ByteBuffer> variables, int limit, long now) throws RequestValidationException, RequestExecutionException
+    private ResultMessage.Rows execute(CFDefinition cfDef,
+                                       Pageable command,
+                                       ConsistencyLevel cl,
+                                       List<ByteBuffer> variables,
+                                       int limit,
+                                       long now) throws RequestValidationException, RequestExecutionException
     {
         List<Row> rows;
         if (command == null)
@@ -260,17 +267,22 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
                  : StorageProxy.getRangeSlice((RangeSliceCommand)command, cl);
         }
 
-        return processResults(rows, variables, limit, now);
+        return processResults(cfDef, rows, variables, limit, now);
     }
 
-    private ResultMessage.Rows pageCountQuery(QueryPager pager, List<ByteBuffer> variables, int pageSize, long now, int limit) throws RequestValidationException, RequestExecutionException
+    private ResultMessage.Rows pageCountQuery(CFDefinition cfDef,
+                                              QueryPager pager,
+                                              List<ByteBuffer> variables,
+                                              int pageSize,
+                                              long now,
+                                              int limit) throws RequestValidationException, RequestExecutionException
     {
         int count = 0;
         while (!pager.isExhausted())
         {
             int maxLimit = pager.maxRemaining();
             logger.debug("New maxLimit for paged count query is {}", maxLimit);
-            ResultSet rset = process(pager.fetchPage(pageSize), variables, maxLimit, now);
+            ResultSet rset = process(cfDef, pager.fetchPage(pageSize), variables, maxLimit, now);
             count += rset.rows.size();
         }
 
@@ -280,10 +292,10 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
         return new ResultMessage.Rows(result);
     }
 
-    public ResultMessage.Rows processResults(List<Row> rows, List<ByteBuffer> variables, int limit, long now) throws RequestValidationException
+    public ResultMessage.Rows processResults(CFDefinition cfDef, List<Row> rows, List<ByteBuffer> variables, int limit, long now) throws RequestValidationException
     {
         // Even for count, we need to process the result as it'll group some column together in sparse column families
-        ResultSet rset = process(rows, variables, limit, now);
+        ResultSet rset = process(cfDef, rows, variables, limit, now);
         rset = parameters.isCount ? rset.makeCountResult(parameters.countAlias) : rset;
         return new ResultMessage.Rows(rset);
     }
@@ -299,6 +311,7 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
 
     public ResultMessage.Rows executeInternal(QueryState state, QueryOptions options) throws RequestExecutionException, RequestValidationException
     {
+        CFDefinition cfDef = cfm.getCfDef();
         List<ByteBuffer> variables = options.getValues();
         int limit = getLimit(variables);
         int limitForQuery = updateLimitForQuery(limit);
@@ -306,43 +319,47 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
         List<Row> rows;
         if (isKeyRange || usesSecondaryIndexing)
         {
-            RangeSliceCommand command = getRangeCommand(variables, limitForQuery, now);
+            RangeSliceCommand command = getRangeCommand(cfDef, variables, limitForQuery, now);
             rows = command == null ? Collections.<Row>emptyList() : command.executeLocally();
         }
         else
         {
-            List<ReadCommand> commands = getSliceCommands(variables, limitForQuery, now);
+            List<ReadCommand> commands = getSliceCommands(cfDef, variables, limitForQuery, now);
             rows = commands == null ? Collections.<Row>emptyList() : readLocally(keyspace(), commands);
         }
 
-        return processResults(rows, variables, limit, now);
+        return processResults(cfDef, rows, variables, limit, now);
     }
 
     public ResultSet process(List<Row> rows) throws InvalidRequestException
     {
         assert !parameters.isCount; // not yet needed
-        return process(rows, Collections.<ByteBuffer>emptyList(), getLimit(Collections.<ByteBuffer>emptyList()), System.currentTimeMillis());
+        return process(cfm.getCfDef(),
+                       rows,
+                       Collections.<ByteBuffer>emptyList(),
+                       getLimit(Collections.<ByteBuffer>emptyList()),
+                       System.currentTimeMillis());
     }
 
     public String keyspace()
     {
-        return cfDef.cfm.ksName;
+        return cfm.ksName;
     }
 
     public String columnFamily()
     {
-        return cfDef.cfm.cfName;
+        return cfm.cfName;
     }
 
-    private List<ReadCommand> getSliceCommands(List<ByteBuffer> variables, int limit, long now) throws RequestValidationException
+    private List<ReadCommand> getSliceCommands(CFDefinition cfDef, List<ByteBuffer> variables, int limit, long now) throws RequestValidationException
     {
-        Collection<ByteBuffer> keys = getKeys(variables);
+        Collection<ByteBuffer> keys = getKeys(cfDef, variables);
         if (keys.isEmpty()) // in case of IN () for (the last column of) the partition key.
             return null;
 
         List<ReadCommand> commands = new ArrayList<>(keys.size());
 
-        IDiskAtomFilter filter = makeFilter(variables, limit);
+        IDiskAtomFilter filter = makeFilter(cfDef, variables, limit);
         if (filter == null)
             return null;
 
@@ -360,22 +377,22 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
         return commands;
     }
 
-    private RangeSliceCommand getRangeCommand(List<ByteBuffer> variables, int limit, long now) throws RequestValidationException
+    private RangeSliceCommand getRangeCommand(CFDefinition cfDef, List<ByteBuffer> variables, int limit, long now) throws RequestValidationException
     {
-        IDiskAtomFilter filter = makeFilter(variables, limit);
+        IDiskAtomFilter filter = makeFilter(cfDef, variables, limit);
         if (filter == null)
             return null;
 
         List<IndexExpression> expressions = getIndexExpressions(variables);
         // The LIMIT provided by the user is the number of CQL row he wants returned.
         // We want to have getRangeSlice to count the number of columns, not the number of keys.
-        AbstractBounds<RowPosition> keyBounds = getKeyBounds(variables);
+        AbstractBounds<RowPosition> keyBounds = getKeyBounds(cfDef, variables);
         return keyBounds == null
              ? null
              : new RangeSliceCommand(keyspace(), columnFamily(), now,  filter, keyBounds, expressions, limit, !parameters.isDistinct, false);
     }
 
-    private AbstractBounds<RowPosition> getKeyBounds(List<ByteBuffer> variables) throws InvalidRequestException
+    private AbstractBounds<RowPosition> getKeyBounds(CFDefinition cfDef, List<ByteBuffer> variables) throws InvalidRequestException
     {
         IPartitioner<?> p = StorageService.getPartitioner();
 
@@ -408,8 +425,8 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
         }
         else
         {
-            ByteBuffer startKeyBytes = getKeyBound(Bound.START, variables);
-            ByteBuffer finishKeyBytes = getKeyBound(Bound.END, variables);
+            ByteBuffer startKeyBytes = getKeyBound(cfDef, Bound.START, variables);
+            ByteBuffer finishKeyBytes = getKeyBound(cfDef, Bound.END, variables);
 
             RowPosition startKey = RowPosition.forKey(startKeyBytes, p);
             RowPosition finishKey = RowPosition.forKey(finishKeyBytes, p);
@@ -434,7 +451,7 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
 
     private ColumnSlice makeStaticSlice()
     {
-        ColumnNameBuilder staticPrefix = cfDef.cfm.getStaticColumnNameBuilder();
+        ColumnNameBuilder staticPrefix = cfm.getStaticColumnNameBuilder();
         // Note: we could use staticPrefix.build() for the start bound, but EMPTY_BYTE_BUFFER gives us the
         // same effect while saving a few CPU cycles.
         return isReversed
@@ -442,7 +459,7 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
              : new ColumnSlice(ByteBufferUtil.EMPTY_BYTE_BUFFER, staticPrefix.buildAsEndOfRange());
     }
 
-    private IDiskAtomFilter makeFilter(List<ByteBuffer> variables, int limit)
+    private IDiskAtomFilter makeFilter(CFDefinition cfDef, List<ByteBuffer> variables, int limit)
     throws InvalidRequestException
     {
         int toGroup = cfDef.isCompact ? -1 : cfDef.clusteringColumnsCount();
@@ -457,14 +474,14 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
             toGroup = selectsStaticColumns ? toGroup : SliceQueryFilter.IGNORE_TOMBSTONED_PARTITIONS;
             return new SliceQueryFilter(ColumnSlice.ALL_COLUMNS_ARRAY, false, 1, toGroup);
         }
-        else if (isColumnRange())
+        else if (isColumnRange(cfDef))
         {
             // For sparse, we used to ask for 'defined columns' * 'asked limit' (where defined columns includes the row marker)
             // to account for the grouping of columns.
             // Since that doesn't work for maps/sets/lists, we now use the compositesToGroup option of SliceQueryFilter.
             // But we must preserve backward compatibility too (for mixed version cluster that is).
-            List<ByteBuffer> startBounds = getRequestedBound(Bound.START, variables);
-            List<ByteBuffer> endBounds = getRequestedBound(Bound.END, variables);
+            List<ByteBuffer> startBounds = getRequestedBound(cfDef, Bound.START, variables);
+            List<ByteBuffer> endBounds = getRequestedBound(cfDef, Bound.END, variables);
             assert startBounds.size() == endBounds.size();
 
             // Handles fetching static columns. Note that for 2i, the filter is just used to restrict
@@ -478,18 +495,18 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
             if (startBounds.size() == 1)
             {
                 ColumnSlice slice = new ColumnSlice(startBounds.get(0), endBounds.get(0));
-                if (slice.isAlwaysEmpty(cfDef.cfm.comparator, isReversed))
+                if (slice.isAlwaysEmpty(cfm.comparator, isReversed))
                     return staticSlice == null ? null : sliceFilter(staticSlice, limit, toGroup);
 
                 if (staticSlice == null)
                     return sliceFilter(slice, limit, toGroup);
 
                 if (isReversed)
-                    return slice.includes(cfDef.cfm.comparator.reverseComparator, staticSlice.start)
+                    return slice.includes(cfm.comparator.reverseComparator, staticSlice.start)
                             ? sliceFilter(new ColumnSlice(slice.start, staticSlice.finish), limit, toGroup)
                             : sliceFilter(new ColumnSlice[]{ slice, staticSlice }, limit, toGroup);
                 else
-                    return slice.includes(cfDef.cfm.comparator, staticSlice.finish)
+                    return slice.includes(cfm.comparator, staticSlice.finish)
                             ? sliceFilter(new ColumnSlice(staticSlice.start, slice.finish), limit, toGroup)
                             : sliceFilter(new ColumnSlice[]{ staticSlice, slice }, limit, toGroup);
             }
@@ -498,7 +515,7 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
             for (int i = 0; i < startBounds.size(); i++)
             {
                 ColumnSlice slice = new ColumnSlice(startBounds.get(i), endBounds.get(i));
-                if (!slice.isAlwaysEmpty(cfDef.cfm.comparator, isReversed))
+                if (!slice.isAlwaysEmpty(cfm.comparator, isReversed))
                     l.add(slice);
             }
 
@@ -513,7 +530,7 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
             ColumnSlice[] slices;
             if (isReversed)
             {
-                if (l.get(l.size() - 1).includes(cfDef.cfm.comparator.reverseComparator, staticSlice.start))
+                if (l.get(l.size() - 1).includes(cfm.comparator.reverseComparator, staticSlice.start))
                 {
                     slices = l.toArray(new ColumnSlice[l.size()]);
                     slices[slices.length-1] = new ColumnSlice(slices[slices.length-1].start, ByteBufferUtil.EMPTY_BYTE_BUFFER);
@@ -526,7 +543,7 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
             }
             else
             {
-                if (l.get(0).includes(cfDef.cfm.comparator, staticSlice.finish))
+                if (l.get(0).includes(cfm.comparator, staticSlice.finish))
                 {
                     slices = new ColumnSlice[l.size()];
                     slices[0] = new ColumnSlice(ByteBufferUtil.EMPTY_BYTE_BUFFER, l.get(0).finish);
@@ -545,7 +562,7 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
         }
         else
         {
-            SortedSet<ByteBuffer> cellNames = getRequestedColumns(variables);
+            SortedSet<ByteBuffer> cellNames = getRequestedColumns(cfDef, variables);
             if (cellNames == null) // in case of IN () for the last column of the key
                 return null;
             QueryProcessor.validateCellNames(cellNames);
@@ -598,7 +615,7 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
              : limit;
     }
 
-    private Collection<ByteBuffer> getKeys(final List<ByteBuffer> variables) throws InvalidRequestException
+    private Collection<ByteBuffer> getKeys(CFDefinition cfDef, List<ByteBuffer> variables) throws InvalidRequestException
     {
         List<ByteBuffer> keys = new ArrayList<ByteBuffer>();
         ColumnNameBuilder builder = cfDef.getKeyNameBuilder();
@@ -632,7 +649,7 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
         return keys;
     }
 
-    private ByteBuffer getKeyBound(Bound b, List<ByteBuffer> variables) throws InvalidRequestException
+    private ByteBuffer getKeyBound(CFDefinition cfDef, Bound b, List<ByteBuffer> variables) throws InvalidRequestException
     {
         // Deal with unrestricted partition key components (special-casing is required to deal with 2i queries on the first
         // component of a composite partition key).
@@ -694,7 +711,7 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
         return true;
     }
 
-    private boolean isColumnRange()
+    private boolean isColumnRange(CFDefinition cfDef)
     {
         // Due to CASSANDRA-5762, we always do a slice for CQL3 tables (not compact, composite).
         // Static CF (non compact but non composite) never entails a column slice however
@@ -711,11 +728,11 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
         return false;
     }
 
-    private SortedSet<ByteBuffer> getRequestedColumns(List<ByteBuffer> variables) throws InvalidRequestException
+    private SortedSet<ByteBuffer> getRequestedColumns(CFDefinition cfDef, List<ByteBuffer> variables) throws InvalidRequestException
     {
         // Note: getRequestedColumns don't handle static columns, but due to CASSANDRA-5762
         // we always do a slice for CQL3 tables, so it's ok to ignore them here
-        assert !isColumnRange();
+        assert !isColumnRange(cfDef);
 
         ColumnNameBuilder builder = cfDef.getColumnNameBuilder();
         Iterator<CFDefinition.Name> idIter = cfDef.clusteringColumns().iterator();
@@ -771,7 +788,7 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
                         if (cfDef.isCompact)
                             columns.add(b.build());
                         else
-                            columns.addAll(addSelectedColumns(b));
+                            columns.addAll(addSelectedColumns(cfDef, b));
                     }
                     return columns;
                 }
@@ -797,35 +814,35 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
                         if (cfDef.isCompact)
                             inValues.add(b.build());
                         else
-                            inValues.addAll(addSelectedColumns(b));
+                            inValues.addAll(addSelectedColumns(cfDef, b));
                     }
                     return inValues;
                 }
             }
         }
 
-        return addSelectedColumns(builder);
+        return addSelectedColumns(cfDef, builder);
     }
 
-    private SortedSet<ByteBuffer> addSelectedColumns(ColumnNameBuilder builder)
+    private SortedSet<ByteBuffer> addSelectedColumns(CFDefinition cfDef, ColumnNameBuilder builder)
     {
         if (cfDef.isCompact)
         {
-            return FBUtilities.singleton(builder.build(), cfDef.cfm.comparator);
+            return FBUtilities.singleton(builder.build(), cfm.comparator);
         }
         else
         {
             // Collections require doing a slice query because a given collection is a
             // non-know set of columns, so we shouldn't get there
-            assert !selectACollection();
+            assert !selectACollection(cfDef);
 
-            SortedSet<ByteBuffer> columns = new TreeSet<ByteBuffer>(cfDef.cfm.comparator);
+            SortedSet<ByteBuffer> columns = new TreeSet<ByteBuffer>(cfm.comparator);
 
             // We need to query the selected column as well as the marker
             // column (for the case where the row exists but has no columns outside the PK)
             // Two exceptions are "static CF" (non-composite non-compact CF) and "super CF"
             // that don't have marker and for which we must query all columns instead
-            if (cfDef.isComposite && !cfDef.cfm.isSuper())
+            if (cfDef.isComposite && !cfm.isSuper())
             {
                 // marker
                 columns.add(builder.copy().add(ByteBufferUtil.EMPTY_BYTE_BUFFER).build());
@@ -850,7 +867,7 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
         }
     }
 
-    private boolean selectACollection()
+    private boolean selectACollection(CFDefinition cfDef)
     {
         if (!cfDef.hasCollections)
             return false;
@@ -1036,9 +1053,11 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
         return slice.bound(b, variables);
     }
 
-    private List<ByteBuffer> getRequestedBound(Bound b, List<ByteBuffer> variables) throws InvalidRequestException
+    private List<ByteBuffer> getRequestedBound(CFDefinition cfDef,
+                                               Bound b,
+                                               List<ByteBuffer> variables) throws InvalidRequestException
     {
-        assert isColumnRange();
+        assert isColumnRange(cfDef);
         return buildBound(b,
                           new ArrayList<Name>(cfDef.clusteringColumns()),
                           columnRestrictions,
@@ -1137,7 +1156,8 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
         }
     }
 
-    private ResultSet process(List<Row> rows, List<ByteBuffer> variables, int limit, long now) throws InvalidRequestException
+    private ResultSet process(CFDefinition cfDef, List<Row> rows, List<ByteBuffer> variables, int limit, long now)
+    throws InvalidRequestException
     {
         Selection.ResultSetBuilder result = selection.resultSetBuilder(now);
         for (org.apache.cassandra.db.Row row : rows)
@@ -1146,12 +1166,12 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
             if (row.cf == null)
                 continue;
 
-            processColumnFamily(row.key.key, row.cf, variables, now, result);
+            processColumnFamily(cfDef, row.key.key, row.cf, variables, now, result);
         }
 
         ResultSet cqlRows = result.build();
 
-        orderResults(cqlRows);
+        orderResults(cfDef, cqlRows);
 
         // Internal calls always return columns in the comparator order, even when reverse was set
         if (isReversed)
@@ -1163,11 +1183,15 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
     }
 
     // Used by ModificationStatement for CAS operations
-    void processColumnFamily(ByteBuffer key, ColumnFamily cf, List<ByteBuffer> variables, long now, Selection.ResultSetBuilder result)
-    throws InvalidRequestException
+    void processColumnFamily(CFDefinition cfDef,
+                             ByteBuffer key,
+                             ColumnFamily cf,
+                             List<ByteBuffer> variables,
+                             long now,
+                             Selection.ResultSetBuilder result) throws InvalidRequestException
     {
         ByteBuffer[] keyComponents = cfDef.hasCompositeKey
-                                   ? ((CompositeType)cfDef.cfm.getKeyValidator()).split(key)
+                                   ? ((CompositeType) cfm.getKeyValidator()).split(key)
                                    : new ByteBuffer[]{ key };
 
         if (parameters.isDistinct && !selectsStaticColumns)
@@ -1191,11 +1215,11 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
                 ByteBuffer[] components = null;
                 if (cfDef.isComposite)
                 {
-                    components = ((CompositeType)cfDef.cfm.comparator).split(c.name());
+                    components = ((CompositeType) cfm.comparator).split(c.name());
                 }
                 else if (sliceRestriction != null)
                 {
-                    Comparator<ByteBuffer> comp = cfDef.cfm.comparator;
+                    Comparator<ByteBuffer> comp = cfm.comparator;
                     // For dynamic CF, the column could be out of the requested bounds, filter here
 
                     if (!sliceRestriction.isInclusive(Bound.START))
@@ -1251,7 +1275,7 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
         else if (cfDef.isComposite)
         {
             // Sparse case: group column in cqlRow when composite prefix is equal
-            CompositeType composite = (CompositeType)cfDef.cfm.comparator;
+            CompositeType composite = (CompositeType) cfm.comparator;
 
             ColumnGroupMap.Builder builder = new ColumnGroupMap.Builder(composite, cfDef.hasCollections, now);
 
@@ -1325,7 +1349,7 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
     /**
      * Orders results when multiple keys are selected (using IN)
      */
-    private void orderResults(ResultSet cqlRows)
+    private void orderResults(CFDefinition cfDef, ResultSet cqlRows)
     {
         if (cqlRows.size() == 0 || !needsPostQueryOrdering())
             return;
@@ -1336,7 +1360,7 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
         // because there is no point of using composite comparator if there is only one order condition
         if (parameters.orderings.size() == 1)
         {
-            CFDefinition.Name ordering = cfDef.get(parameters.orderings.keySet().iterator().next().prepare(cfDef.cfm));
+            CFDefinition.Name ordering = cfDef.get(parameters.orderings.keySet().iterator().next().prepare(cfm));
             Collections.sort(cqlRows.rows, new SingleColumnComparator(orderingIndexes.get(ordering), ordering.type));
             return;
         }
@@ -1430,7 +1454,7 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
         return false;
     }
 
-    private void validateDistinctSelection()
+    private void validateDistinctSelection(CFDefinition cfDef)
     throws InvalidRequestException
     {
         Collection<CFDefinition.Name> requestedColumns = selection.getColumns();
@@ -1460,7 +1484,7 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
         private final List<Relation> whereClause;
         private final Term.Raw limit;
 
-        public RawStatement(CFName cfName, Parameters parameters, List<RawSelector> selectClause, List<Relation> whereClause, Term.Raw limit)
+        public RawStatement(CFName cfName,Parameters parameters, List<RawSelector> selectClause, List<Relation> whereClause, Term.Raw limit)
         {
             super(cfName);
             this.parameters = parameters;
@@ -1485,7 +1509,7 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
                                 ? Selection.wildcard(cfDef)
                                 : Selection.fromSelectors(cfDef, selectClause);
 
-            SelectStatement stmt = new SelectStatement(cfDef, boundNames.size(), parameters, selection, prepareLimit(boundNames));
+            SelectStatement stmt = new SelectStatement(cfm, boundNames.size(), parameters, selection, prepareLimit(boundNames));
 
             /*
              * WHERE clause. For a given entity, rules are:
@@ -1570,10 +1594,10 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
             if (!stmt.parameters.orderings.isEmpty())
                 processOrderingClause(stmt, cfDef);
 
-            checkNeedsFiltering(stmt);
+            checkNeedsFiltering(stmt, cfDef);
 
             if (parameters.isDistinct)
-                stmt.validateDistinctSelection();
+                stmt.validateDistinctSelection(cfDef);
 
             return new ParsedStatement.Prepared(stmt, boundNames);
         }
@@ -2054,7 +2078,7 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
                 {
                     if (!restriction.isMultiColumn() && i != stmt.columnRestrictions.length - 1)
                         throw new InvalidRequestException(String.format("Clustering column \"%s\" cannot be restricted by an IN relation", cname));
-                    if (stmt.selectACollection())
+                    if (stmt.selectACollection(cfDef))
                         throw new InvalidRequestException(String.format("Cannot restrict column \"%s\" by IN relation as a collection is selected by the query", cname));
 
                     if (restriction.isMultiColumn())
@@ -2187,7 +2211,7 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
         }
 
         /** If ALLOW FILTERING was not specified, this verifies that it is not needed */
-        private void checkNeedsFiltering(SelectStatement stmt) throws InvalidRequestException
+        private void checkNeedsFiltering(SelectStatement stmt, CFDefinition cfDef) throws InvalidRequestException
         {
             // non-key-range non-indexed queries cannot involve filtering underneath
             if (!parameters.allowFiltering && (stmt.isKeyRange || stmt.usesSecondaryIndexing))
@@ -2213,7 +2237,7 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
             // than answering with something that is wrong.
             if (stmt.sliceRestriction != null && stmt.isKeyRange && limit != null)
             {
-                SingleColumnRelation rel = findInclusiveClusteringRelationForCompact(stmt.cfDef);
+                SingleColumnRelation rel = findInclusiveClusteringRelationForCompact(cfDef);
                 throw new InvalidRequestException(String.format("The query requests a restriction of rows with a strict bound (%s) over a range of partitions. "
                                                               + "This is not supported by the underlying storage engine for COMPACT tables if a LIMIT is provided. "
                                                               + "Please either make the condition non strict (%s) or remove the user LIMIT", rel, rel.withNonStrictOperator()));
