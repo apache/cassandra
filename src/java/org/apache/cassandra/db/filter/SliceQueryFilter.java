@@ -184,7 +184,7 @@ public class SliceQueryFilter implements IDiskAtomFilter
             }
             else if (slice.includes(cmp, newStart))
             {
-                if (!reversed && sliceIncludesStatics(slice, cfm) && !newStart.equals(ByteBufferUtil.EMPTY_BYTE_BUFFER))
+                if (!reversed && sliceIncludesStatics(slice, cfm) && !newStart.isEmpty())
                     newSlices.add(new ColumnSlice(Composites.EMPTY, cfm.comparator.staticPrefix().end()));
 
                 newSlices.add(new ColumnSlice(newStart, slice.finish));
