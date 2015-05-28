@@ -87,7 +87,7 @@ public class UFIdentificationTest extends CQLTester
         sFunc = createEchoFunction("set<int>");
         mFunc = createEchoFunction("map<int, int>");
         uFunc = createEchoFunction("timeuuid");
-        udtFunc = createEchoFunction("frozen<" + userType + ">");
+        udtFunc = createEchoFunction(userType);
     }
 
     @Test

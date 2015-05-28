@@ -19,11 +19,12 @@ package org.apache.cassandra.cql3.functions;
 
 import java.util.List;
 
+import org.apache.cassandra.cql3.AssignmentTestable;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.github.jamm.Unmetered;
 
 @Unmetered
-public interface Function
+public interface Function extends AssignmentTestable
 {
     public FunctionName name();
     public List<AbstractType<?>> argTypes();
@@ -43,7 +44,7 @@ public interface Function
      */
     public boolean isAggregate();
 
-    Iterable<Function> getFunctions();
+    public Iterable<Function> getFunctions();
 
-    boolean hasReferenceTo(Function function);
+    public boolean hasReferenceTo(Function function);
 }

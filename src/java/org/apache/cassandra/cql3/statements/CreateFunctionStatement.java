@@ -26,6 +26,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.cql3.CQL3Type;
 import org.apache.cassandra.cql3.ColumnIdentifier;
+import org.apache.cassandra.cql3.Operation.RawUpdate;
 import org.apache.cassandra.cql3.functions.*;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.exceptions.*;
@@ -85,9 +86,9 @@ public final class CreateFunctionStatement extends SchemaAlteringStatement
 
         argTypes = new ArrayList<>(argRawTypes.size());
         for (CQL3Type.Raw rawType : argRawTypes)
-            argTypes.add(rawType.prepare(functionName.keyspace).getType());
+            argTypes.add(prepareType("arguments", rawType));
 
-        returnType = rawReturnType.prepare(functionName.keyspace).getType();
+        returnType = prepareType("return type", rawReturnType);
         return super.prepare();
     }
 
@@ -173,5 +174,19 @@ public final class CreateFunctionStatement extends SchemaAlteringStatement
         MigrationManager.announceNewFunction(udFunction, isLocalOnly);
 
         return true;
+    }
+
+    private AbstractType<?> prepareType(String typeName, CQL3Type.Raw rawType)
+    {
+        if (rawType.isFrozen())
+            throw new InvalidRequestException(String.format("The function %s should not be frozen; remove the frozen<> modifier", typeName));
+
+        // UDT are not supported non frozen but we do not allow the frozen keyword for argument. So for the moment we
+        // freeze them here
+        if (!rawType.canBeNonFrozen())
+            rawType.freeze();
+
+        AbstractType<?> type = rawType.prepare(functionName.keyspace).getType();
+        return type;
     }
 }

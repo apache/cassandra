@@ -315,6 +315,16 @@ public interface CQL3Type
             return false;
         }
 
+        public boolean isFrozen()
+        {
+            return this.frozen;
+        }
+
+        public boolean canBeNonFrozen()
+        {
+            return true;
+        }
+
         public boolean isCounter()
         {
             return false;
@@ -492,6 +502,11 @@ public interface CQL3Type
             public void freeze()
             {
                 frozen = true;
+            }
+
+            public boolean canBeNonFrozen()
+            {
+                return false;
             }
 
             public CQL3Type prepare(String keyspace) throws InvalidRequestException
