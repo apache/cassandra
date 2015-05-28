@@ -51,24 +51,9 @@ import static org.apache.cassandra.utils.Throwables.merge;
  */
 public class SSTableRewriter
 {
-    private static long preemptiveOpenInterval;
-    static
-    {
-        long interval = DatabaseDescriptor.getSSTablePreempiveOpenIntervalInMB() * (1L << 20);
-        if (interval < 0 || FBUtilities.isWindows())
-            interval = Long.MAX_VALUE;
-        preemptiveOpenInterval = interval;
-    }
-
-    @VisibleForTesting
-    static void overrideOpenInterval(long size)
-    {
-        preemptiveOpenInterval = size;
-    }
-
     private final DataTracker dataTracker;
     private final ColumnFamilyStore cfs;
-
+    private final long preemptiveOpenInterval;
     private final long maxAge;
     private final List<SSTableReader> finished = new ArrayList<>();
     private final Set<SSTableReader> rewriting; // the readers we are rewriting (updated as they are replaced)
@@ -96,6 +81,17 @@ public class SSTableRewriter
 
     public SSTableRewriter(ColumnFamilyStore cfs, Set<SSTableReader> rewriting, long maxAge, boolean isOffline)
     {
+        this(cfs, rewriting, maxAge, isOffline, true);
+    }
+
+    public SSTableRewriter(ColumnFamilyStore cfs, Set<SSTableReader> rewriting, long maxAge, boolean isOffline, boolean shouldOpenEarly)
+    {
+        this(cfs, rewriting, maxAge, isOffline, calculateOpenInterval(shouldOpenEarly));
+    }
+
+    @VisibleForTesting
+    public SSTableRewriter(ColumnFamilyStore cfs, Set<SSTableReader> rewriting, long maxAge, boolean isOffline, long preemptiveOpenInterval)
+    {
         this.rewriting = rewriting;
         for (SSTableReader sstable : rewriting)
         {
@@ -106,6 +102,15 @@ public class SSTableRewriter
         this.cfs = cfs;
         this.maxAge = maxAge;
         this.isOffline = isOffline;
+        this.preemptiveOpenInterval = preemptiveOpenInterval;
+    }
+
+    private static long calculateOpenInterval(boolean shouldOpenEarly)
+    {
+        long interval = DatabaseDescriptor.getSSTablePreempiveOpenIntervalInMB() * (1L << 20);
+        if (!shouldOpenEarly || interval < 0)
+            interval = Long.MAX_VALUE;
+        return interval;
     }
 
     public SSTableWriter currentWriter()
