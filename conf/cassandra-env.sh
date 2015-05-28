@@ -71,92 +71,40 @@ calculate_heap_sizes()
         max_heap_size_in_mb="$quarter_system_memory_in_mb"
     fi
     MAX_HEAP_SIZE="${max_heap_size_in_mb}M"
-
-    # Young gen: min(max_sensible_per_modern_cpu_core * num_cores, 1/4 * heap size)
-    max_sensible_yg_per_core_in_mb="100"
-    max_sensible_yg_in_mb=`expr $max_sensible_yg_per_core_in_mb "*" $system_cpu_cores`
-
-    desired_yg_in_mb=`expr $max_heap_size_in_mb / 4`
-
-    if [ "$desired_yg_in_mb" -gt "$max_sensible_yg_in_mb" ]
-    then
-        HEAP_NEWSIZE="${max_sensible_yg_in_mb}M"
-    else
-        HEAP_NEWSIZE="${desired_yg_in_mb}M"
-    fi
 }
 
 # Determine the sort of JVM we'll be running on.
-
 java_ver_output=`"${JAVA:-java}" -version 2>&1`
-
 jvmver=`echo "$java_ver_output" | grep '[openjdk|java] version' | awk -F'"' 'NR==1 {print $2}'`
 JVM_VERSION=${jvmver%_*}
 JVM_PATCH_VERSION=${jvmver#*_}
 
-if [ "$JVM_VERSION" \< "1.7" ] ; then
-    echo "Cassandra 2.0 and later require Java 7u25 or later."
+if [ "$JVM_VERSION" \< "1.8" ] ; then
+    echo "Cassandra 3.0 and later require Java 8u20 or later."
     exit 1;
 fi
 
-if [ "$JVM_VERSION" \< "1.8" ] && [ "$JVM_PATCH_VERSION" \< "25" ] ; then
-    echo "Cassandra 2.0 and later require Java 7u25 or later."
+if [ "$JVM_VERSION" \< "1.8" ] && [ "$JVM_PATCH_VERSION" \< "20" ] ; then
+    echo "Cassandra 3.0 and later require Java 8u20 or later."
     exit 1;
 fi
-
-
-jvm=`echo "$java_ver_output" | grep -A 1 'java version' | awk 'NR==2 {print $1}'`
-case "$jvm" in
-    OpenJDK)
-        JVM_VENDOR=OpenJDK
-        # this will be "64-Bit" or "32-Bit"
-        JVM_ARCH=`echo "$java_ver_output" | awk 'NR==3 {print $2}'`
-        ;;
-    "Java(TM)")
-        JVM_VENDOR=Oracle
-        # this will be "64-Bit" or "32-Bit"
-        JVM_ARCH=`echo "$java_ver_output" | awk 'NR==3 {print $3}'`
-        ;;
-    *)
-        # Help fill in other JVM values
-        JVM_VENDOR=other
-        JVM_ARCH=unknown
-        ;;
-esac
-
 
 # Override these to set the amount of memory to allocate to the JVM at
 # start-up. For production use you may wish to adjust this for your
 # environment. MAX_HEAP_SIZE is the total amount of memory dedicated
-# to the Java heap; HEAP_NEWSIZE refers to the size of the young
-# generation. Both MAX_HEAP_SIZE and HEAP_NEWSIZE should be either set
-# or not (if you set one, set the other).
-#
-# The main trade-off for the young generation is that the larger it
-# is, the longer GC pause times will be. The shorter it is, the more
-# expensive GC will be (usually).
-#
-# The example HEAP_NEWSIZE assumes a modern 8-core+ machine for decent pause
-# times. If in doubt, and if you do not particularly want to tweak, go with
-# 100 MB per physical CPU core.
+# to the Java heap.
 
 #MAX_HEAP_SIZE="4G"
-#HEAP_NEWSIZE="800M"
 
 # Set this to control the amount of arenas per-thread in glibc
 #export MALLOC_ARENA_MAX=4
 
-if [ "x$MAX_HEAP_SIZE" = "x" ] && [ "x$HEAP_NEWSIZE" = "x" ]; then
+# only calculate the size if it's not set manually
+if [ "x$MAX_HEAP_SIZE" = "x" ] ; then
     calculate_heap_sizes
-else
-    if [ "x$MAX_HEAP_SIZE" = "x" ] ||  [ "x$HEAP_NEWSIZE" = "x" ]; then
-        echo "please set or unset MAX_HEAP_SIZE and HEAP_NEWSIZE in pairs (see cassandra-env.sh)"
-        exit 1
-    fi
 fi
 
-if [ "x$MALLOC_ARENA_MAX" = "x" ]
-then
+if [ "x$MALLOC_ARENA_MAX" = "x" ] ; then
     export MALLOC_ARENA_MAX=4
 fi
 
@@ -207,13 +155,6 @@ case "`uname -s`" in
     ;;
 esac
 
-
-# Specifies the default port over which Cassandra will be available for
-# JMX connections.
-# For security reasons, you should not expose this port to the internet.  Firewall it if needed.
-JMX_PORT="7199"
-
-
 # Here we create the arguments that will get passed to the jvm when
 # starting cassandra.
 
@@ -221,11 +162,60 @@ JMX_PORT="7199"
 # performance benefit (around 5%).
 JVM_OPTS="$JVM_OPTS -ea"
 
+# min and max heap sizes should be set to the same value to avoid
+# stop-the-world GC pauses during resize, and so that we can lock the
+# heap in memory on startup to prevent any of it from being swapped
+# out.
+JVM_OPTS="$JVM_OPTS -Xms${MAX_HEAP_SIZE}"
+JVM_OPTS="$JVM_OPTS -Xmx${MAX_HEAP_SIZE}"
+
+# Per-thread stack size.
+JVM_OPTS="$JVM_OPTS -Xss256k"
+
+# Use the Hotspot garbage-first collector.
+JVM_OPTS="$JVM_OPTS -XX:+UseG1GC"
+
+# Have the JVM do less remembered set work during STW, instead
+# preferring concurrent GC. Reduces p99.9 latency.
+JVM_OPTS="$JVM_OPTS -XX:G1RSetUpdatingPauseTimePercent=5"
+
+# The JVM maximum is 8 PGC threads and 1/4 of that for ConcGC.
+# Machines with > 10 cores may need additional threads. Increase to <= full cores.
+#JVM_OPTS="$JVM_OPTS -XX:ParallelGCThreads=16"
+#JVM_OPTS="$JVM_OPTS -XX:ConcGCThreads=16"
+
+# Main G1GC tunable: lowering the pause target will lower throughput and vise versa.
+# 200ms is the JVM default and lowest viable setting
+# 1000ms increases throughput. Keep it smaller than the timeouts in cassandra.yaml.
+JVM_OPTS="$JVM_OPTS -XX:MaxGCPauseMillis=500"
+
+# Save CPU time on large (>= 16GB) heaps by delaying region scanning
+# until the heap is 70% full. The default in Hotspot 8u40 is 40%.
+#JVM_OPTS="$JVM_OPTS -XX:InitiatingHeapOccupancyPercent=70"
+
+# Make sure all memory is faulted and zeroed on startup.
+# This helps prevent soft faults in containers and makes
+# transparent hugepage allocation more effective.
+JVM_OPTS="$JVM_OPTS -XX:+AlwaysPreTouch"
+
+# Biased locking does not benefit Cassandra.
+JVM_OPTS="$JVM_OPTS -XX:-UseBiasedLocking"
+
+# Larger interned string table, for gossip's benefit (CASSANDRA-6410)
+JVM_OPTS="$JVM_OPTS -XX:StringTableSize=1000003"
+
+# Enable thread-local allocation blocks and allow the JVM to automatically
+# resize them at runtime.
+JVM_OPTS="$JVM_OPTS -XX:+UseTLAB -XX:+ResizeTLAB"
+
+# http://www.evanjones.ca/jvm-mmap-pause.html
+JVM_OPTS="$JVM_OPTS -XX:+PerfDisableSharedMem"
+
+# provides hints to the JIT compiler
+JVM_OPTS="$JVM_OPTS -XX:CompileCommandFile=$CASSANDRA_CONF/hotspot_compiler"
+
 # add the jamm javaagent
 JVM_OPTS="$JVM_OPTS -javaagent:$CASSANDRA_HOME/lib/jamm-0.3.0.jar"
-
-# some JVMs will fill up their heap when accessed via JMX, see CASSANDRA-6541
-JVM_OPTS="$JVM_OPTS -XX:+CMSClassUnloadingEnabled"
 
 # enable thread priorities, primarily so we can give periodic tasks
 # a lower priority to avoid interfering with client workload
@@ -234,49 +224,10 @@ JVM_OPTS="$JVM_OPTS -XX:+UseThreadPriorities"
 # http://tech.stolsvik.com/2010/01/linux-java-thread-priorities-workaround.html
 JVM_OPTS="$JVM_OPTS -XX:ThreadPriorityPolicy=42"
 
-# min and max heap sizes should be set to the same value to avoid
-# stop-the-world GC pauses during resize, and so that we can lock the
-# heap in memory on startup to prevent any of it from being swapped
-# out.
-JVM_OPTS="$JVM_OPTS -Xms${MAX_HEAP_SIZE}"
-JVM_OPTS="$JVM_OPTS -Xmx${MAX_HEAP_SIZE}"
-JVM_OPTS="$JVM_OPTS -Xmn${HEAP_NEWSIZE}"
-JVM_OPTS="$JVM_OPTS -XX:+HeapDumpOnOutOfMemoryError"
-
 # set jvm HeapDumpPath with CASSANDRA_HEAPDUMP_DIR
+JVM_OPTS="$JVM_OPTS -XX:+HeapDumpOnOutOfMemoryError"
 if [ "x$CASSANDRA_HEAPDUMP_DIR" != "x" ]; then
     JVM_OPTS="$JVM_OPTS -XX:HeapDumpPath=$CASSANDRA_HEAPDUMP_DIR/cassandra-`date +%s`-pid$$.hprof"
-fi
-
-
-startswith() { [ "${1#$2}" != "$1" ]; }
-
-# Per-thread stack size.
-JVM_OPTS="$JVM_OPTS -Xss256k"
-
-# Larger interned string table, for gossip's benefit (CASSANDRA-6410)
-JVM_OPTS="$JVM_OPTS -XX:StringTableSize=1000003"
-
-# GC tuning options
-JVM_OPTS="$JVM_OPTS -XX:+UseParNewGC" 
-JVM_OPTS="$JVM_OPTS -XX:+UseConcMarkSweepGC" 
-JVM_OPTS="$JVM_OPTS -XX:+CMSParallelRemarkEnabled" 
-JVM_OPTS="$JVM_OPTS -XX:SurvivorRatio=8" 
-JVM_OPTS="$JVM_OPTS -XX:MaxTenuringThreshold=1"
-JVM_OPTS="$JVM_OPTS -XX:CMSInitiatingOccupancyFraction=75"
-JVM_OPTS="$JVM_OPTS -XX:+UseCMSInitiatingOccupancyOnly"
-JVM_OPTS="$JVM_OPTS -XX:+UseTLAB"
-JVM_OPTS="$JVM_OPTS -XX:+PerfDisableSharedMem"
-JVM_OPTS="$JVM_OPTS -XX:CompileCommandFile=$CASSANDRA_CONF/hotspot_compiler"
-JVM_OPTS="$JVM_OPTS -XX:CMSWaitDuration=10000"
-
-# note: bash evals '1.7.x' as > '1.7' so this is really a >= 1.7 jvm check
-if { [ "$JVM_VERSION" \> "1.7" ] && [ "$JVM_VERSION" \< "1.8.0" ] && [ "$JVM_PATCH_VERSION" -ge "60" ]; } || [ "$JVM_VERSION" \> "1.8" ] ; then
-    JVM_OPTS="$JVM_OPTS -XX:+CMSParallelInitialMarkEnabled -XX:+CMSEdenChunksRecordAlways -XX:CMSWaitDuration=10000"
-fi
-
-if [ "$JVM_ARCH" = "64-Bit" ] ; then
-    JVM_OPTS="$JVM_OPTS -XX:+UseCondCardMark"
 fi
 
 # GC logging options -- uncomment to enable
@@ -287,9 +238,6 @@ fi
 # JVM_OPTS="$JVM_OPTS -XX:+PrintGCApplicationStoppedTime"
 # JVM_OPTS="$JVM_OPTS -XX:+PrintPromotionFailure"
 # JVM_OPTS="$JVM_OPTS -XX:PrintFLSStatistics=1"
-# JVM_OPTS="$JVM_OPTS -Xloggc:/var/log/cassandra/gc-`date +%s`.log"
-# If you are using JDK 6u34 7u2 or later you can enable GC log rotation
-# don't stick the date in the log name if rotation is on.
 # JVM_OPTS="$JVM_OPTS -Xloggc:/var/log/cassandra/gc.log"
 # JVM_OPTS="$JVM_OPTS -XX:+UseGCLogFileRotation"
 # JVM_OPTS="$JVM_OPTS -XX:NumberOfGCLogFiles=10"
@@ -327,6 +275,11 @@ JVM_OPTS="$JVM_OPTS -Djava.net.preferIPv4Stack=true"
 # with authentication and/or ssl enabled. See https://wiki.apache.org/cassandra/JmxSecurity 
 #
 LOCAL_JMX=yes
+
+# Specifies the default port over which Cassandra will be available for
+# JMX connections.
+# For security reasons, you should not expose this port to the internet.  Firewall it if needed.
+JMX_PORT="7199"
 
 if [ "$LOCAL_JMX" = "yes" ]; then
   JVM_OPTS="$JVM_OPTS -Dcassandra.jmx.local.port=$JMX_PORT -XX:+DisableExplicitGC"

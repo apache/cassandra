@@ -1,6 +1,7 @@
 3.0:
  * Decommissioned nodes will not rejoin the cluster (CASSANDRA-8801)
  * Change gossip stabilization to use endpoit size (CASSANDRA-9401)
+ * Change default garbage collector to G1 (CASSANDRA-7486)
 
 
 2.2
