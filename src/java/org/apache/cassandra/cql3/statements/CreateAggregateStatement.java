@@ -83,9 +83,9 @@ public final class CreateAggregateStatement extends SchemaAlteringStatement
     {
         argTypes = new ArrayList<>(argRawTypes.size());
         for (CQL3Type.Raw rawType : argRawTypes)
-            argTypes.add(rawType.prepare(functionName.keyspace).getType());
+            argTypes.add(prepareType("arguments", rawType));
 
-        AbstractType<?> stateType = stateTypeRaw.prepare(functionName.keyspace).getType();
+        AbstractType<?> stateType = prepareType("state type", stateTypeRaw);
         Function f = Functions.find(stateFunc, stateArguments(stateType, argTypes));
         if (!(f instanceof ScalarFunction))
             throw new InvalidRequestException("State function " + stateFuncSig(stateFunc, stateTypeRaw, argRawTypes) + " does not exist or is not a scalar function");
@@ -115,6 +115,20 @@ public final class CreateAggregateStatement extends SchemaAlteringStatement
         }
 
         return super.prepare();
+    }
+
+    private AbstractType<?> prepareType(String typeName, CQL3Type.Raw rawType)
+    {
+        if (rawType.isFrozen())
+            throw new InvalidRequestException(String.format("The function %s should not be frozen; remove the frozen<> modifier", typeName));
+
+        // UDT are not supported non frozen but we do not allow the frozen keyword for argument. So for the moment we
+        // freeze them here
+        if (!rawType.canBeNonFrozen())
+            rawType.freeze();
+
+        AbstractType<?> type = rawType.prepare(functionName.keyspace).getType();
+        return type;
     }
 
     public void prepareKeyspace(ClientState state) throws InvalidRequestException

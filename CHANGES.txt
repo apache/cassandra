@@ -5,6 +5,8 @@
 
 
 2.2
+ * Disallow frozen<> types in function arguments and return types for
+   clarity (CASSANDRA-9411)
  * Static Analysis to warn on unsafe use of Autocloseable instances (CASSANDRA-9431)
  * Update commitlog archiving examples now that commitlog segments are
    not recycled (CASSANDRA-9350)

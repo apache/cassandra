@@ -16,7 +16,6 @@
  * limitations under the License.
  */
 package org.apache.cassandra.cql3;
-
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.util.*;
@@ -928,13 +927,13 @@ public class UFTest extends CQLTester
                                            KEYSPACE_PER_TEST, KEYSPACE),
                              "CREATE FUNCTION " + KEYSPACE_PER_TEST + ".test_wrong_ks( val int ) " +
                              "CALLED ON NULL INPUT " +
-                             "RETURNS frozen<" + type + "> " +
+                             "RETURNS " + type + " " +
                              "LANGUAGE java\n" +
                              "AS $$return val;$$;");
 
         assertInvalidMessage(String.format("Statement on keyspace %s cannot refer to a user type in keyspace %s; user types can only be used in the keyspace they are defined in",
                                            KEYSPACE_PER_TEST, KEYSPACE),
-                             "CREATE FUNCTION " + KEYSPACE_PER_TEST + ".test_wrong_ks( val frozen<" + type + "> ) " +
+                             "CREATE FUNCTION " + KEYSPACE_PER_TEST + ".test_wrong_ks( val " + type + " ) " +
                              "CALLED ON NULL INPUT " +
                              "RETURNS int " +
                              "LANGUAGE java\n" +
@@ -967,16 +966,16 @@ public class UFTest extends CQLTester
                                      "RETURNS map<int, boolean> " +
                                      "LANGUAGE java\n" +
                                      "AS $$return coll;$$;");
-        String fTup = createFunction(KEYSPACE, "frozen<tuple<double, text, int, boolean>>",
-                                     "CREATE FUNCTION %s( val frozen<tuple<double, text, int, boolean>> ) " +
+        String fTup = createFunction(KEYSPACE, "tuple<double, text, int, boolean>",
+                                     "CREATE FUNCTION %s( val tuple<double, text, int, boolean> ) " +
                                      "CALLED ON NULL INPUT " +
-                                     "RETURNS frozen<tuple<double, text, int, boolean>> " +
+                                     "RETURNS tuple<double, text, int, boolean> " +
                                      "LANGUAGE java\n" +
                                      "AS $$return val;$$;");
-        String fUdt = createFunction(KEYSPACE, "frozen<" + type+'>',
-                                     "CREATE FUNCTION %s( val frozen<" + type + "> ) " +
+        String fUdt = createFunction(KEYSPACE, type,
+                                     "CREATE FUNCTION %s( val " + type + " ) " +
                                      "CALLED ON NULL INPUT " +
-                                     "RETURNS frozen<" + type + "> " +
+                                     "RETURNS " + type + " " +
                                      "LANGUAGE java\n" +
                                      "AS $$return val;$$;");
         List<Double> list = Arrays.asList(1d, 2d, 3d);
@@ -1055,10 +1054,10 @@ public class UFTest extends CQLTester
     {
         createTable("CREATE TABLE %s (key int primary key, tup frozen<tuple<double, text, int, boolean>>)");
 
-        String fName = createFunction(KEYSPACE, "frozen<tuple<double, text, int, boolean>>",
-                                     "CREATE FUNCTION %s( tup frozen<tuple<double, text, int, boolean>> ) " +
+        String fName = createFunction(KEYSPACE, "tuple<double, text, int, boolean>",
+                                     "CREATE FUNCTION %s( tup tuple<double, text, int, boolean> ) " +
                                      "RETURNS NULL ON NULL INPUT " +
-                                     "RETURNS frozen<tuple<double, text, int, boolean>> " +
+                                     "RETURNS tuple<double, text, int, boolean> " +
                                      "LANGUAGE java\n" +
                                      "AS $$return tup;$$;");
 
@@ -1076,9 +1075,9 @@ public class UFTest extends CQLTester
     @Test
     public void testJavaTupleTypeCollection() throws Throwable
     {
-        String tupleTypeDef = "frozen<tuple<double, list<double>, set<text>, map<int, boolean>>>";
+        String tupleTypeDef = "tuple<double, list<double>, set<text>, map<int, boolean>>";
 
-        createTable("CREATE TABLE %s (key int primary key, tup " + tupleTypeDef + ')');
+        createTable("CREATE TABLE %s (key int primary key, tup frozen<" + tupleTypeDef + ">)");
 
         String fTup0 = createFunction(KEYSPACE_PER_TEST, tupleTypeDef,
                 "CREATE FUNCTION %s( tup " + tupleTypeDef + " ) " +
@@ -1175,9 +1174,9 @@ public class UFTest extends CQLTester
             executeNet(version, "USE " + KEYSPACE);
 
             executeNet(version,
-                       "CREATE FUNCTION f_use1( udt frozen<" + type + "> ) " +
+                       "CREATE FUNCTION f_use1( udt " + type + " ) " +
                        "RETURNS NULL ON NULL INPUT " +
-                       "RETURNS frozen<" + type + "> " +
+                       "RETURNS " + type + " " +
                        "LANGUAGE java " +
                        "AS $$return " +
                        "     udt;$$;");
@@ -1203,22 +1202,22 @@ public class UFTest extends CQLTester
 
         createTable("CREATE TABLE %s (key int primary key, udt frozen<" + type + ">)");
 
-        String fUdt0 = createFunction(KEYSPACE, "frozen<" + type + '>',
-                                      "CREATE FUNCTION %s( udt frozen<" + type + "> ) " +
+        String fUdt0 = createFunction(KEYSPACE, type,
+                                      "CREATE FUNCTION %s( udt " + type + " ) " +
                                       "RETURNS NULL ON NULL INPUT " +
-                                      "RETURNS frozen<" + type + "> " +
+                                      "RETURNS " + type + " " +
                                       "LANGUAGE java " +
                                       "AS $$return " +
                                       "     udt;$$;");
-        String fUdt1 = createFunction(KEYSPACE, "frozen<" + type + '>',
-                                      "CREATE FUNCTION %s( udt frozen<" + type + "> ) " +
+        String fUdt1 = createFunction(KEYSPACE, type,
+                                      "CREATE FUNCTION %s( udt " + type + ") " +
                                       "RETURNS NULL ON NULL INPUT " +
                                       "RETURNS text " +
                                       "LANGUAGE java " +
                                       "AS $$return " +
                                       "     udt.getString(\"txt\");$$;");
-        String fUdt2 = createFunction(KEYSPACE, "frozen<" + type + '>',
-                                      "CREATE FUNCTION %s( udt frozen<" + type + "> ) " +
+        String fUdt2 = createFunction(KEYSPACE, type,
+                                      "CREATE FUNCTION %s( udt " + type + ") " +
                                       "CALLED ON NULL INPUT " +
                                       "RETURNS int " +
                                       "LANGUAGE java " +
@@ -1257,8 +1256,8 @@ public class UFTest extends CQLTester
 
         createTable("CREATE TABLE %s (key int primary key, udt frozen<" + type + ">)");
 
-        String fName = createFunction(KEYSPACE, "frozen<" + type + '>',
-                                      "CREATE FUNCTION %s( udt frozen<" + type + "> ) " +
+        String fName = createFunction(KEYSPACE, type,
+                                      "CREATE FUNCTION %s( udt " + type + " ) " +
                                       "CALLED ON NULL INPUT " +
                                       "RETURNS int " +
                                       "LANGUAGE java " +
@@ -1294,8 +1293,8 @@ public class UFTest extends CQLTester
 
         createTable("CREATE TABLE %s (key int primary key, udt frozen<" + type + ">)");
 
-        String fName = createFunction(KEYSPACE, "frozen<" + type + '>',
-                                      "CREATE FUNCTION %s( udt frozen<" + type + "> ) " +
+        String fName = createFunction(KEYSPACE, type,
+                                      "CREATE FUNCTION %s( udt " + type + " ) " +
                                       "RETURNS NULL ON NULL INPUT " +
                                       "RETURNS text " +
                                       "LANGUAGE java\n" +
@@ -1324,53 +1323,53 @@ public class UFTest extends CQLTester
 
         createTable("CREATE TABLE %s (key int primary key, udt frozen<" + type + ">)");
 
-        String fName1replace = createFunction(KEYSPACE, "frozen<" + type + '>',
-                                              "CREATE FUNCTION %s( udt frozen<" + type + "> ) " +
+        String fName1replace = createFunction(KEYSPACE, type,
+                                              "CREATE FUNCTION %s( udt " + type + ") " +
                                               "RETURNS NULL ON NULL INPUT " +
                                               "RETURNS text " +
                                               "LANGUAGE java\n" +
                                               "AS $$return udt.getString(\"txt\");$$;");
-        String fName2replace = createFunction(KEYSPACE, "frozen<" + type + '>',
-                                              "CREATE FUNCTION %s( udt frozen<" + type + "> ) " +
+        String fName2replace = createFunction(KEYSPACE, type,
+                                              "CREATE FUNCTION %s( udt " + type + " ) " +
                                               "CALLED ON NULL INPUT " +
                                               "RETURNS int " +
                                               "LANGUAGE java\n" +
                                               "AS $$return Integer.valueOf(udt.getInt(\"i\"));$$;");
-        String fName3replace = createFunction(KEYSPACE, "frozen<" + type + '>',
-                                              "CREATE FUNCTION %s( udt frozen<" + type + "> ) " +
+        String fName3replace = createFunction(KEYSPACE, type,
+                                              "CREATE FUNCTION %s( udt " + type + " ) " +
                                               "CALLED ON NULL INPUT " +
                                               "RETURNS double " +
                                               "LANGUAGE java\n" +
                                               "AS $$return Double.valueOf(udt.getDouble(\"added\"));$$;");
-        String fName4replace = createFunction(KEYSPACE, "frozen<" + type + '>',
-                                              "CREATE FUNCTION %s( udt frozen<" + type + "> ) " +
+        String fName4replace = createFunction(KEYSPACE, type,
+                                              "CREATE FUNCTION %s( udt " + type + " ) " +
                                               "RETURNS NULL ON NULL INPUT " +
-                                              "RETURNS frozen<" + type + "> " +
+                                              "RETURNS " + type + " " +
                                               "LANGUAGE java\n" +
                                               "AS $$return udt;$$;");
 
-        String fName1noReplace = createFunction(KEYSPACE, "frozen<" + type + '>',
-                                              "CREATE FUNCTION %s( udt frozen<" + type + "> ) " +
+        String fName1noReplace = createFunction(KEYSPACE, type,
+                                              "CREATE FUNCTION %s( udt " + type + " ) " +
                                               "RETURNS NULL ON NULL INPUT " +
                                               "RETURNS text " +
                                               "LANGUAGE java\n" +
                                               "AS $$return udt.getString(\"txt\");$$;");
-        String fName2noReplace = createFunction(KEYSPACE, "frozen<" + type + '>',
-                                              "CREATE FUNCTION %s( udt frozen<" + type + "> ) " +
+        String fName2noReplace = createFunction(KEYSPACE, type,
+                                              "CREATE FUNCTION %s( udt " + type + " ) " +
                                               "CALLED ON NULL INPUT " +
                                               "RETURNS int " +
                                               "LANGUAGE java\n" +
                                               "AS $$return Integer.valueOf(udt.getInt(\"i\"));$$;");
-        String fName3noReplace = createFunction(KEYSPACE, "frozen<" + type + '>',
-                                                "CREATE FUNCTION %s( udt frozen<" + type + "> ) " +
+        String fName3noReplace = createFunction(KEYSPACE, type,
+                                                "CREATE FUNCTION %s( udt " + type + " ) " +
                                                 "CALLED ON NULL INPUT " +
                                                 "RETURNS double " +
                                                 "LANGUAGE java\n" +
                                                 "AS $$return Double.valueOf(udt.getDouble(\"added\"));$$;");
-        String fName4noReplace = createFunction(KEYSPACE, "frozen<" + type + '>',
-                                                "CREATE FUNCTION %s( udt frozen<" + type + "> ) " +
+        String fName4noReplace = createFunction(KEYSPACE, type,
+                                                "CREATE FUNCTION %s( udt " + type + " ) " +
                                                 "RETURNS NULL ON NULL INPUT " +
-                                                "RETURNS frozen<" + type + "> " +
+                                                "RETURNS " + type + " " +
                                                 "LANGUAGE java\n" +
                                                 "AS $$return udt;$$;");
 
@@ -1390,7 +1389,7 @@ public class UFTest extends CQLTester
         // note: type references of functions remain at the state _before_ the type mutation
         // means we need to recreate the functions
 
-        execute(String.format("CREATE OR REPLACE FUNCTION %s( udt frozen<%s> ) " +
+        execute(String.format("CREATE OR REPLACE FUNCTION %s( udt %s ) " +
                               "RETURNS NULL ON NULL INPUT " +
                               "RETURNS text " +
                               "LANGUAGE java\n" +
@@ -1398,7 +1397,7 @@ public class UFTest extends CQLTester
                               "     udt.getString(\"txt\");$$;",
                               fName1replace, type));
         Assert.assertEquals(1, Functions.find(parseFunctionName(fName1replace)).size());
-        execute(String.format("CREATE OR REPLACE FUNCTION %s( udt frozen<%s> ) " +
+        execute(String.format("CREATE OR REPLACE FUNCTION %s( udt %s ) " +
                               "CALLED ON NULL INPUT " +
                               "RETURNS int " +
                               "LANGUAGE java\n" +
@@ -1406,7 +1405,7 @@ public class UFTest extends CQLTester
                               "     Integer.valueOf(udt.getInt(\"i\"));$$;",
                               fName2replace, type));
         Assert.assertEquals(1, Functions.find(parseFunctionName(fName2replace)).size());
-        execute(String.format("CREATE OR REPLACE FUNCTION %s( udt frozen<%s> ) " +
+        execute(String.format("CREATE OR REPLACE FUNCTION %s( udt %s ) " +
                               "CALLED ON NULL INPUT " +
                               "RETURNS double " +
                               "LANGUAGE java\n" +
@@ -1414,9 +1413,9 @@ public class UFTest extends CQLTester
                               "     Double.valueOf(udt.getDouble(\"added\"));$$;",
                               fName3replace, type));
         Assert.assertEquals(1, Functions.find(parseFunctionName(fName3replace)).size());
-        execute(String.format("CREATE OR REPLACE FUNCTION %s( udt frozen<%s> ) " +
+        execute(String.format("CREATE OR REPLACE FUNCTION %s( udt %s ) " +
                               "RETURNS NULL ON NULL INPUT " +
-                              "RETURNS frozen<%s> " +
+                              "RETURNS %s " +
                               "LANGUAGE java\n" +
                               "AS $$return " +
                               "     udt;$$;",
@@ -1552,10 +1551,10 @@ public class UFTest extends CQLTester
     {
         createTable("CREATE TABLE %s (key int primary key, tup frozen<tuple<double, text, int, boolean>>)");
 
-        String fName = createFunction(KEYSPACE_PER_TEST, "frozen<tuple<double, text, int, boolean>>",
-                "CREATE FUNCTION %s( tup frozen<tuple<double, text, int, boolean>> ) " +
+        String fName = createFunction(KEYSPACE_PER_TEST, "tuple<double, text, int, boolean>",
+                "CREATE FUNCTION %s( tup tuple<double, text, int, boolean> ) " +
                 "RETURNS NULL ON NULL INPUT " +
-                "RETURNS frozen<tuple<double, text, int, boolean>> " +
+                "RETURNS tuple<double, text, int, boolean> " +
                 "LANGUAGE javascript\n" +
                 "AS $$tup;$$;");
 
@@ -1573,13 +1572,13 @@ public class UFTest extends CQLTester
     @Test
     public void testJavascriptTupleTypeCollection() throws Throwable
     {
-        String tupleTypeDef = "frozen<tuple<double, list<double>, set<text>, map<int, boolean>>>";
-        createTable("CREATE TABLE %s (key int primary key, tup " + tupleTypeDef + ')');
+        String tupleTypeDef = "tuple<double, list<double>, set<text>, map<int, boolean>>";
+        createTable("CREATE TABLE %s (key int primary key, tup frozen<" + tupleTypeDef + ">)");
 
         String fTup1 = createFunction(KEYSPACE_PER_TEST, tupleTypeDef,
                 "CREATE FUNCTION %s( tup " + tupleTypeDef + " ) " +
                 "RETURNS NULL ON NULL INPUT " +
-                "RETURNS frozen<tuple<double, list<double>, set<text>, map<int, boolean>>> " +
+                "RETURNS tuple<double, list<double>, set<text>, map<int, boolean>> " +
                 "LANGUAGE javascript\n" +
                 "AS $$" +
                 "       tup;$$;");
@@ -1667,22 +1666,22 @@ public class UFTest extends CQLTester
 
         createTable("CREATE TABLE %s (key int primary key, udt frozen<" + type + ">)");
 
-        String fUdt1 = createFunction(KEYSPACE, "frozen<" + type + '>',
-                              "CREATE FUNCTION %s( udt frozen<" + type + "> ) " +
+        String fUdt1 = createFunction(KEYSPACE, type,
+                              "CREATE FUNCTION %s( udt " + type + " ) " +
                               "RETURNS NULL ON NULL INPUT " +
-                              "RETURNS frozen<" + type + "> " +
+                              "RETURNS " + type + " " +
                               "LANGUAGE javascript\n" +
                               "AS $$" +
                               "     udt;$$;");
-        String fUdt2 = createFunction(KEYSPACE, "frozen<" + type + '>',
-                              "CREATE FUNCTION %s( udt frozen<" + type + "> ) " +
+        String fUdt2 = createFunction(KEYSPACE, type,
+                              "CREATE FUNCTION %s( udt " + type + " ) " +
                               "RETURNS NULL ON NULL INPUT " +
                               "RETURNS text " +
                               "LANGUAGE javascript\n" +
                               "AS $$" +
                               "     udt.getString(\"txt\");$$;");
-        String fUdt3 = createFunction(KEYSPACE, "frozen<" + type + '>',
-                                      "CREATE FUNCTION %s( udt frozen<" + type + "> ) " +
+        String fUdt3 = createFunction(KEYSPACE, type,
+                                      "CREATE FUNCTION %s( udt " + type + " ) " +
                                       "RETURNS NULL ON NULL INPUT " +
                                       "RETURNS int " +
                                       "LANGUAGE javascript\n" +
@@ -1977,15 +1976,15 @@ public class UFTest extends CQLTester
                                    "LANGUAGE java\n" +
                                    "AS 'return \"foo bar\";';");
         String fU = createFunction(KEYSPACE,
-                                   "frozen<" + type + '>',
-                                   "CREATE OR REPLACE FUNCTION %s(val frozen<" + type + ">) " +
+                                   type,
+                                   "CREATE OR REPLACE FUNCTION %s(val " + type + ") " +
                                    "RETURNS NULL ON NULL INPUT " +
                                    "RETURNS text " +
                                    "LANGUAGE java\n" +
                                    "AS 'return \"foo bar\";';");
         String fTup = createFunction(KEYSPACE,
-                                     "frozen<tuple<int, text>>",
-                                     "CREATE OR REPLACE FUNCTION %s(val frozen<tuple<int, text>>) " +
+                                     "tuple<int, text>",
+                                     "CREATE OR REPLACE FUNCTION %s(val tuple<int, text>) " +
                                      "RETURNS NULL ON NULL INPUT " +
                                      "RETURNS text " +
                                      "LANGUAGE java\n" +
@@ -2093,15 +2092,15 @@ public class UFTest extends CQLTester
                                    "LANGUAGE java\n" +
                                    "AS 'return \"foo bar\";';");
         String fU = createFunction(KEYSPACE,
-                                   "frozen<" + type + '>',
-                                   "CREATE OR REPLACE FUNCTION %s(val frozen<" + type + ">) " +
+                                   type,
+                                   "CREATE OR REPLACE FUNCTION %s(val " + type + ") " +
                                    "CALLED ON NULL INPUT " +
                                    "RETURNS text " +
                                    "LANGUAGE java\n" +
                                    "AS 'return \"foo bar\";';");
         String fTup = createFunction(KEYSPACE,
-                                     "frozen<tuple<int, text>>",
-                                     "CREATE OR REPLACE FUNCTION %s(val frozen<tuple<int, text>>) " +
+                                     "tuple<int, text>",
+                                     "CREATE OR REPLACE FUNCTION %s(val tuple<int, text>) " +
                                      "CALLED ON NULL INPUT " +
                                      "RETURNS text " +
                                      "LANGUAGE java\n" +
@@ -2159,5 +2158,276 @@ public class UFTest extends CQLTester
             assertRowsNet(version,
                           executeNet(version, "SELECT " + fName + "(dval) FROM %s WHERE key = 1"));
         }
+    }
+
+    @Test
+    public void testFunctionWithFrozenSetType() throws Throwable
+    {
+        createTable("CREATE TABLE %s (a int PRIMARY KEY, b frozen<set<int>>)");
+        createIndex("CREATE INDEX ON %s (FULL(b))");
+
+        execute("INSERT INTO %s (a, b) VALUES (?, ?)", 0, set());
+        execute("INSERT INTO %s (a, b) VALUES (?, ?)", 1, set(1, 2, 3));
+        execute("INSERT INTO %s (a, b) VALUES (?, ?)", 2, set(4, 5, 6));
+        execute("INSERT INTO %s (a, b) VALUES (?, ?)", 3, set(7, 8, 9));
+
+        assertInvalidMessage("The function arguments should not be frozen",
+                             "CREATE OR REPLACE FUNCTION " + KEYSPACE + ".frozenSetArg(values frozen<set<int>>) " +
+                             "CALLED ON NULL INPUT " +
+                             "RETURNS int " +
+                             "LANGUAGE java\n" +
+                             "AS 'int sum = 0; for (Object value : values) {sum += value;} return sum;';");
+
+        assertInvalidMessage("The function return type should not be frozen",
+                             "CREATE OR REPLACE FUNCTION " + KEYSPACE + ".frozenReturnType(values set<int>) " +
+                             "CALLED ON NULL INPUT " +
+                             "RETURNS frozen<set<int>> " +
+                             "LANGUAGE java\n" +
+                             "AS 'return values;';");
+
+        String functionName = createFunction(KEYSPACE,
+                                             "set<int>",
+                                             "CREATE FUNCTION %s (values set<int>) " +
+                                             "CALLED ON NULL INPUT " +
+                                             "RETURNS int " +
+                                             "LANGUAGE java\n" +
+                                             "AS 'int sum = 0; for (Object value : values) {sum += ((Integer) value);} return sum;';");
+
+        assertRows(execute("SELECT a, " + functionName + "(b) FROM %s"),
+                   row(0, 0),
+                   row(1, 6),
+                   row(2, 15),
+                   row(3, 24));
+
+        functionName = createFunction(KEYSPACE,
+                                      "set<int>",
+                                             "CREATE FUNCTION %s (values set<int>) " +
+                                             "CALLED ON NULL INPUT " +
+                                             "RETURNS set<int> " +
+                                             "LANGUAGE java\n" +
+                                             "AS 'return values;';");
+
+        assertRows(execute("SELECT a FROM %s WHERE b = " + functionName + "(?)", set(1, 2, 3)),
+                   row(1));
+
+        assertInvalidMessage("The function arguments should not be frozen",
+                             "DROP FUNCTION " + functionName + "(frozen<set<int>>);");
+    }
+
+    @Test
+    public void testFunctionWithFrozenListType() throws Throwable
+    {
+        createTable("CREATE TABLE %s (a int PRIMARY KEY, b frozen<list<int>>)");
+        createIndex("CREATE INDEX ON %s (FULL(b))");
+
+        execute("INSERT INTO %s (a, b) VALUES (?, ?)", 0, list());
+        execute("INSERT INTO %s (a, b) VALUES (?, ?)", 1, list(1, 2, 3));
+        execute("INSERT INTO %s (a, b) VALUES (?, ?)", 2, list(4, 5, 6));
+        execute("INSERT INTO %s (a, b) VALUES (?, ?)", 3, list(7, 8, 9));
+
+        assertInvalidMessage("The function arguments should not be frozen",
+                             "CREATE OR REPLACE FUNCTION " + KEYSPACE + ".withFrozenArg(values frozen<list<int>>) " +
+                             "CALLED ON NULL INPUT " +
+                             "RETURNS int " +
+                             "LANGUAGE java\n" +
+                             "AS 'int sum = 0; for (Object value : values) {sum += value;} return sum;';");
+
+        assertInvalidMessage("The function return type should not be frozen",
+                             "CREATE OR REPLACE FUNCTION " + KEYSPACE + ".frozenReturnType(values list<int>) " +
+                             "CALLED ON NULL INPUT " +
+                             "RETURNS frozen<list<int>> " +
+                             "LANGUAGE java\n" +
+                             "AS 'return values;';");
+
+        String functionName = createFunction(KEYSPACE,
+                                             "list<int>",
+                                             "CREATE FUNCTION %s (values list<int>) " +
+                                             "CALLED ON NULL INPUT " +
+                                             "RETURNS int " +
+                                             "LANGUAGE java\n" +
+                                             "AS 'int sum = 0; for (Object value : values) {sum += ((Integer) value);} return sum;';");
+
+        assertRows(execute("SELECT a, " + functionName + "(b) FROM %s"),
+                   row(0, 0),
+                   row(1, 6),
+                   row(2, 15),
+                   row(3, 24));
+
+        functionName = createFunction(KEYSPACE,
+                                      "list<int>",
+                                      "CREATE FUNCTION %s (values list<int>) " +
+                                      "CALLED ON NULL INPUT " +
+                                      "RETURNS list<int> " +
+                                      "LANGUAGE java\n" +
+                                      "AS 'return values;';");
+
+        assertRows(execute("SELECT a FROM %s WHERE b = " + functionName + "(?)", set(1, 2, 3)),
+                   row(1));
+
+        assertInvalidMessage("The function arguments should not be frozen",
+                             "DROP FUNCTION " + functionName + "(frozen<list<int>>);");
+    }
+
+    @Test
+    public void testFunctionWithFrozenMapType() throws Throwable
+    {
+        createTable("CREATE TABLE %s (a int PRIMARY KEY, b frozen<map<int, int>>)");
+        createIndex("CREATE INDEX ON %s (FULL(b))");
+
+        execute("INSERT INTO %s (a, b) VALUES (?, ?)", 0, map());
+        execute("INSERT INTO %s (a, b) VALUES (?, ?)", 1, map(1, 1, 2, 2, 3, 3));
+        execute("INSERT INTO %s (a, b) VALUES (?, ?)", 2, map(4, 4, 5, 5, 6, 6));
+        execute("INSERT INTO %s (a, b) VALUES (?, ?)", 3, map(7, 7, 8, 8, 9, 9));
+
+        assertInvalidMessage("The function arguments should not be frozen",
+                             "CREATE OR REPLACE FUNCTION " + KEYSPACE + ".withFrozenArg(values frozen<map<int, int>>) " +
+                             "CALLED ON NULL INPUT " +
+                             "RETURNS int " +
+                             "LANGUAGE java\n" +
+                             "AS 'int sum = 0; for (Object value : values.values()) {sum += value;} return sum;';");
+
+        assertInvalidMessage("The function return type should not be frozen",
+                             "CREATE OR REPLACE FUNCTION " + KEYSPACE + ".frozenReturnType(values map<int, int>) " +
+                             "CALLED ON NULL INPUT " +
+                             "RETURNS frozen<map<int, int>> " +
+                             "LANGUAGE java\n" +
+                             "AS 'return values;';");
+
+        String functionName = createFunction(KEYSPACE,
+                                             "map<int, int>",
+                                             "CREATE FUNCTION %s (values map<int, int>) " +
+                                             "CALLED ON NULL INPUT " +
+                                             "RETURNS int " +
+                                             "LANGUAGE java\n" +
+                                             "AS 'int sum = 0; for (Object value : values.values()) {sum += ((Integer) value);} return sum;';");
+
+        assertRows(execute("SELECT a, " + functionName + "(b) FROM %s"),
+                   row(0, 0),
+                   row(1, 6),
+                   row(2, 15),
+                   row(3, 24));
+
+        functionName = createFunction(KEYSPACE,
+                                      "map<int, int>",
+                                      "CREATE FUNCTION %s (values map<int, int>) " +
+                                      "CALLED ON NULL INPUT " +
+                                      "RETURNS map<int, int> " +
+                                      "LANGUAGE java\n" +
+                                      "AS 'return values;';");
+
+        assertRows(execute("SELECT a FROM %s WHERE b = " + functionName + "(?)", map(1, 1, 2, 2, 3, 3)),
+                   row(1));
+
+        assertInvalidMessage("The function arguments should not be frozen",
+                             "DROP FUNCTION " + functionName + "(frozen<map<int, int>>);");
+    }
+
+    @Test
+    public void testFunctionWithFrozenTupleType() throws Throwable
+    {
+        createTable("CREATE TABLE %s (a int PRIMARY KEY, b frozen<tuple<int, int>>)");
+        createIndex("CREATE INDEX ON %s (b)");
+
+        execute("INSERT INTO %s (a, b) VALUES (?, ?)", 0, tuple());
+        execute("INSERT INTO %s (a, b) VALUES (?, ?)", 1, tuple(1, 2));
+        execute("INSERT INTO %s (a, b) VALUES (?, ?)", 2, tuple(4, 5));
+        execute("INSERT INTO %s (a, b) VALUES (?, ?)", 3, tuple(7, 8));
+
+        assertInvalidMessage("The function arguments should not be frozen",
+                             "CREATE OR REPLACE FUNCTION " + KEYSPACE + ".withFrozenArg(values frozen<tuple<int, int>>) " +
+                             "CALLED ON NULL INPUT " +
+                             "RETURNS text " +
+                             "LANGUAGE java\n" +
+                             "AS 'return values.toString();';");
+
+        assertInvalidMessage("The function return type should not be frozen",
+                             "CREATE OR REPLACE FUNCTION " + KEYSPACE + ".frozenReturnType(values tuple<int, int>) " +
+                             "CALLED ON NULL INPUT " +
+                             "RETURNS frozen<tuple<int, int>> " +
+                             "LANGUAGE java\n" +
+                             "AS 'return values;';");
+
+        String functionName = createFunction(KEYSPACE,
+                                             "tuple<int, int>",
+                                             "CREATE FUNCTION %s (values tuple<int, int>) " +
+                                             "CALLED ON NULL INPUT " +
+                                             "RETURNS text " +
+                                             "LANGUAGE java\n" +
+                                             "AS 'return values.toString();';");
+
+        assertRows(execute("SELECT a, " + functionName + "(b) FROM %s"),
+                   row(0, "(null, null)"),
+                   row(1, "(1, 2)"),
+                   row(2, "(4, 5)"),
+                   row(3, "(7, 8)"));
+
+        functionName = createFunction(KEYSPACE,
+                                      "tuple<int, int>",
+                                      "CREATE FUNCTION %s (values tuple<int, int>) " +
+                                      "CALLED ON NULL INPUT " +
+                                      "RETURNS tuple<int, int> " +
+                                      "LANGUAGE java\n" +
+                                      "AS 'return values;';");
+
+        assertRows(execute("SELECT a FROM %s WHERE b = " + functionName + "(?)", tuple(1, 2)),
+                   row(1));
+
+        assertInvalidMessage("The function arguments should not be frozen",
+                             "DROP FUNCTION " + functionName + "(frozen<tuple<int, int>>);");
+    }
+
+    @Test
+    public void testFunctionWithFrozenUDType() throws Throwable
+    {
+        String myType = createType("CREATE TYPE %s (f int)");
+        createTable("CREATE TABLE %s (a int PRIMARY KEY, b frozen<" + myType + ">)");
+        createIndex("CREATE INDEX ON %s (b)");
+
+        execute("INSERT INTO %s (a, b) VALUES (?, {f : ?})", 0, 0);
+        execute("INSERT INTO %s (a, b) VALUES (?, {f : ?})", 1, 1);
+        execute("INSERT INTO %s (a, b) VALUES (?, {f : ?})", 2, 4);
+        execute("INSERT INTO %s (a, b) VALUES (?, {f : ?})", 3, 7);
+
+        assertInvalidMessage("The function arguments should not be frozen",
+                             "CREATE OR REPLACE FUNCTION " + KEYSPACE + ".withFrozenArg(values frozen<" + myType + ">) " +
+                             "CALLED ON NULL INPUT " +
+                             "RETURNS text " +
+                             "LANGUAGE java\n" +
+                             "AS 'return values.toString();';");
+
+        assertInvalidMessage("The function return type should not be frozen",
+                             "CREATE OR REPLACE FUNCTION " + KEYSPACE + ".frozenReturnType(values " + myType + ") " +
+                             "CALLED ON NULL INPUT " +
+                             "RETURNS frozen<" + myType + "> " +
+                             "LANGUAGE java\n" +
+                             "AS 'return values;';");
+
+        String functionName = createFunction(KEYSPACE,
+                                             myType,
+                                             "CREATE FUNCTION %s (values " + myType + ") " +
+                                             "CALLED ON NULL INPUT " +
+                                             "RETURNS text " +
+                                             "LANGUAGE java\n" +
+                                             "AS 'return values.toString();';");
+
+        assertRows(execute("SELECT a, " + functionName + "(b) FROM %s"),
+                   row(0, "{f:0}"),
+                   row(1, "{f:1}"),
+                   row(2, "{f:4}"),
+                   row(3, "{f:7}"));
+
+        functionName = createFunction(KEYSPACE,
+                                      myType,
+                                      "CREATE FUNCTION %s (values " + myType + ") " +
+                                      "CALLED ON NULL INPUT " +
+                                      "RETURNS " + myType + " " +
+                                      "LANGUAGE java\n" +
+                                      "AS 'return values;';");
+
+        assertRows(execute("SELECT a FROM %s WHERE b = " + functionName + "({f: ?})", 1),
+                   row(1));
+
+        assertInvalidMessage("The function arguments should not be frozen",
+                             "DROP FUNCTION " + functionName + "(frozen<" + myType + ">);");
     }
 }

@@ -133,7 +133,7 @@ public class FunctionCall extends Term.NonTerminal
 
             // Functions.get() will complain if no function "name" type check with the provided arguments.
             // We still have to validate that the return type matches however
-            if (!receiver.type.isValueCompatibleWith(scalarFun.returnType()))
+            if (!scalarFun.testAssignment(keyspace, receiver).isAssignable())
                 throw new InvalidRequestException(String.format("Type error: cannot assign result of function %s (type %s) to %s (type %s)",
                                                                 scalarFun.name(), scalarFun.returnType().asCQL3Type(),
                                                                 receiver.name, receiver.type.asCQL3Type()));

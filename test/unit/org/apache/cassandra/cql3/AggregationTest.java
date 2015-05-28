@@ -667,10 +667,10 @@ public class AggregationTest extends CQLTester
         // double as finaltype
 
         String fState = createFunction(KEYSPACE,
-                                       "frozen<tuple<bigint, int>>, int",
-                                       "CREATE FUNCTION %s(a frozen<tuple<bigint, int>>, b int) " +
+                                       "tuple<bigint, int>, int",
+                                       "CREATE FUNCTION %s(a tuple<bigint, int>, b int) " +
                                        "CALLED ON NULL INPUT " +
-                                       "RETURNS frozen<tuple<bigint, int>> " +
+                                       "RETURNS tuple<bigint, int> " +
                                        "LANGUAGE java " +
                                        "AS '" +
                                        "a.setLong(0, a.getLong(0) + b.intValue());" +
@@ -679,8 +679,8 @@ public class AggregationTest extends CQLTester
                                        "'");
 
         String fFinal = createFunction(KEYSPACE,
-                                       "frozen<tuple<bigint, int>>",
-                                       "CREATE FUNCTION %s(a frozen<tuple<bigint, int>>) " +
+                                       "tuple<bigint, int>",
+                                       "CREATE FUNCTION %s(a tuple<bigint, int>) " +
                                        "RETURNS NULL ON NULL INPUT " +
                                        "RETURNS double " +
                                        "LANGUAGE java " +
@@ -694,7 +694,7 @@ public class AggregationTest extends CQLTester
                                    "int",
                                    "CREATE AGGREGATE %s(int) " +
                                    "SFUNC " + shortFunctionName(fState) + " " +
-                                   "STYPE frozen<tuple<bigint, int>> "+
+                                   "STYPE tuple<bigint, int> "+
                                    "FINALFUNC " + shortFunctionName(fFinal) + " " +
                                    "INITCOND (0, 0)");
 
@@ -1092,7 +1092,7 @@ public class AggregationTest extends CQLTester
                                            KEYSPACE_PER_TEST, KEYSPACE),
                              "CREATE AGGREGATE " + KEYSPACE_PER_TEST + ".test_wrong_ks(int) " +
                              "SFUNC " + shortFunctionName(fState) + ' ' +
-                             "STYPE frozen<" + type + "> " +
+                             "STYPE " + type + " " +
                              "FINALFUNC " + shortFunctionName(fFinal) + ' ' +
                              "INITCOND 1");
 
@@ -1100,7 +1100,7 @@ public class AggregationTest extends CQLTester
                                            KEYSPACE_PER_TEST, KEYSPACE),
                              "CREATE AGGREGATE " + KEYSPACE_PER_TEST + ".test_wrong_ks(int) " +
                              "SFUNC " + fStateWrong + ' ' +
-                             "STYPE frozen<" + type + "> " +
+                             "STYPE " + type + " " +
                              "FINALFUNC " + shortFunctionName(fFinal) + ' ' +
                              "INITCOND 1");
 
@@ -1108,7 +1108,7 @@ public class AggregationTest extends CQLTester
                                            KEYSPACE_PER_TEST, KEYSPACE),
                              "CREATE AGGREGATE " + KEYSPACE_PER_TEST + ".test_wrong_ks(int) " +
                              "SFUNC " + shortFunctionName(fState) + ' ' +
-                             "STYPE frozen<" + type + "> " +
+                             "STYPE " + type + " " +
                              "FINALFUNC " + fFinalWrong + ' ' +
                              "INITCOND 1");
     }
@@ -1133,4 +1133,249 @@ public class AggregationTest extends CQLTester
                         "INITCOND 'foobar'");
     }
 
+    @Test
+    public void testFunctionWithFrozenSetType() throws Throwable
+    {
+        createTable("CREATE TABLE %s (a int PRIMARY KEY, b frozen<set<int>>)");
+        createIndex("CREATE INDEX ON %s (FULL(b))");
+
+        execute("INSERT INTO %s (a, b) VALUES (?, ?)", 0, set());
+        execute("INSERT INTO %s (a, b) VALUES (?, ?)", 1, set(1, 2, 3));
+        execute("INSERT INTO %s (a, b) VALUES (?, ?)", 2, set(4, 5, 6));
+        execute("INSERT INTO %s (a, b) VALUES (?, ?)", 3, set(7, 8, 9));
+
+        String fState = createFunction(KEYSPACE,
+                                       "set<int>",
+                                       "CREATE FUNCTION %s (state set<int>, values set<int>) " +
+                                       "CALLED ON NULL INPUT " +
+                                       "RETURNS set<int> " +
+                                       "LANGUAGE java\n" +
+                                       "AS 'return values;';");
+
+        String fFinal = createFunction(KEYSPACE,
+                                       "set<int>",
+                                       "CREATE FUNCTION %s(state set<int>) " +
+                                       "CALLED ON NULL INPUT " +
+                                       "RETURNS set<int> " +
+                                       "LANGUAGE java " +
+                                       "AS 'return state;'");
+
+        assertInvalidMessage("The function state type should not be frozen",
+                             "CREATE AGGREGATE %s(set<int>) " +
+                             "SFUNC " + fState + " " +
+                             "STYPE frozen<set<int>> " +
+                             "FINALFUNC " + fFinal + " " +
+                             "INITCOND null");
+
+        String aggregation = createAggregate(KEYSPACE,
+                                             "set<int>",
+                                             "CREATE AGGREGATE %s(set<int>) " +
+                                             "SFUNC " + fState + " " +
+                                             "STYPE set<int> " +
+                                             "FINALFUNC " + fFinal + " " +
+                                             "INITCOND null");
+
+        assertRows(execute("SELECT " + aggregation + "(b) FROM %s"),
+                   row(set(7, 8, 9)));
+
+        assertInvalidMessage("The function arguments should not be frozen",
+                             "DROP AGGREGATE %s (frozen<set<int>>);");
+    }
+
+    @Test
+    public void testFunctionWithFrozenListType() throws Throwable
+    {
+        createTable("CREATE TABLE %s (a int PRIMARY KEY, b frozen<list<int>>)");
+        createIndex("CREATE INDEX ON %s (FULL(b))");
+
+        execute("INSERT INTO %s (a, b) VALUES (?, ?)", 0, list());
+        execute("INSERT INTO %s (a, b) VALUES (?, ?)", 1, list(1, 2, 3));
+        execute("INSERT INTO %s (a, b) VALUES (?, ?)", 2, list(4, 5, 6));
+        execute("INSERT INTO %s (a, b) VALUES (?, ?)", 3, list(7, 8, 9));
+
+        String fState = createFunction(KEYSPACE,
+                                       "list<int>",
+                                       "CREATE FUNCTION %s (state list<int>, values list<int>) " +
+                                       "CALLED ON NULL INPUT " +
+                                       "RETURNS list<int> " +
+                                       "LANGUAGE java\n" +
+                                       "AS 'return values;';");
+
+        String fFinal = createFunction(KEYSPACE,
+                                       "list<int>",
+                                       "CREATE FUNCTION %s(state list<int>) " +
+                                       "CALLED ON NULL INPUT " +
+                                       "RETURNS list<int> " +
+                                       "LANGUAGE java " +
+                                       "AS 'return state;'");
+
+        assertInvalidMessage("The function state type should not be frozen",
+                             "CREATE AGGREGATE %s(list<int>) " +
+                             "SFUNC " + fState + " " +
+                             "STYPE frozen<list<int>> " +
+                             "FINALFUNC " + fFinal + " " +
+                             "INITCOND null");
+
+        String aggregation = createAggregate(KEYSPACE,
+                                             "list<int>",
+                                             "CREATE AGGREGATE %s(list<int>) " +
+                                             "SFUNC " + fState + " " +
+                                             "STYPE list<int> " +
+                                             "FINALFUNC " + fFinal + " " +
+                                             "INITCOND null");
+
+        assertRows(execute("SELECT " + aggregation + "(b) FROM %s"),
+                   row(list(7, 8, 9)));
+
+        assertInvalidMessage("The function arguments should not be frozen",
+                             "DROP AGGREGATE %s (frozen<list<int>>);");
+    }
+
+    @Test
+    public void testFunctionWithFrozenMapType() throws Throwable
+    {
+        createTable("CREATE TABLE %s (a int PRIMARY KEY, b frozen<map<int, int>>)");
+        createIndex("CREATE INDEX ON %s (FULL(b))");
+
+        execute("INSERT INTO %s (a, b) VALUES (?, ?)", 0, map());
+        execute("INSERT INTO %s (a, b) VALUES (?, ?)", 1, map(1, 2, 3, 4));
+        execute("INSERT INTO %s (a, b) VALUES (?, ?)", 2, map(4, 5, 6, 7));
+        execute("INSERT INTO %s (a, b) VALUES (?, ?)", 3, map(7, 8, 9, 10));
+
+        String fState = createFunction(KEYSPACE,
+                                       "map<int, int>",
+                                       "CREATE FUNCTION %s (state map<int, int>, values map<int, int>) " +
+                                       "CALLED ON NULL INPUT " +
+                                       "RETURNS map<int, int> " +
+                                       "LANGUAGE java\n" +
+                                       "AS 'return values;';");
+
+        String fFinal = createFunction(KEYSPACE,
+                                       "map<int, int>",
+                                       "CREATE FUNCTION %s(state map<int, int>) " +
+                                       "CALLED ON NULL INPUT " +
+                                       "RETURNS map<int, int> " +
+                                       "LANGUAGE java " +
+                                       "AS 'return state;'");
+
+        assertInvalidMessage("The function state type should not be frozen",
+                             "CREATE AGGREGATE %s(map<int, int>) " +
+                             "SFUNC " + fState + " " +
+                             "STYPE frozen<map<int, int>> " +
+                             "FINALFUNC " + fFinal + " " +
+                             "INITCOND null");
+
+        String aggregation = createAggregate(KEYSPACE,
+                                             "map<int, int>",
+                                             "CREATE AGGREGATE %s(map<int, int>) " +
+                                             "SFUNC " + fState + " " +
+                                             "STYPE map<int, int> " +
+                                             "FINALFUNC " + fFinal + " " +
+                                             "INITCOND null");
+
+        assertRows(execute("SELECT " + aggregation + "(b) FROM %s"),
+                   row(map(7, 8, 9, 10)));
+
+        assertInvalidMessage("The function arguments should not be frozen",
+                             "DROP AGGREGATE %s (frozen<map<int, int>>);");
+    }
+
+    @Test
+    public void testFunctionWithFrozenTupleType() throws Throwable
+    {
+        createTable("CREATE TABLE %s (a int PRIMARY KEY, b frozen<tuple<int, int>>)");
+        createIndex("CREATE INDEX ON %s (b)");
+
+        execute("INSERT INTO %s (a, b) VALUES (?, ?)", 0, tuple());
+        execute("INSERT INTO %s (a, b) VALUES (?, ?)", 1, tuple(1, 2));
+        execute("INSERT INTO %s (a, b) VALUES (?, ?)", 2, tuple(4, 5));
+        execute("INSERT INTO %s (a, b) VALUES (?, ?)", 3, tuple(7, 8));
+
+        String fState = createFunction(KEYSPACE,
+                                       "tuple<int, int>",
+                                       "CREATE FUNCTION %s (state tuple<int, int>, values tuple<int, int>) " +
+                                       "CALLED ON NULL INPUT " +
+                                       "RETURNS tuple<int, int> " +
+                                       "LANGUAGE java\n" +
+                                       "AS 'return values;';");
+
+        String fFinal = createFunction(KEYSPACE,
+                                       "tuple<int, int>",
+                                       "CREATE FUNCTION %s(state tuple<int, int>) " +
+                                       "CALLED ON NULL INPUT " +
+                                       "RETURNS tuple<int, int> " +
+                                       "LANGUAGE java " +
+                                       "AS 'return state;'");
+
+        assertInvalidMessage("The function state type should not be frozen",
+                             "CREATE AGGREGATE %s(tuple<int, int>) " +
+                             "SFUNC " + fState + " " +
+                             "STYPE frozen<tuple<int, int>> " +
+                             "FINALFUNC " + fFinal + " " +
+                             "INITCOND null");
+
+        String aggregation = createAggregate(KEYSPACE,
+                                             "tuple<int, int>",
+                                             "CREATE AGGREGATE %s(tuple<int, int>) " +
+                                             "SFUNC " + fState + " " +
+                                             "STYPE tuple<int, int> " +
+                                             "FINALFUNC " + fFinal + " " +
+                                             "INITCOND null");
+
+        assertRows(execute("SELECT " + aggregation + "(b) FROM %s"),
+                   row(tuple(7, 8)));
+
+        assertInvalidMessage("The function arguments should not be frozen",
+                             "DROP AGGREGATE %s (frozen<tuple<int, int>>);");
+    }
+
+    @Test
+    public void testFunctionWithFrozenUDFType() throws Throwable
+    {
+        String myType = createType("CREATE TYPE %s (f int)");
+        createTable("CREATE TABLE %s (a int PRIMARY KEY, b frozen<" + myType + ">)");
+        createIndex("CREATE INDEX ON %s (b)");
+
+        execute("INSERT INTO %s (a, b) VALUES (?, {f : ?})", 0, 1);
+        execute("INSERT INTO %s (a, b) VALUES (?, {f : ?})", 1, 2);
+        execute("INSERT INTO %s (a, b) VALUES (?, {f : ?})", 2, 4);
+        execute("INSERT INTO %s (a, b) VALUES (?, {f : ?})", 3, 7);
+
+        String fState = createFunction(KEYSPACE,
+                                       "tuple<int, int>",
+                                       "CREATE FUNCTION %s (state " + myType + ", values " + myType + ") " +
+                                       "CALLED ON NULL INPUT " +
+                                       "RETURNS " + myType + " " +
+                                       "LANGUAGE java\n" +
+                                       "AS 'return values;';");
+
+        String fFinal = createFunction(KEYSPACE,
+                                       myType,
+                                       "CREATE FUNCTION %s(state " + myType + ") " +
+                                       "CALLED ON NULL INPUT " +
+                                       "RETURNS " + myType + " " +
+                                       "LANGUAGE java " +
+                                       "AS 'return state;'");
+
+        assertInvalidMessage("The function state type should not be frozen",
+                             "CREATE AGGREGATE %s(" + myType + ") " +
+                             "SFUNC " + fState + " " +
+                             "STYPE frozen<" + myType + "> " +
+                             "FINALFUNC " + fFinal + " " +
+                             "INITCOND null");
+
+        String aggregation = createAggregate(KEYSPACE,
+                                             myType,
+                                             "CREATE AGGREGATE %s(" + myType + ") " +
+                                             "SFUNC " + fState + " " +
+                                             "STYPE " + myType + " " +
+                                             "FINALFUNC " + fFinal + " " +
+                                             "INITCOND null");
+
+        assertRows(execute("SELECT " + aggregation + "(b).f FROM %s"),
+                   row(7));
+
+        assertInvalidMessage("The function arguments should not be frozen",
+                             "DROP AGGREGATE %s (frozen<" + myType + ">);");
+    }
 }

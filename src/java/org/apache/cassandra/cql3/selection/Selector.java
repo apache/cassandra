@@ -160,13 +160,20 @@ public abstract class Selector implements AssignmentTestable
      */
     public abstract void reset();
 
-    public AssignmentTestable.TestResult testAssignment(String keyspace, ColumnSpecification receiver)
+    public final AssignmentTestable.TestResult testAssignment(String keyspace, ColumnSpecification receiver)
     {
-        if (receiver.type.equals(getType()))
+        // We should ignore the fact that the output type is frozen in our comparison as functions do not support
+        // frozen types for arguments
+        AbstractType<?> receiverType = receiver.type;
+        if (getType().isFrozenCollection())
+            receiverType = receiverType.freeze();
+
+        if (receiverType.equals(getType()))
             return AssignmentTestable.TestResult.EXACT_MATCH;
-        else if (receiver.type.isValueCompatibleWith(getType()))
+
+        if (receiverType.isValueCompatibleWith(getType()))
             return AssignmentTestable.TestResult.WEAKLY_ASSIGNABLE;
-        else
-            return AssignmentTestable.TestResult.NOT_ASSIGNABLE;
+
+        return AssignmentTestable.TestResult.NOT_ASSIGNABLE;
     }
 }
