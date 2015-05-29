@@ -1109,7 +1109,7 @@ public class ColumnFamilyStoreTest
         CellName cname = cellname("c1");
         Keyspace keyspace = Keyspace.open(keyspaceName);
         ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(cfName);
-        cfs.clearUnsafe();
+        cfs.truncateBlocking();
 
         // Create a cell a 'high timestamp'
         putColsStandard(cfs, key, new BufferCell(cname, ByteBufferUtil.bytes("a"), 2));
