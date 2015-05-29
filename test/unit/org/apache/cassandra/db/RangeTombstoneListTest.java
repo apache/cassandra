@@ -31,7 +31,6 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 public class RangeTombstoneListTest
 {
     private static final Comparator<Composite> cmp = new SimpleDenseCellNameType(IntegerType.instance);
-    private static final Random rand = new Random();
 
     @Test
     public void testDiff()
@@ -462,7 +461,23 @@ public class RangeTombstoneListTest
         assertEquals(6, l.maxMarkedAt());
     }
 
-    private RangeTombstoneList makeRandom(int size, int maxItSize, int maxItDistance, int maxMarkedAt)
+    @Test
+    public void insertSameTest()
+    {
+        // Simple test that adding the same element multiple time ends up
+        // with that element only a single time (CASSANDRA-9485)
+
+        RangeTombstoneList l = new RangeTombstoneList(cmp, 0);
+        l.add(rt(4, 4, 5, 100));
+        l.add(rt(4, 4, 6, 110));
+        l.add(rt(4, 4, 4, 90));
+
+        Iterator<RangeTombstone> iter = l.iterator();
+        assertRT(rt(4, 4, 6, 110), iter.next());
+        assert !iter.hasNext();
+    }
+
+    private RangeTombstoneList makeRandom(Random rand, int size, int maxItSize, int maxItDistance, int maxMarkedAt)
     {
         RangeTombstoneList l = new RangeTombstoneList(cmp, size);
 
@@ -495,10 +510,13 @@ public class RangeTombstoneListTest
         int MAX_IT_DISTANCE = 10;
         int MAX_MARKEDAT = 10;
 
+        long seed = System.nanoTime();
+        Random rand = new Random(seed);
+
         for (int i = 0; i < TEST_COUNT; i++)
         {
-            RangeTombstoneList l1 = makeRandom(rand.nextInt(MAX_LIST_SIZE) + 1, rand.nextInt(MAX_IT_SIZE) + 1, rand.nextInt(MAX_IT_DISTANCE) + 1, rand.nextInt(MAX_MARKEDAT) + 1);
-            RangeTombstoneList l2 = makeRandom(rand.nextInt(MAX_LIST_SIZE) + 1, rand.nextInt(MAX_IT_SIZE) + 1, rand.nextInt(MAX_IT_DISTANCE) + 1, rand.nextInt(MAX_MARKEDAT) + 1);
+            RangeTombstoneList l1 = makeRandom(rand, rand.nextInt(MAX_LIST_SIZE) + 1, rand.nextInt(MAX_IT_SIZE) + 1, rand.nextInt(MAX_IT_DISTANCE) + 1, rand.nextInt(MAX_MARKEDAT) + 1);
+            RangeTombstoneList l2 = makeRandom(rand, rand.nextInt(MAX_LIST_SIZE) + 1, rand.nextInt(MAX_IT_SIZE) + 1, rand.nextInt(MAX_IT_DISTANCE) + 1, rand.nextInt(MAX_MARKEDAT) + 1);
 
             RangeTombstoneList l1Initial = l1.copy();
 
@@ -513,6 +531,7 @@ public class RangeTombstoneListTest
                 System.out.println("Error merging:");
                 System.out.println(" l1: " + toString(l1Initial));
                 System.out.println(" l2: " + toString(l2));
+                System.out.println("Seed was: " + seed);
                 throw e;
             }
         }
