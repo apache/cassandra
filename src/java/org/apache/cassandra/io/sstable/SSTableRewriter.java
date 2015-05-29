@@ -49,28 +49,11 @@ import org.apache.cassandra.utils.concurrent.Transactional;
  */
 public class SSTableRewriter extends Transactional.AbstractTransactional implements Transactional
 {
-    private static long preemptiveOpenInterval;
-    static
-    {
-        long interval = DatabaseDescriptor.getSSTablePreempiveOpenIntervalInMB() * (1L << 20);
-        if (interval < 0)
-            interval = Long.MAX_VALUE;
-        preemptiveOpenInterval = interval;
-    }
-
     @VisibleForTesting
-    public static void overrideOpenInterval(long size)
-    {
-        preemptiveOpenInterval = size;
-    }
-    @VisibleForTesting
-    public static long getOpenInterval()
-    {
-        return preemptiveOpenInterval;
-    }
+    public static boolean disableEarlyOpeningForTests = false;
 
     private final ColumnFamilyStore cfs;
-
+    private final long preemptiveOpenInterval;
     private final long maxAge;
     private long repairedAt = -1;
     // the set of final readers we will expose on commit
@@ -91,12 +74,32 @@ public class SSTableRewriter extends Transactional.AbstractTransactional impleme
 
     public SSTableRewriter(ColumnFamilyStore cfs, LifecycleTransaction transaction, long maxAge, boolean isOffline)
     {
+        this(cfs, transaction, maxAge, isOffline, true);
+    }
+
+    public SSTableRewriter(ColumnFamilyStore cfs, LifecycleTransaction transaction, long maxAge, boolean isOffline, boolean shouldOpenEarly)
+    {
+        this(cfs, transaction, maxAge, isOffline, calculateOpenInterval(shouldOpenEarly));
+    }
+
+    @VisibleForTesting
+    public SSTableRewriter(ColumnFamilyStore cfs, LifecycleTransaction transaction, long maxAge, boolean isOffline, long preemptiveOpenInterval)
+    {
         this.transaction = transaction;
         for (SSTableReader sstable : this.transaction.originals())
             fileDescriptors.put(sstable.descriptor, CLibrary.getfd(sstable.getFilename()));
         this.cfs = cfs;
         this.maxAge = maxAge;
         this.isOffline = isOffline;
+        this.preemptiveOpenInterval = preemptiveOpenInterval;
+    }
+
+    private static long calculateOpenInterval(boolean shouldOpenEarly)
+    {
+        long interval = DatabaseDescriptor.getSSTablePreempiveOpenIntervalInMB() * (1L << 20);
+        if (disableEarlyOpeningForTests || !shouldOpenEarly || interval < 0)
+            interval = Long.MAX_VALUE;
+        return interval;
     }
 
     public SSTableWriter currentWriter()
