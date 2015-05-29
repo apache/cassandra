@@ -163,7 +163,7 @@ public final class BulkRecordWriter extends RecordWriter<ByteBuffer, List<Mutati
     }
 
     @Override
-    public void close(TaskAttemptContext context) throws IOException, InterruptedException
+    public void close(TaskAttemptContext context) throws IOException
     {
         close();
     }
