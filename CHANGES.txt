@@ -1,4 +1,6 @@
 2.1.6
+ * Consistent error message when a table mixes counter and non-counter
+   columns (CASSANDRA-9492)
  * Avoid getting unreadable keys during anticompaction (CASSANDRA-9508)
  * (cqlsh) Better float precision by default (CASSANDRA-9224)
  * Improve estimated row count (CASSANDRA-9107)

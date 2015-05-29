@@ -53,7 +53,14 @@ public class CreateTableStatement extends SchemaAlteringStatement
 
     private boolean isDense;
 
-    private final Map<ColumnIdentifier, AbstractType> columns = new HashMap<ColumnIdentifier, AbstractType>();
+    // use a TreeMap to preserve ordering across JDK versions (see CASSANDRA-9492)
+    private final Map<ColumnIdentifier, AbstractType> columns = new TreeMap<>(new Comparator<ColumnIdentifier>()
+    {
+        public int compare(ColumnIdentifier o1, ColumnIdentifier o2)
+        {
+            return o1.bytes.compareTo(o2.bytes);
+        }
+    });
     private final Set<ColumnIdentifier> staticColumns;
     private final CFPropDefs properties;
     private final boolean ifNotExists;
