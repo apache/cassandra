@@ -145,7 +145,7 @@ public class RangeTombstoneList implements Iterable<RangeTombstone>, IMeasurable
     /**
      * Adds a new range tombstone.
      *
-     * This method will be faster if the new tombstone sort after all the currently existing ones (this is a common use case), 
+     * This method will be faster if the new tombstone sort after all the currently existing ones (this is a common use case),
      * but it doesn't assume it.
      */
     public void add(Composite start, Composite end, long markedAt, int delTime)
@@ -159,7 +159,7 @@ public class RangeTombstoneList implements Iterable<RangeTombstone>, IMeasurable
         int c = comparator.compare(ends[size-1], start);
 
         // Fast path if we add in sorted order
-        if (c <= 0)
+        if (c < 0)
         {
             addInternal(size, start, end, markedAt, delTime);
         }
