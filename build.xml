@@ -443,7 +443,8 @@
         <dependency groupId="org.caffinitas.ohc" artifactId="ohc-core"/>
         <dependency groupId="org.openjdk.jmh" artifactId="jmh-core"/>
         <dependency groupId="org.openjdk.jmh" artifactId="jmh-generator-annprocess"/>
-	    <dependency groupId="net.ju-n.compile-command-annotations" artifactId="compile-command-annotations"/>
+        <dependency groupId="net.ju-n.compile-command-annotations" artifactId="compile-command-annotations"/>
+        <dependency groupId="org.apache.ant" artifactId="ant-junit" version="1.9.4" />
       </artifact:pom>
 
       <artifact:pom id="coverage-deps-pom"
@@ -1120,7 +1121,7 @@
     <attribute name="exclude" default="" />
     <attribute name="filelist" default="" />
     <attribute name="poffset" default="0"/>
-    <attribute name="outsubdir" default=""/>
+    <attribute name="testtag" default=""/>
     
     <attribute name="usejacoco" default="no"/>
     <sequential>
@@ -1132,11 +1133,11 @@
       <echo message="running @{suitename} tests"/>
       <mkdir dir="${build.test.dir}/cassandra"/>
       <mkdir dir="${build.test.dir}/output"/>
-      <mkdir dir="${build.test.dir}/output/@{outsubdir}"/>
+      <mkdir dir="${build.test.dir}/output/@{testtag}"/>
       <junit fork="on" forkmode="@{forkmode}" failureproperty="testfailed" maxmemory="1024m" timeout="@{timeout}">
         <sysproperty key="net.sourceforge.cobertura.datafile" file="${cobertura.datafile}"/>
-        <formatter type="xml" usefile="true"/>
-        <formatter type="brief" usefile="false"/>
+        <formatter classname="org.apache.cassandra.CassandraXMLJUnitResultFormatter" extension=".xml" usefile="true"/>
+        <formatter classname="org.apache.cassandra.CassandraBriefJUnitResultFormatter" usefile="false"/>
         <jvmarg value="-Dstorage-config=${test.conf}"/>
         <jvmarg value="-Djava.awt.headless=true"/>
         <!-- Cassandra 3.0+ needs <jvmarg line="... ${additionalagent}" /> here! (not value=) -->
@@ -1148,6 +1149,7 @@
         <jvmarg value="-Dcassandra.test.use_prepared=${cassandra.test.use_prepared}"/>
 	    <jvmarg value="-Dcassandra.test.offsetseed=@{poffset}"/>
         <jvmarg value="-Dcassandra.test.sstableformatdevelopment=true"/>
+        <jvmarg value="-Dcassandra.testtag=@{testtag}"/>
 	<optjvmargs/>
         <classpath>
           <path refid="cassandra.classpath" />
@@ -1158,7 +1160,7 @@
             <include name="**/*.jar" />
           </fileset>
         </classpath>
-        <batchtest todir="${build.test.dir}/output/@{outsubdir}">
+        <batchtest todir="${build.test.dir}/output/@{testtag}">
             <fileset dir="@{inputdir}" includes="@{filter}" excludes="@{exclude}"/>
             <filelist dir="@{inputdir}" files="@{filelist}"/>
         </batchtest>
@@ -1274,7 +1276,7 @@
       <fileset file="${test.conf}/commitlog_compression.yaml"/>
     </concat>
     <echo>Compressed config: ${compressed_yaml}</echo>
-    <testmacro suitename="unit" inputdir="${test.unit.src}" exclude="**/pig/*.java" timeout="${test.timeout}" outsubdir="compression">
+    <testmacro suitename="unit" inputdir="${test.unit.src}" exclude="**/pig/*.java" timeout="${test.timeout}" testtag="compression">
       <jvmarg value="-Dlegacy-sstable-root=${test.data}/legacy-sstables"/>
       <jvmarg value="-Dinvalid-legacy-sstable-root=${test.data}/invalid-legacy-sstables"/>
       <jvmarg value="-Dcorrupt-sstable-root=${test.data}/corrupt-sstables"/>

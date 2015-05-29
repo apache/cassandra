@@ -5,6 +5,7 @@
 
 
 2.2
+ * ant test-all results incomplete when parsed (CASSANDRA-9463)
  * Disallow frozen<> types in function arguments and return types for
    clarity (CASSANDRA-9411)
  * Static Analysis to warn on unsafe use of Autocloseable instances (CASSANDRA-9431)
