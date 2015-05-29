@@ -162,14 +162,6 @@ public final class DropFunctionStatement extends SchemaAlteringStatement
         return sb.toString();
     }
 
-    private String typeKeyspace(CQL3Type.Raw rawType)
-    {
-        String ks = rawType.keyspace();
-        if (ks != null)
-            return ks;
-        return functionName.keyspace;
-    }
-
     private Function findFunction()
     {
         Function old;
