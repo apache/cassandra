@@ -275,15 +275,15 @@ public class ScrubTest
     @Test
     public void testScrubCorruptedCounterRowNoEarlyOpen() throws IOException, WriteTimeoutException
     {
-        long oldOpenVal = SSTableRewriter.getOpenInterval();
+        boolean oldDisabledVal = SSTableRewriter.disableEarlyOpeningForTests;
         try
         {
-            SSTableRewriter.overrideOpenInterval(Long.MAX_VALUE);
+            SSTableRewriter.disableEarlyOpeningForTests = true;
             testScrubCorruptedCounterRow();
         }
         finally
         {
-            SSTableRewriter.overrideOpenInterval(oldOpenVal);
+            SSTableRewriter.disableEarlyOpeningForTests = oldDisabledVal;
         }
     }
 
