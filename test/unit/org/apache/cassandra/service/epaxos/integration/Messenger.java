@@ -21,15 +21,16 @@ public class Messenger
 {
     private static final Logger logger = LoggerFactory.getLogger(Messenger.class);
 
-    private final int VERSION = 0;
+    private final static int VERSION = MessagingService.current_version;
     private final AtomicInteger nextMsgNumber = new AtomicInteger(0);
 
     private final Map<InetAddress, Node> nodes = Maps.newConcurrentMap();
     private final Map<InetAddress, Integer> missedMessage = Maps.newConcurrentMap();
-    private final Map<InetAddress, Map<MessagingService.Verb, IVerbHandler>> verbHandlers = Maps.newConcurrentMap();
     private final Map<Integer, IAsyncCallback> callbackMap = Maps.newConcurrentMap();
 
     private final TracingAwareExecutorService executorService;
+
+    private int messagesSent = 0;
 
     public Messenger()
     {
@@ -44,15 +45,6 @@ public class Messenger
     public void registerNode(Node node)
     {
         nodes.put(node.getEndpoint(), node);
-
-        Map<MessagingService.Verb, IVerbHandler> handlers = Maps.newEnumMap(MessagingService.Verb.class);
-        handlers.put(MessagingService.Verb.EPAXOS_PREACCEPT, node.getPreacceptVerbHandler());
-        handlers.put(MessagingService.Verb.EPAXOS_ACCEPT, node.getAcceptVerbHandler());
-        handlers.put(MessagingService.Verb.EPAXOS_COMMIT, node.getCommitVerbHandler());
-        handlers.put(MessagingService.Verb.EPAXOS_PREPARE, node.getPrepareVerbHandler());
-        handlers.put(MessagingService.Verb.EPAXOS_TRYPREACCEPT, node.getTryPreacceptVerbHandler());
-
-        verbHandlers.put(node.getEndpoint(), handlers);
         missedMessage.put(node.getEndpoint(), 0);
     }
 
@@ -143,6 +135,11 @@ public class Messenger
         return nodes.get(endpoint);
     }
 
+    public int getMessagesSent()
+    {
+        return messagesSent;
+    }
+
     public <T> void sendReply(MessageOut<T> msg, final int id, InetAddress from, InetAddress to)
     {
         assert msg != null;
@@ -206,6 +203,7 @@ public class Messenger
                 cb.response(messageIn);
             }
         });
+        messagesSent++;
     }
 
     @SuppressWarnings("unchecked")
@@ -273,7 +271,7 @@ public class Messenger
             {
                 try
                 {
-                    verbHandlers.get(to).get(messageIn.verb).doVerb(messageIn, msgId);
+                    nodes.get(to).verbHandlerMap.get(messageIn.verb).doVerb(messageIn, msgId);
                 }
                 catch (IOException e)
                 {
@@ -282,6 +280,7 @@ public class Messenger
             }
         });
 
+        messagesSent++;
         return msgId;
     }
 
@@ -343,7 +342,7 @@ public class Messenger
             {
                 try
                 {
-                    verbHandlers.get(to).get(messageIn.verb).doVerb(messageIn, msgId);
+                    nodes.get(to).verbHandlerMap.get(messageIn.verb).doVerb(messageIn, msgId);
                 }
                 catch (IOException e)
                 {
@@ -351,5 +350,6 @@ public class Messenger
                 }
             }
         });
+        messagesSent++;
     }
 }

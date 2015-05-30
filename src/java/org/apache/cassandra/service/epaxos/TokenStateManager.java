@@ -3,6 +3,7 @@ package org.apache.cassandra.service.epaxos;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.*;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.UntypedResultSet;
@@ -36,13 +37,12 @@ public class TokenStateManager
     private static final Logger logger = LoggerFactory.getLogger(TokenStateManager.class);
 
     // how many instances should be executed under an epoch before the epoch is incremented
-    protected static final int EPOCH_INCREMENT_THRESHOLD = Integer.getInteger("cassandra.epaxos.epoch_increment_threshold", 100);
     protected static final int MIN_EPOCH_INCREMENT_THRESHOLD = 5;
 
     // we don't save the token state every time an instance is executed.
     // This sets the percentage of the increment threshold that can be executed
     // before we must persist the execution count
-    protected static final int EXECUTION_PERSISTENCE_PERCENT = Integer.getInteger("cassandra.epaxos.execution_persistence_percent", 100);
+    protected static final float EXECUTION_PERSISTENCE_PERCENT = Float.parseFloat(System.getProperty("cassandra.epaxos.execution_persistence_percent", "0.1"));
 
     private final String keyspace;
     private final String table;
@@ -76,10 +76,9 @@ public class TokenStateManager
         private void updateThresholds()
         {
             // recalculate the epoch increment threshold
-            epochThreshold = Math.max(EPOCH_INCREMENT_THRESHOLD / tokens.ring.size(), MIN_EPOCH_INCREMENT_THRESHOLD);
-
-            double amount = ((double) EXECUTION_PERSISTENCE_PERCENT) / 100.0;
-            unsavedExecutionThreshold = (int) (((double) epochThreshold) * amount);
+            epochThreshold = Math.max(DatabaseDescriptor.getEpaxosEpochIncrementThreshold() / tokens.ring.size(),
+                                      MIN_EPOCH_INCREMENT_THRESHOLD);
+            unsavedExecutionThreshold = (int) (((float) epochThreshold) * EXECUTION_PERSISTENCE_PERCENT);
         }
 
         private List<Token> getRing(Collection<Token> t)
@@ -131,6 +130,26 @@ public class TokenStateManager
             return tokens.ring;
         }
 
+        private synchronized void removeToken(Token token)
+        {
+            HashMap<Token, TokenState> states = new HashMap<>(tokens.states);
+            TokenState ts = states.remove(token);
+            if (ts != null)
+            {
+                ts.lock.writeLock().lock();
+                try
+                {
+                    tokens = new Tokens(states, getRing(states.keySet()));
+                    updateThresholds();
+                    delete(ts);
+                }
+                finally
+                {
+                    ts.lock.writeLock().unlock();
+                }
+            }
+        }
+
         private void clearRange(Range<Token> range)
         {
             synchronized (this)
@@ -138,17 +157,81 @@ public class TokenStateManager
                 Set<Token> currentTokens = Sets.newHashSet(tokens.states.keySet());
                 for (Token token: currentTokens)
                 {
-                    if (range.contains(token))
-                    {
-                        HashMap<Token, TokenState> states = new HashMap<>(tokens.states);
-                        TokenState ts = states.remove(token);
-                        tokens = new Tokens(states, getRing(states.keySet()));
-                        updateThresholds();
-                        delete(ts);
-                    }
+                    removeToken(token);
                 }
 
                 putIfAbsent(new TokenState(range, cfid, 0, 0, TokenState.State.PRE_RECOVERY));
+            }
+        }
+
+        /**
+         * deletes any unupgraded token states, and replaces them with ranges from
+         * the current token ring. There has to be an easier way to do this
+         */
+        private synchronized void refreshInactive()
+        {
+            for (Token token: tokens.ring)
+            {
+                TokenState ts = get(token);
+                if (ts == null)
+                    continue;
+                ts.lock.writeLock().lock();
+                try
+                {
+                    if (ts.getState() == TokenState.State.INACTIVE)
+                    {
+                        removeToken(token);
+                    }
+                }
+                finally
+                {
+                    ts.lock.writeLock().unlock();
+                }
+            }
+
+            Set<Range<Token>> existingRanges = new HashSet<Range<Token>>();
+            Set<Range<Token>> replicatedRanges = getReplicatedRangesForCf(cfid);
+            for (TokenState ts: tokens.states.values())
+            {
+                existingRanges.add(ts.getRange());
+            }
+
+            Set<Range<Token>> freeRanges = new HashSet<>(Sets.difference(replicatedRanges, existingRanges));
+            boolean changes;
+            do
+            {
+                Set<Range<Token>> toRemove = new HashSet<Range<Token>>();
+                Set<Range<Token>> toAdd = new HashSet<>();
+
+                nextRange:
+                for (Range<Token> free: freeRanges)
+                {
+                    for (Range<Token> existing: existingRanges)
+                    {
+                        if (existing.contains(free))
+                        {
+                            toRemove.add(free);
+                            continue nextRange;
+                        }
+                        if (existing.intersects(free))
+                        {
+                            toAdd.addAll(existing.subtract(free));
+                            toRemove.add(free);
+                        }
+                    }
+                }
+                freeRanges.removeAll(toRemove);
+                freeRanges.addAll(toAdd);
+                changes = !toAdd.isEmpty() || !toRemove.isEmpty();
+            } while (changes);
+
+            for (Range<Token> range: freeRanges)
+            {
+                TokenState ts = new TokenState(range, cfid, 0, 0, TokenState.State.INACTIVE);
+                logger.debug("Adding token state {} to {}", ts, cfid);
+                TokenState prevTs = putIfAbsent(ts);
+                assert prevTs == ts;
+                save(ts);
             }
         }
     }
@@ -257,12 +340,17 @@ public class TokenStateManager
         return getReplicatedRangesForKeyspace(Schema.instance.getCF(cfId).left);
     }
 
+    ManagedCf getOrInitManagedCf(UUID cfId)
+    {
+        return getOrInitManagedCf(cfId, TokenState.State.NORMAL);
+    }
+
     /**
      * Returns the ManagedCf instance for the given cfId, if it exists. If it
      * doesn't exist, it will initialize the ManagedCf with token states at epoch
      * 0 for each token replicated by this node, for that token state.
      */
-    ManagedCf getOrInitManagedCf(UUID cfId)
+    ManagedCf getOrInitManagedCf(UUID cfId, TokenState.State defaultState)
     {
         ManagedCf cf = states.get(cfId);
         if (cf == null)
@@ -277,7 +365,7 @@ public class TokenStateManager
 
                 for (Range<Token> range: getReplicatedRangesForCf(cfId))
                 {
-                    TokenState ts = new TokenState(range, cfId, 0, 0);
+                    TokenState ts = new TokenState(range, cfId, 0, 0, defaultState);
                     logger.debug("Adding token state {} to {}", ts, cfId);
                     TokenState prevTs = cf.putIfAbsent(ts);
                     assert prevTs == ts;
@@ -301,6 +389,24 @@ public class TokenStateManager
     public Scope getScope()
     {
         return scope;
+    }
+
+    public TokenState getWithDefaultState(ByteBuffer key, UUID cfId, TokenState.State state)
+    {
+        return getWithDefaultState(DatabaseDescriptor.getPartitioner().getToken(key), cfId, state);
+    }
+
+    public TokenState getWithDefaultState(Token token, UUID cfId, TokenState.State state)
+    {
+        getOrInitManagedCf(cfId, state);
+        return get(token, cfId);
+    }
+
+    public void refreshInactive(UUID cfId)
+    {
+        ManagedCf cf = states.get(cfId);
+        if (cf == null) return;
+        cf.refreshInactive();
     }
 
     public TokenState get(CfKey cfKey)

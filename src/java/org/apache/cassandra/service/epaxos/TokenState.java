@@ -12,10 +12,10 @@ import org.apache.cassandra.utils.UUIDSerializer;
 
 import java.io.DataInput;
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
@@ -59,7 +59,11 @@ public class TokenState
         RECOVERY_REQUIRED(false, false),
         PRE_RECOVERY(false, false),
         RECOVERING_INSTANCES(false, false, true),
-        RECOVERING_DATA(true, false);
+        RECOVERING_DATA(true, false),
+
+        // these are used for upgrading protocols
+        INACTIVE(true, true),
+        UPGRADING(true, true);
 
         // this node can participate in epaxos rounds
         private final boolean okToParticipate;
@@ -96,6 +100,55 @@ public class TokenState
         {
             return passiveRecord;
         }
+
+        /**
+         * determines if the given state is a valid upgrade target or not
+         */
+        public static boolean validUpgrade(State s)
+        {
+            switch (s)
+            {
+                case NORMAL:
+                case INACTIVE:
+                case UPGRADING:
+                    return true;
+                default:
+                    return false;
+            }
+        }
+
+        public static boolean isUpgraded(State s)
+        {
+            switch (s)
+            {
+                case INACTIVE:
+                case UPGRADING:
+                    return false;
+                default:
+                    return true;
+            }
+        }
+
+        public static final IVersionedSerializer<State> serializer = new IVersionedSerializer<State>()
+        {
+            @Override
+            public void serialize(State state, DataOutputPlus out, int version) throws IOException
+            {
+                out.writeInt(state.ordinal());
+            }
+
+            @Override
+            public State deserialize(DataInput in, int version) throws IOException
+            {
+                return State.values()[in.readInt()];
+            }
+
+            @Override
+            public long serializedSize(State state, int version)
+            {
+                return 4;
+            }
+        };
     }
 
     // the local state of the token state. This indicates
@@ -352,7 +405,7 @@ public class TokenState
             UUIDSerializer.serializer.serialize(tokenState.cfId, out, major);
             out.writeLong(tokenState.epoch);
             out.writeInt(tokenState.executions.get());
-            out.writeInt(tokenState.state.ordinal());
+            State.serializer.serialize(tokenState.state, out, version);
             out.writeLong(tokenState.minStreamEpoch);
             out.writeBoolean(tokenState.creatorToken != null);
             if (tokenState.creatorToken != null)
@@ -387,7 +440,7 @@ public class TokenState
                                            UUIDSerializer.serializer.deserialize(in, major),
                                            in.readLong(),
                                            in.readInt(),
-                                           State.values()[in.readInt()]);
+                                           State.serializer.deserialize(in, version));
 
             ts.minStreamEpoch = in.readLong();
 
@@ -420,7 +473,9 @@ public class TokenState
             long size = Token.serializer.serializedSize(tokenState.predecessor, major);
             size += Token.serializer.serializedSize(tokenState.token, major);
             size += UUIDSerializer.serializer.serializedSize(tokenState.cfId, major);
-            size += 8 + 4 + 4 + 8;
+            size += 8 + 4;
+            size += State.serializer.serializedSize(tokenState.state, version);
+            size += 8;
 
             size += 1;
             if (tokenState.creatorToken != null)
@@ -458,5 +513,16 @@ public class TokenState
                 ", executions=" + executions +
                 ", state=" + state +
                 '}';
+    }
+
+    public Map<String, String> jmxAttrs()
+    {
+        Map<String, String> attrs = new HashMap<>();
+        attrs.put("tokenHi", token.toString());
+        attrs.put("tokenLo", predecessor.toString());
+        attrs.put("epoch", String.format("%s", epoch));
+        attrs.put("executions", String.format("%s", executions));
+        attrs.put("state", state.toString());
+        return attrs;
     }
 }

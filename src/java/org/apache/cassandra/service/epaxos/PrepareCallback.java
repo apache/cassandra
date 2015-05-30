@@ -17,6 +17,7 @@ import org.slf4j.LoggerFactory;
 import javax.annotation.Nullable;
 import java.net.InetAddress;
 import java.util.*;
+import java.util.concurrent.ThreadLocalRandom;
 
 public class PrepareCallback extends AbstractEpochCallback<MessageEnvelope<Instance>>
 {
@@ -95,6 +96,7 @@ public class PrepareCallback extends AbstractEpochCallback<MessageEnvelope<Insta
                 completed = true;
                 if (attempt < RETRY_LIMIT)
                 {
+                    service.randomSleep(100);
                     service.updateBallot(id, msgInstance.getBallot(), new PrepareTask(service, id, group, attempt + 1));
                 }
                 else

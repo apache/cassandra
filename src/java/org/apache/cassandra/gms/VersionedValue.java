@@ -257,6 +257,11 @@ public class VersionedValue implements Comparable<VersionedValue>
         {
             return new VersionedValue(String.valueOf(value));
         }
+
+        public VersionedValue bool(boolean v)
+        {
+            return new VersionedValue(String.valueOf(v));
+        }
     }
 
     private static class VersionedValueSerializer implements IVersionedSerializer<VersionedValue>

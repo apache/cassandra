@@ -19,12 +19,14 @@
 package org.apache.cassandra.service.epaxos;
 
 import java.net.InetAddress;
+import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import com.google.common.base.Predicate;
 import org.junit.Assert;
 import org.junit.Test;
 
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.UnavailableException;
 import org.apache.cassandra.exceptions.WriteTimeoutException;
 import org.apache.cassandra.net.IAsyncCallback;
@@ -39,9 +41,9 @@ public class EpaxosForwardedQueryTest extends AbstractEpaxosTest
 
         MockCallbackService service = new MockCallbackService(4, 0) {
             @Override
-            protected ParticipantInfo getParticipants(Instance instance)
+            protected ParticipantInfo getParticipants(Token token, UUID cfId, Scope scope)
             {
-                return new ParticipantInfo(localReplicas, remoteEndpoints, instance.getConsistencyLevel());
+                return new ParticipantInfo(localReplicas, remoteEndpoints, scope.cl);
             }
 
             @Override

@@ -55,7 +55,7 @@ public class PrepareCallback extends AbstractPaxosCallback<PrepareResponse>
         mostRecentInProgressCommitWithUpdate = Commit.emptyCommit(key, metadata);
     }
 
-    public synchronized void response(MessageIn<PrepareResponse> message)
+    public synchronized void handleResponse(MessageIn<PrepareResponse> message)
     {
         PrepareResponse response = message.payload;
         logger.debug("Prepare response {} from {}", response, message.from);

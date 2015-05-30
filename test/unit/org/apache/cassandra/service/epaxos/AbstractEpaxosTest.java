@@ -8,13 +8,11 @@ import org.apache.cassandra.config.KSMetaData;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.QueryProcessor;
-import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.cql3.statements.CQL3CasRequest;
 import org.apache.cassandra.cql3.statements.ModificationStatement;
 import org.apache.cassandra.cql3.statements.ParsedStatement;
 import org.apache.cassandra.db.ArrayBackedSortedColumns;
 import org.apache.cassandra.db.ColumnFamily;
-import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.SystemKeyspace;
@@ -29,9 +27,7 @@ import org.apache.cassandra.service.CASRequest;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.service.ThriftCASRequest;
 import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.utils.UUIDGen;
 
-import org.junit.Assert;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Ignore;
@@ -114,7 +110,8 @@ public abstract class AbstractEpaxosTest
 
     protected static final Token TOKEN0 = token(0);
     protected static final Token TOKEN100 = token(100);
-    protected static final UUID CFID = UUIDGen.getTimeUUID();
+    protected static final Range<Token> RANGE = new Range<>(TOKEN0, TOKEN100);
+    protected static UUID CFID;
 
     static class DoNothing implements Runnable
     {
@@ -136,6 +133,7 @@ public abstract class AbstractEpaxosTest
         ksOpts.put("replication_factor", "1");
         ksm = KSMetaData.newKeyspace("ks", SimpleStrategy.class, ksOpts, true, Arrays.asList(cfm, thriftcf));
         Schema.instance.load(ksm);
+        CFID = cfm.cfId;
     }
 
     private static void truncate(String table)
@@ -148,6 +146,9 @@ public abstract class AbstractEpaxosTest
         truncate(SystemKeyspace.EPAXOS_INSTANCE);
         truncate(SystemKeyspace.EPAXOS_KEY_STATE);
         truncate(SystemKeyspace.EPAXOS_TOKEN_STATE);
+
+        truncate(SystemKeyspace.PAXOS);
+        truncate(SystemKeyspace.PAXOS_UPGRADE);
     }
 
     @Before

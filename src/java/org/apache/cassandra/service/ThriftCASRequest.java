@@ -9,6 +9,7 @@ import org.apache.cassandra.db.filter.NamesQueryFilter;
 import org.apache.cassandra.db.filter.SliceQueryFilter;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.net.MessagingService;
 
 import java.io.DataInput;
 import java.io.IOException;
@@ -22,11 +23,18 @@ public class ThriftCASRequest implements CASRequest
 
     private final ColumnFamily expected;
     private final ColumnFamily updates;
+    private final boolean alwaysApply;
 
     public ThriftCASRequest(ColumnFamily expected, ColumnFamily updates)
     {
+        this(expected, updates, false);
+    }
+
+    public ThriftCASRequest(ColumnFamily expected, ColumnFamily updates, boolean alwaysApply)
+    {
         this.expected = expected;
         this.updates = updates;
+        this.alwaysApply = alwaysApply;
     }
 
     @Override
@@ -44,6 +52,9 @@ public class ThriftCASRequest implements CASRequest
 
     public boolean appliesTo(ColumnFamily current)
     {
+        if (alwaysApply)
+            return true;
+
         long now = System.currentTimeMillis();
 
         if (!hasLiveCells(expected, now))
@@ -92,6 +103,8 @@ public class ThriftCASRequest implements CASRequest
 
             ColumnFamily.serializer.serialize(req.expected, out, version);
             ColumnFamily.serializer.serialize(req.updates, out, version);
+
+            out.writeBoolean(req.alwaysApply);
         }
 
         @Override
@@ -99,7 +112,8 @@ public class ThriftCASRequest implements CASRequest
         {
             return new ThriftCASRequest(
                     ColumnFamily.serializer.deserialize(in, version),
-                    ColumnFamily.serializer.deserialize(in, version)
+                    ColumnFamily.serializer.deserialize(in, version),
+                    in.readBoolean()
             );
         }
 
@@ -110,7 +124,8 @@ public class ThriftCASRequest implements CASRequest
             ThriftCASRequest req = (ThriftCASRequest) request;
 
             return ColumnFamily.serializer.serializedSize(req.expected, version)
-                 + ColumnFamily.serializer.serializedSize(req.updates, version);
+                 + ColumnFamily.serializer.serializedSize(req.updates, version)
+                 + 1;
         }
     }
 

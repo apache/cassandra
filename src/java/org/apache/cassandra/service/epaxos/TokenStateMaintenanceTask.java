@@ -71,6 +71,9 @@ public class TokenStateMaintenanceTask implements Runnable
 
                     TokenState ts = tsm.getExact(token, cfId);
 
+                    if (!TokenState.State.isUpgraded(ts.getState()))
+                        continue;
+
                     ts.lock.readLock().lock();
                     long currentEpoch;
                     try
@@ -159,7 +162,7 @@ public class TokenStateMaintenanceTask implements Runnable
 
                 for (Token token: tokens)
                 {
-                    if (tsm.getExact(token, cfId) == null)
+                    if (tsm.getExact(token, cfId) == null && isUpgraded(token, cfId, tsm.getScope()))
                     {
                         logger.info("Running instance for missing token state for token {} on {}", token, cfId);
                         TokenInstance instance = service.createTokenInstance(token, cfId, tsm.getScope());
@@ -175,6 +178,11 @@ public class TokenStateMaintenanceTask implements Runnable
                 }
             }
         }
+    }
+
+    protected boolean isUpgraded(Token token, UUID cfId, Scope scope)
+    {
+        return UpgradeService.instance().isUpgradedForQuery(token, cfId, scope);
     }
 
     protected boolean shouldRun()

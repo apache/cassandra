@@ -30,9 +30,7 @@ public class Node extends EpaxosService
     private final Messenger messenger;
     private final String dc;
 
-    private final Map<MessagingService.Verb, IVerbHandler> verbHandlerMap = Maps.newEnumMap(MessagingService.Verb.class);
-
-
+    protected final Map<MessagingService.Verb, IVerbHandler> verbHandlerMap = Maps.newEnumMap(MessagingService.Verb.class);
 
     public static enum State
     {
@@ -53,7 +51,7 @@ public class Node extends EpaxosService
 
     public final int number;
 
-    private static String numberName(String name, int number)
+    protected static String numberName(String name, int number)
     {
         return String.format("%s_%s", name, number);
     }
@@ -71,6 +69,16 @@ public class Node extends EpaxosService
     public static String nTokenStateTable(int number)
     {
         return numberName(SystemKeyspace.EPAXOS_TOKEN_STATE, number);
+    }
+
+    public static String nUpgradeTable(int number)
+    {
+        return numberName(SystemKeyspace.PAXOS_UPGRADE, number);
+    }
+
+    public static String nPaxosTable(int number)
+    {
+        return numberName(SystemKeyspace.PAXOS, number);
     }
 
     public Node(int number, Messenger messenger, String dc, String ksName)
@@ -94,6 +102,8 @@ public class Node extends EpaxosService
         verbHandlerMap.put(MessagingService.Verb.EPAXOS_COMMIT, getCommitVerbHandler());
         verbHandlerMap.put(MessagingService.Verb.EPAXOS_PREPARE, getPrepareVerbHandler());
         verbHandlerMap.put(MessagingService.Verb.EPAXOS_TRYPREACCEPT, getTryPreacceptVerbHandler());
+
+
     }
 
     @Override
@@ -302,7 +312,7 @@ public class Node extends EpaxosService
     }
 
     @Override
-    protected String getInstanceKeyspace(Instance instance)
+    protected String getCfIdKeyspace(UUID cfId)
     {
         return "ks";
     }
@@ -363,6 +373,12 @@ public class Node extends EpaxosService
         protected void scheduleTokenStateMaintenanceTask()
         {
             // no-op
+        }
+
+        @Override
+        protected void sleep(int millis)
+        {
+//            queuedExecutor.sleep(millis);
         }
     }
 }

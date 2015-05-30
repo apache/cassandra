@@ -7,6 +7,7 @@ import com.google.common.util.concurrent.SettableFuture;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.commitlog.ReplayPosition;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.ReadTimeoutException;
 import org.apache.cassandra.exceptions.WriteTimeoutException;
@@ -221,9 +222,9 @@ public class EpaxosExecuteTaskTest extends AbstractEpaxosTest
 
         MockExecutionService service = new MockExecutionService() {
             @Override
-            protected ParticipantInfo getParticipants(Instance instance)
+            protected ParticipantInfo getParticipants(Token token, UUID cfId, Scope scope)
             {
-                return new ParticipantInfo(local, remote, instance.getConsistencyLevel());
+                return new ParticipantInfo(local, remote, scope.cl);
             }
         };
 
@@ -248,9 +249,9 @@ public class EpaxosExecuteTaskTest extends AbstractEpaxosTest
 
         MockExecutionService service = new MockExecutionService() {
             @Override
-            protected ParticipantInfo getParticipants(Instance instance)
+            protected ParticipantInfo getParticipants(Token token, UUID cfId, Scope scope)
             {
-                return new ParticipantInfo(local, remote, instance.getConsistencyLevel());
+                return new ParticipantInfo(local, remote, scope.cl);
             }
         };
 

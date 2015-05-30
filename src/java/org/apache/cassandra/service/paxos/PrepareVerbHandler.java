@@ -25,13 +25,30 @@ import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.MessageIn;
 import org.apache.cassandra.net.MessageOut;
 import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.service.epaxos.UpgradeService;
 
 public class PrepareVerbHandler implements IVerbHandler<Commit>
 {
+    private static MessageOut<PrepareResponse> failureMessage(Commit commit)
+    {
+        PrepareResponse response = new PrepareResponse(false, commit, commit);
+        MessageOut<PrepareResponse> message = new MessageOut<>(MessagingService.Verb.REQUEST_RESPONSE, response, PrepareResponse.serializer);
+        message = message.withParameter(UpgradeService.PAXOS_UPGRADE_ERROR, new byte[]{});
+        return message;
+    }
+
+
     public void doVerb(MessageIn<Commit> message, int id)
     {
-        PrepareResponse response = PaxosState.prepare(message.payload);
-        MessageOut<PrepareResponse> reply = new MessageOut<PrepareResponse>(MessagingService.Verb.REQUEST_RESPONSE, response, PrepareResponse.serializer);
-        MessagingService.instance().sendReply(reply, id, message.from);
+        if (UpgradeService.instance().isUpgradedForQuery(message))
+        {
+            MessagingService.instance().sendReply(failureMessage(message.payload), id, message.from);
+        }
+        else
+        {
+            PrepareResponse response = PaxosState.prepare(message.payload);
+            MessageOut<PrepareResponse> reply = new MessageOut<PrepareResponse>(MessagingService.Verb.REQUEST_RESPONSE, response, PrepareResponse.serializer);
+            MessagingService.instance().sendReply(reply, id, message.from);
+        }
     }
 }

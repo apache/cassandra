@@ -128,7 +128,10 @@ public class NodeTool
                 TpStats.class,
                 TopPartitions.class,
                 SetLoggingLevel.class,
-                GetLoggingLevels.class
+                GetLoggingLevels.class,
+                UpgradePaxos.class,
+                GetPaxosUpgraded.class,
+                PrintEpaxosStates.class
         );
 
         Cli.CliBuilder<Runnable> builder = Cli.builder("nodetool");

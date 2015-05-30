@@ -21,6 +21,9 @@ package org.apache.cassandra.service.paxos;
  */
 
 
+import java.util.HashSet;
+import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import org.apache.cassandra.db.ConsistencyLevel;
@@ -28,6 +31,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.net.MessageIn;
+import org.apache.cassandra.service.epaxos.UpgradeService;
 
 /**
  * ProposeCallback has two modes of operation, controlled by the failFast parameter.
@@ -49,6 +53,7 @@ public class ProposeCallback extends AbstractPaxosCallback<Boolean>
     private final AtomicInteger accepts = new AtomicInteger(0);
     private final int requiredAccepts;
     private final boolean failFast;
+    private Set<UUID> epaxosDeps = null;
 
     public ProposeCallback(int totalTargets, int requiredTargets, boolean failFast, ConsistencyLevel consistency)
     {
@@ -57,12 +62,18 @@ public class ProposeCallback extends AbstractPaxosCallback<Boolean>
         this.failFast = failFast;
     }
 
-    public void response(MessageIn<Boolean> msg)
+    public void handleResponse(MessageIn<Boolean> msg)
     {
         logger.debug("Propose response {} from {}", msg.payload, msg.from);
 
         if (msg.payload)
             accepts.incrementAndGet();
+
+        if (msg.parameters.containsKey(UpgradeService.PAXOS_DEPS_PARAM))
+        {
+            epaxosDeps = epaxosDeps != null ? epaxosDeps : new HashSet<UUID>();
+            epaxosDeps.addAll(UpgradeService.depsFromBytes(msg.parameters.get(UpgradeService.PAXOS_DEPS_PARAM)));
+        }
 
         latch.countDown();
 
@@ -89,5 +100,10 @@ public class ProposeCallback extends AbstractPaxosCallback<Boolean>
         // We need to check the latch first to avoid racing with a late arrival
         // between the latch check and the accepts one
         return latch.getCount() == 0 && accepts.get() == 0;
+    }
+
+    public Set<UUID> getEpaxosDeps()
+    {
+        return epaxosDeps;
     }
 }

@@ -142,6 +142,7 @@ import org.apache.cassandra.repair.RepairParallelism;
 import org.apache.cassandra.repair.RepairRunnable;
 import org.apache.cassandra.repair.SystemDistributedKeyspace;
 import org.apache.cassandra.repair.messages.RepairOption;
+import org.apache.cassandra.service.epaxos.UpgradeService;
 import org.apache.cassandra.service.paxos.CommitVerbHandler;
 import org.apache.cassandra.service.paxos.PrepareVerbHandler;
 import org.apache.cassandra.service.paxos.ProposeVerbHandler;
@@ -352,13 +353,14 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         MessagingService.instance().registerVerbHandlers(MessagingService.Verb.SNAPSHOT, new SnapshotVerbHandler());
         MessagingService.instance().registerVerbHandlers(MessagingService.Verb.ECHO, new EchoVerbHandler());
 
-        MessagingService.instance().registerVerbHandlers(MessagingService.Verb.EPAXOS_PREACCEPT, EpaxosService.getInstance().getPreacceptVerbHandler());
-        MessagingService.instance().registerVerbHandlers(MessagingService.Verb.EPAXOS_ACCEPT, EpaxosService.getInstance().getAcceptVerbHandler());
-        MessagingService.instance().registerVerbHandlers(MessagingService.Verb.EPAXOS_COMMIT, EpaxosService.getInstance().getCommitVerbHandler());
-        MessagingService.instance().registerVerbHandlers(MessagingService.Verb.EPAXOS_PREPARE, EpaxosService.getInstance().getPrepareVerbHandler());
-        MessagingService.instance().registerVerbHandlers(MessagingService.Verb.EPAXOS_TRYPREACCEPT, EpaxosService.getInstance().getTryPreacceptVerbHandler());
-        MessagingService.instance().registerVerbHandlers(MessagingService.Verb.EPAXOS_FORWARD_QUERY, EpaxosService.getInstance().getForwardQueryVerbHandler());
-        MessagingService.instance().registerVerbHandlers(MessagingService.Verb.EPAXOS_FAILURE_RECOVERY, EpaxosService.getInstance().getFailureRecoveryVerbHandler());
+        MessagingService.instance().registerVerbHandlers(MessagingService.Verb.EPAXOS_PREACCEPT,  UpgradeService.wrap(EpaxosService.getInstance().getPreacceptVerbHandler()));
+        MessagingService.instance().registerVerbHandlers(MessagingService.Verb.EPAXOS_ACCEPT,  UpgradeService.wrap(EpaxosService.getInstance().getAcceptVerbHandler()));
+        MessagingService.instance().registerVerbHandlers(MessagingService.Verb.EPAXOS_COMMIT,  UpgradeService.wrap(EpaxosService.getInstance().getCommitVerbHandler()));
+        MessagingService.instance().registerVerbHandlers(MessagingService.Verb.EPAXOS_PREPARE,  UpgradeService.wrap(EpaxosService.getInstance().getPrepareVerbHandler()));
+        MessagingService.instance().registerVerbHandlers(MessagingService.Verb.EPAXOS_TRYPREACCEPT,  UpgradeService.wrap(EpaxosService.getInstance().getTryPreacceptVerbHandler()));
+        MessagingService.instance().registerVerbHandlers(MessagingService.Verb.EPAXOS_FORWARD_QUERY,  EpaxosService.getInstance().getForwardQueryVerbHandler());
+        MessagingService.instance().registerVerbHandlers(MessagingService.Verb.EPAXOS_FAILURE_RECOVERY,  UpgradeService.wrap(EpaxosService.getInstance().getFailureRecoveryVerbHandler()));
+        MessagingService.instance().registerVerbHandlers(MessagingService.Verb.PAXOS_UPGRADE, UpgradeService.instance().getVerbHandler());
     }
 
     public void registerDaemon(CassandraDaemon daemon)
@@ -812,6 +814,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             BatchlogManager.instance.start();
 
             EpaxosService.getInstance().start();
+            UpgradeService.instance().start();
         }
     }
 

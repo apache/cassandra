@@ -150,7 +150,9 @@ public final class MessagingService implements MessagingServiceMBean
         EPAXOS_TRYPREACCEPT,
         EPAXOS_FORWARD_QUERY,
         //
-        EPAXOS_FAILURE_RECOVERY
+        EPAXOS_FAILURE_RECOVERY,
+        //
+        PAXOS_UPGRADE
 
         ;
     }
@@ -205,6 +207,7 @@ public final class MessagingService implements MessagingServiceMBean
         put(Verb.EPAXOS_FORWARD_QUERY, Stage.MISC);
 
         put(Verb.EPAXOS_FAILURE_RECOVERY, Stage.MISC);
+        put(Verb.PAXOS_UPGRADE, Stage.MISC);
 
         put(Verb.UNUSED_1, Stage.INTERNAL_RESPONSE);
         put(Verb.UNUSED_2, Stage.INTERNAL_RESPONSE);
@@ -253,6 +256,7 @@ public final class MessagingService implements MessagingServiceMBean
         put(Verb.EPAXOS_FORWARD_QUERY, SerializedRequest.serializer);
 
         put(Verb.EPAXOS_FAILURE_RECOVERY, FailureRecoveryRequest.serializer);
+        put(Verb.PAXOS_UPGRADE, UpgradeService.Request.serializer);
     }};
 
     /**
@@ -282,6 +286,8 @@ public final class MessagingService implements MessagingServiceMBean
         put(Verb.EPAXOS_PREPARE, MessageEnvelope.getSerializer(Instance.serializer));
         put(Verb.EPAXOS_TRYPREACCEPT, TryPreacceptResponse.serializer);
         put(Verb.EPAXOS_FORWARD_QUERY, SerializedRequest.Result.serializer);
+
+        put(Verb.PAXOS_UPGRADE, UpgradeService.Response.serializer);
     }};
 
     /* This records all the results mapped by message Id */

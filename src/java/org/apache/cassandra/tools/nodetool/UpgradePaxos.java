@@ -15,34 +15,22 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.gms;
 
-public enum ApplicationState
+package org.apache.cassandra.tools.nodetool;
+
+import io.airlift.command.Command;
+import org.apache.cassandra.tools.NodeProbe;
+import org.apache.cassandra.tools.NodeTool;
+
+/**
+* Created by beggleston on 6/2/15.
+*/
+@Command(name = "upgradepaxos", description = "Upgrade this token ranges replicate by this node to epaxos. All nodes must be upgraded to an epaxos compatible version before upgrading")
+public class UpgradePaxos extends NodeTool.NodeToolCmd
 {
-    STATUS,
-    LOAD,
-    SCHEMA,
-    DC,
-    RACK,
-    RELEASE_VERSION,
-    REMOVAL_COORDINATOR,
-    INTERNAL_IP,
-    RPC_ADDRESS,
-    X_11_PADDING, // padding specifically for 1.1
-    SEVERITY,
-    NET_VERSION,
-    HOST_ID,
-    TOKENS,
-    RPC_READY,
-    // pad to allow adding new states to existing cluster
-    PAXOS_UPGRADE,
-    X2,
-    X3,
-    X4,
-    X5,
-    X6,
-    X7,
-    X8,
-    X9,
-    X10,
+    @Override
+    protected void execute(NodeProbe probe)
+    {
+        probe.upgradePaxos(System.out);
+    }
 }

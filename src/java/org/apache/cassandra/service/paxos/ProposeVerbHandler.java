@@ -21,18 +21,54 @@ package org.apache.cassandra.service.paxos;
  */
 
 
+import java.util.Set;
+import java.util.UUID;
+
+import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.MessageIn;
 import org.apache.cassandra.net.MessageOut;
 import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.service.epaxos.Scope;
+import org.apache.cassandra.service.epaxos.UpgradeService;
 import org.apache.cassandra.utils.BooleanSerializer;
+
+import static org.apache.cassandra.service.epaxos.UpgradeService.*;
 
 public class ProposeVerbHandler implements IVerbHandler<Commit>
 {
+
+    private static final MessageOut<Boolean> UPGRADE_FAILURE;
+    static
+    {
+        MessageOut<Boolean> msg = new MessageOut<>(MessagingService.Verb.REQUEST_RESPONSE, false, BooleanSerializer.serializer);
+        UPGRADE_FAILURE = msg.withParameter(UpgradeService.PAXOS_UPGRADE_ERROR, new byte[]{});
+    }
+
     public void doVerb(MessageIn<Commit> message, int id)
     {
-        Boolean response = PaxosState.propose(message.payload);
-        MessageOut<Boolean> reply = new MessageOut<Boolean>(MessagingService.Verb.REQUEST_RESPONSE, response, BooleanSerializer.serializer);
-        MessagingService.instance().sendReply(reply, id, message.from);
+        if (UpgradeService.instance().isUpgradedForQuery(message))
+        {
+            MessagingService.instance().sendReply(UPGRADE_FAILURE, id, message.from);
+        }
+        else
+        {
+            Boolean response = PaxosState.propose(message.payload);
+            Set<UUID> deps = null;
+            if (response)
+            {
+                ConsistencyLevel cl = clFromBytes(message.parameters.get(PAXOS_CONSISTEMCY_PARAM));
+                deps = UpgradeService.instance().reportPaxosProposal(message.payload, message.from, cl);
+            }
+
+            MessageOut<Boolean> reply = new MessageOut<>(MessagingService.Verb.REQUEST_RESPONSE, response, BooleanSerializer.serializer);
+
+            if (deps != null)
+            {
+                reply = reply.withParameter(PAXOS_DEPS_PARAM, depsToBytes(deps));
+            }
+
+            MessagingService.instance().sendReply(reply, id, message.from);
+        }
     }
 }

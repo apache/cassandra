@@ -1693,4 +1693,14 @@ public class DatabaseDescriptor
     {
         return conf.enable_user_defined_functions;
     }
+
+    public static int getEpaxosEpochIncrementThreshold()
+    {
+        return conf.epaxos_options.epoch_increment_threshold;
+    }
+
+    public static boolean isEpaxosEnabled()
+    {
+        return conf.epaxos_options.enabled;
+    }
 }

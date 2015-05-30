@@ -25,13 +25,22 @@ import org.apache.cassandra.db.WriteResponse;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.MessageIn;
 import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.service.epaxos.UpgradeService;
 import org.apache.cassandra.tracing.Tracing;
+
+import static org.apache.cassandra.service.epaxos.UpgradeService.*;
 
 public class CommitVerbHandler implements IVerbHandler<Commit>
 {
     public void doVerb(MessageIn<Commit> message, int id)
     {
+        // TODO: fail if we've been upgraded
         PaxosState.commit(message.payload);
+
+        UpgradeService.instance().reportPaxosCommit(message.payload,
+                                                    message.from,
+                                                    clFromBytes(message.parameters.get(PAXOS_CONSISTEMCY_PARAM)),
+                                                    depsFromBytes(message.parameters.get(PAXOS_DEPS_PARAM)));
 
         WriteResponse response = new WriteResponse();
         Tracing.trace("Enqueuing acknowledge to {}", message.from);

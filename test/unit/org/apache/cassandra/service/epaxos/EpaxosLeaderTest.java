@@ -36,6 +36,7 @@ import org.junit.Assert;
 import org.junit.Test;
 
 import org.apache.cassandra.db.ConsistencyLevel;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.net.IAsyncCallback;
 import org.apache.cassandra.net.MessageOut;
 import org.apache.cassandra.utils.Pair;
@@ -87,9 +88,9 @@ public class EpaxosLeaderTest extends AbstractEpaxosTest
         }
 
         @Override
-        protected ParticipantInfo getParticipants(Instance instance)
+        protected ParticipantInfo getParticipants(Token token, UUID cfId, Scope scope)
         {
-            return new ParticipantInfo(LOCAL, REMOTE, instance.getConsistencyLevel());
+            return new ParticipantInfo(LOCAL, REMOTE, scope.cl);
         }
 
         @Override

@@ -9,6 +9,8 @@ import com.google.common.util.concurrent.SettableFuture;
 import com.google.common.util.concurrent.Striped;
 
 import org.apache.cassandra.concurrent.ScheduledExecutors;
+import com.google.common.util.concurrent.Uninterruptibles;
+
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.concurrent.StageManager;
 import org.apache.cassandra.concurrent.TracingAwareExecutorService;
@@ -46,19 +48,38 @@ import org.slf4j.LoggerFactory;
 
 import java.io.DataInputStream;
 import java.io.IOException;
+import java.lang.management.ManagementFactory;
 import java.net.InetAddress;
 import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReadWriteLock;
+import javax.management.MBeanServer;
+import javax.management.ObjectName;
 
-public class EpaxosService
+public class EpaxosService implements EpaxosServiceMBean
 {
+    public static final String MBEAN_NAME = "org.apache.cassandra.service.epaxos:type=EpaxosService";
 
     private static class Handle
     {
-        private static final EpaxosService instance = new EpaxosService();
+        private static final EpaxosService instance;
+
+        static
+        {
+            MBeanServer mbs = ManagementFactory.getPlatformMBeanServer();
+            try
+            {
+                ObjectName jmxName = new ObjectName(MBEAN_NAME);
+                instance = new EpaxosService();
+                mbs.registerMBean(instance, jmxName);
+            }
+            catch (Exception e)
+            {
+                throw new RuntimeException(e);
+            }
+        }
     }
 
     public static EpaxosService getInstance()
@@ -361,6 +382,11 @@ public class EpaxosService
     protected long getQueryTimeout(long start)
     {
         return Math.max(1, DatabaseDescriptor.getRpcTimeout() - (System.currentTimeMillis() - start));
+    }
+
+    long getUpgradeTimeout()
+    {
+        return DatabaseDescriptor.getWriteRpcTimeout();
     }
 
     /**
@@ -1795,21 +1821,26 @@ public class EpaxosService
         return isInSameDC(address) ? Scope.BOTH : Scope.GLOBAL_ONLY;
     }
 
-    protected String getInstanceKeyspace(Instance instance)
+    protected String getCfIdKeyspace(UUID cfId)
     {
-        return Schema.instance.getCF(instance.getCfId()).left;
+        return Schema.instance.getCF(cfId).left;
     }
 
-    protected ParticipantInfo getParticipants(Instance instance)
+    protected final ParticipantInfo getParticipants(Instance instance)
     {
-        String ks = getInstanceKeyspace(instance);
+        return getParticipants(instance.getToken(), instance.getCfId(), instance.getScope());
+    }
 
-        List<InetAddress> naturalEndpoints = getNaturalEndpoints(ks, instance.getToken());
-        Collection<InetAddress> pendingEndpoints = getPendingEndpoints(ks, instance.getToken());
+    protected ParticipantInfo getParticipants(Token token, UUID cfId, Scope scope)
+    {
+        String ks = getCfIdKeyspace(cfId);
+
+        List<InetAddress> naturalEndpoints = getNaturalEndpoints(ks, token);
+        Collection<InetAddress> pendingEndpoints = getPendingEndpoints(ks, token);
 
         List<InetAddress> endpoints = ImmutableList.copyOf(Iterables.filter(Iterables.concat(naturalEndpoints, pendingEndpoints), duplicateFilter()));
         List<InetAddress> remoteEndpoints = null;
-        if (instance.getConsistencyLevel() == ConsistencyLevel.LOCAL_SERIAL)
+        if (scope == Scope.LOCAL)
         {
             // Restrict naturalEndpoints and pendingEndpoints to node in the local DC only
             String localDc = getDc();
@@ -1822,9 +1853,9 @@ public class EpaxosService
         if (endpoints.isEmpty())
         {
             logger.warn("no endpoints found for instance: {} at {}, natural: {}, pending: {}, remote: {}",
-                        instance, instance.getConsistencyLevel(), naturalEndpoints, pendingEndpoints, remoteEndpoints);
+                        scope, naturalEndpoints, pendingEndpoints, remoteEndpoints);
         }
-        return new ParticipantInfo(endpoints, remoteEndpoints, instance.getConsistencyLevel());
+        return new ParticipantInfo(endpoints, remoteEndpoints, scope.cl);
     }
 
     protected boolean isAlive(InetAddress endpoint)
@@ -1883,5 +1914,56 @@ public class EpaxosService
     private static DecoratedKey decorateKey(ByteBuffer key)
     {
         return DatabaseDescriptor.getPartitioner().decorateKey(key);
+    }
+
+    protected void sleep(int millis)
+    {
+        Uninterruptibles.sleepUninterruptibly(millis, TimeUnit.MILLISECONDS);
+    }
+
+    protected void randomSleep(int millis)
+    {
+        sleep(ThreadLocalRandom.current().nextInt(millis));
+    }
+
+    @Override
+    public Map<String, List<Map<String, String>>> getTokenStates()
+    {
+        Map<String, List<Map<String, String>>> results = new HashMap<>();
+
+        Set<UUID> cfIds = new HashSet<>();
+        cfIds.addAll(getTokenStateManager(Scope.GLOBAL).getAllManagedCfIds());
+        cfIds.addAll(getTokenStateManager(Scope.LOCAL).getAllManagedCfIds());
+
+        for (UUID cfId: cfIds)
+        {
+            if (!tableExists(cfId))
+                continue;
+
+            Pair<String, String> ksTbl = Schema.instance.getCF(cfId);
+            String tbl = ksTbl.left + "." + ksTbl.right;
+
+            List<Map<String, String>> states = new LinkedList<>();
+            TokenStateManager tsm;
+            tsm = getTokenStateManager(Scope.GLOBAL);
+            for (Token token: tsm.allTokenStatesForCf(cfId))
+            {
+                TokenState ts = tsm.get(token, cfId);
+                Map<String, String> attrs = ts.jmxAttrs();
+                attrs.put("scope", Scope.GLOBAL.toString());
+                states.add(attrs);
+            }
+            tsm = getTokenStateManager(Scope.LOCAL);
+            for (Token token: tsm.allTokenStatesForCf(cfId))
+            {
+                TokenState ts = tsm.get(token, cfId);
+                Map<String, String> attrs = ts.jmxAttrs();
+                attrs.put("scope", Scope.LOCAL.toString());
+                states.add(attrs);
+            }
+
+            results.put(tbl, states);
+        }
+        return results;
     }
 }

@@ -23,9 +23,11 @@ import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.UUID;
 
 import com.google.common.base.Predicate;
 
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.net.IAsyncCallback;
 import org.apache.cassandra.net.MessageOut;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -80,9 +82,9 @@ public class MockMessengerService extends MockMultiDcService
     }
 
     @Override
-    protected ParticipantInfo getParticipants(Instance instance)
+    protected ParticipantInfo getParticipants(Token token, UUID cfId, Scope scope)
     {
-        return new ParticipantInfo(localEndpoints, remoteEndpoints, instance.getConsistencyLevel());
+        return new ParticipantInfo(localEndpoints, remoteEndpoints, scope.cl);
     }
 
     public Predicate<InetAddress> livenessPredicate = new Predicate<InetAddress>()

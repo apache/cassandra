@@ -13,6 +13,7 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.ThreadLocalRandom;
 
 public class PreacceptCallback extends AbstractEpochCallback<PreacceptResponse>
 {
@@ -79,6 +80,7 @@ public class PreacceptCallback extends AbstractEpochCallback<PreacceptResponse>
             logger.debug("preaccept ballot failure from {} for instance {}", msg.from, id);
             completed = true;
             service.updateBallot(id, response.ballotFailure, failureCallback);
+            service.randomSleep(100);
             return;
         }
         responses.put(msg.from, response);

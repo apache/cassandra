@@ -97,6 +97,12 @@ public class EpaxosTokenStateMaintenanceTest extends AbstractEpaxosTest
         {
             return true;
         }
+
+        @Override
+        protected boolean isUpgraded(Token token, UUID cfId, Scope scope)
+        {
+            return true;
+        }
     }
 
     /**

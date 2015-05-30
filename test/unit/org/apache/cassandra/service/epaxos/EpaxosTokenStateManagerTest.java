@@ -199,4 +199,37 @@ public class EpaxosTokenStateManagerTest extends AbstractEpaxosTest
         Assert.assertEquals(1, global2.numManagedTokensFor(CFID));
         Assert.assertEquals(1, local2.numManagedTokensFor(CFID));
     }
+
+    @Test
+    public void refreshInactive()
+    {
+        MockTokenStateManager tsm = new MockTokenStateManager(Scope.GLOBAL);
+        tsm.setTokens(token(100), token(200), token(300), token(400));
+        TokenStateManager.ManagedCf cf = tsm.getOrInitManagedCf(CFID, TokenState.State.INACTIVE);
+        Assert.assertNull(cf.get(token(100)));
+        Assert.assertNotNull(cf.get(token(200)));
+        Assert.assertEquals(range(100, 200), cf.get(token(200)).getRange());
+        Assert.assertNotNull(cf.get(token(300)));
+        Assert.assertEquals(range(200, 300), cf.get(token(300)).getRange());
+        Assert.assertNotNull(cf.get(token(400)));
+        Assert.assertEquals(range(300, 400), cf.get(token(400)).getRange());
+
+        cf.get(token(300)).setState(TokenState.State.NORMAL);
+        cf.get(token(400)).setState(TokenState.State.NORMAL);
+
+        tsm.setTokens(token(50), token(150), token(200), token(300), token(400));
+        tsm.refreshInactive(CFID);
+
+        Assert.assertNull(cf.get(token(50)));
+        Assert.assertNull(cf.get(token(100)));
+        Assert.assertNotNull(cf.get(token(150)));
+        Assert.assertEquals(range(50, 150), cf.get(token(150)).getRange());
+        Assert.assertNotNull(cf.get(token(200)));
+        Assert.assertEquals(range(150, 200), cf.get(token(200)).getRange());
+        Assert.assertNotNull(cf.get(token(300)));
+        Assert.assertEquals(range(200, 300), cf.get(token(300)).getRange());
+        Assert.assertNotNull(cf.get(token(400)));
+        Assert.assertEquals(range(300, 400), cf.get(token(400)).getRange());
+
+    }
 }
