@@ -1,4 +1,5 @@
 2.0.16:
+ * Don't accumulate more range than necessary in RangeTombstone.Tracker (CASSANDRA-9486)
  * Add broadcast and rpc addresses to system.local (CASSANDRA-9436)
  * Always mark sstable suspect when corrupted (CASSANDRA-9478)
  * Add database users and permissions to CQL3 documentation (CASSANDRA-7558)

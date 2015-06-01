@@ -114,6 +114,11 @@ public class DeletionTime implements Comparable<DeletionTime>
         return column.timestamp() <= markedForDeleteAt;
     }
 
+    public boolean supersedes(DeletionTime dt)
+    {
+        return this.markedForDeleteAt > dt.markedForDeleteAt;
+    }
+
     public long memorySize()
     {
         long fields = TypeSizes.NATIVE.sizeof(markedForDeleteAt) + TypeSizes.NATIVE.sizeof(localDeletionTime);
