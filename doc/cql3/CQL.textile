@@ -928,6 +928,217 @@ because Cassandra cannot guarantee that it won't have to scan large amount of da
 bc(sample). 
 SELECT firstname, lastname FROM users WHERE birth_year = 1981 AND country = 'FR' ALLOW FILTERING;
 
+h2(#databaseUsers). Database Users
+
+h3(#createUserStmt). CREATE USER 
+
+__Syntax:__ 
+
+bc(syntax).. 
+<create-user-statement> ::= CREATE USER ( IF NOT EXISTS )? <identifier> ( WITH PASSWORD <string> )? (<option>)?
+
+<option> ::= SUPERUSER
+           | NOSUPERUSER
+p. 
+
+__Sample:__ 
+
+bc(sample). 
+CREATE USER alice WITH PASSWORD 'password_a' SUPERUSER;
+CREATE USER bob WITH PASSWORD 'password_b' NOSUPERUSER;
+
+By default users do not possess @SUPERUSER@ status.
+
+"Permissions":#permissions on database resources (keyspaces and tables) are granted to users.
+USer names should be quoted if they contain non-alphanumeric characters. 
+
+h4(#createUserPwd). Setting credentials for internal authentication
+
+Use the @WITH PASSWORD@ clause to set a password for internal authentication, enclosing the password in single quotation marks.
+If internal authentication has not been set up the @WITH PASSWORD@ clause is not necessary.
+
+h4(#createUserConditional). Creating a user conditionally
+
+Attempting to create an existing user results in an invalid query condition unless the @IF NOT EXISTS@ option is used. If the option is used and the user exists, the statement is a no-op.
+
+bc(sample). 
+CREATE USER carlos;
+CREATE USER IF NOT EXISTS carlos;
+
+h3(#alterUserStmt). ALTER USER 
+
+__Syntax:__ 
+
+bc(syntax).. 
+<alter-user-statement> ::= ALTER USER <identifier> ( WITH PASSWORD <string> )? ( <option> )?
+
+<option> ::= SUPERUSER
+           | NOSUPERUSER
+p. 
+
+bc(sample). 
+ALTER USER alice WITH PASSWORD 'PASSWORD_A';
+ALTER USER bob SUPERUSER;
+
+@ALTER USER@ requires @SUPERUSER@ status, with two caveats:
+
+* A user cannot alter its own @SUPERUSER@ status
+* A user without @SUPERUSER@ status is permitted to modify a subset of it's own properties (e.g. its @PASSWORD@)
+
+h3(#dropUserStmt). DROP USER 
+
+__Syntax:__ 
+
+bc(syntax).. 
+<drop-user-stmt> ::= DROP USER ( IF EXISTS )? <identifier>
+p. 
+
+__Sample:__ 
+
+bc(sample). 
+DROP USER alice;
+DROP USER IF EXISTS bob;
+
+@DROP USER@ requires @SUPERUSER@ status, and users are not permitted to @DROP@ themselves.
+Attempting to drop a user which does not exist results in an invalid query condition unless the @IF EXISTS@ option is used. If the option is used and the user does not exist the statement is a no-op. 
+
+h3(#listUsersStmt). LIST USERS
+
+__Syntax:__
+
+bc(syntax). 
+<list-users-stmt> ::= LIST USERS;
+
+__Sample:__
+
+bc(sample). 
+LIST USERS;
+
+Return all known users in the system.
+
+h2(#dataControl). Data Control
+
+h3(#permissions). Permissions 
+
+Permissions on resources are granted to users and data resources in Cassandra are organized hierarchically, like so: @ALL KEYSPACES@ -> @KEYSPACE@ -> @TABLE@
+
+Permissions can be granted at any level of the hierarchy and they flow downwards. So granting a permission on a resource higher up the chain automatically grants that same permission on all resources lower down. For example, granting @SELECT@ on a @KEYSPACE@ automatically grants it on all @TABLES@ in that @KEYSPACE@. 
+
+Modifications to permissions are visible to existing client sessions; that is, connections need not be re-established following permissions changes.
+
+The full set of available permissions is:
+* @CREATE@
+* @ALTER@
+* @DROP@
+* @SELECT@
+* @MODIFY@
+* @AUTHORIZE@
+
+
+|_. permission |_. resource                   |_. operations        |
+| @CREATE@     | @ALL KEYSPACES@              |@CREATE KEYSPACE@ ==<br>== @CREATE TABLE@ in any keyspace|
+| @CREATE@     | @KEYSPACE@                   |@CREATE TABLE@ in specified keyspace|
+| @ALTER@      | @ALL KEYSPACES@              |@ALTER KEYSPACE@ ==<br>== @ALTER TABLE@ in any keyspace|
+| @ALTER@      | @KEYSPACE@                   |@ALTER KEYSPACE@ ==<br>== @ALTER TABLE@ in keyspace|
+| @ALTER@      | @TABLE@                      |@ALTER TABLE@
+| @DROP@       | @ALL KEYSPACES@              |@DROP KEYSPACE@ ==<br>== @DROP TABLE@ in any keyspace|
+| @DROP@       | @KEYSPACE@                   |@DROP TABLE@ in specified keyspace|
+| @DROP@       | @TABLE@                      |@DROP TABLE@|
+| @SELECT@     | @ALL KEYSPACES@              |@SELECT@ on any table|
+| @SELECT@     | @KEYSPACE@                   |@SELECT@ on any table in keyspace|
+| @SELECT@     | @TABLE@                      |@SELECT@ on specified table|
+| @MODIFY@     | @ALL KEYSPACES@              |@INSERT@ on any table ==<br>== @UPDATE@ on any table ==<br>== @DELETE@ on any table ==<br>== @TRUNCATE@ on any table|
+| @MODIFY@     | @KEYSPACE@                   |@INSERT@ on any table in keyspace ==<br>== @UPDATE@ on any table in keyspace ==<br>== @DELETE@ on any table in keyspace ==<br>== @TRUNCATE@ on any table in keyspace
+| @MODIFY@     | @TABLE@                      |@INSERT@ ==<br>== @UPDATE@ ==<br>== @DELETE@ ==<br>== @TRUNCATE@|
+| @AUTHORIZE@  | @ALL KEYSPACES@              |@GRANT PERMISSION@ on any table ==<br>== @REVOKE PERMISSION@ on any table|
+| @AUTHORIZE@  | @KEYSPACE@                   |@GRANT PERMISSION@ on table in keyspace ==<br>== @REVOKE PERMISSION@ on table in keyspace|
+| @AUTHORIZE@  | @TABLE@                      |@GRANT PERMISSION@ ==<br>== @REVOKE PERMISSION@ |
+
+
+h3(#grantPermissionsStmt). GRANT PERMISSION
+
+__Syntax:__ 
+
+bc(syntax).. 
+<grant-permission-stmt> ::= GRANT ( ALL ( PERMISSIONS )? | <permission> ( PERMISSION )? ) ON <resource> TO <identifier>
+
+<permission> ::= CREATE | ALTER | DROP | SELECT | MODIFY | AUTHORIZE 
+
+<resource> ::= ALL KEYSPACES
+             | KEYSPACE <identifier>
+             | ( TABLE )? <tablename>
+p. 
+
+__Sample:__ 
+
+bc(sample). 
+GRANT SELECT ON ALL KEYSPACES TO alice;
+
+This gives @alice@ permissions to execute @SELECT@ statements on any table across all keyspaces
+
+bc(sample). 
+GRANT MODIFY ON KEYSPACE keyspace1 TO bob;
+
+This gives @bob@ permissions to perform @UPDATE@, @INSERT@, @UPDATE@, @DELETE@ and @TRUNCATE@ queries on all tables in the @keyspace1@ keyspace
+
+bc(sample). 
+GRANT DROP ON keyspace1.table1 TO carlos;
+
+This gives @carlos@ permissions to @DROP@ @keyspace1.table1@.
+
+
+h3(#revokePermissionsStmt). REVOKE PERMISSION
+
+__Syntax:__ 
+
+bc(syntax).. 
+<revoke-permission-stmt> ::= REVOKE ( ALL ( PERMISSIONS )? | <permission> ( PERMISSION )? ) ON <resource> FROM <identifier>
+
+<permission> ::= CREATE | ALTER | DROP | SELECT | MODIFY | AUTHORIZE 
+
+<resource> ::= ALL KEYSPACES
+             | KEYSPACE <identifier>
+             | ( TABLE )? <tablename>
+p. 
+
+__Sample:__ 
+
+bc(sample).. 
+REVOKE SELECT ON ALL KEYSPACES FROM alice;
+REVOKE MODIFY ON KEYSPACE keyspace1 FROM bob;
+REVOKE DROP ON keyspace1.table1 FROM carlos;
+p. 
+
+h4(#listPermissionsStmt). LIST PERMISSIONS
+
+__Syntax:__
+
+bc(syntax).. 
+<list-permissions-stmt> ::= LIST ( ALL ( PERMISSIONS )? | <permission> ) 
+                                 ( ON <resource> )? 
+                                 ( OF <identifier> ( NORECURSIVE )? )?
+
+<resource> ::= ALL KEYSPACES
+             | KEYSPACE <identifier>
+             | ( TABLE )? <tablename>
+p. 
+
+__Sample:__
+
+bc(sample). 
+LIST ALL PERMISSIONS OF alice;
+
+Show all permissions granted to @alice@. 
+
+bc(sample). 
+LIST ALL PERMISSIONS ON keyspace1.table1 OF bob;
+
+Show all permissions on @keyspace1.table1@ granted to @bob@. This also includes any permissions higher up the resource hierarchy which can be applied to @keyspace1.table1@. For example, should @bob@ have @ALTER@ permission on @keyspace1@, that would be included in the results of this query. Adding the @NORECURSIVE@ switch restricts the results to only those permissions which were directly granted to @bob@.
+
+bc(sample). 
+LIST SELECT PERMISSIONS OF carlos;
+
+Show any permissions granted to @carlos@, limited to @SELECT@ permissions on any resource.
 
 h2(#types). Data Types
 
