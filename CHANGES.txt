@@ -172,6 +172,7 @@ Merged from 2.0:
  * Fix streaming not holding ref when stream error (CASSANDRA-9295)
  * Fix canonical view returning early opened SSTables (CASSANDRA-9396)
 Merged from 2.0:
+ * Add database users and permissions to CQL3 documentation (CASSANDRA-7558)
  * Allow JVM_OPTS to be passed to standalone tools (CASSANDRA-5969)
  * Fix bad condition in RangeTombstoneList (CASSANDRA-9485)
  * Fix potential StackOverflow when setting CrcCheckChance over JMX (CASSANDRA-9488)
