@@ -41,9 +41,9 @@ public class PrepareMessage extends RepairMessage
     public final UUID parentRepairSession;
     public final boolean isIncremental;
 
-    public PrepareMessage(UUID parentRepairSession, List<UUID> cfIds, Collection<Range<Token>> ranges, boolean isIncremental)
+    public PrepareMessage(UUID parentRepairSession, List<UUID> cfIds, Collection<Range<Token>> ranges, boolean isIncremental, boolean isGlobal)
     {
-        super(Type.PREPARE_MESSAGE, null);
+        super(isGlobal ? Type.PREPARE_GLOBAL_MESSAGE : Type.PREPARE_MESSAGE, null);
         this.parentRepairSession = parentRepairSession;
         this.cfIds = cfIds;
         this.ranges = ranges;
@@ -79,7 +79,8 @@ public class PrepareMessage extends RepairMessage
             for (int i = 0; i < rangeCount; i++)
                 ranges.add((Range<Token>) Range.tokenSerializer.deserialize(in, MessagingService.globalPartitioner(), version));
             boolean isIncremental = in.readBoolean();
-            return new PrepareMessage(parentRepairSession, cfIds, ranges, isIncremental);
+
+            return new PrepareMessage(parentRepairSession, cfIds, ranges, isIncremental, false);
         }
 
         public long serializedSize(PrepareMessage message, int version)
