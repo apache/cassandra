@@ -798,24 +798,8 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         return endpointStateMap.entrySet();
     }
 
-    public boolean usesHostId(InetAddress endpoint)
-    {
-        if (MessagingService.instance().knowsVersion(endpoint))
-            return true;
-        else if (getEndpointStateForEndpoint(endpoint).getApplicationState(ApplicationState.NET_VERSION) != null)
-            return true;
-        return false;
-    }
-
-    public boolean usesVnodes(InetAddress endpoint)
-    {
-        return usesHostId(endpoint) && getEndpointStateForEndpoint(endpoint).getApplicationState(ApplicationState.TOKENS) != null;
-    }
-
     public UUID getHostId(InetAddress endpoint)
     {
-        if (!usesHostId(endpoint))
-            throw new RuntimeException("Host " + endpoint + " does not use new-style tokens!");
         return UUID.fromString(getEndpointStateForEndpoint(endpoint).getApplicationState(ApplicationState.HOST_ID).value);
     }
 
