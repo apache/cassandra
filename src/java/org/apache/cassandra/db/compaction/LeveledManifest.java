@@ -547,6 +547,8 @@ public class LeveledManifest
                 Set<SSTableReader> l1overlapping = overlapping(candidates, generations[1]);
                 if (Sets.intersection(l1overlapping, compacting).size() > 0)
                     return Collections.emptyList();
+                if (!overlapping(candidates, compactingL0).isEmpty())
+                    return Collections.emptyList();
                 candidates = Sets.union(candidates, l1overlapping);
             }
             if (candidates.size() < 2)
