@@ -19,6 +19,7 @@ package org.apache.cassandra.io.sstable.format.big;
 
 import java.io.IOException;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import com.google.common.collect.AbstractIterator;
 import com.google.common.collect.Ordering;
@@ -51,6 +52,7 @@ import static org.apache.cassandra.dht.AbstractBounds.minRight;
 
 public class BigTableScanner implements ISSTableScanner
 {
+    private AtomicBoolean isClosed = new AtomicBoolean(false);
     protected final RandomAccessReader dfile;
     protected final RandomAccessReader ifile;
     public final SSTableReader sstable;
@@ -193,7 +195,8 @@ public class BigTableScanner implements ISSTableScanner
 
     public void close() throws IOException
     {
-        FileUtils.close(dfile, ifile);
+        if (isClosed.compareAndSet(false, true))
+            FileUtils.close(dfile, ifile);
     }
 
     public long getLengthInBytes()
