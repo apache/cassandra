@@ -38,6 +38,9 @@ public class SSTableIdentityIterator implements Comparable<SSTableIdentityIterat
     private final boolean validateColumns;
     private final String filename;
 
+    // Not every SSTableIdentifyIterator is attached to a sstable, so this can be null.
+    private final SSTableReader sstable;
+
     /**
      * Used to iterate through the columns of a row.
      * @param sstable SSTable we are reading ffrom.
@@ -81,6 +84,7 @@ public class SSTableIdentityIterator implements Comparable<SSTableIdentityIterat
         this.dataSize = dataSize;
         this.flag = flag;
         this.validateColumns = checkData;
+        this.sstable = sstable;
 
         Descriptor.Version dataVersion = sstable == null ? Descriptor.Version.CURRENT : sstable.descriptor.version;
         int expireBefore = (int) (System.currentTimeMillis() / 1000);
@@ -119,9 +123,15 @@ public class SSTableIdentityIterator implements Comparable<SSTableIdentityIterat
         {
             // catch here b/c atomIterator is an AbstractIterator; hasNext reads the value
             if (e.getCause() instanceof IOException)
+            {
+                if (sstable != null)
+                    sstable.markSuspect();
                 throw new CorruptSSTableException((IOException)e.getCause(), filename);
+            }
             else
+            {
                 throw e;
+            }
         }
     }
 

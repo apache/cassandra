@@ -22,9 +22,7 @@ package org.apache.cassandra.db.compaction;
 
 
 import java.io.RandomAccessFile;
-import java.util.Collection;
-import java.util.HashSet;
-import java.util.Set;
+import java.util.*;
 
 import org.junit.After;
 import org.junit.AfterClass;
@@ -40,6 +38,7 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertTrue;
 import static org.apache.cassandra.Util.cellname;
 
 public class BlacklistingCompactionsTest extends SchemaLoader
@@ -128,7 +127,14 @@ public class BlacklistingCompactionsTest extends SchemaLoader
             {
                 raf = new RandomAccessFile(sstable.getFilename(), "rw");
                 assertNotNull(raf);
-                raf.write(0xFFFFFF);
+                assertTrue(raf.length() > 20);
+                raf.seek(new Random().nextInt((int)(raf.length() - 20)));
+                // We want to write something large enough that the corruption cannot get undetected
+                // (even without compression)
+                byte[] corruption = new byte[20];
+                Arrays.fill(corruption, (byte)0xFF);
+                raf.write(corruption);
+
             }
             finally
             {
@@ -160,8 +166,7 @@ public class BlacklistingCompactionsTest extends SchemaLoader
             break;
         }
 
-
         cfs.truncateBlocking();
-        assertEquals(failures, sstablesToCorrupt);
+        assertEquals(sstablesToCorrupt, failures);
     }
 }

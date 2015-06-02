@@ -956,14 +956,55 @@ public class SSTableReader extends SSTable implements SelfRefCounted<SSTableRead
         }
     }
 
+    /**
+     * Clone this reader with the provided start and open reason, and set the clone as replacement.
+     *
+     * @param newFirst the first key for the replacement (which can be different from the original due to the pre-emptive
+     * opening of compaction results).
+     * @param reason the {@code OpenReason} for the replacement.
+     *
+     * @return the cloned reader. That reader is set as a replacement by the method.
+     */
+    private SSTableReader cloneAndReplace(DecoratedKey newFirst, OpenReason reason)
+    {
+        return cloneAndReplace(newFirst, reason, indexSummary.sharedCopy());
+    }
+
+    /**
+     * Clone this reader with the new values and set the clone as replacement.
+     *
+     * @param newFirst the first key for the replacement (which can be different from the original due to the pre-emptive
+     * opening of compaction results).
+     * @param reason the {@code OpenReason} for the replacement.
+     * @param newSummary the index summary for the replacement.
+     *
+     * @return the cloned reader. That reader is set as a replacement by the method.
+     */
+    private SSTableReader cloneAndReplace(DecoratedKey newFirst, OpenReason reason, IndexSummary newSummary)
+    {
+        SSTableReader replacement = internalOpen(descriptor,
+                                                 components,
+                                                 metadata,
+                                                 partitioner,
+                                                 ifile.sharedCopy(),
+                                                 dfile.sharedCopy(),
+                                                 newSummary,
+                                                 bf.sharedCopy(),
+                                                 maxDataAge,
+                                                 sstableMetadata,
+                                                 reason);
+        replacement.first = newFirst;
+        replacement.last = last;
+        replacement.isSuspect.set(isSuspect.get());
+        setReplacedBy(replacement);
+        return replacement;
+    }
+
     public SSTableReader cloneWithNewStart(DecoratedKey newStart, final Runnable runOnClose)
     {
         synchronized (tidy.global)
         {
             assert openReason != OpenReason.EARLY;
-            SSTableReader replacement = new SSTableReader(descriptor, components, metadata, partitioner, ifile.sharedCopy(),
-                                                          dfile.sharedCopy(), indexSummary.sharedCopy(), bf.sharedCopy(),
-                                                          maxDataAge, sstableMetadata, OpenReason.MOVED_START);
             // TODO: make data/index start accurate for compressed files
             // TODO: merge with caller's firstKeyBeyond() work,to save time
             if (newStart.compareTo(first) > 0)
@@ -982,10 +1023,7 @@ public class SSTableReader extends SSTable implements SelfRefCounted<SSTableRead
                 };
             }
 
-            replacement.first = newStart;
-            replacement.last = this.last;
-            setReplacedBy(replacement);
-            return replacement;
+            return cloneAndReplace(newStart, OpenReason.MOVED_START);
         }
     }
 
@@ -1004,13 +1042,7 @@ public class SSTableReader extends SSTable implements SelfRefCounted<SSTableRead
                 }
             };
 
-            SSTableReader replacement = new SSTableReader(descriptor, components, metadata, partitioner, ifile.sharedCopy(),
-                                                          dfile.sharedCopy(), indexSummary.sharedCopy(), bf.sharedCopy(),
-                                                          maxDataAge, sstableMetadata, OpenReason.SHADOWED);
-            replacement.first = first;
-            replacement.last = last;
-            setReplacedBy(replacement);
-            return replacement;
+            return cloneAndReplace(first, OpenReason.SHADOWED);
         }
     }
 
@@ -1067,13 +1099,7 @@ public class SSTableReader extends SSTable implements SelfRefCounted<SSTableRead
             StorageMetrics.load.inc(newSize - oldSize);
             parent.metric.liveDiskSpaceUsed.inc(newSize - oldSize);
 
-            SSTableReader replacement = new SSTableReader(descriptor, components, metadata, partitioner, ifile.sharedCopy(),
-                                                          dfile.sharedCopy(), newSummary, bf.sharedCopy(), maxDataAge,
-                                                          sstableMetadata, OpenReason.METADATA_CHANGE);
-            replacement.first = this.first;
-            replacement.last = this.last;
-            setReplacedBy(replacement);
-            return replacement;
+            return cloneAndReplace(first, OpenReason.METADATA_CHANGE, newSummary);
         }
     }
 
