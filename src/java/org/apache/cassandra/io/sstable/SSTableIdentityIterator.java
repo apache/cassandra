@@ -41,6 +41,9 @@ import org.apache.cassandra.serializers.MarshalException;
     private final boolean validateColumns;
     private final String filename;
 
+    // Not every SSTableIdentifyIterator is attached to a sstable, so this can be null.
+    private final SSTableReader sstable;
+
     /**
      * Used to iterate through the columns of a row.
      * @param sstable SSTable we are reading ffrom.
@@ -80,6 +83,7 @@ import org.apache.cassandra.serializers.MarshalException;
         this.key = key;
         this.flag = flag;
         this.validateColumns = checkData;
+        this.sstable = sstable;
 
         Version dataVersion = sstable == null ? DatabaseDescriptor.getSSTableFormat().info.getLatestVersion() : sstable.descriptor.version;
         int expireBefore = (int) (System.currentTimeMillis() / 1000);
@@ -118,9 +122,15 @@ import org.apache.cassandra.serializers.MarshalException;
         {
             // catch here b/c atomIterator is an AbstractIterator; hasNext reads the value
             if (e.getCause() instanceof IOException)
+            {
+                if (sstable != null)
+                    sstable.markSuspect();
                 throw new CorruptSSTableException((IOException)e.getCause(), filename);
+            }
             else
+            {
                 throw e;
+            }
         }
     }
 
