@@ -1,5 +1,6 @@
 2.2
  * Clean up gossiper logic for old versions (CASSANDRA-9370)
+ * Fix custom payload coding/decoding to match the spec (CASSANDRA-9515)
  * ant test-all results incomplete when parsed (CASSANDRA-9463)
  * Disallow frozen<> types in function arguments and return types for
    clarity (CASSANDRA-9411)
@@ -167,6 +168,7 @@ Merged from 2.0:
  * Fix streaming not holding ref when stream error (CASSANDRA-9295)
  * Fix canonical view returning early opened SSTables (CASSANDRA-9396)
 Merged from 2.0:
+ * Always mark sstable suspect when corrupted (CASSANDRA-9478)
  * Add database users and permissions to CQL3 documentation (CASSANDRA-7558)
  * Allow JVM_OPTS to be passed to standalone tools (CASSANDRA-5969)
  * Fix bad condition in RangeTombstoneList (CASSANDRA-9485)

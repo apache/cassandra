@@ -232,7 +232,11 @@ public class QueryProcessor implements QueryHandler
         return instance.process(queryString, queryState, QueryOptions.forInternalCalls(cl, Collections.<ByteBuffer>emptyList()));
     }
 
-    public ResultMessage process(String query, QueryState state, QueryOptions options, Map<String, byte[]> customPayload) throws RequestExecutionException, RequestValidationException
+    public ResultMessage process(String query,
+                                 QueryState state,
+                                 QueryOptions options,
+                                 Map<String, ByteBuffer> customPayload)
+                                         throws RequestExecutionException, RequestValidationException
     {
         return process(query, state, options);
     }
@@ -342,7 +346,9 @@ public class QueryProcessor implements QueryHandler
         return UntypedResultSet.create(cqlRows);
     }
 
-    public ResultMessage.Prepared prepare(String query, QueryState state, Map<String, byte[]> customPayload) throws RequestValidationException
+    public ResultMessage.Prepared prepare(String query,
+                                          QueryState state,
+                                          Map<String, ByteBuffer> customPayload) throws RequestValidationException
     {
         return prepare(query, state);
     }
@@ -422,7 +428,11 @@ public class QueryProcessor implements QueryHandler
         }
     }
 
-    public ResultMessage processPrepared(CQLStatement statement, QueryState state, QueryOptions options, Map<String, byte[]> customPayload) throws RequestExecutionException, RequestValidationException
+    public ResultMessage processPrepared(CQLStatement statement,
+                                         QueryState state,
+                                         QueryOptions options,
+                                         Map<String, ByteBuffer> customPayload)
+                                                 throws RequestExecutionException, RequestValidationException
     {
         return processPrepared(statement, state, options);
     }
@@ -450,7 +460,11 @@ public class QueryProcessor implements QueryHandler
         return processStatement(statement, queryState, options);
     }
 
-    public ResultMessage processBatch(BatchStatement statement, QueryState state, BatchQueryOptions options, Map<String, byte[]> customPayload) throws RequestExecutionException, RequestValidationException
+    public ResultMessage processBatch(BatchStatement statement,
+                                      QueryState state,
+                                      BatchQueryOptions options,
+                                      Map<String, ByteBuffer> customPayload)
+                                              throws RequestExecutionException, RequestValidationException
     {
         return processBatch(statement, state, options);
     }
