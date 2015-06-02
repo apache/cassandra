@@ -1,4 +1,5 @@
 2.2
+ * Clean up gossiper logic for old versions (CASSANDRA-9370)
  * ant test-all results incomplete when parsed (CASSANDRA-9463)
  * Disallow frozen<> types in function arguments and return types for
    clarity (CASSANDRA-9411)

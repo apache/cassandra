@@ -1825,8 +1825,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         tokenMetadata.addBootstrapTokens(tokens, endpoint);
         PendingRangeCalculatorService.instance.update();
 
-        if (Gossiper.instance.usesHostId(endpoint))
-            tokenMetadata.updateHostId(Gossiper.instance.getHostId(endpoint), endpoint);
+        tokenMetadata.updateHostId(Gossiper.instance.getHostId(endpoint), endpoint);
     }
 
     /**
@@ -1855,39 +1854,36 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
         updatePeerInfo(endpoint);
         // Order Matters, TM.updateHostID() should be called before TM.updateNormalToken(), (see CASSANDRA-4300).
-        if (Gossiper.instance.usesHostId(endpoint))
+        UUID hostId = Gossiper.instance.getHostId(endpoint);
+        InetAddress existing = tokenMetadata.getEndpointForHostId(hostId);
+        if (replacing && Gossiper.instance.getEndpointStateForEndpoint(DatabaseDescriptor.getReplaceAddress()) != null && (hostId.equals(Gossiper.instance.getHostId(DatabaseDescriptor.getReplaceAddress()))))
+            logger.warn("Not updating token metadata for {} because I am replacing it", endpoint);
+        else
         {
-            UUID hostId = Gossiper.instance.getHostId(endpoint);
-            InetAddress existing = tokenMetadata.getEndpointForHostId(hostId);
-            if (replacing && Gossiper.instance.getEndpointStateForEndpoint(DatabaseDescriptor.getReplaceAddress()) != null && (hostId.equals(Gossiper.instance.getHostId(DatabaseDescriptor.getReplaceAddress()))))
-                logger.warn("Not updating token metadata for {} because I am replacing it", endpoint);
-            else
+            if (existing != null && !existing.equals(endpoint))
             {
-                if (existing != null && !existing.equals(endpoint))
+                if (existing.equals(FBUtilities.getBroadcastAddress()))
                 {
-                    if (existing.equals(FBUtilities.getBroadcastAddress()))
-                    {
-                        logger.warn("Not updating host ID {} for {} because it's mine", hostId, endpoint);
-                        tokenMetadata.removeEndpoint(endpoint);
-                        endpointsToRemove.add(endpoint);
-                    }
-                    else if (Gossiper.instance.compareEndpointStartup(endpoint, existing) > 0)
-                    {
-                        logger.warn("Host ID collision for {} between {} and {}; {} is the new owner", hostId, existing, endpoint, endpoint);
-                        tokenMetadata.removeEndpoint(existing);
-                        endpointsToRemove.add(existing);
-                        tokenMetadata.updateHostId(hostId, endpoint);
-                    }
-                    else
-                    {
-                        logger.warn("Host ID collision for {} between {} and {}; ignored {}", hostId, existing, endpoint, endpoint);
-                        tokenMetadata.removeEndpoint(endpoint);
-                        endpointsToRemove.add(endpoint);
-                    }
+                    logger.warn("Not updating host ID {} for {} because it's mine", hostId, endpoint);
+                    tokenMetadata.removeEndpoint(endpoint);
+                    endpointsToRemove.add(endpoint);
+                }
+                else if (Gossiper.instance.compareEndpointStartup(endpoint, existing) > 0)
+                {
+                    logger.warn("Host ID collision for {} between {} and {}; {} is the new owner", hostId, existing, endpoint, endpoint);
+                    tokenMetadata.removeEndpoint(existing);
+                    endpointsToRemove.add(existing);
+                    tokenMetadata.updateHostId(hostId, endpoint);
                 }
                 else
-                    tokenMetadata.updateHostId(hostId, endpoint);
+                {
+                    logger.warn("Host ID collision for {} between {} and {}; ignored {}", hostId, existing, endpoint, endpoint);
+                    tokenMetadata.removeEndpoint(endpoint);
+                    endpointsToRemove.add(endpoint);
+                }
             }
+            else
+                tokenMetadata.updateHostId(hostId, endpoint);
         }
 
         for (final Token token : tokens)
