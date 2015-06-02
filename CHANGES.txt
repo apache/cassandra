@@ -1,4 +1,5 @@
 2.2
+ * Fix custom payload coding/decoding to match the spec (CASSANDRA-9515)
  * ant test-all results incomplete when parsed (CASSANDRA-9463)
  * Disallow frozen<> types in function arguments and return types for
    clarity (CASSANDRA-9411)

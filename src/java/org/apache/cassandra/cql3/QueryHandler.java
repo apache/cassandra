@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.cql3;
 
+import java.nio.ByteBuffer;
 import java.util.Map;
 
 import org.apache.cassandra.cql3.statements.BatchStatement;
@@ -29,15 +30,26 @@ import org.apache.cassandra.utils.MD5Digest;
 
 public interface QueryHandler
 {
-    ResultMessage process(String query, QueryState state, QueryOptions options, Map<String, byte[]> customPayload) throws RequestExecutionException, RequestValidationException;
+    ResultMessage process(String query,
+                          QueryState state,
+                          QueryOptions options,
+                          Map<String, ByteBuffer> customPayload) throws RequestExecutionException, RequestValidationException;
 
-    ResultMessage.Prepared prepare(String query, QueryState state, Map<String, byte[]> customPayload) throws RequestValidationException;
+    ResultMessage.Prepared prepare(String query,
+                                   QueryState state,
+                                   Map<String, ByteBuffer> customPayload) throws RequestValidationException;
 
     ParsedStatement.Prepared getPrepared(MD5Digest id);
 
     ParsedStatement.Prepared getPreparedForThrift(Integer id);
 
-    ResultMessage processPrepared(CQLStatement statement, QueryState state, QueryOptions options, Map<String, byte[]> customPayload) throws RequestExecutionException, RequestValidationException;
+    ResultMessage processPrepared(CQLStatement statement,
+                                  QueryState state,
+                                  QueryOptions options,
+                                  Map<String, ByteBuffer> customPayload) throws RequestExecutionException, RequestValidationException;
 
-    ResultMessage processBatch(BatchStatement statement, QueryState state, BatchQueryOptions options, Map<String, byte[]> customPayload) throws RequestExecutionException, RequestValidationException;
+    ResultMessage processBatch(BatchStatement statement,
+                               QueryState state,
+                               BatchQueryOptions options,
+                               Map<String, ByteBuffer> customPayload) throws RequestExecutionException, RequestValidationException;
 }

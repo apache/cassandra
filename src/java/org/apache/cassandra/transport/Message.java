@@ -19,6 +19,7 @@ package org.apache.cassandra.transport;
 
 import java.util.ArrayList;
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.List;
@@ -148,7 +149,7 @@ public abstract class Message
     protected Connection connection;
     private int streamId;
     private Frame sourceFrame;
-    private Map<String, byte[]> customPayload;
+    private Map<String, ByteBuffer> customPayload;
 
     protected Message(Type type)
     {
@@ -186,12 +187,12 @@ public abstract class Message
         return sourceFrame;
     }
 
-    public Map<String, byte[]> getCustomPayload()
+    public Map<String, ByteBuffer> getCustomPayload()
     {
         return customPayload;
     }
 
-    public void setCustomPayload(Map<String, byte[]> customPayload)
+    public void setCustomPayload(Map<String, ByteBuffer> customPayload)
     {
         this.customPayload = customPayload;
     }
@@ -269,7 +270,7 @@ public abstract class Message
 
             UUID tracingId = isRequest || !isTracing ? null : CBUtil.readUUID(frame.body);
             List<String> warnings = isRequest || !hasWarning ? null : CBUtil.readStringList(frame.body);
-            Map<String, byte[]> customPayload = !isCustomPayload ? null : CBUtil.readBytesMap(frame.body);
+            Map<String, ByteBuffer> customPayload = !isCustomPayload ? null : CBUtil.readBytesMap(frame.body);
 
             try
             {
@@ -329,7 +330,7 @@ public abstract class Message
                 if (message instanceof Response)
                 {
                     UUID tracingId = ((Response)message).getTracingId();
-                    Map<String, byte[]> customPayload = message.getCustomPayload();
+                    Map<String, ByteBuffer> customPayload = message.getCustomPayload();
                     if (tracingId != null)
                         messageSize += CBUtil.sizeOfUUID(tracingId);
                     List<String> warnings = ((Response)message).getWarnings();
@@ -367,7 +368,7 @@ public abstract class Message
                     assert message instanceof Request;
                     if (((Request)message).isTracingRequested())
                         flags.add(Frame.Header.Flag.TRACING);
-                    Map<String, byte[]> payload = message.getCustomPayload();
+                    Map<String, ByteBuffer> payload = message.getCustomPayload();
                     if (payload != null)
                         messageSize += CBUtil.sizeOfBytesMap(payload);
                     body = CBUtil.allocator.buffer(messageSize);
