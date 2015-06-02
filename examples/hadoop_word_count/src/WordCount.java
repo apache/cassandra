@@ -20,15 +20,11 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.*;
 
-import org.apache.cassandra.db.Cell;
-import org.apache.cassandra.thrift.*;
-import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.hadoop.ColumnFamilyOutputFormat;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.hadoop.ColumnFamilyInputFormat;
-import org.apache.cassandra.hadoop.ConfigHelper;
+import org.apache.cassandra.hadoop.*;
+import org.apache.cassandra.thrift.*;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.conf.Configured;
@@ -71,7 +67,7 @@ public class WordCount extends Configured implements Tool
         System.exit(0);
     }
 
-    public static class TokenizerMapper extends Mapper<ByteBuffer, SortedMap<ByteBuffer, Cell>, Text, IntWritable>
+    public static class TokenizerMapper extends Mapper<ByteBuffer, SortedMap<ByteBuffer, ColumnFamilyRecordReader.Column>, Text, IntWritable>
     {
         private final static IntWritable one = new IntWritable(1);
         private Text word = new Text();
@@ -82,17 +78,17 @@ public class WordCount extends Configured implements Tool
         {
         }
 
-        public void map(ByteBuffer key, SortedMap<ByteBuffer, Cell> columns, Context context) throws IOException, InterruptedException
+        public void map(ByteBuffer key, SortedMap<ByteBuffer, ColumnFamilyRecordReader.Column> columns, Context context) throws IOException, InterruptedException
         {
-            for (Cell cell : columns.values())
+            for (ColumnFamilyRecordReader.Column column : columns.values())
             {
-                String name  = ByteBufferUtil.string(cell.name().toByteBuffer());
+                String name  = ByteBufferUtil.string(column.name);
                 String value = null;
                 
                 if (name.contains("int"))
-                    value = String.valueOf(ByteBufferUtil.toInt(cell.value()));
+                    value = String.valueOf(ByteBufferUtil.toInt(column.value));
                 else
-                    value = ByteBufferUtil.string(cell.value());
+                    value = ByteBufferUtil.string(column.value);
                                
                 logger.debug("read {}:{}={} from {}",
                              new Object[] {ByteBufferUtil.string(key), name, value, context.getInputSplit()});
