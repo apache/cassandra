@@ -44,6 +44,6 @@ if [ -z "$CLASSPATH" ]; then
     exit 1
 fi
 
-$JAVA -cp $CLASSPATH \
+"$JAVA" -cp "$CLASSPATH" \
         -Dlog4j.configuration=log4j-tools.properties \
         org.apache.cassandra.tools.SSTableMetadataViewer "$@"

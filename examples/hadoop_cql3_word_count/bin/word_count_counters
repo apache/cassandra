@@ -57,4 +57,4 @@ fi
 INPUT_MAPPER=native
 
 #echo $CLASSPATH
-$JAVA -Xmx1G -ea -cp $CLASSPATH WordCountCounters input_mapper=$INPUT_MAPPER
+"$JAVA" -Xmx1G -ea -cp "$CLASSPATH" WordCountCounters input_mapper=$INPUT_MAPPER

@@ -58,4 +58,4 @@ fi
 OUTPUT_REDUCER=cassandra
 
 #echo $CLASSPATH
-$JAVA -Xmx1G -ea -cp $CLASSPATH WordCount output_reducer=$OUTPUT_REDUCER
+"$JAVA" -Xmx1G -ea -cp "$CLASSPATH" WordCount output_reducer=$OUTPUT_REDUCER

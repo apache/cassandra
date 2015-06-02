@@ -53,4 +53,4 @@ if [ "x$JAVA" = "x" ]; then
 fi
 
 #echo $CLASSPATH
-$JAVA -Xmx1G -ea -cp $CLASSPATH ClientOnlyExample $@
+"$JAVA" -Xmx1G -ea -cp "$CLASSPATH" ClientOnlyExample $@
