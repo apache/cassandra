@@ -62,38 +62,33 @@ public class MockSchema
     }
     private static final AtomicInteger id = new AtomicInteger();
     public static final Keyspace ks = Keyspace.mockKS(new KSMetaData("mockks", SimpleStrategy.class, ImmutableMap.of("replication_factor", "1"), false));
-    public static final ColumnFamilyStore cfs = newCFS();
 
     private static final IndexSummary indexSummary;
     private static final SegmentedFile segmentedFile = new BufferedSegmentedFile(new ChannelProxy(temp("mocksegmentedfile")), 0);
 
-    public static Memtable memtable()
+    public static Memtable memtable(ColumnFamilyStore cfs)
     {
         return new Memtable(cfs.metadata);
     }
 
-    public static SSTableReader sstable(int generation)
+    public static SSTableReader sstable(int generation, ColumnFamilyStore cfs)
     {
-        return sstable(generation, false);
+        return sstable(generation, false, cfs);
     }
 
-    public static SSTableReader sstable(int generation, boolean keepRef)
+    public static SSTableReader sstable(int generation, boolean keepRef, ColumnFamilyStore cfs)
     {
-        return sstable(generation, 0, keepRef);
+        return sstable(generation, 0, keepRef, cfs);
     }
 
-    public static SSTableReader sstable(int generation, int size)
+    public static SSTableReader sstable(int generation, int size, ColumnFamilyStore cfs)
     {
-        return sstable(generation, size, false);
+        return sstable(generation, size, false, cfs);
     }
 
-    public static SSTableReader sstable(int generation, int size, boolean keepRef)
-    {
-        return sstable(generation, size, keepRef, cfs);
-    }
     public static SSTableReader sstable(int generation, int size, boolean keepRef, ColumnFamilyStore cfs)
     {
-        Descriptor descriptor = new Descriptor(temp("mockcfdir").getParentFile(), "mockks", "mockcf", generation, Descriptor.Type.FINAL);
+        Descriptor descriptor = new Descriptor(temp("mockcfdir").getParentFile(), ks.getName(), cfs.getColumnFamilyName(), generation, Descriptor.Type.FINAL);
         Set<Component> components = ImmutableSet.of(Component.DATA, Component.PRIMARY_INDEX, Component.FILTER, Component.TOC);
         for (Component component : components)
         {
