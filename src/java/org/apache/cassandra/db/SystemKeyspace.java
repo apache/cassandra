@@ -117,16 +117,22 @@ public class SystemKeyspace
         // add entries to system schema columnfamilies for the hardcoded system definitions
         KSMetaData ksmd = Schema.instance.getKSMetaData(Keyspace.SYSTEM_KS);
 
+        long timestamp = FBUtilities.timestampMicros();
+
         // delete old, possibly obsolete entries in schema columnfamilies
         for (String cfname : Arrays.asList(SystemKeyspace.SCHEMA_KEYSPACES_CF,
                                            SystemKeyspace.SCHEMA_COLUMNFAMILIES_CF,
                                            SystemKeyspace.SCHEMA_COLUMNS_CF,
                                            SystemKeyspace.SCHEMA_TRIGGERS_CF,
                                            SystemKeyspace.SCHEMA_USER_TYPES_CF))
-            executeOnceInternal(String.format("DELETE FROM system.%s WHERE keyspace_name = ?", cfname), ksmd.name);
+        {
+            executeOnceInternal(String.format("DELETE FROM system.%s USING TIMESTAMP ? WHERE keyspace_name = ?", cfname),
+                                timestamp,
+                                ksmd.name);
+        }
 
         // (+1 to timestamp to make sure we don't get shadowed by the tombstones we just added)
-        ksmd.toSchema(FBUtilities.timestampMicros() + 1).apply();
+        ksmd.toSchema(timestamp + 1).apply();
     }
 
     private static void setupVersion()

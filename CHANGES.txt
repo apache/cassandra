@@ -1,4 +1,5 @@
 2.1.6
+ * Fix occasional lack of `system` keyspace in schema tables (CASSANDRA-8487)
  * Use ProtocolError code instead of ServerError code for native protocol
    error responses to unsupported protocol versions (CASSANDRA-9451)
  * Default commitlog_sync_batch_window_in_ms changed to 2ms (CASSANDRA-9504)
