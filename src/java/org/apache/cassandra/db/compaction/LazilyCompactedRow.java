@@ -314,6 +314,9 @@ public class LazilyCompactedRow extends AbstractCompactedRow
                 // not the range tombstone. For that we use the columnIndexer tombstone tracker.
                 if (indexBuilder.tombstoneTracker().isDeleted(reduced))
                 {
+                    // We skip that column so it won't be passed to the tracker by the index builded. So pass it now to
+                    // make sure we still discard potentially un-needed RT as soon as possible.
+                    indexBuilder.tombstoneTracker().update(reduced, false);
                     indexer.remove(reduced);
                     return null;
                 }
