@@ -147,6 +147,7 @@ public final class SystemKeyspace
                 "CREATE TABLE %s ("
                 + "key text,"
                 + "bootstrapped text,"
+                + "broadcast_address inet,"
                 + "cluster_name text,"
                 + "cql_version text,"
                 + "data_center text,"
@@ -156,6 +157,7 @@ public final class SystemKeyspace
                 + "partitioner text,"
                 + "rack text,"
                 + "release_version text,"
+                + "rpc_address inet,"
                 + "schema_version uuid,"
                 + "thrift_version text,"
                 + "tokens set<varchar>,"
@@ -291,23 +293,25 @@ public final class SystemKeyspace
 
     public static void finishStartup()
     {
-        setupVersion();
+        persistLocalMetadata();
         LegacySchemaTables.saveSystemKeyspaceSchema();
     }
 
-    private static void setupVersion()
+    private static void persistLocalMetadata()
     {
         String req = "INSERT INTO system.%s (" +
-                     "  key, " +
-                     "  cluster_name, " +
-                     "  release_version, " +
-                     "  cql_version, " +
-                     "  thrift_version, " +
-                     "  native_protocol_version, " +
-                     "  data_center, " +
-                     "  rack, " +
-                     "  partitioner" +
-                     ") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)";
+                     "key," +
+                     "cluster_name," +
+                     "release_version," +
+                     "cql_version," +
+                     "thrift_version," +
+                     "native_protocol_version," +
+                     "data_center," +
+                     "rack," +
+                     "partitioner," +
+                     "rpc_address," +
+                     "broadcast_address" +
+                     ") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
         IEndpointSnitch snitch = DatabaseDescriptor.getEndpointSnitch();
         executeOnceInternal(String.format(req, LOCAL),
                             LOCAL,
@@ -318,7 +322,9 @@ public final class SystemKeyspace
                             String.valueOf(Server.CURRENT_VERSION),
                             snitch.getDatacenter(FBUtilities.getBroadcastAddress()),
                             snitch.getRack(FBUtilities.getBroadcastAddress()),
-                            DatabaseDescriptor.getPartitioner().getClass().getName());
+                            DatabaseDescriptor.getPartitioner().getClass().getName(),
+                            DatabaseDescriptor.getRpcAddress(),
+                            FBUtilities.getBroadcastAddress());
     }
 
     /**
