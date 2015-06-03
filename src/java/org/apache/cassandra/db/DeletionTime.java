@@ -118,6 +118,11 @@ public class DeletionTime implements Comparable<DeletionTime>, IMeasurableMemory
         return atom.timestamp() <= markedForDeleteAt;
     }
 
+    public boolean supersedes(DeletionTime dt)
+    {
+        return this.markedForDeleteAt > dt.markedForDeleteAt;
+    }
+
     public long unsharedHeapSize()
     {
         return EMPTY_SIZE;
