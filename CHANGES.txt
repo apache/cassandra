@@ -15,6 +15,7 @@
  * Let CassandraVersion handle SNAPSHOT version (CASSANDRA-9438)
 Merged from 2.1:
 2.1.6
+ * Default commitlog_sync_batch_window_in_ms changed to 2ms (CASSANDRA-9504)
  * Fix empty partition assertion in unsorted sstable writing tools (CASSANDRA-9071)
  * Ensure truncate without snapshot cannot produce corrupt responses (CASSANDRA-9388) 
  * Consistent error message when a table mixes counter and non-counter
