@@ -20,6 +20,8 @@ package org.apache.cassandra.repair;
 import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.net.InetAddress;
+import java.nio.ByteBuffer;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
@@ -36,9 +38,11 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.KSMetaData;
 import org.apache.cassandra.cql3.QueryProcessor;
+import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.locator.SimpleStrategy;
+import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 
 public final class SystemDistributedKeyspace
@@ -102,8 +106,8 @@ public final class SystemDistributedKeyspace
 
         String query = "INSERT INTO %s.%s (parent_id, keyspace_name, columnfamily_names, requested_ranges, started_at)"+
                                  " VALUES (%s,        '%s',          { '%s' },           { '%s' },          dateOf(now()))";
-        String fmtQry = String.format(query, NAME, PARENT_REPAIR_HISTORY, parent_id.toString(), keyspaceName, Joiner.on("','").join(ranges), Joiner.on("','").join(cfnames));
-        executeInternalSilent(fmtQry);
+        String fmtQry = String.format(query, NAME, PARENT_REPAIR_HISTORY, parent_id.toString(), keyspaceName, Joiner.on("','").join(cfnames), Joiner.on("','").join(ranges));
+        processSilent(fmtQry);
     }
 
     public static void failParentRepair(UUID parent_id, Throwable t)
@@ -114,14 +118,14 @@ public final class SystemDistributedKeyspace
         PrintWriter pw = new PrintWriter(sw);
         t.printStackTrace(pw);
         String fmtQuery = String.format(query, NAME, PARENT_REPAIR_HISTORY, parent_id.toString());
-        executeInternalSilent(fmtQuery, t.getMessage(), sw.toString());
+        processSilent(fmtQuery, t.getMessage(), sw.toString());
     }
 
     public static void successfulParentRepair(UUID parent_id, Collection<Range<Token>> successfulRanges)
     {
         String query = "UPDATE %s.%s SET finished_at = dateOf(now()), successful_ranges = {'%s'} WHERE parent_id=%s";
         String fmtQuery = String.format(query, NAME, PARENT_REPAIR_HISTORY, Joiner.on("','").join(successfulRanges), parent_id.toString());
-        executeInternalSilent(fmtQuery);
+        processSilent(fmtQuery);
     }
 
     public static void startRepairs(UUID id, UUID parent_id, String keyspaceName, String[] cfnames, Range<Token> range, Iterable<InetAddress> endpoints)
@@ -148,7 +152,7 @@ public final class SystemDistributedKeyspace
                                           coordinator,
                                           Joiner.on("', '").join(participants),
                     RepairState.STARTED.toString());
-            executeInternalSilent(fmtQry);
+            processSilent(fmtQry);
         }
     }
 
@@ -166,7 +170,7 @@ public final class SystemDistributedKeyspace
                                         keyspaceName,
                                         cfname,
                                         id.toString());
-        executeInternalSilent(fmtQuery);
+        processSilent(fmtQuery);
     }
 
     public static void failedRepairJob(UUID id, String keyspaceName, String cfname, Throwable t)
@@ -180,14 +184,19 @@ public final class SystemDistributedKeyspace
                 keyspaceName,
                 cfname,
                 id.toString());
-        executeInternalSilent(fmtQry, t.getMessage(), sw.toString());
+        processSilent(fmtQry, t.getMessage(), sw.toString());
     }
 
-    private static void executeInternalSilent(String fmtQry, Object ... values)
+    private static void processSilent(String fmtQry, String... values)
     {
         try
         {
-            QueryProcessor.executeInternal(fmtQry, values);
+            List<ByteBuffer> valueList = new ArrayList<>();
+            for (String v : values)
+            {
+                valueList.add(ByteBufferUtil.bytes(v));
+            }
+            QueryProcessor.process(fmtQry, ConsistencyLevel.ONE, valueList);
         }
         catch (Throwable t)
         {
