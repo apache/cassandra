@@ -137,8 +137,12 @@ Upgrading
 
 2.1.4
 =====
+
+Upgrading
+---------
 The default JMX config now listens to localhost only. You must enable
 the other JMX flags in cassandra-env.sh manually.
+
 
 2.1.3
 =====
@@ -151,6 +155,7 @@ Upgrading
     - Incremental replacement of compacted SSTables has been disabled for this
       release.
 
+
 2.1.2
 =====
 
@@ -158,6 +163,7 @@ Upgrading
 ---------
     - Nothing specific to this release, but please see 2.1 if you are upgrading
       from a previous version.
+
 
 2.1.1
 =====
@@ -172,6 +178,7 @@ New features
    - Netty support for epoll on linux is now enabled.  If for some
      reason you want to disable it pass, the following system property
      -Dcassandra.native.epoll.enabled=false
+
 
 2.1
 ===
@@ -220,6 +227,11 @@ New features
 
 Upgrading
 ---------
+   - commitlog_sync_batch_window_in_ms behavior has changed from the
+     maximum time to wait between fsync to the minimum time.  We are 
+     working on making this more user-friendly (see CASSANDRA-9533) but in the
+     meantime, this means 2.1 needs a much smaller batch window to keep
+     writer threads from starving.  The suggested default is now 2ms.
    - Rolling upgrades from anything pre-2.0.7 is not supported. Furthermore
      pre-2.0 sstables are not supported. This means that before upgrading
      a node on 2.1, this node must be started on 2.0 and
@@ -239,6 +251,7 @@ Upgrading
      min_index_interval and max_index_interval paratemeters. index_interval
      has been deprecated.
    - support for supercolumns has been removed from json2sstable
+
 
 2.0.11
 ======

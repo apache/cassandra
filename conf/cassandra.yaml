@@ -264,13 +264,16 @@ counter_cache_save_period: 7200
 # saved_caches_directory: /var/lib/cassandra/saved_caches
 
 # commitlog_sync may be either "periodic" or "batch." 
+# 
 # When in batch mode, Cassandra won't ack writes until the commit log
-# has been fsynced to disk.  It will wait up to
-# commitlog_sync_batch_window_in_ms milliseconds for other writes, before
-# performing the sync.
+# has been fsynced to disk.  It will wait
+# commitlog_sync_batch_window_in_ms milliseconds between fsyncs.
+# This window should be kept short because the writer threads will
+# be unable to do extra work while waiting.  (You may need to increase
+# concurrent_writes for the same reason.)
 #
 # commitlog_sync: batch
-# commitlog_sync_batch_window_in_ms: 50
+# commitlog_sync_batch_window_in_ms: 2
 #
 # the other option is "periodic" where writes may be acked immediately
 # and the CommitLog is simply synced every commitlog_sync_period_in_ms
