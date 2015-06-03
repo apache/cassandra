@@ -19,8 +19,9 @@ package org.apache.cassandra.io.sstable;
 
 import java.io.File;
 import java.util.Collections;
+import java.util.Queue;
 import java.util.Set;
-import java.util.concurrent.CopyOnWriteArraySet;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.TimeUnit;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -42,7 +43,7 @@ public class SSTableDeletingTask implements Runnable
     // and delete will fail (on Windows) until it is (we only force the unmapping on SUN VMs).
     // Additionally, we need to make sure to delete the data file first, so on restart the others
     // will be recognized as GCable.
-    private static final Set<SSTableDeletingTask> failedTasks = new CopyOnWriteArraySet<>();
+    private static final Queue<SSTableDeletingTask> failedTasks = new ConcurrentLinkedQueue<>();
     private static final Blocker blocker = new Blocker();
 
     private final SSTableReader referent;
@@ -119,11 +120,9 @@ public class SSTableDeletingTask implements Runnable
      */
     public static void rescheduleFailedTasks()
     {
-        for (SSTableDeletingTask task : failedTasks)
-        {
-            failedTasks.remove(task);
+        SSTableDeletingTask task;
+        while ( null != (task = failedTasks.poll()))
             task.schedule();
-        }
     }
 
     /** for tests */
