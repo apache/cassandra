@@ -1102,7 +1102,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                 if (memtable.isClean() || truncate)
                 {
                     memtable.cfs.replaceFlushed(memtable, null);
-                    memtable.setDiscarded();
+                    reclaim(memtable);
                     iter.remove();
                 }
             }
@@ -1115,26 +1115,30 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
             metric.memtableSwitchCount.inc();
 
-            for (final Memtable memtable : memtables)
+            for (Memtable memtable : memtables)
             {
                 // flush the memtable
                 MoreExecutors.sameThreadExecutor().execute(memtable.flushRunnable());
-
-                // issue a read barrier for reclaiming the memory, and offload the wait to another thread
-                final OpOrder.Barrier readBarrier = readOrdering.newBarrier();
-                readBarrier.issue();
-                reclaimExecutor.execute(new WrappedRunnable()
-                {
-                    public void runMayThrow() throws InterruptedException, ExecutionException
-                    {
-                        readBarrier.await();
-                        memtable.setDiscarded();
-                    }
-                });
+                reclaim(memtable);
             }
 
             // signal the post-flush we've done our work
             postFlush.latch.countDown();
+        }
+
+        private void reclaim(final Memtable memtable)
+        {
+            // issue a read barrier for reclaiming the memory, and offload the wait to another thread
+            final OpOrder.Barrier readBarrier = readOrdering.newBarrier();
+            readBarrier.issue();
+            reclaimExecutor.execute(new WrappedRunnable()
+            {
+                public void runMayThrow() throws InterruptedException, ExecutionException
+                {
+                    readBarrier.await();
+                    memtable.setDiscarded();
+                }
+            });
         }
     }
 

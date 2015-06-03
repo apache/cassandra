@@ -20,6 +20,7 @@
  * Add ability to stop compaction by ID (CASSANDRA-7207)
  * Let CassandraVersion handle SNAPSHOT version (CASSANDRA-9438)
 Merged from 2.1:
+ * Ensure truncate without snapshot cannot produce corrupt responses (CASSANDRA-9388) 
  * Consistent error message when a table mixes counter and non-counter
    columns (CASSANDRA-9492)
  * Avoid getting unreadable keys during anticompaction (CASSANDRA-9508)
