@@ -1,4 +1,5 @@
 2.1.6
+ * Fix empty partition assertion in unsorted sstable writing tools (CASSANDRA-9071)
  * Ensure truncate without snapshot cannot produce corrupt responses (CASSANDRA-9388) 
  * Consistent error message when a table mixes counter and non-counter
    columns (CASSANDRA-9492)
