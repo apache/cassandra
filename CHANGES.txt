@@ -4,6 +4,7 @@ Merged from 2.0
  * ArrivalWindow should use primitives (CASSANDRA-9496)
  * Periodically submit background compaction tasks (CASSANDRA-9592)
  * Set HAS_MORE_PAGES flag to false when PagingState is null (CASSANDRA-9571)
+ * Make rebuild only run one at a time (CASSANDRA-9119)
 
 
 2.1.6
