@@ -82,7 +82,7 @@ public class TrackerTest
     {
         ColumnFamilyStore cfs = MockSchema.newCFS();
         Tracker tracker = new Tracker(cfs, false);
-        List<SSTableReader> readers = ImmutableList.of(MockSchema.sstable(0), MockSchema.sstable(1), MockSchema.sstable(2));
+        List<SSTableReader> readers = ImmutableList.of(MockSchema.sstable(0, cfs), MockSchema.sstable(1, cfs), MockSchema.sstable(2, cfs));
         tracker.addInitialSSTables(copyOf(readers));
         try (LifecycleTransaction txn = tracker.tryModify(readers.get(0), OperationType.COMPACTION);)
         {
@@ -101,8 +101,9 @@ public class TrackerTest
     @Test
     public void testApply()
     {
+        final ColumnFamilyStore cfs = MockSchema.newCFS();
         final Tracker tracker = new Tracker(null, false);
-        final View resultView = ViewTest.fakeView(0, 0);
+        final View resultView = ViewTest.fakeView(0, 0, cfs);
         final AtomicInteger count = new AtomicInteger();
         tracker.apply(new Predicate<View>()
         {
@@ -110,7 +111,7 @@ public class TrackerTest
             {
                 // confound the CAS by swapping the view, and check we retry
                 if (count.incrementAndGet() < 3)
-                    tracker.view.set(ViewTest.fakeView(0, 0));
+                    tracker.view.set(ViewTest.fakeView(0, 0, cfs));
                 return true;
             }
         }, new Function<View, View>()
@@ -143,7 +144,9 @@ public class TrackerTest
     {
         ColumnFamilyStore cfs = MockSchema.newCFS();
         Tracker tracker = new Tracker(cfs, false);
-        List<SSTableReader> readers = ImmutableList.of(MockSchema.sstable(0, 17), MockSchema.sstable(1, 121), MockSchema.sstable(2, 9));
+        List<SSTableReader> readers = ImmutableList.of(MockSchema.sstable(0, 17, cfs),
+                                                       MockSchema.sstable(1, 121, cfs),
+                                                       MockSchema.sstable(2, 9, cfs));
         tracker.addInitialSSTables(copyOf(readers));
 
         Assert.assertEquals(3, tracker.view.get().sstables.size());
@@ -163,7 +166,9 @@ public class TrackerTest
         Tracker tracker = new Tracker(cfs, false);
         MockListener listener = new MockListener(false);
         tracker.subscribe(listener);
-        List<SSTableReader> readers = ImmutableList.of(MockSchema.sstable(0, 17), MockSchema.sstable(1, 121), MockSchema.sstable(2, 9));
+        List<SSTableReader> readers = ImmutableList.of(MockSchema.sstable(0, 17, cfs),
+                                                       MockSchema.sstable(1, 121, cfs),
+                                                       MockSchema.sstable(2, 9, cfs));
         tracker.addSSTables(copyOf(readers));
 
         Assert.assertEquals(3, tracker.view.get().sstables.size());
@@ -193,7 +198,9 @@ public class TrackerTest
         Tracker tracker = cfs.getTracker();
         MockListener listener = new MockListener(false);
         tracker.subscribe(listener);
-        final List<SSTableReader> readers = ImmutableList.of(MockSchema.sstable(0, 9, true), MockSchema.sstable(1, 15, true), MockSchema.sstable(2, 71, true));
+        final List<SSTableReader> readers = ImmutableList.of(MockSchema.sstable(0, 9, true, cfs),
+                                                             MockSchema.sstable(1, 15, true, cfs),
+                                                             MockSchema.sstable(2, 71, true, cfs));
         tracker.addInitialSSTables(copyOf(readers));
 
         try
@@ -321,7 +328,8 @@ public class TrackerTest
     @Test
     public void testNotifications()
     {
-        SSTableReader r1 = MockSchema.sstable(0), r2 = MockSchema.sstable(1);
+        ColumnFamilyStore cfs = MockSchema.newCFS();
+        SSTableReader r1 = MockSchema.sstable(0, cfs), r2 = MockSchema.sstable(1, cfs);
         Tracker tracker = new Tracker(null, false);
         MockListener listener = new MockListener(false);
         tracker.subscribe(listener);
@@ -338,7 +346,7 @@ public class TrackerTest
         tracker.notifySSTableRepairedStatusChanged(singleton(r1));
         Assert.assertEquals(singleton(r1), ((SSTableRepairStatusChanged) listener.received.get(0)).sstable);
         listener.received.clear();
-        Memtable memtable = MockSchema.memtable();
+        Memtable memtable = MockSchema.memtable(cfs);
         tracker.notifyRenewed(memtable);
         Assert.assertEquals(memtable, ((MemtableRenewedNotification) listener.received.get(0)).renewed);
         listener.received.clear();

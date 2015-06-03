@@ -28,11 +28,13 @@ import org.junit.Test;
 import junit.framework.Assert;
 import org.apache.cassandra.MockSchema;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction.ReaderState;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction.ReaderState.Action;
 import org.apache.cassandra.io.sstable.SSTableDeletingTask;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.metrics.ColumnFamilyMetrics;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.concurrent.AbstractTransactionalTest;
 import org.apache.cassandra.utils.concurrent.Transactional.AbstractTransactional.State;
@@ -66,10 +68,11 @@ public class LifecycleTransactionTest extends AbstractTransactionalTest
     @Test
     public void testUpdates() // (including obsoletion)
     {
+        ColumnFamilyStore cfs = MockSchema.newCFS();
         Tracker tracker = new Tracker(null, false);
-        SSTableReader[] readers = readersArray(0, 3);
-        SSTableReader[] readers2 = readersArray(0, 4);
-        SSTableReader[] readers3 = readersArray(0, 4);
+        SSTableReader[] readers = readersArray(0, 3, cfs);
+        SSTableReader[] readers2 = readersArray(0, 4, cfs);
+        SSTableReader[] readers3 = readersArray(0, 4, cfs);
         tracker.addInitialSSTables(copyOf(readers));
         LifecycleTransaction txn = tracker.tryModify(copyOf(readers), OperationType.UNKNOWN);
 
@@ -129,15 +132,16 @@ public class LifecycleTransactionTest extends AbstractTransactionalTest
     @Test
     public void testCancellation()
     {
+        ColumnFamilyStore cfs = MockSchema.newCFS();
         Tracker tracker = new Tracker(null, false);
-        List<SSTableReader> readers = readers(0, 3);
+        List<SSTableReader> readers = readers(0, 3, cfs);
         tracker.addInitialSSTables(readers);
         LifecycleTransaction txn = tracker.tryModify(readers, OperationType.UNKNOWN);
 
         SSTableReader cancel = readers.get(0);
-        SSTableReader update = readers(1, 2).get(0);
-        SSTableReader fresh = readers(3, 4).get(0);
-        SSTableReader notPresent = readers(4, 5).get(0);
+        SSTableReader update = readers(1, 2, cfs).get(0);
+        SSTableReader fresh = readers(3, 4,cfs).get(0);
+        SSTableReader notPresent = readers(4, 5, cfs).get(0);
 
         txn.cancel(cancel);
         txn.update(update, true);
@@ -172,8 +176,9 @@ public class LifecycleTransactionTest extends AbstractTransactionalTest
     @Test
     public void testSplit()
     {
+        ColumnFamilyStore cfs = MockSchema.newCFS();
         Tracker tracker = new Tracker(null, false);
-        List<SSTableReader> readers = readers(0, 3);
+        List<SSTableReader> readers = readers(0, 3, cfs);
         tracker.addInitialSSTables(readers);
         LifecycleTransaction txn = tracker.tryModify(readers, OperationType.UNKNOWN);
         LifecycleTransaction txn2 = txn.split(readers.subList(0, 1));
@@ -181,7 +186,7 @@ public class LifecycleTransactionTest extends AbstractTransactionalTest
         Assert.assertTrue(all(readers.subList(1, 3), in(txn.originals())));
         Assert.assertEquals(1, txn2.originals().size());
         Assert.assertTrue(all(readers.subList(0, 1), in(txn2.originals())));
-        txn.update(readers(1, 2).get(0), true);
+        txn.update(readers(1, 2, cfs).get(0), true);
         boolean failed = false;
         try
         {
@@ -255,21 +260,26 @@ public class LifecycleTransactionTest extends AbstractTransactionalTest
         final Tracker tracker;
         final LifecycleTransaction txn;
 
-        private static Tracker tracker(List<SSTableReader> readers)
+        private static Tracker tracker(ColumnFamilyStore cfs, List<SSTableReader> readers)
         {
-            Tracker tracker = new Tracker(MockSchema.cfs, false);
+            Tracker tracker = new Tracker(cfs, false);
             tracker.addInitialSSTables(readers);
             return tracker;
         }
 
         private TxnTest()
         {
-            this(readers(0, 8));
+            this(MockSchema.newCFS());
         }
 
-        private TxnTest(List<SSTableReader> readers)
+        private TxnTest(ColumnFamilyStore cfs)
         {
-            this(tracker(readers), readers);
+            this(cfs, readers(0, 8, cfs));
+        }
+
+        private TxnTest(ColumnFamilyStore cfs, List<SSTableReader> readers)
+        {
+            this(tracker(cfs, readers), readers);
         }
 
         private TxnTest(Tracker tracker, List<SSTableReader> readers)
@@ -283,11 +293,11 @@ public class LifecycleTransactionTest extends AbstractTransactionalTest
             this.tracker = tracker;
             this.originals = readers;
             this.txn = txn;
-            update(txn, loggedUpdate = readers(0, 2), true);
+            update(txn, loggedUpdate = readers(0, 2, tracker.cfstore), true);
             obsolete(txn, loggedObsolete = readers.subList(2, 4));
-            update(txn, loggedNew = readers(8, 10), false);
+            update(txn, loggedNew = readers(8, 10, tracker.cfstore), false);
             txn.checkpoint();
-            update(txn, stagedNew = readers(10, 12), false);
+            update(txn, stagedNew = readers(10, 12, tracker.cfstore), false);
             obsolete(txn, stagedObsolete = copyOf(concat(loggedUpdate, originals.subList(4, 6))));
             untouchedOriginals = originals.subList(6, 8);
         }
@@ -385,16 +395,16 @@ public class LifecycleTransactionTest extends AbstractTransactionalTest
         }
     }
 
-    private static SSTableReader[] readersArray(int lb, int ub)
+    private static SSTableReader[] readersArray(int lb, int ub, ColumnFamilyStore cfs)
     {
-        return readers(lb, ub).toArray(new SSTableReader[0]);
+        return readers(lb, ub, cfs).toArray(new SSTableReader[0]);
     }
 
-    private static List<SSTableReader> readers(int lb, int ub)
+    private static List<SSTableReader> readers(int lb, int ub, ColumnFamilyStore cfs)
     {
         List<SSTableReader> readers = new ArrayList<>();
         for (int i = lb ; i < ub ; i++)
-            readers.add(MockSchema.sstable(i, i, true));
+            readers.add(MockSchema.sstable(i, i, true, cfs));
         return copyOf(readers);
     }
 

@@ -30,6 +30,7 @@ import org.junit.Test;
 import junit.framework.Assert;
 import org.apache.cassandra.MockSchema;
 import org.apache.cassandra.Util;
+import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.big.BigTableReader;
@@ -135,7 +136,8 @@ public class HelpersTest
     @Test
     public void testSetupDeletionNotification()
     {
-        Iterable<SSTableReader> readers = Lists.newArrayList(MockSchema.sstable(1), MockSchema.sstable(2));
+        ColumnFamilyStore cfs = MockSchema.newCFS();
+        Iterable<SSTableReader> readers = Lists.newArrayList(MockSchema.sstable(1, cfs), MockSchema.sstable(2, cfs));
         Throwable accumulate = Helpers.setReplaced(readers, null);
         Assert.assertNull(accumulate);
         for (SSTableReader reader : readers)
@@ -147,7 +149,8 @@ public class HelpersTest
     @Test
     public void testMarkObsolete()
     {
-        Iterable<SSTableReader> readers = Lists.newArrayList(MockSchema.sstable(1), MockSchema.sstable(2));
+        ColumnFamilyStore cfs = MockSchema.newCFS();
+        Iterable<SSTableReader> readers = Lists.newArrayList(MockSchema.sstable(1, cfs), MockSchema.sstable(2, cfs));
         Throwable accumulate = Helpers.markObsolete(readers, null);
         Assert.assertNull(accumulate);
         for (SSTableReader reader : readers)
