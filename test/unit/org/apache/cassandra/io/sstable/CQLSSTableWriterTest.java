@@ -22,6 +22,7 @@ import java.io.FilenameFilter;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.Iterator;
+import java.util.UUID;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.io.Files;
@@ -179,6 +180,34 @@ public class CQLSSTableWriterTest
         };
         assert dataDir.list(filterDataFiles).length > 1 : Arrays.toString(dataDir.list(filterDataFiles));
     }
+
+
+    @Test
+    public void testSyncNoEmptyRows() throws Exception
+    {
+        // Check that the write does not throw an empty partition error (#9071)
+        File tempdir = Files.createTempDir();
+        String schema = "CREATE TABLE ks.test2 ("
+                        + "  k UUID,"
+                        + "  c int,"
+                        + "  PRIMARY KEY (k)"
+                        + ")";
+        String insert = "INSERT INTO ks.test2 (k, c) VALUES (?, ?)";
+        CQLSSTableWriter writer = CQLSSTableWriter.builder()
+                                                  .inDirectory(tempdir)
+                                                  .forTable(schema)
+                                                  .withPartitioner(StorageService.instance.getPartitioner())
+                                                  .using(insert)
+                                                  .withBufferSizeInMB(1)
+                                                  .build();
+
+        for (int i = 0 ; i < 50000 ; i++) {
+            writer.addRow(UUID.randomUUID(), 0);
+        }
+        writer.close();
+
+    }
+
 
 
     private static final int NUMBER_WRITES_IN_RUNNABLE = 10;
