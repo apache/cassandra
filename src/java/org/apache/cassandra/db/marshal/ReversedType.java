@@ -60,6 +60,11 @@ public class ReversedType<T> extends AbstractType<T>
         this.baseType = baseType;
     }
 
+    public boolean isEmptyValueMeaningless()
+    {
+        return baseType.isEmptyValueMeaningless();
+    }
+
     public int compare(ByteBuffer o1, ByteBuffer o2)
     {
         // An empty byte buffer is always smaller

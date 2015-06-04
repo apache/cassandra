@@ -32,6 +32,11 @@ public class CounterColumnType extends AbstractType<Long>
 
     CounterColumnType() {} // singleton
 
+    public boolean isEmptyValueMeaningless()
+    {
+        return true;
+    }
+
     public boolean isCounter()
     {
         return true;

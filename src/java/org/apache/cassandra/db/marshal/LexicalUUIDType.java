@@ -36,6 +36,11 @@ public class LexicalUUIDType extends AbstractType<UUID>
     {
     } // singleton
 
+    public boolean isEmptyValueMeaningless()
+    {
+        return true;
+    }
+
     public int compare(ByteBuffer o1, ByteBuffer o2)
     {
         if (!o1.hasRemaining() || !o2.hasRemaining())

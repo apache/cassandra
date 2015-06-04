@@ -60,6 +60,11 @@ public final class IntegerType extends AbstractType<BigInteger>
 
     IntegerType() {/* singleton */}
 
+    public boolean isEmptyValueMeaningless()
+    {
+        return true;
+    }
+
     public int compare(ByteBuffer lhs, ByteBuffer rhs)
     {
         return IntegerType.compareIntegers(lhs, rhs);

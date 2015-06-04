@@ -18,10 +18,17 @@
 package org.apache.cassandra.cql3;
 import java.math.BigDecimal;
 import java.math.BigInteger;
-import java.util.*;
+import java.nio.ByteBuffer;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Date;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.TreeMap;
+import java.util.TreeSet;
 
 import org.junit.Assert;
-import org.junit.Ignore;
 import org.junit.Test;
 
 import com.datastax.driver.core.*;
@@ -36,6 +43,7 @@ import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.transport.Event;
 import org.apache.cassandra.transport.Server;
 import org.apache.cassandra.transport.messages.ResultMessage;
+import org.apache.cassandra.utils.ByteBufferUtil;
 
 public class UFTest extends CQLTester
 {
@@ -2441,5 +2449,113 @@ public class UFTest extends CQLTester
 
         assertInvalidMessage("The function arguments should not be frozen",
                              "DROP FUNCTION " + functionName + "(frozen<" + myType + ">);");
+    }
+
+    @Test
+    public void testEmptyString() throws Throwable
+    {
+        createTable("CREATE TABLE %s (key int primary key, sval text, aval ascii, bval blob, empty_int int)");
+        execute("INSERT INTO %s (key, sval, aval, bval, empty_int) VALUES (?, ?, ?, ?, blobAsInt(0x))", 1, "", "", ByteBuffer.allocate(0));
+
+        String fNameSRC = createFunction(KEYSPACE_PER_TEST, "text",
+                                         "CREATE OR REPLACE FUNCTION %s(val text) " +
+                                         "CALLED ON NULL INPUT " +
+                                         "RETURNS text " +
+                                         "LANGUAGE JAVA\n" +
+                                         "AS 'return val;'");
+
+        String fNameSCC = createFunction(KEYSPACE_PER_TEST, "text",
+                                         "CREATE OR REPLACE FUNCTION %s(val text) " +
+                                         "CALLED ON NULL INPUT " +
+                                         "RETURNS text " +
+                                         "LANGUAGE JAVA\n" +
+                                         "AS 'return \"\";'");
+
+        String fNameSRN = createFunction(KEYSPACE_PER_TEST, "text",
+                                         "CREATE OR REPLACE FUNCTION %s(val text) " +
+                                         "RETURNS NULL ON NULL INPUT " +
+                                         "RETURNS text " +
+                                         "LANGUAGE JAVA\n" +
+                                         "AS 'return val;'");
+
+        String fNameSCN = createFunction(KEYSPACE_PER_TEST, "text",
+                                         "CREATE OR REPLACE FUNCTION %s(val text) " +
+                                         "RETURNS NULL ON NULL INPUT " +
+                                         "RETURNS text " +
+                                         "LANGUAGE JAVA\n" +
+                                         "AS 'return \"\";'");
+
+        String fNameBRC = createFunction(KEYSPACE_PER_TEST, "blob",
+                                         "CREATE OR REPLACE FUNCTION %s(val blob) " +
+                                         "CALLED ON NULL INPUT " +
+                                         "RETURNS blob " +
+                                         "LANGUAGE JAVA\n" +
+                                         "AS 'return val;'");
+
+        String fNameBCC = createFunction(KEYSPACE_PER_TEST, "blob",
+                                         "CREATE OR REPLACE FUNCTION %s(val blob) " +
+                                         "CALLED ON NULL INPUT " +
+                                         "RETURNS blob " +
+                                         "LANGUAGE JAVA\n" +
+                                         "AS 'return ByteBuffer.allocate(0);'");
+
+        String fNameBRN = createFunction(KEYSPACE_PER_TEST, "blob",
+                                         "CREATE OR REPLACE FUNCTION %s(val blob) " +
+                                         "RETURNS NULL ON NULL INPUT " +
+                                         "RETURNS blob " +
+                                         "LANGUAGE JAVA\n" +
+                                         "AS 'return val;'");
+
+        String fNameBCN = createFunction(KEYSPACE_PER_TEST, "blob",
+                                         "CREATE OR REPLACE FUNCTION %s(val blob) " +
+                                         "RETURNS NULL ON NULL INPUT " +
+                                         "RETURNS blob " +
+                                         "LANGUAGE JAVA\n" +
+                                         "AS 'return ByteBuffer.allocate(0);'");
+
+        String fNameIRC = createFunction(KEYSPACE_PER_TEST, "int",
+                                         "CREATE OR REPLACE FUNCTION %s(val int) " +
+                                         "CALLED ON NULL INPUT " +
+                                         "RETURNS int " +
+                                         "LANGUAGE JAVA\n" +
+                                         "AS 'return val;'");
+
+        String fNameICC = createFunction(KEYSPACE_PER_TEST, "int",
+                                         "CREATE OR REPLACE FUNCTION %s(val int) " +
+                                         "CALLED ON NULL INPUT " +
+                                         "RETURNS int " +
+                                         "LANGUAGE JAVA\n" +
+                                         "AS 'return 0;'");
+
+        String fNameIRN = createFunction(KEYSPACE_PER_TEST, "int",
+                                         "CREATE OR REPLACE FUNCTION %s(val int) " +
+                                         "RETURNS NULL ON NULL INPUT " +
+                                         "RETURNS int " +
+                                         "LANGUAGE JAVA\n" +
+                                         "AS 'return val;'");
+
+        String fNameICN = createFunction(KEYSPACE_PER_TEST, "blob",
+                                         "CREATE OR REPLACE FUNCTION %s(val int) " +
+                                         "RETURNS NULL ON NULL INPUT " +
+                                         "RETURNS int " +
+                                         "LANGUAGE JAVA\n" +
+                                         "AS 'return 0;'");
+
+        assertRows(execute("SELECT " + fNameSRC + "(sval) FROM %s"), row(""));
+        assertRows(execute("SELECT " + fNameSRN + "(sval) FROM %s"), row(""));
+        assertRows(execute("SELECT " + fNameSCC + "(sval) FROM %s"), row(""));
+        assertRows(execute("SELECT " + fNameSCN + "(sval) FROM %s"), row(""));
+        assertRows(execute("SELECT " + fNameSRC + "(aval) FROM %s"), row(""));
+        assertRows(execute("SELECT " + fNameSRN + "(aval) FROM %s"), row(""));
+        assertRows(execute("SELECT " + fNameSCC + "(aval) FROM %s"), row(""));
+        assertRows(execute("SELECT " + fNameSCN + "(aval) FROM %s"), row(""));
+        assertRows(execute("SELECT " + fNameBRC + "(bval) FROM %s"), row(ByteBufferUtil.EMPTY_BYTE_BUFFER));
+        assertRows(execute("SELECT " + fNameBRN + "(bval) FROM %s"), row(ByteBufferUtil.EMPTY_BYTE_BUFFER));
+        assertRows(execute("SELECT " + fNameBCC + "(bval) FROM %s"), row(ByteBufferUtil.EMPTY_BYTE_BUFFER));
+        assertRows(execute("SELECT " + fNameBCN + "(bval) FROM %s"), row(ByteBufferUtil.EMPTY_BYTE_BUFFER));
+        assertRows(execute("SELECT " + fNameIRC + "(empty_int) FROM %s"), row(new Object[]{null}));
+        assertRows(execute("SELECT " + fNameIRN + "(empty_int) FROM %s"), row(new Object[]{null}));
+        assertRows(execute("SELECT " + fNameICC + "(empty_int) FROM %s"), row(0));
+        assertRows(execute("SELECT " + fNameICN + "(empty_int) FROM %s"), row(new Object[]{null}));
     }
 }

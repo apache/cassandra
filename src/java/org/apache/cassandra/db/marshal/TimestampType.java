@@ -45,6 +45,11 @@ public class TimestampType extends AbstractType<Date>
 
     private TimestampType() {} // singleton
 
+    public boolean isEmptyValueMeaningless()
+    {
+        return true;
+    }
+
     public int compare(ByteBuffer o1, ByteBuffer o2)
     {
         return LongType.compareLongs(o1, o2);
