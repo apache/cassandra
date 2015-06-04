@@ -212,6 +212,20 @@ public abstract class UDFunction extends AbstractFunction implements ScalarFunct
     }
 
     // do not remove - used by generated Java UDFs
+    protected byte compose_byte(int protocolVersion, int argIndex, ByteBuffer value)
+    {
+        assert value != null && value.remaining() > 0;
+        return (byte)DataType.tinyint().deserialize(value, ProtocolVersion.fromInt(protocolVersion));
+    }
+
+    // do not remove - used by generated Java UDFs
+    protected short compose_short(int protocolVersion, int argIndex, ByteBuffer value)
+    {
+        assert value != null && value.remaining() > 0;
+        return (short)DataType.smallint().deserialize(value, ProtocolVersion.fromInt(protocolVersion));
+    }
+
+    // do not remove - used by generated Java UDFs
     protected int compose_int(int protocolVersion, int argIndex, ByteBuffer value)
     {
         assert value != null && value.remaining() > 0;

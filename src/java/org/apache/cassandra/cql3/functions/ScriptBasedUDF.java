@@ -114,6 +114,10 @@ public class ScriptBasedUDF extends UDFunction
                     Number rNumber = (Number) result;
                     if (javaReturnType == Integer.class)
                         result = rNumber.intValue();
+                    else if (javaReturnType == Short.class)
+                        result = rNumber.shortValue();
+                    else if (javaReturnType == Byte.class)
+                        result = rNumber.byteValue();
                     else if (javaReturnType == Long.class)
                         result = rNumber.longValue();
                     else if (javaReturnType == Float.class)
