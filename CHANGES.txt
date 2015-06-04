@@ -5,6 +5,7 @@
 
 
 2.2
+ * Integrate pre-release Java Driver 2.2-rc1, custom build (CASSANDRA-9493)
  * Clean up gossiper logic for old versions (CASSANDRA-9370)
  * Fix custom payload coding/decoding to match the spec (CASSANDRA-9515)
  * ant test-all results incomplete when parsed (CASSANDRA-9463)

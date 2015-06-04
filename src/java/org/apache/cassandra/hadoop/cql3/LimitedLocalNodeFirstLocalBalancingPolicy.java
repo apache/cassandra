@@ -90,6 +90,12 @@ class LimitedLocalNodeFirstLocalBalancingPolicy implements LoadBalancingPolicy
     }
 
     @Override
+    public void close()
+    {
+        //
+    }
+
+    @Override
     public HostDistance distance(Host host)
     {
         if (isLocalHost(host))

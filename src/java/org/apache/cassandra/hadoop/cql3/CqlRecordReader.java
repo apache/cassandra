@@ -37,6 +37,7 @@ import org.slf4j.LoggerFactory;
 import com.datastax.driver.core.Cluster;
 import com.datastax.driver.core.ColumnDefinitions;
 import com.datastax.driver.core.ColumnMetadata;
+import com.datastax.driver.core.DateWithoutTime;
 import com.datastax.driver.core.Metadata;
 import com.datastax.driver.core.ResultSet;
 import com.datastax.driver.core.Row;
@@ -138,7 +139,7 @@ public class CqlRecordReader extends RecordReader<Long, Row>
           throw new RuntimeException("Can't create connection session");
 
         //get negotiated serialization protocol
-        nativeProtocolVersion = cluster.getConfiguration().getProtocolOptions().getProtocolVersion();
+        nativeProtocolVersion = cluster.getConfiguration().getProtocolOptions().getProtocolVersion().toInt();
 
         // If the user provides a CQL query then we will use it without validation
         // otherwise we will fall back to building a query using the:
@@ -333,6 +334,18 @@ public class CqlRecordReader extends RecordReader<Long, Row>
         }
 
         @Override
+        public Object getObject(int i)
+        {
+            return row.getObject(i);
+        }
+
+        @Override
+        public Object getObject(String s)
+        {
+            return row.getObject(s);
+        }
+
+        @Override
         public boolean getBool(int i)
         {
             return row.getBool(i);
@@ -342,6 +355,30 @@ public class CqlRecordReader extends RecordReader<Long, Row>
         public boolean getBool(String name)
         {
             return row.getBool(name);
+        }
+
+        @Override
+        public short getShort(int i)
+        {
+            return row.getShort(i);
+        }
+
+        @Override
+        public short getShort(String s)
+        {
+            return row.getShort(s);
+        }
+
+        @Override
+        public byte getByte(int i)
+        {
+            return row.getByte(i);
+        }
+
+        @Override
+        public byte getByte(String s)
+        {
+            return row.getByte(s);
         }
 
         @Override
@@ -369,15 +406,39 @@ public class CqlRecordReader extends RecordReader<Long, Row>
         }
 
         @Override
-        public Date getDate(int i)
+        public Date getTimestamp(int i)
+        {
+            return row.getTimestamp(i);
+        }
+
+        @Override
+        public Date getTimestamp(String s)
+        {
+            return row.getTimestamp(s);
+        }
+
+        @Override
+        public DateWithoutTime getDate(int i)
         {
             return row.getDate(i);
         }
 
         @Override
-        public Date getDate(String name)
+        public DateWithoutTime getDate(String s)
         {
-            return row.getDate(name);
+            return row.getDate(s);
+        }
+
+        @Override
+        public long getTime(int i)
+        {
+            return row.getTime(i);
+        }
+
+        @Override
+        public long getTime(String s)
+        {
+            return row.getTime(s);
         }
 
         @Override
