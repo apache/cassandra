@@ -38,7 +38,10 @@ import org.apache.cassandra.io.sstable.format.SSTableWriter;
  * prefered.
  *
  * @see AbstractSSTableSimpleWriter
+ *
+ * @deprecated this class is depracted in favor of {@link CQLSSTableWriter}.
  */
+@Deprecated
 public class SSTableSimpleWriter extends AbstractSSTableSimpleWriter
 {
     private final SSTableWriter writer;

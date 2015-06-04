@@ -125,6 +125,9 @@ Upgrading
      columns were not requiring ALLOW FILTERING as they should. This has been
      fixed, and those queries now require ALLOW FILTERING (see CASSANDRA-8418
      for details).
+   - The SSTableSimpleWriter and SSTableSimpleUnsortedWriter classes have been
+     deprecated and will be removed in the next major Cassandra release. You
+     should use the CQLSSTableWriter class instead.
 
 2.1.5
 =====
