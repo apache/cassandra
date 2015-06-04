@@ -45,7 +45,6 @@ Merged from 2.0:
  * faster async logback configuration for tests (CASSANDRA-9376)
  * Add `smallint` and `tinyint` data types (CASSANDRA-8951)
  * Avoid thrift schema creation when native driver is used in stress tool (CASSANDRA-9374)
- * Populate TokenMetadata early during startup (CASSANDRA-9317)
  * Make Functions.declared thread-safe
  * Add client warnings to native protocol v4 (CASSANDRA-8930)
  * Allow roles cache to be invalidated (CASSANDRA-8967)
