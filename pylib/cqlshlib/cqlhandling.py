@@ -22,6 +22,7 @@ from . import pylexotron, util
 
 Hint = pylexotron.Hint
 
+
 class CqlParsingRuleSet(pylexotron.ParsingRuleSet):
     keywords = set()
 
@@ -72,9 +73,11 @@ class CqlParsingRuleSet(pylexotron.ParsingRuleSet):
     def explain_completion(self, rulename, symname, explanation=None):
         if explanation is None:
             explanation = '<%s>' % (symname,)
+
         @self.completer_for(rulename, symname)
         def explainer(ctxt, cass):
             return [Hint(explanation)]
+
         return explainer
 
     def set_keywords_as_syntax(self):
@@ -96,6 +99,19 @@ class CqlParsingRuleSet(pylexotron.ParsingRuleSet):
                 else:
                     # don't put any 'endline' tokens in output
                     continue
+
+            # Convert all unicode tokens to ascii, where possible.  This
+            # helps avoid problems with performing unicode-incompatible
+            # operations on tokens (like .lower()).  See CASSANDRA-9083
+            # for one example of this.
+            str_token = t[1]
+            if isinstance(str_token, unicode):
+                try:
+                    str_token = str_token.encode('ascii')
+                    t = (t[0], str_token) + t[2:]
+                except UnicodeEncodeError:
+                    pass
+
             curstmt.append(t)
             if t[0] == 'endtoken':
                 term_on_nl = False
@@ -191,7 +207,7 @@ class CqlParsingRuleSet(pylexotron.ParsingRuleSet):
             # for completion. the opening quote is already there on the command
             # line and not part of the word under completion, and readline
             # fills in the closing quote for us.
-            candidates = [requoter(dequoter(c))[len(prefix)+1:-1] for c in candidates]
+            candidates = [requoter(dequoter(c))[len(prefix) + 1:-1] for c in candidates]
 
             # the above process can result in an empty string; this doesn't help for
             # completions

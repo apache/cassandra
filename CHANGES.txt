@@ -26,6 +26,7 @@
  * Add ability to stop compaction by ID (CASSANDRA-7207)
  * Let CassandraVersion handle SNAPSHOT version (CASSANDRA-9438)
 Merged from 2.1:
+ * (cqlsh) Fix using COPY through SOURCE or -f (CASSANDRA-9083)
  * Fix occasional lack of `system` keyspace in schema tables (CASSANDRA-8487)
  * Use ProtocolError code instead of ServerError code for native protocol
    error responses to unsupported protocol versions (CASSANDRA-9451)
