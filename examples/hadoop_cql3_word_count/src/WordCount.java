@@ -44,7 +44,7 @@ import com.datastax.driver.core.Row;
 
 /**
  * This counts the occurrences of words in ColumnFamily
- *   cql3_worldcount ( id uuid,
+ *   cql3_wordcount ( id uuid,
  *                   line  text,
  *                   PRIMARY KEY (id))
  *
@@ -60,7 +60,7 @@ public class WordCount extends Configured implements Tool
 {
     private static final Logger logger = LoggerFactory.getLogger(WordCount.class);
     static final String INPUT_MAPPER_VAR = "input_mapper";
-    static final String KEYSPACE = "cql3_worldcount";
+    static final String KEYSPACE = "cql3_wordcount";
     static final String COLUMN_FAMILY = "inputs";
 
     static final String OUTPUT_REDUCER_VAR = "output_reducer";

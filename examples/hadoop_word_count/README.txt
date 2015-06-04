@@ -5,14 +5,16 @@ WordCount hadoop example: Inserts a bunch of words across multiple rows,
 and counts them, with RandomPartitioner. The word_count_counters example sums
 the value of counter columns for a key.
 
-The scripts in bin/ assume you are running with cwd of contrib/word_count.
+The scripts in bin/ assume you are running with cwd of examples/word_count.
 
 
 Running
 =======
 
-First build and start a Cassandra server with the default configuration*, 
-then run
+First build and start a Cassandra server with the default configuration*. Ensure that the Thrift
+interface is enabled, either by setting start_rpc:true in cassandra.yaml or by running
+`nodetool enablethrift` after startup.
+Once Cassandra has started and the Thrift interface is available, run
 
 contrib/word_count$ ant
 contrib/word_count$ bin/word_count_setup
@@ -45,4 +47,4 @@ settings accordingly.
 Troubleshooting
 ===============
 
-word_count uses conf/log4j.properties to log to wc.out.
+word_count uses conf/logback.xml to log to wc.out.

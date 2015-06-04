@@ -34,9 +34,6 @@ import com.datastax.driver.core.Row;
 import com.datastax.driver.core.Session;
 import com.datastax.driver.core.TableMetadata;
 import com.datastax.driver.core.exceptions.NoHostAvailableException;
-import org.apache.cassandra.db.BufferCell;
-import org.apache.cassandra.db.Cell;
-import org.apache.cassandra.db.composites.CellNames;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.exceptions.AuthenticationException;
 import org.apache.cassandra.exceptions.ConfigurationException;
@@ -159,9 +156,9 @@ public class CqlNativeStorage extends LoadFunc implements StoreFuncInterface, Lo
                 ByteBuffer columnValue = row.getBytesUnsafe(cdef.getName());
                 if (columnValue != null)
                 {
-                    Cell cell = new BufferCell(CellNames.simpleDense(ByteBufferUtil.bytes(cdef.getName())), columnValue);
                     AbstractType<?> validator = getValidatorMap(tableMetadata).get(ByteBufferUtil.bytes(cdef.getName()));
-                    setTupleValue(tuple, i, cqlColumnToObj(cell, tableMetadata), validator);
+                    setTupleValue(tuple, i, cqlColumnToObj(ByteBufferUtil.bytes(cdef.getName()), columnValue,
+                                                           tableMetadata), validator);
                 }
                 else
                     tuple.set(i, null);
@@ -176,12 +173,11 @@ public class CqlNativeStorage extends LoadFunc implements StoreFuncInterface, Lo
     }
 
     /** convert a cql column to an object */
-    private Object cqlColumnToObj(Cell col, TableInfo cfDef) throws IOException
+    private Object cqlColumnToObj(ByteBuffer name, ByteBuffer columnValue, TableInfo cfDef) throws IOException
     {
         // standard
         Map<ByteBuffer,AbstractType> validators = getValidatorMap(cfDef);
-        ByteBuffer cellName = col.name().toByteBuffer();
-        return StorageHelper.cassandraToObj(validators.get(cellName), col.value(), nativeProtocolVersion);
+        return StorageHelper.cassandraToObj(validators.get(name), columnValue, nativeProtocolVersion);
     }
 
     /** set the value to the position of the tuple */
