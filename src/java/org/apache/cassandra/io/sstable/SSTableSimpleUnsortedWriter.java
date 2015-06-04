@@ -47,7 +47,10 @@ import org.apache.cassandra.utils.JVMStabilityInspector;
  * created (and the buffer be reseted).
  *
  * @see AbstractSSTableSimpleWriter
+ *
+ * @deprecated this class is depracted in favor of {@link CQLSSTableWriter}.
  */
+@Deprecated
 public class SSTableSimpleUnsortedWriter extends AbstractSSTableSimpleWriter
 {
     private static final Buffer SENTINEL = new Buffer();

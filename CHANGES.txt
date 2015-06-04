@@ -5,6 +5,7 @@
 
 
 2.2
+ * Deprecates SSTableSimpleWriter and SSTableSimpleUnsortedWriter (CASSANDRA-9546)
  * Empty INITCOND treated as null in aggregate (CASSANDRA-9457)
  * Remove use of Cell in Thrift MapReduce classes (CASSANDRA-8609)
  * Integrate pre-release Java Driver 2.2-rc1, custom build (CASSANDRA-9493)
@@ -23,7 +24,6 @@
  * Add ability to stop compaction by ID (CASSANDRA-7207)
  * Let CassandraVersion handle SNAPSHOT version (CASSANDRA-9438)
 Merged from 2.1:
-2.1.6
  * Default commitlog_sync_batch_window_in_ms changed to 2ms (CASSANDRA-9504)
  * Fix empty partition assertion in unsorted sstable writing tools (CASSANDRA-9071)
  * Ensure truncate without snapshot cannot produce corrupt responses (CASSANDRA-9388) 
