@@ -60,7 +60,7 @@ import static org.apache.cassandra.cql3.QueryProcessor.executeInternal;
 
 public class BatchlogManager implements BatchlogManagerMBean
 {
-    private static final String MBEAN_NAME = "org.apache.cassandra.db:type=BatchlogManager";
+    public static final String MBEAN_NAME = "org.apache.cassandra.db:type=BatchlogManager";
     private static final long REPLAY_INTERVAL = 60 * 1000; // milliseconds
     private static final int PAGE_SIZE = 128; // same as HHOM, for now, w/out using any heuristics. TODO: set based on avg batch size.
 
@@ -112,9 +112,9 @@ public class BatchlogManager implements BatchlogManagerMBean
         return totalBatchesReplayed.longValue();
     }
 
-    public void forceBatchlogReplay()
+    public void forceBatchlogReplay() throws Exception
     {
-        startBatchlogReplay();
+        startBatchlogReplay().get();
     }
 
     public Future<?> startBatchlogReplay()

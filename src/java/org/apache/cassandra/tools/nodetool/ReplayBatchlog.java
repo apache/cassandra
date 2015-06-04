@@ -15,24 +15,28 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.db;
 
-public interface BatchlogManagerMBean
+package org.apache.cassandra.tools.nodetool;
+
+import java.io.IOError;
+import java.io.IOException;
+
+import io.airlift.command.Command;
+import org.apache.cassandra.tools.NodeProbe;
+import org.apache.cassandra.tools.NodeTool;
+
+@Command(name = "replaybatchlog", description = "Kick off batchlog replay and wait for finish")
+public class ReplayBatchlog extends NodeTool.NodeToolCmd
 {
-    /**
-     * Counts all batches currently in the batchlog.
-     *
-     * @return total batch count
-     */
-    public int countAllBatches();
-
-    /**
-     * @return total count of batches replayed since node start
-     */
-    public long getTotalBatchesReplayed();
-
-    /**
-     * Forces batchlog replay. Returns immediately if replay is already in progress.
-     */
-    public void forceBatchlogReplay() throws Exception;
+    protected void execute(NodeProbe probe)
+    {
+        try
+        {
+            probe.replayBatchlog();
+        }
+        catch (IOException e)
+        {
+            throw new IOError(e);
+        }
+    }
 }

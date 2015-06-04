@@ -51,6 +51,8 @@ import javax.management.remote.JMXConnectorFactory;
 import javax.management.remote.JMXServiceURL;
 
 import org.apache.cassandra.concurrent.Stage;
+import org.apache.cassandra.db.BatchlogManager;
+import org.apache.cassandra.db.BatchlogManagerMBean;
 import org.apache.cassandra.db.ColumnFamilyStoreMBean;
 import org.apache.cassandra.db.HintedHandOffManager;
 import org.apache.cassandra.db.HintedHandOffManagerMBean;
@@ -111,6 +113,7 @@ public class NodeProbe implements AutoCloseable
     private CacheServiceMBean cacheService;
     private StorageProxyMBean spProxy;
     private HintedHandOffManagerMBean hhProxy;
+    private BatchlogManagerMBean bmProxy;
     private boolean failed;
 
     /**
@@ -198,6 +201,8 @@ public class NodeProbe implements AutoCloseable
             gcProxy = JMX.newMBeanProxy(mbeanServerConn, name, GCInspectorMXBean.class);
             name = new ObjectName(Gossiper.MBEAN_NAME);
             gossProxy = JMX.newMBeanProxy(mbeanServerConn, name, GossiperMBean.class);
+            name = new ObjectName(BatchlogManager.MBEAN_NAME);
+            bmProxy = JMX.newMBeanProxy(mbeanServerConn, name, BatchlogManagerMBean.class);
         }
         catch (MalformedObjectNameException e)
         {
@@ -1270,6 +1275,18 @@ public class NodeProbe implements AutoCloseable
             {
                 out.println("Exception occurred during clean-up. " + e);
             }
+        }
+    }
+
+    public void replayBatchlog() throws IOException
+    {
+        try
+        {
+            bmProxy.forceBatchlogReplay();
+        }
+        catch (Exception e)
+        {
+            throw new IOException(e);
         }
     }
 }

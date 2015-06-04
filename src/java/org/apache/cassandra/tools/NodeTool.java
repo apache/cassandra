@@ -96,6 +96,7 @@ public class NodeTool
                 RemoveNode.class,
                 Assassinate.class,
                 Repair.class,
+                ReplayBatchlog.class,
                 SetCacheCapacity.class,
                 SetHintedHandoffThrottleInKB.class,
                 SetCompactionThreshold.class,
