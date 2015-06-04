@@ -82,11 +82,11 @@ public abstract class CQLTester
     static int maxProtocolVersion;
     static {
         int version;
-        for (version = 1; version <= Server.CURRENT_VERSION; version++)
+        for (version = 1; version <= Server.CURRENT_VERSION; )
         {
             try
             {
-                ProtocolVersion.fromInt(version);
+                ProtocolVersion.fromInt(++version);
             }
             catch (IllegalArgumentException e)
             {

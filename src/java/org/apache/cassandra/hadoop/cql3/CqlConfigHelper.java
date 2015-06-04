@@ -41,6 +41,7 @@ import com.datastax.driver.core.AuthProvider;
 import com.datastax.driver.core.Cluster;
 import com.datastax.driver.core.HostDistance;
 import com.datastax.driver.core.PlainTextAuthProvider;
+import com.datastax.driver.core.ProtocolVersion;
 import com.datastax.driver.core.policies.LoadBalancingPolicy;
 import com.datastax.driver.core.PoolingOptions;
 import com.datastax.driver.core.ProtocolOptions;
@@ -48,7 +49,6 @@ import com.datastax.driver.core.QueryOptions;
 import com.datastax.driver.core.SSLOptions;
 import com.datastax.driver.core.SocketOptions;
 import org.apache.cassandra.hadoop.ConfigHelper;
-import org.apache.cassandra.io.util.FileUtils;
 import org.apache.hadoop.conf.Configuration;
 
 
@@ -65,7 +65,6 @@ public class CqlConfigHelper
     private static final String INPUT_NATIVE_PORT = "cassandra.input.native.port";
     private static final String INPUT_NATIVE_CORE_CONNECTIONS_PER_HOST = "cassandra.input.native.core.connections.per.host";
     private static final String INPUT_NATIVE_MAX_CONNECTIONS_PER_HOST = "cassandra.input.native.max.connections.per.host";
-    private static final String INPUT_NATIVE_MIN_SIMULT_REQ_PER_CONNECTION = "cassandra.input.native.min.simult.reqs.per.connection"; 
     private static final String INPUT_NATIVE_MAX_SIMULT_REQ_PER_CONNECTION = "cassandra.input.native.max.simult.reqs.per.connection";
     private static final String INPUT_NATIVE_CONNECTION_TIMEOUT = "cassandra.input.native.connection.timeout";
     private static final String INPUT_NATIVE_READ_CONNECTION_TIMEOUT = "cassandra.input.native.read.connection.timeout";
@@ -181,11 +180,6 @@ public class CqlConfigHelper
     public static int getOutputNativePort(Configuration conf)
     {
         return Integer.parseInt(conf.get(OUTPUT_NATIVE_PORT, "9042"));
-    }
-
-    public static Optional<Integer> getInputMinSimultReqPerConnections(Configuration conf)
-    {
-        return getIntSetting(INPUT_NATIVE_MIN_SIMULT_REQ_PER_CONNECTION, conf);
     }
 
     public static Optional<Integer> getInputMaxSimultReqPerConnections(Configuration conf)
@@ -336,7 +330,7 @@ public class CqlConfigHelper
             builder.withSSL(sslOptions.get());
 
         if (protocolVersion.isPresent()) {
-            builder.withProtocolVersion(protocolVersion.get());
+            builder.withProtocolVersion(ProtocolVersion.fromInt(protocolVersion.get()));
         }
         builder.withLoadBalancingPolicy(loadBalancingPolicy)
                 .withSocketOptions(socketOptions)
@@ -354,11 +348,6 @@ public class CqlConfigHelper
     public static void setInputMaxConnections(Configuration conf, String connections)
     {
         conf.set(INPUT_NATIVE_MAX_CONNECTIONS_PER_HOST, connections);
-    }
-
-    public static void setInputMinSimultReqPerConnections(Configuration conf, String reqs)
-    {
-        conf.set(INPUT_NATIVE_MIN_SIMULT_REQ_PER_CONNECTION, reqs);
     }
 
     public static void setInputMaxSimultReqPerConnections(Configuration conf, String reqs)
@@ -446,8 +435,7 @@ public class CqlConfigHelper
         Optional<Integer> coreConnections = getInputCoreConnections(conf);
         Optional<Integer> maxConnections = getInputMaxConnections(conf);
         Optional<Integer> maxSimultaneousRequests = getInputMaxSimultReqPerConnections(conf);
-        Optional<Integer> minSimultaneousRequests = getInputMinSimultReqPerConnections(conf);
-        
+
         PoolingOptions poolingOptions = new PoolingOptions();
 
         for (HostDistance hostDistance : Arrays.asList(HostDistance.LOCAL, HostDistance.REMOTE))
@@ -456,8 +444,6 @@ public class CqlConfigHelper
                 poolingOptions.setCoreConnectionsPerHost(hostDistance, coreConnections.get());
             if (maxConnections.isPresent())
                 poolingOptions.setMaxConnectionsPerHost(hostDistance, maxConnections.get());
-            if (minSimultaneousRequests.isPresent())
-                poolingOptions.setMinSimultaneousRequestsPerConnectionThreshold(hostDistance, minSimultaneousRequests.get());
             if (maxSimultaneousRequests.isPresent())
                 poolingOptions.setMaxSimultaneousRequestsPerConnectionThreshold(hostDistance, maxSimultaneousRequests.get());
         }
@@ -602,7 +588,7 @@ public class CqlConfigHelper
     private static SSLContext getSSLContext(String truststorePath, String truststorePassword, String keystorePath, String keystorePassword)
             throws NoSuchAlgorithmException, KeyStoreException, CertificateException, IOException, UnrecoverableKeyException, KeyManagementException
     {
-        SSLContext ctx = null;
+        SSLContext ctx;
         try (FileInputStream tsf = new FileInputStream(truststorePath); FileInputStream ksf = new FileInputStream(keystorePath))
         {
             ctx = SSLContext.getInstance("SSL");
