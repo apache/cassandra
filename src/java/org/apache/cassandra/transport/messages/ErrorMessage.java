@@ -224,10 +224,17 @@ public class ErrorMessage extends Message.Response
         if (e instanceof CodecException)
         {
             Throwable cause = e.getCause();
-            if (cause != null && cause instanceof WrappedException)
+            if (cause != null)
             {
-                streamId = ((WrappedException)cause).streamId;
-                e = cause.getCause();
+                if (cause instanceof WrappedException)
+                {
+                    streamId = ((WrappedException) cause).streamId;
+                    e = cause.getCause();
+                }
+                else if (cause instanceof TransportException)
+                {
+                    e = cause;
+                }
             }
         }
         else if (e instanceof WrappedException)

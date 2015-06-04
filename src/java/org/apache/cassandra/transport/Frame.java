@@ -34,6 +34,8 @@ import org.apache.cassandra.transport.messages.ErrorMessage;
 
 public class Frame
 {
+    public static final byte PROTOCOL_VERSION_MASK = 0x7f;
+
     public final Header header;
     public final ByteBuf body;
 
@@ -178,7 +180,7 @@ public class Frame
 
             int firstByte = buffer.getByte(idx++);
             Message.Direction direction = Message.Direction.extractFromVersion(firstByte);
-            int version = firstByte & 0x7F;
+            int version = firstByte & PROTOCOL_VERSION_MASK;
 
             if (version > Server.CURRENT_VERSION)
                 throw new ProtocolException("Invalid or unsupported protocol version: " + version);
