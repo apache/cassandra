@@ -1378,4 +1378,73 @@ public class AggregationTest extends CQLTester
         assertInvalidMessage("The function arguments should not be frozen",
                              "DROP AGGREGATE %s (frozen<" + myType + ">);");
     }
+
+    @Test
+    public void testEmptyValues() throws Throwable
+    {
+        createTable("CREATE TABLE %s (a int primary key, b text)");
+        execute("INSERT INTO %s (a, b) VALUES (1, '')");
+        execute("INSERT INTO %s (a, b) VALUES (2, '')");
+        execute("INSERT INTO %s (a, b) VALUES (3, '')");
+
+        String fCON = createFunction(KEYSPACE,
+                                     "text, text",
+                                     "CREATE FUNCTION %s(a text, b text) " +
+                                     "CALLED ON NULL INPUT " +
+                                     "RETURNS text " +
+                                     "LANGUAGE java " +
+                                     "AS 'return a + \"x\" + b + \"y\";'");
+
+        String fCONf = createFunction(KEYSPACE,
+                                     "text",
+                                     "CREATE FUNCTION %s(a text) " +
+                                     "CALLED ON NULL INPUT " +
+                                     "RETURNS text " +
+                                     "LANGUAGE java " +
+                                     "AS 'return \"fin\" + a;'");
+
+        String aCON = createAggregate(KEYSPACE,
+                                      "text, text",
+                                      "CREATE AGGREGATE %s(text) " +
+                                      "SFUNC " + shortFunctionName(fCON) + ' ' +
+                                      "STYPE text " +
+                                      "FINALFUNC " + shortFunctionName(fCONf) + ' ' +
+                                      "INITCOND ''");
+
+        String fRNON = createFunction(KEYSPACE,
+                                      "text",
+                                      "CREATE FUNCTION %s(a text, b text) " +
+                                      "RETURNS NULL ON NULL INPUT " +
+                                      "RETURNS text " +
+                                      "LANGUAGE java " +
+                                      "AS 'return a + \"x\" + b + \"y\";'");
+
+        String fRNONf = createFunction(KEYSPACE,
+                                      "text",
+                                      "CREATE FUNCTION %s(a text) " +
+                                      "RETURNS NULL ON NULL INPUT " +
+                                      "RETURNS text " +
+                                      "LANGUAGE java " +
+                                      "AS 'return \"fin\" + a;'");
+
+        String aRNON = createAggregate(KEYSPACE,
+                                      "int, int",
+                                      "CREATE AGGREGATE %s(text) " +
+                                      "SFUNC " + shortFunctionName(fRNON) + ' ' +
+                                      "STYPE text " +
+                                      "FINALFUNC " + shortFunctionName(fRNONf) + ' ' +
+                                      "INITCOND ''");
+
+        assertRows(execute("SELECT " + aCON + "(b) FROM %s"), row("finxyxyxy"));
+        assertRows(execute("SELECT " + aRNON + "(b) FROM %s"), row("finxyxyxy"));
+
+        createTable("CREATE TABLE %s (a int primary key, b text)");
+        execute("INSERT INTO %s (a, b) VALUES (1, null)");
+        execute("INSERT INTO %s (a, b) VALUES (2, null)");
+        execute("INSERT INTO %s (a, b) VALUES (3, null)");
+
+        assertRows(execute("SELECT " + aCON + "(b) FROM %s"), row("finxnullyxnullyxnully"));
+        assertRows(execute("SELECT " + aRNON + "(b) FROM %s"), row("fin"));
+
+    }
 }

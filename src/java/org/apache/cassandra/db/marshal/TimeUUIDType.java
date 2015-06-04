@@ -35,6 +35,11 @@ public class TimeUUIDType extends AbstractType<UUID>
     {
     } // singleton
 
+    public boolean isEmptyValueMeaningless()
+    {
+        return true;
+    }
+
     public int compare(ByteBuffer b1, ByteBuffer b2)
     {
         // Compare for length

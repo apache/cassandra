@@ -34,6 +34,11 @@ public class InetAddressType extends AbstractType<InetAddress>
 
     InetAddressType() {} // singleton
 
+    public boolean isEmptyValueMeaningless()
+    {
+        return true;
+    }
+
     public int compare(ByteBuffer o1, ByteBuffer o2)
     {
         return ByteBufferUtil.compareUnsigned(o1, o2);

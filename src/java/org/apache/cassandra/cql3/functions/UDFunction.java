@@ -146,8 +146,8 @@ public abstract class UDFunction extends AbstractFunction implements ScalarFunct
     public boolean isCallableWrtNullable(List<ByteBuffer> parameters)
     {
         if (!calledOnNullInput)
-            for (ByteBuffer parameter : parameters)
-                if (parameter == null || parameter.remaining() == 0)
+            for (int i = 0; i < parameters.size(); i++)
+                if (UDHelper.isNullOrEmpty(argTypes.get(i), parameters.get(i)))
                     return false;
         return true;
     }
@@ -194,37 +194,42 @@ public abstract class UDFunction extends AbstractFunction implements ScalarFunct
      */
     protected Object compose(int protocolVersion, int argIndex, ByteBuffer value)
     {
-        return value == null ? null : argDataTypes[argIndex].deserialize(value, ProtocolVersion.fromInt(protocolVersion));
+        return UDHelper.isNullOrEmpty(argTypes.get(argIndex), value) ? null : argDataTypes[argIndex].deserialize(value, ProtocolVersion.fromInt(protocolVersion));
     }
 
     // do not remove - used by generated Java UDFs
     protected float compose_float(int protocolVersion, int argIndex, ByteBuffer value)
     {
-        return value == null ? 0f : (float)DataType.cfloat().deserialize(value, ProtocolVersion.fromInt(protocolVersion));
+        assert value != null && value.remaining() > 0;
+        return (float)DataType.cfloat().deserialize(value, ProtocolVersion.fromInt(protocolVersion));
     }
 
     // do not remove - used by generated Java UDFs
     protected double compose_double(int protocolVersion, int argIndex, ByteBuffer value)
     {
-        return value == null ? 0d : (double)DataType.cdouble().deserialize(value, ProtocolVersion.fromInt(protocolVersion));
+        assert value != null && value.remaining() > 0;
+        return (double)DataType.cdouble().deserialize(value, ProtocolVersion.fromInt(protocolVersion));
     }
 
     // do not remove - used by generated Java UDFs
     protected int compose_int(int protocolVersion, int argIndex, ByteBuffer value)
     {
-        return value == null ? 0 : (int)DataType.cint().deserialize(value, ProtocolVersion.fromInt(protocolVersion));
+        assert value != null && value.remaining() > 0;
+        return (int)DataType.cint().deserialize(value, ProtocolVersion.fromInt(protocolVersion));
     }
 
     // do not remove - used by generated Java UDFs
     protected long compose_long(int protocolVersion, int argIndex, ByteBuffer value)
     {
-        return value == null ? 0L : (long)DataType.bigint().deserialize(value, ProtocolVersion.fromInt(protocolVersion));
+        assert value != null && value.remaining() > 0;
+        return (long)DataType.bigint().deserialize(value, ProtocolVersion.fromInt(protocolVersion));
     }
 
     // do not remove - used by generated Java UDFs
     protected boolean compose_boolean(int protocolVersion, int argIndex, ByteBuffer value)
     {
-        return value != null && (boolean) DataType.cboolean().deserialize(value, ProtocolVersion.fromInt(protocolVersion));
+        assert value != null && value.remaining() > 0;
+        return (boolean) DataType.cboolean().deserialize(value, ProtocolVersion.fromInt(protocolVersion));
     }
 
     /**

@@ -257,6 +257,14 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>
     }
 
     /**
+     * Returns {@code true} for types where empty should be handled like {@code null} like {@link Int32Type}.
+     */
+    public boolean isEmptyValueMeaningless()
+    {
+        return false;
+    }
+
+    /**
      * @param ignoreFreezing if true, the type string will not be wrapped with FrozenType(...), even if this type is frozen.
      */
     public String toString(boolean ignoreFreezing)

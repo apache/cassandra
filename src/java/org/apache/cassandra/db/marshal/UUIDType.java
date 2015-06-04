@@ -50,6 +50,11 @@ public class UUIDType extends AbstractType<UUID>
     {
     }
 
+    public boolean isEmptyValueMeaningless()
+    {
+        return true;
+    }
+
     public int compare(ByteBuffer b1, ByteBuffer b2)
     {
         // Compare for length

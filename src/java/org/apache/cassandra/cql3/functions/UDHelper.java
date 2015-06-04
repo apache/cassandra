@@ -20,6 +20,7 @@ package org.apache.cassandra.cql3.functions;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.reflect.Method;
+import java.nio.ByteBuffer;
 import java.util.List;
 
 import com.datastax.driver.core.DataType;
@@ -118,5 +119,11 @@ public final class UDHelper
         {
             throw new RuntimeException("cannot parse driver type " + cqlType.getType().toString(), e);
         }
+    }
+
+    public static boolean isNullOrEmpty(AbstractType<?> type, ByteBuffer bb)
+    {
+        return bb == null ||
+               (bb.remaining() == 0 && type.isEmptyValueMeaningless());
     }
 }
