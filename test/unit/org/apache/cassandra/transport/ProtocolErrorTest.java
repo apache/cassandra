@@ -29,6 +29,33 @@ import java.util.List;
 public class ProtocolErrorTest {
 
     @Test
+    public void testInvalidProtocolVersion() throws Exception
+    {
+        Frame.Decoder dec = new Frame.Decoder(null);
+
+        List<Object> results = new ArrayList<>();
+        // should generate a protocol exception for using a protocol version higher than the current version
+        byte[] frame = new byte[] {
+                (byte) ((Server.CURRENT_VERSION + 1) & Frame.PROTOCOL_VERSION_MASK),  // direction & version
+                0x00,  // flags
+                0x01,  // stream ID
+                0x09,  // opcode
+                0x00, 0x00, 0x00, 0x21,  // body length
+                0x00, 0x00, 0x00, 0x1b, 0x00, 0x1b, 0x53, 0x45,
+                0x4c, 0x45, 0x43, 0x54, 0x20, 0x2a, 0x20, 0x46,
+                0x52, 0x4f, 0x4d, 0x20, 0x73, 0x79, 0x73, 0x74,
+                0x65, 0x6d, 0x2e, 0x6c, 0x6f, 0x63, 0x61, 0x6c,
+                0x3b
+        };
+        ByteBuf buf = Unpooled.wrappedBuffer(frame);
+        try {
+            dec.decode(null, buf, results);
+            Assert.fail("Expected protocol error");
+        } catch (ProtocolException e) {
+        }
+    }
+
+    @Test
     public void testInvalidDirection() throws Exception
     {
         Frame.Decoder dec = new Frame.Decoder(null);
@@ -51,6 +78,7 @@ public class ProtocolErrorTest {
         ByteBuf buf = Unpooled.wrappedBuffer(frame);
         try {
             dec.decode(null, buf, results);
+            Assert.fail("Expected protocol error");
         } catch (ErrorMessage.WrappedException e) {
             // make sure the exception has the correct stream ID
             Assert.assertEquals(1, e.getStreamId());
@@ -73,6 +101,7 @@ public class ProtocolErrorTest {
         ByteBuf buf = Unpooled.wrappedBuffer(frame);
         try {
             dec.decode(null, buf, results);
+            Assert.fail("Expected protocol error");
         } catch (ErrorMessage.WrappedException e) {
             // make sure the exception has the correct stream ID
             Assert.assertEquals(1, e.getStreamId());
@@ -95,6 +124,7 @@ public class ProtocolErrorTest {
         ByteBuf buf = Unpooled.wrappedBuffer(frame);
         try {
             dec.decode(null, buf, results);
+            Assert.fail("Expected protocol error");
         } catch (ErrorMessage.WrappedException e) {
             // make sure the exception has the correct stream ID
             Assert.assertEquals(1, e.getStreamId());
