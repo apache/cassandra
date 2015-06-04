@@ -193,11 +193,16 @@ public class LegacySchemaTables
     public static void saveSystemKeyspaceSchema()
     {
         KSMetaData keyspace = Schema.instance.getKSMetaData(SystemKeyspace.NAME);
+        long timestamp = FBUtilities.timestampMicros();
         // delete old, possibly obsolete entries in schema tables
         for (String table : ALL)
-            executeOnceInternal(String.format("DELETE FROM system.%s WHERE keyspace_name = ?", table), keyspace.name);
+        {
+            executeOnceInternal(String.format("DELETE FROM system.%s USING TIMESTAMP ? WHERE keyspace_name = ?", table),
+                                timestamp,
+                                keyspace.name);
+        }
         // (+1 to timestamp to make sure we don't get shadowed by the tombstones we just added)
-        makeCreateKeyspaceMutation(keyspace, FBUtilities.timestampMicros() + 1).apply();
+        makeCreateKeyspaceMutation(keyspace, timestamp + 1).apply();
     }
 
     public static Collection<KSMetaData> readSchemaFromSystemTables()

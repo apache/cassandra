@@ -26,6 +26,7 @@
  * Add ability to stop compaction by ID (CASSANDRA-7207)
  * Let CassandraVersion handle SNAPSHOT version (CASSANDRA-9438)
 Merged from 2.1:
+ * Fix occasional lack of `system` keyspace in schema tables (CASSANDRA-8487)
  * Use ProtocolError code instead of ServerError code for native protocol
    error responses to unsupported protocol versions (CASSANDRA-9451)
  * Default commitlog_sync_batch_window_in_ms changed to 2ms (CASSANDRA-9504)
