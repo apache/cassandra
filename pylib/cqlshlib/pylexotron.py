@@ -100,7 +100,17 @@ class ParseContext:
             # pretty much just guess
             return ' '.join([t[1] for t in tokens])
         # low end of span for first token, to high end of span for last token
-        return orig[tokens[0][2][0]:tokens[-1][2][1]]
+        orig_text = orig[tokens[0][2][0]:tokens[-1][2][1]]
+
+        # Convert all unicode tokens to ascii, where possible.  This
+        # helps avoid problems with performing unicode-incompatible
+        # operations on tokens (like .lower()).  See CASSANDRA-9083
+        # for one example of this.
+        try:
+            orig_text = orig_text.encode('ascii')
+        except UnicodeEncodeError:
+            pass
+        return orig_text
 
     def __repr__(self):
         return '<%s matched=%r remainder=%r prodname=%r bindings=%r>' \
