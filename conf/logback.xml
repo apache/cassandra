@@ -43,10 +43,17 @@
       <pattern>%-5level %date{HH:mm:ss,SSS} %msg%n</pattern>
     </encoder>
   </appender>
-        
+
+  <!-- Uncomment bellow and corresponding appender-ref to activate logback metrics
+  <appender name="LogbackMetrics" class="com.codahale.metrics.logback.InstrumentedAppender" />
+   -->
+
   <root level="INFO">
     <appender-ref ref="FILE" />
     <appender-ref ref="STDOUT" />
+    <!--
+    <appender-ref ref="LogbackMetrics" />
+    -->
   </root>
   
   <logger name="com.thinkaurelius.thrift" level="ERROR"/>

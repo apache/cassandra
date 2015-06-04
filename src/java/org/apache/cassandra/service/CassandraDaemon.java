@@ -30,13 +30,18 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import javax.management.MBeanServer;
+import javax.management.MalformedObjectNameException;
 import javax.management.ObjectName;
 import javax.management.StandardMBean;
 import javax.management.remote.JMXConnectorServer;
 import javax.management.remote.JMXServiceURL;
 import javax.management.remote.rmi.RMIConnectorServer;
 
+import com.codahale.metrics.Meter;
+import com.codahale.metrics.MetricRegistryListener;
+import com.codahale.metrics.SharedMetricRegistries;
 import com.google.common.util.concurrent.Uninterruptibles;
+import org.apache.cassandra.metrics.DefaultNameFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -70,7 +75,25 @@ public class CassandraDaemon
     public static final String MBEAN_NAME = "org.apache.cassandra.db:type=NativeAccess";
     private static JMXConnectorServer jmxServer = null;
 
-    private static final Logger logger = LoggerFactory.getLogger(CassandraDaemon.class);
+    private static final Logger logger;
+    static {
+        // Need to register metrics before instrumented appender is created(first access to LoggerFactory).
+        SharedMetricRegistries.getOrCreate("logback-metrics").addListener(new MetricRegistryListener.Base()
+        {
+            @Override
+            public void onMeterAdded(String metricName, Meter meter)
+            {
+                // Given metricName consists of appender name in logback.xml + "." + metric name.
+                // We first separate appender name
+                int separator = metricName.lastIndexOf('.');
+                String appenderName = metricName.substring(0, separator);
+                String metric = metricName.substring(separator + 1); // remove "."
+                ObjectName name = DefaultNameFactory.createMetricName(appenderName, metric, null).getMBeanName();
+                CassandraMetricsRegistry.Metrics.registerMBean(meter, name);
+            }
+        });
+        logger = LoggerFactory.getLogger(CassandraDaemon.class);
+    }
 
     private static void maybeInitJmx()
     {
