@@ -60,7 +60,10 @@ import org.slf4j.LoggerFactory;
 /**
  * Encapsulates a completely parsed SELECT query, including the target
  * column family, expression, result count, and ordering clause.
- *
+ * A number of public methods here are only used internally. However,
+ * many of these are made accessible for the benefit of custom
+ * QueryHandler implementations, so before reducing their accessibility
+ * due consideration should be given.
  */
 public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
 {
@@ -182,6 +185,14 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
     public int getBoundTerms()
     {
         return boundTerms;
+    }
+
+    /**
+     * May be used by custom QueryHandler implementations
+     */
+    public Selection getSelection()
+    {
+        return selection;
     }
 
     public void checkAccess(ClientState state) throws InvalidRequestException, UnauthorizedException
@@ -580,7 +591,10 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
         return new SliceQueryFilter(slices, isReversed, limit, toGroup);
     }
 
-    private int getLimit(List<ByteBuffer> variables) throws InvalidRequestException
+    /**
+     * May be used by custom QueryHandler implementations
+     */
+    public int getLimit(List<ByteBuffer> variables) throws InvalidRequestException
     {
         int l = Integer.MAX_VALUE;
         if (limit != null)
@@ -1067,6 +1081,9 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
                           variables);
     }
 
+    /**
+     * May be used by custom QueryHandler implementations
+     */
     public List<IndexExpression> getIndexExpressions(List<ByteBuffer> variables) throws InvalidRequestException
     {
         if (!usesSecondaryIndexing || restrictedNames.isEmpty())
@@ -1446,7 +1463,21 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
         return true;
     }
 
-    private boolean hasClusteringColumnsRestriction()
+    /**
+     * May be used by custom QueryHandler implementations
+     */
+    public boolean hasPartitionKeyRestriction()
+    {
+        for (int i = 0; i < keyRestrictions.length; i++)
+            if (keyRestrictions[i] != null)
+                return true;
+        return false;
+    }
+
+    /**
+     * May be used by custom QueryHandler implementations
+     */
+    public boolean hasClusteringColumnsRestriction()
     {
         for (int i = 0; i < columnRestrictions.length; i++)
             if (columnRestrictions[i] != null)

@@ -18,8 +18,9 @@
 package org.apache.cassandra.cql3.statements;
 
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.*;
+
+import com.google.common.collect.*;
 
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.cql3.functions.Function;
@@ -37,14 +38,14 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 public abstract class Selection
 {
     private final List<CFDefinition.Name> columns;
-    private final List<ColumnSpecification> metadata;
+    private final SelectionColumns columnMapping;
     private final boolean collectTimestamps;
     private final boolean collectTTLs;
 
-    protected Selection(List<CFDefinition.Name> columns, List<ColumnSpecification> metadata, boolean collectTimestamps, boolean collectTTLs)
+    protected Selection(List<CFDefinition.Name> columns, SelectionColumns columnMapping, boolean collectTimestamps, boolean collectTTLs)
     {
         this.columns = columns;
-        this.metadata = metadata;
+        this.columnMapping = columnMapping;
         this.collectTimestamps = collectTimestamps;
         this.collectTTLs = collectTTLs;
     }
@@ -57,7 +58,7 @@ public abstract class Selection
 
     public ResultSet.Metadata getResultMetadata()
     {
-        return new ResultSet.Metadata(metadata);
+        return new ResultSet.Metadata(columnMapping.getColumnSpecifications());
     }
 
     public static Selection wildcard(CFDefinition cfDef)
@@ -94,21 +95,28 @@ public abstract class Selection
         return idx;
     }
 
-    private static Selector makeSelector(CFDefinition cfDef, RawSelector raw, List<CFDefinition.Name> names, List<ColumnSpecification> metadata) throws InvalidRequestException
+    private static Selector makeSelector(CFDefinition cfDef,
+                                         RawSelector raw,
+                                         List<CFDefinition.Name> names,
+                                         SelectionColumnMapping columnMapping) throws InvalidRequestException
     {
         Selectable selectable = raw.selectable.prepare(cfDef.cfm);
-        return makeSelector(cfDef, selectable, raw.alias, names, metadata);
+        return makeSelector(cfDef, selectable, raw.alias, names, columnMapping);
     }
 
-    private static Selector makeSelector(CFDefinition cfDef, Selectable selectable, ColumnIdentifier alias, List<CFDefinition.Name> names, List<ColumnSpecification> metadata) throws InvalidRequestException
+    private static Selector makeSelector(CFDefinition cfDef,
+                                         Selectable selectable,
+                                         ColumnIdentifier alias,
+                                         List<CFDefinition.Name> names,
+                                         SelectionColumnMapping columnMapping) throws InvalidRequestException
     {
         if (selectable instanceof ColumnIdentifier)
         {
-            CFDefinition.Name name = cfDef.get((ColumnIdentifier)selectable);
+            CFDefinition.Name name = cfDef.get((ColumnIdentifier) selectable);
             if (name == null)
                 throw new InvalidRequestException(String.format("Undefined name %s in selection clause", selectable));
-            if (metadata != null)
-                metadata.add(alias == null ? name : makeAliasSpec(cfDef, name.type, alias));
+            if (columnMapping != null)
+                columnMapping.addMapping(alias == null ? name : makeAliasSpec(cfDef, name.type, alias), name);
             return new SimpleSelector(name.toString(), addAndGetIndex(name, names), name.type);
         }
         else if (selectable instanceof Selectable.WritetimeOrTTL)
@@ -121,25 +129,26 @@ public abstract class Selection
                 throw new InvalidRequestException(String.format("Cannot use selection function %s on PRIMARY KEY part %s", tot.isWritetime ? "writeTime" : "ttl", name));
             if (name.type.isCollection())
                 throw new InvalidRequestException(String.format("Cannot use selection function %s on collections", tot.isWritetime ? "writeTime" : "ttl"));
-
-            if (metadata != null)
-                metadata.add(makeWritetimeOrTTLSpec(cfDef, tot, alias));
+            if (columnMapping != null)
+                columnMapping.addMapping(makeWritetimeOrTTLSpec(cfDef, tot, alias), name);
             return new WritetimeOrTTLSelector(name.toString(), addAndGetIndex(name, names), tot.isWritetime);
         }
         else
         {
             Selectable.WithFunction withFun = (Selectable.WithFunction)selectable;
             List<Selector> args = new ArrayList<Selector>(withFun.args.size());
+            // use a temporary column mapping to collate the columns used by all the function args
+            SelectionColumnMapping tmpMapping = SelectionColumnMapping.newMapping();
             for (Selectable rawArg : withFun.args)
-                args.add(makeSelector(cfDef, rawArg, null, names, null));
+                args.add(makeSelector(cfDef, rawArg, null, names, tmpMapping));
 
             AbstractType<?> returnType = Functions.getReturnType(withFun.functionName, cfDef.cfm.ksName, cfDef.cfm.cfName);
             if (returnType == null)
                 throw new InvalidRequestException(String.format("Unknown function '%s'", withFun.functionName));
             ColumnSpecification spec = makeFunctionSpec(cfDef, withFun, returnType, alias);
             Function fun = Functions.get(withFun.functionName, args, spec);
-            if (metadata != null)
-                metadata.add(spec);
+            if (columnMapping != null)
+                columnMapping.addMapping(spec, tmpMapping.getMappings().values());
             return new FunctionSelector(fun, args);
         }
     }
@@ -178,23 +187,23 @@ public abstract class Selection
         if (needsProcessing)
         {
             List<CFDefinition.Name> names = new ArrayList<CFDefinition.Name>();
-            List<ColumnSpecification> metadata = new ArrayList<ColumnSpecification>(rawSelectors.size());
+            SelectionColumnMapping columnMapping = SelectionColumnMapping.newMapping();
             List<Selector> selectors = new ArrayList<Selector>(rawSelectors.size());
             boolean collectTimestamps = false;
             boolean collectTTLs = false;
             for (RawSelector rawSelector : rawSelectors)
             {
-                Selector selector = makeSelector(cfDef, rawSelector, names, metadata);
+                Selector selector = makeSelector(cfDef, rawSelector, names, columnMapping);
                 selectors.add(selector);
                 collectTimestamps |= selector.usesTimestamps();
                 collectTTLs |= selector.usesTTLs();
             }
-            return new SelectionWithProcessing(names, metadata, selectors, collectTimestamps, collectTTLs);
+            return new SelectionWithProcessing(names, columnMapping, selectors, collectTimestamps, collectTTLs);
         }
         else
         {
             List<CFDefinition.Name> names = new ArrayList<CFDefinition.Name>(rawSelectors.size());
-            List<ColumnSpecification> metadata = new ArrayList<ColumnSpecification>(rawSelectors.size());
+            SelectionColumnMapping columnMapping = SelectionColumnMapping.newMapping();
             for (RawSelector rawSelector : rawSelectors)
             {
                 assert rawSelector.selectable instanceof ColumnIdentifier.Raw;
@@ -203,9 +212,12 @@ public abstract class Selection
                 if (name == null)
                     throw new InvalidRequestException(String.format("Undefined name %s in selection clause", id));
                 names.add(name);
-                metadata.add(rawSelector.alias == null ? name : makeAliasSpec(cfDef, name.type, rawSelector.alias));
+                columnMapping.addMapping(rawSelector.alias == null ? name : makeAliasSpec(cfDef,
+                                                                                          name.type,
+                                                                                          rawSelector.alias),
+                                         name);
             }
-            return new SimpleSelection(names, metadata, false);
+            return new SimpleSelection(names, columnMapping, false);
         }
     }
 
@@ -231,6 +243,14 @@ public abstract class Selection
     public List<CFDefinition.Name> getColumns()
     {
         return columns;
+    }
+
+    /**
+     * @return the mappings between resultset columns and the underlying columns
+     */
+    public SelectionColumns getColumnMapping()
+    {
+        return columnMapping;
     }
 
     public ResultSetBuilder resultSetBuilder(long now)
@@ -264,7 +284,7 @@ public abstract class Selection
 
         private ResultSetBuilder(long now)
         {
-            this.resultSet = new ResultSet(metadata);
+            this.resultSet = new ResultSet(columnMapping.getColumnSpecifications());
             this.timestamps = collectTimestamps ? new long[columns.size()] : null;
             this.ttls = collectTTLs ? new int[columns.size()] : null;
             this.now = now;
@@ -321,17 +341,17 @@ public abstract class Selection
 
         public SimpleSelection(List<CFDefinition.Name> columns, boolean isWildcard)
         {
-            this(columns, new ArrayList<ColumnSpecification>(columns), isWildcard);
+            this(columns, SelectionColumnMapping.simpleMapping(columns), isWildcard);
         }
 
-        public SimpleSelection(List<CFDefinition.Name> columns, List<ColumnSpecification> metadata, boolean isWildcard)
+        public SimpleSelection(List<CFDefinition.Name> columns, SelectionColumnMapping columnMapping, boolean isWildcard)
         {
             /*
              * In theory, even a simple selection could have multiple time the same column, so we
              * could filter those duplicate out of columns. But since we're very unlikely to
              * get much duplicate in practice, it's more efficient not to bother.
              */
-            super(columns, metadata, false, false);
+            super(columns, columnMapping, false, false);
             this.isWildcard = isWildcard;
         }
 
@@ -351,9 +371,9 @@ public abstract class Selection
     {
         private final List<Selector> selectors;
 
-        public SelectionWithProcessing(List<CFDefinition.Name> columns, List<ColumnSpecification> metadata, List<Selector> selectors, boolean collectTimestamps, boolean collectTTLs)
+        public SelectionWithProcessing(List<CFDefinition.Name> columns, SelectionColumns columnMapping, List<Selector> selectors, boolean collectTimestamps, boolean collectTTLs)
         {
-            super(columns, metadata, collectTimestamps, collectTTLs);
+            super(columns, columnMapping, collectTimestamps, collectTTLs);
             this.selectors = selectors;
         }
 
