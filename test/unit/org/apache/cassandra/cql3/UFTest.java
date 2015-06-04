@@ -27,6 +27,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
+import java.util.UUID;
 
 import org.junit.Assert;
 import org.junit.Test;
@@ -44,6 +45,7 @@ import org.apache.cassandra.transport.Event;
 import org.apache.cassandra.transport.Server;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.UUIDGen;
 
 public class UFTest extends CQLTester
 {
@@ -1872,6 +1874,10 @@ public class UFTest extends CQLTester
         Object[][] variations = {
                                 new Object[]    {   "true",     "boolean",  true    },
                                 new Object[]    {   "false",    "boolean",  false   },
+                                new Object[]    {   "100",      "tinyint",  (byte)100 },
+                                new Object[]    {   "100.",     "tinyint",  (byte)100 },
+                                new Object[]    {   "100",      "smallint", (short)100 },
+                                new Object[]    {   "100.",     "smallint", (short)100 },
                                 new Object[]    {   "100",      "int",      100     },
                                 new Object[]    {   "100.",     "int",      100     },
                                 new Object[]    {   "100",      "double",   100d    },
@@ -1904,17 +1910,26 @@ public class UFTest extends CQLTester
     @Test
     public void testScriptParamReturnTypes() throws Throwable
     {
-        createTable("CREATE TABLE %s (key int primary key, ival int, lval bigint, fval float, dval double, vval varint, ddval decimal)");
-        execute("INSERT INTO %s (key, ival, lval, fval, dval, vval, ddval) VALUES (?, ?, ?, ?, ?, ?, ?)", 1,
-                1, 1L, 1f, 1d, BigInteger.valueOf(1L), BigDecimal.valueOf(1d));
+        UUID ruuid = UUID.randomUUID();
+        UUID tuuid = UUIDGen.getTimeUUID();
+
+        createTable("CREATE TABLE %s (key int primary key, " +
+                    "tival tinyint, sival smallint, ival int, lval bigint, fval float, dval double, vval varint, ddval decimal, " +
+                    "timval time, dtval date, tsval timestamp, uval uuid, tuval timeuuid)");
+        execute("INSERT INTO %s (key, tival, sival, ival, lval, fval, dval, vval, ddval, timval, dtval, tsval, uval, tuval) VALUES " +
+                "(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", 1,
+                (byte)1, (short)1, 1, 1L, 1f, 1d, BigInteger.valueOf(1L), BigDecimal.valueOf(1d), 1L, Integer.MAX_VALUE, new Date(1), ruuid, tuuid);
 
         Object[][] variations = {
+                                new Object[] {  "tinyint",  "tival",    (byte)1,                (byte)2  },
+                                new Object[] {  "smallint", "sival",    (short)1,               (short)2  },
                                 new Object[] {  "int",      "ival",     1,                      2  },
                                 new Object[] {  "bigint",   "lval",     1L,                     2L  },
                                 new Object[] {  "float",    "fval",     1f,                     2f  },
                                 new Object[] {  "double",   "dval",     1d,                     2d  },
                                 new Object[] {  "varint",   "vval",     BigInteger.valueOf(1L), BigInteger.valueOf(2L)  },
                                 new Object[] {  "decimal",  "ddval",    BigDecimal.valueOf(1d), BigDecimal.valueOf(2d)  },
+                                new Object[] {  "time",     "timval",   1L,                     2L  },
                                 };
 
         for (Object[] variation : variations)
@@ -1932,81 +1947,162 @@ public class UFTest extends CQLTester
             assertRows(execute("SELECT key, " + col + ", " + fName + '(' + col + ") FROM %s"),
                        row(1, expected1, expected2));
         }
+
+        variations = new Object[][] {
+                     new Object[] {  "timestamp","tsval",    new Date(1),            new Date(1)  },
+                     new Object[] {  "uuid",     "uval",     ruuid,                  ruuid  },
+                     new Object[] {  "timeuuid", "tuval",    tuuid,                  tuuid  },
+                     new Object[] {  "date",     "dtval",    Integer.MAX_VALUE,      Integer.MAX_VALUE },
+        };
+
+        for (Object[] variation : variations)
+        {
+            Object type = variation[0];
+            Object col = variation[1];
+            Object expected1 = variation[2];
+            Object expected2 = variation[3];
+            String fName = createFunction(KEYSPACE, type.toString(),
+                                          "CREATE OR REPLACE FUNCTION %s(val " + type + ") " +
+                                          "RETURNS NULL ON NULL INPUT " +
+                                          "RETURNS " + type + ' ' +
+                                          "LANGUAGE javascript " +
+                                          "AS 'val;';");
+            assertRows(execute("SELECT key, " + col + ", " + fName + '(' + col + ") FROM %s"),
+                       row(1, expected1, expected2));
+        }
+    }
+
+    static class TypesTestDef
+    {
+        final String udfType;
+        final String tableType;
+        final String columnName;
+        final Object referenceValue;
+
+        String fCheckArgAndReturn;
+
+        String fCalledOnNull;
+        String fReturnsNullOnNull;
+
+        TypesTestDef(String udfType, String tableType, String columnName, Object referenceValue)
+        {
+            this.udfType = udfType;
+            this.tableType = tableType;
+            this.columnName = columnName;
+            this.referenceValue = referenceValue;
+        }
     }
 
     @Test
-    public void testNullOnReturnsNullOnNullInput() throws Throwable
+    public void testTypesWithAndWithoutNulls() throws Throwable
     {
+        // test various combinations of types against UDFs with CALLED ON NULL or RETURNS NULL ON NULL
+
         String type = createType("CREATE TYPE %s (txt text, i int)");
-        createTable("CREATE TABLE %s (key int PRIMARY KEY, i int, b bigint, f float, d double, x boolean, t text, u frozen<"+type+">, tup frozen<tuple<int, text>>)");
 
-        execute("INSERT INTO %s (key, i, b, f, d, x, t, u, tup) VALUES (1, null, null, null, null, null, null, null, null)");
+        TypesTestDef[] typeDefs =
+        {
+        //                udf type,            table type,                 column, reference value
+        new TypesTestDef("timestamp", "timestamp", "ts", new Date()),
+        new TypesTestDef("date", "date", "dt", 12345),
+        new TypesTestDef("time", "time", "tim", 12345L),
+        new TypesTestDef("uuid", "uuid", "uu", UUID.randomUUID()),
+        new TypesTestDef("timeuuid", "timeuuid", "tu", UUIDGen.getTimeUUID()),
+        new TypesTestDef("tinyint", "tinyint", "ti", (byte) 42),
+        new TypesTestDef("smallint", "smallint", "si", (short) 43),
+        new TypesTestDef("int", "int", "i", 44),
+        new TypesTestDef("bigint", "bigint", "b", 45L),
+        new TypesTestDef("float", "float", "f", 46f),
+        new TypesTestDef("double", "double", "d", 47d),
+        new TypesTestDef("boolean", "boolean", "x", true),
+        new TypesTestDef("ascii", "ascii", "a", "tqbfjutld"),
+        new TypesTestDef("text", "text", "t", "k\u00f6lsche jung"),
+        //new TypesTestDef(type,                 "frozen<" + type + '>',     "u",    null),
+        new TypesTestDef("tuple<int, text>", "frozen<tuple<int, text>>", "tup", tuple(1, "foo"))
+        };
 
-        String fI = createFunction(KEYSPACE,
-                                   "int",
-                                   "CREATE OR REPLACE FUNCTION %s(val int) " +
-                                   "RETURNS NULL ON NULL INPUT " +
-                                   "RETURNS text " +
-                                   "LANGUAGE java\n" +
-                                   "AS 'return \"foo bar\";';");
-        String fB = createFunction(KEYSPACE,
-                                   "bigint",
-                                   "CREATE OR REPLACE FUNCTION %s(val bigint) " +
-                                   "RETURNS NULL ON NULL INPUT " +
-                                   "RETURNS text " +
-                                   "LANGUAGE java\n" +
-                                   "AS 'return \"foo bar\";';");
-        String fF = createFunction(KEYSPACE,
-                                   "float",
-                                   "CREATE OR REPLACE FUNCTION %s(val float) " +
-                                   "RETURNS NULL ON NULL INPUT " +
-                                   "RETURNS text " +
-                                   "LANGUAGE java\n" +
-                                   "AS 'return \"foo bar\";';");
-        String fD = createFunction(KEYSPACE,
-                                   "double",
-                                   "CREATE OR REPLACE FUNCTION %s(val double) " +
-                                   "RETURNS NULL ON NULL INPUT " +
-                                   "RETURNS text " +
-                                   "LANGUAGE java\n" +
-                                   "AS 'return \"foo bar\";';");
-        String fX = createFunction(KEYSPACE,
-                                   "boolean",
-                                   "CREATE OR REPLACE FUNCTION %s(val boolean) " +
-                                   "RETURNS NULL ON NULL INPUT " +
-                                   "RETURNS text " +
-                                   "LANGUAGE java\n" +
-                                   "AS 'return \"foo bar\";';");
-        String fT = createFunction(KEYSPACE,
-                                   "text",
-                                   "CREATE OR REPLACE FUNCTION %s(val text) " +
-                                   "RETURNS NULL ON NULL INPUT " +
-                                   "RETURNS text " +
-                                   "LANGUAGE java\n" +
-                                   "AS 'return \"foo bar\";';");
-        String fU = createFunction(KEYSPACE,
-                                   type,
-                                   "CREATE OR REPLACE FUNCTION %s(val " + type + ") " +
-                                   "RETURNS NULL ON NULL INPUT " +
-                                   "RETURNS text " +
-                                   "LANGUAGE java\n" +
-                                   "AS 'return \"foo bar\";';");
-        String fTup = createFunction(KEYSPACE,
-                                     "tuple<int, text>",
-                                     "CREATE OR REPLACE FUNCTION %s(val tuple<int, text>) " +
-                                     "RETURNS NULL ON NULL INPUT " +
-                                     "RETURNS text " +
-                                     "LANGUAGE java\n" +
-                                     "AS 'return \"foo bar\";';");
+        String createTableDDL = "CREATE TABLE %s (key int PRIMARY KEY";
+        String insertDML = "INSERT INTO %s (key";
+        List<Object> values = new ArrayList<>();
+        for (TypesTestDef typeDef : typeDefs)
+        {
+            createTableDDL += ", " + typeDef.columnName + ' ' + typeDef.tableType;
+            insertDML += ", " + typeDef.columnName;
+            String typeName = typeDef.udfType;
+            typeDef.fCheckArgAndReturn = createFunction(KEYSPACE,
+                                                        typeName,
+                                                        "CREATE OR REPLACE FUNCTION %s(val " + typeName + ") " +
+                                                        "CALLED ON NULL INPUT " +
+                                                        "RETURNS " + typeName + ' ' +
+                                                        "LANGUAGE java\n" +
+                                                        "AS 'return val;';");
+            typeDef.fCalledOnNull = createFunction(KEYSPACE,
+                                                   typeName,
+                                                   "CREATE OR REPLACE FUNCTION %s(val " + typeName + ") " +
+                                                   "CALLED ON NULL INPUT " +
+                                                   "RETURNS text " +
+                                                   "LANGUAGE java\n" +
+                                                   "AS 'return \"called\";';");
+            typeDef.fReturnsNullOnNull = createFunction(KEYSPACE,
+                                                        typeName,
+                                                        "CREATE OR REPLACE FUNCTION %s(val " + typeName + ") " +
+                                                        "RETURNS NULL ON NULL INPUT " +
+                                                        "RETURNS text " +
+                                                        "LANGUAGE java\n" +
+                                                        "AS 'return \"called\";';");
+            values.add(typeDef.referenceValue);
+        }
 
-        assertRows(execute("SELECT " + fI + "(i) FROM %s WHERE key=1"), row(new Object[]{null}));
-        assertRows(execute("SELECT " + fB + "(b) FROM %s WHERE key=1"), row(new Object[]{null}));
-        assertRows(execute("SELECT " + fF + "(f) FROM %s WHERE key=1"), row(new Object[]{null}));
-        assertRows(execute("SELECT " + fD + "(d) FROM %s WHERE key=1"), row(new Object[]{null}));
-        assertRows(execute("SELECT " + fX + "(x) FROM %s WHERE key=1"), row(new Object[]{null}));
-        assertRows(execute("SELECT " + fT + "(t) FROM %s WHERE key=1"), row(new Object[]{null}));
-        assertRows(execute("SELECT " + fU + "(u) FROM %s WHERE key=1"), row(new Object[]{null}));
-        assertRows(execute("SELECT " + fTup + "(tup) FROM %s WHERE key=1"), row(new Object[]{null}));
+        createTableDDL += ')';
+        createTable(createTableDDL);
+
+        insertDML += ") VALUES (1";
+        for (TypesTestDef ignored : typeDefs)
+            insertDML += ", ?";
+        insertDML += ')';
+
+        execute(insertDML, values.toArray());
+
+        // second row with null values
+        for (int i = 0; i < values.size(); i++)
+            values.set(i, null);
+        execute(insertDML.replace('1', '2'), values.toArray());
+
+        // check argument input + return
+        for (TypesTestDef typeDef : typeDefs)
+        {
+            assertRows(execute("SELECT " + typeDef.fCheckArgAndReturn + '(' + typeDef.columnName + ") FROM %s WHERE key = 1"),
+                       row(new Object[]{ typeDef.referenceValue }));
+        }
+
+        // check for CALLED ON NULL INPUT with non-null arguments
+        for (TypesTestDef typeDef : typeDefs)
+        {
+            assertRows(execute("SELECT " + typeDef.fCalledOnNull + '(' + typeDef.columnName + ") FROM %s WHERE key = 1"),
+                       row(new Object[]{ "called" }));
+        }
+
+        // check for CALLED ON NULL INPUT with null arguments
+        for (TypesTestDef typeDef : typeDefs)
+        {
+            assertRows(execute("SELECT " + typeDef.fCalledOnNull + '(' + typeDef.columnName + ") FROM %s WHERE key = 2"),
+                       row(new Object[]{ "called" }));
+        }
+
+        // check for RETURNS NULL ON NULL INPUT with non-null arguments
+        for (TypesTestDef typeDef : typeDefs)
+        {
+            assertRows(execute("SELECT " + typeDef.fReturnsNullOnNull + '(' + typeDef.columnName + ") FROM %s WHERE key = 1"),
+                       row(new Object[]{ "called" }));
+        }
+
+        // check for RETURNS NULL ON NULL INPUT with null arguments
+        for (TypesTestDef typeDef : typeDefs)
+        {
+            assertRows(execute("SELECT " + typeDef.fReturnsNullOnNull + '(' + typeDef.columnName + ") FROM %s WHERE key = 2"),
+                       row(new Object[]{ null }));
+        }
+
     }
 
     @Test
@@ -2048,81 +2144,6 @@ public class UFTest extends CQLTester
                 "RETURNS text " +
                 "LANGUAGE java\n" +
                 "AS 'return \"foo bar\";';");
-    }
-
-    @Test
-    public void testNullOnCalledOnNullInput() throws Throwable
-    {
-        String type = createType("CREATE TYPE %s (txt text, i int)");
-        createTable("CREATE TABLE %s (key int PRIMARY KEY, i int, b bigint, f float, d double, x boolean, t text, u frozen<"+type+">, tup frozen<tuple<int, text>>)");
-
-        execute("INSERT INTO %s (key, i, b, f, d, x, t, u, tup) VALUES (1, null, null, null, null, null, null, null, null)");
-
-        String fI = createFunction(KEYSPACE,
-                                   "int",
-                                   "CREATE OR REPLACE FUNCTION %s(val int) " +
-                                   "CALLED ON NULL INPUT " +
-                                   "RETURNS text " +
-                                   "LANGUAGE java\n" +
-                                   "AS 'return \"foo bar\";';");
-        String fB = createFunction(KEYSPACE,
-                                   "bigint",
-                                   "CREATE OR REPLACE FUNCTION %s(val bigint) " +
-                                   "CALLED ON NULL INPUT " +
-                                   "RETURNS text " +
-                                   "LANGUAGE java\n" +
-                                   "AS 'return \"foo bar\";';");
-        String fF = createFunction(KEYSPACE,
-                                   "float",
-                                   "CREATE OR REPLACE FUNCTION %s(val float) " +
-                                   "CALLED ON NULL INPUT " +
-                                   "RETURNS text " +
-                                   "LANGUAGE java\n" +
-                                   "AS 'return \"foo bar\";';");
-        String fD = createFunction(KEYSPACE,
-                                   "double",
-                                   "CREATE OR REPLACE FUNCTION %s(val double) " +
-                                   "CALLED ON NULL INPUT " +
-                                   "RETURNS text " +
-                                   "LANGUAGE java\n" +
-                                   "AS 'return \"foo bar\";';");
-        String fX = createFunction(KEYSPACE,
-                                   "boolean",
-                                   "CREATE OR REPLACE FUNCTION %s(val boolean) " +
-                                   "CALLED ON NULL INPUT " +
-                                   "RETURNS text " +
-                                   "LANGUAGE java\n" +
-                                   "AS 'return \"foo bar\";';");
-        String fT = createFunction(KEYSPACE,
-                                   "text",
-                                   "CREATE OR REPLACE FUNCTION %s(val text) " +
-                                   "CALLED ON NULL INPUT " +
-                                   "RETURNS text " +
-                                   "LANGUAGE java\n" +
-                                   "AS 'return \"foo bar\";';");
-        String fU = createFunction(KEYSPACE,
-                                   type,
-                                   "CREATE OR REPLACE FUNCTION %s(val " + type + ") " +
-                                   "CALLED ON NULL INPUT " +
-                                   "RETURNS text " +
-                                   "LANGUAGE java\n" +
-                                   "AS 'return \"foo bar\";';");
-        String fTup = createFunction(KEYSPACE,
-                                     "tuple<int, text>",
-                                     "CREATE OR REPLACE FUNCTION %s(val tuple<int, text>) " +
-                                     "CALLED ON NULL INPUT " +
-                                     "RETURNS text " +
-                                     "LANGUAGE java\n" +
-                                     "AS 'return \"foo bar\";';");
-
-        assertRows(execute("SELECT " + fI + "(i) FROM %s WHERE key=1"), row("foo bar"));
-        assertRows(execute("SELECT " + fB + "(b) FROM %s WHERE key=1"), row("foo bar"));
-        assertRows(execute("SELECT " + fF + "(f) FROM %s WHERE key=1"), row("foo bar"));
-        assertRows(execute("SELECT " + fD + "(d) FROM %s WHERE key=1"), row("foo bar"));
-        assertRows(execute("SELECT " + fX + "(x) FROM %s WHERE key=1"), row("foo bar"));
-        assertRows(execute("SELECT " + fT + "(t) FROM %s WHERE key=1"), row("foo bar"));
-        assertRows(execute("SELECT " + fU + "(u) FROM %s WHERE key=1"), row("foo bar"));
-        assertRows(execute("SELECT " + fTup + "(tup) FROM %s WHERE key=1"), row("foo bar"));
     }
 
     @Test
