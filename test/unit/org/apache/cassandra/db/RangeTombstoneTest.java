@@ -26,6 +26,7 @@ import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Iterators;
@@ -572,7 +573,10 @@ public class RangeTombstoneTest
         {
             ColumnDefinition cd = new ColumnDefinition(cfs.metadata, indexedColumnName, Int32Type.instance, null, ColumnDefinition.Kind.REGULAR);
             cd.setIndex("test_index", IndexType.CUSTOM, ImmutableMap.of(SecondaryIndex.CUSTOM_INDEX_OPTION_NAME, TestIndex.class.getName()));
-            cfs.indexManager.addIndexedColumn(cd);
+            Future<?> rebuild = cfs.indexManager.addIndexedColumn(cd);
+            // If rebuild there is, wait for the rebuild to finish so it doesn't race with the following insertions
+            if (rebuild != null)
+                rebuild.get();
         }
 
         TestIndex index = ((TestIndex)cfs.indexManager.getIndexForColumn(indexedColumnName));
@@ -615,7 +619,11 @@ public class RangeTombstoneTest
         {
             ColumnDefinition cd = ColumnDefinition.regularDef(cfs.metadata, indexedColumnName, cfs.getComparator().asAbstractType(), 0)
                                                   .setIndex("test_index", IndexType.CUSTOM, ImmutableMap.of(SecondaryIndex.CUSTOM_INDEX_OPTION_NAME, TestIndex.class.getName()));
-            cfs.indexManager.addIndexedColumn(cd);
+            Future<?> rebuild = cfs.indexManager.addIndexedColumn(cd);
+            // If rebuild there is, wait for the rebuild to finish so it doesn't race with the following insertions
+            if (rebuild != null)
+                rebuild.get();
+
         }
 
         TestIndex index = ((TestIndex)cfs.indexManager.getIndexForColumn(indexedColumnName));
