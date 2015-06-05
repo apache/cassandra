@@ -161,7 +161,7 @@ public class CommitLogStressTest
     @Test
     public void testRandomSize() throws Exception
     {
-        randomSize = false;
+        randomSize = true;
         discardedRun = false;
         testAllLogConfigs();
     }
