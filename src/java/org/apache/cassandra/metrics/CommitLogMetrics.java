@@ -69,7 +69,7 @@ public class CommitLogMetrics
         {
             public Long getValue()
             {
-                return allocator.bytesUsed();
+                return allocator.onDiskSize();
             }
         });
     }

@@ -113,6 +113,7 @@ public abstract class CommitLogSegment
 
     ByteBuffer buffer;
 
+    final CommitLog commitLog;
     public final CommitLogDescriptor descriptor;
 
     static CommitLogSegment createSegment(CommitLog commitLog)
@@ -132,6 +133,7 @@ public abstract class CommitLogSegment
      */
     CommitLogSegment(CommitLog commitLog)
     {
+        this.commitLog = commitLog;
         id = getNextId();
         descriptor = new CommitLogDescriptor(id, commitLog.compressorClass);
         logFile = new File(commitLog.location, descriptor.fileName());
@@ -305,9 +307,12 @@ public abstract class CommitLogSegment
     /**
      * Completely discards a segment file by deleting it. (Potentially blocking operation)
      */
-    void delete()
+    void discard(boolean deleteFile)
     {
-       FileUtils.deleteWithConfirm(logFile);
+        close();
+        if (deleteFile)
+            FileUtils.deleteWithConfirm(logFile);
+        commitLog.allocator.addSize(-onDiskSize());
     }
 
     /**
@@ -523,6 +528,13 @@ public abstract class CommitLogSegment
             sb.append(m == null ? "<deleted>" : m.cfName).append(" (").append(cfId).append("), ");
         }
         return sb.toString();
+    }
+
+    abstract public long onDiskSize();
+
+    public long contentSize()
+    {
+        return lastSyncedOffset;
     }
 
     @Override

@@ -355,7 +355,7 @@ concurrent_counter_writes: 32
 #   offheap_objects: native memory, eliminating nio buffer heap overhead
 memtable_allocation_type: heap_buffers
 
-# Total uncompressed size of the commit log.
+# Total space to use for commit logs on disk.
 #
 # If space gets above this value, Cassandra will flush every dirty CF
 # in the oldest segment and remove it.  So a small total commitlog space

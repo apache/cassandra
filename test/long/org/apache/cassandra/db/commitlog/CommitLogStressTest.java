@@ -29,7 +29,9 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -41,9 +43,9 @@ import junit.framework.Assert;
 
 import com.google.common.util.concurrent.RateLimiter;
 
+import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
-
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.config.Config.CommitLogSync;
@@ -138,7 +140,11 @@ public class CommitLogStressTest
 
         SchemaLoader.loadSchema();
         SchemaLoader.schemaDefinition(""); // leave def. blank to maintain old behaviour
-
+    }
+    
+    @Before
+    public void cleanDir()
+    {
         File dir = new File(location);
         if (dir.isDirectory())
         {
@@ -201,7 +207,7 @@ public class CommitLogStressTest
     }
 
     public void testLog(CommitLog commitLog) throws IOException, InterruptedException {
-        System.out.format("\nTesting commit log size %dmb, compressor %s, sync %s%s%s\n",
+        System.out.format("\nTesting commit log size %.0fmb, compressor %s, sync %s%s%s\n",
                            mb(DatabaseDescriptor.getCommitLogSegmentSize()),
                            commitLog.compressor != null ? commitLog.compressor.getClass().getSimpleName() : "none",
                            commitLog.executor.getClass().getSimpleName(),
@@ -223,13 +229,16 @@ public class CommitLogStressTest
             for (CommitlogExecutor t: threads)
             {
                 t.join();
-                CommitLog.instance.discardCompletedSegments( Schema.instance.getCFMetaData("Keyspace1", "Standard1").cfId, t.rp);
                 if (t.rp.compareTo(discardedPos) > 0)
                     discardedPos = t.rp;
             }
+            verifySizes(commitLog);
+
+            commitLog.discardCompletedSegments(Schema.instance.getCFMetaData("Keyspace1", "Standard1").cfId, discardedPos);
             threads.clear();
             System.out.format("Discarded at %s\n", discardedPos);
-
+            verifySizes(commitLog);
+            
             scheduled = startThreads(commitLog, threads);
         }
 
@@ -246,6 +255,7 @@ public class CommitLogStressTest
             hash += t.hash;
             cells += t.cells;
         }
+        verifySizes(commitLog);
         
         commitLog.shutdownBlocking();
 
@@ -267,7 +277,39 @@ public class CommitLogStressTest
         }
     }
 
-    public ScheduledExecutorService startThreads(CommitLog commitLog, final List<CommitlogExecutor> threads)
+    private void verifySizes(CommitLog commitLog)
+    {
+        // Complete anything that's still left to write.
+        commitLog.executor.requestExtraSync().awaitUninterruptibly();
+        // One await() does not suffice as we may be signalled when an ongoing sync finished. Request another
+        // (which shouldn't write anything) to make sure the first we triggered completes.
+        // FIXME: The executor should give us a chance to await completion of the sync we requested.
+        commitLog.executor.requestExtraSync().awaitUninterruptibly();
+        // Wait for any pending deletes or segment allocations to complete.
+        commitLog.allocator.awaitManagementTasksCompletion();
+        
+        long combinedSize = 0;
+        for (File f : new File(commitLog.location).listFiles())
+            combinedSize += f.length();
+        Assert.assertEquals(combinedSize, commitLog.getActiveOnDiskSize());
+
+        List<String> logFileNames = commitLog.getActiveSegmentNames();
+        Map<String, Double> ratios = commitLog.getActiveSegmentCompressionRatios();
+        Collection<CommitLogSegment> segments = commitLog.allocator.getActiveSegments();
+
+        for (CommitLogSegment segment: segments)
+        {
+            Assert.assertTrue(logFileNames.remove(segment.getName()));
+            Double ratio = ratios.remove(segment.getName());
+            
+            Assert.assertEquals(segment.logFile.length(), segment.onDiskSize());
+            Assert.assertEquals(segment.onDiskSize() * 1.0 / segment.contentSize(), ratio, 0.01);
+        }
+        Assert.assertTrue(logFileNames.isEmpty());
+        Assert.assertTrue(ratios.isEmpty());
+    }
+
+    public ScheduledExecutorService startThreads(final CommitLog commitLog, final List<CommitlogExecutor> threads)
     {
         stop = false;
         for (int ii = 0; ii < NUM_THREADS; ii++) {
@@ -282,9 +324,9 @@ public class CommitLogStressTest
 
             public void run() {
               Runtime runtime = Runtime.getRuntime();
-              long maxMemory = mb(runtime.maxMemory());
-              long allocatedMemory = mb(runtime.totalMemory());
-              long freeMemory = mb(runtime.freeMemory());
+              long maxMemory = runtime.maxMemory();
+              long allocatedMemory = runtime.totalMemory();
+              long freeMemory = runtime.freeMemory();
               long temp = 0;
               long sz = 0;
               for (CommitlogExecutor cle : threads) {
@@ -293,9 +335,11 @@ public class CommitLogStressTest
               }
               double time = (System.currentTimeMillis() - start) / 1000.0;
               double avg = (temp / time);
-              System.out.println(String.format("second %d mem max %dmb allocated %dmb free %dmb mutations %d since start %d avg %.3f transfer %.3fmb",
+              System.out.println(
+                      String.format("second %d mem max %.0fmb allocated %.0fmb free %.0fmb mutations %d since start %d avg %.3f content %.1fmb ondisk %.1fmb transfer %.3fmb",
                       ((System.currentTimeMillis() - start) / 1000),
-                      maxMemory, allocatedMemory, freeMemory, (temp - lastUpdate), lastUpdate, avg, mb(sz / time)));
+                      mb(maxMemory), mb(allocatedMemory), mb(freeMemory), (temp - lastUpdate), lastUpdate, avg,
+                      mb(commitLog.getActiveContentSize()), mb(commitLog.getActiveOnDiskSize()), mb(sz / time)));
               lastUpdate = temp;
             }
         };
@@ -304,8 +348,8 @@ public class CommitLogStressTest
         return scheduled;
     }
 
-    private static long mb(long maxMemory) {
-        return maxMemory / (1024 * 1024);
+    private static double mb(long maxMemory) {
+        return maxMemory / (1024.0 * 1024);
     }
 
     private static double mb(double maxMemory) {
