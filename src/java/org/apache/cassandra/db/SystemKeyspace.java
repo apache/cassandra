@@ -91,6 +91,10 @@ public final class SystemKeyspace
     public static final String SSTABLE_ACTIVITY = "sstable_activity";
     public static final String SIZE_ESTIMATES = "size_estimates";
     public static final String AVAILABLE_RANGES = "available_ranges";
+    public static final String EPAXOS_INSTANCE = "epaxos_instance";
+    public static final String EPAXOS_KEY_STATE = "epaxos_key_state";
+    public static final String EPAXOS_TOKEN_STATE = "epaxos_token_state";
+    public static final String PAXOS_UPGRADE = "paxos_upgrade";
 
     public static final CFMetaData Hints =
         compile(HINTS,
@@ -117,7 +121,7 @@ public final class SystemKeyspace
                 .compactionStrategyOptions(Collections.singletonMap("min_threshold", "2"))
                 .gcGraceSeconds(0);
 
-    private static final CFMetaData Paxos =
+    public static final CFMetaData Paxos =
         compile(PAXOS,
                 "in-progress paxos proposals",
                 "CREATE TABLE %s ("
@@ -247,9 +251,47 @@ public final class SystemKeyspace
         compile(AVAILABLE_RANGES,
                 "Available keyspace/ranges during bootstrap/replace that are ready to be served",
                 "CREATE TABLE %s ("
-                        + "keyspace_name text PRIMARY KEY,"
-                        + "ranges set<blob>"
-                        + ")");
+                + "keyspace_name text PRIMARY KEY,"
+                + "ranges set<blob>"
+                + ")");
+
+    public static final CFMetaData EpaxosInstanceCf =
+        compile(EPAXOS_INSTANCE,
+                "epaxos instances",
+                "CREATE TABLE %s ("
+                + "id timeuuid PRIMARY KEY,"
+                + "data blob,"
+                + "version int)");
+
+    public static final CFMetaData EpaxosKeyStateCF =
+        compile(EPAXOS_KEY_STATE,
+                "epaxos key level bookkeeping",
+                "CREATE TABLE %s ("
+                + "row_key blob,"
+                + "cf_id uuid,"
+                + "scope int,"
+                + "version int,"
+                + "data blob,"
+                + "PRIMARY KEY (row_key, cf_id, scope))");
+
+    public static final CFMetaData EpaxosTokenStateCF =
+        compile(EPAXOS_TOKEN_STATE,
+                "epaxos token range level bookkeeping",
+                "CREATE TABLE %s ("
+                + "cf_id uuid,"
+                + "token_bytes blob,"
+                + "scope int,"
+                + "version int,"
+                + "data blob,"
+                + "PRIMARY KEY (cf_id, token_bytes, scope))");
+
+    public static final CFMetaData PaxosUpgradeCF =
+        compile(PAXOS_UPGRADE,
+                "data used by the paxos -> epaxos upgrade service",
+                "CREATE TABLE %s ("
+                + "key int PRIMARY KEY,"
+                + "upgraded boolean,"
+                + "last_ballot uuid)");
 
     private static CFMetaData compile(String name, String description, String schema)
     {
@@ -273,7 +315,11 @@ public final class SystemKeyspace
                                            CompactionHistory,
                                            SSTableActivity,
                                            SizeEstimates,
-                                           AvailableRanges));
+                                           AvailableRanges,
+                                           EpaxosInstanceCf,
+                                           EpaxosKeyStateCF,
+                                           EpaxosTokenStateCF,
+                                           PaxosUpgradeCF));
         return new KSMetaData(NAME, LocalStrategy.class, Collections.<String, String>emptyMap(), true, tables);
     }
 

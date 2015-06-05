@@ -851,7 +851,7 @@ public class TokenMetadata
         }
     }
 
-    public static int firstTokenIndex(final ArrayList ring, Token start, boolean insertMin)
+    public static int firstTokenIndex(final List ring, Token start, boolean insertMin)
     {
         assert ring.size() > 0;
         // insert the minimum token (at index == -1) if we were asked to include it and it isn't a member of the ring
@@ -865,7 +865,7 @@ public class TokenMetadata
         return i;
     }
 
-    public static Token firstToken(final ArrayList<Token> ring, Token start)
+    public static Token firstToken(final List<Token> ring, Token start)
     {
         return ring.get(firstTokenIndex(ring, start, false));
     }
@@ -875,7 +875,7 @@ public class TokenMetadata
      * (which does not have to be a Token in the ring)
      * @param includeMin True if the minimum token should be returned in the ring even if it has no owner.
      */
-    public static Iterator<Token> ringIterator(final ArrayList<Token> ring, Token start, boolean includeMin)
+    public static Iterator<Token> ringIterator(final List<Token> ring, Token start, boolean includeMin)
     {
         if (ring.isEmpty())
             return includeMin ? Iterators.singletonIterator(StorageService.getPartitioner().getMinimumToken())

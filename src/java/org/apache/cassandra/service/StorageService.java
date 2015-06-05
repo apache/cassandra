@@ -60,6 +60,24 @@ import javax.management.ObjectName;
 import javax.management.openmbean.TabularData;
 import javax.management.openmbean.TabularDataSupport;
 
+import ch.qos.logback.classic.LoggerContext;
+import ch.qos.logback.classic.jmx.JMXConfiguratorMBean;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.Appender;
+
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Predicate;
+import com.google.common.collect.*;
+import com.google.common.util.concurrent.FutureCallback;
+import com.google.common.util.concurrent.Futures;
+import com.google.common.util.concurrent.Uninterruptibles;
+
+import org.apache.cassandra.service.epaxos.EpaxosService;
+
+import org.apache.commons.lang3.StringUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import org.apache.cassandra.auth.AuthKeyspace;
 import org.apache.cassandra.auth.AuthMigrationListener;
 import org.apache.cassandra.concurrent.ScheduledExecutors;
@@ -124,6 +142,7 @@ import org.apache.cassandra.repair.RepairParallelism;
 import org.apache.cassandra.repair.RepairRunnable;
 import org.apache.cassandra.repair.SystemDistributedKeyspace;
 import org.apache.cassandra.repair.messages.RepairOption;
+import org.apache.cassandra.service.epaxos.UpgradeService;
 import org.apache.cassandra.service.paxos.CommitVerbHandler;
 import org.apache.cassandra.service.paxos.PrepareVerbHandler;
 import org.apache.cassandra.service.paxos.ProposeVerbHandler;
@@ -333,6 +352,15 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
         MessagingService.instance().registerVerbHandlers(MessagingService.Verb.SNAPSHOT, new SnapshotVerbHandler());
         MessagingService.instance().registerVerbHandlers(MessagingService.Verb.ECHO, new EchoVerbHandler());
+
+        MessagingService.instance().registerVerbHandlers(MessagingService.Verb.EPAXOS_PREACCEPT,  UpgradeService.wrap(EpaxosService.getInstance().getPreacceptVerbHandler()));
+        MessagingService.instance().registerVerbHandlers(MessagingService.Verb.EPAXOS_ACCEPT,  UpgradeService.wrap(EpaxosService.getInstance().getAcceptVerbHandler()));
+        MessagingService.instance().registerVerbHandlers(MessagingService.Verb.EPAXOS_COMMIT,  UpgradeService.wrap(EpaxosService.getInstance().getCommitVerbHandler()));
+        MessagingService.instance().registerVerbHandlers(MessagingService.Verb.EPAXOS_PREPARE,  UpgradeService.wrap(EpaxosService.getInstance().getPrepareVerbHandler()));
+        MessagingService.instance().registerVerbHandlers(MessagingService.Verb.EPAXOS_TRYPREACCEPT,  UpgradeService.wrap(EpaxosService.getInstance().getTryPreacceptVerbHandler()));
+        MessagingService.instance().registerVerbHandlers(MessagingService.Verb.EPAXOS_FORWARD_QUERY,  EpaxosService.getInstance().getForwardQueryVerbHandler());
+        MessagingService.instance().registerVerbHandlers(MessagingService.Verb.EPAXOS_FAILURE_RECOVERY,  UpgradeService.wrap(EpaxosService.getInstance().getFailureRecoveryVerbHandler()));
+        MessagingService.instance().registerVerbHandlers(MessagingService.Verb.PAXOS_UPGRADE, UpgradeService.instance().getVerbHandler());
     }
 
     public void registerDaemon(CassandraDaemon daemon)
@@ -784,6 +812,9 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
             HintedHandOffManager.instance.start();
             BatchlogManager.instance.start();
+
+            EpaxosService.getInstance().start();
+            UpgradeService.instance().start();
         }
     }
 
@@ -2981,7 +3012,13 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
         RepairRunnable task = new RepairRunnable(this, cmd, options, keyspace);
         task.addProgressListener(progressSupport);
-        return new FutureTask<>(task, null);
+        return new FutureTask<Object>(task, null) {
+            @Override
+            protected void done()
+            {
+                options.complete();
+            }
+        };
     }
 
     public void forceTerminateAllRepairSessions() {
@@ -3604,6 +3641,18 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                     {
                         logger.debug("Will stream range {} of keyspace {} to endpoint {}", endpointRanges.get(address), keyspace, address);
                         InetAddress preferred = SystemKeyspace.getPreferredIP(address);
+                        KSMetaData ks = Schema.instance.getKSMetaData(keyspace);
+                        for (CFMetaData cf: ks.cfMetaData().values())
+                        {
+                            if (!EpaxosService.getInstance().managesCfId(cf.cfId))
+                                continue;
+
+                            for (Range<Token> range: endpointRanges.get(address))
+                            {
+                                streamPlan.transferEpaxosRange(address, preferred, cf.cfId, range,
+                                                               EpaxosService.getInstance().getActiveScopes(address));
+                            }
+                        }
                         streamPlan.transferRanges(address, preferred, keyspace, endpointRanges.get(address));
                     }
 
@@ -3613,6 +3662,15 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                     {
                         logger.debug("Will request range {} of keyspace {} from endpoint {}", workMap.get(address), keyspace, address);
                         InetAddress preferred = SystemKeyspace.getPreferredIP(address);
+                        KSMetaData ks = Schema.instance.getKSMetaData(keyspace);
+                        for (CFMetaData cf: ks.cfMetaData().values())
+                        {
+                            for (Range<Token> range: workMap.get(address))
+                            {
+                                streamPlan.requestEpaxosRange(address, preferred, cf.cfId, range,
+                                                              EpaxosService.getInstance().getActiveScopes(address));
+                            }
+                        }
                         streamPlan.requestRanges(address, preferred, keyspace, workMap.get(address));
                     }
 
@@ -3773,6 +3831,11 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     public boolean isStarting()
     {
         return operationMode == Mode.STARTING;
+    }
+
+    public boolean inNormalMode()
+    {
+        return operationMode == Mode.NORMAL;
     }
 
     public String getDrainProgress()
@@ -4067,6 +4130,19 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                 List<Range<Token>> ranges = rangesEntry.getValue();
                 InetAddress newEndpoint = rangesEntry.getKey();
                 InetAddress preferred = SystemKeyspace.getPreferredIP(newEndpoint);
+
+                KSMetaData ks = Schema.instance.getKSMetaData(keyspaceName);
+                for (CFMetaData cf: ks.cfMetaData().values())
+                {
+                    if (!EpaxosService.getInstance().managesCfId(cf.cfId))
+                        continue;
+
+                    for (Range<Token> range: ranges)
+                    {
+                        streamPlan.transferEpaxosRange(newEndpoint, preferred, cf.cfId, range,
+                                                       EpaxosService.getInstance().getActiveScopes(newEndpoint));
+                    }
+                }
 
                 // TODO each call to transferRanges re-flushes, this is potentially a lot of waste
                 streamPlan.transferRanges(newEndpoint, preferred, keyspaceName, ranges);

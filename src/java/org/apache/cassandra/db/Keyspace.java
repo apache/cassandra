@@ -354,9 +354,9 @@ public class Keyspace
         return new Row(filter.key, columnFamily);
     }
 
-    public void apply(Mutation mutation, boolean writeCommitLog)
+    public ReplayPosition apply(Mutation mutation, boolean writeCommitLog)
     {
-        apply(mutation, writeCommitLog, true);
+        return apply(mutation, writeCommitLog, true);
     }
 
     /**
@@ -367,7 +367,7 @@ public class Keyspace
      * @param writeCommitLog false to disable commitlog append entirely
      * @param updateIndexes  false to disable index updates (used by CollationController "defragmenting")
      */
-    public void apply(Mutation mutation, boolean writeCommitLog, boolean updateIndexes)
+    public ReplayPosition apply(Mutation mutation, boolean writeCommitLog, boolean updateIndexes)
     {
         if (TEST_FAIL_WRITES && metadata.name.equals(TEST_FAIL_WRITES_KS))
             throw new RuntimeException("Testing write failures");
@@ -398,6 +398,7 @@ public class Keyspace
                                                       : SecondaryIndexManager.nullUpdater;
                 cfs.apply(key, cf, updater, opGroup, replayPosition);
             }
+            return replayPosition;
         }
     }
 

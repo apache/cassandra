@@ -33,6 +33,8 @@ import org.apache.cassandra.utils.UUIDGen;
 
 public class PaxosState
 {
+    public static class UpgradedException extends Exception {}
+
     private static final Striped<Lock> LOCKS = Striped.lazyWeakLock(DatabaseDescriptor.getConcurrentWriters() * 1024);
 
     private final Commit promised;

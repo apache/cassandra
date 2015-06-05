@@ -483,8 +483,7 @@ public abstract class ModificationStatement implements CQLStatement
         return null;
     }
 
-    public ResultMessage executeWithCondition(QueryState queryState, QueryOptions options)
-    throws RequestExecutionException, RequestValidationException
+    public CQL3CasRequest createCasRequest(QueryState queryState, QueryOptions options) throws InvalidRequestException
     {
         List<ByteBuffer> keys = buildPartitionKeyNames(options);
         // We don't support IN for CAS operation so far
@@ -495,18 +494,26 @@ public abstract class ModificationStatement implements CQLStatement
         long now = options.getTimestamp(queryState);
         Composite prefix = createClusteringPrefix(options);
 
-        CQL3CasRequest request = new CQL3CasRequest(cfm, key, false);
+        CQL3CasRequest request = new CQL3CasRequest(cfm, key);
         addConditions(prefix, request, options);
         request.addRowUpdate(prefix, this, options, now);
 
+        return request;
+    }
+
+    public ResultMessage executeWithCondition(QueryState queryState, QueryOptions options)
+    throws RequestExecutionException, RequestValidationException
+    {
+        CQL3CasRequest request = createCasRequest(queryState, options);
+
         ColumnFamily result = StorageProxy.cas(keyspace(),
                                                columnFamily(),
-                                               key,
+                                               request.getKey(),
                                                request,
                                                options.getSerialConsistency(),
                                                options.getConsistency(),
                                                queryState.getClientState());
-        return new ResultMessage.Rows(buildCasResultSet(key, result, options));
+        return new ResultMessage.Rows(buildCasResultSet(request.getKey(), result, options));
     }
 
     public void addConditions(Composite clusteringPrefix, CQL3CasRequest request, QueryOptions options) throws InvalidRequestException
@@ -692,11 +699,19 @@ public abstract class ModificationStatement implements CQLStatement
             this.ifExists = ifExists;
         }
 
+        private volatile String queryString = null;
+
+        public void setQueryString(String queryString)
+        {
+            this.queryString = queryString;
+        }
+
         public ParsedStatement.Prepared prepare() throws InvalidRequestException
         {
             VariableSpecifications boundNames = getBoundVariables();
             ModificationStatement statement = prepare(boundNames);
             CFMetaData cfm = ThriftValidation.validateColumnFamily(keyspace(), columnFamily());
+            statement.setQueryString(queryString);
             return new ParsedStatement.Prepared(statement, boundNames, boundNames.getPartitionKeyBindIndexes(cfm));
         }
 
@@ -761,5 +776,17 @@ public abstract class ModificationStatement implements CQLStatement
         }
 
         protected abstract ModificationStatement prepareInternal(CFMetaData cfm, VariableSpecifications boundNames, Attributes attrs) throws InvalidRequestException;
+    }
+
+    private volatile String queryString = null;
+
+    public void setQueryString(String queryString)
+    {
+        this.queryString = queryString;
+    }
+
+    public String getQueryString()
+    {
+        return queryString;
     }
 }

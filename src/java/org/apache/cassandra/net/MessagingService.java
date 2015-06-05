@@ -36,6 +36,7 @@ import com.google.common.base.Function;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 
+import org.apache.cassandra.service.epaxos.*;
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
 
 import org.slf4j.Logger;
@@ -62,6 +63,7 @@ import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.locator.ILatencySubscriber;
 import org.apache.cassandra.metrics.ConnectionMetrics;
 import org.apache.cassandra.metrics.DroppedMessageMetrics;
+import org.apache.cassandra.service.epaxos.SerializedRequest;
 import org.apache.cassandra.repair.messages.RepairMessage;
 import org.apache.cassandra.security.SSLFactory;
 import org.apache.cassandra.service.*;
@@ -81,7 +83,8 @@ public final class MessagingService implements MessagingServiceMBean
     public static final int VERSION_20 = 7;
     public static final int VERSION_21 = 8;
     public static final int VERSION_22 = 9;
-    public static final int current_version = VERSION_22;
+    public static final int VERSION_30 = 10;
+    public static final int current_version = VERSION_30;
 
     public static final String FAILURE_CALLBACK_PARAM = "CAL_BAC";
     public static final byte[] ONE_BYTE = new byte[1];
@@ -137,6 +140,20 @@ public final class MessagingService implements MessagingServiceMBean
         UNUSED_1,
         UNUSED_2,
         UNUSED_3,
+
+        // EPaxos Messages
+        EPAXOS_PREACCEPT,
+        EPAXOS_ACCEPT,
+        EPAXOS_COMMIT,
+        EPAXOS_PREPARE,
+        EPAXOS_TRYPREPARE,
+        EPAXOS_TRYPREACCEPT,
+        EPAXOS_FORWARD_QUERY,
+        //
+        EPAXOS_FAILURE_RECOVERY,
+        //
+        PAXOS_UPGRADE
+
         ;
     }
 
@@ -182,6 +199,16 @@ public final class MessagingService implements MessagingServiceMBean
         put(Verb.SNAPSHOT, Stage.MISC);
         put(Verb.ECHO, Stage.GOSSIP);
 
+        put(Verb.EPAXOS_PREACCEPT, Stage.MUTATION);
+        put(Verb.EPAXOS_ACCEPT, Stage.MUTATION);
+        put(Verb.EPAXOS_COMMIT, Stage.MUTATION);
+        put(Verb.EPAXOS_PREPARE, Stage.MUTATION);
+        put(Verb.EPAXOS_TRYPREACCEPT, Stage.MUTATION);
+        put(Verb.EPAXOS_FORWARD_QUERY, Stage.MISC);
+
+        put(Verb.EPAXOS_FAILURE_RECOVERY, Stage.MISC);
+        put(Verb.PAXOS_UPGRADE, Stage.MISC);
+
         put(Verb.UNUSED_1, Stage.INTERNAL_RESPONSE);
         put(Verb.UNUSED_2, Stage.INTERNAL_RESPONSE);
         put(Verb.UNUSED_3, Stage.INTERNAL_RESPONSE);
@@ -220,6 +247,16 @@ public final class MessagingService implements MessagingServiceMBean
         put(Verb.PAXOS_PREPARE, Commit.serializer);
         put(Verb.PAXOS_PROPOSE, Commit.serializer);
         put(Verb.PAXOS_COMMIT, Commit.serializer);
+
+        put(Verb.EPAXOS_PREACCEPT, MessageEnvelope.getSerializer(Instance.serializer));
+        put(Verb.EPAXOS_ACCEPT, AcceptRequest.serializer);
+        put(Verb.EPAXOS_COMMIT, MessageEnvelope.getSerializer(Instance.serializer));
+        put(Verb.EPAXOS_PREPARE, PrepareRequest.serializer);
+        put(Verb.EPAXOS_TRYPREACCEPT, TryPreacceptRequest.serializer);
+        put(Verb.EPAXOS_FORWARD_QUERY, SerializedRequest.serializer);
+
+        put(Verb.EPAXOS_FAILURE_RECOVERY, FailureRecoveryRequest.serializer);
+        put(Verb.PAXOS_UPGRADE, UpgradeService.Request.serializer);
     }};
 
     /**
@@ -243,6 +280,14 @@ public final class MessagingService implements MessagingServiceMBean
 
         put(Verb.PAXOS_PREPARE, PrepareResponse.serializer);
         put(Verb.PAXOS_PROPOSE, BooleanSerializer.serializer);
+
+        put(Verb.EPAXOS_PREACCEPT, PreacceptResponse.serializer);
+        put(Verb.EPAXOS_ACCEPT, AcceptResponse.serializer);
+        put(Verb.EPAXOS_PREPARE, MessageEnvelope.getSerializer(Instance.serializer));
+        put(Verb.EPAXOS_TRYPREACCEPT, TryPreacceptResponse.serializer);
+        put(Verb.EPAXOS_FORWARD_QUERY, SerializedRequest.Result.serializer);
+
+        put(Verb.PAXOS_UPGRADE, UpgradeService.Response.serializer);
     }};
 
     /* This records all the results mapped by message Id */

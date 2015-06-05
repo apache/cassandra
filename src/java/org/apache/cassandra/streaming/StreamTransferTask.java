@@ -19,18 +19,18 @@ package org.apache.cassandra.streaming;
 
 import java.util.*;
 import java.util.concurrent.*;
-import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import com.google.common.base.Throwables;
-import com.google.common.collect.Iterables;
 
 import org.apache.cassandra.concurrent.NamedThreadFactory;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.service.epaxos.EpaxosService;
 import org.apache.cassandra.streaming.messages.OutgoingFileMessage;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.concurrent.Ref;
-import org.apache.cassandra.utils.concurrent.RefCounted;
 
 /**
  * StreamTransferTask sends sections of SSTable files in certain ColumnFamily.
@@ -52,10 +52,14 @@ public class StreamTransferTask extends StreamTask
         super(session, cfId);
     }
 
-    public synchronized void addTransferFile(Ref<SSTableReader> ref, long estimatedKeys, List<Pair<Long, Long>> sections, long repairedAt)
+    public synchronized void addTransferFile(Ref<SSTableReader> ref, long estimatedKeys, List<Pair<Long, Long>> sections, Collection<Range<Token>> ranges, long repairedAt)
     {
         assert ref.get() != null && cfId.equals(ref.get().metadata.cfId);
-        OutgoingFileMessage message = new OutgoingFileMessage(ref, sequenceNumber.getAndIncrement(), estimatedKeys, sections, repairedAt, session.keepSSTableLevel());
+        OutgoingFileMessage message = new OutgoingFileMessage(ref, sequenceNumber.getAndIncrement(), estimatedKeys, sections, ranges, repairedAt, session.keepSSTableLevel());
+
+        // add epaxos data
+        EpaxosService.getInstance().writeStreamHeader(ref.get(), ranges, message.header, session.peer);
+
         files.put(message.header.sequenceNumber, message);
         totalSize += message.header.size();
     }

@@ -330,6 +330,12 @@ public class RangeTombstoneList implements Iterable<RangeTombstone>, IMeasurable
             markedAts[i] = timestamp;
     }
 
+    public void applyTimestampDelta(long delta)
+    {
+        for (int i = 0; i < size; i++)
+            markedAts[i] = markedAts[i] + delta;
+    }
+
     /**
      * Removes all range tombstones whose local deletion time is older than gcBefore.
      */

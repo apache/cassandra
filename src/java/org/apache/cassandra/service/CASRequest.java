@@ -17,15 +17,60 @@
  */
 package org.apache.cassandra.service;
 
+import org.apache.cassandra.cql3.statements.CQL3CasRequest;
 import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.filter.IDiskAtomFilter;
 import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.io.IVersionedSerializer;
+import org.apache.cassandra.io.util.DataOutputPlus;
+
+import java.io.DataInput;
+import java.io.IOException;
+import java.util.EnumMap;
+import java.util.Map;
 
 /**
  * Abstract the conditions and updates for a CAS operation.
  */
 public interface CASRequest
 {
+    public static enum Type
+    {
+        THRIFT, CQL
+    }
+
+    Map<Type, IVersionedSerializer<CASRequest>> serializerMap = new EnumMap<Type, IVersionedSerializer<CASRequest>>(Type.class)
+    {{
+            put(Type.CQL, CQL3CasRequest.serializer);
+            put(Type.THRIFT, ThriftCASRequest.serializer);
+    }};
+
+    public static final IVersionedSerializer<CASRequest> serializer = new IVersionedSerializer<CASRequest>()
+    {
+        @Override
+        public void serialize(CASRequest request, DataOutputPlus out, int version) throws IOException
+        {
+            Type type = request.getType();
+            out.writeInt(type.ordinal());
+            serializerMap.get(type).serialize(request, out, version);
+
+        }
+
+        @Override
+        public CASRequest deserialize(DataInput in, int version) throws IOException
+        {
+            Type type = Type.values()[in.readInt()];
+            return serializerMap.get(type).deserialize(in, version);
+        }
+
+        @Override
+        public long serializedSize(CASRequest request, int version)
+        {
+            Type type = request.getType();
+            return 4 + serializerMap.get(type).serializedSize(request, version);
+        }
+    };
+
     /**
      * The filter to use to fetch the value to compare for the CAS.
      */
@@ -42,4 +87,6 @@ public interface CASRequest
      * are passed as argument.
      */
     public ColumnFamily makeUpdates(ColumnFamily current) throws InvalidRequestException;
+
+    public Type getType();
 }

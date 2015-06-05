@@ -29,12 +29,15 @@ import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.WriteType;
 import org.apache.cassandra.exceptions.WriteTimeoutException;
 import org.apache.cassandra.net.IAsyncCallback;
+import org.apache.cassandra.net.MessageIn;
+import org.apache.cassandra.service.epaxos.UpgradeService;
 
 public abstract class AbstractPaxosCallback<T> implements IAsyncCallback<T>
 {
     protected final CountDownLatch latch;
     protected final int targets;
     private final ConsistencyLevel consistency;
+    private volatile boolean gotUpgradeError = false;
 
     public AbstractPaxosCallback(int targets, ConsistencyLevel consistency)
     {
@@ -53,7 +56,21 @@ public abstract class AbstractPaxosCallback<T> implements IAsyncCallback<T>
         return (int) (targets - latch.getCount());
     }
 
-    public void await() throws WriteTimeoutException
+    @Override
+    public void response(MessageIn<T> msg)
+    {
+        if (msg.parameters.containsKey(UpgradeService.PAXOS_UPGRADE_ERROR))
+        {
+            while (latch.getCount() > 0)
+                latch.countDown();
+            gotUpgradeError = true;
+        }
+        handleResponse(msg);
+    }
+
+    public abstract void handleResponse(MessageIn<T> msg);
+
+    public void await() throws WriteTimeoutException, PaxosState.UpgradedException
     {
         try
         {
@@ -63,6 +80,11 @@ public abstract class AbstractPaxosCallback<T> implements IAsyncCallback<T>
         catch (InterruptedException ex)
         {
             throw new AssertionError("This latch shouldn't have been interrupted.");
+        }
+
+        if (gotUpgradeError)
+        {
+            throw new PaxosState.UpgradedException();
         }
     }
 }

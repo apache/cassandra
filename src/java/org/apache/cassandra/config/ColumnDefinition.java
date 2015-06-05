@@ -128,7 +128,12 @@ public class ColumnDefinition extends ColumnSpecification
 
     public ColumnDefinition copy()
     {
-        return new ColumnDefinition(ksName, cfName, name, type, indexType, indexOptions, indexName, componentIndex, kind);
+        return copy(ksName, cfName);
+    }
+
+    public ColumnDefinition copy(String ks, String cf)
+    {
+        return new ColumnDefinition(ks, cf, name, type, indexType, indexOptions, indexName, componentIndex, kind);
     }
 
     public ColumnDefinition withNewName(ColumnIdentifier newName)

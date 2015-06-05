@@ -73,7 +73,7 @@ public class PagingState
         }
     }
 
-    private int serializedSize()
+    public int serializedSize()
     {
         return 2 + partitionKey.remaining()
              + 2 + cellName.remaining()

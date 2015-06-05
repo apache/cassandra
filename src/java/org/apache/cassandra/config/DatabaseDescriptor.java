@@ -988,6 +988,11 @@ public class DatabaseDescriptor
             case PAXOS_COMMIT:
             case PAXOS_PREPARE:
             case PAXOS_PROPOSE:
+            case EPAXOS_PREACCEPT:
+            case EPAXOS_ACCEPT:
+            case EPAXOS_COMMIT:
+            case EPAXOS_PREPARE:
+            case EPAXOS_TRYPREACCEPT:
                 return getWriteRpcTimeout();
             case COUNTER_MUTATION:
                 return getCounterWriteRpcTimeout();
@@ -1687,5 +1692,15 @@ public class DatabaseDescriptor
     public static boolean enableUserDefinedFunctions()
     {
         return conf.enable_user_defined_functions;
+    }
+
+    public static int getEpaxosEpochIncrementThreshold()
+    {
+        return conf.epaxos_options.epoch_increment_threshold;
+    }
+
+    public static boolean isEpaxosEnabled()
+    {
+        return conf.epaxos_options.enabled;
     }
 }

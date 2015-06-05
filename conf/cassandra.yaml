@@ -853,3 +853,26 @@ tracetype_repair_ttl: 604800
 # This will inherently be backwards-incompatible with any 2.2 UDF that perform insecure
 # operations such as opening a socket or writing to the filesystem.
 enable_user_defined_functions: false
+
+# enables epaxos as the default consensus algorithm for serialized reads/writes.
+# For new clusters, or clusters with no previous paxos activity, setting enabled
+# to true before performing serialized queries is enough to enable epaxos. If there
+# were serialized queries performed with epaxos disabled (or on a C* version without
+# epaxos support), nodes need to be explicitly upgraded via nodetool before epaxos will
+# be the default.
+# To upgrade, run nodetool upgradepaxos on each node in the cluster. When upgrading a node,
+# all peers with token ranges in common must be reachable, otherwise the upgrade will fail.
+# Only one node should be upgraded at a time, otherwise the upgrade could fail. Nothing bad
+# happens when an upgrade fails, it just means that some or all of the token ranges are still
+# using paxos. Run the upgrade again until it succeeds
+# You can verify the upgraded status of a node with nodetool getpaxosupgrade
+epaxos_options:
+    enabled: false
+    # prepare_millis:
+    # the approximate number of serialized reads/writes executed against a
+    # table between token range epoch increments. Lower values make the epaxos
+    # failure recovery process faster and uses less disk space for bookkeeping.
+    # Higher values reduce the frequency of houskeeping operations.
+    #
+    # The number of serialized operations per node per 5-10 minutes is a good rule of thumb
+    epoch_increment_threshold: 1000

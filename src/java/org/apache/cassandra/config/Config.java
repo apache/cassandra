@@ -261,6 +261,8 @@ public class Config
 
     public boolean enable_user_defined_functions = false;
 
+    public EpaxosOptions epaxos_options = new EpaxosOptions();
+
     public static boolean getOutboundBindAny()
     {
         return outboundBindAny;

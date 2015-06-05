@@ -35,7 +35,7 @@ public enum ApplicationState
     TOKENS,
     RPC_READY,
     // pad to allow adding new states to existing cluster
-    X1,
+    PAXOS_UPGRADE,
     X2,
     X3,
     X4,

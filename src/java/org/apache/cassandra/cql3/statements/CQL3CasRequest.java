@@ -17,8 +17,12 @@
  */
 package org.apache.cassandra.cql3.statements;
 
+import java.io.DataInput;
+import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 
 import com.google.common.collect.HashMultimap;
 import com.google.common.collect.Multimap;
@@ -28,7 +32,12 @@ import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.composites.Composite;
 import org.apache.cassandra.db.filter.*;
 import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.exceptions.SyntaxException;
+import org.apache.cassandra.io.IVersionedSerializer;
+import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.service.CASRequest;
+import org.apache.cassandra.service.QueryState;
+import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.Pair;
 
 /**
@@ -40,6 +49,7 @@ public class CQL3CasRequest implements CASRequest
     private final ByteBuffer key;
     private final long now;
     private final boolean isBatch;
+    private final BatchStatement.Attrs batchAttrs;
 
     // We index RowCondition by the prefix of the row they applied to for 2 reasons:
     //   1) this allows to keep things sorted to build the ColumnSlice array below
@@ -48,15 +58,34 @@ public class CQL3CasRequest implements CASRequest
 
     private final List<RowUpdate> updates = new ArrayList<>();
 
-    public CQL3CasRequest(CFMetaData cfm, ByteBuffer key, boolean isBatch)
+    public static final IVersionedSerializer<CASRequest> serializer = new Serializer();
+
+    public CQL3CasRequest(CFMetaData cfm, ByteBuffer key)
+    {
+        this(cfm, key, null);
+    }
+
+    public CQL3CasRequest(CFMetaData cfm, ByteBuffer key, BatchStatement.Attrs batchAttrs)
     {
         this.cfm = cfm;
         // When checking if conditions apply, we want to use a fixed reference time for a whole request to check
         // for expired cells. Note that this is unrelated to the cell timestamp.
-        this.now = System.currentTimeMillis();
+        this.now = batchAttrs != null ? batchAttrs.ts : System.currentTimeMillis();
         this.key = key;
         this.conditions = new TreeMap<>(cfm.comparator);
-        this.isBatch = isBatch;
+        this.isBatch = batchAttrs != null;
+        this.batchAttrs = batchAttrs;
+    }
+
+    public ByteBuffer getKey()
+    {
+        return key;
+    }
+
+    @Override
+    public Type getType()
+    {
+        return Type.CQL;
     }
 
     public void addRowUpdate(Composite prefix, ModificationStatement stmt, QueryOptions options, long timestamp)
@@ -137,6 +166,27 @@ public class CQL3CasRequest implements CASRequest
             BatchStatement.verifyBatchSize(Collections.singleton(cf));
 
         return cf;
+    }
+
+    public CFMetaData getCfm()
+    {
+        return cfm;
+    }
+
+    public static class BatchAttrs
+    {
+        public final String query;
+        public final String keyspace;
+        public final QueryOptions options;
+        public final long ts;
+
+        public BatchAttrs(String query, String keyspace, QueryOptions options, long ts)
+        {
+            this.query = query;
+            this.keyspace = keyspace;
+            this.options = options;
+            this.ts = ts;
+        }
     }
 
     /**
@@ -260,6 +310,235 @@ public class CQL3CasRequest implements CASRequest
                 if (!condition.appliesTo(rowPrefix, current, now))
                     return false;
             return true;
+        }
+    }
+
+    /**
+     * this is pretty ghetto
+     */
+    private static class Serializer implements IVersionedSerializer<CASRequest>
+    {
+
+        private final ConcurrentMap<Pair<String, String>, ParsedStatement.Prepared> modificationStmts = new ConcurrentHashMap<>();
+
+        @Override
+        public void serialize(CASRequest request, DataOutputPlus out, int version) throws IOException
+        {
+            assert request instanceof CQL3CasRequest;
+            CQL3CasRequest req = (CQL3CasRequest) request;
+
+            out.writeLong(req.now);
+            out.writeBoolean(req.isBatch);
+            if (req.isBatch)
+            {
+                out.writeBoolean(req.batchAttrs.query != null);
+                if (req.batchAttrs.query != null)
+                {
+                    // query batch
+                    out.writeUTF(req.batchAttrs.query);
+                    QueryOptions options = req.batchAttrs.options.forStatement(0);
+                    QueryOptions.serializer.serialize(options, out, version);
+                }
+                else
+                {
+                    // batch message batch
+                    out.writeInt(req.batchAttrs.type.ordinal());
+                    QueryOptions.serializer.serialize(req.batchAttrs.options.getWrapped(), out, version);
+                    out.writeInt(req.updates.size());
+                    for (int i=0; i<req.updates.size(); i++)
+                    {
+                        RowUpdate update = req.updates.get(i);
+                        out.writeUTF(update.stmt.getQueryString());
+
+                        List<ByteBuffer> values = update.options.getValues();
+                        out.writeInt(values.size());
+                        for (ByteBuffer value: values)
+                        {
+                            ByteBufferUtil.writeWithShortLength(value, out);
+                        }
+                    }
+                }
+            }
+            else
+            {
+                assert req.updates.size() == 1;
+                out.writeUTF(req.cfm.ksName);
+                RowUpdate update = req.updates.get(0);
+                out.writeUTF(update.stmt.getQueryString());
+                QueryOptions.serializer.serialize(update.options, out, version);
+            }
+        }
+
+        private ParsedStatement.Prepared getStatement(String ks, String query) throws IOException
+        {
+            Pair<String, String> cacheKey = Pair.create(ks, query);
+            ParsedStatement.Prepared prepared = modificationStmts.get(cacheKey);
+            if (prepared == null)
+            {
+                try
+                {
+                    ParsedStatement parsedStatement = QueryProcessor.parseStatement(query);
+                    if (parsedStatement instanceof ModificationStatement.Parsed)
+                    {
+                        ModificationStatement.Parsed parsed = (ModificationStatement.Parsed) parsedStatement;
+                        parsed.prepareKeyspace(ks);
+                        parsed.setQueryString(query);
+                        prepared = parsed.prepare();
+                    }
+                    else if (parsedStatement instanceof BatchStatement.Parsed)
+                    {
+                        BatchStatement.Parsed parsed = (BatchStatement.Parsed) parsedStatement;
+                        parsed.setQueryString(query);
+                        prepared = parsed.prepare();
+                    }
+                    else
+                    {
+                        throw new AssertionError("Unhandled parsed statement type: " + parsedStatement.getClass().getName());
+                    }
+
+                    ParsedStatement.Prepared previous = modificationStmts.putIfAbsent(cacheKey, prepared);
+                    prepared = previous == null ? prepared : previous;
+                }
+                catch (InvalidRequestException | SyntaxException e)
+                {
+                    throw new IOException(e);
+                }
+            }
+            return prepared;
+        }
+
+        @Override
+        public CASRequest deserialize(DataInput in, int version) throws IOException
+        {
+
+            final long ts = in.readLong();
+            try
+            {
+                if (in.readBoolean())
+                {
+                    if (in.readBoolean())
+                    {
+                        String query = in.readUTF();
+                        QueryOptions options = QueryOptions.serializer.deserialize(in, version);
+                        ParsedStatement.Prepared prepared = getStatement(null, query);
+                        options.prepare(prepared.boundNames);
+                        BatchStatement statement = (BatchStatement) prepared.statement;
+                        BatchQueryOptions batchOptions = BatchQueryOptions.withoutPerStatementVariables(options);
+                        return statement.getCasRequest(batchOptions, ts);
+                    }
+                    else
+                    {
+                        BatchStatement.Type type = BatchStatement.Type.values()[in.readInt()];
+                        QueryOptions wrapped = QueryOptions.serializer.deserialize(in, version);
+                        int numStmts = in.readInt();
+
+                        List<ModificationStatement> statements = new ArrayList<>(numStmts);
+                        List<Object> queryOrIdList = new ArrayList<>(numStmts);
+                        List<List<ByteBuffer>> values = new ArrayList<>(numStmts);
+
+                        for (int i=0; i<numStmts; i++)
+                        {
+                            String query = in.readUTF();
+                            ParsedStatement.Prepared prepared = getStatement(null, query);
+                            statements.add((ModificationStatement) prepared.statement);
+                            queryOrIdList.add(query);
+
+                            int numVals = in.readInt();
+                            List<ByteBuffer> vals = new ArrayList<>(numVals);
+                            for (int j=0; j<numVals; j++)
+                            {
+                                vals.add(ByteBufferUtil.readWithShortLength(in));
+                            }
+                            values.add(vals);
+                        }
+
+                        BatchQueryOptions batchOptions = BatchQueryOptions.withPerStatementVariables(wrapped, values, queryOrIdList);
+                        BatchStatement batch = new BatchStatement(-1, type, statements, Attributes.none());
+                        return batch.getCasRequest(batchOptions, ts);
+                    }
+                }
+                else
+                {
+                    String ksName = in.readUTF();
+                    String query = in.readUTF();
+                    QueryOptions options = QueryOptions.serializer.deserialize(in, version);
+
+                    ParsedStatement.Prepared prepared = getStatement(ksName, query);
+
+
+                    QueryState queryState = new QueryState(null) {
+                        @Override
+                        public long getTimestamp()
+                        {
+                            return ts;
+                        }
+                    };
+
+                    options.prepare(prepared.boundNames);
+                    ModificationStatement statement = (ModificationStatement) prepared.statement;
+
+                    return statement.createCasRequest(queryState, options);
+                }
+            }
+            catch (InvalidRequestException e)
+            {
+                throw new IOException(e);
+            }
+        }
+
+        @Override
+        public long serializedSize(CASRequest request, int version)
+        {
+            assert request instanceof CQL3CasRequest;
+            CQL3CasRequest req = (CQL3CasRequest) request;
+
+            long size = 0;
+            size += 8; // out.writeLong(req.now);
+            size += 1; // out.writeBoolean(req.isBatch);
+            if (req.isBatch)
+            {
+                size += 1; // out.writeBoolean(req.batchAttrs.query != null);
+                if (req.batchAttrs.query != null)
+                {
+                    // query batch
+                    size += TypeSizes.NATIVE.sizeof(req.batchAttrs.query); // out.writeUTF(req.batchAttrs.query);
+                    QueryOptions options = req.batchAttrs.options.forStatement(0);
+                    size += QueryOptions.serializer.serializedSize(options, version);
+
+                    return size;
+                }
+                else
+                {
+                    // batch message batch
+                    size += 4; // out.writeInt(req.batchAttrs.type.ordinal());
+                    size += QueryOptions.serializer.serializedSize(req.batchAttrs.options.getWrapped(), version);
+                    size += 4; // out.writeInt(req.updates.size());
+                    for (int i=0; i<req.updates.size(); i++)
+                    {
+                        RowUpdate update = req.updates.get(i);
+                        size += TypeSizes.NATIVE.sizeof(update.stmt.getQueryString()); // out.writeUTF(update.stmt.getQueryString());
+
+                        List<ByteBuffer> values = update.options.getValues();
+                        size += 4; // out.writeInt(values.size());
+                        for (ByteBuffer value: values)
+                        {
+                            size += 2 + value.remaining();
+                        }
+                    }
+
+                    return size;
+                }
+            }
+            else
+            {
+                assert req.updates.size() == 1;
+                size += TypeSizes.NATIVE.sizeof(req.cfm.ksName); // out.writeUTF(req.cfm.ksName);
+                RowUpdate update = req.updates.get(0);
+                size += TypeSizes.NATIVE.sizeof(update.stmt.getQueryString()); // out.writeUTF(update.stmt.getQueryString());
+                size += QueryOptions.serializer.serializedSize(update.options, version);
+
+                return size;
+            }
         }
     }
 }

@@ -20,6 +20,7 @@ package org.apache.cassandra.streaming;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.Socket;
+import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -31,6 +32,11 @@ import com.google.common.collect.*;
 
 import org.apache.cassandra.db.lifecycle.View;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.config.Schema;
+import org.apache.cassandra.service.epaxos.EpaxosService;
+import org.apache.cassandra.service.epaxos.ExecutionInfo;
+import org.apache.cassandra.service.epaxos.Scope;
+import org.apache.cassandra.utils.UUIDGen;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -140,6 +146,12 @@ public class StreamSession implements IEndpointStateChangeSubscriber
     private final Map<UUID, StreamTransferTask> transfers = new ConcurrentHashMap<>();
     // data receivers, filled after receiving prepare message
     private final Map<UUID, StreamReceiveTask> receivers = new ConcurrentHashMap<>();
+    private volatile boolean receivingData = false;
+
+    private final Set<EpaxosRequest> epaxosRequests = Sets.newConcurrentHashSet();
+    private final Map<UUID, EpaxosTransferTask> epaxosTransfers = new ConcurrentHashMap<>();
+    private final Map<UUID, EpaxosReceiveTask> epaxosReceivers = new ConcurrentHashMap<>();
+
     private final StreamingMetrics metrics;
     /* can be null when session is created in remote */
     private final StreamConnectionFactory factory;
@@ -151,6 +163,8 @@ public class StreamSession implements IEndpointStateChangeSubscriber
     private AtomicBoolean isAborted = new AtomicBoolean(false);
     private final boolean keepSSTableLevel;
     private final boolean isIncremental;
+
+    private final Map<ByteBuffer, Map<Scope, ExecutionInfo>> epaxosCorrections = new HashMap<>();
 
     public static enum State
     {
@@ -223,7 +237,11 @@ public class StreamSession implements IEndpointStateChangeSubscriber
 
     public void start()
     {
-        if (requests.isEmpty() && transfers.isEmpty())
+        boolean completed = requests.isEmpty()
+                && transfers.isEmpty()
+                && epaxosRequests.isEmpty()
+                && epaxosTransfers.isEmpty();
+        if (completed)
         {
             logger.info("[Stream #{}] Session does not have any tasks.", planId());
             closeSession(State.COMPLETE);
@@ -261,6 +279,24 @@ public class StreamSession implements IEndpointStateChangeSubscriber
     public void addStreamRequest(String keyspace, Collection<Range<Token>> ranges, Collection<String> columnFamilies, long repairedAt)
     {
         requests.add(new StreamRequest(keyspace, ranges, columnFamilies, repairedAt));
+    }
+
+    public void addEpaxosRequest(UUID cfId, Range<Token> range, Scope scope)
+    {
+        epaxosRequests.add(new EpaxosRequest(cfId, range, scope));
+    }
+
+    public void addEpaxosTransfer(UUID cfId, Range<Token> range, Scope scope)
+    {
+        if (!EpaxosService.getInstance().managesCfId(cfId, scope))
+        {
+            Pair<String, String> cf = Schema.instance.getCF(cfId);
+            logger.info("Table {} not managed by epaxos, skipping token state transfer", cf != null ? cf : cfId);
+            return;
+        }
+        UUID taskId = UUIDGen.getTimeUUID();
+        epaxosTransfers.put(taskId, new EpaxosTransferTask(this, taskId, cfId, range, scope));
+        logger.debug("adding epaxos transfer {} for {} on ", taskId, range, cfId);
     }
 
     /**
@@ -350,10 +386,11 @@ public class StreamSession implements IEndpointStateChangeSubscriber
                 long repairedAt = overriddenRepairedAt;
                 if (overriddenRepairedAt == ActiveRepairService.UNREPAIRED_SSTABLE)
                     repairedAt = sstable.getSSTableMetadata().repairedAt;
-                sections.add(new SSTableStreamingSections(refs.get(sstable),
-                                                          sstable.getPositionsForRanges(ranges),
-                                                          sstable.estimatedKeysForRanges(ranges),
-                                                          repairedAt));
+                    sections.add(new SSTableStreamingSections(refs.get(sstable),
+                                                              ranges,
+                                                              sstable.getPositionsForRanges(ranges),
+                                                              sstable.estimatedKeysForRanges(ranges),
+                                                              repairedAt));
             }
             return sections;
         }
@@ -385,21 +422,52 @@ public class StreamSession implements IEndpointStateChangeSubscriber
                 task = new StreamTransferTask(this, cfId);
                 transfers.put(cfId, task);
             }
-            task.addTransferFile(details.ref, details.estimatedKeys, details.sections, details.repairedAt);
+            task.addTransferFile(details.ref, details.estimatedKeys, details.sections, details.ranges, details.repairedAt);
             iter.remove();
         }
+    }
+
+    public boolean addEpaxosCorrection(ByteBuffer key, Scope scope, ExecutionInfo info)
+    {
+        synchronized (epaxosCorrections)
+        {
+            Map<Scope, ExecutionInfo> scopeMap = epaxosCorrections.get(key);
+            if (scopeMap == null)
+            {
+                scopeMap = new ConcurrentHashMap<>();
+                epaxosCorrections.put(key, scopeMap);
+            }
+
+            ExecutionInfo previous = scopeMap.get(scope);
+            if (previous == null || previous.compareTo(info) <= 0)
+            {
+                scopeMap.put(scope, info);
+                return true;
+            }
+            else
+            {
+                return false;
+            }
+        }
+    }
+
+    public Map<ByteBuffer, Map<Scope, ExecutionInfo>> getExpaxosCorrections()
+    {
+        return epaxosCorrections;
     }
 
     public static class SSTableStreamingSections
     {
         public final Ref<SSTableReader> ref;
+        public final Collection<Range<Token>> ranges;
         public final List<Pair<Long, Long>> sections;
         public final long estimatedKeys;
         public final long repairedAt;
 
-        public SSTableStreamingSections(Ref<SSTableReader> ref, List<Pair<Long, Long>> sections, long estimatedKeys, long repairedAt)
+        public SSTableStreamingSections(Ref<SSTableReader> ref, Collection<Range<Token>> ranges, List<Pair<Long, Long>> sections, long estimatedKeys, long repairedAt)
         {
             this.ref = ref;
+            this.ranges = ranges;
             this.sections = sections;
             this.estimatedKeys = estimatedKeys;
             this.repairedAt = repairedAt;
@@ -460,7 +528,7 @@ public class StreamSession implements IEndpointStateChangeSubscriber
         {
             case PREPARE:
                 PrepareMessage msg = (PrepareMessage) message;
-                prepare(msg.requests, msg.summaries);
+                prepare(msg.requests, msg.summaries, msg.epaxosRequests, msg.epaxosSummaries);
                 break;
 
             case FILE:
@@ -484,25 +552,39 @@ public class StreamSession implements IEndpointStateChangeSubscriber
             case SESSION_FAILED:
                 sessionFailed();
                 break;
+
+            case EPAXOS:
+                epaxosReceive((EpaxosMessage) message);
+                break;
         }
     }
 
     /**
      * Call back when connection initialization is complete to start the prepare phase.
+     * called by the initiator
      */
     public void onInitializationComplete()
     {
         // send prepare message
         state(State.PREPARING);
         PrepareMessage prepare = new PrepareMessage();
+
         prepare.requests.addAll(requests);
         for (StreamTransferTask task : transfers.values())
             prepare.summaries.add(task.getSummary());
+
+        prepare.epaxosRequests.addAll(epaxosRequests);
+        for (EpaxosTransferTask task: epaxosTransfers.values())
+            prepare.epaxosSummaries.add(task.getSummary());
+
         handler.sendMessage(prepare);
 
         // if we don't need to prepare for receiving stream, start sending files immediately
-        if (requests.isEmpty())
+        if (requests.isEmpty() && epaxosRequests.isEmpty())
+        {
+            startStreamingTokenStates();
             startStreamingFiles();
+        }
     }
 
     /**l
@@ -523,7 +605,7 @@ public class StreamSession implements IEndpointStateChangeSubscriber
     /**
      * Prepare this session for sending/receiving files.
      */
-    public void prepare(Collection<StreamRequest> requests, Collection<StreamSummary> summaries)
+    public void prepare(Collection<StreamRequest> requests, Collection<StreamSummary> summaries, Collection<EpaxosRequest> epaxosRequests, Collection<EpaxosSummary> epaxosSummaries)
     {
         // prepare tasks
         state(State.PREPARING);
@@ -531,15 +613,26 @@ public class StreamSession implements IEndpointStateChangeSubscriber
             addTransferRanges(request.keyspace, request.ranges, request.columnFamilies, true, request.repairedAt); // always flush on stream request
         for (StreamSummary summary : summaries)
             prepareReceiving(summary);
+        for (EpaxosRequest request: epaxosRequests)
+            addEpaxosTransfer(request.cfId, request.range, request.scope);
+        for (EpaxosSummary summary: epaxosSummaries)
+            prepareEpaxosReceiving(summary);
+
+        maybePrepareEpaxosState();
 
         // send back prepare message if prepare message contains stream request
-        if (!requests.isEmpty())
+        if (!requests.isEmpty() || !epaxosRequests.isEmpty())
         {
             PrepareMessage prepare = new PrepareMessage();
             for (StreamTransferTask task : transfers.values())
                 prepare.summaries.add(task.getSummary());
+            for (EpaxosTransferTask task: epaxosTransfers.values())
+                prepare.epaxosSummaries.add(task.getSummary());
             handler.sendMessage(prepare);
         }
+
+        if (!epaxosTransfers.isEmpty() && !maybeCompleted())
+            startStreamingTokenStates();
 
         // if there are files to stream
         if (!maybeCompleted())
@@ -630,6 +723,11 @@ public class StreamSession implements IEndpointStateChangeSubscriber
         closeSession(State.FAILED);
     }
 
+    private void epaxosReceive(EpaxosMessage message)
+    {
+        epaxosReceiveComplete(message.taskId);
+    }
+
     public void doRetry(FileMessageHeader header, Throwable e)
     {
         logger.warn("[Stream #{}] Retrying for following error", planId(), e);
@@ -667,6 +765,20 @@ public class StreamSession implements IEndpointStateChangeSubscriber
         maybeCompleted();
     }
 
+    public synchronized void epaxosTransferComplete(UUID taskId)
+    {
+        epaxosTransfers.remove(taskId);
+        logger.debug("epaxos transfer completed: {} for {} on ", taskId);
+        maybeCompleted();
+    }
+
+    public synchronized void epaxosReceiveComplete(UUID taskId)
+    {
+        epaxosReceivers.remove(taskId);
+        logger.debug("epaxos receive completed: {} for {} on ", taskId);
+        maybeCompleted();
+    }
+
     public void onJoin(InetAddress endpoint, EndpointState epState) {}
     public void beforeChange(InetAddress endpoint, EndpointState currentState, ApplicationState newStateKey, VersionedValue newValue) {}
     public void onChange(InetAddress endpoint, ApplicationState state, VersionedValue value) {}
@@ -685,9 +797,10 @@ public class StreamSession implements IEndpointStateChangeSubscriber
 
     private boolean maybeCompleted()
     {
-        boolean completed = receivers.isEmpty() && transfers.isEmpty();
+        boolean completed = receivers.isEmpty() && transfers.isEmpty() && epaxosReceivers.isEmpty() && epaxosTransfers.isEmpty();
         if (completed)
         {
+            logger.debug("session completed");
             if (state == State.WAIT_COMPLETE)
             {
                 if (!completeSent)
@@ -723,14 +836,61 @@ public class StreamSession implements IEndpointStateChangeSubscriber
     private void prepareReceiving(StreamSummary summary)
     {
         if (summary.files > 0)
+        {
             receivers.put(summary.cfId, new StreamReceiveTask(this, summary.cfId, summary.files, summary.totalSize));
+            receivingData = true;
+        }
+    }
+
+    private void prepareEpaxosReceiving(EpaxosSummary summary)
+    {
+        epaxosReceivers.put(summary.taskId, new EpaxosReceiveTask(this, summary.taskId, summary.cfId, summary.range, summary.scope));
+        logger.debug("adding epaxos receive {} for {} on ", summary.taskId, summary.range, summary.cfId);
+    }
+
+    private void maybePrepareEpaxosState()
+    {
+        if (!epaxosReceivers.isEmpty() && isReceivingData())
+        {
+            for (EpaxosReceiveTask receiveTask: epaxosReceivers.values())
+            {
+                EpaxosService.getInstance().prepareForIncomingStream(receiveTask.range, receiveTask.cfId, receiveTask.scope);
+            }
+        }
+    }
+
+    public boolean isReceivingData()
+    {
+        return receivingData;
+    }
+
+    public void addListener(StreamEventHandler listener)
+    {
+        streamResult.addEventListener(listener);
+    }
+
+    private void maybeSetStreamingState()
+    {
+        if (state() != State.STREAMING)
+        {
+            assert state() == State.PREPARING;
+            streamResult.handleSessionPrepared(this);
+            state(State.STREAMING);
+        }
+    }
+
+    private void startStreamingTokenStates()
+    {
+        maybeSetStreamingState();
+        for (EpaxosTransferTask task: epaxosTransfers.values())
+        {
+            handler.sendMessage(task.getMessage());
+        }
     }
 
     private void startStreamingFiles()
     {
-        streamResult.handleSessionPrepared(this);
-
-        state(State.STREAMING);
+        maybeSetStreamingState();
         for (StreamTransferTask task : transfers.values())
         {
             Collection<OutgoingFileMessage> messages = task.getFileMessages();

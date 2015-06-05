@@ -26,6 +26,8 @@ import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.nio.ByteBuffer;
+import java.util.*;
 
 import org.apache.cassandra.concurrent.NamedThreadFactory;
 import org.apache.cassandra.config.Schema;
@@ -33,6 +35,9 @@ import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.SSTableWriter;
+import org.apache.cassandra.service.epaxos.EpaxosService;
+import org.apache.cassandra.service.epaxos.ExecutionInfo;
+import org.apache.cassandra.service.epaxos.Scope;
 import org.apache.cassandra.utils.Pair;
 
 import org.apache.cassandra.utils.concurrent.Refs;
@@ -126,11 +131,22 @@ public class StreamReceiveTask extends StreamTask
             lockfile.delete();
             task.sstables.clear();
 
+            EpaxosService.PausedKeys pausedKeys = null;
             try (Refs<SSTableReader> refs = Refs.ref(readers))
             {
+                pausedKeys = EpaxosService.getInstance().pauseKeys(task.session.getExpaxosCorrections().keySet(),
+                                                                                            task.cfId);
+                for (Map.Entry<ByteBuffer, Map<Scope, ExecutionInfo>> entry: task.session.getExpaxosCorrections().entrySet())
+                {
+                    EpaxosService.getInstance().reportFutureExecutions(entry.getKey(), task.cfId, entry.getValue());
+                }
                 // add sstables and build secondary indexes
                 cfs.addSSTables(readers);
                 cfs.indexManager.maybeBuildSecondaryIndexes(readers, cfs.indexManager.allIndexesNames());
+            }
+            finally
+            {
+                EpaxosService.getInstance().unPauseKeys(pausedKeys);
             }
 
             task.session.taskCompleted(task);

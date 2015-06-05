@@ -53,7 +53,7 @@ public abstract class ReadCommand implements IReadCommand, Pageable
         }
     }
 
-    public static final ReadCommandSerializer serializer = new ReadCommandSerializer();
+    public static final IVersionedSerializer<ReadCommand> serializer = new ReadCommandSerializer();
 
     public MessageOut<ReadCommand> createMessage()
     {

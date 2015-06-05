@@ -34,7 +34,8 @@ public abstract class StreamMessage
     /** Streaming protocol version */
     public static final int VERSION_20 = 2;
     public static final int VERSION_22 = 3;
-    public static final int CURRENT_VERSION = VERSION_22;
+    public static final int VERSION_30 = 2;
+    public static final int CURRENT_VERSION = VERSION_30;
 
     public static void serialize(StreamMessage message, DataOutputStreamPlus out, int version, StreamSession session) throws IOException
     {
@@ -78,7 +79,8 @@ public abstract class StreamMessage
         RECEIVED(3, 4, ReceivedMessage.serializer),
         RETRY(4, 4, RetryMessage.serializer),
         COMPLETE(5, 1, CompleteMessage.serializer),
-        SESSION_FAILED(6, 5, SessionFailedMessage.serializer);
+        SESSION_FAILED(6, 5, SessionFailedMessage.serializer),
+        EPAXOS(7, 0, EpaxosMessage.serializer);
 
         public static Type get(byte type)
         {

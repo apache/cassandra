@@ -37,6 +37,7 @@ import org.apache.cassandra.db.composites.*;
 import org.apache.cassandra.db.filter.NamesQueryFilter;
 import org.apache.cassandra.db.filter.SliceQueryFilter;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.locator.SimpleStrategy;
 import org.apache.cassandra.net.MessagingService;
@@ -94,7 +95,7 @@ public class ReadMessageTest
 
     private ReadCommand serializeAndDeserializeReadMessage(ReadCommand rm) throws IOException
     {
-        ReadCommandSerializer rms = ReadCommand.serializer;
+        IVersionedSerializer<ReadCommand> rms = ReadCommand.serializer;
         DataOutputBuffer out = new DataOutputBuffer();
         ByteArrayInputStream bis;
 

@@ -22,6 +22,7 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
 import com.google.common.collect.Iterables;
@@ -31,6 +32,7 @@ import org.apache.cassandra.db.columniterator.IdentityQueryFilter;
 import org.apache.cassandra.db.filter.IDiskAtomFilter;
 import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.net.*;
+import org.apache.cassandra.service.epaxos.EpaxosService;
 import org.apache.cassandra.utils.CloseableIterator;
 import org.apache.cassandra.utils.FBUtilities;
 
@@ -118,10 +120,17 @@ public class RowDataResolver extends AbstractRowResolver
 
             // create and send the mutation message based on the diff
             Mutation mutation = new Mutation(keyspaceName, key.getKey(), diffCf);
+
+            assert mutation.getColumnFamilyIds().size() == 1;
+            UUID cfId = mutation.getColumnFamilyIds().iterator().next();
+
             // use a separate verb here because we don't want these to be get the white glove hint-
             // on-timeout behavior that a "real" mutation gets
-            results.add(MessagingService.instance().sendRR(mutation.createMessage(MessagingService.Verb.READ_REPAIR),
-                                                           endpoints.get(i)));
+            InetAddress endpoint = endpoints.get(i);
+            int msVersion = MessagingService.instance().getVersion(endpoint);
+            MessageOut<Mutation> msg = mutation.createMessage(MessagingService.Verb.READ_REPAIR);
+            msg = EpaxosService.getInstance().maybeAddExecutionInfo(mutation.key(), cfId, msg, msVersion, endpoint);
+            results.add(MessagingService.instance().sendRR(msg, endpoint));
         }
 
         return results;

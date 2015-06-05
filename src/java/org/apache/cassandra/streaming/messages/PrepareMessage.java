@@ -27,6 +27,7 @@ import org.apache.cassandra.io.util.DataOutputStreamPlus;
 import org.apache.cassandra.streaming.StreamRequest;
 import org.apache.cassandra.streaming.StreamSession;
 import org.apache.cassandra.streaming.StreamSummary;
+import org.apache.cassandra.streaming.*;
 
 public class PrepareMessage extends StreamMessage
 {
@@ -44,6 +45,17 @@ public class PrepareMessage extends StreamMessage
             int numSummaries = input.readInt();
             for (int i = 0; i < numSummaries; i++)
                 message.summaries.add(StreamSummary.serializer.deserialize(input, version));
+
+            if (version >= StreamMessage.VERSION_30)
+            {
+                numRequests = input.readInt();
+                for (int i = 0; i < numRequests; i++)
+                    message.epaxosRequests.add(EpaxosRequest.serializer.deserialize(input, version));
+                // summaries
+                numSummaries = input.readInt();
+                for (int i = 0; i < numSummaries; i++)
+                    message.epaxosSummaries.add(EpaxosSummary.serializer.deserialize(input, version));
+            }
             return message;
         }
 
@@ -57,6 +69,16 @@ public class PrepareMessage extends StreamMessage
             out.writeInt(message.summaries.size());
             for (StreamSummary summary : message.summaries)
                 StreamSummary.serializer.serialize(summary, out, version);
+
+            if (version >= StreamMessage.VERSION_30)
+            {
+                out.writeInt(message.epaxosRequests.size());
+                for (EpaxosRequest request: message.epaxosRequests)
+                    EpaxosRequest.serializer.serialize(request, out, version);
+                out.writeInt(message.epaxosSummaries.size());
+                for (EpaxosSummary summary: message.epaxosSummaries)
+                    EpaxosSummary.serializer.serialize(summary, out, version);
+            }
         }
     };
 
@@ -69,6 +91,16 @@ public class PrepareMessage extends StreamMessage
      * Summaries of streaming out
      */
     public final Collection<StreamSummary> summaries = new ArrayList<>();
+
+    /**
+     * epaxos token state requested
+     */
+    public final Collection<EpaxosRequest> epaxosRequests = new ArrayList<>();
+
+    /**
+     * epaxos token states to be streamed out
+     */
+    public final Collection<EpaxosSummary> epaxosSummaries = new ArrayList<>();
 
     public PrepareMessage()
     {
@@ -84,6 +116,7 @@ public class PrepareMessage extends StreamMessage
         for (StreamSummary summary : summaries)
             totalFile += summary.files;
         sb.append(" ").append(totalFile).append(" files");
+        sb.append(epaxosRequests.size()).append(" epaxosRequests, ");
         sb.append('}');
         return sb.toString();
     }
