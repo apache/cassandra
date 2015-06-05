@@ -67,6 +67,7 @@ public class MemoryMappedSegment extends CommitLogSegment
             {
                 throw new FSWriteError(e, logFile);
             }
+            commitLog.allocator.addSize(DatabaseDescriptor.getCommitLogSegmentSize());
 
             return channel.map(FileChannel.MapMode.READ_WRITE, 0, DatabaseDescriptor.getCommitLogSegmentSize());
         }
@@ -99,6 +100,12 @@ public class MemoryMappedSegment extends CommitLogSegment
             throw new FSWriteError(e, getPath());
         }
         CLibrary.trySkipCache(fd, startMarker, nextMarker);
+    }
+
+    @Override
+    public long onDiskSize()
+    {
+        return DatabaseDescriptor.getCommitLogSegmentSize();
     }
 
     @Override

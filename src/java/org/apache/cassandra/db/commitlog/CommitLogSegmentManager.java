@@ -119,7 +119,6 @@ public class CommitLogSegmentManager
                             if (availableSegments.isEmpty() && (activeSegments.isEmpty() || createReserveSegments))
                             {
                                 logger.debug("No segments in reserve; creating a fresh one");
-                                size.addAndGet(DatabaseDescriptor.getCommitLogSegmentSize());
                                 // TODO : some error handling in case we fail to create a new segment
                                 availableSegments.add(CommitLogSegment.createSegment(commitLog));
                                 hasAvailableSegments.signalAll();
@@ -368,25 +367,39 @@ public class CommitLogSegmentManager
     private void discardSegment(final CommitLogSegment segment, final boolean deleteFile)
     {
         logger.debug("Segment {} is no longer active and will be deleted {}", segment, deleteFile ? "now" : "by the archive script");
-        size.addAndGet(-DatabaseDescriptor.getCommitLogSegmentSize());
 
         segmentManagementTasks.add(new Runnable()
         {
             public void run()
             {
-                segment.close();
-                if (deleteFile)
-                    segment.delete();
+                segment.discard(deleteFile);
             }
         });
     }
 
     /**
+     * Adjust the tracked on-disk size. Called by individual segments to reflect writes, allocations and discards.
+     * @param addedSize
+     */
+    void addSize(long addedSize)
+    {
+        size.addAndGet(addedSize);
+    }
+
+    /**
      * @return the space (in bytes) used by all segment files.
      */
-    public long bytesUsed()
+    public long onDiskSize()
     {
         return size.get();
+    }
+
+    private long unusedCapacity()
+    {
+        long total = DatabaseDescriptor.getTotalCommitlogSpaceInMB() * 1024 * 1024;
+        long currentSize = size.get();
+        logger.debug("Total active commitlog segment space used is {} out of {}", currentSize, total);
+        return total - currentSize;
     }
 
     /**
@@ -399,14 +412,6 @@ public class CommitLogSegmentManager
             if (segment.getName().equals(name))
                 return true;
         return false;
-    }
-
-    private long unusedCapacity()
-    {
-        long total = DatabaseDescriptor.getTotalCommitlogSpaceInMB() * 1024 * 1024;
-        long currentSize = size.get();
-        logger.debug("Total active commitlog segment space used is {} out of {}", currentSize, total);
-        return total - currentSize;
     }
 
     /**
@@ -468,8 +473,7 @@ public class CommitLogSegmentManager
         logger.debug("CLSM closing and clearing existing commit log segments...");
         createReserveSegments = false;
 
-        while (!segmentManagementTasks.isEmpty())
-            Thread.yield();
+        awaitManagementTasksCompletion();
 
         shutdown();
         try
@@ -498,15 +502,22 @@ public class CommitLogSegmentManager
         logger.debug("CLSM done with closing and clearing existing commit log segments.");
     }
 
+    // Used by tests only.
+    void awaitManagementTasksCompletion()
+    {
+        while (!segmentManagementTasks.isEmpty())
+            Thread.yield();
+        // The last management task is not yet complete. Wait a while for it.
+        Uninterruptibles.sleepUninterruptibly(100, TimeUnit.MILLISECONDS);
+        // TODO: If this functionality is required by anything other than tests, signalling must be used to ensure
+        // waiting completes correctly.
+    }
+
     private static void closeAndDeleteSegmentUnsafe(CommitLogSegment segment, boolean delete)
     {
-        segment.close();
-        if (!delete)
-            return;
-
         try
         {
-            segment.delete();
+            segment.discard(delete);
         }
         catch (AssertionError ignored)
         {

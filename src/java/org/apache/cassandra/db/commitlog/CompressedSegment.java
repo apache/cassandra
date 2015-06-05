@@ -53,6 +53,8 @@ public class CompressedSegment extends CommitLogSegment
     static final int COMPRESSED_MARKER_SIZE = SYNC_MARKER_SIZE + 4;
     final ICompressor compressor;
 
+    volatile long lastWrittenPos = 0;
+
     /**
      * Constructs a new segment file.
      */
@@ -63,6 +65,7 @@ public class CompressedSegment extends CommitLogSegment
         try
         {
             channel.write((ByteBuffer) buffer.duplicate().flip());
+            commitLog.allocator.addSize(lastWrittenPos = buffer.position());
         }
         catch (IOException e)
         {
@@ -120,7 +123,10 @@ public class CompressedSegment extends CommitLogSegment
             // Only one thread can be here at a given time.
             // Protected by synchronization on CommitLogSegment.sync().
             writeSyncMarker(compressedBuffer, 0, (int) channel.position(), (int) channel.position() + compressedBuffer.remaining());
+            commitLog.allocator.addSize(compressedBuffer.limit());
             channel.write(compressedBuffer);
+            assert channel.position() - lastWrittenPos == compressedBuffer.limit();
+            lastWrittenPos = channel.position();
             SyncUtil.force(channel, true);
         }
         catch (Exception e)
@@ -143,5 +149,11 @@ public class CompressedSegment extends CommitLogSegment
     static void shutdown()
     {
         bufferPool.clear();
+    }
+
+    @Override
+    public long onDiskSize()
+    {
+        return lastWrittenPos;
     }
 }
