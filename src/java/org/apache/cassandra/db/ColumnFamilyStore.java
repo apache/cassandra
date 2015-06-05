@@ -1833,7 +1833,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         {
             public List<SSTableReader> apply(View view)
             {
-                return compactionStrategyManager.filterSSTablesForReads(view.intervalTree.search(key));
+                return view.intervalTree.search(key);
             }
         };
     }
@@ -1848,7 +1848,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         {
             public List<SSTableReader> apply(View view)
             {
-                return compactionStrategyManager.filterSSTablesForReads(view.sstablesInBounds(rowBounds));
+                return view.sstablesInBounds(rowBounds);
             }
         };
     }

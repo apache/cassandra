@@ -205,15 +205,6 @@ public class CompactionStrategyManager implements INotificationConsumer
             CompactionManager.instance.submitBackground(cfs);
     }
 
-    /**
-     * TODO: remove, unused
-     */
-    public List<SSTableReader> filterSSTablesForReads(List<SSTableReader> sstables)
-    {
-        // todo: union of filtered sstables or intersection?
-        return unrepaired.filterSSTablesForReads(repaired.filterSSTablesForReads(sstables));
-    }
-
     public int getUnleveledSSTables()
     {
         if (repaired instanceof LeveledCompactionStrategy && unrepaired instanceof LeveledCompactionStrategy)

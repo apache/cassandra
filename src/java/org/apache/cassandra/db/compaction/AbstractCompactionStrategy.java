@@ -238,14 +238,6 @@ public abstract class AbstractCompactionStrategy
     }
 
     /**
-     * @return a subset of the suggested sstables that are relevant for read requests.
-     */
-    public List<SSTableReader> filterSSTablesForReads(List<SSTableReader> sstables)
-    {
-        return sstables;
-    }
-
-    /**
      * Filters SSTables that are to be blacklisted from the given collection
      *
      * @param originalCandidates The collection to check for blacklisted SSTables
