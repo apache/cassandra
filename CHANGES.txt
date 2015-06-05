@@ -6,6 +6,7 @@
 
 
 2.2
+ * Fix comparison bug in CassandraRoleManager#collectRoles (CASSANDRA-9551)
  * Add tinyint,smallint,time,date support for UDFs (CASSANDRA-9400)
  * Deprecates SSTableSimpleWriter and SSTableSimpleUnsortedWriter (CASSANDRA-9546)
  * Empty INITCOND treated as null in aggregate (CASSANDRA-9457)
