@@ -89,9 +89,13 @@ public class JavaDriverClient
 
     public void connect(ProtocolOptions.Compression compression) throws Exception
     {
+        PoolingOptions poolingOpts = new PoolingOptions();
+        poolingOpts.setCoreConnectionsPerHost(HostDistance.LOCAL, 8);
         Cluster.Builder clusterBuilder = Cluster.builder()
                                                 .addContactPoint(host)
                                                 .withPort(port)
+                                                .withPoolingOptions(poolingOpts)
+                                                .withProtocolVersion(ProtocolVersion.V2)
                                                 .withoutMetrics(); // The driver uses metrics 3 with conflict with our version
         if (whitelist != null)
             clusterBuilder.withLoadBalancingPolicy(whitelist);

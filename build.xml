@@ -38,7 +38,6 @@
     <property name="build.src.resources" value="${basedir}/src/resources"/>
     <property name="build.src.gen-java" value="${basedir}/src/gen-java"/>
     <property name="build.lib" value="${basedir}/lib"/>
-    <property name="build.tools.lib" value="${basedir}/tools/lib"/>
     <property name="build.dir" value="${basedir}/build"/>
     <property name="build.dir.lib" value="${basedir}/build/lib"/>
     <property name="build.test.dir" value="${build.dir}/test"/>
@@ -769,9 +768,6 @@
                     <fileset dir="${build.lib}">
                         <include name="**/*.jar" />
                     </fileset>
-                    <fileset dir="${build.tools.lib}">
-                        <include name="**/*.jar" />
-                    </fileset>
                 </path>
             </classpath>
         </javac>
@@ -994,9 +990,6 @@
       </copy>
       <copy todir="${dist.dir}/tools/lib">
         <fileset dir="${build.dir}/tools/lib/">
-            <include name="*.jar" />
-        </fileset>
-        <fileset dir="${build.tools.lib}">
             <include name="*.jar" />
         </fileset>
       </copy>
