@@ -370,22 +370,22 @@ public class DatabaseDescriptor
         /* phi convict threshold for FailureDetector */
         if (conf.phi_convict_threshold < 5 || conf.phi_convict_threshold > 16)
         {
-            throw new ConfigurationException("phi_convict_threshold must be between 5 and 16", false);
+            throw new ConfigurationException("phi_convict_threshold must be between 5 and 16, but was " + conf.phi_convict_threshold, false);
         }
 
         /* Thread per pool */
         if (conf.concurrent_reads != null && conf.concurrent_reads < 2)
         {
-            throw new ConfigurationException("concurrent_reads must be at least 2", false);
+            throw new ConfigurationException("concurrent_reads must be at least 2, but was " + conf.concurrent_reads, false);
         }
 
         if (conf.concurrent_writes != null && conf.concurrent_writes < 2)
         {
-            throw new ConfigurationException("concurrent_writes must be at least 2", false);
+            throw new ConfigurationException("concurrent_writes must be at least 2, but was " + conf.concurrent_writes, false);
         }
 
         if (conf.concurrent_counter_writes != null && conf.concurrent_counter_writes < 2)
-            throw new ConfigurationException("concurrent_counter_writes must be at least 2", false);
+            throw new ConfigurationException("concurrent_counter_writes must be at least 2, but was " + conf.concurrent_counter_writes, false);
 
         if (conf.concurrent_replicates != null)
             logger.warn("concurrent_replicates has been deprecated and should be removed from cassandra.yaml");
@@ -396,12 +396,12 @@ public class DatabaseDescriptor
         if (conf.memtable_offheap_space_in_mb == null)
             conf.memtable_offheap_space_in_mb = (int) (Runtime.getRuntime().maxMemory() / (4 * 1048576));
         if (conf.memtable_offheap_space_in_mb < 0)
-            throw new ConfigurationException("memtable_offheap_space_in_mb must be positive", false);
+            throw new ConfigurationException("memtable_offheap_space_in_mb must be positive, but was " + conf.memtable_offheap_space_in_mb, false);
         // for the moment, we default to twice as much on-heap space as off-heap, as heap overhead is very large
         if (conf.memtable_heap_space_in_mb == null)
             conf.memtable_heap_space_in_mb = (int) (Runtime.getRuntime().maxMemory() / (4 * 1048576));
         if (conf.memtable_heap_space_in_mb <= 0)
-            throw new ConfigurationException("memtable_heap_space_in_mb must be positive", false);
+            throw new ConfigurationException("memtable_heap_space_in_mb must be positive, but was " + conf.memtable_heap_space_in_mb, false);
         logger.info("Global memtable on-heap threshold is enabled at {}MB", conf.memtable_heap_space_in_mb);
         if (conf.memtable_offheap_space_in_mb == 0)
             logger.info("Global memtable off-heap threshold is disabled, HeapAllocator will be used instead");
@@ -411,10 +411,10 @@ public class DatabaseDescriptor
         applyAddressConfig(config);
 
         if (conf.thrift_framed_transport_size_in_mb <= 0)
-            throw new ConfigurationException("thrift_framed_transport_size_in_mb must be positive", false);
+            throw new ConfigurationException("thrift_framed_transport_size_in_mb must be positive, but was " + conf.thrift_framed_transport_size_in_mb, false);
 
         if (conf.native_transport_max_frame_size_in_mb <= 0)
-            throw new ConfigurationException("native_transport_max_frame_size_in_mb must be positive", false);
+            throw new ConfigurationException("native_transport_max_frame_size_in_mb must be positive, but was " + conf.native_transport_max_frame_size_in_mb, false);
 
         // fail early instead of OOMing (see CASSANDRA-8116)
         if (ThriftServer.HSHA.equals(conf.rpc_server_type) && conf.rpc_max_threads == Integer.MAX_VALUE)
@@ -525,23 +525,23 @@ public class DatabaseDescriptor
             conf.memtable_flush_writers = Math.min(8, Math.max(2, Math.min(FBUtilities.getAvailableProcessors(), conf.data_file_directories.length)));
 
         if (conf.memtable_flush_writers < 1)
-            throw new ConfigurationException("memtable_flush_writers must be at least 1", false);
+            throw new ConfigurationException("memtable_flush_writers must be at least 1, but was " + conf.memtable_flush_writers, false);
 
         if (conf.memtable_cleanup_threshold == null)
             conf.memtable_cleanup_threshold = (float) (1.0 / (1 + conf.memtable_flush_writers));
 
         if (conf.memtable_cleanup_threshold < 0.01f)
-            throw new ConfigurationException("memtable_cleanup_threshold must be >= 0.01", false);
+            throw new ConfigurationException("memtable_cleanup_threshold must be >= 0.01, but was " + conf.memtable_cleanup_threshold, false);
         if (conf.memtable_cleanup_threshold > 0.99f)
-            throw new ConfigurationException("memtable_cleanup_threshold must be <= 0.99", false);
+            throw new ConfigurationException("memtable_cleanup_threshold must be <= 0.99, but was " + conf.memtable_cleanup_threshold, false);
         if (conf.memtable_cleanup_threshold < 0.1f)
-            logger.warn("memtable_cleanup_threshold is set very low, which may cause performance degradation");
+            logger.warn("memtable_cleanup_threshold is set very low [{}], which may cause performance degradation", conf.memtable_cleanup_threshold);
 
         if (conf.concurrent_compactors == null)
             conf.concurrent_compactors = Math.min(8, Math.max(2, Math.min(FBUtilities.getAvailableProcessors(), conf.data_file_directories.length)));
 
         if (conf.concurrent_compactors <= 0)
-            throw new ConfigurationException("concurrent_compactors should be strictly greater than 0", false);
+            throw new ConfigurationException("concurrent_compactors should be strictly greater than 0, but was " + conf.concurrent_compactors, false);
 
         if (conf.initial_token != null)
             for (String token : tokensFromString(conf.initial_token))
