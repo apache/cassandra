@@ -26,6 +26,7 @@ import com.google.common.base.Function;
 import com.google.common.base.Predicates;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
+import org.junit.BeforeClass;
 import org.junit.Test;
 
 import junit.framework.Assert;
@@ -43,6 +44,11 @@ import static org.apache.cassandra.db.lifecycle.Helpers.emptySet;
 
 public class ViewTest
 {
+    @BeforeClass
+    public static void setUp()
+    {
+        MockSchema.cleanup();
+    }
 
     @Test
     public void testSSTablesInBounds()

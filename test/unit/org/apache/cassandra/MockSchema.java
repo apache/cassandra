@@ -21,7 +21,6 @@ package org.apache.cassandra;
 import java.io.File;
 import java.io.IOException;
 import java.io.RandomAccessFile;
-import java.util.List;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -88,7 +87,11 @@ public class MockSchema
 
     public static SSTableReader sstable(int generation, int size, boolean keepRef, ColumnFamilyStore cfs)
     {
-        Descriptor descriptor = new Descriptor(temp("mockcfdir").getParentFile(), ks.getName(), cfs.getColumnFamilyName(), generation, Descriptor.Type.FINAL);
+        Descriptor descriptor = new Descriptor(cfs.directories.getDirectoryForNewSSTables(),
+                                               cfs.keyspace.getName(),
+                                               cfs.getColumnFamilyName(),
+                                               generation,
+                                               Descriptor.Type.FINAL);
         Set<Component> components = ImmutableSet.of(Component.DATA, Component.PRIMARY_INDEX, Component.FILTER, Component.TOC);
         for (Component component : components)
         {
@@ -100,7 +103,6 @@ public class MockSchema
             catch (IOException e)
             {
             }
-            file.deleteOnExit();
         }
         if (size > 0)
         {
@@ -132,13 +134,16 @@ public class MockSchema
     public static ColumnFamilyStore newCFS()
     {
         String cfname = "mockcf" + (id.incrementAndGet());
-        CFMetaData metadata = newCFMetaData(cfname);
+        CFMetaData metadata = newCFMetaData(ks.getName(), cfname);
         return new ColumnFamilyStore(ks, cfname, Murmur3Partitioner.instance, 0, metadata, new Directories(metadata), false, false);
     }
 
-    private static CFMetaData newCFMetaData(String cfname)
+    private static CFMetaData newCFMetaData(String ksname, String cfname)
     {
-        CFMetaData metadata = new CFMetaData("mockks", cfname, ColumnFamilyType.Standard, new SimpleSparseCellNameType(UTF8Type.instance));
+        CFMetaData metadata = new CFMetaData(ksname,
+                                             cfname,
+                                             ColumnFamilyType.Standard,
+                                             new SimpleSparseCellNameType(UTF8Type.instance));
         metadata.caching(CachingOptions.NONE);
         return metadata;
     }
@@ -169,7 +174,7 @@ public class MockSchema
         {
             File dir = new File(dirName);
             if (!dir.exists())
-                throw new RuntimeException("No such directory: " + dir.getAbsolutePath());
+                continue;
             String[] children = dir.list();
             for (String child : children)
                 FileUtils.deleteRecursive(new File(dir, child));
