@@ -25,6 +25,7 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 
+import org.junit.BeforeClass;
 import org.junit.Test;
 
 import junit.framework.Assert;
@@ -38,6 +39,12 @@ import org.apache.cassandra.utils.concurrent.Refs;
 
 public class HelpersTest
 {
+
+    @BeforeClass
+    public static void setUp()
+    {
+        MockSchema.cleanup();
+    }
 
     static Set<Integer> a = set(1, 2, 3);
     static Set<Integer> b = set(4, 5, 6);

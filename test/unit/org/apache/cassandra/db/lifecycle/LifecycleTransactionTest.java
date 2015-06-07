@@ -23,6 +23,7 @@ import java.util.List;
 
 import org.junit.After;
 import org.junit.Before;
+import org.junit.BeforeClass;
 import org.junit.Test;
 
 import junit.framework.Assert;
@@ -52,6 +53,12 @@ import static org.apache.cassandra.db.lifecycle.Helpers.select;
 public class LifecycleTransactionTest extends AbstractTransactionalTest
 {
     private boolean incrementalBackups;
+
+    @BeforeClass
+    public static void setUp()
+    {
+        MockSchema.cleanup();
+    }
 
     @Before
     public void disableIncrementalBackup()
