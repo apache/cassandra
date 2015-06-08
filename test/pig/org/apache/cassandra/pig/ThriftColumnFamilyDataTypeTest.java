@@ -24,10 +24,8 @@ import org.apache.cassandra.db.marshal.TimeUUIDType;
 import org.apache.cassandra.db.marshal.UUIDType;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.utils.Hex;
-import org.apache.pig.data.DataBag;
 import org.apache.pig.data.DataByteArray;
 import org.apache.pig.data.Tuple;
-import org.apache.thrift.TException;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
@@ -69,7 +67,7 @@ public class ThriftColumnFamilyDataTypeTest extends PigTestBase
     };
 
     @BeforeClass
-    public static void setup() throws IOException, ConfigurationException, TException
+    public static void setup() throws IOException, ConfigurationException
     {
         startCassandra();
         executeCQLStatements(statements);
@@ -79,76 +77,74 @@ public class ThriftColumnFamilyDataTypeTest extends PigTestBase
     @Test
     public void testCassandraStorageDataType() throws IOException
     {
-        pig.registerQuery("rows = LOAD 'cassandra://thrift_ks/some_app?" + defaultParameters + "' USING CassandraStorage();");
+        pig.registerQuery("rows = LOAD 'cql://thrift_ks/some_app?" + defaultParameters + "' USING CqlNativeStorage();");
         Tuple t = pig.openIterator("rows").next();
 
         // key
         assertEquals("foo", t.get(0));
 
         // col_ascii
-        Tuple column = (Tuple) t.get(1);
-        assertEquals("ascii", column.get(1));
+        Object column = t.get(1);
+        assertEquals("ascii", column);
 
         // col_bigint
-        column = (Tuple) t.get(2);
-        assertEquals(12345678L, column.get(1));
+        column = t.get(2);
+        assertEquals(12345678L, column);
 
         // col_blob
-        column = (Tuple) t.get(3);
-        assertEquals(new DataByteArray(Hex.hexToBytes("DEADBEEF")), column.get(1));
+        column = t.get(3);
+        assertEquals(new DataByteArray(Hex.hexToBytes("DEADBEEF")), column);
 
         // col_boolean
-        column = (Tuple) t.get(4);
-        assertEquals(false, column.get(1));
+        column = t.get(4);
+        assertEquals(false, column);
 
         // col_decimal
-        column = (Tuple) t.get(5);
-        assertEquals("23.345", column.get(1));
+        column = t.get(5);
+        assertEquals("23.345", column);
 
         // col_double
-        column = (Tuple) t.get(6);
-        assertEquals(2.7182818284590451d, column.get(1));
+        column = t.get(6);
+        assertEquals(2.7182818284590451d, column);
 
         // col_float
-        column = (Tuple) t.get(7);
-        assertEquals(23.45f, column.get(1));
+        column = t.get(7);
+        assertEquals(23.45f, column);
 
         // col_inet
-        column = (Tuple) t.get(8);
-        assertEquals("127.0.0.1", column.get(1));
+        column = t.get(8);
+        assertEquals("127.0.0.1", column);
 
         // col_int
-        column = (Tuple) t.get(9);
-        assertEquals(23, column.get(1));
+        column = t.get(9);
+        assertEquals(23, column);
 
         // col_text
-        column = (Tuple) t.get(10);
-        assertEquals("hello", column.get(1));
+        column = t.get(10);
+        assertEquals("hello", column);
 
         // col_timestamp
-        column = (Tuple) t.get(11);
-        assertEquals(1296705900000L, column.get(1));
+        column = t.get(11);
+        assertEquals(1296705900000L, column);
 
         // col_timeuuid
-        column = (Tuple) t.get(12);
-        assertEquals(new DataByteArray((TimeUUIDType.instance.fromString("e23f450f-53a6-11e2-7f7f-7f7f7f7f7f7f").array())), column.get(1));
+        column = t.get(12);
+        assertEquals(new DataByteArray((TimeUUIDType.instance.fromString("e23f450f-53a6-11e2-7f7f-7f7f7f7f7f7f").array())), column);
 
         // col_uuid
-        column = (Tuple) t.get(13);
-        assertEquals(new DataByteArray((UUIDType.instance.fromString("550e8400-e29b-41d4-a716-446655440000").array())), column.get(1));
+        column = t.get(13);
+        assertEquals(new DataByteArray((UUIDType.instance.fromString("550e8400-e29b-41d4-a716-446655440000").array())), column);
 
         // col_varint
-        column = (Tuple) t.get(14);
-        assertEquals(12345, column.get(1));
+        column = t.get(14);
+        assertEquals(12345, column);
 
-        pig.registerQuery("cc_rows = LOAD 'cassandra://thrift_ks/cc?" + defaultParameters + "' USING CassandraStorage();");
+        pig.registerQuery("cc_rows = LOAD 'cql://thrift_ks/cc?" + defaultParameters + "' USING CqlNativeStorage();");
         t = pig.openIterator("cc_rows").next();
 
         assertEquals("chuck", t.get(0));
 
-        DataBag columns = (DataBag) t.get(1);
-        column = columns.iterator().next();
-        assertEquals("kick", column.get(0));
-        assertEquals(3L, column.get(1));
+        assertEquals("kick", t.get(1));
+        assertEquals(3L, t.get(2));
     }
 }

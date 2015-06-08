@@ -20,6 +20,8 @@ package org.apache.cassandra.pig;
 
 import java.io.IOException;
 
+import com.datastax.driver.core.Cluster;
+import com.datastax.driver.core.Session;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.marshal.AbstractType;
@@ -27,9 +29,6 @@ import org.apache.cassandra.db.marshal.TypeParser;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.SyntaxException;
 import org.apache.cassandra.service.EmbeddedCassandraService;
-import org.apache.cassandra.thrift.Cassandra;
-import org.apache.cassandra.thrift.Compression;
-import org.apache.cassandra.thrift.ConsistencyLevel;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.pig.ExecType;
@@ -37,13 +36,6 @@ import org.apache.pig.PigServer;
 import org.apache.pig.backend.hadoop.datastorage.ConfigurationUtil;
 import org.apache.pig.impl.PigContext;
 import org.apache.pig.test.MiniCluster;
-import org.apache.thrift.TException;
-import org.apache.thrift.protocol.TBinaryProtocol;
-import org.apache.thrift.protocol.TProtocol;
-import org.apache.thrift.transport.TFramedTransport;
-import org.apache.thrift.transport.TSocket;
-import org.apache.thrift.transport.TTransport;
-import org.apache.thrift.transport.TTransportException;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -80,13 +72,10 @@ public class PigTestBase extends SchemaLoader
         pig.shutdown();
     }
 
-    protected static Cassandra.Client getClient() throws TTransportException
+    protected static Session getClient()
     {
-        TTransport tr = new TFramedTransport(new TSocket("localhost", 9170));
-        TProtocol proto = new TBinaryProtocol(tr);
-        Cassandra.Client client = new Cassandra.Client(proto);
-        tr.open();
-        return client;
+        Cluster cluster = Cluster.builder().addContactPoints("localhost").withPort(9042).build();
+        return cluster.connect();
     }
 
     protected static void startCassandra() throws IOException
@@ -114,14 +103,14 @@ public class PigTestBase extends SchemaLoader
         }
     }
 
-    protected static void executeCQLStatements(String[] statements) throws TException
+    protected static void executeCQLStatements(String[] statements)
     {
-        Cassandra.Client client = getClient();
+        Session client = getClient();
 
         for (String statement : statements)
         {
             System.out.println("Executing statement: " + statement);
-            client.execute_cql3_query(ByteBufferUtil.bytes(statement), Compression.NONE, ConsistencyLevel.ONE);
+            client.execute(statement);
         }
     }
 }
