@@ -59,6 +59,11 @@ public abstract class PerRowSecondaryIndex extends SecondaryIndex
     }
 
     @Override
+    public boolean validate(ByteBuffer rowKey, Column column)
+    {
+        return validate(column);
+    }
+
     public boolean validate(Column column)
     {
         return true;

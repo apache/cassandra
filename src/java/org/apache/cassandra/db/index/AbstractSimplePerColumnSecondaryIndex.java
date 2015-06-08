@@ -26,6 +26,7 @@ import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.dht.*;
 import org.apache.cassandra.thrift.IndexExpression;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.FBUtilities;
 
 /**
  * Implements a secondary index for a column family using a second column family
@@ -162,5 +163,11 @@ public abstract class AbstractSimplePerColumnSecondaryIndex extends PerColumnSec
     {
         indexCfs.metadata.reloadSecondaryIndexMetadata(baseCfs.metadata);
         indexCfs.reload();
+    }
+
+    public boolean validate(ByteBuffer rowKey, Column column)
+    {
+        return getIndexedValue(rowKey, column).remaining() < FBUtilities.MAX_UNSIGNED_SHORT
+            && makeIndexColumnName(rowKey, column).remaining() < FBUtilities.MAX_UNSIGNED_SHORT;
     }
 }

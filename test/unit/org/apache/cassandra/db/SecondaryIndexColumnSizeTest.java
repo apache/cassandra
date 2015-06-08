@@ -48,12 +48,13 @@ public class SecondaryIndexColumnSizeTest
         // for read
         buffer.flip();
         Column column = new Column(ByteBufferUtil.bytes("test"), buffer, 0);
+        ByteBuffer key = ByteBufferUtil.bytes("key");
 
         SecondaryIndexColumnSizeTest.MockRowIndex mockRowIndex = new SecondaryIndexColumnSizeTest.MockRowIndex();
         SecondaryIndexColumnSizeTest.MockColumnIndex mockColumnIndex = new SecondaryIndexColumnSizeTest.MockColumnIndex();
 
-        assertTrue(mockRowIndex.validate(column));
-        assertFalse(mockColumnIndex.validate(column));
+        assertTrue(mockRowIndex.validate(key, column));
+        assertFalse(mockColumnIndex.validate(key, column));
 
         // test less than 64k value
         buffer.flip();
@@ -61,8 +62,8 @@ public class SecondaryIndexColumnSizeTest
         buffer.putInt(20);
         buffer.flip();
 
-        assertTrue(mockRowIndex.validate(column));
-        assertTrue(mockColumnIndex.validate(column));
+        assertTrue(mockRowIndex.validate(key, column));
+        assertTrue(mockColumnIndex.validate(key, column));
     }
 
     private class MockRowIndex extends PerRowSecondaryIndex

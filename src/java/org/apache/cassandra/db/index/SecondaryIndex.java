@@ -361,7 +361,7 @@ public abstract class SecondaryIndex
         return index;
     }
 
-    public abstract boolean validate(Column column);
+    public abstract boolean validate(ByteBuffer key, Column column);
 
     /**
      * Returns the index comparator for index backed by CFS, or null.

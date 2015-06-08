@@ -573,12 +573,12 @@ public class SecondaryIndexManager
             index.setIndexRemoved();
     }
 
-    public boolean validate(Column column)
+    public SecondaryIndex validate(ByteBuffer rowKey, Column column)
     {
         for (SecondaryIndex index : indexFor(column.name()))
-            if (!index.validate(column))
-                return false;
-        return true;
+            if (!index.validate(rowKey, column))
+                return index;
+        return null;
     }
 
     private Set<String> filterByColumn(Set<String> idxNames)

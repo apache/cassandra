@@ -20,6 +20,7 @@ package org.apache.cassandra.thrift;
 import java.nio.ByteBuffer;
 import java.util.*;
 
+import org.apache.cassandra.db.index.SecondaryIndex;
 import org.apache.cassandra.serializers.MarshalException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -298,7 +299,7 @@ public class ThriftValidation
         }
     }
 
-    public static void validateColumnOrSuperColumn(CFMetaData metadata, ColumnOrSuperColumn cosc)
+    public static void validateColumnOrSuperColumn(CFMetaData metadata, ByteBuffer key, ColumnOrSuperColumn cosc)
             throws org.apache.cassandra.exceptions.InvalidRequestException
     {
         boolean isCommutative = metadata.getDefaultValidator().isCommutative();
@@ -319,7 +320,7 @@ public class ThriftValidation
 
             validateTtl(cosc.column);
             validateColumnPath(metadata, new ColumnPath(metadata.cfName).setSuper_column((ByteBuffer)null).setColumn(cosc.column.name));
-            validateColumnData(metadata, cosc.column, false);
+            validateColumnData(metadata, key, cosc.column, false);
         }
 
         if (cosc.super_column != null)
@@ -330,7 +331,7 @@ public class ThriftValidation
             for (Column c : cosc.super_column.columns)
             {
                 validateColumnPath(metadata, new ColumnPath(metadata.cfName).setSuper_column(cosc.super_column.name).setColumn(c.name));
-                validateColumnData(metadata, c, true);
+                validateColumnData(metadata, key, c, true);
             }
         }
 
@@ -369,7 +370,7 @@ public class ThriftValidation
         }
     }
 
-    public static void validateMutation(CFMetaData metadata, Mutation mut)
+    public static void validateMutation(CFMetaData metadata, ByteBuffer key, Mutation mut)
             throws org.apache.cassandra.exceptions.InvalidRequestException
     {
         ColumnOrSuperColumn cosc = mut.column_or_supercolumn;
@@ -386,7 +387,7 @@ public class ThriftValidation
 
         if (cosc != null)
         {
-            validateColumnOrSuperColumn(metadata, cosc);
+            validateColumnOrSuperColumn(metadata, key, cosc);
         }
         else
         {
@@ -435,7 +436,7 @@ public class ThriftValidation
     /**
      * Validates the data part of the column (everything in the Column object but the name, which is assumed to be valid)
      */
-    public static void validateColumnData(CFMetaData metadata, Column column, boolean isSubColumn) throws org.apache.cassandra.exceptions.InvalidRequestException
+    public static void validateColumnData(CFMetaData metadata, ByteBuffer key, Column column, boolean isSubColumn) throws org.apache.cassandra.exceptions.InvalidRequestException
     {
         validateTtl(column);
         if (!column.isSetValue())
@@ -462,10 +463,14 @@ public class ThriftValidation
         }
 
         // Indexed column values cannot be larger than 64K.  See CASSANDRA-3057/4240 for more details
-        if (!Keyspace.open(metadata.ksName).getColumnFamilyStore(metadata.cfName).indexManager.validate(asDBColumn(column)))
-                    throw new org.apache.cassandra.exceptions.InvalidRequestException(String.format("Can't index column value of size %d for index %s in CF %s of KS %s",
+        SecondaryIndex failedIndex = Keyspace.open(metadata.ksName)
+                                             .getColumnFamilyStore(metadata.cfName)
+                                             .indexManager
+                                             .validate(key, asDBColumn(column));
+        if (failedIndex != null)
+            throw new org.apache.cassandra.exceptions.InvalidRequestException(String.format("Can't index column value of size %d for index %s in CF %s of KS %s",
                                                                               column.value.remaining(),
-                                                                              metadata.getColumnDefinitionFromColumnName(column.name).getIndexName(),
+                                                                              failedIndex.getIndexName(),
                                                                               metadata.cfName,
                                                                               metadata.ksName));
     }

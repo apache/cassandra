@@ -1,4 +1,5 @@
 2.0.16:
+ * Backport indexed value validation fix from CASSANDRA-9057 (CASSANDRA-9564)
  * Don't accumulate more range than necessary in RangeTombstone.Tracker (CASSANDRA-9486)
  * Add broadcast and rpc addresses to system.local (CASSANDRA-9436)
  * Always mark sstable suspect when corrupted (CASSANDRA-9478)
