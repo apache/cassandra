@@ -58,4 +58,4 @@ HOST=localhost
 PORT=9160
 FRAMED=true
 
-$JAVA -Xmx1G -ea -Dcassandra.host=$HOST -Dcassandra.port=$PORT -Dcassandra.framed=$FRAMED -cp $CLASSPATH WordCountSetup
+"$JAVA" -Xmx1G -ea -Dcassandra.host=$HOST -Dcassandra.port=$PORT -Dcassandra.framed=$FRAMED -cp "$CLASSPATH" WordCountSetup

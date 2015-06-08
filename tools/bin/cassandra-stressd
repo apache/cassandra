@@ -52,7 +52,7 @@ fi
 case "$1" in
   start)
     echo "Starting $DESC: "
-    $JAVA -server -cp $CLASSPATH \
+    "$JAVA" -server -cp "$CLASSPATH" \
           -Dcassandra.storagedir="$cassandra_storagedir" \
           org.apache.cassandra.stress.StressServer $@ 1> ./stressd.out.log 2> ./stressd.err.log &
     echo $! > ./stressd.pid

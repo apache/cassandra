@@ -55,4 +55,4 @@ if [ "x$JAVA" = "x" ]; then
 fi
 
 #echo $CLASSPATH
-$JAVA -Xmx1G -ea -cp $CLASSPATH WordCountCounters
+"$JAVA" -Xmx1G -ea -cp "$CLASSPATH" WordCountCounters
