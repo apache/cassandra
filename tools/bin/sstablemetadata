@@ -44,7 +44,7 @@ if [ -z "$CLASSPATH" ]; then
     exit 1
 fi
 
-$JAVA -cp $CLASSPATH \
+"$JAVA" -cp "$CLASSPATH" \
         -Dcassandra.storagedir="$cassandra_storagedir" \
         -Dlogback.configurationFile=logback-tools.xml \
         org.apache.cassandra.tools.SSTableMetadataViewer "$@"

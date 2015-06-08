@@ -39,12 +39,12 @@ else
     JAVA=`which java`
 fi
 
-if [ -z $CLASSPATH ]; then
+if [ -z "$CLASSPATH" ]; then
     echo "You must set the CLASSPATH var" >&2
     exit 1
 fi
 
-$JAVA -cp $CLASSPATH  -Dstorage-config=$CASSANDRA_CONF \
+"$JAVA" -cp "$CLASSPATH"  -Dstorage-config=$CASSANDRA_CONF \
         -Dcassandra.storagedir="$cassandra_storagedir" \
         -Dlogback.configurationFile=logback-tools.xml \
         org.apache.cassandra.tools.SSTableLevelResetter "$@"
