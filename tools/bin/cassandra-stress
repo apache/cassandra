@@ -42,6 +42,6 @@ if [ "x$JAVA" = "x" ]; then
     exit 1
 fi
 
-$JAVA -server -ea -cp "$CLASSPATH" \
+"$JAVA" -server -ea -cp "$CLASSPATH" \
       -Dcassandra.storagedir="$cassandra_storagedir" \
       org.apache.cassandra.stress.Stress $@

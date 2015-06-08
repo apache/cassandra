@@ -59,4 +59,4 @@ OUTPUT_REDUCER=cassandra
 INPUT_MAPPER=native
 
 #echo $CLASSPATH
-$JAVA -Xmx1G -ea -cp $CLASSPATH WordCount output_reducer=$OUTPUT_REDUCER input_mapper=$INPUT_MAPPER
+"$JAVA" -Xmx1G -ea -cp "$CLASSPATH" WordCount output_reducer=$OUTPUT_REDUCER input_mapper=$INPUT_MAPPER
