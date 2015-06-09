@@ -2595,8 +2595,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             {
                 assert data.getCompacting().isEmpty() : data.getCompacting();
                 Collection<SSTableReader> sstables = Lists.newArrayList(AbstractCompactionStrategy.filterSuspectSSTables(getSSTables()));
-                if (Iterables.isEmpty(sstables))
-                    return null;
                 LifecycleTransaction modifier = data.tryModify(sstables, operationType);
                 assert modifier != null: "something marked things compacting while compactions are disabled";
                 return modifier;
