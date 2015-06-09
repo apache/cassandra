@@ -1,6 +1,7 @@
 2.2
  * Add functions to convert timeuuid to date or time, deprecate dateOf and unixTimestampOf (CASSANDRA-9229)
  * Make sure we cancel non-compacting sstables from LifecycleTransaction (CASSANDRA-9566)
+ * Fix deprecated repair JMX API (CASSANDRA-9570)
 
 
 2.2.0-rc1

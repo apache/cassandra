@@ -2807,6 +2807,21 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         {
             options.getHosts().addAll(hosts);
         }
+        if (primaryRange)
+        {
+            // when repairing only primary range, neither dataCenters nor hosts can be set
+            if (options.getDataCenters().isEmpty() && options.getHosts().isEmpty())
+                options.getRanges().addAll(getPrimaryRanges(keyspace));
+                // except dataCenters only contain local DC (i.e. -local)
+            else if (options.getDataCenters().size() == 1 && options.getDataCenters().contains(DatabaseDescriptor.getLocalDataCenter()))
+                options.getRanges().addAll(getPrimaryRangesWithinDC(keyspace));
+            else
+                throw new IllegalArgumentException("You need to run primary range repair on all nodes in the cluster.");
+        }
+        else
+        {
+            options.getRanges().addAll(getLocalRanges(keyspace));
+        }
         if (columnFamilies != null)
         {
             for (String columnFamily : columnFamilies)
