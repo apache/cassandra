@@ -328,9 +328,16 @@ concurrent_reads: 32
 concurrent_writes: 32
 concurrent_counter_writes: 32
 
-# Total memory to use for sstable-reading buffers.  Defaults to
-# the smaller of 1/4 of heap or 512MB.
+# Maximum memory to use for pooling sstable buffers. Defaults to the smaller
+# of 1/4 of heap or 512MB. This pool is allocated off-heap, so is in addition
+# to the memory allocated for heap. Memory is only allocated as needed.
 # file_cache_size_in_mb: 512
+
+# Flag indicating whether to allocate on or off heap when the sstable buffer
+# pool is exhausted, that is when it has exceeded the maximum memory
+# file_cache_size_in_mb, beyond which it will not cache buffers but allocate on request.
+
+# buffer_pool_use_heap_if_exhausted: true
 
 # Total permitted memory to use for memtables. Cassandra will stop 
 # accepting writes when the limit is exceeded until a flush completes,

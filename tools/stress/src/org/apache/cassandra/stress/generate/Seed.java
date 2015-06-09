@@ -20,7 +20,7 @@ package org.apache.cassandra.stress.generate;
 
 import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
 
-import org.apache.cassandra.stress.util.DynamicList;
+import org.apache.cassandra.utils.DynamicList;
 
 public class Seed implements Comparable<Seed>
 {

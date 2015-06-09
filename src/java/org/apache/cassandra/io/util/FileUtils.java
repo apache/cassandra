@@ -284,7 +284,11 @@ public class FileUtils
     public static void clean(ByteBuffer buffer)
     {
         if (isCleanerAvailable() && buffer.isDirect())
-            ((DirectBuffer)buffer).cleaner().clean();
+        {
+            DirectBuffer db = (DirectBuffer) buffer;
+            if (db.cleaner() != null)
+                db.cleaner().clean();
+        }
     }
 
     public static void createDirectory(String directory)

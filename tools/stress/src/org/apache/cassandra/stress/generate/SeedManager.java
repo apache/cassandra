@@ -25,7 +25,7 @@ import java.util.concurrent.atomic.AtomicLong;
 
 import org.apache.cassandra.stress.Operation;
 import org.apache.cassandra.stress.settings.StressSettings;
-import org.apache.cassandra.stress.util.DynamicList;
+import org.apache.cassandra.utils.LockedDynamicList;
 
 public class SeedManager
 {
@@ -34,7 +34,7 @@ public class SeedManager
     final Generator writes;
     final Generator reads;
     final ConcurrentHashMap<Long, Seed> managing = new ConcurrentHashMap<>();
-    final DynamicList<Seed> sampleFrom;
+    final LockedDynamicList<Seed> sampleFrom;
     final Distribution sample;
     final long sampleOffset;
     final int sampleSize;
@@ -69,7 +69,7 @@ public class SeedManager
         long sampleSize = 1 + Math.max(sample.minValue(), sample.maxValue()) - sampleOffset;
         if (sampleOffset < 0 || sampleSize > Integer.MAX_VALUE)
             throw new IllegalArgumentException("sample range is invalid");
-        this.sampleFrom = new DynamicList<>((int) sampleSize);
+        this.sampleFrom = new LockedDynamicList<>((int) sampleSize);
         this.sample = DistributionInverted.invert(sample);
         this.sampleSize = (int) sampleSize;
         this.updateSampleImmediately = visits.average() > 1;

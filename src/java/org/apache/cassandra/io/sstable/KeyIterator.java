@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.io.sstable;
 
+import java.io.DataInput;
 import java.io.File;
 import java.io.IOException;
 
@@ -31,12 +32,59 @@ import org.apache.cassandra.utils.CloseableIterator;
 
 public class KeyIterator extends AbstractIterator<DecoratedKey> implements CloseableIterator<DecoratedKey>
 {
-    private final RandomAccessReader in;
+    private final static class In
+    {
+        private final File path;
+        private RandomAccessReader in;
+
+        public In(File path)
+        {
+            this.path = path;
+        }
+
+        private void maybeInit()
+        {
+            if (in == null)
+                in = RandomAccessReader.open(path);
+        }
+
+        public DataInput get()
+        {
+            maybeInit();
+            return in;
+        }
+
+        public boolean isEOF()
+        {
+            maybeInit();
+            return in.isEOF();
+        }
+
+        public void close()
+        {
+            if (in != null)
+                in.close();
+        }
+
+        public long getFilePointer()
+        {
+            maybeInit();
+            return in.getFilePointer();
+        }
+
+        public long length()
+        {
+            maybeInit();
+            return in.length();
+        }
+    }
+
+    private final In in;
+
 
     public KeyIterator(Descriptor desc)
     {
-        File path = new File(desc.filenameFor(Component.PRIMARY_INDEX));
-        in = RandomAccessReader.open(path);
+        in = new In(new File(desc.filenameFor(Component.PRIMARY_INDEX)));
     }
 
     protected DecoratedKey computeNext()
@@ -45,8 +93,9 @@ public class KeyIterator extends AbstractIterator<DecoratedKey> implements Close
         {
             if (in.isEOF())
                 return endOfData();
-            DecoratedKey key = StorageService.getPartitioner().decorateKey(ByteBufferUtil.readWithShortLength(in));
-            RowIndexEntry.Serializer.skip(in); // skip remainder of the entry
+
+            DecoratedKey key = StorageService.getPartitioner().decorateKey(ByteBufferUtil.readWithShortLength(in.get()));
+            RowIndexEntry.Serializer.skip(in.get()); // skip remainder of the entry
             return key;
         }
         catch (IOException e)

@@ -222,7 +222,9 @@ public class Config
 
     private static boolean isClientMode = false;
 
-    public Integer file_cache_size_in_mb;
+    public Integer file_cache_size_in_mb = 512;
+
+    public boolean buffer_pool_use_heap_if_exhausted = true;
 
     public boolean inter_dc_tcp_nodelay = true;
 

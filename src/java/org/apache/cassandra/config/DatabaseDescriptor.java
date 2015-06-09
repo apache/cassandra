@@ -1484,6 +1484,11 @@ public class DatabaseDescriptor
         return conf.file_cache_size_in_mb;
     }
 
+    public static boolean getBufferPoolUseHeapIfExhausted()
+    {
+        return conf.buffer_pool_use_heap_if_exhausted;
+    }
+
     public static long getTotalCommitlogSpaceInMB()
     {
         return conf.commitlog_total_space_in_mb;

@@ -15,16 +15,12 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.stress.util;
+package org.apache.cassandra.utils;
 
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.TreeSet;
 import java.util.concurrent.ThreadLocalRandom;
-import java.util.concurrent.locks.ReadWriteLock;
-import java.util.concurrent.locks.ReentrantReadWriteLock;
-
-import org.apache.cassandra.stress.generate.FasterRandom;
 
 // simple thread-unsafe skiplist that permits indexing/removal by position, insertion at the end
 // (though easily extended to insertion at any position, not necessary here)
@@ -89,7 +85,6 @@ public class DynamicList<E>
         }
     }
 
-    private final ReadWriteLock lock = new ReentrantReadWriteLock();
     private final int maxHeight;
     private final Node<E> head;
     private int size;
@@ -115,112 +110,92 @@ public class DynamicList<E>
     public Node<E> append(E value, int maxSize)
     {
         Node<E> newTail = new Node<>(randomLevel(), value);
+        if (size >= maxSize)
+            return null;
+        size++;
 
-        lock.writeLock().lock();
-        try
+        Node<E> tail = head;
+        for (int i = maxHeight - 1 ; i >= newTail.height() ; i--)
         {
-            if (size >= maxSize)
-                return null;
-            size++;
-
-            Node<E> tail = head;
-            for (int i = maxHeight - 1 ; i >= newTail.height() ; i--)
-            {
-                Node<E> next;
-                while ((next = tail.next(i)) != null)
-                    tail = next;
-                tail.size[i]++;
-            }
-
-            for (int i = newTail.height() - 1 ; i >= 0 ; i--)
-            {
-                Node<E> next;
-                while ((next = tail.next(i)) != null)
-                    tail = next;
-                tail.setNext(i, newTail);
-                newTail.setPrev(i, tail);
-            }
-
-            return newTail;
+            Node<E> next;
+            while ((next = tail.next(i)) != null)
+                tail = next;
+            tail.size[i]++;
         }
-        finally
+
+        for (int i = newTail.height() - 1 ; i >= 0 ; i--)
         {
-            lock.writeLock().unlock();
+            Node<E> next;
+            while ((next = tail.next(i)) != null)
+                tail = next;
+            tail.setNext(i, newTail);
+            newTail.setPrev(i, tail);
         }
+
+        return newTail;
     }
 
     // remove the provided node and its associated value from the list
     public void remove(Node<E> node)
     {
-        lock.writeLock().lock();
-        try
+        assert node.value != null;
+        node.value = null;
+
+        size--;
+
+        // go up through each level in the skip list, unlinking this node; this entails
+        // simply linking each neighbour to each other, and appending the size of the
+        // current level owned by this node's index to the preceding neighbour (since
+        // ownership is defined as any node that you must visit through the index,
+        // removal of ourselves from a level means the preceding index entry is the
+        // entry point to all of the removed node's descendants)
+        for (int i = 0 ; i < node.height() ; i++)
         {
-            assert node.value != null;
-            node.value = null;
-
-            size--;
-
-            // go up through each level in the skip list, unlinking this node; this entails
-            // simply linking each neighbour to each other, and appending the size of the
-            // current level owned by this node's index to the preceding neighbour (since
-            // ownership is defined as any node that you must visit through the index,
-            // removal of ourselves from a level means the preceding index entry is the
-            // entry point to all of the removed node's descendants)
-            for (int i = 0 ; i < node.height() ; i++)
-            {
-                Node<E> prev = node.prev(i);
-                Node<E> next = node.next(i);
-                assert prev != null;
-                prev.setNext(i, next);
-                if (next != null)
-                    next.setPrev(i, prev);
-                prev.size[i] += node.size[i] - 1;
-            }
-
-            // then go up the levels, removing 1 from the size at each height above ours
-            for (int i = node.height() ; i < maxHeight ; i++)
-            {
-                // if we're at our height limit, we backtrack at our top level until we
-                // hit a neighbour with a greater height
-                while (i == node.height())
-                    node = node.prev(i - 1);
-                node.size[i]--;
-            }
+            Node<E> prev = node.prev(i);
+            Node<E> next = node.next(i);
+            assert prev != null;
+            prev.setNext(i, next);
+            if (next != null)
+                next.setPrev(i, prev);
+            prev.size[i] += node.size[i] - 1;
         }
-        finally
+
+        // then go up the levels, removing 1 from the size at each height above ours
+        for (int i = node.height() ; i < maxHeight ; i++)
         {
-            lock.writeLock().unlock();
+            // if we're at our height limit, we backtrack at our top level until we
+            // hit a neighbour with a greater height
+            while (i == node.height())
+                node = node.prev(i - 1);
+            node.size[i]--;
         }
     }
 
     // retrieve the item at the provided index, or return null if the index is past the end of the list
     public E get(int index)
     {
-        lock.readLock().lock();
-        try
-        {
-            if (index >= size)
-                return null;
+        if (index >= size)
+            return null;
 
-            index++;
-            int c = 0;
-            Node<E> finger = head;
-            for (int i = maxHeight - 1 ; i >= 0 ; i--)
+        index++;
+        int c = 0;
+        Node<E> finger = head;
+        for (int i = maxHeight - 1 ; i >= 0 ; i--)
+        {
+            while (c + finger.size[i] <= index)
             {
-                while (c + finger.size[i] <= index)
-                {
-                    c += finger.size[i];
-                    finger = finger.next(i);
-                }
+                c += finger.size[i];
+                finger = finger.next(i);
             }
+        }
 
-            assert c == index;
-            return finger.value;
-        }
-        finally
-        {
-            lock.readLock().unlock();
-        }
+        assert c == index;
+        return finger.value;
+    }
+
+    public int size()
+    {
+        return size;
     }
 
     // some quick and dirty tests to confirm the skiplist works as intended

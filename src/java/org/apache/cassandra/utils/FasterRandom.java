@@ -16,7 +16,7 @@
 * specific language governing permissions and limitations
 * under the License.
 */
-package org.apache.cassandra.stress.generate;
+package org.apache.cassandra.utils;
 
 import java.util.Random;
 

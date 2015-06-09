@@ -44,6 +44,8 @@ import org.apache.cassandra.utils.SyncUtil;
  */
 public class SequentialWriter extends OutputStream implements WritableByteChannel, Transactional
 {
+    private static final int DEFAULT_BUFFER_SIZE = 64 * 1024;
+
     // isDirty - true if this.buffer contains any un-synced bytes
     protected boolean isDirty = false, syncNeeded = false;
 
@@ -151,12 +153,12 @@ public class SequentialWriter extends OutputStream implements WritableByteChanne
      */
     public static SequentialWriter open(File file)
     {
-        return new SequentialWriter(file, RandomAccessReader.DEFAULT_BUFFER_SIZE, BufferType.ON_HEAP);
+        return new SequentialWriter(file, DEFAULT_BUFFER_SIZE, BufferType.ON_HEAP);
     }
 
     public static ChecksummedSequentialWriter open(File file, File crcPath)
     {
-        return new ChecksummedSequentialWriter(file, RandomAccessReader.DEFAULT_BUFFER_SIZE, crcPath);
+        return new ChecksummedSequentialWriter(file, DEFAULT_BUFFER_SIZE, crcPath);
     }
 
     public static CompressedSequentialWriter open(String dataFilePath,

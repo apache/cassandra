@@ -20,41 +20,29 @@ package org.apache.cassandra.metrics;
 import com.codahale.metrics.Gauge;
 import com.codahale.metrics.Meter;
 import com.codahale.metrics.RatioGauge;
-import org.apache.cassandra.service.FileCacheService;
+import org.apache.cassandra.utils.memory.BufferPool;
 
 import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;
 
-
-public class FileCacheMetrics
+public class BufferPoolMetrics
 {
-    private static final MetricNameFactory factory = new DefaultNameFactory("FileCache");
+    private static final MetricNameFactory factory = new DefaultNameFactory("BufferPool");
 
-    /** Total number of hits */
-    public final Meter hits;
-    /** Total number of requests */
-    public final Meter requests;
-    /** hit rate */
-    public final Gauge<Double> hitRate;
-    /** Total size of file cache, in bytes */
+    /** Total number of misses */
+    public final Meter misses;
+
+    /** Total size of buffer pools, in bytes */
     public final Gauge<Long> size;
 
-    public FileCacheMetrics()
+    public BufferPoolMetrics()
     {
-        hits = Metrics.meter(factory.createMetricName("Hits"));
-        requests = Metrics.meter(factory.createMetricName("Requests"));
-        hitRate = Metrics.register(factory.createMetricName("HitRate"), new RatioGauge()
-        {
-            @Override
-            public Ratio getRatio()
-            {
-                return Ratio.of(hits.getCount(), requests.getCount());
-            }
-        });
+        misses = Metrics.meter(factory.createMetricName("Misses"));
+
         size = Metrics.register(factory.createMetricName("Size"), new Gauge<Long>()
         {
             public Long getValue()
             {
-                return FileCacheService.instance.sizeInBytes();
+                return BufferPool.sizeInBytes();
             }
         });
     }

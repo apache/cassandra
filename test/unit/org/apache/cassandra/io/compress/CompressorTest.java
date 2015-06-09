@@ -33,6 +33,7 @@ import org.junit.Test;
 
 import org.apache.cassandra.io.util.RandomAccessReader;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.memory.BufferPool;
 
 public class CompressorTest
 {

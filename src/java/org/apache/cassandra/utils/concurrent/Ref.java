@@ -282,7 +282,8 @@ public final class Ref<T> implements RefCounted<T>
                 globallyExtant.remove(this);
                 try
                 {
-                    tidy.tidy();
+                    if (tidy != null)
+                        tidy.tidy();
                 }
                 catch (Throwable t)
                 {
@@ -299,7 +300,9 @@ public final class Ref<T> implements RefCounted<T>
 
         public String toString()
         {
-            return tidy.getClass() + "@" + System.identityHashCode(tidy) + ":" + tidy.name();
+            if (tidy != null)
+                return tidy.getClass() + "@" + System.identityHashCode(tidy) + ":" + tidy.name();
+            return "@" + System.identityHashCode(this);
         }
     }
 
