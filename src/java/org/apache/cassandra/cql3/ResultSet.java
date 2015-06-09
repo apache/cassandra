@@ -283,11 +283,11 @@ public class ResultSet
 
         public Metadata setHasMorePages(PagingState pagingState)
         {
-            if (pagingState == null)
-                return this;
-
-            flags.add(Flag.HAS_MORE_PAGES);
             this.pagingState = pagingState;
+            if (pagingState == null)
+                flags.remove(Flag.HAS_MORE_PAGES);
+            else
+                flags.add(Flag.HAS_MORE_PAGES);
             return this;
         }
 
