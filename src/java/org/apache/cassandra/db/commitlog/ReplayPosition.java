@@ -70,9 +70,9 @@ public class ReplayPosition implements Comparable<ReplayPosition>
         public int compare(ReplayPosition o1, ReplayPosition o2)
         {
             if (o1.segment != o2.segment)
-                return Long.valueOf(o1.segment).compareTo(o2.segment);
+            	return Long.compare(o1.segment,  o2.segment);
 
-            return Integer.valueOf(o1.position).compareTo(o2.position);
+            return Integer.compare(o1.position, o2.position);
         }
     };
 

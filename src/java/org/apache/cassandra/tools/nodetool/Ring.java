@@ -65,7 +65,7 @@ public class Ring extends NodeToolCmd
             @Override
             public int compare(String first, String second)
             {
-                return ((Integer) first.length()).compareTo(second.length());
+            	return Integer.compare(first.length(), second.length());
             }
         }).length();
 
