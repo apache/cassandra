@@ -251,20 +251,14 @@ public class CompactionManager implements CompactionManagerMBean
     {
         try (LifecycleTransaction compacting = cfs.markAllCompacting(operationType);)
         {
-            if (compacting == null)
-            {
-                logger.info("Aborting operation on {}.{} after failing to interrupt other compaction operations", cfs.keyspace.getName(), cfs.name);
-                return AllSSTableOpStatus.ABORTED;
-            }
-            if (compacting.originals().isEmpty())
+            Iterable<SSTableReader> sstables = Lists.newArrayList(operation.filterSSTables(compacting));
+            if (Iterables.isEmpty(sstables))
             {
                 logger.info("No sstables for {}.{}", cfs.keyspace.getName(), cfs.name);
                 return AllSSTableOpStatus.SUCCESSFUL;
             }
 
-            Iterable<SSTableReader> sstables = operation.filterSSTables(compacting.originals());
             List<Pair<LifecycleTransaction,Future<Object>>> futures = new ArrayList<>();
-
 
             for (final SSTableReader sstable : sstables)
             {
@@ -320,7 +314,7 @@ public class CompactionManager implements CompactionManagerMBean
 
     private static interface OneSSTableOperation
     {
-        Iterable<SSTableReader> filterSSTables(Iterable<SSTableReader> input);
+        Iterable<SSTableReader> filterSSTables(LifecycleTransaction transaction);
         void execute(LifecycleTransaction input) throws IOException;
     }
 
@@ -338,9 +332,9 @@ public class CompactionManager implements CompactionManagerMBean
         return parallelAllSSTableOperation(cfs, new OneSSTableOperation()
         {
             @Override
-            public Iterable<SSTableReader> filterSSTables(Iterable<SSTableReader> input)
+            public Iterable<SSTableReader> filterSSTables(LifecycleTransaction input)
             {
-                return input;
+                return input.originals();
             }
 
             @Override
@@ -357,9 +351,9 @@ public class CompactionManager implements CompactionManagerMBean
         return parallelAllSSTableOperation(cfs, new OneSSTableOperation()
         {
             @Override
-            public Iterable<SSTableReader> filterSSTables(Iterable<SSTableReader> input)
+            public Iterable<SSTableReader> filterSSTables(LifecycleTransaction input)
             {
-                return input;
+                return input.originals();
             }
 
             @Override
@@ -375,16 +369,20 @@ public class CompactionManager implements CompactionManagerMBean
         return parallelAllSSTableOperation(cfs, new OneSSTableOperation()
         {
             @Override
-            public Iterable<SSTableReader> filterSSTables(Iterable<SSTableReader> input)
+            public Iterable<SSTableReader> filterSSTables(LifecycleTransaction transaction)
             {
-                return Iterables.filter(input, new Predicate<SSTableReader>()
+                Iterable<SSTableReader> sstables = new ArrayList<>(transaction.originals());
+                Iterator<SSTableReader> iter = sstables.iterator();
+                while (iter.hasNext())
                 {
-                    @Override
-                    public boolean apply(SSTableReader sstable)
+                    SSTableReader sstable = iter.next();
+                    if (excludeCurrentVersion && sstable.descriptor.version.equals(sstable.descriptor.getFormat().getLatestVersion()))
                     {
-                        return !(excludeCurrentVersion && sstable.descriptor.version.equals(sstable.descriptor.getFormat().getLatestVersion()));
+                        transaction.cancel(sstable);
+                        iter.remove();
                     }
-                });
+                }
+                return sstables;
             }
 
             @Override
@@ -413,9 +411,9 @@ public class CompactionManager implements CompactionManagerMBean
         return parallelAllSSTableOperation(cfStore, new OneSSTableOperation()
         {
             @Override
-            public Iterable<SSTableReader> filterSSTables(Iterable<SSTableReader> input)
+            public Iterable<SSTableReader> filterSSTables(LifecycleTransaction transaction)
             {
-                List<SSTableReader> sortedSSTables = Lists.newArrayList(input);
+                List<SSTableReader> sortedSSTables = Lists.newArrayList(transaction.originals());
                 Collections.sort(sortedSSTables, new SSTableReader.SizeComparator());
                 return sortedSSTables;
             }
