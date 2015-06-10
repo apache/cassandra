@@ -86,7 +86,7 @@ public class BufferPool
     public static ByteBuffer get(int size, BufferType bufferType)
     {
         boolean direct = bufferType == BufferType.OFF_HEAP;
-        if (DISABLED | !direct)
+        if (DISABLED || !direct)
             return allocate(size, !direct);
         else
             return takeFromPool(size, !direct);
@@ -141,7 +141,7 @@ public class BufferPool
 
     public static void put(ByteBuffer buffer)
     {
-        if (!(DISABLED | buffer.hasArray()))
+        if (!(DISABLED || buffer.hasArray()))
             localPool.get().put(buffer);
     }
 
@@ -408,7 +408,7 @@ public class BufferPool
                 if (owner == this)
                     removeFromLocalQueue(chunk);
             }
-            else if (((free == -1L) & owner != this) && chunk.owner == null)
+            else if (((free == -1L) && owner != this) && chunk.owner == null)
             {
                 // although we try to take recycle ownership cheaply, it is not always possible to do so if the owner is racing to unset.
                 // we must also check after completely freeing if the owner has since been unset, and try to recycle
@@ -830,7 +830,7 @@ public class BufferPool
                 long cur = freeSlots;
                 next = cur | shiftedSlotBits;
                 assert next == (cur ^ shiftedSlotBits); // ensure no double free
-                if (tryRelease & (next == -1L))
+                if (tryRelease && (next == -1L))
                     next = 0L;
                 if (freeSlotsUpdater.compareAndSet(this, cur, next))
                     return next;
