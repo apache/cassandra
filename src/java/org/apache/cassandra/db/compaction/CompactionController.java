@@ -102,7 +102,12 @@ public class CompactionController
         long minTimestamp = Long.MAX_VALUE;
 
         for (SSTableReader sstable : overlapping)
-            minTimestamp = Math.min(minTimestamp, sstable.getMinTimestamp());
+        {
+            // Overlapping might include fully expired sstables. What we care about here is
+            // the min timestamp of the overlapping sstables that actually contain live data.
+            if (sstable.getSSTableMetadata().maxLocalDeletionTime >= gcBefore)
+                minTimestamp = Math.min(minTimestamp, sstable.getMinTimestamp());
+        }
 
         for (SSTableReader candidate : compacting)
         {
