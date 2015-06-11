@@ -50,6 +50,16 @@ public class SimpleDateType extends AbstractType<Integer>
         return ByteBufferUtil.bytes(SimpleDateSerializer.dateStringToDays(source));
     }
 
+    public ByteBuffer fromTimeInMillis(long millis) throws MarshalException
+    {
+        return ByteBufferUtil.bytes(SimpleDateSerializer.timeInMillisToDay(millis));
+    }
+
+    public long toTimeInMillis(ByteBuffer buffer) throws MarshalException
+    {
+        return SimpleDateSerializer.dayToTimeInMillis(ByteBufferUtil.toInt(buffer));
+    }
+
     @Override
     public boolean isCompatibleWith(AbstractType<?> previous)
     {

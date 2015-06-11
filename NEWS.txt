@@ -102,6 +102,13 @@ New features
    - New `ShortType` (cql smallint). 2-byte signed integer
    - New `SimpleDateType` (cql date). 4-byte unsigned integer
    - New `TimeType` (cql time). 8-byte long
+   - The toDate(timeuuid), toTimestamp(timeuuid) and toUnixTimestamp(timeuuid) functions have been added to allow
+     to convert from timeuuid into date type, timestamp type and bigint raw value.
+     The functions unixTimestampOf(timeuuid) and dateOf(timeuuid) have been deprecated.
+   - The toDate(timestamp) and toUnixTimestamp(timestamp) functions have been added to allow
+     to convert from timestamp into date type and bigint raw value.
+   - The toTimestamp(date) and toUnixTimestamp(date) functions have been added to allow
+     to convert from date into timestamp type and bigint raw value.
 
 
 Upgrading
