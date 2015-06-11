@@ -1198,6 +1198,8 @@
 	    <jvmarg value="-Dcassandra.test.offsetseed=@{poffset}"/>
         <jvmarg value="-Dcassandra.test.sstableformatdevelopment=true"/>
         <jvmarg value="-Dcassandra.testtag=@{testtag}"/>
+        <!-- The first time SecureRandom initializes can be slow if it blocks on /dev/random -->
+        <jvmarg value="-Djava.security.egd=file:/dev/urandom" />
 	<optjvmargs/>
         <classpath>
           <path refid="cassandra.classpath" />
