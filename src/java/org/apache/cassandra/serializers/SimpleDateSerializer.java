@@ -86,14 +86,24 @@ public class SimpleDateSerializer implements TypeSerializer<Integer>
             if (millis > maxSupportedDateMillis)
                 throw new MarshalException(String.format("Input date %s is greater than max supported date %s", source, new LocalDate(maxSupportedDateMillis).toString()));
 
-            Integer result = (int)TimeUnit.MILLISECONDS.toDays(millis);
-            result -= Integer.MIN_VALUE;
-            return result;
+            return timeInMillisToDay(millis);
         }
         catch (IllegalArgumentException e1)
         {
             throw new MarshalException(String.format("Unable to coerce '%s' to a formatted date (long)", source), e1);
         }
+    }
+
+    public static int timeInMillisToDay(long millis)
+    {
+        Integer result = (int) TimeUnit.MILLISECONDS.toDays(millis);
+        result -= Integer.MIN_VALUE;
+        return result;
+    }
+
+    public static long dayToTimeInMillis(int days)
+    {
+        return TimeUnit.DAYS.toMillis(days - Integer.MIN_VALUE);
     }
 
     public void validate(ByteBuffer bytes) throws MarshalException
@@ -107,7 +117,7 @@ public class SimpleDateSerializer implements TypeSerializer<Integer>
         if (value == null)
             return "";
 
-        return formatter.print(new LocalDate(TimeUnit.DAYS.toMillis(value - Integer.MIN_VALUE), DateTimeZone.UTC));
+        return formatter.print(new LocalDate(dayToTimeInMillis(value), DateTimeZone.UTC));
     }
 
     public Class<Integer> getType()

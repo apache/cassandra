@@ -46,11 +46,18 @@ public abstract class Functions
     static
     {
         declare(AggregateFcts.countRowsFunction);
-        declare(TimeuuidFcts.nowFct);
-        declare(TimeuuidFcts.minTimeuuidFct);
-        declare(TimeuuidFcts.maxTimeuuidFct);
-        declare(TimeuuidFcts.dateOfFct);
-        declare(TimeuuidFcts.unixTimestampOfFct);
+        declare(TimeFcts.nowFct);
+        declare(TimeFcts.minTimeuuidFct);
+        declare(TimeFcts.maxTimeuuidFct);
+        declare(TimeFcts.dateOfFct);
+        declare(TimeFcts.unixTimestampOfFct);
+        declare(TimeFcts.timeUuidtoDate);
+        declare(TimeFcts.timeUuidToTimestamp);
+        declare(TimeFcts.timeUuidToUnixTimestamp);
+        declare(TimeFcts.timestampToDate);
+        declare(TimeFcts.timestampToUnixTimestamp);
+        declare(TimeFcts.dateToTimestamp);
+        declare(TimeFcts.dateToUnixTimestamp);
         declare(UuidFcts.uuidFct);
 
         for (CQL3Type type : CQL3Type.Native.values())

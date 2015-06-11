@@ -64,6 +64,11 @@ public class TimestampType extends AbstractType<Date>
       return ByteBufferUtil.bytes(TimestampSerializer.dateStringToTimestamp(source));
     }
 
+    public ByteBuffer fromTimeInMillis(long millis) throws MarshalException
+    {
+        return ByteBufferUtil.bytes(millis);
+    }
+
     @Override
     public Term fromJSONObject(Object parsed) throws MarshalException
     {
