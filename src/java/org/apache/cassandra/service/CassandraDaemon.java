@@ -124,6 +124,8 @@ public class CassandraDaemon
     {
         logSystemInfo();
 
+        CLibrary.tryMlockall();
+
         try
         {
             startupChecks.verify();
@@ -132,8 +134,6 @@ public class CassandraDaemon
         {
             exitOrFail(e.returnCode, e.getMessage(), e.getCause());
         }
-
-        CLibrary.tryMlockall();
 
         try
         {
