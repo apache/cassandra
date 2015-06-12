@@ -299,12 +299,12 @@ Function VerifyPortsAreAvailable
     {
         if ($line -match "^listen_address:")
         {
-            $args = $line -Split ":"
+            $args = $line -Split ": "
             $listenAddress = $args[1] -replace " ", ""
         }
         if ($line -match "^rpc_address:")
         {
-            $args = $line -Split ":"
+            $args = $line -Split ": "
             $rpcAddress = $args[1] -replace " ", ""
         }
     }
