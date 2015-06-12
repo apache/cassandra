@@ -21,7 +21,7 @@
 package org.apache.cassandra.stress.generate.values;
 
 import org.apache.cassandra.db.marshal.UTF8Type;
-import org.apache.cassandra.utils.FasterRandom;
+import org.apache.cassandra.stress.generate.FasterRandom;
 
 public class Strings extends Generator<String>
 {

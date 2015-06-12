@@ -5,6 +5,7 @@
  * Change gossip stabilization to use endpoit size (CASSANDRA-9401)
  * Change default garbage collector to G1 (CASSANDRA-7486)
  * Populate TokenMetadata early during startup (CASSANDRA-9317)
+ * undeprecate cache recentHitRate (CASSANDRA-6591)
 
 
 2.2

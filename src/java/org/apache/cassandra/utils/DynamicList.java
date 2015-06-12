@@ -238,7 +238,7 @@ public class DynamicList<E>
             canon.add(c);
             c++;
         }
-        FasterRandom rand = new FasterRandom();
+        ThreadLocalRandom rand = ThreadLocalRandom.current();
         assert list.isWellFormed();
         for (int loop = 0 ; loop < 100 ; loop++)
         {
