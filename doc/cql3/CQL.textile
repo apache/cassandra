@@ -1972,10 +1972,15 @@ Where possible, Cassandra will represent and accept data types in their native @
 |@float@    |integer, float, string|float            |String must be valid integer or float|
 |@inet@     |string                |string           |IPv4 or IPv6 address|
 |@int@      |integer, string       |integer          |String must be valid 32 bit integer|
+|@list@     |list, string          |list             |Uses JSON's native list representation|
+|@map@      |map, string           |map              |Uses JSON's native map representation|
+|@set@      |list, string          |list             |Uses JSON's native list representation|
 |@text@     |string                |string           |Uses JSON's @\u@ character escape|
 |@time@     |string                |string           |Time of day in format @HH-MM-SS[.fffffffff]@|
 |@timestamp@|integer, string       |string           |A timestamp. Strings constant are allow to input timestamps as dates, see "Working with dates":#usingdates below for more information.  Datestamps with format @YYYY-MM-DD HH:MM:SS.SSS@ are returned.|
 |@timeuuid@ |string                |string           |Type 1 UUID. See "Constants":#constants for the UUID format|
+|@tuple@    |list, string          |list             |Uses JSON's native list representation|
+|@UDT@      |map, string           |map              |Uses JSON's native map representation with field names as keys|
 |@uuid@     |string                |string           |See "Constants":#constants for the UUID format|
 |@varchar@  |string                |string           |Uses JSON's @\u@ character escape|
 |@varint@   |integer, string       |integer          |Variable length; may overflow 32 or 64 bit integers in client-side decoder|
