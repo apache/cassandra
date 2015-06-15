@@ -157,7 +157,7 @@ public class SSTableReader extends SSTable implements Closeable
 
     public static SSTableReader openForBatch(Descriptor descriptor, Set<Component> components, CFMetaData metadata, IPartitioner partitioner) throws IOException
     {
-        SSTableMetadata sstableMetadata = openMetadata(descriptor, components, partitioner);
+        SSTableMetadata sstableMetadata = openMetadata(descriptor, components, partitioner, true);
         SSTableReader sstable = new SSTableReader(descriptor,
                                                   components,
                                                   metadata,
@@ -191,7 +191,7 @@ public class SSTableReader extends SSTable implements Closeable
                                       boolean validate) throws IOException
     {
         long start = System.nanoTime();
-        SSTableMetadata sstableMetadata = openMetadata(descriptor, components, partitioner);
+        SSTableMetadata sstableMetadata = openMetadata(descriptor, components, partitioner, validate);
 
         SSTableReader sstable = new SSTableReader(descriptor,
                                                   components,
@@ -213,12 +213,17 @@ public class SSTableReader extends SSTable implements Closeable
         return sstable;
     }
 
-    private static SSTableMetadata openMetadata(Descriptor descriptor, Set<Component> components, IPartitioner partitioner) throws IOException
+    private static SSTableMetadata openMetadata(Descriptor descriptor,
+                                                Set<Component> components,
+                                                IPartitioner partitioner,
+                                                boolean primaryIndexRequired) throws IOException
     {
         assert partitioner != null;
         // Minimum components without which we can't do anything
         assert components.contains(Component.DATA) : "Data component is missing for sstable" + descriptor;
-        assert components.contains(Component.PRIMARY_INDEX) : "Primary index component is missing for sstable " + descriptor;
+
+        assert !primaryIndexRequired || components.contains(Component.PRIMARY_INDEX)
+                : "Primary index component is missing for sstable " + descriptor;
 
         logger.info("Opening {} ({} bytes)", descriptor, new File(descriptor.filenameFor(COMPONENT_DATA)).length());
 
@@ -382,11 +387,17 @@ public class SSTableReader extends SSTable implements Closeable
             readMeterSyncFuture.cancel(false);
 
         // Force finalizing mmapping if necessary
-        ifile.cleanup();
+
+        if (null != ifile)
+            ifile.cleanup();
+
         dfile.cleanup();
         // close the BF so it can be opened later.
-        bf.close();
-        indexSummary.close();
+        if (null != bf)
+            bf.close();
+
+        if (null != indexSummary)
+            indexSummary.close();
     }
 
     public void setTrackedBy(DataTracker tracker)
@@ -405,6 +416,12 @@ public class SSTableReader extends SSTable implements Closeable
             // bf is disabled.
             load(false, true);
             bf = FilterFactory.AlwaysPresent;
+        }
+        else if (!components.contains(Component.PRIMARY_INDEX))
+        {
+            // avoid any reading of the missing primary index component.
+            // this should only happen during StandaloneScrubber
+            load(false, false);
         }
         else if (!components.contains(Component.FILTER))
         {
@@ -454,7 +471,9 @@ public class SSTableReader extends SSTable implements Closeable
         if (recreateBloomFilter || !summaryLoaded)
             buildSummary(recreateBloomFilter, ibuilder, dbuilder, summaryLoaded);
 
-        ifile = ibuilder.complete(descriptor.filenameFor(Component.PRIMARY_INDEX));
+        if (components.contains(Component.PRIMARY_INDEX))
+            ifile = ibuilder.complete(descriptor.filenameFor(Component.PRIMARY_INDEX));
+
         dfile = dbuilder.complete(descriptor.filenameFor(Component.DATA));
         if (saveSummaryIfCreated && (recreateBloomFilter || !summaryLoaded)) // save summary information to disk
             saveSummary(this, ibuilder, dbuilder);
@@ -462,6 +481,9 @@ public class SSTableReader extends SSTable implements Closeable
 
      private void buildSummary(boolean recreateBloomFilter, SegmentedFile.Builder ibuilder, SegmentedFile.Builder dbuilder, boolean summaryLoaded) throws IOException
      {
+         if (!components.contains(Component.PRIMARY_INDEX))
+             return;
+
         // we read the positions in a BRAF so we don't have to worry about an entry spanning a mmap boundary.
         RandomAccessReader primaryIndex = RandomAccessReader.open(new File(descriptor.filenameFor(Component.PRIMARY_INDEX)));
 
@@ -965,6 +987,9 @@ public class SSTableReader extends SSTable implements Closeable
             }
         }
 
+        if (ifile == null)
+            return null;
+
         // scan the on-disk index, starting at the nearest sampled position.
         // The check against IndexInterval is to be exit the loop in the EQ case when the key looked for is not present
         // (bloom filter false positive). But note that for non-EQ cases, we might need to check the first key of the
@@ -1062,6 +1087,9 @@ public class SSTableReader extends SSTable implements Closeable
         long sampledPosition = getIndexScanPosition(token);
         if (sampledPosition == -1)
             sampledPosition = 0;
+
+        if (ifile == null)
+            return null;
 
         Iterator<FileDataInput> segments = ifile.iterator(sampledPosition);
         while (segments.hasNext())
@@ -1480,7 +1508,8 @@ public class SSTableReader extends SSTable implements Closeable
     private void dropPageCache()
     {
         dropPageCache(dfile.path);
-        dropPageCache(ifile.path);
+        if (null != ifile)
+            dropPageCache(ifile.path);
     }
 
     private void dropPageCache(String filePath)

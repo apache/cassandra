@@ -96,7 +96,16 @@ public class Scrubber implements Closeable
                         ? new ScrubController(cfs)
                         : new CompactionController(cfs, Collections.singleton(sstable), CompactionManager.getDefaultGcBefore(cfs));
         this.isCommutative = cfs.metadata.getDefaultValidator().isCommutative();
-        this.expectedBloomFilterSize = Math.max(cfs.metadata.getIndexInterval(), (int)(SSTableReader.getApproximateKeyCount(toScrub,cfs.metadata)));
+
+        boolean hasIndexFile = (new File(sstable.descriptor.filenameFor(Component.PRIMARY_INDEX))).exists();
+        if (!hasIndexFile)
+        {
+            // if there's any corruption in the -Data.db then rows can't be skipped over. but it's worth a shot.
+            outputHandler.warn("Missing component: " + sstable.descriptor.filenameFor(Component.PRIMARY_INDEX));
+        }
+
+        this.expectedBloomFilterSize = Math.max(cfs.metadata.getIndexInterval(),
+                hasIndexFile ? (int)(SSTableReader.getApproximateKeyCount(toScrub,cfs.metadata)) : 0);
 
         // loop through each row, deserializing to check for damage.
         // we'll also loop through the index at the same time, using the position from the index to recover if the
@@ -105,7 +114,11 @@ public class Scrubber implements Closeable
         this.dataFile = isOffline
                         ? sstable.openDataReader()
                         : sstable.openDataReader(CompactionManager.instance.getRateLimiter());
-        this.indexFile = RandomAccessReader.open(new File(sstable.descriptor.filenameFor(Component.PRIMARY_INDEX)));
+
+        this.indexFile = hasIndexFile
+                ? RandomAccessReader.open(new File(sstable.descriptor.filenameFor(Component.PRIMARY_INDEX)))
+                : null;
+
         this.scrubInfo = new ScrubInfo(dataFile, sstable);
 
         this.currentRowPositionFromIndex = 0;
@@ -117,7 +130,8 @@ public class Scrubber implements Closeable
         outputHandler.output(String.format("Scrubbing %s (%s bytes)", sstable, dataFile.length()));
         try
         {
-            nextIndexKey = ByteBufferUtil.readWithShortLength(indexFile);
+            nextIndexKey = indexAvailable() ? ByteBufferUtil.readWithShortLength(indexFile) : null;
+            if (indexAvailable())
             {
                 // throw away variable so we don't have a side effect in the assert
                 long firstRowPositionFromIndex = RowIndexEntry.serializer.deserialize(indexFile, sstable.descriptor.version).position;
@@ -181,7 +195,7 @@ public class Scrubber implements Closeable
                         outputHandler.debug(String.format("Index doublecheck: row %s is %s bytes", ByteBufferUtil.bytesToHex(currentIndexKey),  dataSizeFromIndex));
                 }
 
-                assert currentIndexKey != null || indexFile.isEOF();
+                assert currentIndexKey != null || !indexAvailable();
 
                 writer.mark();
                 try
@@ -198,10 +212,10 @@ public class Scrubber implements Closeable
                     if (dataSize > dataFile.length())
                         throw new IOError(new IOException("Impossible row size (greater than file length): " + dataSize));
 
-                    if (dataStart != dataStartFromIndex)
+                    if (indexFile != null && dataStart != dataStartFromIndex)
                         outputHandler.warn(String.format("Data file row position %d differs from index file row position %d", dataStart, dataStartFromIndex));
 
-                    if (dataSize != dataSizeFromIndex)
+                    if (indexFile != null && dataSize != dataSizeFromIndex)
                         outputHandler.warn(String.format("Data file row size %d differs from index file row size %d", dataSize, dataSizeFromIndex));
 
                     SSTableIdentityIterator atoms = new SSTableIdentityIterator(sstable, dataFile, key, dataSize, validateColumns);
@@ -317,8 +331,9 @@ public class Scrubber implements Closeable
         currentRowPositionFromIndex = nextRowPositionFromIndex;
         try
         {
-            nextIndexKey = indexFile.isEOF() ? null : ByteBufferUtil.readWithShortLength(indexFile);
-            nextRowPositionFromIndex = indexFile.isEOF()
+            nextIndexKey = !indexAvailable() ? null : ByteBufferUtil.readWithShortLength(indexFile);
+
+            nextRowPositionFromIndex = !indexAvailable()
                     ? dataFile.length()
                     : RowIndexEntry.serializer.deserialize(indexFile, sstable.descriptor.version).position;
         }
@@ -328,6 +343,11 @@ public class Scrubber implements Closeable
             nextIndexKey = null;
             nextRowPositionFromIndex = dataFile.length();
         }
+    }
+
+    private boolean indexAvailable()
+    {
+        return indexFile != null && !indexFile.isEOF();
     }
 
     private void seekToNextRow()

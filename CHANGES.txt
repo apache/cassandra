@@ -1,3 +1,7 @@
+2.0.18
+* Scrub (recover) sstables even when -Index.db is missing, (CASSANDRA-9591)
+
+
 2.0.17
  * Avoid NPE in AuthSuccess#decode (CASSANDRA-9727)
  * Add listen_address to system.local (CASSANDRA-9603)
