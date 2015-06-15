@@ -299,6 +299,35 @@ class CqlRecordWriter extends RecordWriter<Map<String, ByteBuffer>, List<ByteBuf
                 while (true)
                 {
                     // send the mutation to the last-used endpoint.  first time through, this will NPE harmlessly.
+                    try
+                    {
+                        int i = 0;
+                        PreparedStatement statement = preparedStatement(client);
+                        while (bindVariables != null)
+                        {
+                            BoundStatement boundStatement = new BoundStatement(statement);
+                            for (int columnPosition = 0; columnPosition < bindVariables.size(); columnPosition++)
+                            {
+                                boundStatement.setBytesUnsafe(columnPosition, bindVariables.get(columnPosition));
+                            }
+                            client.execute(boundStatement);
+                            i++;
+
+                            if (i >= batchThreshold)
+                                break;
+                            bindVariables = queue.poll();
+                        }
+                        break;
+                    }
+                    catch (Exception e)
+                    {
+                        closeInternal();
+                        if (!iter.hasNext())
+                        {
+                            lastException = new IOException(e);
+                            break outer;
+                        }
+                    }
 
                     // attempt to connect to a different endpoint
                     try
@@ -326,39 +355,7 @@ class CqlRecordWriter extends RecordWriter<Map<String, ByteBuffer>, List<ByteBuf
                             lastException = new IOException(e);
                             break outer;
                         }
-                        continue;
                     }
-
-                    try
-                    {
-                        int i = 0;
-                        PreparedStatement statement = preparedStatement(client);
-                        while (bindVariables != null)
-                        {
-                            BoundStatement boundStatement = new BoundStatement(statement);
-                            for (int columnPosition = 0; columnPosition < bindVariables.size(); columnPosition++)
-                            {
-                                boundStatement.setBytesUnsafe(columnPosition, bindVariables.get(columnPosition));
-                            }
-                            client.execute(boundStatement);
-                            i++;
-                            
-                            if (i >= batchThreshold)
-                                break;
-                            bindVariables = queue.poll();
-                        }
-                        break;
-                    }
-                    catch (Exception e)
-                    {
-                        closeInternal();
-                        if (!iter.hasNext())
-                        {
-                            lastException = new IOException(e);
-                            break outer;
-                        }
-                    }
-
                 }
             }
             // close all our connections once we are done.
@@ -409,7 +406,7 @@ class CqlRecordWriter extends RecordWriter<Map<String, ByteBuffer>, List<ByteBuf
         {
             if (client != null)
             {
-                client.close();;
+                client.close();
             }
         }
 
