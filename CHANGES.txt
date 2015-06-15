@@ -9,6 +9,7 @@
 
 
 2.2
+ * Fix connection leak in CqlRecordWriter (CASSANDRA-9576)
  * Mlockall before opening system sstables & remove boot_without_jna option (CASSANDRA-9573)
  * Add functions to convert timeuuid to date or time, deprecate dateOf and unixTimestampOf (CASSANDRA-9229)
  * Make sure we cancel non-compacting sstables from LifecycleTransaction (CASSANDRA-9566)
