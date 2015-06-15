@@ -29,7 +29,7 @@ import com.google.common.base.Preconditions;
 
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.utils.memory.MemoryUtil;
-
+import org.apache.cassandra.utils.vint.VIntCoding;
 
 /**
  * An implementation of the DataOutputStreamPlus interface using a ByteBuffer to stage writes
@@ -211,6 +211,27 @@ public class BufferedDataOutputStreamPlus extends DataOutputStreamPlus
     {
         ensureRemaining(8);
         buffer.putLong(v);
+    }
+
+    @Override
+    public void writeVInt(long value) throws IOException
+    {
+        writeUnsignedVInt(VIntCoding.encodeZigZag64(value));
+    }
+
+    @Override
+    public void writeUnsignedVInt(long value) throws IOException
+    {
+        int size = VIntCoding.computeUnsignedVIntSize(value);
+        if (size == 1)
+        {
+            ensureRemaining(1);
+            buffer.put((byte) value);
+            return;
+        }
+
+        ensureRemaining(size);
+        buffer.put(VIntCoding.encodeVInt(value, size), 0, size);
     }
 
     @Override

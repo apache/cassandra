@@ -18,6 +18,9 @@ import org.apache.cassandra.io.util.NIODataInputStream;
 import org.junit.Test;
 
 import com.google.common.base.Charsets;
+import com.google.common.primitives.UnsignedBytes;
+import com.google.common.primitives.UnsignedInteger;
+import com.google.common.primitives.UnsignedLong;
 
 import static org.junit.Assert.*;
 
@@ -126,7 +129,7 @@ public class NIODataInputStreamTest
 
     }
 
-    NIODataInputStream fakeStream = new NIODataInputStream(new FakeChannel(), 8);
+    NIODataInputStream fakeStream = new NIODataInputStream(new FakeChannel(), 9);
 
     @Test(expected = IOException.class)
     public void testResetThrows() throws Exception
@@ -212,7 +215,7 @@ public class NIODataInputStreamTest
         fos.write(new byte[10]);
         fos.seek(0);
 
-        is = new NIODataInputStream(fos.getChannel(), 8);
+        is = new NIODataInputStream(fos.getChannel(), 9);
 
         int remaining = 10;
         assertEquals(10, is.available());
@@ -224,6 +227,31 @@ public class NIODataInputStreamTest
             assertEquals(remaining, is.available());
         }
         assertEquals(0, is.available());
+    }
+
+    private static ReadableByteChannel wrap(final byte bytes[])
+    {
+        final ByteBuffer buf = ByteBuffer.wrap(bytes);
+        return new ReadableByteChannel()
+        {
+
+            @Override
+            public boolean isOpen() {return false;}
+
+            @Override
+            public void close() throws IOException {}
+
+            @Override
+            public int read(ByteBuffer dst) throws IOException
+            {
+                int read = Math.min(dst.remaining(), buf.remaining());
+                buf.limit(buf.position() + read);
+                dst.put(buf);
+                buf.limit(buf.capacity());
+                return read == 0 ? -1 : read;
+            }
+
+        };
     }
 
     @SuppressWarnings("resource")
@@ -244,28 +272,84 @@ public class NIODataInputStreamTest
         daos.writeUTF(BufferedDataOutputStreamTest.threeByte);
         daos.writeUTF(BufferedDataOutputStreamTest.fourByte);
 
-        NIODataInputStream is = new NIODataInputStream(new ReadableByteChannel()
-        {
-
-            @Override
-            public boolean isOpen() {return false;}
-
-            @Override
-            public void close() throws IOException {}
-
-            @Override
-            public int read(ByteBuffer dst) throws IOException
-            {
-                dst.put(baos.toByteArray());
-                return baos.toByteArray().length;
-            }
-
-        }, 4096);
+        NIODataInputStream is = new NIODataInputStream(wrap(baos.toByteArray()), 4096);
 
         assertEquals(simple, is.readUTF());
         assertEquals(BufferedDataOutputStreamTest.twoByte, is.readUTF());
         assertEquals(BufferedDataOutputStreamTest.threeByte, is.readUTF());
         assertEquals(BufferedDataOutputStreamTest.fourByte, is.readUTF());
+    }
+
+    @SuppressWarnings("resource")
+    @Test
+    public void testReadVInt() throws Exception {
+        final ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        DataOutputStreamPlus daos = new WrappedDataOutputStreamPlus(baos);
+
+        long values[] = new long[] {
+                0, 1, -1,
+                Long.MIN_VALUE, Long.MIN_VALUE + 1, Long.MAX_VALUE, Long.MAX_VALUE - 1,
+                Integer.MIN_VALUE, Integer.MIN_VALUE + 1, Integer.MAX_VALUE, Integer.MAX_VALUE - 1,
+                Short.MIN_VALUE, Short.MIN_VALUE + 1, Short.MAX_VALUE, Short.MAX_VALUE - 1,
+                Byte.MIN_VALUE, Byte.MIN_VALUE + 1, Byte.MAX_VALUE, Byte.MAX_VALUE - 1 };
+        values = BufferedDataOutputStreamTest.enrich(values);
+
+        for (long v : values)
+            daos.writeVInt(v);
+
+        daos.flush();
+
+        NIODataInputStream is = new NIODataInputStream(wrap(baos.toByteArray()), 9);
+
+        for (long v : values)
+            assertEquals(v, is.readVInt());
+
+        boolean threw = false;
+        try
+        {
+            is.readVInt();
+        }
+        catch (EOFException e)
+        {
+            threw = true;
+        }
+        assertTrue(threw);
+    }
+
+    @SuppressWarnings("resource")
+    @Test
+    public void testReadUnsignedVInt() throws Exception {
+        final ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        DataOutputStreamPlus daos = new WrappedDataOutputStreamPlus(baos);
+
+        long values[] = new long[] {
+                0, 1
+                , UnsignedLong.MAX_VALUE.longValue(), UnsignedLong.MAX_VALUE.longValue() - 1, UnsignedLong.MAX_VALUE.longValue() + 1
+                , UnsignedInteger.MAX_VALUE.longValue(), UnsignedInteger.MAX_VALUE.longValue() - 1, UnsignedInteger.MAX_VALUE.longValue() + 1
+                , UnsignedBytes.MAX_VALUE, UnsignedBytes.MAX_VALUE - 1, UnsignedBytes.MAX_VALUE + 1
+                , 65536, 65536 - 1, 65536 + 1 };
+        values = BufferedDataOutputStreamTest.enrich(values);
+
+        for (long v : values)
+            daos.writeUnsignedVInt(v);
+
+        daos.flush();
+
+        NIODataInputStream is = new NIODataInputStream(wrap(baos.toByteArray()), 9);
+
+        for (long v : values)
+            assertEquals(v, is.readUnsignedVInt());
+
+        boolean threw = false;
+        try
+        {
+            is.readUnsignedVInt();
+        }
+        catch (EOFException e)
+        {
+            threw = true;
+        }
+        assertTrue(threw);
     }
 
     @Test

@@ -27,6 +27,8 @@ import java.nio.ByteBuffer;
 import java.nio.channels.ReadableByteChannel;
 import java.nio.channels.SeekableByteChannel;
 
+import org.apache.cassandra.utils.vint.VIntCoding;
+
 import com.google.common.base.Preconditions;
 
 /**
@@ -50,7 +52,7 @@ public class NIODataInputStream extends InputStream implements DataInput, Closea
     public NIODataInputStream(ReadableByteChannel rbc, int bufferSize)
     {
         Preconditions.checkNotNull(rbc);
-        Preconditions.checkArgument(bufferSize >= 8, "Buffer size must be large enough to accomadate a long/double");
+        Preconditions.checkArgument(bufferSize >= 9, "Buffer size must be large enough to accomadate a varint");
         this.rbc = rbc;
         buf = ByteBuffer.allocateDirect(bufferSize);
         buf.position(0);
@@ -116,7 +118,7 @@ public class NIODataInputStream extends InputStream implements DataInput, Closea
     private int readNext() throws IOException
     {
         Preconditions.checkState(buf.remaining() != buf.capacity());
-        assert(buf.remaining() < 8);
+        assert(buf.remaining() < 9);
 
         /*
          * If there is data already at the start of the buffer, move the position to the end
@@ -151,31 +153,55 @@ public class NIODataInputStream extends InputStream implements DataInput, Closea
         return read;
     }
 
-    /*
-     * Read at least minimum bytes and throw EOF if that fails
-     */
-    private void readMinimum(int minimum) throws IOException
+   /*
+    * Read at least minimum bytes and throw EOF if that fails
+    */
+    private void readMinimum(int attempt, int require) throws IOException
     {
         assert(buf.remaining() < 8);
-        while (buf.remaining() < minimum)
+        int remaining;
+        while ((remaining = buf.remaining()) < attempt)
         {
             int read = readNext();
             if (read == -1)
             {
-                //DataInputStream consumes the bytes even if it doesn't get the entire value, match the behavior here
-                buf.position(0);
-                buf.limit(0);
-                throw new EOFException();
+                if (remaining < require)
+                {
+                    //DataInputStream consumes the bytes even if it doesn't get the entire value, match the behavior here
+                    buf.position(0);
+                    buf.limit(0);
+                    throw new EOFException();
+                }
             }
         }
     }
 
     /*
-     * Ensure the buffer contains the minimum number of readable bytes
+     * Ensure the buffer contains the minimum number of readable bytes, throws EOF if enough bytes aren't available
+     * Add padding if requested and return the limit of the buffer without any padding that is added.
+     */
+    private int prepareReadPaddedPrimitive(int minimum) throws IOException
+    {
+        int limitToSet = buf.limit();
+        int position = buf.position();
+        if (limitToSet - position < minimum)
+        {
+            readMinimum(minimum, 1);
+            limitToSet = buf.limit();
+            position = buf.position();
+            if (limitToSet - position < minimum)
+                buf.limit(position + minimum);
+        }
+        return limitToSet;
+    }
+
+    /*
+     * Ensure the buffer contains the minimum number of readable bytes, throws EOF if enough bytes aren't available
      */
     private void prepareReadPrimitive(int minimum) throws IOException
     {
-        if (buf.remaining() < minimum) readMinimum(minimum);
+        if (buf.remaining() < minimum)
+            readMinimum(minimum, minimum);
     }
 
     @Override
@@ -246,6 +272,40 @@ public class NIODataInputStream extends InputStream implements DataInput, Closea
     {
         prepareReadPrimitive(8);
         return buf.getLong();
+    }
+
+    public long readVInt() throws IOException
+    {
+        return VIntCoding.decodeZigZag64(readUnsignedVInt());
+    }
+
+    public long readUnsignedVInt() throws IOException
+    {
+        byte firstByte = readByte();
+
+        //Bail out early if this is one byte, necessary or it fails later
+        if (firstByte >= 0)
+            return firstByte;
+
+        //If padding was added, the limit to set after to get rid of the padding
+        int limitToSet = prepareReadPaddedPrimitive(8);
+
+        int position = buf.position();
+        int extraBytes = VIntCoding.numberOfExtraBytesToRead(firstByte);
+        int extraBits = extraBytes * 8;
+
+        long retval = buf.getLong(position);
+        buf.position(position + extraBytes);
+        buf.limit(limitToSet);
+
+
+        // truncate the bytes we read in excess of those we needed
+        retval >>>= 64 - extraBits;
+        // remove the non-value bits from the first byte
+        firstByte &= VIntCoding.firstByteValueMask(extraBytes);
+        // shift the first byte up to its correct position
+        retval |= (long) firstByte << extraBits;
+        return retval;
     }
 
     @Override

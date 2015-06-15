@@ -74,3 +74,8 @@ OHC
 (https://github.com/snazy/ohc)
 Java Off-Heap-Cache, licensed under APLv2
 Copyright 2014-2015 Robert Stupp, Germany.
+
+Protocol buffers for varint encoding
+https://developers.google.com/protocol-buffers/
+Copyright 2008 Google Inc.  All rights reserved.
+BSD 3-clause

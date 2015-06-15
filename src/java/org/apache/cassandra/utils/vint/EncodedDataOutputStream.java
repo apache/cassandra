@@ -54,45 +54,16 @@ public class EncodedDataOutputStream extends UnbufferedDataOutputStreamPlus
 
     public void writeInt(int v) throws IOException
     {
-        vintEncode(v);
+        writeVInt(v);
     }
 
     public void writeLong(long v) throws IOException
     {
-        vintEncode(v);
+        writeVInt(v);
     }
 
     public void writeShort(int v) throws IOException
     {
-        vintEncode(v);
-    }
-
-    private void vintEncode(long i) throws IOException
-    {
-        if (i >= -112 && i <= 127)
-        {
-            writeByte((byte) i);
-            return;
-        }
-        int len = -112;
-        if (i < 0)
-        {
-            i ^= -1L; // take one's complement'
-            len = -120;
-        }
-        long tmp = i;
-        while (tmp != 0)
-        {
-            tmp = tmp >> 8;
-            len--;
-        }
-        writeByte((byte) len);
-        len = (len < -120) ? -(len + 120) : -(len + 112);
-        for (int idx = len; idx != 0; idx--)
-        {
-            int shiftbits = (idx - 1) * 8;
-            long mask = 0xFFL << shiftbits;
-            writeByte((byte) ((i & mask) >> shiftbits));
-        }
+        writeVInt(v);
     }
 }

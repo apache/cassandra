@@ -20,6 +20,8 @@ package org.apache.cassandra.db;
 import java.nio.ByteBuffer;
 import java.util.UUID;
 
+import org.apache.cassandra.utils.vint.VIntCoding;
+
 public abstract class TypeSizes
 {
     public static final TypeSizes NATIVE = new NativeDBTypeSizes();
@@ -106,26 +108,7 @@ public abstract class TypeSizes
 
         public int sizeofVInt(long i)
         {
-            if (i >= -112 && i <= 127)
-                return 1;
-
-            int size = 0;
-            int len = -112;
-            if (i < 0)
-            {
-                i ^= -1L; // take one's complement'
-                len = -120;
-            }
-            long tmp = i;
-            while (tmp != 0)
-            {
-                tmp = tmp >> 8;
-                len--;
-            }
-            size++;
-            len = (len < -120) ? -(len + 120) : -(len + 112);
-            size += len;
-            return size;
+            return VIntCoding.computeVIntSize(i);
         }
 
         public int sizeof(long i)
