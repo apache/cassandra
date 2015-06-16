@@ -1,3 +1,8 @@
+2.1.7
+Merged from 2.0
+ * Set HAS_MORE_PAGES flag to false when PagingState is null (CASSANDRA-9571)
+
+
 2.1.6
  * (cqlsh) Fix using COPY through SOURCE or -f (CASSANDRA-9083)
  * Fix occasional lack of `system` keyspace in schema tables (CASSANDRA-8487)
