@@ -159,6 +159,11 @@ public class CompactionManager implements CompactionManagerMBean
      */
     public List<Future<?>> submitBackground(final ColumnFamilyStore cfs)
     {
+        return submitBackground(cfs, true);
+    }
+
+    public List<Future<?>> submitBackground(final ColumnFamilyStore cfs, boolean autoFill)
+    {
         if (cfs.isAutoCompactionDisabled())
         {
             logger.debug("Autocompaction is disabled");
@@ -188,7 +193,7 @@ public class CompactionManager implements CompactionManagerMBean
             compactingCF.add(cfs);
             futures.add(executor.submit(new BackgroundCompactionTask(cfs)));
             // if we have room for more compactions, then fill up executor
-        } while (executor.getActiveCount() + futures.size() < executor.getMaximumPoolSize());
+        } while (autoFill && executor.getActiveCount() + futures.size() < executor.getMaximumPoolSize());
 
         return futures;
     }
