@@ -37,13 +37,13 @@ bc(sample). SELECT sample_usage FROM cql;
 
 h3(#identifiers). Identifiers and keywords
 
-p. The CQL language uses _identifiers_ (or _names_) to identify tables, columns and other objects. An identifier is a token matching the regular expression @[a-zA-Z][a-zA-Z0-9_]@@*@.
+p. The CQL language uses _identifiers_ (or _names_) to identify tables, columns and other objects. An identifier is a token matching the regular expression @[a-zA-Z]@@[a-zA-Z0-9_]@@*@.
 
 p. A number of such identifiers, like @SELECT@ or @WITH@, are _keywords_. They have a fixed meaning for the language and most are reserved. The list of those keywords can be found in "Appendix A":#appendixA.
 
 p. Identifiers and (unquoted) keywords are case insensitive. Thus @SELECT@ is the same than @select@ or @sElEcT@, and @myId@ is the same than @myid@ or @MYID@ for instance. A convention often used (in particular by the samples of this documentation) is to use upper case for keywords and lower case for other identifiers.
 
-p. There is a second kind of identifiers called _quoted identifiers_ defined by enclosing an arbitrary sequence of characters in double-quotes(@"@). Quoted identifiers are never keywords. Thus @"select"@ is not a reserved keyword and can be used to refer to a column, while @select@ would raise a parse error. Also, contrarily to unquoted identifiers and keywords, quoted identifiers are case sensitive (@"My Quoted Id"@ is _different_ from @"my quoted id"@). A fully lowercase quoted identifier that matches @[a-zA-Z][a-zA-Z0-9_]@@*@ is equivalent to the unquoted identifier obtained by removing the double-quote (so @"myid"@ is equivalent to @myid@ and to @myId@ but different from @"myId"@). Inside a quoted identifier, the double-quote character can be repeated to escape it, so @"foo "" bar"@ is a valid identifier.
+p. There is a second kind of identifiers called _quoted identifiers_ defined by enclosing an arbitrary sequence of characters in double-quotes(@"@). Quoted identifiers are never keywords. Thus @"select"@ is not a reserved keyword and can be used to refer to a column, while @select@ would raise a parse error. Also, contrarily to unquoted identifiers and keywords, quoted identifiers are case sensitive (@"My Quoted Id"@ is _different_ from @"my quoted id"@). A fully lowercase quoted identifier that matches @[a-zA-Z]@@[a-zA-Z0-9_]@@*@ is equivalent to the unquoted identifier obtained by removing the double-quote (so @"myid"@ is equivalent to @myid@ and to @myId@ but different from @"myId"@). Inside a quoted identifier, the double-quote character can be repeated to escape it, so @"foo "" bar"@ is a valid identifier.
 
 h3(#constants). Constants
 
