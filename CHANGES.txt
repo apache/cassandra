@@ -4,7 +4,8 @@
  * Add functions to convert timeuuid to date or time, deprecate dateOf and unixTimestampOf (CASSANDRA-9229)
  * Make sure we cancel non-compacting sstables from LifecycleTransaction (CASSANDRA-9566)
  * Fix deprecated repair JMX API (CASSANDRA-9570)
-
+Merged from 2.0:
+ * Set HAS_MORE_PAGES flag to false when PagingState is null (CASSANDRA-9571)
 
 2.2.0-rc1
  * Compressed commit log should measure compressed space used (CASSANDRA-9095)
