@@ -19,6 +19,7 @@ Merged from 2.0:
  * Periodically submit background compaction tasks (CASSANDRA-9592)
  * Set HAS_MORE_PAGES flag to false when PagingState is null (CASSANDRA-9571)
 
+
 2.2.0-rc1
  * Compressed commit log should measure compressed space used (CASSANDRA-9095)
  * Fix comparison bug in CassandraRoleManager#collectRoles (CASSANDRA-9551)
