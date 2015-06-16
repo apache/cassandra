@@ -1,6 +1,5 @@
 2.1.7
 Merged from 2.0
-2.0.16:
  * Periodically submit background compaction tasks (CASSANDRA-9592)
  * Set HAS_MORE_PAGES flag to false when PagingState is null (CASSANDRA-9571)
 
