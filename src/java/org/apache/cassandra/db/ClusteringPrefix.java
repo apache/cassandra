@@ -286,58 +286,68 @@ public interface ClusteringPrefix extends IMeasurableMemory, Clusterable
 
         void serializeValuesWithoutSize(ClusteringPrefix clustering, DataOutputPlus out, int version, List<AbstractType<?>> types) throws IOException
         {
-            if (clustering.size() == 0)
-                return;
-
-            writeHeader(clustering, out);
-            for (int i = 0; i < clustering.size(); i++)
+            int offset = 0;
+            int clusteringSize = clustering.size();
+            // serialize in batches of 32, to avoid garbage when deserializing headers
+            while (offset < clusteringSize)
             {
-                ByteBuffer v = clustering.get(i);
-                if (v == null || !v.hasRemaining())
-                    continue; // handled in the header
-
-                types.get(i).writeValue(v, out);
+                // we micro-batch the headers, so that we can incur fewer method calls,
+                // and generate no garbage on deserialization;
+                // we piggyback on vint encoding so that, typically, only 1 byte is used per 32 clustering values,
+                // i.e. more than we ever expect to see
+                int limit = Math.min(clusteringSize, offset + 32);
+                out.writeUnsignedVInt(makeHeader(clustering, offset, limit));
+                while (offset < limit)
+                {
+                    ByteBuffer v = clustering.get(offset);
+                    if (v != null && v.hasRemaining())
+                        types.get(offset).writeValue(v, out);
+                    offset++;
+                }
             }
         }
 
         long valuesWithoutSizeSerializedSize(ClusteringPrefix clustering, int version, List<AbstractType<?>> types)
         {
-            if (clustering.size() == 0)
-                return 0;
-
-            long size = headerBytesCount(clustering.size());
-            for (int i = 0; i < clustering.size(); i++)
+            long result = 0;
+            int offset = 0;
+            int clusteringSize = clustering.size();
+            while (offset < clusteringSize)
+            {
+                int limit = Math.min(clusteringSize, offset + 32);
+                result += TypeSizes.sizeofUnsignedVInt(makeHeader(clustering, offset, limit));
+                offset = limit;
+            }
+            for (int i = 0; i < clusteringSize; i++)
             {
                 ByteBuffer v = clustering.get(i);
                 if (v == null || !v.hasRemaining())
                     continue; // handled in the header
 
-                size += types.get(i).writtenLength(v);
+                result += types.get(i).writtenLength(v);
             }
-            return size;
+            return result;
         }
 
         ByteBuffer[] deserializeValuesWithoutSize(DataInputPlus in, int size, int version, List<AbstractType<?>> types) throws IOException
         {
             // Callers of this method should handle the case where size = 0 (in all case we want to return a special value anyway).
             assert size > 0;
-
             ByteBuffer[] values = new ByteBuffer[size];
-            int[] header = readHeader(size, in);
-            for (int i = 0; i < size; i++)
+            int offset = 0;
+            while (offset < size)
             {
-                values[i] = isNull(header, i)
-                          ? null
-                          : (isEmpty(header, i) ? ByteBufferUtil.EMPTY_BYTE_BUFFER : types.get(i).readValue(in));
+                long header = in.readUnsignedVInt();
+                int limit = Math.min(size, offset + 32);
+                while (offset < limit)
+                {
+                    values[offset] = isNull(header, offset)
+                                ? null
+                                : (isEmpty(header, offset) ? ByteBufferUtil.EMPTY_BYTE_BUFFER : types.get(offset).readValue(in));
+                    offset++;
+                }
             }
             return values;
-        }
-
-        private int headerBytesCount(int size)
-        {
-            // For each component, we store 2 bit to know if the component is empty or null (or neither).
-            // We thus handle 4 component per byte
-            return size / 4 + (size % 4 == 0 ? 0 : 1);
         }
 
         /**
@@ -346,49 +356,33 @@ public interface ClusteringPrefix extends IMeasurableMemory, Clusterable
          * empty values too. So for that, every clustering prefix includes a "header" that contains 2 bits per element in the prefix. For each element,
          * those 2 bits encode whether the element is null, empty, or none of those.
          */
-        private void writeHeader(ClusteringPrefix clustering, DataOutputPlus out) throws IOException
+        private static long makeHeader(ClusteringPrefix clustering, int offset, int limit)
         {
-            int nbBytes = headerBytesCount(clustering.size());
-            for (int i = 0; i < nbBytes; i++)
+            long header = 0;
+            for (int i = offset ; i < limit ; i++)
             {
-                int b = 0;
-                for (int j = 0; j < 4; j++)
-                {
-                    int c = i * 4 + j;
-                    if (c >= clustering.size())
-                        break;
-
-                    ByteBuffer v = clustering.get(c);
-                    if (v == null)
-                        b |= (1 << (j * 2) + 1);
-                    else if (!v.hasRemaining())
-                        b |= (1 << (j * 2));
-                }
-                out.writeByte((byte)b);
+                ByteBuffer v = clustering.get(i);
+                // no need to do modulo arithmetic for i, since the left-shift execute on the modulus of RH operand by definition
+                if (v == null)
+                    header |= (1L << (i * 2) + 1);
+                else if (!v.hasRemaining())
+                    header |= (1L << (i * 2));
             }
-        }
-
-        private int[] readHeader(int size, DataInputPlus in) throws IOException
-        {
-            int nbBytes = headerBytesCount(size);
-            int[] header = new int[nbBytes];
-            for (int i = 0; i < nbBytes; i++)
-                header[i] = in.readUnsignedByte();
             return header;
         }
 
-        private static boolean isNull(int[] header, int i)
+        // no need to do modulo arithmetic for i, since the left-shift execute on the modulus of RH operand by definition
+        private static boolean isNull(long header, int i)
         {
-            int b = header[i / 4];
-            int mask = 1 << ((i % 4) * 2) + 1;
-            return (b & mask) != 0;
+            long mask = 1L << (i * 2) + 1;
+            return (header & mask) != 0;
         }
 
-        private static boolean isEmpty(int[] header, int i)
+        // no need to do modulo arithmetic for i, since the left-shift execute on the modulus of RH operand by definition
+        private static boolean isEmpty(long header, int i)
         {
-            int b = header[i / 4];
-            int mask = 1 << ((i % 4) * 2);
-            return (b & mask) != 0;
+            long mask = 1L << (i * 2);
+            return (header & mask) != 0;
         }
     }
 
@@ -408,7 +402,7 @@ public interface ClusteringPrefix extends IMeasurableMemory, Clusterable
         private final SerializationHeader serializationHeader;
 
         private boolean nextIsRow;
-        private int[] nextHeader;
+        private long nextHeader;
 
         private int nextSize;
         private ClusteringPrefix.Kind nextKind;
@@ -428,7 +422,6 @@ public interface ClusteringPrefix extends IMeasurableMemory, Clusterable
             this.nextIsRow = UnfilteredSerializer.kind(flags) == Unfiltered.Kind.ROW;
             this.nextKind = nextIsRow ? Kind.CLUSTERING : ClusteringPrefix.Kind.values()[in.readByte()];
             this.nextSize = nextIsRow ? comparator.size() : in.readUnsignedShort();
-            this.nextHeader = serializer.readHeader(nextSize, in);
             this.deserializedSize = 0;
 
             // The point of the deserializer is that some of the clustering prefix won't actually be used (because they are not
@@ -478,6 +471,9 @@ public interface ClusteringPrefix extends IMeasurableMemory, Clusterable
             if (deserializedSize == nextSize)
                 return false;
 
+            if ((deserializedSize % 32) == 0)
+                nextHeader = in.readUnsignedVInt();
+
             int i = deserializedSize++;
             nextValues[i] = Serializer.isNull(nextHeader, i)
                           ? null
@@ -513,9 +509,12 @@ public interface ClusteringPrefix extends IMeasurableMemory, Clusterable
         {
             for (int i = deserializedSize; i < nextSize; i++)
             {
+                if ((i % 32) == 0)
+                    nextHeader = in.readUnsignedVInt();
                 if (!Serializer.isNull(nextHeader, i) && !Serializer.isEmpty(nextHeader, i))
                     serializationHeader.clusteringTypes().get(i).skipValue(in);
             }
+            deserializedSize = nextSize;
             return nextKind;
         }
     }

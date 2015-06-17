@@ -102,4 +102,9 @@ public final class TypeSizes
     {
         return VIntCoding.computeVIntSize(value);
     }
+
+    public static int sizeofUnsignedVInt(long value)
+    {
+        return VIntCoding.computeUnsignedVIntSize(value);
+    }
 }
