@@ -467,7 +467,7 @@ class CqlRecordWriter extends RecordWriter<Map<String, ByteBuffer>, List<ByteBuf
         return "\"" + identifier.replaceAll("\"", "\"\"") + "\"";
     }
 
-    class NativeRingCache
+    static class NativeRingCache
     {
         private Map<TokenRange, Set<Host>> rangeMap;
         private Metadata metadata;
