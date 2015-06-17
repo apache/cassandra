@@ -27,14 +27,12 @@ import java.util.concurrent.TimeUnit;
 import javax.management.MBeanServer;
 import javax.management.ObjectName;
 
-import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.io.util.FileUtils;
-import org.apache.cassandra.utils.BoundedStatsDeque;
 import org.apache.cassandra.utils.FBUtilities;
 
 /**
@@ -312,11 +310,60 @@ public class FailureDetector implements IFailureDetector, FailureDetectorMBean
     }
 }
 
+/*
+ This class is not thread safe.
+ */
+class ArrayBackedBoundedStats
+{
+    private final long[] arrivalIntervals;
+    private long sum = 0;
+    private int index = 0;
+    private boolean isFilled = false;
+    private volatile double mean = 0;
+
+    public ArrayBackedBoundedStats(final int size)
+    {
+        arrivalIntervals = new long[size];
+    }
+
+    public void add(long interval)
+    {
+        if(index == arrivalIntervals.length)
+        {
+            isFilled = true;
+            index = 0;
+        }
+
+        if(isFilled)
+            sum = sum - arrivalIntervals[index];
+
+        arrivalIntervals[index++] = interval;
+        sum += interval;
+        mean = (double)sum / size();
+    }
+
+    private int size()
+    {
+        return isFilled ? arrivalIntervals.length : index;
+    }
+
+    public double mean()
+    {
+        return mean;
+    }
+
+    public long[] getArrivalIntervals()
+    {
+        return arrivalIntervals;
+    }
+
+}
+
 class ArrivalWindow
 {
     private static final Logger logger = LoggerFactory.getLogger(ArrivalWindow.class);
     private long tLast = 0L;
-    private final BoundedStatsDeque arrivalIntervals;
+    private final ArrayBackedBoundedStats arrivalIntervals;
 
     // this is useless except to provide backwards compatibility in phi_convict_threshold,
     // because everyone seems pretty accustomed to the default of 8, and users who have
@@ -332,7 +379,7 @@ class ArrivalWindow
 
     ArrivalWindow(int size)
     {
-        arrivalIntervals = new BoundedStatsDeque(size);
+        arrivalIntervals = new ArrayBackedBoundedStats(size);
     }
 
     private static long getMaxInterval()
@@ -378,14 +425,14 @@ class ArrivalWindow
     // see CASSANDRA-2597 for an explanation of the math at work here.
     double phi(long tnow)
     {
-        assert arrivalIntervals.size() > 0 && tLast > 0; // should not be called before any samples arrive
+        assert arrivalIntervals.mean() > 0 && tLast > 0; // should not be called before any samples arrive
         long t = tnow - tLast;
         return t / mean();
     }
 
     public String toString()
     {
-        return StringUtils.join(arrivalIntervals.iterator(), " ");
+        return Arrays.toString(arrivalIntervals.getArrivalIntervals());
     }
 }
 
