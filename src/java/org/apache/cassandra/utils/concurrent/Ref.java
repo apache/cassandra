@@ -2,12 +2,10 @@ package org.apache.cassandra.utils.concurrent;
 
 import java.lang.ref.PhantomReference;
 import java.lang.ref.ReferenceQueue;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentLinkedQueue;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
 
@@ -243,7 +241,7 @@ public final class Ref<T> implements RefCounted<T>
     {
         // we need to retain a reference to each of the PhantomReference instances
         // we are using to track individual refs
-        private final ConcurrentLinkedQueue<State> locallyExtant = new ConcurrentLinkedQueue<>();
+        private final Collection<State> locallyExtant = new ConcurrentLinkedDeque<>();
         // the number of live refs
         private final AtomicInteger counts = new AtomicInteger();
         // the object to call to cleanup when our refs are all finished with
