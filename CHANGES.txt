@@ -1,4 +1,5 @@
 2.0.16:
+ * ArrivalWindow should use primitives (CASSANDRA-9496)
  * Periodically submit background compaction tasks (CASSANDRA-9592)
  * Set HAS_MORE_PAGES flag to false when PagingState is null (CASSANDRA-9571)
  * Backport indexed value validation fix from CASSANDRA-9057 (CASSANDRA-9564)
