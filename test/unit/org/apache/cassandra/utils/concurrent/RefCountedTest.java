@@ -21,6 +21,7 @@ package org.apache.cassandra.utils.concurrent;
 import org.junit.Test;
 
 import junit.framework.Assert;
+import org.apache.cassandra.utils.ObjectSizes;
 
 public class RefCountedTest
 {
@@ -81,5 +82,19 @@ public class RefCountedTest
         catch (Exception e)
         {
         }
+    }
+
+    @Test
+    public void testMemoryLeak()
+    {
+        Tidier tidier = new Tidier();
+        Ref<Object> ref = new Ref(null, tidier);
+        long initialSize = ObjectSizes.measureDeep(ref);
+        for (int i = 0 ; i < 1000 ; i++)
+            ref.ref().release();
+        long finalSize = ObjectSizes.measureDeep(ref);
+        if (finalSize > initialSize * 2)
+            throw new AssertionError();
+        ref.release();
     }
 }
