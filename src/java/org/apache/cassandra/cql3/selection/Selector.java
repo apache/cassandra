@@ -21,6 +21,7 @@ import java.nio.ByteBuffer;
 import java.util.Collections;
 
 import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.cql3.AssignmentTestable;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.ColumnSpecification;
@@ -117,6 +118,18 @@ public abstract class Selector implements AssignmentTestable
          */
         protected abstract AbstractType<?> getReturnType();
 
+        /**
+         * Record a mapping between the ColumnDefinitions that are used by the selector
+         * instances created by this factory and a column in the ResultSet.Metadata
+         * returned with a query. In most cases, this is likely to be a 1:1 mapping,
+         * but some selector instances may utilise multiple columns (or none at all)
+         * to produce a value (i.e. functions).
+         *
+         * @param mapping the instance of the column mapping belonging to the current query's Selection
+         * @param resultsColumn the column in the ResultSet.Metadata to which the ColumnDefinitions used
+         *                      by the Selector are to be mapped
+         */
+        protected abstract void addColumnMapping(SelectionColumnMapping mapping, ColumnSpecification resultsColumn);
     }
 
     /**

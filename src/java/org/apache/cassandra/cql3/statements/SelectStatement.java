@@ -64,6 +64,10 @@ import static org.apache.cassandra.utils.ByteBufferUtil.UNSET_BYTE_BUFFER;
  * Encapsulates a completely parsed SELECT query, including the target
  * column family, expression, result count, and ordering clause.
  *
+ * A number of public methods here are only used internally. However,
+ * many of these are made accessible for the benefit of custom
+ * QueryHandler implementations, so before reducing their accessibility
+ * due consideration should be given.
  */
 public class SelectStatement implements CQLStatement
 {
@@ -288,6 +292,22 @@ public class SelectStatement implements CQLStatement
         return cfm.cfName;
     }
 
+    /**
+     * May be used by custom QueryHandler implementations
+     */
+    public Selection getSelection()
+    {
+        return selection;
+    }
+
+    /**
+     * May be used by custom QueryHandler implementations
+     */
+    public StatementRestrictions getRestrictions()
+    {
+        return restrictions;
+    }
+
     private List<ReadCommand> getSliceCommands(QueryOptions options, int limit, long now) throws RequestValidationException
     {
         Collection<ByteBuffer> keys = restrictions.getPartitionKeys(options);
@@ -453,7 +473,10 @@ public class SelectStatement implements CQLStatement
         return new SliceQueryFilter(slices, isReversed, limit, toGroup);
     }
 
-    private int getLimit(QueryOptions options) throws InvalidRequestException
+    /**
+     * May be used by custom QueryHandler implementations
+     */
+    public int getLimit(QueryOptions options) throws InvalidRequestException
     {
         if (limit != null)
         {
@@ -530,6 +553,9 @@ public class SelectStatement implements CQLStatement
         }
     }
 
+    /**
+     * May be used by custom QueryHandler implementations
+     */
     public List<IndexExpression> getValidatedIndexExpressions(QueryOptions options) throws InvalidRequestException
     {
         if (!restrictions.usesSecondaryIndexing())

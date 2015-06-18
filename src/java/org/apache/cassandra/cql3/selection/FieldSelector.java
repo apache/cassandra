@@ -19,6 +19,7 @@ package org.apache.cassandra.cql3.selection;
 
 import java.nio.ByteBuffer;
 
+import org.apache.cassandra.cql3.ColumnSpecification;
 import org.apache.cassandra.cql3.selection.Selection.ResultSetBuilder;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.UTF8Type;
@@ -45,6 +46,11 @@ final class FieldSelector extends Selector
             protected AbstractType<?> getReturnType()
             {
                 return type.fieldType(field);
+            }
+
+            protected void addColumnMapping(SelectionColumnMapping mapping, ColumnSpecification resultsColumn)
+            {
+                factory.addColumnMapping(mapping, resultsColumn);
             }
 
             public Selector newInstance() throws InvalidRequestException

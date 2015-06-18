@@ -51,20 +51,22 @@ public abstract class Selection
     };
 
     private final CFMetaData cfm;
-    private final Collection<ColumnDefinition> columns;
+    private final List<ColumnDefinition> columns;
+    private final SelectionColumnMapping columnMapping;
     private final ResultSet.ResultMetadata metadata;
     private final boolean collectTimestamps;
     private final boolean collectTTLs;
 
     protected Selection(CFMetaData cfm,
-                        Collection<ColumnDefinition> columns,
-                        List<ColumnSpecification> metadata,
+                        List<ColumnDefinition> columns,
+                        SelectionColumnMapping columnMapping,
                         boolean collectTimestamps,
                         boolean collectTTLs)
     {
         this.cfm = cfm;
         this.columns = columns;
-        this.metadata = new ResultSet.ResultMetadata(metadata);
+        this.columnMapping = columnMapping;
+        this.metadata = new ResultSet.ResultMetadata(columnMapping.getColumnSpecifications());
         this.collectTimestamps = collectTimestamps;
         this.collectTTLs = collectTTLs;
     }
@@ -157,12 +159,12 @@ public abstract class Selection
 
     public static Selection wildcard(CFMetaData cfm)
     {
-        List<ColumnDefinition> all = new ArrayList<ColumnDefinition>(cfm.allColumns().size());
+        List<ColumnDefinition> all = new ArrayList<>(cfm.allColumns().size());
         Iterators.addAll(all, cfm.allColumnsInSelectOrder());
         return new SimpleSelection(cfm, all, true);
     }
 
-    public static Selection forColumns(CFMetaData cfm, Collection<ColumnDefinition> columns)
+    public static Selection forColumns(CFMetaData cfm, List<ColumnDefinition> columns)
     {
         return new SimpleSelection(cfm, columns, false);
     }
@@ -191,29 +193,30 @@ public abstract class Selection
 
     public static Selection fromSelectors(CFMetaData cfm, List<RawSelector> rawSelectors) throws InvalidRequestException
     {
-        List<ColumnDefinition> defs = new ArrayList<ColumnDefinition>();
+        List<ColumnDefinition> defs = new ArrayList<>();
 
         SelectorFactories factories =
                 SelectorFactories.createFactoriesAndCollectColumnDefinitions(RawSelector.toSelectables(rawSelectors, cfm), cfm, defs);
-        List<ColumnSpecification> metadata = collectMetadata(cfm, rawSelectors, factories);
+        SelectionColumnMapping mapping = collectColumnMappings(cfm, rawSelectors, factories);
 
-        return processesSelection(rawSelectors) ? new SelectionWithProcessing(cfm, defs, metadata, factories)
-                                                : new SimpleSelection(cfm, defs, metadata, false);
+        return processesSelection(rawSelectors) ? new SelectionWithProcessing(cfm, defs, mapping, factories)
+                                                : new SimpleSelection(cfm, defs, mapping, false);
     }
 
-    private static List<ColumnSpecification> collectMetadata(CFMetaData cfm,
-                                                             List<RawSelector> rawSelectors,
-                                                             SelectorFactories factories)
+    private static SelectionColumnMapping collectColumnMappings(CFMetaData cfm,
+                                                                List<RawSelector> rawSelectors,
+                                                                SelectorFactories factories)
     {
-        List<ColumnSpecification> metadata = new ArrayList<ColumnSpecification>(rawSelectors.size());
+        SelectionColumnMapping selectionColumns = SelectionColumnMapping.newMapping();
         Iterator<RawSelector> iter = rawSelectors.iterator();
         for (Selector.Factory factory : factories)
         {
             ColumnSpecification colSpec = factory.getColumnSpecification(cfm);
             ColumnIdentifier alias = iter.next().alias;
-            metadata.add(alias == null ? colSpec : colSpec.withAlias(alias));
+            factory.addColumnMapping(selectionColumns,
+                                     alias == null ? colSpec : colSpec.withAlias(alias));
         }
-        return metadata;
+        return selectionColumns;
     }
 
     protected abstract Selectors newSelectors() throws InvalidRequestException;
@@ -221,9 +224,17 @@ public abstract class Selection
     /**
      * @return the list of CQL3 columns value this SelectionClause needs.
      */
-    public Collection<ColumnDefinition> getColumns()
+    public List<ColumnDefinition> getColumns()
     {
         return columns;
+    }
+
+    /**
+     * @return the mappings between resultset columns and the underlying columns
+     */
+    public SelectionColumns getColumnMapping()
+    {
+        return columnMapping;
     }
 
     public ResultSetBuilder resultSetBuilder(long now, boolean isJson) throws InvalidRequestException
@@ -238,6 +249,7 @@ public abstract class Selection
     {
         return Objects.toStringHelper(this)
                 .add("columns", columns)
+                .add("columnMapping", columnMapping)
                 .add("metadata", metadata)
                 .add("collectTimestamps", collectTimestamps)
                 .add("collectTTLs", collectTTLs)
@@ -397,14 +409,14 @@ public abstract class Selection
     {
         private final boolean isWildcard;
 
-        public SimpleSelection(CFMetaData cfm, Collection<ColumnDefinition> columns, boolean isWildcard)
+        public SimpleSelection(CFMetaData cfm, List<ColumnDefinition> columns, boolean isWildcard)
         {
-            this(cfm, columns, new ArrayList<ColumnSpecification>(columns), isWildcard);
+            this(cfm, columns, SelectionColumnMapping.simpleMapping(columns), isWildcard);
         }
 
         public SimpleSelection(CFMetaData cfm,
-                               Collection<ColumnDefinition> columns,
-                               List<ColumnSpecification> metadata,
+                               List<ColumnDefinition> columns,
+                               SelectionColumnMapping metadata,
                                boolean isWildcard)
         {
             /*
@@ -461,8 +473,8 @@ public abstract class Selection
         private final SelectorFactories factories;
 
         public SelectionWithProcessing(CFMetaData cfm,
-                                       Collection<ColumnDefinition> columns,
-                                       List<ColumnSpecification> metadata,
+                                       List<ColumnDefinition> columns,
+                                       SelectionColumnMapping metadata,
                                        SelectorFactories factories) throws InvalidRequestException
         {
             super(cfm,
