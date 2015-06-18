@@ -222,11 +222,11 @@ public class LegacySchemaTables
 
             // Will be moved away in #6717
             for (UDFunction function : createFunctionsFromFunctionsPartition(readSchemaPartitionForKeyspace(FUNCTIONS, partition.key)).values())
-                org.apache.cassandra.cql3.functions.Functions.addFunction(function);
+                org.apache.cassandra.cql3.functions.Functions.addOrReplaceFunction(function);
 
             // Will be moved away in #6717
             for (UDAggregate aggregate : createAggregatesFromAggregatesPartition(readSchemaPartitionForKeyspace(AGGREGATES, partition.key)).values())
-                org.apache.cassandra.cql3.functions.Functions.addFunction(aggregate);
+                org.apache.cassandra.cql3.functions.Functions.addOrReplaceFunction(aggregate);
         }
 
         return keyspaces;

@@ -294,11 +294,10 @@ public abstract class Functions
         return sb.toString();
     }
 
-    // This is *not* thread safe but is only called in SchemaTables that is synchronized.
-    public static void addFunction(AbstractFunction fun)
+    public static void addOrReplaceFunction(AbstractFunction fun)
     {
         // We shouldn't get there unless that function don't exist
-        assert find(fun.name(), fun.argTypes()) == null;
+        removeFunction(fun.name(), fun.argTypes());
         declare(fun);
     }
 
@@ -320,15 +319,7 @@ public abstract class Functions
                     declared.remove(name);
                 return;
             }
-            assert false : "Function " + name + " not declared";
         }
-    }
-
-    // Same remarks than for addFunction
-    public static void replaceFunction(AbstractFunction fun)
-    {
-        removeFunction(fun.name(), fun.argTypes());
-        addFunction(fun);
     }
 
     public static List<Function> getReferencesTo(Function old)

@@ -1013,8 +1013,8 @@ public class AggregationTest extends CQLTester
 
         UDAggregate f = (UDAggregate) Functions.find(parseFunctionName(a)).get(0);
 
-        Functions.replaceFunction(UDAggregate.createBroken(f.name(), f.argTypes(), f.returnType(),
-                                                           null, new InvalidRequestException("foo bar is broken")));
+        Functions.addOrReplaceFunction(UDAggregate.createBroken(f.name(), f.argTypes(), f.returnType(),
+                                                                null, new InvalidRequestException("foo bar is broken")));
 
         assertInvalidThrowMessage("foo bar is broken", InvalidRequestException.class,
                                   "SELECT " + a + "(val) FROM %s");
