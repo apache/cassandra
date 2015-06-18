@@ -37,7 +37,7 @@ import org.slf4j.LoggerFactory;
 import com.datastax.driver.core.Cluster;
 import com.datastax.driver.core.ColumnDefinitions;
 import com.datastax.driver.core.ColumnMetadata;
-import com.datastax.driver.core.DateWithoutTime;
+import com.datastax.driver.core.LocalDate;
 import com.datastax.driver.core.Metadata;
 import com.datastax.driver.core.ResultSet;
 import com.datastax.driver.core.Row;
@@ -418,13 +418,13 @@ public class CqlRecordReader extends RecordReader<Long, Row>
         }
 
         @Override
-        public DateWithoutTime getDate(int i)
+        public LocalDate getDate(int i)
         {
             return row.getDate(i);
         }
 
         @Override
-        public DateWithoutTime getDate(String s)
+        public LocalDate getDate(String s)
         {
             return row.getDate(s);
         }
