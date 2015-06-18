@@ -309,7 +309,7 @@ public abstract class UnbufferedDataOutputStreamPlus extends DataOutputStreamPlu
                 for (int i = 0 ; i < charRunLength ; i++)
                 {
                     char ch = str.charAt(offset + i);
-                    if ((ch > 0) & (ch <= 127))
+                    if ((ch > 0) && (ch <= 127))
                     {
                         utfBytes[utfIndex++] = (byte) ch;
                     }
