@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.cql3;
 
+import com.google.common.base.Objects;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.ReversedType;
 
@@ -84,5 +85,10 @@ public class ColumnSpecification
                this.cfName.equals(that.cfName) &&
                this.name.equals(that.name) &&
                this.type.equals(that.type);
+    }
+
+    public int hashCode()
+    {
+        return Objects.hashCode(ksName, cfName, name, type);
     }
 }

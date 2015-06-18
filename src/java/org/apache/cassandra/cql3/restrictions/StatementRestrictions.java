@@ -449,6 +449,17 @@ public final class StatementRestrictions
         return clusteringColumnsRestrictions.isEmpty();
     }
 
+    /**
+     * Checks if the query has some restrictions on the clustering columns.
+     *
+     * @return <code>true</code> if the query has some restrictions on the clustering columns,
+     * <code>false</code> otherwise.
+     */
+    public boolean hasClusteringColumnsRestriction()
+    {
+        return !clusteringColumnsRestrictions.isEmpty();
+    }
+
     // For non-composite slices, we don't support internally the difference between exclusive and
     // inclusive bounds, so we deal with it manually.
     public boolean isNonCompositeSliceWithExclusiveBounds()
@@ -552,17 +563,6 @@ public final class StatementRestrictions
         // static columns
         // so far, 2i means that you've restricted a non static column, so the query is somewhat non-sensical.
         checkFalse(selectsOnlyStaticColumns, "Queries using 2ndary indexes don't support selecting only static columns");
-    }
-
-    /**
-     * Checks if the query has some restrictions on the clustering columns.
-     *
-     * @return <code>true</code> if the query has some restrictions on the clustering columns,
-     * <code>false</code> otherwise.
-     */
-    private boolean hasClusteringColumnsRestriction()
-    {
-        return !clusteringColumnsRestrictions.isEmpty();
     }
 
     public void reverse()

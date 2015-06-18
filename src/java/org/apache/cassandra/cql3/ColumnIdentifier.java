@@ -17,9 +17,9 @@
  */
 package org.apache.cassandra.cql3;
 
+import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.Locale;
-import java.nio.ByteBuffer;
 
 import org.apache.cassandra.cache.IMeasurableMemory;
 import org.apache.cassandra.config.CFMetaData;
@@ -28,9 +28,9 @@ import org.apache.cassandra.cql3.selection.Selectable;
 import org.apache.cassandra.cql3.selection.Selector;
 import org.apache.cassandra.cql3.selection.SimpleSelector;
 import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.db.marshal.CompositeType;
 import org.apache.cassandra.db.marshal.UTF8Type;
+import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.memory.AbstractAllocator;
@@ -115,7 +115,7 @@ public class ColumnIdentifier extends org.apache.cassandra.cql3.selection.Select
         if (def == null)
             throw new InvalidRequestException(String.format("Undefined name %s in selection clause", this));
 
-        return SimpleSelector.newFactory(def.name.toString(), addAndGetIndex(def, defs), def.type);
+        return SimpleSelector.newFactory(def, addAndGetIndex(def, defs));
     }
 
     /**

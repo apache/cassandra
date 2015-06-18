@@ -21,17 +21,15 @@ package org.apache.cassandra.cql3.selection;
 import java.util.ArrayList;
 import java.util.List;
 
+import org.apache.commons.lang3.text.StrBuilder;
+
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.cql3.ColumnIdentifier;
-import org.apache.cassandra.cql3.functions.Function;
-import org.apache.cassandra.cql3.functions.FunctionName;
-import org.apache.cassandra.cql3.functions.Functions;
-import org.apache.cassandra.cql3.functions.ToJsonFct;
+import org.apache.cassandra.cql3.functions.*;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.UserType;
 import org.apache.cassandra.exceptions.InvalidRequestException;
-import org.apache.commons.lang3.text.StrBuilder;
 
 public abstract class Selectable
 {
@@ -91,7 +89,7 @@ public abstract class Selectable
                 throw new InvalidRequestException(String.format("Cannot use selection function %s on collections",
                                                                 isWritetime ? "writeTime" : "ttl"));
 
-            return WritetimeOrTTLSelector.newFactory(def.name.toString(), addAndGetIndex(def, defs), isWritetime);
+            return WritetimeOrTTLSelector.newFactory(def, addAndGetIndex(def, defs), isWritetime);
         }
 
         public static class Raw implements Selectable.Raw

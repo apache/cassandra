@@ -24,6 +24,7 @@ import java.util.List;
 import com.google.common.collect.Iterables;
 import org.apache.commons.lang3.text.StrBuilder;
 
+import org.apache.cassandra.cql3.ColumnSpecification;
 import org.apache.cassandra.cql3.functions.Function;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.exceptions.InvalidRequestException;
@@ -66,6 +67,18 @@ abstract class AbstractFunctionSelector<T extends Function> extends Selector
             protected AbstractType<?> getReturnType()
             {
                 return fun.returnType();
+            }
+
+            protected void addColumnMapping(SelectionColumnMapping mapping, ColumnSpecification resultsColumn)
+            {
+                for (Factory factory : factories)
+                   factory.addColumnMapping(mapping, resultsColumn);
+
+                if (mapping.getMappings().get(resultsColumn).isEmpty())
+                    // add a null mapping for cases where there are no
+                    // further selectors, such as no-arg functions and count
+                    mapping.addMapping(resultsColumn, null);
+
             }
 
             public Iterable<Function> getFunctions()

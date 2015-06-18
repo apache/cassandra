@@ -11,6 +11,7 @@ Merged from 2.1:
  * Fix memory leak in Ref due to ConcurrentLinkedQueue.remove() behaviour (CASSANDRA-9549)
  * Make rebuild only run one at a time (CASSANDRA-9119)
 Merged from 2.0
+ * Expose some internals of SelectStatement for inspection (CASSANDRA-9532)
  * ArrivalWindow should use primitives (CASSANDRA-9496)
  * Periodically submit background compaction tasks (CASSANDRA-9592)
  * Set HAS_MORE_PAGES flag to false when PagingState is null (CASSANDRA-9571)
