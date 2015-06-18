@@ -1,4 +1,5 @@
 2.1.7
+ * Fix bug in cardinality check when compacting (CASSANDRA-9580)
  * Fix memory leak in Ref due to ConcurrentLinkedQueue.remove() behaviour (CASSANDRA-9549)
 Merged from 2.0
  * Expose some internals of SelectStatement for inspection (CASSANDRA-9532)

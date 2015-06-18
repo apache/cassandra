@@ -264,6 +264,9 @@ public class SSTableReader extends SSTable implements SelfRefCounted<SSTableRead
             ICardinality cardinality = null;
             for (SSTableReader sstable : sstables)
             {
+                if (sstable.openReason == OpenReason.EARLY)
+                    continue;
+
                 try
                 {
                     CompactionMetadata metadata = (CompactionMetadata) sstable.descriptor.getMetadataSerializer().deserialize(sstable.descriptor, MetadataType.COMPACTION);
