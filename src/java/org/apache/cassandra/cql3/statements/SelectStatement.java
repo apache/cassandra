@@ -59,6 +59,10 @@ import org.slf4j.LoggerFactory;
  * Encapsulates a completely parsed SELECT query, including the target
  * column family, expression, result count, and ordering clause.
  *
+ * A number of public methods here are only used internally. However,
+ * many of these are made accessible for the benefit of custom
+ * QueryHandler implementations, so before reducing their accessibility
+ * due consideration should be given.
  */
 public class SelectStatement implements CQLStatement
 {
@@ -170,9 +174,20 @@ public class SelectStatement implements CQLStatement
              : selection.getResultMetadata();
     }
 
+    /**
+     * May be used by custom QueryHandler implementations
+     */
     public int getBoundTerms()
     {
         return boundTerms;
+    }
+
+    /**
+     * May be used by custom QueryHandler implementations
+     */
+    public Selection getSelection()
+    {
+        return selection;
     }
 
     public void checkAccess(ClientState state) throws InvalidRequestException, UnauthorizedException
@@ -367,7 +382,10 @@ public class SelectStatement implements CQLStatement
              : new RangeSliceCommand(keyspace(), columnFamily(), now,  filter, keyBounds, expressions, limit, !parameters.isDistinct, false);
     }
 
-    private AbstractBounds<RowPosition> getKeyBounds(QueryOptions options) throws InvalidRequestException
+    /**
+     * May be used by custom QueryHandler implementations
+     */
+    public AbstractBounds<RowPosition> getKeyBounds(QueryOptions options) throws InvalidRequestException
     {
         IPartitioner p = StorageService.getPartitioner();
 
@@ -550,7 +568,10 @@ public class SelectStatement implements CQLStatement
         return new SliceQueryFilter(slices, isReversed, limit, toGroup);
     }
 
-    private int getLimit(QueryOptions options) throws InvalidRequestException
+    /**
+     * May be used by custom QueryHandler implementations
+     */
+    public int getLimit(QueryOptions options) throws InvalidRequestException
     {
         int l = Integer.MAX_VALUE;
         if (limit != null)
@@ -1036,6 +1057,9 @@ public class SelectStatement implements CQLStatement
         return buildBound(b, cfm.clusteringColumns(), columnRestrictions, isReversed, cfm.comparator, options);
     }
 
+    /**
+     * May be used by custom QueryHandler implementations
+     */
     public List<IndexExpression> getValidatedIndexExpressions(QueryOptions options) throws InvalidRequestException
     {
         if (!usesSecondaryIndexing || restrictedColumns.isEmpty())
@@ -1364,10 +1388,24 @@ public class SelectStatement implements CQLStatement
         return true;
     }
 
-    private boolean hasClusteringColumnsRestriction()
+    /**
+     * May be used by custom QueryHandler implementations
+     */
+    public boolean hasClusteringColumnsRestriction()
     {
         for (int i = 0; i < columnRestrictions.length; i++)
             if (columnRestrictions[i] != null)
+                return true;
+        return false;
+    }
+
+    /**
+     * May be used by custom QueryHandler implementations
+     */
+    public boolean hasPartitionKeyRestriction()
+    {
+        for (int i = 0; i < keyRestrictions.length; i++)
+            if (keyRestrictions[i] != null)
                 return true;
         return false;
     }

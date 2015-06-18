@@ -17,6 +17,8 @@
  */
 package org.apache.cassandra.cql3;
 
+import com.google.common.base.Objects;
+
 import org.apache.cassandra.db.marshal.AbstractType;
 
 public class ColumnSpecification
@@ -32,5 +34,25 @@ public class ColumnSpecification
         this.cfName = cfName;
         this.name = name;
         this.type = type;
+    }
+
+    public boolean equals(Object obj)
+    {
+        if (null == obj)
+            return false;
+
+        if(!(obj instanceof ColumnSpecification))
+            return false;
+
+        ColumnSpecification other = (ColumnSpecification)obj;
+        return Objects.equal(ksName, other.ksName)
+            && Objects.equal(cfName, other.cfName)
+            && Objects.equal(name, other.name)
+            && Objects.equal(type, other.type);
+    }
+
+    public int hashCode()
+    {
+        return Objects.hashCode(ksName, cfName, name, type);
     }
 }
