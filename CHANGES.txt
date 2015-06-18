@@ -7,6 +7,7 @@
  * Make sure we cancel non-compacting sstables from LifecycleTransaction (CASSANDRA-9566)
  * Fix deprecated repair JMX API (CASSANDRA-9570)
  * Add logback metrics (CASSANDRA-9378)
+ * Update and refactor ant test/test-compression to run the tests in parallel (CASSANDRA-9583)
 Merged from 2.1:
  * Fix bug in cardinality check when compacting (CASSANDRA-9580)
  * Fix memory leak in Ref due to ConcurrentLinkedQueue.remove() behaviour (CASSANDRA-9549)
