@@ -1116,8 +1116,12 @@
     </copy>
   </target>
 
-  <macrodef name="testmacro">
-    <attribute name="suitename" />
+  <!-- Defines how to run a set of tests. If you change the defaults for attributes
+       you should also update them in testmacro.,
+       The two are split because the helper doesn't generate
+       a junit report or fail on errors, since this is called in parallel to run tests
+       when we choose to run tests in parallel -->
+  <macrodef name="testmacrohelper">
     <attribute name="inputdir" />
     <attribute name="timeout" default="${test.timeout}" />
     <attribute name="forkmode" default="perTest"/>
@@ -1135,7 +1139,6 @@
                  else="">
         <istrue value="${usejacoco}"/>
       </condition>
-      <echo message="running @{suitename} tests"/>
       <mkdir dir="${build.test.dir}/cassandra"/>
       <mkdir dir="${build.test.dir}/output"/>
       <mkdir dir="${build.test.dir}/output/@{testtag}"/>
@@ -1170,22 +1173,9 @@
             <filelist dir="@{inputdir}" files="@{filelist}"/>
         </batchtest>
       </junit>
-      <junitreport todir="${build.test.dir}">
-        <fileset dir="${build.test.dir}/output">
-          <include name="**/TEST-*.xml"/>
-        </fileset>
-        <report format="frames" todir="${build.test.dir}/junitreport"/>
-      </junitreport>
-      <fail message="Some @{suitename} test(s) failed.">
-        <condition>
-            <and>
-            <isset property="testfailed"/>
-            <not>
-              <isset property="ant.test.failure.ignore"/>
-            </not>
-          </and>
-        </condition>
-      </fail>
+      <delete quiet="true" failonerror="false" dir="${build.test.dir}/cassandra/commitlog:@{poffset}"/>
+      <delete quiet="true" failonerror="false" dir="${build.test.dir}/cassandra/data:@{poffset}"/>
+      <delete quiet="true" failonerror="false" dir="${build.test.dir}/cassandra/saved_caches:@{poffset}"/>
     </sequential>
   </macrodef>
 
@@ -1233,18 +1223,47 @@
     </fileset>
   </target>
   
-  <target name="testlist">
-    <testmacro suitename="${testlist.name}" inputdir="${test.unit.src}" filelist="${test.file.list}" poffset="${testlist.offset}" exclude="**/*.java" timeout="${test.timeout}">
-      <jvmarg value="-Dlegacy-sstable-root=${test.data}/legacy-sstables"/>
-      <jvmarg value="-Dinvalid-legacy-sstable-root=${test.data}/invalid-legacy-sstables"/>
-      <jvmarg value="-Dcorrupt-sstable-root=${test.data}/corrupt-sstables"/>
-      <jvmarg value="-Dmigration-sstable-root=${test.data}/migration-sstables"/>
-      <jvmarg value="-Dcassandra.ring_delay_ms=1000"/>
-      <jvmarg value="-Dcassandra.tolerate_sstable_size=true"/>
-      <jvmarg value="-Dcassandra.config.loader=org.apache.cassandra.OffsetAwareConfigurationLoader"/>
-      <jvmarg value="-Dcassandra.skip_sync=true" />
-    </testmacro>
-  </target>
+  <!-- Will not generate a junit report or fail on error since it is called in parallel for test-compression
+       That is taken care of by testparallel -->
+  <macrodef name="testlist">
+    <attribute name="test.file.list"/>
+    <attribute name="testlist.offset"/>
+    <sequential>
+      <testmacrohelper inputdir="${test.unit.src}" filelist="@{test.file.list}" poffset="@{testlist.offset}" exclude="**/*.java" timeout="${test.timeout}">
+        <jvmarg value="-Dlegacy-sstable-root=${test.data}/legacy-sstables"/>
+        <jvmarg value="-Dinvalid-legacy-sstable-root=${test.data}/invalid-legacy-sstables"/>
+        <jvmarg value="-Dcorrupt-sstable-root=${test.data}/corrupt-sstables"/>
+        <jvmarg value="-Dmigration-sstable-root=${test.data}/migration-sstables"/>
+        <jvmarg value="-Dcassandra.ring_delay_ms=1000"/>
+        <jvmarg value="-Dcassandra.tolerate_sstable_size=true"/>
+        <jvmarg value="-Dcassandra.config.loader=org.apache.cassandra.OffsetAwareConfigurationLoader"/>
+        <jvmarg value="-Dcassandra.skip_sync=true" />
+      </testmacrohelper>
+    </sequential>
+  </macrodef>
+
+  <!-- Will not generate a junit report or fail on error since it is called in parallel for test-compression
+       That is taken care of by testparallel -->
+  <macrodef name="testlist-compression">
+    <attribute name="test.file.list" />
+    <attribute name="testlist.offset" />
+    <sequential>
+      <property name="compressed_yaml" value="${build.test.dir}/cassandra.compressed.yaml"/>
+      <testmacrohelper inputdir="${test.unit.src}" filelist="@{test.file.list}" poffset="@{testlist.offset}"
+                       exclude="**/*.java" timeout="${test.timeout}" testtag="compression">
+        <jvmarg value="-Dlegacy-sstable-root=${test.data}/legacy-sstables"/>
+        <jvmarg value="-Dinvalid-legacy-sstable-root=${test.data}/invalid-legacy-sstables"/>
+        <jvmarg value="-Dcorrupt-sstable-root=${test.data}/corrupt-sstables"/>
+        <jvmarg value="-Dmigration-sstable-root=${test.data}/migration-sstables"/>
+        <jvmarg value="-Dcassandra.test.compression=true"/>
+        <jvmarg value="-Dcassandra.ring_delay_ms=1000"/>
+        <jvmarg value="-Dcassandra.tolerate_sstable_size=true"/>
+        <jvmarg value="-Dcassandra.config=file:///${compressed_yaml}"/>
+        <jvmarg value="-Dcassandra.skip_sync=true" />
+        <jvmarg value="-Dcassandra.config.loader=org.apache.cassandra.OffsetAwareConfigurationLoader"/>
+      </testmacrohelper>
+    </sequential>
+  </macrodef>
 
   <!--
     Run named ant task with jacoco, such as "ant jacoco-run -Dtaskname=pig-test"
@@ -1280,21 +1299,11 @@
       <fileset file="${test.conf}/cassandra.yaml"/>
       <fileset file="${test.conf}/commitlog_compression.yaml"/>
     </concat>
-    <echo>Compressed config: ${compressed_yaml}</echo>
-    <testmacro suitename="unit" inputdir="${test.unit.src}" exclude="**/pig/*.java" timeout="${test.timeout}" testtag="compression">
-      <jvmarg value="-Dlegacy-sstable-root=${test.data}/legacy-sstables"/>
-      <jvmarg value="-Dinvalid-legacy-sstable-root=${test.data}/invalid-legacy-sstables"/>
-      <jvmarg value="-Dcorrupt-sstable-root=${test.data}/corrupt-sstables"/>
-      <jvmarg value="-Dmigration-sstable-root=${test.data}/migration-sstables"/>
-      <jvmarg value="-Dcassandra.test.compression=true"/>
-      <jvmarg value="-Dcassandra.ring_delay_ms=1000"/>
-      <jvmarg value="-Dcassandra.tolerate_sstable_size=true"/>
-      <jvmarg value="-Dcassandra.config=file:///${compressed_yaml}"/>
-      <jvmarg value="-Dcassandra.skip_sync=true" />
-    </testmacro>
-    <fileset dir="${test.unit.src}">
-        <exclude name="**/pig/*.java" />
-    </fileset>
+    <path id="all-test-classes-path">
+      <fileset dir="${test.unit.src}" excludes="**/pig/*.java" includes="**/${test.name}.java" />
+    </path>
+    <property name="all-test-classes" refid="all-test-classes-path"/>
+    <testparallel testdelegate="testlist-compression" />
   </target>
 
   <target name="msg-ser-gen-test" depends="build-test" description="Generates message serializations">
@@ -1540,60 +1549,108 @@
     </create-javadoc>
    </target>
 
-  <!-- Split test classes into n buckets and run across processes -->
+  <!-- Run tests not in parallel and reports errors and generates a junit report after -->
+  <macrodef name="testmacro">
+    <attribute name="suitename" />
+    <attribute name="inputdir" />
+    <attribute name="timeout" default="${test.timeout}" />
+    <attribute name="forkmode" default="perTest"/>
+    <element name="optjvmargs" implicit="true" optional="true" />
+    <attribute name="filter" default="**/${test.name}.java"/>
+    <attribute name="exclude" default="" />
+    <attribute name="filelist" default="" />
+    <attribute name="poffset" default="0"/>
+    <attribute name="testtag" default=""/>
+
+    <sequential>
+      <testmacrohelper suitename="@{suitename}" inputdir="@{inputdir}" timeout="@{timeout}"
+                       forkmode="@{forkmode}" filter="@{filter}"
+                       exclude="@{exclude}" filelist="@{filelist}" poffset="@{poffset}"
+                       testtag="@{testtag}" >
+          <optjvmargs/>
+      </testmacrohelper>
+      <junitreport todir="${build.test.dir}">
+        <fileset dir="${build.test.dir}/output">
+          <include name="**/TEST-*.xml"/>
+        </fileset>
+        <report format="frames" todir="${build.test.dir}/junitreport"/>
+      </junitreport>
+      <fail message="Some test(s) failed.">
+        <condition>
+            <and>
+            <isset property="testfailed"/>
+            <not>
+              <isset property="ant.test.failure.ignore"/>
+            </not>
+          </and>
+        </condition>
+      </fail>
+    </sequential>
+  </macrodef>
+
+  <!-- Run tests in parallel and report errors after and generate a junit report -->
+  <macrodef name="testparallel">
+    <attribute name="testdelegate"/>
+    <sequential>
+      <testparallelhelper testdelegate="@{testdelegate}"/>
+      <junitreport todir="${build.test.dir}">
+        <fileset dir="${build.test.dir}/output">
+          <include name="**/TEST-*.xml"/>
+        </fileset>
+        <report format="frames" todir="${build.test.dir}/junitreport"/>
+      </junitreport>
+      <fail message="Some test(s) failed.">
+        <condition>
+            <and>
+            <isset property="testfailed"/>
+            <not>
+              <isset property="ant.test.failure.ignore"/>
+            </not>
+          </and>
+        </condition>
+      </fail>
+    </sequential>
+  </macrodef>
+
+  <!-- Run multiple junit tasks in parallel, but don't track errors or generate a report after
+       If a test fails the testfailed property will be set. All the tests are run using te testdelegate
+       macro that is specified as an attribute and they will be run concurrently in this ant process -->
+  <scriptdef name="testparallelhelper" language="javascript">
+    <attribute name="testdelegate"/>
+    <![CDATA[
+        var Integer = java.lang.Integer;
+        sep = project.getProperty("path.separator");
+        all = project.getProperty("all-test-classes").split(sep);
+        dir = project.getProperty("test.unit.src");
+
+        numRunners = parseInt(project.getProperty("test.runners"));
+
+        var p = project.createTask('parallel');
+        p.setThreadCount(numRunners);
+
+        for (i = 0; i < all.length; i++) {
+
+            if (all[i] == undefined) continue;
+
+            task = project.createTask( attributes.get("testdelegate") );
+
+            task.setDynamicAttribute( "test.file.list", "" + all[i]);
+
+            task.setDynamicAttribute( "testlist.offset", "" + i );
+
+            p.addTask(task);
+        }
+
+        p.perform();
+    ]]>
+  </scriptdef>
+
   <target name="test" depends="build-test" description="Parallel Test Runner">
     <path id="all-test-classes-path">
-      <fileset dir="${test.unit.src}" excludes="**/pig/*.java" includes="**/${test.name}.java" />   
+      <fileset dir="${test.unit.src}" excludes="**/pig/*.java" includes="**/${test.name}.java" />
     </path>
     <property name="all-test-classes" refid="all-test-classes-path"/>
-    <script language="javascript"> <![CDATA[
-	var Integer = java.lang.Integer;
-	sep = project.getProperty("path.separator");
-	all = project.getProperty("all-test-classes").split(sep);
-	dir = project.getProperty("test.unit.src");
-
-	numRunners = parseInt(project.getProperty("test.runners"));  	
-	
-	buckets = new Array(numRunners);
-	for (i = 0; i < all.length; i++) {
-	    bucketNum = i % numRunners;
-	    if (buckets[bucketNum] == undefined) 
-		buckets[bucketNum] = "";
-	    else
-		buckets[bucketNum] += ",";
-	
-	    buckets[bucketNum] += all[i];
-	}
-
-
-	var p = project.createTask('parallel');
-	p.setThreadCount(numRunners);
-
-  	for (i = 0; i < buckets.length; i++) {
-
-	    if (buckets[i] == undefined) continue;
-
-	    task = project.createTask( 'antcall' );
-
-	    task.setTarget("testlist");
-	    param = task.createParam();
-	    param.setName("test.file.list");
-	    param.setValue("" + buckets[i]);
-
-	    param = task.createParam();
-	    param.setName("testlist.name");
-	    param.setValue("test bucket "+i);	  
-
-	    param = task.createParam();
-	    param.setName("testlist.offset");
-	    param.setValue("" + i);
-
-	    p.addTask(task); 
-  	}
-	
-	p.perform();
-	  			    
-]]> </script>
+    <testparallel testdelegate="testlist"/>
   </target>
 
   <!-- run microbenchmarks suite -->
