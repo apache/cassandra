@@ -26,7 +26,6 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.cql3.CQL3Type;
 import org.apache.cassandra.cql3.ColumnIdentifier;
-import org.apache.cassandra.cql3.Operation.RawUpdate;
 import org.apache.cassandra.cql3.functions.*;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.exceptions.*;
@@ -170,6 +169,9 @@ public final class CreateFunctionStatement extends SchemaAlteringStatement
 
         this.udFunction = UDFunction.create(functionName, argNames, argTypes, returnType, calledOnNullInput, language, body);
         this.replaced = old != null;
+
+        // add function to registry to prevent duplicate compilation on coordinator during migration
+        Functions.addOrReplaceFunction(udFunction);
 
         MigrationManager.announceNewFunction(udFunction, isLocalOnly);
 

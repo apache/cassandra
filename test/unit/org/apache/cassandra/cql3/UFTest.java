@@ -2163,8 +2163,8 @@ public class UFTest extends CQLTester
 
         UDFunction f = (UDFunction) Functions.find(parseFunctionName(fName)).get(0);
 
-        Functions.replaceFunction(UDFunction.createBrokenFunction(f.name(), f.argNames(), f.argTypes(), f.returnType(), true,
-                                                                  "java", f.body(), new InvalidRequestException("foo bar is broken")));
+        Functions.addOrReplaceFunction(UDFunction.createBrokenFunction(f.name(), f.argNames(), f.argTypes(), f.returnType(), true,
+                                                                       "java", f.body(), new InvalidRequestException("foo bar is broken")));
 
         assertInvalidThrowMessage("foo bar is broken", InvalidRequestException.class,
                                   "SELECT key, " + fName + "(dval) FROM %s");

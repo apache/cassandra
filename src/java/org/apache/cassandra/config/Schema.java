@@ -554,7 +554,7 @@ public class Schema
     {
         logger.info("Loading {}", udf);
 
-        Functions.addFunction(udf);
+        Functions.addOrReplaceFunction(udf);
 
         MigrationManager.instance.notifyCreateFunction(udf);
     }
@@ -563,7 +563,7 @@ public class Schema
     {
         logger.info("Updating {}", udf);
 
-        Functions.replaceFunction(udf);
+        Functions.addOrReplaceFunction(udf);
 
         MigrationManager.instance.notifyUpdateFunction(udf);
     }
@@ -582,7 +582,7 @@ public class Schema
     {
         logger.info("Loading {}", udf);
 
-        Functions.addFunction(udf);
+        Functions.addOrReplaceFunction(udf);
 
         MigrationManager.instance.notifyCreateAggregate(udf);
     }
@@ -591,7 +591,7 @@ public class Schema
     {
         logger.info("Updating {}", udf);
 
-        Functions.replaceFunction(udf);
+        Functions.addOrReplaceFunction(udf);
 
         MigrationManager.instance.notifyUpdateAggregate(udf);
     }
