@@ -1,3 +1,7 @@
+2.0.17
+ * Display min timestamp in sstablemetadata viewer (CASSANDRA-6767)
+
+
 2.0.16:
  * Expose some internals of SelectStatement for inspection (CASSANDRA-9532)
  * ArrivalWindow should use primitives (CASSANDRA-9496)

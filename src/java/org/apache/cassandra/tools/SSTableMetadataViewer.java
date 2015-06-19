@@ -51,6 +51,7 @@ public class SSTableMetadataViewer
 
                 out.printf("SSTable: %s%n", descriptor);
                 out.printf("Partitioner: %s%n", metadata.partitioner);
+                out.printf("Minimum timestamp: %s%n", metadata.minTimestamp);
                 out.printf("Maximum timestamp: %s%n", metadata.maxTimestamp);
                 out.printf("SSTable max local deletion time: %s%n", metadata.maxLocalDeletionTime);
                 out.printf("Compression ratio: %s%n", metadata.compressionRatio);
