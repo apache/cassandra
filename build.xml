@@ -1208,7 +1208,7 @@
   </target>
 
   <target name="testold" depends="build-test" description="Execute unit tests">
-    <testmacro suitename="unit" inputdir="${test.unit.src}" exclude="**/pig/*.java" timeout="${test.timeout}">
+    <testmacro inputdir="${test.unit.src}" exclude="**/pig/*.java" timeout="${test.timeout}">
       <jvmarg value="-Dlegacy-sstable-root=${test.data}/legacy-sstables"/>
       <jvmarg value="-Dinvalid-legacy-sstable-root=${test.data}/invalid-legacy-sstables"/>
       <jvmarg value="-Dcorrupt-sstable-root=${test.data}/corrupt-sstables"/>
@@ -1281,7 +1281,7 @@
     ant testsome -Dtest.name=org.apache.cassandra.service.StorageServiceServerTest -Dtest.methods=testRegularMode,testGetAllRangesEmpty
   -->
   <target name="testsome" depends="build-test" description="Execute specific unit tests" >
-    <testmacro suitename="unit" inputdir="${test.unit.src}" exclude="**/pig/*.java" timeout="${test.timeout}">
+    <testmacro inputdir="${test.unit.src}" exclude="**/pig/*.java" timeout="${test.timeout}">
       <test name="${test.name}" methods="${test.methods}"/>
       <jvmarg value="-Dlegacy-sstable-root=${test.data}/legacy-sstables"/>
       <jvmarg value="-Dinvalid-legacy-sstable-root=${test.data}/invalid-legacy-sstables"/>
@@ -1307,39 +1307,39 @@
   </target>
 
   <target name="msg-ser-gen-test" depends="build-test" description="Generates message serializations">
-    <testmacro suitename="unit" inputdir="${test.unit.src}" 
+    <testmacro inputdir="${test.unit.src}"
         timeout="${test.timeout}" filter="**/SerializationsTest.java">
       <jvmarg value="-Dcassandra.test-serialization-writes=True"/>
     </testmacro>
   </target>
   
   <target name="msg-ser-test" depends="build-test" description="Tests message serializations">
-      <testmacro suitename="unit" inputdir="${test.unit.src}" timeout="${test.timeout}"
+      <testmacro inputdir="${test.unit.src}" timeout="${test.timeout}"
                filter="**/SerializationsTest.java"/>
   </target>
   
   <target name="msg-ser-test-7" depends="build-test" description="Generates message serializations">
-    <testmacro suitename="unit" inputdir="${test.unit.src}" 
+    <testmacro inputdir="${test.unit.src}"
         timeout="${test.timeout}" filter="**/SerializationsTest.java">
       <jvmarg value="-Dcassandra.version=0.7"/>
     </testmacro>
   </target>
 
   <target name="msg-ser-test-10" depends="build-test" description="Tests message serializations on 1.0 messages">
-    <testmacro suitename="unit" inputdir="${test.unit.src}" 
+    <testmacro inputdir="${test.unit.src}"
         timeout="${test.timeout}" filter="**/SerializationsTest.java">
       <jvmarg value="-Dcassandra.version=1.0"/>
     </testmacro>
   </target>
 
   <target name="test-burn" depends="build-test" description="Execute functional tests">
-    <testmacro suitename="burn" inputdir="${test.burn.src}"
+    <testmacro inputdir="${test.burn.src}"
                timeout="${test.burn.timeout}">
     </testmacro>
   </target>
 
   <target name="long-test" depends="build-test" description="Execute functional tests">
-    <testmacro suitename="long" inputdir="${test.long.src}"
+    <testmacro inputdir="${test.long.src}"
                timeout="${test.long.timeout}">
       <jvmarg value="-Dcassandra.ring_delay_ms=1000"/>
       <jvmarg value="-Dcassandra.tolerate_sstable_size=true"/>
@@ -1420,7 +1420,7 @@
   </target>
 
   <target name="pig-test" depends="build-test,maven-ant-tasks-retrieve-pig-test" description="Excute Pig tests">
-    <testmacro suitename="pig" inputdir="${test.pig.src}" 
+    <testmacro inputdir="${test.pig.src}"
                timeout="1200000">
     </testmacro>
   </target>
@@ -1551,7 +1551,6 @@
 
   <!-- Run tests not in parallel and reports errors and generates a junit report after -->
   <macrodef name="testmacro">
-    <attribute name="suitename" />
     <attribute name="inputdir" />
     <attribute name="timeout" default="${test.timeout}" />
     <attribute name="forkmode" default="perTest"/>
@@ -1563,7 +1562,7 @@
     <attribute name="testtag" default=""/>
 
     <sequential>
-      <testmacrohelper suitename="@{suitename}" inputdir="@{inputdir}" timeout="@{timeout}"
+      <testmacrohelper inputdir="@{inputdir}" timeout="@{timeout}"
                        forkmode="@{forkmode}" filter="@{filter}"
                        exclude="@{exclude}" filelist="@{filelist}" poffset="@{poffset}"
                        testtag="@{testtag}" >
