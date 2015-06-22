@@ -470,6 +470,10 @@ public class SSTableImport
      */
     public static void main(String[] args) throws ParseException, ConfigurationException
     {
+        System.err.println("WARNING: please note that json2sstable is now deprecated and will be removed in Cassandra 3.0. "
+                         + "You should use CQLSSTableWriter if you want to write sstables directly. "
+                         + "Please see https://issues.apache.org/jira/browse/CASSANDRA-9618 for details.");
+
         CommandLineParser parser = new PosixParser();
 
         try
