@@ -2003,19 +2003,24 @@ public class StorageProxy implements StorageProxyMBean
         return DatabaseDescriptor.hintedHandoffEnabled();
     }
 
-    public Set<String> getHintedHandoffEnabledByDC()
-    {
-        return DatabaseDescriptor.hintedHandoffEnabledByDC();
-    }
-
     public void setHintedHandoffEnabled(boolean b)
     {
         DatabaseDescriptor.setHintedHandoffEnabled(b);
     }
 
-    public void setHintedHandoffEnabledByDCList(String dcNames)
+    public void enableHintsForDC(String dc)
     {
-        DatabaseDescriptor.setHintedHandoffEnabled(dcNames);
+        DatabaseDescriptor.enableHintsForDC(dc);
+    }
+
+    public void disableHintsForDC(String dc)
+    {
+        DatabaseDescriptor.disableHintsForDC(dc);
+    }
+
+    public Set<String> getHintedHandoffDisabledDCs()
+    {
+        return DatabaseDescriptor.hintedHandoffDisabledDCs();
     }
 
     public int getMaxHintWindow()
@@ -2030,27 +2035,29 @@ public class StorageProxy implements StorageProxyMBean
 
     public static boolean shouldHint(InetAddress ep)
     {
-        if (DatabaseDescriptor.shouldHintByDC())
-        {
-            final String dc = DatabaseDescriptor.getEndpointSnitch().getDatacenter(ep);
-            //Disable DC specific hints
-            if(!DatabaseDescriptor.hintedHandoffEnabled(dc))
-            {
-                HintedHandOffManager.instance.metrics.incrPastWindow(ep);
-                return false;
-            }
-        }
-        else if (!DatabaseDescriptor.hintedHandoffEnabled())
+        if (!DatabaseDescriptor.hintedHandoffEnabled())
         {
             HintedHandOffManager.instance.metrics.incrPastWindow(ep);
             return false;
+        }
+
+        Set<String> disabledDCs = DatabaseDescriptor.hintedHandoffDisabledDCs();
+        if (!disabledDCs.isEmpty())
+        {
+            final String dc = DatabaseDescriptor.getEndpointSnitch().getDatacenter(ep);
+            if (disabledDCs.contains(dc))
+            {
+                Tracing.trace("Not hinting {} since its data center {} has been disabled {}", ep, dc, disabledDCs);
+                HintedHandOffManager.instance.metrics.incrPastWindow(ep);
+                return false;
+            }
         }
 
         boolean hintWindowExpired = Gossiper.instance.getEndpointDowntime(ep) > DatabaseDescriptor.getMaxHintWindow();
         if (hintWindowExpired)
         {
             HintedHandOffManager.instance.metrics.incrPastWindow(ep);
-            Tracing.trace("Not hinting {} which has been down {}ms", ep, Gossiper.instance.getEndpointDowntime(ep));
+            Tracing.trace("Not hinting {} which has been down {} ms", ep, Gossiper.instance.getEndpointDowntime(ep));
         }
         return !hintWindowExpired;
     }

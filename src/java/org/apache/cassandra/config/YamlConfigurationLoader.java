@@ -24,11 +24,15 @@ import java.io.InputStream;
 import java.io.IOException;
 import java.net.URL;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
 
 import com.google.common.base.Joiner;
+import com.google.common.collect.Lists;
+import com.google.common.collect.Maps;
+import com.google.common.collect.Sets;
 import com.google.common.io.ByteStreams;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -36,6 +40,7 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.yaml.snakeyaml.TypeDescription;
 import org.yaml.snakeyaml.Yaml;
+import org.yaml.snakeyaml.constructor.Constructor;
 import org.yaml.snakeyaml.error.YAMLException;
 import org.yaml.snakeyaml.introspector.MissingProperty;
 import org.yaml.snakeyaml.introspector.Property;
@@ -106,21 +111,53 @@ public class YamlConfigurationLoader implements ConfigurationLoader
 
             logConfig(configBytes);
 
-            org.yaml.snakeyaml.constructor.Constructor constructor = new org.yaml.snakeyaml.constructor.Constructor(Config.class);
-            TypeDescription seedDesc = new TypeDescription(ParameterizedClass.class);
-            seedDesc.putMapPropertyType("parameters", String.class, String.class);
-            constructor.addTypeDescription(seedDesc);
+            Constructor constructor = new CustomConstructor(Config.class);
             MissingPropertiesChecker propertiesChecker = new MissingPropertiesChecker();
             constructor.setPropertyUtils(propertiesChecker);
             Yaml yaml = new Yaml(constructor);
             Config result = yaml.loadAs(new ByteArrayInputStream(configBytes), Config.class);
-            result.configHintedHandoff();
             propertiesChecker.check();
             return result;
         }
         catch (YAMLException e)
         {
             throw new ConfigurationException("Invalid yaml: " + url, e);
+        }
+    }
+
+    static class CustomConstructor extends Constructor
+    {
+        CustomConstructor(Class<?> theRoot)
+        {
+            super(theRoot);
+
+            TypeDescription seedDesc = new TypeDescription(ParameterizedClass.class);
+            seedDesc.putMapPropertyType("parameters", String.class, String.class);
+            addTypeDescription(seedDesc);
+        }
+
+        @Override
+        protected List<Object> createDefaultList(int initSize)
+        {
+            return Lists.newCopyOnWriteArrayList();
+        }
+
+        @Override
+        protected Map<Object, Object> createDefaultMap()
+        {
+            return Maps.newConcurrentMap();
+        }
+
+        @Override
+        protected Set<Object> createDefaultSet(int initSize)
+        {
+            return Sets.newConcurrentHashSet();
+        }
+
+        @Override
+        protected Set<Object> createDefaultSet()
+        {
+            return Sets.newConcurrentHashSet();
         }
     }
 

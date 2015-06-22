@@ -25,9 +25,10 @@ public interface StorageProxyMBean
 {
     public long getTotalHints();
     public boolean getHintedHandoffEnabled();
-    public Set<String> getHintedHandoffEnabledByDC();
     public void setHintedHandoffEnabled(boolean b);
-    public void setHintedHandoffEnabledByDCList(String dcs);
+    public void enableHintsForDC(String dc);
+    public void disableHintsForDC(String dc);
+    public Set<String> getHintedHandoffDisabledDCs();
     public int getMaxHintWindow();
     public void setMaxHintWindow(int ms);
     public int getMaxHintsInProgress();

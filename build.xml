@@ -404,13 +404,12 @@
           -->
           <dependency groupId="org.eclipse.jdt.core.compiler" artifactId="ecj" version="4.4.2" />
           <dependency groupId="org.caffinitas.ohc" artifactId="ohc-core" version="0.3.4" />
-          <dependency groupId="net.sf.supercsv" artifactId="super-csv" version="2.1.0" />
-	      <dependency groupId="net.ju-n.compile-command-annotations" artifactId="compile-command-annotations" version="1.2.0" />
+          <dependency groupId="net.ju-n.compile-command-annotations" artifactId="compile-command-annotations" version="1.2.0" />
           <dependency groupId="org.fusesource" artifactId="sigar" version="1.6.4">
           	<exclusion groupId="log4j" artifactId="log4j"/>
           </dependency>
           <dependency groupId="joda-time" artifactId="joda-time" version="2.4" />
-        	
+
         </dependencyManagement>
         <developer id="alakshman" name="Avinash Lakshman"/>
         <developer id="aleksey" name="Aleksey Yeschenko"/>
@@ -517,7 +516,6 @@
         <dependency groupId="com.addthis.metrics" artifactId="reporter-config3"/>
         <dependency groupId="com.thinkaurelius.thrift" artifactId="thrift-server" version="0.3.5"/>
         <dependency groupId="com.clearspring.analytics" artifactId="stream" version="2.5.2" />
-        <dependency groupId="net.sf.supercsv" artifactId="super-csv" version="2.1.0" />
 
         <dependency groupId="ch.qos.logback" artifactId="logback-core"/>
         <dependency groupId="ch.qos.logback" artifactId="logback-classic"/>

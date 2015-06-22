@@ -25,7 +25,9 @@ Upgrading
      use CqlInputFormat and CqlOutputFormat instead.
    - Hadoop ColumnFamilyRecordReader and ColumnFamilyRecordWriter have been removed;
      use CqlRecordReader and CqlRecordWriter instead.
-
+   - hinted_handoff_enabled in cassandra.yaml no longer supports a list of data centers.
+     To specify a list of excluded data centers when hinted_handoff_enabled is set to true,
+     use hinted_handoff_disabled_datacenters, see CASSANDRA-9035 for details.
 
 2.2
 ===

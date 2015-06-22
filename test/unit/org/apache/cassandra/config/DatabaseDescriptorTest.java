@@ -132,7 +132,7 @@ public class DatabaseDescriptorTest
         public Config loadConfig() throws ConfigurationException
         {
             Config testConfig = new Config();
-            testConfig.cluster_name = "ConfigurationLoader Test";;
+            testConfig.cluster_name = "ConfigurationLoader Test";
             return testConfig;
         }
     }

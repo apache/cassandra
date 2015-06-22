@@ -17,9 +17,6 @@
  */
 package org.apache.cassandra.config;
 
-import java.io.IOException;
-import java.io.StringReader;
-import java.util.List;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
@@ -27,9 +24,6 @@ import com.google.common.collect.Sets;
 
 import org.apache.cassandra.config.EncryptionOptions.ClientEncryptionOptions;
 import org.apache.cassandra.config.EncryptionOptions.ServerEncryptionOptions;
-import org.apache.cassandra.exceptions.ConfigurationException;
-import org.supercsv.io.CsvListReader;
-import org.supercsv.prefs.CsvPreference;
 
 /**
  * A class that contains configuration properties for the cassandra node it runs within.
@@ -59,9 +53,8 @@ public class Config
     public String partitioner;
 
     public Boolean auto_bootstrap = true;
-    public volatile boolean hinted_handoff_enabled_global = true;
-    public String hinted_handoff_enabled;
-    public Set<String> hinted_handoff_enabled_by_dc = Sets.newConcurrentHashSet();
+    public volatile boolean hinted_handoff_enabled = true;
+    public Set<String> hinted_handoff_disabled_datacenters = Sets.newConcurrentHashSet();
     public volatile Integer max_hint_window_in_ms = 3 * 3600 * 1000; // three hours
 
     public ParameterizedClass seed_provider;
@@ -240,9 +233,6 @@ public class Config
     public volatile Long index_summary_capacity_in_mb;
     public volatile int index_summary_resize_interval_in_minutes = 60;
 
-    private static final CsvPreference STANDARD_SURROUNDING_SPACES_NEED_QUOTES = new CsvPreference.Builder(CsvPreference.STANDARD_PREFERENCE)
-                                                                                                  .surroundingSpacesNeedQuotes(true).build();
-
     // TTL for different types of trace events.
     public int tracetype_query_ttl = (int) TimeUnit.DAYS.toSeconds(1);
     public int tracetype_repair_ttl = (int) TimeUnit.DAYS.toSeconds(7);
@@ -285,40 +275,6 @@ public class Config
     public static void setClientMode(boolean clientMode)
     {
         isClientMode = clientMode;
-    }
-
-    public void configHintedHandoff() throws ConfigurationException
-    {
-        if (hinted_handoff_enabled != null && !hinted_handoff_enabled.isEmpty())
-        {
-            if (hinted_handoff_enabled.equalsIgnoreCase("true"))
-            {
-                hinted_handoff_enabled_global = true;
-            }
-            else if (hinted_handoff_enabled.equalsIgnoreCase("false"))
-            {
-                hinted_handoff_enabled_global = false;
-            }
-            else
-            {
-                try
-                {
-                    hinted_handoff_enabled_by_dc.addAll(parseHintedHandoffEnabledDCs(hinted_handoff_enabled));
-                }
-                catch (IOException e)
-                {
-                    throw new ConfigurationException("Invalid hinted_handoff_enabled parameter " + hinted_handoff_enabled, e);
-                }
-            }
-        }
-    }
-
-    public static List<String> parseHintedHandoffEnabledDCs(final String dcNames) throws IOException
-    {
-        try (final CsvListReader csvListReader = new CsvListReader(new StringReader(dcNames), STANDARD_SURROUNDING_SPACES_NEED_QUOTES))
-        {
-        	return csvListReader.read();
-        }
     }
 
     public static enum CommitLogSync

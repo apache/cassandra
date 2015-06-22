@@ -35,10 +35,10 @@ public class ParameterizedClass
     }
 
     @SuppressWarnings("unchecked")
-    public ParameterizedClass(LinkedHashMap<String, ?> p)
+    public ParameterizedClass(Map<String, ?> p)
     {
         this((String)p.get("class_name"),
-                p.containsKey("parameters") ? (Map<String, String>)((List<?>)p.get("parameters")).get(0) : null);
+             p.containsKey("parameters") ? (Map<String, String>)((List<?>)p.get("parameters")).get(0) : null);
     }
 
     @Override

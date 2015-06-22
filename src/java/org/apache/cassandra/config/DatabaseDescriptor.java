@@ -1358,47 +1358,27 @@ public class DatabaseDescriptor
 
     public static void setHintedHandoffEnabled(boolean hintedHandoffEnabled)
     {
-        conf.hinted_handoff_enabled_global = hintedHandoffEnabled;
-        conf.hinted_handoff_enabled_by_dc.clear();
-    }
-
-    public static void setHintedHandoffEnabled(final String dcNames)
-    {
-        List<String> dcNameList;
-        try
-        {
-            dcNameList = Config.parseHintedHandoffEnabledDCs(dcNames);
-        }
-        catch (IOException e)
-        {
-            throw new IllegalArgumentException("Could not read csv of dcs for hinted handoff enable. " + dcNames, e);
-        }
-
-        if (dcNameList.isEmpty())
-            throw new IllegalArgumentException("Empty list of Dcs for hinted handoff enable");
-
-        conf.hinted_handoff_enabled_by_dc.clear();
-        conf.hinted_handoff_enabled_by_dc.addAll(dcNameList);
+        conf.hinted_handoff_enabled = hintedHandoffEnabled;
     }
 
     public static boolean hintedHandoffEnabled()
     {
-        return conf.hinted_handoff_enabled_global;
+        return conf.hinted_handoff_enabled;
     }
 
-    public static Set<String> hintedHandoffEnabledByDC()
+    public static Set<String> hintedHandoffDisabledDCs()
     {
-        return Collections.unmodifiableSet(conf.hinted_handoff_enabled_by_dc);
+        return conf.hinted_handoff_disabled_datacenters;
     }
 
-    public static boolean shouldHintByDC()
+    public static void enableHintsForDC(String dc)
     {
-        return !conf.hinted_handoff_enabled_by_dc.isEmpty();
+        conf.hinted_handoff_disabled_datacenters.remove(dc);
     }
 
-    public static boolean hintedHandoffEnabled(final String dcName)
+    public static void disableHintsForDC(String dc)
     {
-        return conf.hinted_handoff_enabled_by_dc.contains(dcName);
+        conf.hinted_handoff_disabled_datacenters.add(dc);
     }
 
     public static void setMaxHintWindow(int ms)
