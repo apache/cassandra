@@ -380,6 +380,9 @@ public class SSTableExport
      */
     public static void main(String[] args) throws ConfigurationException
     {
+        System.err.println("WARNING: please note that sstable2json is now deprecated and will be removed in Cassandra 3.0. "
+                         + "Please see https://issues.apache.org/jira/browse/CASSANDRA-9618 for details.");
+
         String usage = String.format("Usage: %s <sstable> [-k key [-k key [...]] -x key [-x key [...]]]%n", SSTableExport.class.getName());
 
         CommandLineParser parser = new PosixParser();

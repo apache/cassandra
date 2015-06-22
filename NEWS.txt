@@ -135,6 +135,9 @@ Upgrading
    - The SSTableSimpleWriter and SSTableSimpleUnsortedWriter classes have been
      deprecated and will be removed in the next major Cassandra release. You
      should use the CQLSSTableWriter class instead.
+   - The sstable2json and json2sstable tools have been deprecated and will be
+     removed in the next major Cassandra release. See CASSANDRA-9618
+     (https://issues.apache.org/jira/browse/CASSANDRA-9618) for details.
 
 2.1.6
 =====

@@ -1,4 +1,5 @@
 2.2
+ * Deprected sstable2json and json2sstable (CASSANDRA-9618)
  * Allow native functions in user-defined aggregates (CASSANDRA-9542)
  * Don't repair system_distributed by default (CASSANDRA-9621)
  * Fix mixing min, max, and count aggregates for blob type (CASSANRA-9622)
