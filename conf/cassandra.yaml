@@ -860,3 +860,10 @@ tracetype_repair_ttl: 604800
 # This will inherently be backwards-incompatible with any 2.2 UDF that perform insecure
 # operations such as opening a socket or writing to the filesystem.
 enable_user_defined_functions: false
+
+# The default Windows kernel timer and scheduling resolution is 15.6ms for power conservation.
+# Lowering this value on Windows can provide much tighter latency and better throughput, however
+# some virtualized environments may see a negative performance impact from changing this setting
+# below their system default. The sysinternals 'clockres' tool can confirm your system's default
+# setting.
+windows_timer_interval: 1

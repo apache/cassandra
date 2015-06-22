@@ -261,6 +261,8 @@ public class Config
     public static final int otc_coalescing_window_us_default = 200;
     public int otc_coalescing_window_us = otc_coalescing_window_us_default;
 
+    public int windows_timer_interval = 0;
+
     public boolean enable_user_defined_functions = false;
 
     public static boolean getOutboundBindAny()

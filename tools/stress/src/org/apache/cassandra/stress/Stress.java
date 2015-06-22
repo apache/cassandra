@@ -22,6 +22,8 @@ import java.net.Socket;
 import java.net.SocketException;
 
 import org.apache.cassandra.stress.settings.StressSettings;
+import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.WindowsTimer;
 
 public final class Stress
 {
@@ -52,6 +54,9 @@ public final class Stress
 
     public static void main(String[] arguments) throws Exception
     {
+        if (FBUtilities.isWindows())
+            WindowsTimer.startTimerPeriod(1);
+
         final StressSettings settings;
         try
         {
@@ -109,6 +114,8 @@ public final class Stress
             stressAction.run();
         }
 
+        if (FBUtilities.isWindows())
+            WindowsTimer.endTimerPeriod(1);
         System.exit(0);
     }
 
