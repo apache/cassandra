@@ -1,4 +1,5 @@
 2.2
+ * Don't repair system_distributed by default (CASSANDRA-9621)
  * Fix mixing min, max, and count aggregates for blob type (CASSANRA-9622)
  * Rename class for DATE type in Java driver (CASSANDRA-9563)
  * Duplicate compilation of UDFs on coordinator (CASSANDRA-9475)
