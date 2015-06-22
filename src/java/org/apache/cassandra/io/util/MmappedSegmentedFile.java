@@ -43,9 +43,9 @@ public class MmappedSegmentedFile extends SegmentedFile
      */
     private final Segment[] segments;
 
-    public MmappedSegmentedFile(ChannelProxy channel, long length, Segment[] segments)
+    public MmappedSegmentedFile(ChannelProxy channel, int bufferSize, long length, Segment[] segments)
     {
-        super(new Cleanup(channel, segments), channel, length);
+        super(new Cleanup(channel, segments), channel, bufferSize, length);
         this.segments = segments;
     }
 
@@ -90,7 +90,7 @@ public class MmappedSegmentedFile extends SegmentedFile
         // we can have single cells or partitions larger than 2Gb, which is our maximum addressable range in a single segment;
         // in this case we open as a normal random access reader
         // FIXME: brafs are unbounded, so this segment will cover the rest of the file, rather than just the row
-        RandomAccessReader file = RandomAccessReader.open(channel);
+        RandomAccessReader file = RandomAccessReader.open(channel, bufferSize, -1L);
         file.seek(position);
         return file;
     }
@@ -183,11 +183,11 @@ public class MmappedSegmentedFile extends SegmentedFile
             }
         }
 
-        public SegmentedFile complete(ChannelProxy channel, long overrideLength)
+        public SegmentedFile complete(ChannelProxy channel, int bufferSize, long overrideLength)
         {
             long length = overrideLength > 0 ? overrideLength : channel.size();
             // create the segments
-            return new MmappedSegmentedFile(channel, length, createSegments(channel, length));
+            return new MmappedSegmentedFile(channel, bufferSize, length, createSegments(channel, length));
         }
 
         private Segment[] createSegments(ChannelProxy channel, long length)

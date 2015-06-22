@@ -1493,6 +1493,33 @@ public class DatabaseDescriptor
         return conf.buffer_pool_use_heap_if_exhausted;
     }
 
+    public static Config.DiskOptimizationStrategy getDiskOptimizationStrategy()
+    {
+        return conf.disk_optimization_strategy;
+    }
+
+    @VisibleForTesting
+    public static void setDiskOptimizationStrategy(Config.DiskOptimizationStrategy strategy)
+    {
+        conf.disk_optimization_strategy = strategy;
+    }
+
+    public static double getDiskOptimizationEstimatePercentile()
+    {
+        return conf.disk_optimization_estimate_percentile;
+    }
+
+    public static double getDiskOptimizationPageCrossChance()
+    {
+        return conf.disk_optimization_page_cross_chance;
+    }
+
+    @VisibleForTesting
+    public static void setDiskOptimizationPageCrossChance(double chance)
+    {
+        conf.disk_optimization_page_cross_chance = chance;
+    }
+
     public static long getTotalCommitlogSpaceInMB()
     {
         return conf.commitlog_total_space_in_mb;

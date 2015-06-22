@@ -354,7 +354,13 @@ concurrent_counter_writes: 32
 
 # buffer_pool_use_heap_if_exhausted: true
 
-# Total permitted memory to use for memtables. Cassandra will stop 
+# The strategy for optimizing disk read
+# Possible values are:
+# ssd (for solid state disks, the default)
+# spinning (for spinning disks)
+# disk_optimization_strategy: ssd
+
+# Total permitted memory to use for memtables. Cassandra will stop
 # accepting writes when the limit is exceeded until a flush completes,
 # and will trigger a flush based on memtable_cleanup_threshold
 # If omitted, Cassandra will set both to 1/4 the size of the heap.

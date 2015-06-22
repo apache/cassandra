@@ -27,7 +27,7 @@ import org.apache.cassandra.utils.memory.BufferPool;
 
 public class RandomAccessReader extends AbstractDataInput implements FileDataInput
 {
-    public static final int DEFAULT_BUFFER_SIZE = 64 * 1024;
+    public static final int DEFAULT_BUFFER_SIZE = 4096;
 
     // the IO channel to the file, we do not own a reference to this due to
     // performance reasons (CASSANDRA-9379) so it's up to the owner of the RAR to
@@ -59,9 +59,16 @@ public class RandomAccessReader extends AbstractDataInput implements FileDataInp
         buffer.limit(0);
     }
 
+    /** The buffer size is typically already page aligned but if that is not the case
+     * make sure that it is a multiple of the page size, 4096.
+     * */
     protected int getBufferSize(int size)
     {
-        return (int)Math.min(fileLength, size);
+        if ((size & ~4095) != size)
+        { // should already be a page size multiple but if that's not case round it up
+            size = (size + 4095) & ~4095;
+        }
+        return size;
     }
 
     protected ByteBuffer allocateBuffer(int size, BufferType bufferType)
@@ -103,12 +110,7 @@ public class RandomAccessReader extends AbstractDataInput implements FileDataInp
 
     public static RandomAccessReader open(ChannelProxy channel)
     {
-        return open(channel, -1L);
-    }
-
-    public static RandomAccessReader open(ChannelProxy channel, long overrideSize)
-    {
-        return open(channel, DEFAULT_BUFFER_SIZE, overrideSize);
+        return open(channel, DEFAULT_BUFFER_SIZE, -1L);
     }
 
     public static RandomAccessReader open(ChannelProxy channel, int bufferSize, long overrideSize)
@@ -132,7 +134,14 @@ public class RandomAccessReader extends AbstractDataInput implements FileDataInp
 
         long position = bufferOffset;
         long limit = bufferOffset;
-        while (buffer.hasRemaining() && limit < fileLength)
+
+        long pageAligedPos = position & ~4095;
+        // Because the buffer capacity is a multiple of the page size, we read less
+        // the first time and then we should read at page boundaries only,
+        // unless the user seeks elsewhere
+        long upperLimit = Math.min(fileLength, pageAligedPos + buffer.capacity());
+        buffer.limit((int)(upperLimit - position));
+        while (buffer.hasRemaining() && limit < upperLimit)
         {
             int n = channel.read(buffer, position);
             if (n < 0)

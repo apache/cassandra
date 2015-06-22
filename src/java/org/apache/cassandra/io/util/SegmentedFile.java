@@ -25,13 +25,17 @@ import java.nio.MappedByteBuffer;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
 
-import com.google.common.base.Throwables;
 import com.google.common.util.concurrent.RateLimiter;
 
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.FSReadError;
 import org.apache.cassandra.io.compress.CompressedSequentialWriter;
+import org.apache.cassandra.io.sstable.Component;
+import org.apache.cassandra.io.sstable.Descriptor;
+import org.apache.cassandra.io.sstable.IndexSummary;
+import org.apache.cassandra.io.sstable.IndexSummaryBuilder;
+import org.apache.cassandra.io.sstable.metadata.StatsMetadata;
 import org.apache.cassandra.utils.CLibrary;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.concurrent.RefCounted;
@@ -51,6 +55,7 @@ import static org.apache.cassandra.utils.Throwables.maybeFail;
 public abstract class SegmentedFile extends SharedCloseableImpl
 {
     public final ChannelProxy channel;
+    public final int bufferSize;
     public final long length;
 
     // This differs from length for compressed files (but we still need length for
@@ -60,15 +65,16 @@ public abstract class SegmentedFile extends SharedCloseableImpl
     /**
      * Use getBuilder to get a Builder to construct a SegmentedFile.
      */
-    SegmentedFile(Cleanup cleanup, ChannelProxy channel, long length)
+    SegmentedFile(Cleanup cleanup, ChannelProxy channel, int bufferSize, long length)
     {
-        this(cleanup, channel, length, length);
+        this(cleanup, channel, bufferSize, length, length);
     }
 
-    protected SegmentedFile(Cleanup cleanup, ChannelProxy channel, long length, long onDiskLength)
+    protected SegmentedFile(Cleanup cleanup, ChannelProxy channel, int bufferSize, long length, long onDiskLength)
     {
         super(cleanup);
         this.channel = channel;
+        this.bufferSize = bufferSize;
         this.length = length;
         this.onDiskLength = onDiskLength;
     }
@@ -77,6 +83,7 @@ public abstract class SegmentedFile extends SharedCloseableImpl
     {
         super(copy);
         channel = copy.channel;
+        bufferSize = copy.bufferSize;
         length = copy.length;
         onDiskLength = copy.onDiskLength;
     }
@@ -109,13 +116,13 @@ public abstract class SegmentedFile extends SharedCloseableImpl
 
     public RandomAccessReader createReader()
     {
-        return RandomAccessReader.open(channel, length);
+        return RandomAccessReader.open(channel, bufferSize, length);
     }
 
     public RandomAccessReader createThrottledReader(RateLimiter limiter)
     {
         assert limiter != null;
-        return ThrottledReader.open(channel, length, limiter);
+        return ThrottledReader.open(channel, bufferSize, length, limiter);
     }
 
     public FileDataInput getSegment(long position)
@@ -171,25 +178,93 @@ public abstract class SegmentedFile extends SharedCloseableImpl
          * Called after all potential boundaries have been added to apply this Builder to a concrete file on disk.
          * @param channel The channel to the file on disk.
          */
-        protected abstract SegmentedFile complete(ChannelProxy channel, long overrideLength);
+        protected abstract SegmentedFile complete(ChannelProxy channel, int bufferSize, long overrideLength);
 
-        public SegmentedFile complete(String path)
-        {
-            return complete(path, -1L);
-        }
-
-        public SegmentedFile complete(String path, long overrideLength)
+        private SegmentedFile complete(String path, int bufferSize, long overrideLength)
         {
             ChannelProxy channelCopy = getChannel(path);
             try
             {
-                return complete(channelCopy, overrideLength);
+                return complete(channelCopy, bufferSize, overrideLength);
             }
             catch (Throwable t)
             {
                 channelCopy.close();
                 throw t;
             }
+        }
+
+        public SegmentedFile buildData(Descriptor desc, StatsMetadata stats, IndexSummaryBuilder.ReadableBoundary boundary)
+        {
+            return complete(desc.filenameFor(Component.DATA), bufferSize(stats), boundary.dataLength);
+        }
+
+        public SegmentedFile buildData(Descriptor desc, StatsMetadata stats)
+        {
+            return complete(desc.filenameFor(Component.DATA), bufferSize(stats), -1L);
+        }
+
+        public SegmentedFile buildIndex(Descriptor desc, IndexSummary indexSummary, IndexSummaryBuilder.ReadableBoundary boundary)
+        {
+            return complete(desc.filenameFor(Component.PRIMARY_INDEX), bufferSize(desc, indexSummary), boundary.indexLength);
+        }
+
+        public SegmentedFile buildIndex(Descriptor desc, IndexSummary indexSummary)
+        {
+            return complete(desc.filenameFor(Component.PRIMARY_INDEX), bufferSize(desc, indexSummary), -1L);
+        }
+
+        private int bufferSize(StatsMetadata stats)
+        {
+            return bufferSize(stats.estimatedPartitionSize.percentile(DatabaseDescriptor.getDiskOptimizationEstimatePercentile()));
+        }
+
+        private int bufferSize(Descriptor desc, IndexSummary indexSummary)
+        {
+            File file = new File(desc.filenameFor(Component.PRIMARY_INDEX));
+            return bufferSize(file.length() / indexSummary.size());
+        }
+
+        /**
+            Return the buffer size for a given record size. For spinning disks always add one page.
+            For solid state disks only add one page if the chance of crossing to the next page is more
+            than a predifined value, @see Config.disk_optimization_page_cross_chance.
+         */
+        static int bufferSize(long recordSize)
+        {
+            Config.DiskOptimizationStrategy strategy = DatabaseDescriptor.getDiskOptimizationStrategy();
+            if (strategy == Config.DiskOptimizationStrategy.ssd)
+            {
+                // The crossing probability is calculated assuming a uniform distribution of record
+                // start position in a page, so it's the record size modulo the page size divided by
+                // the total page size.
+                double pageCrossProbability = (recordSize % 4096) / 4096.;
+                // if the page cross probability is equal or bigger than disk_optimization_page_cross_chance we add one page
+                if ((pageCrossProbability - DatabaseDescriptor.getDiskOptimizationPageCrossChance()) > -1e-16)
+                    recordSize += 4096;
+
+                return roundBufferSize(recordSize);
+            }
+            else if (strategy == Config.DiskOptimizationStrategy.spinning)
+            {
+                return roundBufferSize(recordSize + 4096);
+            }
+            else
+            {
+                throw new IllegalStateException("Unsupported disk optimization strategy: " + strategy);
+            }
+        }
+
+        /**
+           Round up to the next multiple of 4k but no more than 64k
+         */
+        static int roundBufferSize(long size)
+        {
+            if (size <= 0)
+                return 4096;
+
+            size = (size + 4095) & ~4095;
+            return (int)Math.min(size, 1 << 16);
         }
 
         public void serializeBounds(DataOutput out) throws IOException

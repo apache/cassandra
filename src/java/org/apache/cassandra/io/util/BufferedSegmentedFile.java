@@ -19,9 +19,9 @@ package org.apache.cassandra.io.util;
 
 public class BufferedSegmentedFile extends SegmentedFile
 {
-    public BufferedSegmentedFile(ChannelProxy channel, long length)
+    public BufferedSegmentedFile(ChannelProxy channel, int bufferSize, long length)
     {
-        super(new Cleanup(channel), channel, length);
+        super(new Cleanup(channel), channel, bufferSize, length);
     }
 
     private BufferedSegmentedFile(BufferedSegmentedFile copy)
@@ -48,16 +48,16 @@ public class BufferedSegmentedFile extends SegmentedFile
             // only one segment in a standard-io file
         }
 
-        public SegmentedFile complete(ChannelProxy channel, long overrideLength)
+        public SegmentedFile complete(ChannelProxy channel, int bufferSize, long overrideLength)
         {
             long length = overrideLength > 0 ? overrideLength : channel.size();
-            return new BufferedSegmentedFile(channel, length);
+            return new BufferedSegmentedFile(channel, bufferSize, length);
         }
     }
 
     public FileDataInput getSegment(long position)
     {
-        RandomAccessReader reader = RandomAccessReader.open(channel);
+        RandomAccessReader reader = RandomAccessReader.open(channel, bufferSize, -1L);
         reader.seek(position);
         return reader;
     }

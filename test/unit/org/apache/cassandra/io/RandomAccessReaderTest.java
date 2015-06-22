@@ -22,23 +22,61 @@ public class RandomAccessReaderTest
     @Test
     public void testReadFully() throws IOException
     {
+        testReadImpl(1, 0);
+    }
+
+    @Test
+    public void testReadLarge() throws IOException
+    {
+        testReadImpl(1000, 0);
+    }
+
+    @Test
+    public void testReadLargeWithSkip() throws IOException
+    {
+        testReadImpl(1000, 322);
+    }
+
+    @Test
+    public void testReadBufferSizeNotAligned() throws IOException
+    {
+        testReadImpl(1000, 0, 5122);
+    }
+
+    private void testReadImpl(int numIterations, int skipIterations) throws IOException
+    {
+        testReadImpl(numIterations, skipIterations, RandomAccessReader.DEFAULT_BUFFER_SIZE);
+    }
+
+    private void testReadImpl(int numIterations, int skipIterations, int bufferSize) throws IOException
+    {
         final File f = File.createTempFile("testReadFully", "1");
         final String expected = "The quick brown fox jumps over the lazy dog";
 
         SequentialWriter writer = SequentialWriter.open(f);
-        writer.write(expected.getBytes());
+        for (int i = 0; i < numIterations; i++)
+            writer.write(expected.getBytes());
         writer.finish();
 
         assert f.exists();
 
         ChannelProxy channel = new ChannelProxy(f);
-        RandomAccessReader reader = RandomAccessReader.open(channel);
+        RandomAccessReader reader = RandomAccessReader.open(channel, bufferSize, -1L);
         assertEquals(f.getAbsolutePath(), reader.getPath());
-        assertEquals(expected.length(), reader.length());
+        assertEquals(expected.length() * numIterations, reader.length());
+
+        if (skipIterations > 0)
+        {
+            reader.seek(skipIterations * expected.length());
+        }
 
         byte[] b = new byte[expected.length()];
-        reader.readFully(b);
-        assertEquals(expected, new String(b));
+        int n = numIterations - skipIterations;
+        for (int i = 0; i < n; i++)
+        {
+            reader.readFully(b);
+            assertEquals(expected, new String(b));
+        }
 
         assertTrue(reader.isEOF());
         assertEquals(0, reader.bytesRemaining());

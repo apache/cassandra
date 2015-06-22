@@ -29,9 +29,9 @@ public class ThrottledReader extends RandomAccessReader
 {
     private final RateLimiter limiter;
 
-    protected ThrottledReader(ChannelProxy channel, long overrideLength, RateLimiter limiter)
+    protected ThrottledReader(ChannelProxy channel, int bufferSize, long overrideLength, RateLimiter limiter)
     {
-        super(channel, RandomAccessReader.DEFAULT_BUFFER_SIZE, overrideLength, BufferType.OFF_HEAP);
+        super(channel, bufferSize, overrideLength, BufferType.OFF_HEAP);
         this.limiter = limiter;
     }
 
@@ -41,8 +41,8 @@ public class ThrottledReader extends RandomAccessReader
         super.reBuffer();
     }
 
-    public static ThrottledReader open(ChannelProxy channel, long overrideLength, RateLimiter limiter)
+    public static ThrottledReader open(ChannelProxy channel, int bufferSize, long overrideLength, RateLimiter limiter)
     {
-        return new ThrottledReader(channel, overrideLength, limiter);
+        return new ThrottledReader(channel, bufferSize, overrideLength, limiter);
     }
 }

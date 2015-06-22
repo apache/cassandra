@@ -51,6 +51,7 @@ import org.apache.cassandra.dht.*;
 import org.apache.cassandra.io.FSError;
 import org.apache.cassandra.io.compress.CompressionMetadata;
 import org.apache.cassandra.io.sstable.*;
+import org.apache.cassandra.io.sstable.format.big.BigTableWriter;
 import org.apache.cassandra.io.sstable.metadata.*;
 import org.apache.cassandra.io.util.*;
 import org.apache.cassandra.metrics.RestorableMeter;
@@ -414,8 +415,8 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
         {
             if (!sstable.loadSummary(ibuilder, dbuilder))
                 sstable.buildSummary(false, ibuilder, dbuilder, false, Downsampling.BASE_SAMPLING_LEVEL);
-            sstable.ifile = ibuilder.complete(sstable.descriptor.filenameFor(Component.PRIMARY_INDEX));
-            sstable.dfile = dbuilder.complete(sstable.descriptor.filenameFor(Component.DATA));
+            sstable.ifile = ibuilder.buildIndex(sstable.descriptor, sstable.indexSummary);
+            sstable.dfile = dbuilder.buildData(sstable.descriptor, statsMetadata);
             sstable.bf = FilterFactory.AlwaysPresent;
             sstable.setup(true);
             return sstable;
@@ -719,9 +720,9 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
             }
 
             if (components.contains(Component.PRIMARY_INDEX))
-                ifile = ibuilder.complete(descriptor.filenameFor(Component.PRIMARY_INDEX));
+                ifile = ibuilder.buildIndex(descriptor, indexSummary);
 
-            dfile = dbuilder.complete(descriptor.filenameFor(Component.DATA));
+            dfile = dbuilder.buildData(descriptor, sstableMetadata);
 
             // Check for an index summary that was downsampled even though the serialization format doesn't support
             // that.  If it was downsampled, rebuild it.  See CASSANDRA-8993 for details.
@@ -738,8 +739,8 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
                     SegmentedFile.Builder dbuilderRebuild = SegmentedFile.getBuilder(DatabaseDescriptor.getDiskAccessMode(), compression))
                 {
                     buildSummary(false, ibuilderRebuild, dbuilderRebuild, false, Downsampling.BASE_SAMPLING_LEVEL);
-                    ifile = ibuilderRebuild.complete(descriptor.filenameFor(Component.PRIMARY_INDEX));
-                    dfile = dbuilderRebuild.complete(descriptor.filenameFor(Component.DATA));
+                    ifile = ibuilderRebuild.buildIndex(descriptor, indexSummary);
+                    dfile = dbuilderRebuild.buildData(descriptor, sstableMetadata);
                     saveSummary(ibuilderRebuild, dbuilderRebuild);
                 }
             }
