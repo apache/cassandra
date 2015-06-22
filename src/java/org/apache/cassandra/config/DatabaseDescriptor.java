@@ -1688,4 +1688,9 @@ public class DatabaseDescriptor
     {
         return conf.enable_user_defined_functions;
     }
+
+    public static int getWindowsTimerInterval()
+    {
+        return conf.windows_timer_interval;
+    }
 }

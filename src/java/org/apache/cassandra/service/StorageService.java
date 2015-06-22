@@ -144,6 +144,7 @@ import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.OutputHandler;
 import org.apache.cassandra.utils.Pair;
+import org.apache.cassandra.utils.WindowsTimer;
 import org.apache.cassandra.utils.WrappedRunnable;
 import org.apache.cassandra.utils.progress.ProgressEvent;
 import org.apache.cassandra.utils.progress.ProgressEventType;
@@ -665,6 +666,9 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
                 CommitLog.instance.shutdownBlocking();
 
+                if (FBUtilities.isWindows())
+                    WindowsTimer.endTimerPeriod(DatabaseDescriptor.getWindowsTimerInterval());
+
                 // wait for miscellaneous tasks like sstable and commitlog segment deletion
                 ScheduledExecutors.nonPeriodicTasks.shutdown();
                 if (!ScheduledExecutors.nonPeriodicTasks.awaitTermination(1, TimeUnit.MINUTES))
@@ -709,6 +713,9 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     {
         if (drainOnShutdown != null)
             Runtime.getRuntime().removeShutdownHook(drainOnShutdown);
+
+        if (FBUtilities.isWindows())
+            WindowsTimer.endTimerPeriod(DatabaseDescriptor.getWindowsTimerInterval());
     }
 
     private boolean shouldBootstrap()

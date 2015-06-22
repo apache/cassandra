@@ -136,7 +136,6 @@ public class Server implements CassandraDaemon.Server
         // Configure the server.
         eventExecutorGroup = new RequestThreadPoolExecutor();
 
-
         boolean hasEpoll = enableEpoll ? Epoll.isAvailable() : false;
         if (hasEpoll)
         {

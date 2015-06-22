@@ -439,6 +439,13 @@ public class CassandraDaemon
     {
         String pidFile = System.getProperty("cassandra-pidfile");
 
+        if (FBUtilities.isWindows())
+        {
+            // We need to adjust the system timer on windows from the default 15ms down to the minimum of 1ms as this
+            // impacts timer intervals, thread scheduling, driver interrupts, etc.
+            WindowsTimer.startTimerPeriod(DatabaseDescriptor.getWindowsTimerInterval());
+        }
+
         try
         {
             try
