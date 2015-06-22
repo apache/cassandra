@@ -1,4 +1,5 @@
 2.0.17
+ * Fix setting 'durable_writes' in ALTER KEYSPACE (CASSANDRA-9560)
  * Avoid ballot clash in Paxos (CASSANDRA-9649)
  * Improve trace messages for RR (CASSANDRA-9479)
  * Fix suboptimal secondary index selection when restricted

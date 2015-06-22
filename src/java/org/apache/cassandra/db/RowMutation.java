@@ -208,7 +208,7 @@ public class RowMutation implements IMutation
     public void apply()
     {
         Keyspace ks = Keyspace.open(keyspaceName);
-        ks.apply(this, ks.metadata.durableWrites);
+        ks.apply(this, ks.getMetadata().durableWrites);
     }
 
     public void applyUnsafe()

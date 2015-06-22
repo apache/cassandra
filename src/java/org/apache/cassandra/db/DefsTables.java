@@ -333,7 +333,7 @@ public class DefsTables
 
         if (!StorageService.instance.isClientMode())
         {
-            Keyspace.open(ksName).createReplicationStrategy(newKsm);
+            Keyspace.open(ksName).setMetadata(newKsm);
             MigrationManager.instance.notifyUpdateKeyspace(newKsm);
         }
     }
