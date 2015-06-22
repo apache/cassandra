@@ -1,4 +1,5 @@
 2.0.17
+ * 'WITH WITH' in alter keyspace statements causes NPE (CASSANDRA-9565)
  * Display min timestamp in sstablemetadata viewer (CASSANDRA-6767)
 
 
