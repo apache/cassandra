@@ -86,7 +86,11 @@ public final class CreateAggregateStatement extends SchemaAlteringStatement
             argTypes.add(prepareType("arguments", rawType));
 
         AbstractType<?> stateType = prepareType("state type", stateTypeRaw);
-        Function f = Functions.find(stateFunc, stateArguments(stateType, argTypes));
+
+        List<AbstractType<?>> stateArgs = stateArguments(stateType, argTypes);
+        stateFunc = validateFunctionKeyspace(stateFunc, stateArgs);
+
+        Function f = Functions.find(stateFunc, stateArgs);
         if (!(f instanceof ScalarFunction))
             throw new InvalidRequestException("State function " + stateFuncSig(stateFunc, stateTypeRaw, argRawTypes) + " does not exist or is not a scalar function");
         stateFunction = (ScalarFunction)f;
@@ -97,7 +101,9 @@ public final class CreateAggregateStatement extends SchemaAlteringStatement
 
         if (finalFunc != null)
         {
-            f = Functions.find(finalFunc, Collections.<AbstractType<?>>singletonList(stateType));
+            List<AbstractType<?>> finalArgs = Collections.<AbstractType<?>>singletonList(stateType);
+            finalFunc = validateFunctionKeyspace(finalFunc, finalArgs);
+            f = Functions.find(finalFunc, finalArgs);
             if (!(f instanceof ScalarFunction))
                 throw new InvalidRequestException("Final function " + finalFunc + '(' + stateTypeRaw + ") does not exist or is not a scalar function");
             finalFunction = (ScalarFunction) f;
@@ -141,18 +147,20 @@ public final class CreateAggregateStatement extends SchemaAlteringStatement
         if (!functionName.hasKeyspace())
             throw new InvalidRequestException("Functions must be fully qualified with a keyspace name if a keyspace is not set for the session");
 
-        stateFunc = validateFunctionKeyspace(stateFunc);
-
-        if (finalFunc != null)
-            finalFunc = validateFunctionKeyspace(finalFunc);
-
         ThriftValidation.validateKeyspaceNotSystem(functionName.keyspace);
     }
 
-    private FunctionName validateFunctionKeyspace(FunctionName func)
+    private FunctionName validateFunctionKeyspace(FunctionName func, List<AbstractType<?>> argTypes)
     {
         if (!func.hasKeyspace())
+        {
+            // If state/final function has no keyspace, check SYSTEM keyspace before logged keyspace.
+            FunctionName nativeName = FunctionName.nativeFunction(func.name);
+            if (Functions.find(nativeName, argTypes) != null)
+                return nativeName;
+
             return new FunctionName(functionName.keyspace, func.name);
+        }
         else if (!SystemKeyspace.NAME.equals(func.keyspace) && !functionName.keyspace.equals(func.keyspace))
             throw new InvalidRequestException(String.format("Statement on keyspace %s cannot refer to a user function in keyspace %s; "
                                                             + "user functions can only be used in the keyspace they are defined in",
