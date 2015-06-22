@@ -1393,11 +1393,11 @@ public class LegacySchemaTables
 
         adder.resetCollection("argument_types");
         adder.add("return_type", aggregate.returnType().toString());
-        adder.add("state_func", aggregate.stateFunction().name().name);
+        adder.add("state_func", aggregate.stateFunction().name().toString());
         if (aggregate.stateType() != null)
             adder.add("state_type", aggregate.stateType().toString());
         if (aggregate.finalFunction() != null)
-            adder.add("final_func", aggregate.finalFunction().name().name);
+            adder.add("final_func", aggregate.finalFunction().name().toString());
         if (aggregate.initialCondition() != null)
             adder.add("initcond", aggregate.initialCondition());
 
@@ -1439,8 +1439,8 @@ public class LegacySchemaTables
 
         AbstractType<?> returnType = parseType(row.getString("return_type"));
 
-        FunctionName stateFunc = new FunctionName(ksName, row.getString("state_func"));
-        FunctionName finalFunc = row.has("final_func") ? new FunctionName(ksName, row.getString("final_func")) : null;
+        FunctionName stateFunc = aggregateParseFunctionName(ksName, row.getString("state_func"));
+        FunctionName finalFunc = row.has("final_func") ? aggregateParseFunctionName(ksName, row.getString("final_func")) : null;
         AbstractType<?> stateType = row.has("state_type") ? parseType(row.getString("state_type")) : null;
         ByteBuffer initcond = row.has("initcond") ? row.getBytes("initcond") : null;
 
@@ -1452,6 +1452,23 @@ public class LegacySchemaTables
         {
             return UDAggregate.createBroken(name, argTypes, returnType, initcond, reason);
         }
+    }
+
+    private static FunctionName aggregateParseFunctionName(String ksName, String func)
+    {
+        int i = func.indexOf('.');
+
+        // function name can be abbreviated (pre 2.2rc2) - it is in the same keyspace as the aggregate
+        if (i == -1)
+            return new FunctionName(ksName, func);
+
+        String ks = func.substring(0, i);
+        String f = func.substring(i + 1);
+
+        // only aggregate's function keyspace and system keyspace are allowed
+        assert ks.equals(ksName) || ks.equals(SystemKeyspace.NAME);
+
+        return new FunctionName(ks, f);
     }
 
     public static Mutation makeDropAggregateMutation(KSMetaData keyspace, UDAggregate aggregate, long timestamp)
