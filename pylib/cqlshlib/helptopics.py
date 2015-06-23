@@ -183,6 +183,8 @@ class CQLHelpTopics(object):
           HELP DROP_KEYSPACE;
           HELP DROP_TABLE;
           HELP DROP_INDEX;
+          HELP DROP_FUNCTION;
+          HELP DROP_AGGREGATE;
         """
 
     def help_drop_keyspace(self):
@@ -211,6 +213,37 @@ class CQLHelpTopics(object):
         A DROP INDEX statement is used to drop an existing secondary index.
         """
 
+    def help_drop_function(self):
+        print """
+        DROP FUNCTION ( IF EXISTS )?
+                         ( <keyspace> '.' )? <function-name>
+                         ( '(' <arg-type> ( ',' <arg-type> )* ')' )?
+
+        DROP FUNCTION statement removes a function created using CREATE FUNCTION.
+        You must specify the argument types (signature) of the function to drop if there
+        are multiple functions with the same name but a different signature
+        (overloaded functions).
+
+        DROP FUNCTION with the optional IF EXISTS keywords drops a function if it exists.
+        """
+
+    def help_drop_aggregate(self):
+        print """
+        DROP AGGREGATE ( IF EXISTS )?
+                         ( <keyspace> '.' )? <aggregate-name>
+                         ( '(' <arg-type> ( ',' <arg-type> )* ')' )?
+
+        The DROP AGGREGATE statement removes an aggregate created using CREATE AGGREGATE.
+        You must specify the argument types of the aggregate to drop if there are multiple
+        aggregates with the same name but a different signature (overloaded aggregates).
+
+        DROP AGGREGATE with the optional IF EXISTS keywords drops an aggregate if it exists,
+        and does nothing if a function with the signature does not exist.
+
+        Signatures for user-defined aggregates follow the same rules as for
+        user-defined functions.
+        """
+
     def help_truncate(self):
         print """
         TRUNCATE <tablename>;
@@ -227,6 +260,8 @@ class CQLHelpTopics(object):
           HELP CREATE_KEYSPACE;
           HELP CREATE_TABLE;
           HELP CREATE_INDEX;
+          HELP CREATE_FUNCTION;
+          HELP CREATE_AGGREGATE;
         """
 
     def help_use(self):
@@ -241,6 +276,96 @@ class CQLHelpTopics(object):
 
         As always, when a keyspace name does not work as a normal identifier or
         number, it can be quoted using double quotes.
+        """
+
+    def help_create_aggregate(self):
+        print """
+        CREATE ( OR REPLACE )? AGGREGATE ( IF NOT EXISTS )?
+                            ( <keyspace> '.' )? <aggregate-name>
+                            '(' <arg-type> ( ',' <arg-type> )* ')'
+                            SFUNC ( <keyspace> '.' )? <state-functionname>
+                            STYPE <state-type>
+                            ( FINALFUNC ( <keyspace> '.' )? <final-functionname> )?
+                            ( INITCOND <init-cond> )?
+
+        CREATE AGGREGATE creates or replaces a user-defined aggregate.
+
+        CREATE AGGREGATE with the optional OR REPLACE keywords either creates an aggregate
+        or replaces an existing one with the same signature. A CREATE AGGREGATE without
+        OR REPLACE fails if an aggregate with the same signature already exists.
+
+        CREATE AGGREGATE with the optional IF NOT EXISTS keywords either creates an aggregate
+        if it does not already exist.
+
+        OR REPLACE and IF NOT EXIST cannot be used together.
+
+        Aggregates belong to a keyspace. If no keyspace is specified in <aggregate-name>, the
+        current keyspace is used (i.e. the keyspace specified using the USE statement). It is
+        not possible to create a user-defined aggregate in one of the system keyspaces.
+
+        Signatures for user-defined aggregates follow the same rules as for
+        user-defined functions.
+
+        STYPE defines the type of the state value and must be specified.
+
+        The optional INITCOND defines the initial state value for the aggregate. It defaults
+        to null. A non-null INITCOND must be specified for state functions that are declared
+        with RETURNS NULL ON NULL INPUT.
+
+        SFUNC references an existing function to be used as the state modifying function. The
+        type of first argument of the state function must match STYPE. The remaining argument
+        types of the state function must match the argument types of the aggregate function.
+        State is not updated for state functions declared with RETURNS NULL ON NULL INPUT and
+        called with null.
+
+        The optional FINALFUNC is called just before the aggregate result is returned. It must
+        take only one argument with type STYPE. The return type of the FINALFUNC may be a
+        different type. A final function declared with RETURNS NULL ON NULL INPUT means that
+        the aggregate's return value will be null, if the last state is null.
+
+        If no FINALFUNC is defined, the overall return type of the aggregate function is STYPE.
+        If a FINALFUNC is defined, it is the return type of that function.
+        """
+
+    def help_create_function(self):
+        print """
+        CREATE ( OR REPLACE )? FUNCTION ( IF NOT EXISTS )?
+                            ( <keyspace> '.' )? <function-name>
+                            '(' <arg-name> <arg-type> ( ',' <arg-name> <arg-type> )* ')'
+                            ( CALLED | RETURNS NULL ) ON NULL INPUT
+                            RETURNS <type>
+                            LANGUAGE <language>
+                            AS <body>
+
+        CREATE FUNCTION creates or replaces a user-defined function.
+
+        Signatures are used to distinguish individual functions. The signature consists of:
+
+        The fully qualified function name - i.e keyspace plus function-name
+        The concatenated list of all argument types
+
+        Note that keyspace names, function names and argument types are subject to the default
+        naming conventions and case-sensitivity rules.
+
+        CREATE FUNCTION with the optional OR REPLACE keywords either creates a function or
+        replaces an existing one with the same signature. A CREATE FUNCTION without OR REPLACE
+        fails if a function with the same signature already exists.
+
+        Behavior on invocation with null values must be defined for each function. There are
+        two options:
+
+        RETURNS NULL ON NULL INPUT declares that the function will always return null if any
+        of the input arguments is null. CALLED ON NULL INPUT declares that the function will
+        always be executed.
+
+        If the optional IF NOT EXISTS keywords are used, the function will only be created if
+        another function with the same signature does not exist.
+
+        OR REPLACE and IF NOT EXIST cannot be used together.
+
+        Functions belong to a keyspace. If no keyspace is specified in <function-name>, the
+        current keyspace is used (i.e. the keyspace specified using the USE statement).
+        It is not possible to create a user-defined function in one of the system keyspaces.
         """
 
     def help_create_table(self):

@@ -171,6 +171,8 @@ options {
 
     public Set<Permission> filterPermissions(Set<Permission> permissions, IResource resource)
     {
+        if (resource == null)
+            return Collections.emptySet();
         Set<Permission> filtered = new HashSet<>(permissions);
         filtered.retainAll(resource.applicablePermissions());
         if (filtered.isEmpty())
