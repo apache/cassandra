@@ -265,7 +265,11 @@ cqlsh_extra_syntax_rules = r'''
                    ;
 
 <describeCommand> ::= ( "DESCRIBE" | "DESC" )
-                                  ( "KEYSPACES"
+                                  ( "FUNCTIONS" ksname=<keyspaceName>?
+                                  | "FUNCTION" udf=<anyFunctionName>
+                                  | "AGGREGATES" ksname=<keyspaceName>?
+                                  | "AGGREGATE" uda=<userAggregateName>
+                                  | "KEYSPACES"
                                   | "KEYSPACE" ksname=<keyspaceName>?
                                   | ( "COLUMNFAMILY" | "TABLE" ) cf=<columnFamilyName>
                                   | ( "COLUMNFAMILIES" | "TABLES" )
@@ -435,6 +439,12 @@ class VersionNotSupported(Exception):
 
 
 class UserTypeNotFound(Exception):
+    pass
+
+class FunctionNotFound(Exception):
+    pass
+
+class AggregateNotFound(Exception):
     pass
 
 
@@ -783,6 +793,18 @@ class Shell(cmd.Cmd):
 
         return [(field_name, field_type.cql_parameterized_type())
                 for field_name, field_type in zip(user_type.field_names, user_type.field_types)]
+
+    def get_userfunction_names(self, ksname=None):
+        if ksname is None:
+            ksname = self.current_keyspace
+
+        return map(lambda f: f.name, self.get_keyspace_meta(ksname).functions.values())
+
+    def get_useraggregate_names(self, ksname=None):
+        if ksname is None:
+            ksname = self.current_keyspace
+
+        return map(lambda f: f.name, self.get_keyspace_meta(ksname).aggregates.values())
 
     def get_cluster_name(self):
         return self.conn.metadata.cluster_name
@@ -1284,6 +1306,8 @@ class Shell(cmd.Cmd):
     def describe_columnfamily(self, ksname, cfname):
         if ksname is None:
             ksname = self.current_keyspace
+        if ksname is None:
+            raise NoKeyspaceError("No keyspace specified and no current keyspace")
         print
         self.print_recreate_columnfamily(ksname, cfname, sys.stdout)
         print
@@ -1300,6 +1324,60 @@ class Shell(cmd.Cmd):
         else:
             cmd.Cmd.columnize(self, protect_names(self.get_columnfamily_names(ksname)))
             print
+
+    def describe_functions(self, ksname=None):
+        print
+        if ksname is None:
+            for ksmeta in self.get_keyspaces():
+                name = protect_name(ksmeta.name)
+                print 'Keyspace %s' % (name,)
+                print '---------%s' % ('-' * len(name))
+                cmd.Cmd.columnize(self, protect_names(ksmeta.functions.keys()))
+                print
+        else:
+            ksmeta = self.get_keyspace_meta(ksname)
+            cmd.Cmd.columnize(self, protect_names(ksmeta.functions.keys()))
+            print
+
+    def describe_function(self, ksname, functionname):
+        if ksname is None:
+            ksname = self.current_keyspace
+        if ksname is None:
+            raise NoKeyspaceError("No keyspace specified and no current keyspace")
+        print
+        ksmeta = self.get_keyspace_meta(ksname)
+        functions = filter(lambda f: f.name == functionname, ksmeta.functions.values())
+        if len(functions) == 0:
+            raise FunctionNotFound("User defined function %r not found" % functionname)
+        print "\n\n".join(func.as_cql_query(formatted=True) for func in functions)
+        print
+
+    def describe_aggregates(self, ksname=None):
+        print
+        if ksname is None:
+            for ksmeta in self.get_keyspaces():
+                name = protect_name(ksmeta.name)
+                print 'Keyspace %s' % (name,)
+                print '---------%s' % ('-' * len(name))
+                cmd.Cmd.columnize(self, protect_names(ksmeta.aggregates.keys()))
+                print
+        else:
+            ksmeta = self.get_keyspace_meta(ksname)
+            cmd.Cmd.columnize(self, protect_names(ksmeta.aggregates.keys()))
+            print
+
+    def describe_aggregate(self, ksname, aggregatename):
+        if ksname is None:
+            ksname = self.current_keyspace
+        if ksname is None:
+            raise NoKeyspaceError("No keyspace specified and no current keyspace")
+        print
+        ksmeta = self.get_keyspace_meta(ksname)
+        aggregates = filter(lambda f: f.name == aggregatename, ksmeta.aggregates.values())
+        if len(aggregates) == 0:
+            raise FunctionNotFound("User defined aggregate %r not found" % aggregatename)
+        print "\n\n".join(aggr.as_cql_query(formatted=True) for aggr in aggregates)
+        print
 
     def describe_usertypes(self, ksname):
         print
@@ -1318,6 +1396,8 @@ class Shell(cmd.Cmd):
     def describe_usertype(self, ksname, typename):
         if ksname is None:
             ksname = self.current_keyspace
+        if ksname is None:
+            raise NoKeyspaceError("No keyspace specified and no current keyspace")
         print
         ksmeta = self.get_keyspace_meta(ksname)
         try:
@@ -1395,11 +1475,41 @@ class Shell(cmd.Cmd):
           Output CQL commands that could be used to recreate the entire (non-system) schema.
           Works as though "DESCRIBE KEYSPACE k" was invoked for each non-system keyspace
           k. Use DESCRIBE FULL SCHEMA to include the system keyspaces.
+
+        DESCRIBE FUNCTIONS <keyspace>
+
+          Output the names of all user defined functions in the given keyspace.
+
+        DESCRIBE FUNCTION [<keyspace>.]<function>
+
+          Describe the given user defined function.
+
+        DESCRIBE AGGREGATES <keyspace>
+
+          Output the names of all user defined aggregates in the given keyspace.
+
+        DESCRIBE AGGREGATE [<keyspace>.]<aggregate>
+
+          Describe the given user defined aggregate.
         """
         what = parsed.matched[1][1].lower()
-        if what == 'keyspaces':
+        if what == 'functions':
+            ksname = self.cql_unprotect_name(parsed.get_binding('ksname', None))
+            self.describe_functions(ksname)
+        elif what == 'function':
+            ksname = self.cql_unprotect_name(parsed.get_binding('ksname', None))
+            functionname = self.cql_unprotect_name(parsed.get_binding('udfname'))
+            self.describe_function(ksname, functionname)
+        elif what == 'aggregates':
+            ksname = self.cql_unprotect_name(parsed.get_binding('ksname', None))
+            self.describe_aggregates(ksname)
+        elif what == 'aggregate':
+            ksname = self.cql_unprotect_name(parsed.get_binding('ksname', None))
+            aggregatename = self.cql_unprotect_name(parsed.get_binding('udaname'))
+            self.describe_aggregate(ksname, aggregatename)
+        elif what == 'keyspaces':
             self.describe_keyspaces()
-        if what == 'keyspace':
+        elif what == 'keyspace':
             ksname = self.cql_unprotect_name(parsed.get_binding('ksname', ''))
             if not ksname:
                 ksname = self.current_keyspace
