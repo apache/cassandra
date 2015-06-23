@@ -1851,12 +1851,27 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     public RefViewFragment selectAndReference(Function<DataTracker.View, List<SSTableReader>> filter)
     {
+        long failingSince = -1L;
         while (true)
         {
             ViewFragment view = select(filter);
             Refs<SSTableReader> refs = Refs.tryRef(view.sstables);
             if (refs != null)
                 return new RefViewFragment(view.sstables, view.memtables, refs);
+            if (failingSince <= 0)
+            {
+                failingSince = System.nanoTime();
+            }
+            else if (TimeUnit.MILLISECONDS.toNanos(100) > System.nanoTime() - failingSince)
+            {
+                List<SSTableReader> released = new ArrayList<>();
+                for (SSTableReader reader : view.sstables)
+                    if (reader.selfRef().globalCount() == 0)
+                        released.add(reader);
+                logger.info("Spinning trying to capture released readers {}", released);
+                logger.info("Spinning trying to capture all readers {}", view.sstables);
+                failingSince = System.nanoTime();
+            }
         }
     }
 
