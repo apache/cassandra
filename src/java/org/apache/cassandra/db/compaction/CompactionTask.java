@@ -46,6 +46,7 @@ import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.utils.CloseableIterator;
 import org.apache.cassandra.utils.UUIDGen;
+import org.apache.cassandra.utils.concurrent.Refs;
 
 public class CompactionTask extends AbstractCompactionTask
 {
@@ -157,7 +158,8 @@ public class CompactionTask extends AbstractCompactionTask
             // SSTableScanners need to be closed before markCompactedSSTablesReplaced call as scanners contain references
             // to both ifile and dfile and SSTR will throw deletion errors on Windows if it tries to delete before scanner is closed.
             // See CASSANDRA-8019 and CASSANDRA-8399
-            try (AbstractCompactionStrategy.ScannerList scanners = strategy.getScanners(actuallyCompact))
+            try (Refs<SSTableReader> refs = Refs.ref(actuallyCompact);
+                 AbstractCompactionStrategy.ScannerList scanners = strategy.getScanners(actuallyCompact))
             {
 
                 ci = new CompactionIterable(compactionType, scanners.scanners, controller, sstableFormat, taskId);
