@@ -36,7 +36,7 @@ import org.apache.cassandra.io.util.FastByteArrayInputStream;
  */
 public class CommitLogTestReplayer extends CommitLogReplayer
 {
-    static public void examineCommitLog(Predicate<Mutation> processor) throws IOException
+    public static void examineCommitLog(Predicate<Mutation> processor) throws IOException
     {
         CommitLog.instance.sync(true);
 

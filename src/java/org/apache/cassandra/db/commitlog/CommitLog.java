@@ -74,7 +74,7 @@ public class CommitLog implements CommitLogMBean
     public ParameterizedClass compressorClass;
     final public String location;
 
-    static private CommitLog construct()
+    private static CommitLog construct()
     {
         CommitLog log = new CommitLog(DatabaseDescriptor.getCommitLogLocation(), new CommitLogArchiver());
 

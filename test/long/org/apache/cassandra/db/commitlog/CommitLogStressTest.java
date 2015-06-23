@@ -127,7 +127,7 @@ public class CommitLogStressTest
     ReplayPosition discardedPos;
     
     @BeforeClass
-    static public void initialize() throws FileNotFoundException, IOException, InterruptedException
+    public static void initialize() throws FileNotFoundException, IOException, InterruptedException
     {
         try (FileInputStream fis = new FileInputStream("CHANGES.txt"))
         {

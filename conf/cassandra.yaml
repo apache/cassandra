@@ -24,6 +24,17 @@ cluster_name: 'Test Cluster'
 # multiple tokens per node, see http://wiki.apache.org/cassandra/Operations
 num_tokens: 256
 
+# Triggers automatic allocation of num_tokens tokens for this node. The allocation
+# algorithm attempts to choose tokens in a way that optimizes replicated load over
+# the nodes in the datacenter for the replication strategy used by the specified
+# keyspace.
+#
+# The load assigned to each node will be close to proportional to its number of
+# vnodes.
+#
+# Only supported with the Murmur3Partitioner.
+# allocate_tokens_keyspace: KEYSPACE
+
 # initial_token allows you to specify tokens manually.  While you can use # it with
 # vnodes (num_tokens > 1, above) -- in which case you should provide a 
 # comma-separated list -- it's primarily used when adding nodes # to legacy clusters 

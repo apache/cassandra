@@ -35,7 +35,7 @@ import org.apache.cassandra.utils.SyncUtil;
  */
 public class CompressedSegment extends CommitLogSegment
 {
-    static private final ThreadLocal<ByteBuffer> compressedBufferHolder = new ThreadLocal<ByteBuffer>() {
+    private static final ThreadLocal<ByteBuffer> compressedBufferHolder = new ThreadLocal<ByteBuffer>() {
         protected ByteBuffer initialValue()
         {
             return ByteBuffer.allocate(0);

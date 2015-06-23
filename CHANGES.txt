@@ -1,4 +1,5 @@
 3.0:
+ * Add algorithmic token allocation (CASSANDRA-7032)
  * Add nodetool command to replay batchlog (CASSANDRA-9547)
  * Make file buffer cache independent of paths being read (CASSANDRA-8897)
  * Remove deprecated legacy Hadoop code (CASSANDRA-9353)

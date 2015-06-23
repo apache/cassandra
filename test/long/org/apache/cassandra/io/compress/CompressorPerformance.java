@@ -8,7 +8,7 @@ import java.util.concurrent.ThreadLocalRandom;
 public class CompressorPerformance
 {
 
-    static public void testPerformances() throws IOException
+    public static void testPerformances() throws IOException
     {
         for (ICompressor compressor: new ICompressor[] {
                 SnappyCompressor.instance,  // warm up
@@ -38,7 +38,7 @@ public class CompressorPerformance
     static ByteBuffer dataSource;
     static int bufLen;
 
-    static private void testPerformance(ICompressor compressor, BufferType in, BufferType out) throws IOException
+    private static void testPerformance(ICompressor compressor, BufferType in, BufferType out) throws IOException
     {
         int len = dataSource.capacity();
         int bufLen = compressor.initialCompressedBufferLength(len);

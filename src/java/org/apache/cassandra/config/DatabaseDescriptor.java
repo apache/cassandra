@@ -811,6 +811,11 @@ public class DatabaseDescriptor
         return tokensFromString(System.getProperty("cassandra.initial_token", conf.initial_token));
     }
 
+    public static String getAllocateTokensKeyspace()
+    {
+        return System.getProperty("cassandra.allocate_tokens_keyspace", conf.allocate_tokens_for_keyspace);
+    }
+
     public static Collection<String> tokensFromString(String tokenString)
     {
         List<String> tokens = new ArrayList<String>();

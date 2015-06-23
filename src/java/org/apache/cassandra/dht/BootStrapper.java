@@ -31,6 +31,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.TypeSizes;
+import org.apache.cassandra.dht.tokenallocator.TokenAllocation;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.gms.FailureDetector;
 import org.apache.cassandra.io.IVersionedSerializer;
@@ -150,35 +151,59 @@ public class BootStrapper extends ProgressEventNotifierSupport
 
     /**
      * if initialtoken was specified, use that (split on comma).
-     * otherwise, if num_tokens == 1, pick a token to assume half the load of the most-loaded node.
+     * otherwise, if allocationKeyspace is specified use the token allocation algorithm to generate suitable tokens
      * else choose num_tokens tokens at random
      */
-    public static Collection<Token> getBootstrapTokens(final TokenMetadata metadata) throws ConfigurationException
+    public static Collection<Token> getBootstrapTokens(final TokenMetadata metadata, InetAddress address) throws ConfigurationException
     {
+        String allocationKeyspace = DatabaseDescriptor.getAllocateTokensKeyspace();
         Collection<String> initialTokens = DatabaseDescriptor.getInitialTokens();
+        if (initialTokens.size() > 0 && allocationKeyspace != null)
+            logger.warn("manually specified tokens override automatic allocation");
+
         // if user specified tokens, use those
         if (initialTokens.size() > 0)
-        {
-            logger.debug("tokens manually specified as {}",  initialTokens);
-            List<Token> tokens = new ArrayList<>(initialTokens.size());
-            for (String tokenString : initialTokens)
-            {
-                Token token = StorageService.getPartitioner().getTokenFactory().fromString(tokenString);
-                if (metadata.getEndpoint(token) != null)
-                    throw new ConfigurationException("Bootstrapping to existing token " + tokenString + " is not allowed (decommission/removenode the old node first).");
-                tokens.add(token);
-            }
-            return tokens;
-        }
-
+            return getSpecifiedTokens(metadata, initialTokens);
+        
         int numTokens = DatabaseDescriptor.getNumTokens();
         if (numTokens < 1)
             throw new ConfigurationException("num_tokens must be >= 1");
 
+        if (allocationKeyspace != null)
+            return allocateTokens(metadata, address, allocationKeyspace, numTokens);
+
         if (numTokens == 1)
-            logger.warn("Picking random token for a single vnode.  You should probably add more vnodes; failing that, you should probably specify the token manually");
+            logger.warn("Picking random token for a single vnode.  You should probably add more vnodes and/or use the automatic token allocation mechanism.");
 
         return getRandomTokens(metadata, numTokens);
+    }
+
+    private static Collection<Token> getSpecifiedTokens(final TokenMetadata metadata,
+                                                                Collection<String> initialTokens)
+    {
+        logger.debug("tokens manually specified as {}",  initialTokens);
+        List<Token> tokens = new ArrayList<>(initialTokens.size());
+        for (String tokenString : initialTokens)
+        {
+            Token token = StorageService.getPartitioner().getTokenFactory().fromString(tokenString);
+            if (metadata.getEndpoint(token) != null)
+                throw new ConfigurationException("Bootstrapping to existing token " + tokenString + " is not allowed (decommission/removenode the old node first).");
+            tokens.add(token);
+        }
+        return tokens;
+    }
+
+    static Collection<Token> allocateTokens(final TokenMetadata metadata,
+                                            InetAddress address,
+                                            String allocationKeyspace,
+                                            int numTokens)
+    {
+        Keyspace ks = Keyspace.open(allocationKeyspace);
+        if (ks == null)
+            throw new ConfigurationException("Problem opening token allocation keyspace " + allocationKeyspace);
+        AbstractReplicationStrategy rs = ks.getReplicationStrategy();
+        
+        return TokenAllocation.allocateTokens(metadata, rs, StorageService.getPartitioner(), address, numTokens);
     }
 
     public static Collection<Token> getRandomTokens(TokenMetadata metadata, int numTokens)
