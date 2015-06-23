@@ -2001,9 +2001,9 @@ CQL distinguishes between _reserved_ and _non-reserved_ keywords. Reserved keywo
 | @ADD@          | yes |
 | @AGGREGATE@    | no  |
 | @ALL@          | no  |
+| @ALLOW@        | yes |
 | @ALTER@        | yes |
 | @AND@          | yes |
-| @ANY@          | yes |
 | @APPLY@        | yes |
 | @AS@           | no  |
 | @ASC@          | yes |
@@ -2015,57 +2015,72 @@ CQL distinguishes between _reserved_ and _non-reserved_ keywords. Reserved keywo
 | @BLOB@         | no  |
 | @BOOLEAN@      | no  |
 | @BY@           | yes |
+| @CALLED@       | no  |
 | @CLUSTERING@   | no  |
 | @COLUMNFAMILY@ | yes |
 | @COMPACT@      | no  |
-| @CONSISTENCY@  | no  |
+| @CONTAINS@     | no  |
 | @COUNT@        | no  |
 | @COUNTER@      | no  |
 | @CREATE@       | yes |
+| @CUSTOM@       | no  |
 | @DATE@         | no  |
 | @DECIMAL@      | no  |
 | @DELETE@       | yes |
 | @DESC@         | yes |
-| @DESCRIBE@     | yes |  
-| @DETERMINISTIC@ | no |
+| @DESCRIBE@     | yes |
 | @DISTINCT@     | no  |
 | @DOUBLE@       | no  |
 | @DROP@         | yes |
-| @EACH_QUORUM@  | yes |
+| @ENTRIES@      | yes |
 | @EXECUTE@      | yes |
-| @FUNCTION@     | no  |
+| @EXISTS@       | no  |
+| @FILTERING@    | no  |
 | @FINALFUNC@    | no  |
 | @FLOAT@        | no  |
 | @FROM@         | yes |
+| @FROZEN@       | no  |
+| @FULL@         | yes |
+| @FUNCTION@     | no  |
+| @FUNCTIONS@    | no  |
 | @GRANT@        | yes |
+| @IF@           | yes |
 | @IN@           | yes |
 | @INDEX@        | yes |
-| @CUSTOM@       | no  |
+| @INET@         | no  |
+| @INFINITY@     | yes |
 | @INITCOND@     | no  |
+| @INPUT@        | no  |
 | @INSERT@       | yes |
 | @INT@          | no  |
 | @INTO@         | yes |
+| @JSON@         | no  |
 | @KEY@          | no  |
+| @KEYS@         | no  |
 | @KEYSPACE@     | yes |
+| @KEYSPACES@    | no  |
 | @LANGUAGE@     | no  |
-| @LEVEL@        | no  |
 | @LIMIT@        | yes |
-| @LOCAL_ONE@    | yes |
-| @LOCAL_QUORUM@ | yes |
+| @LIST@         | no  |
+| @LOGIN@        | no  |
+| @MAP@          | no  |
 | @MODIFY@       | yes |
+| @NAN@          | yes |
+| @NOLOGIN@      | no  |
 | @NORECURSIVE@  | yes |
-| @NON@          | no  |
 | @NOSUPERUSER@  | no  |
+| @NOT@          | yes |
+| @NULL@         | yes |
 | @OF@           | yes |
 | @ON@           | yes |
-| @ONE@          | yes |
+| @OPTIONS@      | no  |
 | @OR@           | yes |
 | @ORDER@        | yes |
 | @PASSWORD@     | no  |
 | @PERMISSION@   | no  |
 | @PERMISSIONS@  | no  |
 | @PRIMARY@      | yes |
-| @QUORUM@       | yes |
+| @RENAME@       | yes |
 | @REPLACE@      | yes |
 | @RETURNS@      | no  |
 | @REVOKE@       | yes |
@@ -2075,6 +2090,8 @@ CQL distinguishes between _reserved_ and _non-reserved_ keywords. Reserved keywo
 | @SELECT@       | yes |
 | @SET@          | yes |
 | @SFUNC@        | no  |
+| @SMALLINT@     | no  |
+| @STATIC@       | no  |
 | @STORAGE@      | no  |
 | @STYPE@        | no  |
 | @SUPERUSER@    | no  |
@@ -2083,12 +2100,15 @@ CQL distinguishes between _reserved_ and _non-reserved_ keywords. Reserved keywo
 | @TIME@         | no  |
 | @TIMESTAMP@    | no  |
 | @TIMEUUID@     | no  |
-| @THREE@        | yes |
+| @TINYINT@      | no  |
+| @TO@           | yes |
 | @TOKEN@        | yes |
+| @TRIGGER@      | no  |
 | @TRUNCATE@     | yes |
 | @TTL@          | no  |
-| @TWO@          | yes |
+| @TUPLE@        | no  |
 | @TYPE@         | no  |
+| @UNLOGGED@     | yes |
 | @UPDATE@       | yes |
 | @USE@          | yes |
 | @USER@         | no  |
@@ -2102,20 +2122,19 @@ CQL distinguishes between _reserved_ and _non-reserved_ keywords. Reserved keywo
 | @WITH@         | yes |
 | @WRITETIME@    | no  |
 
-
 h2(#appendixB). Appendix B: CQL Reserved Types
 
 The following type names are not currently used by CQL, but are reserved for potential future use.  User-defined types may not use reserved type names as their name.
 
 |_. type      |
+| @bitstring@ |
 | @byte@      |
-| @smallint@  |
 | @complex@   |
-| @enum@      |
 | @date@      |
+| @enum@      |
 | @interval@  |
 | @macaddr@   |
-| @bitstring@ |
+| @smallint@  |
 
 h2(#changes). Changes
 
