@@ -258,7 +258,7 @@ public abstract class UnbufferedDataOutputStreamPlus extends DataOutputStreamPlu
         for (int i = 0 ; i < length ; i++)
         {
             int ch = str.charAt(i);
-            if ((ch > 0) && (ch <= 127))
+            if ((ch > 0) & (ch <= 127))
                 utfCount += 1;
             else if (ch <= 2047)
                 utfCount += 2;
