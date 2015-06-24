@@ -127,7 +127,7 @@ public abstract class SegmentedFile extends SharedCloseableImpl
 
     public void dropPageCache(long before)
     {
-        CLibrary.trySkipCache(channel.getFileDescriptor(), 0, before);
+        CLibrary.trySkipCache(channel.getFileDescriptor(), 0, before, path());
     }
 
     /**

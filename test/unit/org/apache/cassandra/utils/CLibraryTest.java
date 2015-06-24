@@ -32,6 +32,6 @@ public class CLibraryTest
         File file = FileUtils.createTempFile("testSkipCache", "1");
 
         int fd = CLibrary.getfd(file.getPath());
-        CLibrary.trySkipCache(fd, 0, 0);
+        CLibrary.trySkipCache(fd, 0, 0, file.getPath());
     }
 }

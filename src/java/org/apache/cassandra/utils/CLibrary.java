@@ -19,17 +19,18 @@ package org.apache.cassandra.utils;
 
 import java.io.FileDescriptor;
 import java.io.IOException;
-import java.io.RandomAccessFile;
 import java.lang.reflect.Field;
 import java.nio.channels.FileChannel;
 import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
+import java.util.concurrent.TimeUnit;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.sun.jna.LastErrorException;
 import com.sun.jna.Native;
+import com.sun.jna.Pointer;
 
 public final class CLibrary
 {
@@ -86,6 +87,7 @@ public final class CLibrary
     private static native int open(String path, int flags) throws LastErrorException;
     private static native int fsync(int fd) throws LastErrorException;
     private static native int close(int fd) throws LastErrorException;
+    private static native Pointer strerror(int errnum) throws LastErrorException;
 
     private static int errno(RuntimeException e)
     {
@@ -146,24 +148,24 @@ public final class CLibrary
 
     public static void trySkipCache(String path, long offset, long len)
     {
-        trySkipCache(getfd(path), offset, len);
+        trySkipCache(getfd(path), offset, len, path);
     }
 
-    public static void trySkipCache(int fd, long offset, long len)
+    public static void trySkipCache(int fd, long offset, long len, String path)
     {
         if (len == 0)
-            trySkipCache(fd, 0, 0);
+            trySkipCache(fd, 0, 0, path);
 
         while (len > 0)
         {
             int sublen = (int) Math.min(Integer.MAX_VALUE, len);
-            trySkipCache(fd, offset, sublen);
+            trySkipCache(fd, offset, sublen, path);
             len -= sublen;
             offset -= sublen;
         }
     }
 
-    public static void trySkipCache(int fd, long offset, int len)
+    public static void trySkipCache(int fd, long offset, int len, String path)
     {
         if (fd < 0)
             return;
@@ -172,7 +174,15 @@ public final class CLibrary
         {
             if (System.getProperty("os.name").toLowerCase().contains("linux"))
             {
-                posix_fadvise(fd, offset, len, POSIX_FADV_DONTNEED);
+                int result = posix_fadvise(fd, offset, len, POSIX_FADV_DONTNEED);
+                if (result != 0)
+                    NoSpamLogger.log(
+                            logger,
+                            NoSpamLogger.Level.WARN,
+                            10,
+                            TimeUnit.MINUTES,
+                            "Failed trySkipCache on file: {} Error: " + strerror(result).getString(0),
+                            path);
             }
         }
         catch (UnsatisfiedLinkError e)

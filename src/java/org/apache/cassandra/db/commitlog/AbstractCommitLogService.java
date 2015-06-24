@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.db.commitlog;
 
+import org.apache.cassandra.utils.NoSpamLogger;
 import org.apache.cassandra.utils.concurrent.WaitQueue;
 import org.slf4j.*;
 
@@ -28,8 +29,6 @@ import static org.apache.cassandra.db.commitlog.CommitLogSegment.Allocation;
 
 public abstract class AbstractCommitLogService
 {
-    // how often should we log syngs that lag behind our desired period
-    private static final long LAG_REPORT_INTERVAL = TimeUnit.MINUTES.toMillis(5);
 
     private Thread thread;
     private volatile boolean shutdown = false;
@@ -112,11 +111,18 @@ public abstract class AbstractCommitLogService
                         syncCount++;
                         totalSyncDuration += now - syncStarted;
 
-                        if (firstLagAt > 0 && now - firstLagAt >= LAG_REPORT_INTERVAL)
+                        if (firstLagAt > 0)
                         {
-                            logger.warn(String.format("Out of %d commit log syncs over the past %ds with average duration of %.2fms, %d have exceeded the configured commit interval by an average of %.2fms",
-                                                      syncCount, (now - firstLagAt) / 1000, (double) totalSyncDuration / syncCount, lagCount, (double) syncExceededIntervalBy / lagCount));
-                            firstLagAt = 0;
+                            //Only reset the lag tracking if it actually logged this time
+                            boolean logged = NoSpamLogger.log(
+                                    logger,
+                                    NoSpamLogger.Level.WARN,
+                                    5,
+                                    TimeUnit.MINUTES,
+                                    "Out of {} commit log syncs over the past {}s with average duration of {}ms, {} have exceeded the configured commit interval by an average of {}ms",
+                                                      syncCount, (now - firstLagAt) / 1000, String.format("%.2f", (double) totalSyncDuration / syncCount), lagCount, String.format("%.2f", (double) syncExceededIntervalBy / lagCount));
+                           if (logged)
+                               firstLagAt = 0;
                         }
 
                         // if we have lagged this round, we probably have work to do already so we don't sleep
