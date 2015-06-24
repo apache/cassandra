@@ -95,7 +95,7 @@ public abstract class UntypedResultSet implements Iterable<UntypedResultSet.Row>
 
         public List<ColumnSpecification> metadata()
         {
-            return cqlRows.metadata.names;
+            return cqlRows.metadata.requestNames();
         }
     }
 

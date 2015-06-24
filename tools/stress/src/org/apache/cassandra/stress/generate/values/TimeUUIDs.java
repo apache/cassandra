@@ -46,6 +46,6 @@ public class TimeUUIDs extends Generator<UUID>
     @Override
     public UUID generate()
     {
-        return UUIDGen.getTimeUUID(dateGen.generate().getTime(), clockSeqAndNode);
+        return UUIDGen.getTimeUUID(dateGen.generate().getTime(), 0L, clockSeqAndNode);
     }
 }

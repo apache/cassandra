@@ -164,37 +164,13 @@ public class SelectStatement implements CQLStatement
         int limit = getLimit(options);
         long now = System.currentTimeMillis();
         Pageable command = getPageableCommand(options, limit, now);
-
-        int pageSize = options.getPageSize();
-
-        // An aggregation query will never be paged for the user, but we always page it internally to avoid OOM.
-        // If we user provided a pageSize we'll use that to page internally (because why not), otherwise we use our default
-        // Note that if there are some nodes in the cluster with a version less than 2.0, we can't use paging (CASSANDRA-6707).
-        if (selection.isAggregate() && pageSize <= 0)
-            pageSize = DEFAULT_COUNT_PAGE_SIZE;
+        int pageSize = getPageSize(options);
 
         if (pageSize <= 0 || command == null || !QueryPagers.mayNeedPaging(command, pageSize))
-        {
             return execute(command, options, limit, now, state);
-        }
 
         QueryPager pager = QueryPagers.pager(command, cl, state.getClientState(), options.getPagingState());
-
-        if (selection.isAggregate())
-            return pageAggregateQuery(pager, options, pageSize, now);
-
-        // We can't properly do post-query ordering if we page (see #6722)
-        checkFalse(needsPostQueryOrdering(),
-                  "Cannot page queries with both ORDER BY and a IN restriction on the partition key;"
-                  + " you must either remove the ORDER BY or the IN and sort client side, or disable paging for this query");
-
-        List<Row> page = pager.fetchPage(pageSize);
-        ResultMessage.Rows msg = processResults(page, options, limit, now);
-
-        if (!pager.isExhausted())
-            msg.result.metadata.setHasMorePages(pager.state());
-
-        return msg;
+        return execute(pager, options, limit, now, pageSize);
     }
 
     private Pageable getPageableCommand(QueryOptions options, int limit, long now) throws RequestValidationException
@@ -212,7 +188,21 @@ public class SelectStatement implements CQLStatement
         return getPageableCommand(options, getLimit(options), System.currentTimeMillis());
     }
 
-    private ResultMessage.Rows execute(Pageable command, QueryOptions options, int limit, long now, QueryState state) throws RequestValidationException, RequestExecutionException
+    private int getPageSize(QueryOptions options)
+    {
+        int pageSize = options.getPageSize();
+
+        // An aggregation query will never be paged for the user, but we always page it internally to avoid OOM.
+        // If we user provided a pageSize we'll use that to page internally (because why not), otherwise we use our default
+        // Note that if there are some nodes in the cluster with a version less than 2.0, we can't use paging (CASSANDRA-6707).
+        if (selection.isAggregate() && pageSize <= 0)
+            pageSize = DEFAULT_COUNT_PAGE_SIZE;
+
+        return  pageSize;
+    }
+
+    private ResultMessage.Rows execute(Pageable command, QueryOptions options, int limit, long now, QueryState state)
+    throws RequestValidationException, RequestExecutionException
     {
         List<Row> rows;
         if (command == null)
@@ -227,6 +217,26 @@ public class SelectStatement implements CQLStatement
         }
 
         return processResults(rows, options, limit, now);
+    }
+
+    private ResultMessage.Rows execute(QueryPager pager, QueryOptions options, int limit, long now, int pageSize)
+    throws RequestValidationException, RequestExecutionException
+    {
+        if (selection.isAggregate())
+            return pageAggregateQuery(pager, options, pageSize, now);
+
+        // We can't properly do post-query ordering if we page (see #6722)
+        checkFalse(needsPostQueryOrdering(),
+                   "Cannot page queries with both ORDER BY and a IN restriction on the partition key;"
+                   + " you must either remove the ORDER BY or the IN and sort client side, or disable paging for this query");
+
+        List<Row> page = pager.fetchPage(pageSize);
+        ResultMessage.Rows msg = processResults(page, options, limit, now);
+
+        if (!pager.isExhausted())
+            msg.result.metadata.setHasMorePages(pager.state());
+
+        return msg;
     }
 
     private ResultMessage.Rows pageAggregateQuery(QueryPager pager, QueryOptions options, int pageSize, long now)
@@ -267,13 +277,21 @@ public class SelectStatement implements CQLStatement
         int limit = getLimit(options);
         long now = System.currentTimeMillis();
         Pageable command = getPageableCommand(options, limit, now);
-        List<Row> rows = command == null
-                       ? Collections.<Row>emptyList()
-                       : (command instanceof Pageable.ReadCommands
-                          ? readLocally(keyspace(), ((Pageable.ReadCommands)command).commands)
-                          : ((RangeSliceCommand)command).executeLocally());
+        int pageSize = getPageSize(options);
 
-        return processResults(rows, options, limit, now);
+        if (pageSize <= 0 || command == null || !QueryPagers.mayNeedPaging(command, pageSize))
+        {
+            List<Row> rows = command == null
+                             ? Collections.<Row>emptyList()
+                             : (command instanceof Pageable.ReadCommands
+                                ? readLocally(keyspace(), ((Pageable.ReadCommands)command).commands)
+                                : ((RangeSliceCommand)command).executeLocally());
+
+            return processResults(rows, options, limit, now);
+        }
+
+        QueryPager pager = QueryPagers.localPager(command);
+        return execute(pager, options, limit, now, pageSize);
     }
 
     public ResultSet process(List<Row> rows) throws InvalidRequestException
