@@ -235,10 +235,7 @@ public class SSTableNamesIterator extends AbstractIterator<OnDiskAtom> implement
                     result.add(deserializer.readNext());
                 }
                 else
-                {
-                    deserializer.skipNext();
                     nextToFetch = toFetch.hasNext() ? toFetch.next() : null;
-                }
             }
         }
     }
