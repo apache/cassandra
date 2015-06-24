@@ -15,14 +15,18 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.cql3;
+package org.apache.cassandra.cql3.validation.entities;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.marshal.*;
+import org.apache.cassandra.dht.ByteOrderedPartitioner;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.SyntaxException;
 import org.apache.commons.lang3.StringUtils;
 import org.junit.Assert;
+import org.junit.BeforeClass;
 import org.junit.Test;
 
 import java.util.ArrayList;
@@ -33,6 +37,12 @@ import static org.junit.Assert.assertEquals;
 
 public class FrozenCollectionsTest extends CQLTester
 {
+    @BeforeClass
+    public static void setUpClass()
+    {
+        DatabaseDescriptor.setPartitioner(new ByteOrderedPartitioner());
+    }
+
     @Test
     public void testPartitionKeyUsage() throws Throwable
     {

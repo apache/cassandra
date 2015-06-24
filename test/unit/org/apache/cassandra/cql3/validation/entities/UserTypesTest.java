@@ -15,12 +15,25 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.cql3;
+package org.apache.cassandra.cql3.validation.entities;
 
+import java.util.UUID;
+
+import org.junit.BeforeClass;
 import org.junit.Test;
+
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.cql3.CQLTester;
+import org.apache.cassandra.dht.ByteOrderedPartitioner;
 
 public class UserTypesTest extends CQLTester
 {
+    @BeforeClass
+    public static void setUpClass()
+    {
+        DatabaseDescriptor.setPartitioner(new ByteOrderedPartitioner());
+    }
+
     @Test
     public void testInvalidField() throws Throwable
     {
@@ -66,7 +79,7 @@ public class UserTypesTest extends CQLTester
         flush();
 
         assertRows(execute("SELECT v.x FROM %s WHERE k = ? AND v = {x:?}", 1, -104.99251),
-            row(-104.99251)
+                   row(-104.99251)
         );
     }
 
@@ -315,5 +328,62 @@ public class UserTypesTest extends CQLTester
                    row(2, 2, 2),
                    row(3, 3, null),
                    row(null, 4, null));
+    }
+
+    /**
+     * Migrated from cql_tests.py:TestCQL.user_types_test()
+     */
+    @Test
+    public void testUserTypes() throws Throwable
+    {
+        UUID userID_1 = UUID.fromString("550e8400-e29b-41d4-a716-446655440000");
+
+        String addressType = createType("CREATE TYPE %s (street text, city text, zip_code int, phones set<text >)");
+
+        String nameType = createType("CREATE TYPE %s (firstname text, lastname text)");
+
+        createTable("CREATE TABLE %s (id uuid PRIMARY KEY, name frozen < " + nameType + " >, addresses map < text, frozen < " + addressType + " >> )");
+
+        execute("INSERT INTO %s (id, name) VALUES(?, { firstname: 'Paul', lastname: 'smith' } )", userID_1);
+
+        assertRows(execute("SELECT name.firstname FROM %s WHERE id = ?", userID_1), row("Paul"));
+
+        execute("UPDATE %s SET addresses = addresses + { 'home': { street: '...', city:'SF', zip_code:94102, phones:{ } } } WHERE id = ?", userID_1);
+
+        // TODO: deserialize the value here and check it 's right.
+        execute("SELECT addresses FROM %s WHERE id = ? ", userID_1);
+    }
+
+    /**
+     * Test user type test that does a little more nesting,
+     * migrated from cql_tests.py:TestCQL.more_user_types_test()
+     */
+    @Test
+    public void testNestedUserTypes() throws Throwable
+    {
+        String type1 = createType("CREATE TYPE %s ( s set<text>, m map<text, text>, l list<text>)");
+
+        String type2 = createType("CREATE TYPE %s ( s set < frozen < " + type1 + " >>,)");
+
+        createTable("CREATE TABLE %s (id int PRIMARY KEY, val frozen<" + type2 + ">)");
+
+        execute("INSERT INTO %s (id, val) VALUES (0, { s : {{ s : {'foo', 'bar'}, m : { 'foo' : 'bar' }, l : ['foo', 'bar']} }})");
+
+        // TODO: check result once we have an easy way to do it. For now we just check it doesn't crash
+        execute("SELECT * FROM %s");
+    }
+
+    /**
+     * Migrated from cql_tests.py:TestCQL.add_field_to_udt_test()
+     */
+    @Test
+    public void testAddFieldToUdt() throws Throwable
+    {
+        String typeName = createType("CREATE TYPE %s (fooint int, fooset set <text>)");
+        createTable("CREATE TABLE %s (key int PRIMARY KEY, data frozen <" + typeName + ">)");
+
+        execute("INSERT INTO %s (key, data) VALUES (1, {fooint: 1, fooset: {'2'}})");
+        execute("ALTER TYPE " + keyspace() + "." + typeName + " ADD foomap map <int,text>");
+        execute("INSERT INTO %s (key, data) VALUES (1, {fooint: 1, fooset: {'2'}, foomap: {3 : 'bar'}})");
     }
 }

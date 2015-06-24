@@ -806,6 +806,11 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         logger.info("Done loading load new SSTables for {}/{}", keyspace.getName(), name);
     }
 
+    public void rebuildSecondaryIndex(String idxName)
+    {
+        rebuildSecondaryIndex(keyspace.getName(), metadata.cfName, idxName);
+    }
+
     public static void rebuildSecondaryIndex(String ksName, String cfName, String... idxNames)
     {
         ColumnFamilyStore cfs = Keyspace.open(ksName).getColumnFamilyStore(cfName);

@@ -26,6 +26,7 @@ import com.google.common.collect.Iterables;
 import org.apache.cassandra.auth.Permission;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
+import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.composites.CBuilder;
@@ -37,9 +38,12 @@ import org.apache.cassandra.exceptions.*;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.service.StorageProxy;
+import org.apache.cassandra.service.paxos.Commit;
 import org.apache.cassandra.thrift.ThriftValidation;
 import org.apache.cassandra.transport.messages.ResultMessage;
+import org.apache.cassandra.triggers.TriggerExecutor;
 import org.apache.cassandra.utils.Pair;
+import org.apache.cassandra.utils.UUIDGen;
 
 /*
  * Abstract parent class of individual modifications, i.e. INSERT, UPDATE and DELETE.
@@ -494,6 +498,21 @@ public abstract class ModificationStatement implements CQLStatement
     public ResultMessage executeWithCondition(QueryState queryState, QueryOptions options)
     throws RequestExecutionException, RequestValidationException
     {
+        CQL3CasRequest request = makeCasRequest(queryState, options);
+
+        ColumnFamily result = StorageProxy.cas(keyspace(),
+                                               columnFamily(),
+                                               request.key,
+                                               request,
+                                               options.getSerialConsistency(),
+                                               options.getConsistency(),
+                                               queryState.getClientState());
+        return new ResultMessage.Rows(buildCasResultSet(request.key, result, options));
+    }
+
+    private CQL3CasRequest makeCasRequest(QueryState queryState, QueryOptions options)
+    throws InvalidRequestException
+    {
         List<ByteBuffer> keys = buildPartitionKeyNames(options);
         // We don't support IN for CAS operation so far
         if (keys.size() > 1)
@@ -506,15 +525,7 @@ public abstract class ModificationStatement implements CQLStatement
         CQL3CasRequest request = new CQL3CasRequest(cfm, key, false);
         addConditions(prefix, request, options);
         request.addRowUpdate(prefix, this, options, now);
-
-        ColumnFamily result = StorageProxy.cas(keyspace(),
-                                               columnFamily(),
-                                               key,
-                                               request,
-                                               options.getSerialConsistency(),
-                                               options.getConsistency(),
-                                               queryState.getClientState());
-        return new ResultMessage.Rows(buildCasResultSet(key, result, options));
+        return request;
     }
 
     public void addConditions(Composite clusteringPrefix, CQL3CasRequest request, QueryOptions options) throws InvalidRequestException
@@ -615,16 +626,57 @@ public abstract class ModificationStatement implements CQLStatement
 
     public ResultMessage executeInternal(QueryState queryState, QueryOptions options) throws RequestValidationException, RequestExecutionException
     {
-        if (hasConditions())
-            throw new UnsupportedOperationException();
+        return hasConditions()
+               ? executeInternalWithCondition(queryState, options)
+               : executeInternalWithoutCondition(queryState, options);
+    }
 
+    public ResultMessage executeInternalWithoutCondition(QueryState queryState, QueryOptions options) throws RequestValidationException, RequestExecutionException
+    {
         for (IMutation mutation : getMutations(options, true, queryState.getTimestamp()))
         {
-            // We don't use counters internally.
-            assert mutation instanceof Mutation;
+            assert mutation instanceof Mutation || mutation instanceof CounterMutation;
 
-            ((Mutation) mutation).apply();
+            if (mutation instanceof Mutation)
+                ((Mutation) mutation).apply();
+            else if (mutation instanceof CounterMutation)
+                ((CounterMutation) mutation).apply();
         }
+        return null;
+    }
+
+    public ResultMessage executeInternalWithCondition(QueryState state, QueryOptions options) throws RequestValidationException, RequestExecutionException
+    {
+        CQL3CasRequest request = makeCasRequest(state, options);
+        ColumnFamily result = casInternal(request, state);
+        return new ResultMessage.Rows(buildCasResultSet(request.key, result, options));
+    }
+
+    static ColumnFamily casInternal(CQL3CasRequest request, QueryState state)
+    throws InvalidRequestException
+    {
+        long millis = state.getTimestamp() / 1000;
+        long nanos = ((state.getTimestamp() - (millis * 1000)) + 1) * 10;
+        UUID ballot = UUIDGen.getTimeUUID(millis, nanos);
+        CFMetaData metadata = Schema.instance.getCFMetaData(request.cfm.ksName, request.cfm.cfName);
+
+        ReadCommand readCommand = ReadCommand.create(request.cfm.ksName, request.key, request.cfm.cfName, request.now, request.readFilter());
+        Keyspace keyspace = Keyspace.open(request.cfm.ksName);
+
+        Row row = readCommand.getRow(keyspace);
+        ColumnFamily current = row.cf;
+        if (!request.appliesTo(current))
+        {
+            if (current == null)
+                current = ArrayBackedSortedColumns.factory.create(metadata);
+            return current;
+        }
+
+        ColumnFamily updates = request.makeUpdates(current);
+        updates = TriggerExecutor.instance.execute(request.key, updates);
+
+        Commit proposal = Commit.newProposal(request.key, ballot, updates);
+        proposal.makeMutation().apply();
         return null;
     }
 

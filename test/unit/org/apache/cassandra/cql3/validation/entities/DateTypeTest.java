@@ -15,18 +15,25 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.cql3;
+
+package org.apache.cassandra.cql3.validation.entities;
 
 import org.junit.Test;
 
-import static junit.framework.Assert.assertFalse;
+import org.apache.cassandra.cql3.CQLTester;
 
-public class CreateTableTest extends CQLTester
+public class DateTypeTest extends CQLTester
 {
+    /**
+     * Check dates are correctly recognized and validated,
+     * migrated from cql_tests.py:TestCQL.date_test()
+     */
     @Test
-    public void testCQL3PartitionKeyOnlyTable()
+    public void testDate() throws Throwable
     {
-        createTable("CREATE TABLE %s (id text PRIMARY KEY);");
-        assertFalse(currentTableMetadata().isThriftCompatible());
+        createTable("CREATE TABLE %s (k int PRIMARY KEY, t timestamp)");
+
+        execute("INSERT INTO %s (k, t) VALUES (0, '2011-02-03')");
+        assertInvalid("INSERT INTO %s (k, t) VALUES (0, '2011-42-42')");
     }
 }

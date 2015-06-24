@@ -15,11 +15,16 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.cql3;
+package org.apache.cassandra.cql3.validation.operations;
 
+import org.junit.Ignore;
 import org.junit.Test;
 
-public class MultiColumnRelationTest extends CQLTester
+import org.apache.cassandra.cql3.CQLTester;
+
+import static org.junit.Assert.assertEquals;
+
+public class SelectMultiColumnRelationTest extends CQLTester
 {
     @Test
     public void testSingleClusteringInvalidQueries() throws Throwable
@@ -805,4 +810,173 @@ public class MultiColumnRelationTest extends CQLTester
                    row(0, 0, 1, 1, 1, 5),
                    row(0, 0, 2, 0, 0, 5));
     }
-}
+
+    /**
+     * Check select on tuple relations with mixed ASC | DESC clustering, see CASSANDRA-7281
+     * migrated from cql_tests.py:TestCQL.tuple_query_mixed_order_columns_test to tuple_query_mixed_order_columns_test9
+     */
+    @Ignore // CASSANDRA-7281 not yet delivered
+    public void testMixedOrderClustering1() throws Throwable
+    {
+        createTableForMixedOrderClusteringTest("DESC", "ASC", "DESC", "ASC");
+
+        assertRows(execute("SELECT * FROM %s WHERE a=0 AND (b, c, d, e) > (0, 1, 1, 0)"),
+                   row(0, 2, 0, 0, 0),
+                   row(0, 1, 0, 0, 0),
+                   row(0, 0, 1, 2, -1),
+                   row(0, 0, 1, 1, 1),
+                   row(0, 0, 2, 1, -3),
+                   row(0, 0, 2, 0, 3));
+    }
+
+    @Ignore // CASSANDRA-7281 not yet delivered
+    public void testMixedOrderClustering2() throws Throwable
+    {
+        createTableForMixedOrderClusteringTest("DESC", "DESC", "DESC", "ASC");
+
+        assertRows(execute("SELECT * FROM %s WHERE a=0 AND (b, c, d, e) > (0, 1, 1, 0)"),
+                   row(0, 2, 0, 0, 0),
+                   row(0, 1, 0, 0, 0),
+                   row(0, 0, 2, 1, -3),
+                   row(0, 0, 2, 0, 3),
+                   row(0, 0, 1, 2, -1),
+                   row(0, 0, 1, 1, 1));
+    }
+
+    @Ignore // CASSANDRA-7281 not yet delivered
+    public void testMixedOrderClustering3() throws Throwable
+    {
+        createTableForMixedOrderClusteringTest("ASC", "DESC", "DESC", "ASC");
+
+        assertRows(execute("SELECT * FROM %s WHERE a=0 AND (b, c, d, e) > (0, 1, 1, 0)"),
+                   row(0, 0, 2, 1, -3),
+                   row(0, 0, 2, 0, 3),
+                   row(0, 0, 1, 2, -1),
+                   row(0, 0, 1, 1, 1),
+                   row(0, 1, 0, 0, 0),
+                   row(0, 2, 0, 0, 0));
+    }
+
+    @Ignore // CASSANDRA-7281 not yet delivered
+    public void testMixedOrderClustering4() throws Throwable
+    {
+        createTableForMixedOrderClusteringTest("DESC", "ASC", "ASC", "DESC");
+
+        assertRows(execute("SELECT * FROM %s WHERE a=0 AND (b, c, d, e) > (0, 1, 1, 0)"),
+                   row(0, 2, 0, 0, 0),
+                   row(0, 1, 0, 0, 0),
+                   row(0, 0, 1, 1, 1),
+                   row(0, 0, 1, 2, -1),
+                   row(0, 0, 2, 0, 3),
+                   row(0, 0, 2, 1, -3));
+    }
+
+    @Ignore // CASSANDRA-7281 not yet delivered
+    public void testMixedOrderClustering5() throws Throwable
+    {
+        createTableForMixedOrderClusteringTest("DESC", "DESC", "DESC", "DESC");
+
+        assertRows(execute("SELECT * FROM %s WHERE a=0 AND (b, c, d, e) > (0, 1, 1, 0)"),
+                   row(0, 2, 0, 0, 0),
+                   row(0, 1, 0, 0, 0),
+                   row(0, 0, 2, 1, -3),
+                   row(0, 0, 2, 0, 3),
+                   row(0, 0, 1, 2, -1),
+                   row(0, 0, 1, 1, 1));
+    }
+
+    @Ignore // CASSANDRA-7281 not yet delivered
+    public void testMixedOrderClustering6() throws Throwable
+    {
+        createTableForMixedOrderClusteringTest("ASC", "ASC", "ASC", "ASC");
+
+        assertRows(execute("SELECT * FROM %s WHERE a=0 AND (b, c, d, e) > (0, 1, 1, 0)"),
+                   row(0, 0, 1, 1, 1),
+                   row(0, 0, 1, 2, -1),
+                   row(0, 0, 2, 0, 3),
+                   row(0, 0, 2, 1, -3),
+                   row(0, 1, 0, 0, 0),
+                   row(0, 2, 0, 0, 0));
+    }
+
+    @Ignore // CASSANDRA-7281 not yet delivered
+    public void testMixedOrderClustering7() throws Throwable
+    {
+        createTableForMixedOrderClusteringTest("DESC", "ASC", "DESC", "ASC");
+
+        assertRows(execute("SELECT * FROM %s WHERE a=0 AND (b, c, d, e) <= (0, 1, 1, 0)"),
+                   row(0, 0, 0, 0, 0),
+                   row(0, 0, 1, 1, -1),
+                   row(0, 0, 1, 1, 0),
+                   row(0, 0, 1, 0, 2),
+                   row(0, -1, 2, 2, 2));
+    }
+
+    @Ignore // CASSANDRA-7281 not yet delivered
+    public void testMixedOrderClustering8() throws Throwable
+    {
+        createTableForMixedOrderClusteringTest("ASC", "DESC", "DESC", "ASC");
+
+        assertRows(execute("SELECT * FROM %s WHERE a=0 AND (b, c, d, e) <= (0, 1, 1, 0)"),
+                   row(0, -1, 2, 2, 2),
+                   row(0, 0, 1, 1, -1),
+                   row(0, 0, 1, 1, 0),
+                   row(0, 0, 1, 0, 2),
+                   row(0, 0, 0, 0, 0));
+    }
+
+    @Ignore // CASSANDRA-7281 not yet delivered
+    public void testMixedOrderClustering9() throws Throwable
+    {
+        createTableForMixedOrderClusteringTest("DESC", "ASC", "DESC", "DESC");
+
+        assertRows(execute("SELECT * FROM %s WHERE a=0 AND (b, c, d, e) <= (0, 1, 1, 0)"),
+                   row(0, 0, 0, 0, 0),
+                   row(0, 0, 1, 1, 0),
+                   row(0, 0, 1, 1, -1),
+                   row(0, 0, 1, 0, 2),
+                   row(0, -1, 2, 2, 2));
+    }
+
+    private void createTableForMixedOrderClusteringTest(String ... formats) throws Throwable
+    {
+        assertEquals(4, formats.length);
+
+        String clustering = String.format("WITH CLUSTERING ORDER BY (b %s, c %s, d %s, e %s)", (Object[])formats);
+        createTable("CREATE TABLE %s (a int, b int, c int, d int , e int, PRIMARY KEY (a, b, c, d, e) ) " + clustering);
+
+        execute("INSERT INTO %s (a, b, c, d, e) VALUES (0, 2, 0, 0, 0)");
+        execute("INSERT INTO %s (a, b, c, d, e) VALUES (0, 1, 0, 0, 0)");
+        execute("INSERT INTO %s (a, b, c, d, e) VALUES (0, 0, 0, 0, 0)");
+        execute("INSERT INTO %s (a, b, c, d, e) VALUES (0, 0, 1, 2, -1)");
+        execute("INSERT INTO %s (a, b, c, d, e) VALUES (0, 0, 1, 1, -1)");
+        execute("INSERT INTO %s (a, b, c, d, e) VALUES (0, 0, 1, 1, 0)");
+        execute("INSERT INTO %s (a, b, c, d, e) VALUES (0, 0, 1, 1, 1)");
+        execute("INSERT INTO %s (a, b, c, d, e) VALUES (0, 0, 1, 0, 2)");
+        execute("INSERT INTO %s (a, b, c, d, e) VALUES (0, 0, 2, 1, -3)");
+        execute("INSERT INTO %s (a, b, c, d, e) VALUES (0, 0, 2, 0, 3)");
+        execute("INSERT INTO %s (a, b, c, d, e) VALUES (0, -1, 2, 2, 2)");
+    }
+
+    /**
+     * Check select on tuple relations, see CASSANDRA-8613
+     * migrated from cql_tests.py:TestCQL.simple_tuple_query_test()
+     */
+    @Test
+    public void testSimpleTupleQuery() throws Throwable
+    {
+        createTable("create table %s (a int, b int, c int, d int , e int, PRIMARY KEY (a, b, c, d, e))");
+
+        execute("INSERT INTO %s (a, b, c, d, e) VALUES (0, 2, 0, 0, 0)");
+        execute("INSERT INTO %s (a, b, c, d, e) VALUES (0, 1, 0, 0, 0)");
+        execute("INSERT INTO %s (a, b, c, d, e) VALUES (0, 0, 0, 0, 0)");
+        execute("INSERT INTO %s (a, b, c, d, e) VALUES (0, 0, 1, 1, 1)");
+        execute("INSERT INTO %s (a, b, c, d, e) VALUES (0, 0, 2, 2, 2)");
+        execute("INSERT INTO %s (a, b, c, d, e) VALUES (0, 0, 3, 3, 3)");
+        execute("INSERT INTO %s (a, b, c, d, e) VALUES (0, 0, 1, 1, 1)");
+
+        assertRows(execute("SELECT * FROM %s WHERE b=0 AND (c, d, e) > (1, 1, 1) ALLOW FILTERING"),
+                   row(0, 0, 2, 2, 2),
+                   row(0, 0, 3, 3, 3));
+    }
+ }

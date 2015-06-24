@@ -315,13 +315,40 @@ public class SelectStatement implements CQLStatement
         int limit = getLimit(options);
         long now = System.currentTimeMillis();
         Pageable command = getPageableCommand(options, limit, now);
-        List<Row> rows = command == null
-                       ? Collections.<Row>emptyList()
-                       : (command instanceof Pageable.ReadCommands
-                          ? readLocally(keyspace(), ((Pageable.ReadCommands)command).commands)
-                          : ((RangeSliceCommand)command).executeLocally());
 
-        return processResults(rows, options, limit, now);
+        int pageSize = options.getPageSize();
+        if (parameters.isCount && pageSize <= 0)
+            pageSize = DEFAULT_COUNT_PAGE_SIZE;
+
+        if (pageSize <= 0 || command == null || !QueryPagers.mayNeedPaging(command, pageSize))
+        {
+            List<Row> rows = command == null
+                             ? Collections.<Row>emptyList()
+                             : (command instanceof Pageable.ReadCommands
+                                ? readLocally(keyspace(), ((Pageable.ReadCommands)command).commands)
+                                : ((RangeSliceCommand)command).executeLocally());
+
+            return processResults(rows, options, limit, now);
+        }
+        else
+        {
+            QueryPager pager = QueryPagers.localPager(command);
+            if (parameters.isCount)
+                return pageCountQuery(pager, options, pageSize, now, limit);
+
+            // We can't properly do post-query ordering if we page (see #6722)
+            if (needsPostQueryOrdering())
+                throw new InvalidRequestException("Cannot page queries with both ORDER BY and a IN restriction on the partition key; you must either remove the "
+                                                  + "ORDER BY or the IN and sort client side, or disable paging for this query");
+
+            List<Row> page = pager.fetchPage(pageSize);
+            ResultMessage.Rows msg = processResults(page, options, limit, now);
+
+            if (!pager.isExhausted())
+                msg.result.metadata.setHasMorePages(pager.state());
+
+            return msg;
+        }
     }
 
     public ResultSet process(List<Row> rows) throws InvalidRequestException

@@ -1565,6 +1565,12 @@ public class DatabaseDescriptor
         return conf.row_cache_size_in_mb;
     }
 
+    @VisibleForTesting
+    public static void setRowCacheSizeInMB(long val)
+    {
+        conf.row_cache_size_in_mb = val;
+    }
+
     public static int getRowCacheSavePeriod()
     {
         return conf.row_cache_save_period;

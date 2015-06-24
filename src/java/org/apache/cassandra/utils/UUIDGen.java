@@ -82,10 +82,15 @@ public class UUIDGen
         return new UUID(createTime(fromUnixTimestamp(when)), clockSeqAndNode);
     }
 
-    @VisibleForTesting
-    public static UUID getTimeUUID(long when, long clockSeqAndNode)
+    public static UUID getTimeUUID(long when, long nanos)
     {
-        return new UUID(createTime(fromUnixTimestamp(when)), clockSeqAndNode);
+        return new UUID(createTime(fromUnixTimestamp(when, nanos)), clockSeqAndNode);
+    }
+
+    @VisibleForTesting
+    public static UUID getTimeUUID(long when, long nanos, long clockSeqAndNode)
+    {
+        return new UUID(createTime(fromUnixTimestamp(when, nanos)), clockSeqAndNode);
     }
 
     /** creates a type 1 uuid from raw bytes. */
@@ -169,7 +174,12 @@ public class UUIDGen
      * @return
      */
     private static long fromUnixTimestamp(long timestamp) {
-        return (timestamp - START_EPOCH) * 10000;
+        return fromUnixTimestamp(timestamp, 0L);
+    }
+
+    private static long fromUnixTimestamp(long timestamp, long nanos)
+    {
+        return ((timestamp - START_EPOCH) * 10000) + nanos;
     }
 
     /**

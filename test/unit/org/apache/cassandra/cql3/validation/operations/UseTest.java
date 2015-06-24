@@ -15,22 +15,17 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.cql3;
+package org.apache.cassandra.cql3.validation.operations;
 
 import org.junit.Test;
 
-public class TimestampTest extends CQLTester
+import org.apache.cassandra.cql3.CQLTester;
+
+public class UseTest extends CQLTester
 {
     @Test
-    public void testNegativeTimestamps() throws Throwable
+    public void testUseStatementWithBindVariable() throws Throwable
     {
-        createTable("CREATE TABLE %s (k int PRIMARY KEY, v int)");
-
-        execute("INSERT INTO %s (k, v) VALUES (?, ?) USING TIMESTAMP ?", 1, 1, -42L);
-        assertRows(execute("SELECT writetime(v) FROM %s WHERE k = ?", 1),
-            row(-42L)
-        );
-
-        assertInvalid("INSERT INTO %s (k, v) VALUES (?, ?) USING TIMESTAMP ?", 2, 2, Long.MIN_VALUE);
+        assertInvalidSyntaxMessage("Bind variables cannot be used for keyspace names", "USE ?");
     }
 }

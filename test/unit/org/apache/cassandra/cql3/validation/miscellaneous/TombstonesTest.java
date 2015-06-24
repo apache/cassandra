@@ -15,7 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.cql3;
+package org.apache.cassandra.cql3.validation.miscellaneous;
 
 import java.util.concurrent.TimeUnit;
 
@@ -24,6 +24,7 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.filter.TombstoneOverwhelmingException;
 
 import static junit.framework.Assert.assertTrue;
@@ -32,7 +33,7 @@ import static junit.framework.Assert.fail;
 /**
  * Test that TombstoneOverwhelmingException gets thrown when it should be and doesn't when it shouldn't be.
  */
-public class SliceQueryFilterWithTombstonesTest extends CQLTester
+public class TombstonesTest extends CQLTester
 {
     static final int ORIGINAL_THRESHOLD = DatabaseDescriptor.getTombstoneFailureThreshold();
     static final int THRESHOLD = 100;

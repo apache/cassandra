@@ -96,7 +96,7 @@ public abstract class UntypedResultSet implements Iterable<UntypedResultSet.Row>
 
         public List<ColumnSpecification> metadata()
         {
-            return cqlRows.metadata.names;
+            return cqlRows.metadata.requestNames();
         }
     }
 
@@ -217,6 +217,11 @@ public abstract class UntypedResultSet implements Iterable<UntypedResultSet.Row>
         {
             // Note that containsKey won't work because we may have null values
             return data.get(column) != null;
+        }
+
+        public ByteBuffer getBlob(String column)
+        {
+            return data.get(column);
         }
 
         public String getString(String column)

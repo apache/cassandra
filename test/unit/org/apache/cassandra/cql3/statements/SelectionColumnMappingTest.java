@@ -3,12 +3,15 @@ package org.apache.cassandra.cql3.statements;
 import java.util.ArrayList;
 import java.util.List;
 
+import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.config.ColumnDefinition;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.db.marshal.*;
+import org.apache.cassandra.dht.ByteOrderedPartitioner;
 import org.apache.cassandra.exceptions.RequestValidationException;
 import org.apache.cassandra.service.ClientState;
 
@@ -19,6 +22,12 @@ public class SelectionColumnMappingTest extends CQLTester
 {
     String tableName;
     String typeName;
+
+    @BeforeClass
+    public static void setUpClass()
+    {
+        DatabaseDescriptor.setPartitioner(new ByteOrderedPartitioner());
+    }
 
     @Test
     public void testSelectionColumnMapping() throws Throwable

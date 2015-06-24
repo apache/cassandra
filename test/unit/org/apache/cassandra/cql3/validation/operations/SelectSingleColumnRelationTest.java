@@ -15,14 +15,16 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.cql3;
+package org.apache.cassandra.cql3.validation.operations;
 
 import org.junit.Test;
 
 import java.util.ArrayList;
 import java.util.List;
 
-public class SingleColumnRelationTest extends CQLTester
+import org.apache.cassandra.cql3.CQLTester;
+
+public class SelectSingleColumnRelationTest extends CQLTester
 {
     @Test
     public void testInvalidCollectionEqualityRelation() throws Throwable
