@@ -49,6 +49,8 @@ public class CassandraBriefJUnitResultFormatter implements JUnitResultFormatter,
 
     private static final String tag = System.getProperty("cassandra.testtag", "");
 
+    private static final Boolean keepBriefBrief = Boolean.getBoolean("cassandra.keepBriefBrief");
+
     /**
      * Where to write the log to.
      */
@@ -145,7 +147,12 @@ public class CassandraBriefJUnitResultFormatter implements JUnitResultFormatter,
      * @param suite the test suite
      */
     public void endTestSuite(JUnitTest suite) {
-        StringBuffer sb = new StringBuffer("Tests run: ");
+        StringBuffer sb = new StringBuffer("Testsuite: ");
+        String n = suite.getName();
+        if (n != null && !tag.isEmpty())
+            n = n + "-" + tag;
+        sb.append(n);
+        sb.append(" Tests run: ");
         sb.append(suite.runCount());
         sb.append(", Failures: ");
         sb.append(suite.failureCount());
@@ -160,7 +167,7 @@ public class CassandraBriefJUnitResultFormatter implements JUnitResultFormatter,
         sb.append(StringUtils.LINE_SEP);
 
         // append the err and output streams to the log
-        if (systemOutput != null && systemOutput.length() > 0) {
+        if (!keepBriefBrief && systemOutput != null && systemOutput.length() > 0) {
             sb.append("------------- Standard Output ---------------")
                     .append(StringUtils.LINE_SEP)
                     .append(systemOutput)
@@ -168,7 +175,7 @@ public class CassandraBriefJUnitResultFormatter implements JUnitResultFormatter,
                     .append(StringUtils.LINE_SEP);
         }
 
-        if (systemError != null && systemError.length() > 0) {
+        if (!keepBriefBrief && systemError != null && systemError.length() > 0) {
             sb.append("------------- Standard Error -----------------")
                     .append(StringUtils.LINE_SEP)
                     .append(systemError)

@@ -1,4 +1,5 @@
 3.0:
+ * Improve log output from unit tests (CASSANDRA-9528)
  * Add algorithmic token allocation (CASSANDRA-7032)
  * Add nodetool command to replay batchlog (CASSANDRA-9547)
  * Make file buffer cache independent of paths being read (CASSANDRA-8897)

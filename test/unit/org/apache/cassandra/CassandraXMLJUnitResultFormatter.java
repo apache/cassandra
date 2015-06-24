@@ -74,6 +74,17 @@ public class CassandraXMLJUnitResultFormatter implements JUnitResultFormatter, X
 
     private static final String tag = System.getProperty("cassandra.testtag", "");
 
+    /*
+     * Set the property for the test suite name so that log configuration can pick it up
+     * and log to a file specific to this test suite
+     */
+    static
+    {
+        String command = System.getProperty("sun.java.command");
+        String args[] = command.split(" ");
+        System.setProperty("suitename", args[1]);
+    }
+
     /**
      * The XML document.
      */
