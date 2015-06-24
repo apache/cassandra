@@ -38,9 +38,11 @@ import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.ClientWarn;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.service.StorageProxy;
+import org.apache.cassandra.thrift.Column;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.utils.NoSpamLogger;
+import org.apache.cassandra.utils.Pair;
 
 /**
  * A <code>BATCH</code> statement parsed from a CQL query.
@@ -343,10 +345,31 @@ public class BatchStatement implements CQLStatement
     private ResultMessage executeWithConditions(BatchQueryOptions options, QueryState state)
     throws RequestExecutionException, RequestValidationException
     {
+        Pair<CQL3CasRequest, Set<ColumnDefinition>> p = makeCasRequest(options, state);
+        CQL3CasRequest casRequest = p.left;
+        Set<ColumnDefinition> columnsWithConditions = p.right;
+
+        ColumnFamily result = StorageProxy.cas(casRequest.cfm.ksName,
+                                               casRequest.cfm.cfName,
+                                               casRequest.key,
+                                               casRequest,
+                                               options.getSerialConsistency(),
+                                               options.getConsistency(),
+                                               state.getClientState());
+
+        return new ResultMessage.Rows(ModificationStatement.buildCasResultSet(casRequest.cfm.ksName,
+                                                                              casRequest.key,
+                                                                              casRequest.cfm.cfName,
+                                                                              result,
+                                                                              columnsWithConditions,
+                                                                              true,
+                                                                              options.forStatement(0)));
+    }
+
+    private Pair<CQL3CasRequest,Set<ColumnDefinition>> makeCasRequest(BatchQueryOptions options, QueryState state)
+    {
         long now = state.getTimestamp();
         ByteBuffer key = null;
-        String ksName = null;
-        String cfName = null;
         CQL3CasRequest casRequest = null;
         Set<ColumnDefinition> columnsWithConditions = new LinkedHashSet<>();
 
@@ -361,8 +384,6 @@ public class BatchStatement implements CQLStatement
             if (key == null)
             {
                 key = pks.get(0);
-                ksName = statement.cfm.ksName;
-                cfName = statement.cfm.cfName;
                 casRequest = new CQL3CasRequest(statement.cfm, key, true);
             }
             else if (!key.equals(pks.get(0)))
@@ -383,21 +404,47 @@ public class BatchStatement implements CQLStatement
             casRequest.addRowUpdate(clusteringPrefix, statement, statementOptions, timestamp);
         }
 
-        ColumnFamily result = StorageProxy.cas(ksName, cfName, key, casRequest, options.getSerialConsistency(), options.getConsistency(), state.getClientState());
-
-        return new ResultMessage.Rows(ModificationStatement.buildCasResultSet(ksName, key, cfName, result, columnsWithConditions, true, options.forStatement(0)));
+        return Pair.create(casRequest, columnsWithConditions);
     }
 
     public ResultMessage executeInternal(QueryState queryState, QueryOptions options) throws RequestValidationException, RequestExecutionException
     {
-        assert !hasConditions;
+        if (hasConditions)
+            return executeInternalWithConditions(BatchQueryOptions.withoutPerStatementVariables(options), queryState);
+
+        executeInternalWithoutCondition(queryState, options);
+        return new ResultMessage.Void();
+    }
+
+    private ResultMessage executeInternalWithoutCondition(QueryState queryState, QueryOptions options) throws RequestValidationException, RequestExecutionException
+    {
         for (IMutation mutation : getMutations(BatchQueryOptions.withoutPerStatementVariables(options), true, queryState.getTimestamp()))
         {
-            // We don't use counters internally.
-            assert mutation instanceof Mutation;
-            ((Mutation) mutation).apply();
+            assert mutation instanceof Mutation || mutation instanceof CounterMutation;
+
+            if (mutation instanceof Mutation)
+                ((Mutation) mutation).apply();
+            else if (mutation instanceof CounterMutation)
+                ((CounterMutation) mutation).apply();
         }
         return null;
+    }
+
+    private ResultMessage executeInternalWithConditions(BatchQueryOptions options, QueryState state) throws RequestExecutionException, RequestValidationException
+    {
+        Pair<CQL3CasRequest, Set<ColumnDefinition>> p = makeCasRequest(options, state);
+        CQL3CasRequest request = p.left;
+        Set<ColumnDefinition> columnsWithConditions = p.right;
+
+        ColumnFamily result = ModificationStatement.casInternal(request, state);
+
+        return new ResultMessage.Rows(ModificationStatement.buildCasResultSet(request.cfm.ksName,
+                                                                              request.key,
+                                                                              request.cfm.cfName,
+                                                                              result,
+                                                                              columnsWithConditions,
+                                                                              true,
+                                                                              options.forStatement(0)));
     }
 
     public interface BatchVariables

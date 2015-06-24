@@ -36,10 +36,10 @@ import org.apache.cassandra.utils.Pair;
  */
 public class CQL3CasRequest implements CASRequest
 {
-    private final CFMetaData cfm;
-    private final ByteBuffer key;
-    private final long now;
-    private final boolean isBatch;
+    final CFMetaData cfm;
+    final ByteBuffer key;
+    final long now;
+    final boolean isBatch;
 
     // We index RowCondition by the prefix of the row they applied to for 2 reasons:
     //   1) this allows to keep things sorted to build the ColumnSlice array below

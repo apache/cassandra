@@ -254,6 +254,15 @@ public class ResultSet
             return new ResultMetadata(EnumSet.copyOf(flags), names, columnCount, pagingState);
         }
 
+        /**
+         * Return only the column names requested by the user, excluding those added for post-query re-orderings,
+         * see definition of names and columnCount.
+         **/
+        public List<ColumnSpecification> requestNames()
+        {
+            return names.subList(0, columnCount);
+        }
+
         // The maximum number of values that the ResultSet can hold. This can be bigger than columnCount due to CASSANDRA-4911
         public int valueCount()
         {
