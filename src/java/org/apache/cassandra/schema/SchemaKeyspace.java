@@ -828,7 +828,7 @@ public final class SchemaKeyspace
              .add("comment", table.getComment())
              .add("compaction_strategy_class", table.compactionStrategyClass.getName())
              .add("compaction_strategy_options", json(table.compactionStrategyOptions))
-             .add("compression_parameters", json(table.compressionParameters.asThriftOptions()))
+             .add("compression_parameters", json(table.compressionParameters.asMap()))
              .add("default_time_to_live", table.getDefaultTimeToLive())
              .add("gc_grace_seconds", table.getGcGraceSeconds())
              .add("key_validator", table.getKeyValidator().toString())
@@ -1041,7 +1041,7 @@ public final class SchemaKeyspace
         if (result.has("speculative_retry"))
             cfm.speculativeRetry(CFMetaData.SpeculativeRetry.fromString(result.getString("speculative_retry")));
         cfm.compactionStrategyClass(CFMetaData.createCompactionStrategy(result.getString("compaction_strategy_class")));
-        cfm.compressionParameters(CompressionParameters.create(fromJsonMap(result.getString("compression_parameters"))));
+        cfm.compressionParameters(CompressionParameters.fromMap(fromJsonMap(result.getString("compression_parameters"))));
         cfm.compactionStrategyOptions(fromJsonMap(result.getString("compaction_strategy_options")));
 
         if (result.has("min_index_interval"))

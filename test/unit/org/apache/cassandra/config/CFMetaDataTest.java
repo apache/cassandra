@@ -126,7 +126,7 @@ public class CFMetaDataTest
 
                 // Testing with compression to catch #3558
                 CFMetaData withCompression = cfm.copy();
-                withCompression.compressionParameters(new CompressionParameters(SnappyCompressor.instance, 32768, new HashMap<String, String>()));
+                withCompression.compressionParameters(CompressionParameters.snappy(32768));
                 checkInverses(withCompression);
             }
         }

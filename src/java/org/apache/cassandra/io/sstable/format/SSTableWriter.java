@@ -135,7 +135,7 @@ public abstract class SSTableWriter extends SSTable implements Transactional
         if (metadata.getBloomFilterFpChance() < 1.0)
             components.add(Component.FILTER);
 
-        if (metadata.compressionParameters().sstableCompressor != null)
+        if (metadata.compressionParameters().isEnabled())
         {
             components.add(Component.COMPRESSION_INFO);
         }

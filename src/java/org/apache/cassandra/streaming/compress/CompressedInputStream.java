@@ -107,7 +107,7 @@ public class CompressedInputStream extends InputStream
     private void decompress(byte[] compressed) throws IOException
     {
         // uncompress
-        validBufferBytes = info.parameters.sstableCompressor.uncompress(compressed, 0, compressed.length - checksumBytes.length, buffer, 0);
+        validBufferBytes = info.parameters.getSstableCompressor().uncompress(compressed, 0, compressed.length - checksumBytes.length, buffer, 0);
         totalCompressedBytesRead += compressed.length;
 
         // validate crc randomly

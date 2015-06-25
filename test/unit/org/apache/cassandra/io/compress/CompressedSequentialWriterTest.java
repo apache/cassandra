@@ -43,7 +43,7 @@ import org.apache.cassandra.io.util.SequentialWriterTest;
 
 public class CompressedSequentialWriterTest extends SequentialWriterTest
 {
-    private ICompressor compressor;
+    private CompressionParameters compressionParameters;
 
     private void runTests(String testName) throws IOException
     {
@@ -60,21 +60,21 @@ public class CompressedSequentialWriterTest extends SequentialWriterTest
     @Test
     public void testLZ4Writer() throws IOException
     {
-        compressor = LZ4Compressor.instance;
+        compressionParameters = CompressionParameters.lz4();
         runTests("LZ4");
     }
 
     @Test
     public void testDeflateWriter() throws IOException
     {
-        compressor = DeflateCompressor.instance;
+        compressionParameters = CompressionParameters.deflate();
         runTests("Deflate");
     }
 
     @Test
     public void testSnappyWriter() throws IOException
     {
-        compressor = SnappyCompressor.instance;
+        compressionParameters = CompressionParameters.snappy();
         runTests("Snappy");
     }
 
@@ -89,7 +89,7 @@ public class CompressedSequentialWriterTest extends SequentialWriterTest
 
             byte[] dataPre = new byte[bytesToTest];
             byte[] rawPost = new byte[bytesToTest];
-            try (CompressedSequentialWriter writer = new CompressedSequentialWriter(f, filename + ".metadata", new CompressionParameters(compressor), sstableMetadataCollector);)
+            try (CompressedSequentialWriter writer = new CompressedSequentialWriter(f, filename + ".metadata", compressionParameters, sstableMetadataCollector);)
             {
                 Random r = new Random();
 
@@ -143,7 +143,7 @@ public class CompressedSequentialWriterTest extends SequentialWriterTest
 
     private ByteBuffer makeBB(int size)
     {
-        return compressor.preferredBufferType().allocate(size);
+        return compressionParameters.getSstableCompressor().preferredBufferType().allocate(size);
     }
 
     private final List<TestableCSW> writers = new ArrayList<>();
@@ -177,7 +177,7 @@ public class CompressedSequentialWriterTest extends SequentialWriterTest
         {
             this(file, offsetsFile, new CompressedSequentialWriter(file,
                                                                    offsetsFile.getPath(),
-                                                                   new CompressionParameters(LZ4Compressor.instance, BUFFER_SIZE, new HashMap<String, String>()),
+                                                                   CompressionParameters.lz4(BUFFER_SIZE),
                                                                    new MetadataCollector(new ClusteringComparator(UTF8Type.instance))));
         }
 

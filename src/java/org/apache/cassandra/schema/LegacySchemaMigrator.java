@@ -315,7 +315,7 @@ public final class LegacySchemaMigrator
         if (tableRow.has("speculative_retry"))
             cfm.speculativeRetry(CFMetaData.SpeculativeRetry.fromString(tableRow.getString("speculative_retry")));
         cfm.compactionStrategyClass(CFMetaData.createCompactionStrategy(tableRow.getString("compaction_strategy_class")));
-        cfm.compressionParameters(CompressionParameters.create(fromJsonMap(tableRow.getString("compression_parameters"))));
+        cfm.compressionParameters(CompressionParameters.fromMap(fromJsonMap(tableRow.getString("compression_parameters"))));
         cfm.compactionStrategyOptions(fromJsonMap(tableRow.getString("compaction_strategy_options")));
 
         if (tableRow.has("min_index_interval"))

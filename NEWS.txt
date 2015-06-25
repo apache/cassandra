@@ -35,6 +35,10 @@ Upgrading
    - hinted_handoff_enabled in cassandra.yaml no longer supports a list of data centers.
      To specify a list of excluded data centers when hinted_handoff_enabled is set to true,
      use hinted_handoff_disabled_datacenters, see CASSANDRA-9035 for details.
+   - The `sstable_compression` and `chunk_length_kb` compression options have been deprecated.
+     The new options are `class` and `chunk_length_in_kb`. Disabling compression should now
+     be done by setting the new option `enabled` to `false`.
+
 
 2.2
 ===

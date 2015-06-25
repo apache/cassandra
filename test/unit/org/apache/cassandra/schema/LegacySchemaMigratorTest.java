@@ -32,6 +32,7 @@ import org.apache.cassandra.cql3.functions.*;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.compaction.LeveledCompactionStrategy;
 import org.apache.cassandra.db.marshal.*;
+import org.apache.cassandra.thrift.ThriftConversion;
 
 import static java.lang.String.format;
 import static junit.framework.Assert.assertEquals;
@@ -389,7 +390,7 @@ public class LegacySchemaMigratorTest
              .add("comment", table.getComment())
              .add("compaction_strategy_class", table.compactionStrategyClass.getName())
              .add("compaction_strategy_options", json(table.compactionStrategyOptions))
-             .add("compression_parameters", json(table.compressionParameters.asThriftOptions()))
+             .add("compression_parameters", json(ThriftConversion.compressionParametersToThrift(table.compressionParameters)))
              .add("default_time_to_live", table.getDefaultTimeToLive())
              .add("gc_grace_seconds", table.getGcGraceSeconds())
              .add("key_validator", table.getKeyValidator().toString())

@@ -327,7 +327,7 @@ public class SchemaLoader
     {
         for (KeyspaceMetadata ksm : schema)
             for (CFMetaData cfm : ksm.tables)
-                cfm.compressionParameters(new CompressionParameters(SnappyCompressor.instance));
+                cfm.compressionParameters(CompressionParameters.snappy());
     }
 
     public static CFMetaData counterCFMD(String ksName, String cfName)
@@ -462,9 +462,9 @@ public class SchemaLoader
     public static CompressionParameters getCompressionParameters(Integer chunkSize)
     {
         if (Boolean.parseBoolean(System.getProperty("cassandra.test.compression", "false")))
-            return new CompressionParameters(SnappyCompressor.instance, chunkSize, Collections.<String, String>emptyMap());
-        else
-            return new CompressionParameters(null);
+            return CompressionParameters.snappy(chunkSize);
+
+        return CompressionParameters.noCompression();
     }
 
     public static void cleanupAndLeaveDirs() throws IOException

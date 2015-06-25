@@ -273,14 +273,15 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     public Map<String,String> getCompressionParameters()
     {
-        return metadata.compressionParameters().asThriftOptions();
+        return metadata.compressionParameters().asMap();
     }
 
     public void setCompressionParameters(Map<String,String> opts)
     {
         try
         {
-            metadata.compressionParameters = CompressionParameters.create(opts);
+            metadata.compressionParameters = CompressionParameters.fromMap(opts);
+            metadata.compressionParameters.validate();
         }
         catch (ConfigurationException e)
         {

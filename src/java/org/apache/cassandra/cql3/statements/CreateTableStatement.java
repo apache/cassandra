@@ -76,7 +76,7 @@ public class CreateTableStatement extends SchemaAlteringStatement
             this.properties.addProperty(CFPropDefs.KW_COMPRESSION,
                                         new HashMap<String, String>()
                                         {{
-                                            put(CompressionParameters.SSTABLE_COMPRESSION, CFMetaData.DEFAULT_COMPRESSOR);
+                                            put(CompressionParameters.CLASS, CFMetaData.DEFAULT_COMPRESSOR);
                                         }});
     }
 

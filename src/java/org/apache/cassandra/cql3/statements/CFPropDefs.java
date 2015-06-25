@@ -103,19 +103,14 @@ public class CFPropDefs extends PropertyDefinitions
         Map<String, String> compressionOptions = getCompressionOptions();
         if (!compressionOptions.isEmpty())
         {
-            String sstableCompressionClass = compressionOptions.get(CompressionParameters.SSTABLE_COMPRESSION);
-            if (sstableCompressionClass == null)
-                throw new ConfigurationException("Missing sub-option '" + CompressionParameters.SSTABLE_COMPRESSION + "' for the '" + KW_COMPRESSION + "' option.");
+            if (CompressionParameters.isEnabled(compressionOptions)
+                && !CompressionParameters.containsSstableCompressionClass(compressionOptions))
+            {
+                throw new ConfigurationException("Missing sub-option '" + CompressionParameters.CLASS + "' for the '" + KW_COMPRESSION + "' option.");
+            }
 
-            Integer chunkLength = CompressionParameters.DEFAULT_CHUNK_LENGTH;
-            if (compressionOptions.containsKey(CompressionParameters.CHUNK_LENGTH_KB))
-                chunkLength = CompressionParameters.parseChunkLength(compressionOptions.get(CompressionParameters.CHUNK_LENGTH_KB));
-
-            Map<String, String> remainingOptions = new HashMap<>(compressionOptions);
-            remainingOptions.remove(CompressionParameters.SSTABLE_COMPRESSION);
-            remainingOptions.remove(CompressionParameters.CHUNK_LENGTH_KB);
-            CompressionParameters cp = new CompressionParameters(sstableCompressionClass, chunkLength, remainingOptions);
-            cp.validate();
+            CompressionParameters compressionParameters = CompressionParameters.fromMap(compressionOptions);
+            compressionParameters.validate();
         }
 
         validateMinimumInt(KW_DEFAULT_TIME_TO_LIVE, 0, CFMetaData.DEFAULT_DEFAULT_TIME_TO_LIVE);
@@ -200,7 +195,11 @@ public class CFPropDefs extends PropertyDefinitions
         cfm.bloomFilterFpChance(getDouble(KW_BF_FP_CHANCE, cfm.getBloomFilterFpChance()));
 
         if (!getCompressionOptions().isEmpty())
-            cfm.compressionParameters(CompressionParameters.create(getCompressionOptions()));
+        {
+            CompressionParameters compressionParameters = CompressionParameters.fromMap(getCompressionOptions());
+            compressionParameters.validate();
+            cfm.compressionParameters(compressionParameters);
+        }
         CachingOptions cachingOptions = getCachingOptions();
         if (cachingOptions != null)
             cfm.caching(cachingOptions);

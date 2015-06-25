@@ -483,18 +483,6 @@ public class ConfigHelper
         return conf.getInt(THRIFT_FRAMED_TRANSPORT_SIZE_IN_MB, 15) * 1024 * 1024; // 15MB is default in Cassandra
     }
 
-    public static CompressionParameters getOutputCompressionParamaters(Configuration conf)
-    {
-        if (getOutputCompressionClass(conf) == null)
-            return new CompressionParameters(null);
-
-        Map<String, String> options = new HashMap<String, String>(2);
-        options.put(CompressionParameters.SSTABLE_COMPRESSION, getOutputCompressionClass(conf));
-        options.put(CompressionParameters.CHUNK_LENGTH_KB, getOutputCompressionChunkLength(conf));
-
-        return CompressionParameters.create(options);
-    }
-
     public static boolean getOutputLocalDCOnly(Configuration conf)
     {
         return Boolean.parseBoolean(conf.get(OUTPUT_LOCAL_DC_ONLY, "false"));

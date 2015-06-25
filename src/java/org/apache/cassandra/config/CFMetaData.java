@@ -218,7 +218,7 @@ public final class CFMetaData
     public volatile Class<? extends AbstractCompactionStrategy> compactionStrategyClass = DEFAULT_COMPACTION_STRATEGY_CLASS;
     public volatile Map<String, String> compactionStrategyOptions = new HashMap<>();
 
-    public volatile CompressionParameters compressionParameters = new CompressionParameters(null);
+    public volatile CompressionParameters compressionParameters = CompressionParameters.noCompression();
 
     // attribute setters that return the modified CFMetaData instance
     public CFMetaData comment(String prop) {comment = Strings.nullToEmpty(prop); return this;}
@@ -1340,7 +1340,7 @@ public final class CFMetaData
             .append("columnMetadata", columnMetadata.values())
             .append("compactionStrategyClass", compactionStrategyClass)
             .append("compactionStrategyOptions", compactionStrategyOptions)
-            .append("compressionParameters", compressionParameters.asThriftOptions())
+            .append("compressionParameters", compressionParameters.asMap())
             .append("bloomFilterFpChance", getBloomFilterFpChance())
             .append("memtableFlushPeriod", memtableFlushPeriod)
             .append("caching", caching)

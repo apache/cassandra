@@ -24,9 +24,12 @@ import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.SyntaxException;
+import org.apache.cassandra.schema.SchemaKeyspace;
 
+import org.junit.Assert;
 import org.junit.Test;
 
+import static java.lang.String.format;
 import static org.junit.Assert.assertEquals;
 
 public class AlterTest extends CQLTester
@@ -206,6 +209,84 @@ public class AlterTest extends CQLTester
 
         for (String stmt : stmts) {
             assertInvalidSyntaxMessage("no viable alternative at input 'WITH'", stmt);
+        }
+    }
+
+    @Test
+    public void testAlterTableWithCompression() throws Throwable
+    {
+        createTable("CREATE TABLE %s (a text, b int, c int, primary key (a, b))");
+
+        assertRows(execute(format("SELECT compression_parameters FROM %s.%s WHERE keyspace_name = ? and table_name = ?;",
+                                  SchemaKeyspace.NAME,
+                                  SchemaKeyspace.TABLES),
+                           KEYSPACE,
+                           currentTable()),
+                   row("{\"chunk_length_in_kb\":\"64\",\"class\":\"org.apache.cassandra.io.compress.LZ4Compressor\"}"));
+
+        execute("ALTER TABLE %s WITH compression = { 'class' : 'SnappyCompressor', 'chunk_length_in_kb' : 32 };");
+
+        assertRows(execute(format("SELECT compression_parameters FROM %s.%s WHERE keyspace_name = ? and table_name = ?;",
+                                  SchemaKeyspace.NAME,
+                                  SchemaKeyspace.TABLES),
+                           KEYSPACE,
+                           currentTable()),
+                   row("{\"chunk_length_in_kb\":\"32\",\"class\":\"org.apache.cassandra.io.compress.SnappyCompressor\"}"));
+
+        execute("ALTER TABLE %s WITH compression = { 'sstable_compression' : 'LZ4Compressor', 'chunk_length_kb' : 64 };");
+
+        assertRows(execute(format("SELECT compression_parameters FROM %s.%s WHERE keyspace_name = ? and table_name = ?;",
+                                  SchemaKeyspace.NAME,
+                                  SchemaKeyspace.TABLES),
+                           KEYSPACE,
+                           currentTable()),
+                   row("{\"chunk_length_in_kb\":\"64\",\"class\":\"org.apache.cassandra.io.compress.LZ4Compressor\"}"));
+
+        execute("ALTER TABLE %s WITH compression = { 'sstable_compression' : '', 'chunk_length_kb' : 32 };");
+
+        assertRows(execute(format("SELECT compression_parameters FROM %s.%s WHERE keyspace_name = ? and table_name = ?;",
+                                  SchemaKeyspace.NAME,
+                                  SchemaKeyspace.TABLES),
+                           KEYSPACE,
+                           currentTable()),
+                   row("{\"enabled\":\"false\"}"));
+
+        execute("ALTER TABLE %s WITH compression = { 'class' : 'SnappyCompressor', 'chunk_length_in_kb' : 32 };");
+        execute("ALTER TABLE %s WITH compression = { 'enabled' : 'false'};");
+
+        assertRows(execute(format("SELECT compression_parameters FROM %s.%s WHERE keyspace_name = ? and table_name = ?;",
+                                  SchemaKeyspace.NAME,
+                                  SchemaKeyspace.TABLES),
+                           KEYSPACE,
+                           currentTable()),
+                   row("{\"enabled\":\"false\"}"));
+
+        assertThrowsConfigurationException("Missing sub-option 'class' for the 'compression' option.",
+                                           "ALTER TABLE %s WITH  compression = {'chunk_length_in_kb' : 32};");
+
+        assertThrowsConfigurationException("The 'class' option must not be empty. To disable compression use 'enabled' : false",
+                                           "ALTER TABLE %s WITH  compression = { 'class' : ''};");
+
+        assertThrowsConfigurationException("If the 'enabled' option is set to false no other options must be specified",
+                                           "ALTER TABLE %s WITH compression = { 'enabled' : 'false', 'class' : 'SnappyCompressor'};");
+
+        assertThrowsConfigurationException("The 'sstable_compression' option must not be used if the compression algorithm is already specified by the 'class' option",
+                                           "ALTER TABLE %s WITH compression = { 'sstable_compression' : 'SnappyCompressor', 'class' : 'SnappyCompressor'};");
+
+        assertThrowsConfigurationException("The 'chunk_length_kb' option must not be used if the chunk length is already specified by the 'chunk_length_in_kb' option",
+                                           "ALTER TABLE %s WITH compression = { 'class' : 'SnappyCompressor', 'chunk_length_kb' : 32 , 'chunk_length_in_kb' : 32 };");
+    }
+
+    private void assertThrowsConfigurationException(String errorMsg, String alterStmt) throws Throwable
+    {
+        try
+        {
+            execute(alterStmt);
+            Assert.fail("Query should be invalid but no error was thrown. Query is: " + alterStmt);
+        }
+        catch (ConfigurationException e)
+        {
+            assertEquals(errorMsg, e.getMessage());
         }
     }
 }

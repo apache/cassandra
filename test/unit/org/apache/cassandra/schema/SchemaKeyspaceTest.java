@@ -20,7 +20,6 @@ package org.apache.cassandra.schema;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.HashMap;
 import java.util.HashSet;
 
 import org.apache.cassandra.SchemaLoader;
@@ -127,7 +126,7 @@ public class SchemaKeyspaceTest
 
                 // Testing with compression to catch #3558
                 CFMetaData withCompression = cfm.copy();
-                withCompression.compressionParameters(new CompressionParameters(SnappyCompressor.instance, 32768, new HashMap<>()));
+                withCompression.compressionParameters(CompressionParameters.snappy(32768));
                 checkInverses(withCompression);
             }
         }

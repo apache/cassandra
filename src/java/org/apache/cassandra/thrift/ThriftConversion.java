@@ -23,15 +23,19 @@ import java.util.*;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Strings;
 import com.google.common.collect.Maps;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+
+import org.apache.cassandra.io.compress.ICompressor;
 
 import org.apache.cassandra.cache.CachingOptions;
-import org.apache.cassandra.config.*;
+import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.config.ColumnDefinition;
+import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.Operator;
 import org.apache.cassandra.cql3.UntypedResultSet;
-import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.CompactTables;
+import org.apache.cassandra.db.LegacyLayout;
+import org.apache.cassandra.db.WriteType;
 import org.apache.cassandra.db.filter.RowFilter;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.exceptions.*;
@@ -55,8 +59,6 @@ import org.apache.cassandra.utils.UUIDGen;
  */
 public class ThriftConversion
 {
-    private static final Logger logger = LoggerFactory.getLogger(ThriftConversion.class);
-
     public static org.apache.cassandra.db.ConsistencyLevel fromThrift(ConsistencyLevel cl)
     {
         switch (cl)
@@ -315,12 +317,19 @@ public class ThriftConversion
                 newCFMD.triggers(triggerDefinitionsFromThrift(cf_def.triggers));
 
             return newCFMD.comment(cf_def.comment)
-                          .compressionParameters(CompressionParameters.create(cf_def.compression_options));
+                          .compressionParameters(compressionParametersFromThrift(cf_def.compression_options));
         }
         catch (SyntaxException | MarshalException e)
         {
             throw new ConfigurationException(e.getMessage());
         }
+    }
+
+    private static CompressionParameters compressionParametersFromThrift(Map<String, String> compression_options)
+    {
+        CompressionParameters compressionParameter = CompressionParameters.fromMap(compression_options);
+        compressionParameter.validate();
+        return compressionParameter;
     }
 
     private static void addDefaultCQLMetadata(Collection<ColumnDefinition> defs,
@@ -456,7 +465,7 @@ public class ThriftConversion
         def.setColumn_metadata(columnDefinitionsToThrift(cfm, cfm.allColumns()));
         def.setCompaction_strategy(cfm.compactionStrategyClass.getName());
         def.setCompaction_strategy_options(new HashMap<>(cfm.compactionStrategyOptions));
-        def.setCompression_options(cfm.compressionParameters.asThriftOptions());
+        def.setCompression_options(compressionParametersToThrift(cfm.compressionParameters));
         def.setBloom_filter_fp_chance(cfm.getBloomFilterFpChance());
         def.setMin_index_interval(cfm.getMinIndexInterval());
         def.setMax_index_interval(cfm.getMaxIndexInterval());
@@ -563,5 +572,17 @@ public class ThriftConversion
             thriftDefs.add(td);
         }
         return thriftDefs;
+    }
+
+    public static Map<String, String> compressionParametersToThrift(CompressionParameters parameters)
+    {
+        if (!parameters.isEnabled())
+            return Collections.emptyMap();
+
+        Map<String, String> options = new HashMap<>(parameters.getOtherOptions());
+        Class<? extends ICompressor> klass = parameters.getSstableCompressor().getClass();
+        options.put(CompressionParameters.SSTABLE_COMPRESSION, klass.getName());
+        options.put(CompressionParameters.CHUNK_LENGTH_KB, parameters.chunkLengthInKB());
+        return options;
     }
 }

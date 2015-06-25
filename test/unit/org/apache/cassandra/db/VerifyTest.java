@@ -43,7 +43,6 @@ import org.junit.runner.RunWith;
 
 import java.io.*;
 import java.nio.file.Files;
-import java.util.HashMap;
 import java.util.zip.Adler32;
 import java.util.zip.CheckedInputStream;
 
@@ -71,7 +70,7 @@ public class VerifyTest
     @BeforeClass
     public static void defineSchema() throws ConfigurationException
     {
-        CompressionParameters compressionParameters = new CompressionParameters(SnappyCompressor.instance, 32768, new HashMap<String, String>());
+        CompressionParameters compressionParameters = CompressionParameters.snappy(32768);
 
         SchemaLoader.loadSchema();
         SchemaLoader.createKeyspace(KEYSPACE,
