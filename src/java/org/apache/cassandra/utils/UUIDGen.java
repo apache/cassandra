@@ -82,6 +82,13 @@ public class UUIDGen
         return new UUID(createTime(fromUnixTimestamp(when)), clockSeqAndNode);
     }
 
+    public static UUID getTimeUUIDFromMicros(long whenInMicros)
+    {
+        long whenInMillis = whenInMicros / 1000;
+        long nanos = (whenInMicros - (whenInMillis * 1000)) * 10;
+        return getTimeUUID(whenInMillis, nanos);
+    }
+
     public static UUID getTimeUUID(long when, long nanos)
     {
         return new UUID(createTime(fromUnixTimestamp(when, nanos)), clockSeqAndNode);

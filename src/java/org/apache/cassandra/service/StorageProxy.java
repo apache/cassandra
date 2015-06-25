@@ -356,14 +356,13 @@ public class StorageProxy implements StorageProxyMBean
         int contentions = 0;
         while (System.nanoTime() - start < timeout)
         {
-            // We don't want to use a timestamp that is older than the last one assigned by the ClientState or operations
-            // may appear out-of-order (#7801). But note that state.getTimestamp() is in microseconds while the ballot
-            // timestamp is only in milliseconds
-            long currentTime = (state.getTimestamp() / 1000) + 1;
-            long ballotMillis = summary == null
-                              ? currentTime
-                              : Math.max(currentTime, 1 + UUIDGen.unixTimestamp(summary.mostRecentInProgressCommit.ballot));
-            UUID ballot = UUIDGen.getTimeUUID(ballotMillis);
+            // We want a timestamp that is guaranteed to be unique for that node (so that the ballot is globally unique), but if we've got a prepare rejected
+            // already we also want to make sure we pick a timestamp that has a chance to be promised, i.e. one that is greater that the most recently known
+            // in progress (#5667). Lastly, we don't want to use a timestamp that is older than the last one assigned by ClientState or operations may appear
+            // out-of-order (#7801).
+            long minTimestampMicrosToUse = summary == null ? Long.MIN_VALUE : 1 + UUIDGen.microsTimestamp(summary.mostRecentInProgressCommit.ballot);
+            long ballotMicros = state.getTimestamp(minTimestampMicrosToUse);
+            UUID ballot = UUIDGen.getTimeUUIDFromMicros(ballotMicros);
 
             // prepare
             Tracing.trace("Preparing {}", ballot);
@@ -428,10 +427,6 @@ public class StorageProxy implements StorageProxyMBean
                 // latter ticket, we can pass CL.ALL to the commit above and remove the 'continue'.
                 continue;
             }
-
-            // We might commit this ballot and we want to ensure operations starting after this CAS succeed will be assigned
-            // a timestamp greater that the one of this ballot, so operation order is preserved (#7801)
-            state.updateLastTimestamp(ballotMillis * 1000);
 
             return Pair.create(ballot, contentions);
         }

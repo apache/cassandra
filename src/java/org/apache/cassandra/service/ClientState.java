@@ -98,8 +98,9 @@ public class ClientState
     // The remote address of the client - null for internal clients.
     private final SocketAddress remoteAddress;
 
-    // The biggest timestamp that was returned by getTimestamp/assigned to a query
-    private final AtomicLong lastTimestampMicros = new AtomicLong(0);
+    // The biggest timestamp that was returned by getTimestamp/assigned to a query. This is global to the VM
+    // for the sake of paxos (see #9649).
+    private static final AtomicLong lastTimestampMicros = new AtomicLong(0);
 
     /**
      * Construct a new, empty ClientState for internal calls.
@@ -151,18 +152,18 @@ public class ClientState
     }
 
     /**
-     * Can be use when a timestamp has been assigned by a query, but that timestamp is
-     * not directly one returned by getTimestamp() (see SP.beginAndRepairPaxos()).
-     * This ensure following calls to getTimestamp() will return a timestamp strictly
-     * greated than the one provided to this method.
+     * This is the same than {@link #getTimestamp()} but this guarantees that the returned timestamp
+     * will not be smaller than the provided {@code minTimestampToUse}.
      */
-    public void updateLastTimestamp(long tstampMicros)
+    public long getTimestamp(long minTimestampToUse)
     {
         while (true)
         {
+            long current = Math.max(System.currentTimeMillis() * 1000, minTimestampToUse);
             long last = lastTimestampMicros.get();
-            if (tstampMicros <= last || lastTimestampMicros.compareAndSet(last, tstampMicros))
-                return;
+            long tstamp = last >= current ? last + 1 : current;
+            if (lastTimestampMicros.compareAndSet(last, tstamp))
+                return tstamp;
         }
     }
 

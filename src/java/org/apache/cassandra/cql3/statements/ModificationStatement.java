@@ -655,9 +655,7 @@ public abstract class ModificationStatement implements CQLStatement
     static ColumnFamily casInternal(CQL3CasRequest request, QueryState state)
     throws InvalidRequestException
     {
-        long millis = state.getTimestamp() / 1000;
-        long nanos = ((state.getTimestamp() - (millis * 1000)) + 1) * 10;
-        UUID ballot = UUIDGen.getTimeUUID(millis, nanos);
+        UUID ballot = UUIDGen.getTimeUUIDFromMicros(state.getTimestamp());
         CFMetaData metadata = Schema.instance.getCFMetaData(request.cfm.ksName, request.cfm.cfName);
 
         ReadCommand readCommand = ReadCommand.create(request.cfm.ksName, request.key, request.cfm.cfName, request.now, request.readFilter());
