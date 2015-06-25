@@ -1,4 +1,5 @@
 2.1.7
+ * Allow JMX over SSL directly from nodetool (CASSANDRA-9090)
  * Fix incorrect result for IN queries where column not found (CASSANDRA-9540)
  * ColumnFamilyStore.selectAndReference may block during compaction (CASSANDRA-9637)
  * Fix bug in cardinality check when compacting (CASSANDRA-9580)

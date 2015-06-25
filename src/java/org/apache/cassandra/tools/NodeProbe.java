@@ -27,6 +27,8 @@ import java.lang.management.MemoryUsage;
 import java.lang.management.RuntimeMXBean;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
+import java.rmi.server.RMIClientSocketFactory;
+import java.rmi.server.RMISocketFactory;
 import java.text.SimpleDateFormat;
 import java.util.AbstractMap;
 import java.util.ArrayList;
@@ -58,6 +60,7 @@ import javax.management.remote.JMXConnectionNotification;
 import javax.management.remote.JMXConnector;
 import javax.management.remote.JMXConnectorFactory;
 import javax.management.remote.JMXServiceURL;
+import javax.rmi.ssl.SslRMIClientSocketFactory;
 
 import org.apache.cassandra.concurrent.JMXEnabledThreadPoolExecutorMBean;
 import org.apache.cassandra.db.ColumnFamilyStoreMBean;
@@ -182,6 +185,9 @@ public class NodeProbe implements AutoCloseable
             String[] creds = { username, password };
             env.put(JMXConnector.CREDENTIALS, creds);
         }
+
+        env.put("com.sun.jndi.rmi.factory.socket", getRMIClientSocketFactory());
+
         jmxc = JMXConnectorFactory.connect(jmxUrl, env);
         mbeanServerConn = jmxc.getMBeanServerConnection();
 
@@ -216,6 +222,14 @@ public class NodeProbe implements AutoCloseable
                 ManagementFactory.MEMORY_MXBEAN_NAME, MemoryMXBean.class);
         runtimeProxy = ManagementFactory.newPlatformMXBeanProxy(
                 mbeanServerConn, ManagementFactory.RUNTIME_MXBEAN_NAME, RuntimeMXBean.class);
+    }
+
+    private RMIClientSocketFactory getRMIClientSocketFactory() throws IOException
+    {
+        if (Boolean.parseBoolean(System.getProperty("ssl.enable")))
+            return new SslRMIClientSocketFactory();
+        else
+            return RMISocketFactory.getDefaultSocketFactory();
     }
 
     public void close() throws IOException

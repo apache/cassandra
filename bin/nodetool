@@ -56,6 +56,8 @@ fi
 # JMX Port passed via cmd line args (-p 9999 / --port 9999 / --port=9999)
 # should override the value from cassandra-env.sh
 ARGS=""
+JVM_ARGS=""
+SSL_FILE=$HOME/.cassandra/nodetool-ssl.properties
 while true
 do
   if [ ! $1 ]; then break; fi
@@ -70,6 +72,16 @@ do
     --port)
       JMX_PORT=$2
       shift
+      ;;
+    --ssl)
+      if [ -f $SSL_FILE ]
+      then 
+          SSL_ARGS=$(cat $SSL_FILE | tr '\n' ' ')
+      fi
+      JVM_ARGS="$JVM_ARGS -Dssl.enable=true $SSL_ARGS"
+      ;;
+    -D*)
+      JVM_ARGS="$JVM_ARGS $1"
       ;;
     *)
       ARGS="$ARGS $1"
@@ -91,6 +103,7 @@ esac
       -Dcassandra.storagedir="$cassandra_storagedir" \
       -Dlogback.configurationFile=logback-tools.xml \
       -Dstorage-config="$CASSANDRA_CONF" \
+      $JVM_ARGS \
       org.apache.cassandra.tools.NodeTool -p $JMX_PORT $ARGS
 
 # vi:ai sw=4 ts=4 tw=0 et
