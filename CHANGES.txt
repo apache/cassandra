@@ -6,6 +6,8 @@
  * Enable describe on indices (CASSANDRA-7814)
  * ColumnFamilyStore.selectAndReference may block during compaction (CASSANDRA-9637)
 Merged from 2.0
+  * Fix error message when attempting to create an index on a column
+    in a COMPACT STORAGE table with clustering columns (CASSANDRA-9527)
   * 'WITH WITH' in alter keyspace statements causes NPE (CASSANDRA-9565)
 
 
