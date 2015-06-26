@@ -498,12 +498,20 @@ public class SelectSingleColumnRelationTest extends CQLTester
 
         assertInvalidMessage("Cannot execute this query as it might involve data filtering",
                              "SELECT * FROM %s WHERE a = ? AND c >= ? AND f = ?", 0, 1, 5);
+        assertRows(execute("SELECT * FROM %s WHERE a = ? AND b = ? AND c >= ? AND f = ?", 0, 0, 1, 5),
+                   row(0, 0, 1, 1, 1, 5),
+                   row(0, 0, 2, 0, 0, 5));
+
         assertRows(execute("SELECT * FROM %s WHERE a = ? AND c >= ? AND f = ? ALLOW FILTERING", 0, 1, 5),
                    row(0, 0, 1, 1, 1, 5),
                    row(0, 0, 2, 0, 0, 5));
 
         assertInvalidMessage("Cannot execute this query as it might involve data filtering",
                              "SELECT * FROM %s WHERE a = ? AND c = ? AND d >= ? AND f = ?", 0, 1, 1, 5);
+
+        assertRows(execute("SELECT * FROM %s WHERE a = ? AND b = ? AND c = ? AND d >= ? AND f = ?", 0, 0, 1, 1, 5),
+                   row(0, 0, 1, 1, 1, 5));
+
         assertRows(execute("SELECT * FROM %s WHERE a = ? AND c = ? AND d >= ? AND f = ? ALLOW FILTERING", 0, 1, 1, 5),
                    row(0, 0, 1, 1, 1, 5));
     }
