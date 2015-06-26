@@ -272,11 +272,13 @@ cqlsh_extra_syntax_rules = r'''
                                   | "KEYSPACES"
                                   | "KEYSPACE" ksname=<keyspaceName>?
                                   | ( "COLUMNFAMILY" | "TABLE" ) cf=<columnFamilyName>
+                                  | "INDEX" idx=<indexName>
                                   | ( "COLUMNFAMILIES" | "TABLES" )
                                   | "FULL"? "SCHEMA"
                                   | "CLUSTER"
                                   | "TYPES"
-                                  | "TYPE" ut=<userTypeName>)
+                                  | "TYPE" ut=<userTypeName>
+                                  | (ksname=<keyspaceName> | cf=<columnFamilyName> | idx=<indexName>))
                     ;
 
 <consistencyCommand> ::= "CONSISTENCY" ( level=<consistencyLevel> )?
@@ -433,6 +435,11 @@ class KeyspaceNotFound(Exception):
 class ColumnFamilyNotFound(Exception):
     pass
 
+class IndexNotFound(Exception):
+    pass
+
+class ObjectNotFound(Exception):
+    pass
 
 class VersionNotSupported(Exception):
     pass
@@ -761,12 +768,10 @@ class Shell(cmd.Cmd):
         return map(str, self.get_keyspace_meta(ksname).tables.keys())
 
     def get_index_names(self, ksname=None):
-        idxnames = []
-        for cfname in self.get_columnfamily_names(ksname=ksname):
-            for col in self.get_table_meta(ksname, cfname).columns.values():
-                if col.index:
-                    idxnames.append(col.index.name)
-        return idxnames
+        if ksname is None:
+            ksname = self.current_keyspace
+
+        return map(str, self.get_keyspace_meta(ksname).indexes.keys())
 
     def get_column_names(self, ksname, cfname):
         if ksname is None:
@@ -857,6 +862,38 @@ class Shell(cmd.Cmd):
             table_meta.columns['permission'] = ColumnMetadata(table_meta, 'permission', cassandra.cqltypes.UTF8Type)
         else:
             raise ColumnFamilyNotFound("Column family %r not found" % tablename)
+
+    def get_index_meta(self, ksname, idxname):
+        if ksname is None:
+            ksname = self.current_keyspace
+        ksmeta = self.get_keyspace_meta(ksname)
+
+        if idxname not in ksmeta.indexes:
+            raise IndexNotFound("Index %r not found" % idxname)
+
+        return ksmeta.indexes[idxname]
+
+    def get_object_meta(self, ks, name):
+        if name is None:
+            if ks and ks in self.conn.metadata.keyspaces:
+                return self.conn.metadata.keyspaces[ks]
+            elif self.current_keyspace is None:
+                raise ObjectNotFound("%r not found in keyspaces" % (ks))
+            else:
+                name = ks
+                ks = self.current_keyspace
+
+        if ks is None:
+            ks = self.current_keyspace
+
+        ksmeta = self.get_keyspace_meta(ks)
+
+        if name in ksmeta.tables:
+            return ksmeta.tables[name]
+        elif name in ksmeta.indexes:
+            return ksmeta.indexes[name]
+
+        raise ObjectNotFound("%r not found in keyspace %r" % (name, ks))
 
     def get_usertypes_meta(self):
         data = self.session.execute("select * from system.schema_usertypes")
@@ -1293,6 +1330,26 @@ class Shell(cmd.Cmd):
         out.write(self.get_table_meta(ksname, cfname).export_as_string())
         out.write("\n")
 
+    def print_recreate_index(self, ksname, idxname, out):
+        """
+        Output CQL commands which should be pasteable back into a CQL session
+        to recreate the given index.
+
+        Writes output to the given out stream.
+        """
+        out.write(self.get_index_meta(ksname, idxname).export_as_string())
+        out.write("\n")
+
+    def print_recreate_object(self, ks, name, out):
+        """
+        Output CQL commands which should be pasteable back into a CQL session
+        to recreate the given object (ks, table or index).
+
+        Writes output to the given out stream.
+        """
+        out.write(self.get_object_meta(ks, name).export_as_string())
+        out.write("\n")
+
     def describe_keyspaces(self):
         print
         cmd.Cmd.columnize(self, protect_names(self.get_keyspace_names()))
@@ -1310,6 +1367,16 @@ class Shell(cmd.Cmd):
             raise NoKeyspaceError("No keyspace specified and no current keyspace")
         print
         self.print_recreate_columnfamily(ksname, cfname, sys.stdout)
+        print
+
+    def describe_index(self, ksname, idxname):
+        print
+        self.print_recreate_index(ksname, idxname, sys.stdout)
+        print
+
+    def describe_object(self, ks, name):
+        print
+        self.print_recreate_object(ks, name, sys.stdout)
         print
 
     def describe_columnfamilies(self, ksname):
@@ -1463,6 +1530,12 @@ class Shell(cmd.Cmd):
           In some cases, as above, there may be table metadata which is not
           representable and which will not be shown.
 
+        DESCRIBE INDEX <indexname>
+
+          Output CQL commands that could be used to recreate the given index.
+          In some cases, there may be index metadata which is not representable
+          and which will not be shown.
+
         DESCRIBE CLUSTER
 
           Output information about the connected Cassandra cluster, such as the
@@ -1491,7 +1564,12 @@ class Shell(cmd.Cmd):
         DESCRIBE AGGREGATE [<keyspace>.]<aggregate>
 
           Describe the given user defined aggregate.
-        """
+
+        DESCRIBE <objname>
+
+          Output CQL commands that could be used to recreate the entire object schema,
+          where object can be either a keyspace or a table or an index (in this order).
+	"""
         what = parsed.matched[1][1].lower()
         if what == 'functions':
             ksname = self.cql_unprotect_name(parsed.get_binding('ksname', None))
@@ -1521,6 +1599,10 @@ class Shell(cmd.Cmd):
             ks = self.cql_unprotect_name(parsed.get_binding('ksname', None))
             cf = self.cql_unprotect_name(parsed.get_binding('cfname'))
             self.describe_columnfamily(ks, cf)
+        elif what == 'index':
+            ks = self.cql_unprotect_name(parsed.get_binding('ksname', None))
+            idx = self.cql_unprotect_name(parsed.get_binding('idxname', None))
+            self.describe_index(ks, idx)
         elif what in ('columnfamilies', 'tables'):
             self.describe_columnfamilies(self.current_keyspace)
         elif what == 'types':
@@ -1535,6 +1617,12 @@ class Shell(cmd.Cmd):
             self.describe_schema(False)
         elif what == 'full' and parsed.matched[2][1].lower() == 'schema':
             self.describe_schema(True)
+        elif what:
+            ks = self.cql_unprotect_name(parsed.get_binding('ksname', None))
+            name = self.cql_unprotect_name(parsed.get_binding('cfname'))
+            if not name:
+                name = self.cql_unprotect_name(parsed.get_binding('idxname', None))
+            self.describe_object(ks, name)
     do_desc = do_describe
 
     def do_copy(self, parsed):
