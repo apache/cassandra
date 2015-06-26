@@ -1,12 +1,16 @@
-2.1.7
+2.1.8
  * Allow JMX over SSL directly from nodetool (CASSANDRA-9090)
  * Fix incorrect result for IN queries where column not found (CASSANDRA-9540)
  * Enable describe on indices (CASSANDRA-7814)
  * ColumnFamilyStore.selectAndReference may block during compaction (CASSANDRA-9637)
+Merged from 2.0
+  * 'WITH WITH' in alter keyspace statements causes NPE (CASSANDRA-9565)
+
+
+2.1.7
  * Fix bug in cardinality check when compacting (CASSANDRA-9580)
  * Fix memory leak in Ref due to ConcurrentLinkedQueue.remove() behaviour (CASSANDRA-9549)
 Merged from 2.0
- * 'WITH WITH' in alter keyspace statements causes NPE (CASSANDRA-9565)
  * Expose some internals of SelectStatement for inspection (CASSANDRA-9532)
  * ArrivalWindow should use primitives (CASSANDRA-9496)
  * Periodically submit background compaction tasks (CASSANDRA-9592)
