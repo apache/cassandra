@@ -85,8 +85,12 @@ public class CreateIndexStatement extends SchemaAlteringStatement
         properties.validate();
 
         // TODO: we could lift that limitation
-        if ((cfm.getCfDef().isCompact || !cfm.getCfDef().isComposite) && cd.type != ColumnDefinition.Type.REGULAR)
+        if ((cfm.getCfDef().isCompact || !cfm.getCfDef().isComposite)
+                && (cd.type == ColumnDefinition.Type.PARTITION_KEY || cd.type == ColumnDefinition.Type.CLUSTERING_KEY))
             throw new InvalidRequestException("Secondary indexes are not supported on PRIMARY KEY columns in COMPACT STORAGE tables");
+
+        if (cd.type == ColumnDefinition.Type.COMPACT_VALUE)
+            throw new InvalidRequestException("Secondary indexes are not supported on COMPACT STORAGE tables that have clustering columns");
 
         // It would be possible to support 2ndary index on static columns (but not without modifications of at least ExtendedFilter and
         // CompositesIndex) and maybe we should, but that means a query like:
