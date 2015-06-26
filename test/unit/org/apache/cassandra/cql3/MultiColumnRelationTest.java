@@ -1368,38 +1368,68 @@ public class MultiColumnRelationTest
         checkRow(1, results, 0, 1, 1, 0, 1);
         checkRow(2, results, 0, 1, 1, 1, 2);
 
-        results = execute("SELECT * FROM %s.multiple_clustering_with_indices  WHERE (b, c) = (1, 1) ALLOW FILTERING");
+        results = execute("SELECT * FROM %s.multiple_clustering_with_indices WHERE (b, c) = (1, 1) ALLOW FILTERING");
         assertEquals(2, results.size());
         checkRow(0, results, 0, 1, 1, 0, 1);
         checkRow(1, results, 0, 1, 1, 1, 2);
 
-        results = execute("SELECT * FROM %s.multiple_clustering_with_indices  WHERE (b, c) = (1, 1) AND e = 2 ALLOW FILTERING");
+        results = execute("SELECT * FROM %s.multiple_clustering_with_indices WHERE a = 0 AND (b, c) = (1, 1) AND e = 2");
         assertEquals(1, results.size());
         checkRow(0, results, 0, 1, 1, 1, 2);
 
-        results = execute("SELECT * FROM %s.multiple_clustering_with_indices  WHERE (b) IN ((1)) AND e = 2 ALLOW FILTERING");
+        results = execute("SELECT * FROM %s.multiple_clustering_with_indices WHERE (b, c) = (1, 1) AND e = 2 ALLOW FILTERING");
         assertEquals(1, results.size());
         checkRow(0, results, 0, 1, 1, 1, 2);
 
-        results = execute("SELECT * FROM %s.multiple_clustering_with_indices  WHERE (b) IN ((0), (1)) AND e = 2 ALLOW FILTERING");
+        results = execute("SELECT * FROM %s.multiple_clustering_with_indices WHERE a = 0 AND (b) IN ((1)) AND e = 2");
+        assertEquals(1, results.size());
+        checkRow(0, results, 0, 1, 1, 1, 2);
+
+        results = execute("SELECT * FROM %s.multiple_clustering_with_indices WHERE (b) IN ((1)) AND e = 2 ALLOW FILTERING");
+        assertEquals(1, results.size());
+        checkRow(0, results, 0, 1, 1, 1, 2);
+
+        results = execute("SELECT * FROM %s.multiple_clustering_with_indices WHERE a = 0 AND (b) IN ((0), (1)) AND e = 2");
         assertEquals(2, results.size());
         checkRow(0, results, 0, 0, 1, 1, 2);
         checkRow(1, results, 0, 1, 1, 1, 2);
 
-        results = execute("SELECT * FROM %s.multiple_clustering_with_indices  WHERE (b, c) IN ((0, 1)) AND e = 2 ALLOW FILTERING");
-        assertEquals(1, results.size());
-        checkRow(0, results, 0, 0, 1, 1, 2);
-
-        results = execute("SELECT * FROM %s.multiple_clustering_with_indices  WHERE (b, c) IN ((0, 1), (1, 1)) AND e = 2 ALLOW FILTERING");
+        results = execute("SELECT * FROM %s.multiple_clustering_with_indices WHERE (b) IN ((0), (1)) AND e = 2 ALLOW FILTERING");
         assertEquals(2, results.size());
         checkRow(0, results, 0, 0, 1, 1, 2);
         checkRow(1, results, 0, 1, 1, 1, 2);
 
-        results = execute("SELECT * FROM %s.multiple_clustering_with_indices  WHERE (b) >= (1) AND e = 2 ALLOW FILTERING");
+        results = execute("SELECT * FROM %s.multiple_clustering_with_indices WHERE a = 0 AND (b, c) IN ((0, 1)) AND e = 2");
+        assertEquals(1, results.size());
+        checkRow(0, results, 0, 0, 1, 1, 2);
+
+        results = execute("SELECT * FROM %s.multiple_clustering_with_indices WHERE (b, c) IN ((0, 1)) AND e = 2 ALLOW FILTERING");
+        assertEquals(1, results.size());
+        checkRow(0, results, 0, 0, 1, 1, 2);
+
+        results = execute("SELECT * FROM %s.multiple_clustering_with_indices WHERE a = 0 AND (b, c) IN ((0, 1), (1, 1)) AND e = 2");
+        assertEquals(2, results.size());
+        checkRow(0, results, 0, 0, 1, 1, 2);
+        checkRow(1, results, 0, 1, 1, 1, 2);
+
+        results = execute("SELECT * FROM %s.multiple_clustering_with_indices WHERE (b, c) IN ((0, 1), (1, 1)) AND e = 2 ALLOW FILTERING");
+        assertEquals(2, results.size());
+        checkRow(0, results, 0, 0, 1, 1, 2);
+        checkRow(1, results, 0, 1, 1, 1, 2);
+
+        results = execute("SELECT * FROM %s.multiple_clustering_with_indices WHERE a = 0 AND (b) >= (1) AND e = 2");
         assertEquals(1, results.size());
         checkRow(0, results, 0, 1, 1, 1, 2);
 
-        results = execute("SELECT * FROM %s.multiple_clustering_with_indices  WHERE (b, c) >= (1, 1) AND e = 2 ALLOW FILTERING");
+        results = execute("SELECT * FROM %s.multiple_clustering_with_indices WHERE (b) >= (1) AND e = 2 ALLOW FILTERING");
+        assertEquals(1, results.size());
+        checkRow(0, results, 0, 1, 1, 1, 2);
+
+        results = execute("SELECT * FROM %s.multiple_clustering_with_indices WHERE a = 0 AND (b, c) >= (1, 1) AND e = 2");
+        assertEquals(1, results.size());
+        checkRow(0, results, 0, 1, 1, 1, 2);
+
+        results = execute("SELECT * FROM %s.multiple_clustering_with_indices WHERE (b, c) >= (1, 1) AND e = 2 ALLOW FILTERING");
         assertEquals(1, results.size());
         checkRow(0, results, 0, 1, 1, 1, 2);
     }
@@ -1428,20 +1458,43 @@ public class MultiColumnRelationTest
         checkRow(0, results, 0, 0, 1, 1, 0, 4);
         checkRow(1, results, 0, 0, 1, 1, 1, 5);
 
+        results = execute("SELECT * FROM %s.partition_with_indices WHERE a = 0 AND b = 0 AND (c) IN ((1)) AND f = 5");
+        assertEquals(1, results.size());
+        checkRow(0, results, 0, 0, 1, 1, 1, 5);
+
         results = execute("SELECT * FROM %s.partition_with_indices WHERE a = 0  AND (c) IN ((1)) AND f = 5 ALLOW FILTERING");
         assertEquals(1, results.size());
         checkRow(0, results, 0, 0, 1, 1, 1, 5);
+
+        results = execute("SELECT * FROM %s.partition_with_indices WHERE a = 0 AND b = 0 AND (c) IN ((1), (2)) AND f = 5");
+        assertEquals(2, results.size());
+        checkRow(0, results, 0, 0, 1, 1, 1, 5);
+        checkRow(1, results, 0, 0, 2, 0, 0, 5);
 
         results = execute("SELECT * FROM %s.partition_with_indices WHERE a = 0 AND (c) IN ((1), (2)) AND f = 5 ALLOW FILTERING");
         assertEquals(2, results.size());
         checkRow(0, results, 0, 0, 1, 1, 1, 5);
         checkRow(1, results, 0, 0, 2, 0, 0, 5);
 
+        results = execute("SELECT * FROM %s.partition_with_indices WHERE a = 0 AND b = 0 AND (c, d) IN ((1, 0)) AND f = 3");
+        assertEquals(1, results.size());
+        checkRow(0, results, 0, 0, 1, 0, 0, 3);
+
         results = execute("SELECT * FROM %s.partition_with_indices WHERE a = 0  AND (c, d) IN ((1, 0)) AND f = 3 ALLOW FILTERING");
         assertEquals(1, results.size());
         checkRow(0, results, 0, 0, 1, 0, 0, 3);
 
+        results = execute("SELECT * FROM %s.partition_with_indices WHERE a = 0 AND b = 0 AND (c) >= (1) AND f = 5");
+        assertEquals(2, results.size());
+        checkRow(0, results, 0, 0, 1, 1, 1, 5);
+        checkRow(1, results, 0, 0, 2, 0, 0, 5);
+
         results = execute("SELECT * FROM %s.partition_with_indices WHERE a = 0 AND (c) >= (1) AND f = 5 ALLOW FILTERING");
+        assertEquals(2, results.size());
+        checkRow(0, results, 0, 0, 1, 1, 1, 5);
+        checkRow(1, results, 0, 0, 2, 0, 0, 5);
+
+        results = execute("SELECT * FROM %s.partition_with_indices WHERE a = 0 AND b = 0 AND (c, d) >= (1, 1) AND f = 5");
         assertEquals(2, results.size());
         checkRow(0, results, 0, 0, 1, 1, 1, 5);
         checkRow(1, results, 0, 0, 2, 0, 0, 5);

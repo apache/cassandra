@@ -1,4 +1,6 @@
 2.0.17
+ * Fix suboptimal secondary index selection when restricted
+   clustering column is also indexed (CASSANDRA-9631)
  * (cqlsh) Add min_threshold to DTCS option autocomplete (CASSANDRA-9385)
  * Fix error message when attempting to create an index on a column
    in a COMPACT STORAGE table with clustering columns (CASSANDRA-9527)

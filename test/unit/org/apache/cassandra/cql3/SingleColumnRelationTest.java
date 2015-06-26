@@ -96,16 +96,32 @@ public class SingleColumnRelationTest
 
         execute("INSERT INTO %s.partition_with_indices (a, b, c, d, e, f) VALUES (0, 0, 2, 0, 0, 5)");
 
-        UntypedResultSet results = execute("SELECT * FROM %s.partition_with_indices WHERE a = 0 AND c = 1 ALLOW FILTERING");
+        UntypedResultSet results = execute("SELECT * FROM %s.partition_with_indices WHERE a = 0 AND b = 0 AND c = 1");
         assertEquals(3, results.size());
         checkRow(0, results, 0, 0, 1, 0, 0, 3);
         checkRow(1, results, 0, 0, 1, 1, 0, 4);
         checkRow(2, results, 0, 0, 1, 1, 1, 5);
 
+        results = execute("SELECT * FROM %s.partition_with_indices WHERE a = 0 AND c = 1 ALLOW FILTERING");
+        assertEquals(3, results.size());
+        checkRow(0, results, 0, 0, 1, 0, 0, 3);
+        checkRow(1, results, 0, 0, 1, 1, 0, 4);
+        checkRow(2, results, 0, 0, 1, 1, 1, 5);
+
+        results = execute("SELECT * FROM %s.partition_with_indices WHERE a = 0 AND b = 0 AND c = 1 AND d = 1");
+        assertEquals(2, results.size());
+        checkRow(0, results, 0, 0, 1, 1, 0, 4);
+        checkRow(1, results, 0, 0, 1, 1, 1, 5);
+
         results = execute("SELECT * FROM %s.partition_with_indices WHERE a = 0 AND c = 1 AND d = 1 ALLOW FILTERING");
         assertEquals(2, results.size());
         checkRow(0, results, 0, 0, 1, 1, 0, 4);
         checkRow(1, results, 0, 0, 1, 1, 1, 5);
+
+        results = execute("SELECT * FROM %s.partition_with_indices WHERE a = 0 AND b = 0 AND c >= 1 AND f = 5");
+        assertEquals(2, results.size());
+        checkRow(0, results, 0, 0, 1, 1, 1, 5);
+        checkRow(1, results, 0, 0, 2, 0, 0, 5);
 
         results = execute("SELECT * FROM %s.partition_with_indices WHERE a = 0 AND c >= 1 AND f = 5 ALLOW FILTERING");
         assertEquals(2, results.size());

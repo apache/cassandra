@@ -1606,7 +1606,7 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
                 Boolean indexed = stmt.restrictedNames.get(clusteringColumn);
                 if (indexed == null)
                     break;
-                if (!indexed)
+                if (!indexed || !stmt.usesSecondaryIndexing)
                     stmt.restrictedNames.remove(clusteringColumn);
             }
 
