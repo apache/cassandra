@@ -1,4 +1,6 @@
 2.1.8
+ * Fix IndexOutOfBoundsException when inserting tuple with too many
+   elements using the string literal notation (CASSANDRA-9559)
  * Allow JMX over SSL directly from nodetool (CASSANDRA-9090)
  * Fix incorrect result for IN queries where column not found (CASSANDRA-9540)
  * Enable describe on indices (CASSANDRA-7814)
