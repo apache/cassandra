@@ -103,4 +103,9 @@ public class SafeMemory extends Memory implements SharedCloseable
         assert peer != 0 || size == 0 : ref.printDebugInfo();
         super.checkBounds(start, end);
     }
+
+    public void addTo(Ref.IdentityCollection identities)
+    {
+        identities.add(ref);
+    }
 }

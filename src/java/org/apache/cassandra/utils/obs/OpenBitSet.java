@@ -23,6 +23,7 @@ import java.io.DataOutput;
 import java.io.IOException;
 
 import org.apache.cassandra.db.TypeSizes;
+import org.apache.cassandra.utils.concurrent.Ref;
 
 /**
  * <p>
@@ -115,7 +116,11 @@ public class OpenBitSet implements IBitSet
       return 0;
   }
 
- /**
+    public void addTo(Ref.IdentityCollection identities)
+    {
+    }
+
+    /**
   * Returns the current capacity of this set.  Included for
   * compatibility.  This is *not* equal to {@link #cardinality}
   */

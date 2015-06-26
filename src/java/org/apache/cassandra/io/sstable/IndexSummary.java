@@ -30,6 +30,7 @@ import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.io.util.*;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.concurrent.Ref;
 import org.apache.cassandra.utils.concurrent.WrappedSharedCloseable;
 import org.apache.cassandra.utils.memory.MemoryUtil;
 
@@ -159,6 +160,13 @@ public class IndexSummary extends WrappedSharedCloseable
         long start = getPositionInSummary(index);
         int keySize = (int) (calculateEnd(index) - start - 8L);
         entries.setByteBuffer(buffer, start, keySize);
+    }
+
+    public void addTo(Ref.IdentityCollection identities)
+    {
+        super.addTo(identities);
+        identities.add(offsets);
+        identities.add(entries);
     }
 
     public long getPosition(int index)

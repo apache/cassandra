@@ -23,6 +23,7 @@ import java.io.IOException;
 
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.util.Memory;
+import org.apache.cassandra.utils.concurrent.Ref;
 
 /**
  * Off-heap bitset,
@@ -65,6 +66,11 @@ public class OffHeapBitSet implements IBitSet
     public long offHeapSize()
     {
         return bytes.size();
+    }
+
+    public void addTo(Ref.IdentityCollection identities)
+    {
+        identities.add(bytes);
     }
 
     public boolean get(long index)

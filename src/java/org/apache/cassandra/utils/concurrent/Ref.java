@@ -2,17 +2,27 @@ package org.apache.cassandra.utils.concurrent;
 
 import java.lang.ref.PhantomReference;
 import java.lang.ref.ReferenceQueue;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.Set;
+import java.lang.reflect.Field;
+import java.lang.reflect.Modifier;
+import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
 
+import com.google.common.collect.Iterables;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.concurrent.NamedThreadFactory;
+import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.db.lifecycle.View;
+import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.io.util.Memory;
+import org.apache.cassandra.io.util.SafeMemory;
+import org.apache.cassandra.utils.NoSpamLogger;
+
+import static java.util.Collections.emptyList;
 
 import static org.apache.cassandra.utils.Throwables.maybeFail;
 import static org.apache.cassandra.utils.Throwables.merge;
@@ -236,7 +246,7 @@ public final class Ref<T> implements RefCounted<T>
 
     // the object that manages the actual cleaning up; this does not reference the target object
     // so that we can detect when references are lost to the resource itself, and still cleanup afterwards
-    // the Tidy object MUST not contain any references to the object we are managing
+    // the Tidy object MUST NOT contain any references to the object we are managing
     static final class GlobalState
     {
         // we need to retain a reference to each of the PhantomReference instances
@@ -304,34 +314,194 @@ public final class Ref<T> implements RefCounted<T>
         }
     }
 
-    private static final Set<GlobalState> globallyExtant = Collections.newSetFromMap(new ConcurrentHashMap<GlobalState, Boolean>());
+    private static final Set<GlobalState> globallyExtant = Collections.newSetFromMap(new ConcurrentHashMap<>());
     static final ReferenceQueue<Object> referenceQueue = new ReferenceQueue<>();
     private static final ExecutorService EXEC = Executors.newFixedThreadPool(1, new NamedThreadFactory("Reference-Reaper"));
+    private static final ScheduledExecutorService STRONG_LEAK_DETECTOR = !DEBUG_ENABLED ? null : Executors.newScheduledThreadPool(0, new NamedThreadFactory("Strong-Reference-Leak-Detector"));
     static
     {
-        EXEC.execute(new Runnable()
+        EXEC.execute(new ReferenceReaper());
+        if (DEBUG_ENABLED)
         {
-            public void run()
+            STRONG_LEAK_DETECTOR.scheduleAtFixedRate(new Visitor(), 1, 15, TimeUnit.MINUTES);
+            STRONG_LEAK_DETECTOR.scheduleAtFixedRate(new StrongLeakDetector(), 2, 15, TimeUnit.MINUTES);
+        }
+    }
+
+    static final class ReferenceReaper implements Runnable
+    {
+        public void run()
+        {
+            try
             {
-                try
+                while (true)
                 {
-                    while (true)
+                    Object obj = referenceQueue.remove();
+                    if (obj instanceof Ref.State)
                     {
-                        Object obj = referenceQueue.remove();
-                        if (obj instanceof Ref.State)
-                        {
-                            ((Ref.State) obj).release(true);
-                        }
+                        ((Ref.State) obj).release(true);
                     }
                 }
-                catch (InterruptedException e)
+            }
+            catch (InterruptedException e)
+            {
+            }
+            finally
+            {
+                EXEC.execute(this);
+            }
+        }
+    }
+
+    static class Visitor implements Runnable
+    {
+        final Stack<Field> path = new Stack<>();
+        final Set<Object> visited = Collections.newSetFromMap(new IdentityHashMap<>());
+        GlobalState visiting;
+
+        public void run()
+        {
+            try
+            {
+                for (GlobalState globalState : globallyExtant)
                 {
-                }
-                finally
-                {
-                    EXEC.execute(this);
+                    if (globalState.tidy == null)
+                        continue;
+
+                    // do a graph exploration of the GlobalState, since it should be shallow; if it references itself, we have a problem
+                    path.clear();
+                    visited.clear();
+                    visited.add(globalState);
+                    visiting = globalState;
+                    visit(globalState.tidy);
                 }
             }
-        });
+            catch (Throwable t)
+            {
+                t.printStackTrace();
+            }
+            finally
+            {
+                path.clear();
+                visited.clear();
+            }
+        }
+
+        void visit(final Object object)
+        {
+            for (Field field : getFields(object.getClass()))
+            {
+                path.push(field);
+                try
+                {
+                    Object child = field.get(object);
+                    if (child != null && visited.add(child))
+                    {
+                        visit(child);
+                    }
+                    else if (visiting == child)
+                    {
+                        logger.error("Strong self-ref loop detected {}", path);
+                    }
+                }
+                catch (IllegalAccessException e)
+                {
+                    NoSpamLogger.log(logger, NoSpamLogger.Level.ERROR, 5, TimeUnit.MINUTES, "Could not fully check for self-referential leaks", e);
+                }
+                catch (StackOverflowError e)
+                {
+                    logger.error("Stackoverflow {}", path);
+                }
+                path.pop();
+            }
+        }
+    }
+
+    static final Map<Class<?>, List<Field>> fieldMap = new HashMap<>();
+    static List<Field> getFields(Class<?> clazz)
+    {
+        if (clazz == null || clazz == PhantomReference.class || clazz == Class.class || java.lang.reflect.Member.class.isAssignableFrom(clazz))
+            return emptyList();
+        List<Field> fields = fieldMap.get(clazz);
+        if (fields != null)
+            return fields;
+        fieldMap.put(clazz, fields = new ArrayList<>());
+        for (Field field : clazz.getDeclaredFields())
+        {
+            if (field.getType().isPrimitive() || Modifier.isStatic(field.getModifiers()))
+                continue;
+            field.setAccessible(true);
+            fields.add(field);
+        }
+        fields.addAll(getFields(clazz.getSuperclass()));
+        return fields;
+    }
+
+    public static class IdentityCollection
+    {
+        final Set<Tidy> candidates;
+        public IdentityCollection(Set<Tidy> candidates)
+        {
+            this.candidates = candidates;
+        }
+
+        public void add(Ref<?> ref)
+        {
+            candidates.remove(ref.state.globalState.tidy);
+        }
+        public void add(SelfRefCounted<?> ref)
+        {
+            add(ref.selfRef());
+        }
+        public void add(SharedCloseable ref)
+        {
+            if (ref instanceof SharedCloseableImpl)
+                add((SharedCloseableImpl)ref);
+        }
+        public void add(SharedCloseableImpl ref)
+        {
+            add(ref.ref);
+        }
+        public void add(Memory memory)
+        {
+            if (memory instanceof SafeMemory)
+                ((SafeMemory) memory).addTo(this);
+        }
+    }
+
+    private static class StrongLeakDetector implements Runnable
+    {
+        Set<Tidy> candidates = new HashSet<>();
+
+        public void run()
+        {
+            final Set<Tidy> candidates = Collections.newSetFromMap(new IdentityHashMap<>());
+            for (GlobalState state : globallyExtant)
+                candidates.add(state.tidy);
+            removeExpected(candidates);
+            this.candidates.retainAll(candidates);
+            if (!this.candidates.isEmpty())
+            {
+                List<String> names = new ArrayList<>();
+                for (Tidy tidy : this.candidates)
+                    names.add(tidy.name());
+                logger.warn("Strong reference leak candidates detected: {}", names);
+            }
+            this.candidates = candidates;
+        }
+
+        private void removeExpected(Set<Tidy> candidates)
+        {
+            final Ref.IdentityCollection expected = new Ref.IdentityCollection(candidates);
+            for (Keyspace ks : Keyspace.all())
+            {
+                for (ColumnFamilyStore cfs : ks.getColumnFamilyStores())
+                {
+                    View view = cfs.getTracker().getView();
+                    for (SSTableReader reader : Iterables.concat(view.sstables, view.compacting))
+                        reader.addTo(expected);
+                }
+            }
+        }
     }
 }

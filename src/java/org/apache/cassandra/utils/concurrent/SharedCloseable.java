@@ -33,4 +33,5 @@ public interface SharedCloseable extends AutoCloseable
     public SharedCloseable sharedCopy();
     public Throwable close(Throwable accumulate);
 
+    public void addTo(Ref.IdentityCollection identities);
 }

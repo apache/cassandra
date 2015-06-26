@@ -54,6 +54,7 @@ import org.apache.cassandra.io.util.Memory;
 import org.apache.cassandra.io.util.SafeMemory;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.concurrent.Transactional;
+import org.apache.cassandra.utils.concurrent.Ref;
 
 /**
  * Holds metadata about compressed file
@@ -156,6 +157,11 @@ public class CompressionMetadata
     public long offHeapSize()
     {
         return chunkOffsets.size();
+    }
+
+    public void addTo(Ref.IdentityCollection identities)
+    {
+        identities.add(chunkOffsets);
     }
 
     /**

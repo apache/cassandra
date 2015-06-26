@@ -17,6 +17,8 @@
  */
 package org.apache.cassandra.utils;
 
+import org.apache.cassandra.utils.concurrent.Ref;
+
 public class AlwaysPresentFilter implements IFilter
 {
     public boolean isPresent(FilterKey key)
@@ -38,6 +40,10 @@ public class AlwaysPresentFilter implements IFilter
     public Throwable close(Throwable accumulate)
     {
         return accumulate;
+    }
+
+    public void addTo(Ref.IdentityCollection identities)
+    {
     }
 
     public long serializedSize() { return 0; }

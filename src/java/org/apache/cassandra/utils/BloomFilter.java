@@ -19,6 +19,7 @@ package org.apache.cassandra.utils;
 
 import com.google.common.annotations.VisibleForTesting;
 
+import org.apache.cassandra.utils.concurrent.Ref;
 import org.apache.cassandra.utils.concurrent.WrappedSharedCloseable;
 import org.apache.cassandra.utils.obs.IBitSet;
 
@@ -150,5 +151,11 @@ public class BloomFilter extends WrappedSharedCloseable implements IFilter
     public String toString()
     {
         return "BloomFilter[hashCount=" + hashCount + ";oldBfHashOrder=" + oldBfHashOrder + ";capacity=" + bitset.capacity() + ']';
+    }
+
+    public void addTo(Ref.IdentityCollection identities)
+    {
+        super.addTo(identities);
+        bitset.addTo(identities);
     }
 }

@@ -2072,19 +2072,25 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
         this.readMeter = tidy.global.readMeter = readMeter;
     }
 
+    public void addTo(Ref.IdentityCollection identities)
+    {
+        identities.add(this);
+        identities.add(tidy.globalRef);
+        dfile.addTo(identities);
+        ifile.addTo(identities);
+        bf.addTo(identities);
+        indexSummary.addTo(identities);
+
+    }
+
     /**
-     * One instance per SSTableReader we create. This references the type-shared tidy, which in turn references
-     * the globally shared tidy, i.e.
+     * One instance per SSTableReader we create.
      *
-     * InstanceTidier => DescriptorTypeTitdy => GlobalTidy
-     *
-     * We can create many InstanceTidiers (one for every time we reopen an sstable with MOVED_START for example), but there can only be
-     * one GlobalTidy for one single logical sstable.
+     * We can create many InstanceTidiers (one for every time we reopen an sstable with MOVED_START for example),
+     * but there can only be one GlobalTidy for one single logical sstable.
      *
      * When the InstanceTidier cleansup, it releases its reference to its GlobalTidy; when all InstanceTidiers
      * for that type have run, the GlobalTidy cleans up.
-     *
-     * For ease, we stash a direct reference to our global tidier
      */
     private static final class InstanceTidier implements Tidy
     {
