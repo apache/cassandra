@@ -19,7 +19,7 @@ from __future__ import with_statement
 import contextlib
 import tempfile
 import os.path
-from .basecase import cql, cqlsh, cqlshlog, TEST_HOST, TEST_PORT, rundir
+from .basecase import cql, cqlsh, cqlshlog, TEST_HOST, TEST_PORT, rundir, policy
 from .run_cqlsh import run_cqlsh, call_cqlsh
 
 test_keyspace_init = os.path.join(rundir, 'test_keyspace_init.cql')
@@ -27,7 +27,7 @@ test_keyspace_init = os.path.join(rundir, 'test_keyspace_init.cql')
 def get_cassandra_connection(cql_version=cqlsh.DEFAULT_CQLVER):
     if cql_version is None:
         cql_version = cqlsh.DEFAULT_CQLVER
-    conn = cql((TEST_HOST,), TEST_PORT, cql_version=cql_version)
+    conn = cql((TEST_HOST,), TEST_PORT, cql_version=cql_version, load_balancing_policy=policy)
     # until the cql lib does this for us
     conn.cql_version = cql_version
     return conn

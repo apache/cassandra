@@ -38,6 +38,7 @@ Merged from 2.1:
  * Fix memory leak in Ref due to ConcurrentLinkedQueue.remove() behaviour (CASSANDRA-9549)
  * Make rebuild only run one at a time (CASSANDRA-9119)
 Merged from 2.0
+ * (cqlsh) Add min_threshold to DTCS option autocomplete (CASSANDRA-9385)
  * Fix error message when attempting to create an index on a column
    in a COMPACT STORAGE table with clustering columns (CASSANDRA-9527)
  * 'WITH WITH' in alter keyspace statements causes NPE (CASSANDRA-9565)

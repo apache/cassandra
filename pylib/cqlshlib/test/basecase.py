@@ -45,6 +45,7 @@ os.symlink(path_to_cqlsh, modulepath)
 sys.path.append(rundir)
 import cqlsh
 cql = cqlsh.cassandra.cluster.Cluster
+policy = cqlsh.cassandra.policies.RoundRobinPolicy()
 
 TEST_HOST = os.environ.get('CQL_TEST_HOST', '127.0.0.1')
 TEST_PORT = int(os.environ.get('CQL_TEST_PORT', 9042))
