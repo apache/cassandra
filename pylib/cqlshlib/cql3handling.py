@@ -482,6 +482,7 @@ def cf_prop_val_mapkey_completer(ctxt, cass):
             opts.add('base_time_seconds')
             opts.add('max_sstable_age_days')
             opts.add('timestamp_resolution')
+            opts.add('min_threshold')
         return map(escape_value, opts)
     return ()
 
