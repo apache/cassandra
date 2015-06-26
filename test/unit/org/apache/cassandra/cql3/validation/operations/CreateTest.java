@@ -462,6 +462,38 @@ public class CreateTest extends CQLTester
     }
 
     @Test
+    public void testCreateIndexOnCompactTableWithClusteringColumns() throws Throwable
+    {
+        createTable("CREATE TABLE %s (a int, b int , c int, PRIMARY KEY (a, b)) WITH COMPACT STORAGE;");
+
+        assertInvalidMessage("Secondary indexes are not supported on PRIMARY KEY columns in COMPACT STORAGE tables",
+                             "CREATE INDEX ON %s (a);");
+
+        assertInvalidMessage("Secondary indexes are not supported on PRIMARY KEY columns in COMPACT STORAGE tables",
+                             "CREATE INDEX ON %s (b);");
+
+        assertInvalidMessage("Secondary indexes are not supported on COMPACT STORAGE tables that have clustering columns",
+                             "CREATE INDEX ON %s (c);");
+    }
+
+    @Test
+    public void testCreateIndexOnCompactTableWithoutClusteringColumns() throws Throwable
+    {
+        createTable("CREATE TABLE %s (a int PRIMARY KEY, b int) WITH COMPACT STORAGE;");
+
+        assertInvalidMessage("Secondary indexes are not supported on PRIMARY KEY columns in COMPACT STORAGE tables",
+                             "CREATE INDEX ON %s (a);");
+
+        createIndex("CREATE INDEX ON %s (b);");
+
+        execute("INSERT INTO %s (a, b) values (1, 1)");
+        execute("INSERT INTO %s (a, b) values (2, 4)");
+        execute("INSERT INTO %s (a, b) values (3, 6)");
+
+        assertRows(execute("SELECT * FROM %s WHERE b = ?", 4), row(2, 4));
+    }
+
+    @Test
     // tests CASSANDRA-9565
     public void testDoubleWith() throws Throwable
     {
