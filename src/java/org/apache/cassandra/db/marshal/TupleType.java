@@ -29,7 +29,6 @@ import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.SyntaxException;
 import org.apache.cassandra.serializers.*;
-import org.apache.cassandra.transport.Server;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 /**
@@ -213,6 +212,11 @@ public class TupleType extends AbstractType<ByteBuffer>
     {
         // Split the input on non-escaped ':' characters
         List<String> fieldStrings = AbstractCompositeType.split(source);
+
+        if (fieldStrings.size() > size())
+            throw new MarshalException(String.format("Invalid tuple literal: too many elements. Type %s expects %d but got %d",
+                                                     asCQL3Type(), size(), fieldStrings.size()));
+
         ByteBuffer[] fields = new ByteBuffer[fieldStrings.size()];
         for (int i = 0; i < fieldStrings.size(); i++)
         {

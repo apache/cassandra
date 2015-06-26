@@ -92,12 +92,37 @@ public class TupleTypeTest extends CQLTester
     }
 
     @Test
+    public void testTupleFromString() throws Throwable
+    {
+        createTable("CREATE TABLE %s (k int, c int, t frozen<tuple<int, text>>, PRIMARY KEY (k, c))");
+
+        execute("INSERT INTO %s (k, c, t) VALUES (0, 0, '0:0')");
+        execute("INSERT INTO %s (k, c, t) VALUES (0, 1, '0:1')");
+        execute("INSERT INTO %s (k, c, t) VALUES (0, 2, '1')");
+        execute("INSERT INTO %s (k, c, t) VALUES (0, 3, '1:1\\:1')");
+        execute("INSERT INTO %s (k, c, t) VALUES (0, 4, '@:1')");
+
+        assertAllRows(
+            row(0, 0, tuple(0, "0")),
+            row(0, 1, tuple(0, "1")),
+            row(0, 2, tuple(1)),
+            row(0, 3, tuple(1, "1:1")),
+            row(0, 4, tuple(null, "1"))
+        );
+
+        assertInvalidMessage("Invalid tuple literal: too many elements. Type tuple<int, text> expects 2 but got 3",
+                             "INSERT INTO %s(k, t) VALUES (1,'1:2:3')");
+    }
+
+    @Test
     public void testInvalidQueries() throws Throwable
     {
         createTable("CREATE TABLE %s (k int PRIMARY KEY, t frozen<tuple<int, text, double>>)");
 
         assertInvalidSyntax("INSERT INTO %s (k, t) VALUES (0, ())");
-        assertInvalid("INSERT INTO %s (k, t) VALUES (0, (2, 'foo', 3.1, 'bar'))");
+
+        assertInvalidMessage("Invalid tuple literal for t: too many elements. Type tuple<int, text, double> expects 3 but got 4",
+                             "INSERT INTO %s (k, t) VALUES (0, (2, 'foo', 3.1, 'bar'))");
     }
 
     @Test
