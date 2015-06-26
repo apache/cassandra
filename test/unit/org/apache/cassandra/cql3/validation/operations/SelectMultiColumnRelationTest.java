@@ -730,16 +730,25 @@ public class SelectMultiColumnRelationTest extends CQLTester
         execute("INSERT INTO %s (a, b, c, d, e) VALUES (?, ?, ?, ?, ?)", 0, 1, 1, 0, 1);
         execute("INSERT INTO %s (a, b, c, d, e) VALUES (?, ?, ?, ?, ?)", 0, 1, 1, 1, 2);
         execute("INSERT INTO %s (a, b, c, d, e) VALUES (?, ?, ?, ?, ?)", 0, 2, 0, 0, 0);
+        assertRows(execute("SELECT * FROM %s WHERE a= ? AND (b) = (?)", 0, 1),
+                   row(0, 1, 0, 0, 0),
+                   row(0, 1, 1, 0, 1),
+                   row(0, 1, 1, 1, 2));
         assertRows(execute("SELECT * FROM %s WHERE (b) = (?)", 1),
                    row(0, 1, 0, 0, 0),
+                   row(0, 1, 1, 0, 1),
+                   row(0, 1, 1, 1, 2));
+        assertRows(execute("SELECT * FROM %s WHERE a = ? AND (b, c) = (?, ?)", 0, 1, 1),
                    row(0, 1, 1, 0, 1),
                    row(0, 1, 1, 1, 2));
         assertRows(execute("SELECT * FROM %s WHERE (b, c) = (?, ?) ALLOW FILTERING", 1, 1),
                    row(0, 1, 1, 0, 1),
                    row(0, 1, 1, 1, 2));
+        assertRows(execute("SELECT * FROM %s WHERE a = ? AND (b, c) = (?, ?) AND e = ?", 0, 1, 1, 2),
+                   row(0, 1, 1, 1, 2));
         assertRows(execute("SELECT * FROM %s WHERE (b, c) = (?, ?) AND e = ? ALLOW FILTERING", 1, 1, 2),
                    row(0, 1, 1, 1, 2));
-        assertRows(execute("SELECT * FROM %s WHERE (b) IN ((?)) AND e = ?", 1, 2),
+        assertRows(execute("SELECT * FROM %s WHERE (b) IN ((?)) AND e = ? ", 1, 2),
                    row(0, 1, 1, 1, 2));
 
         assertRows(execute("SELECT * FROM %s WHERE (b) IN ((?), (?)) AND e = ?", 0, 1, 2),
@@ -758,6 +767,7 @@ public class SelectMultiColumnRelationTest extends CQLTester
 
         assertRows(execute("SELECT * FROM %s WHERE (b, c) >= (?, ?) AND e = ?", 1, 1, 2),
                    row(0, 1, 1, 1, 2));
+
     }
 
     @Test
@@ -792,17 +802,35 @@ public class SelectMultiColumnRelationTest extends CQLTester
         assertInvalidMessage("Partition key part b must be restricted since preceding part is",
                              "SELECT * FROM %s WHERE a = ? AND (c, d) >= (?, ?) ALLOW FILTERING", 0, 1, 1);
 
+        assertRows(execute("SELECT * FROM %s WHERE a = ? AND b = ? AND (c) IN ((?)) AND f = ?", 0, 0, 1, 5),
+                   row(0, 0, 1, 1, 1, 5));
+
         assertRows(execute("SELECT * FROM %s WHERE a = ? AND (c) IN ((?)) AND f = ? ALLOW FILTERING", 0, 1, 5),
                    row(0, 0, 1, 1, 1, 5));
+
+        assertRows(execute("SELECT * FROM %s WHERE a = ? AND b = ? AND (c) IN ((?), (?)) AND f = ?", 0, 0, 1, 2, 5),
+                   row(0, 0, 1, 1, 1, 5),
+                   row(0, 0, 2, 0, 0, 5));
 
         assertRows(execute("SELECT * FROM %s WHERE a = ? AND (c) IN ((?), (?)) AND f = ? ALLOW FILTERING", 0, 1, 2, 5),
                    row(0, 0, 1, 1, 1, 5),
                    row(0, 0, 2, 0, 0, 5));
 
+        assertRows(execute("SELECT * FROM %s WHERE a = ? AND b = ? AND (c, d) IN ((?, ?)) AND f = ?", 0, 0, 1, 0, 3),
+                   row(0, 0, 1, 0, 0, 3));
+
         assertRows(execute("SELECT * FROM %s WHERE a = ? AND (c, d) IN ((?, ?)) AND f = ? ALLOW FILTERING", 0, 1, 0, 3),
                    row(0, 0, 1, 0, 0, 3));
 
+        assertRows(execute("SELECT * FROM %s WHERE a = ? AND b = ? AND (c) >= (?) AND f = ?", 0, 0, 1, 5),
+                   row(0, 0, 1, 1, 1, 5),
+                   row(0, 0, 2, 0, 0, 5));
+
         assertRows(execute("SELECT * FROM %s WHERE a = ? AND (c) >= (?) AND f = ? ALLOW FILTERING", 0, 1, 5),
+                   row(0, 0, 1, 1, 1, 5),
+                   row(0, 0, 2, 0, 0, 5));
+
+        assertRows(execute("SELECT * FROM %s WHERE a = ? AND b = ? AND (c, d) >= (?, ?) AND f = ?", 0, 0, 1, 1, 5),
                    row(0, 0, 1, 1, 1, 5),
                    row(0, 0, 2, 0, 0, 5));
 

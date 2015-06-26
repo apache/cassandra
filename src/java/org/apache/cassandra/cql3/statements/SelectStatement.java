@@ -1580,7 +1580,7 @@ public class SelectStatement implements CQLStatement
                 Boolean indexed = stmt.restrictedColumns.get(def);
                 if (indexed == null)
                     break;
-                if (!indexed && stmt.columnRestrictions[def.position()].canEvaluateWithSlices())
+                if (!(indexed && stmt.usesSecondaryIndexing) && stmt.columnRestrictions[def.position()].canEvaluateWithSlices())
                 {
                     stmt.restrictedColumns.remove(def);
                     numberOfRestrictionsEvaluatedWithSlices++;
