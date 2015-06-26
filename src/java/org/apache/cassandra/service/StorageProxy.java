@@ -346,10 +346,7 @@ public class StorageProxy implements StorageProxyMBean
         int contentions = 0;
         while (System.nanoTime() - start < timeout)
         {
-            long ballotMillis = summary == null
-                              ? System.currentTimeMillis()
-                              : Math.max(System.currentTimeMillis(), 1 + UUIDGen.unixTimestamp(summary.mostRecentInProgressCommit.ballot));
-            UUID ballot = UUIDGen.getTimeUUID(ballotMillis);
+            UUID ballot = UUIDGen.getTimeUUID();
 
             // prepare
             Tracing.trace("Preparing {}", ballot);
