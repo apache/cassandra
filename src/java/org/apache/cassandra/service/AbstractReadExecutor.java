@@ -43,6 +43,8 @@ import org.apache.cassandra.metrics.ReadRepairMetrics;
 import org.apache.cassandra.net.MessageOut;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.StorageProxy.LocalReadRunnable;
+import org.apache.cassandra.tracing.TraceState;
+import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.FBUtilities;
 
 /**
@@ -61,12 +63,14 @@ public abstract class AbstractReadExecutor
     protected final List<InetAddress> targetReplicas;
     protected final RowDigestResolver resolver;
     protected final ReadCallback<ReadResponse, Row> handler;
+    protected final TraceState traceState;
 
     AbstractReadExecutor(ReadCommand command, ConsistencyLevel consistencyLevel, List<InetAddress> targetReplicas)
     {
         this.command = command;
         this.targetReplicas = targetReplicas;
         resolver = new RowDigestResolver(command.ksName, command.key);
+        traceState = Tracing.instance.get();
         handler = new ReadCallback<>(resolver, consistencyLevel, command, targetReplicas);
     }
 
@@ -81,11 +85,15 @@ public abstract class AbstractReadExecutor
         {
             if (isLocalRequest(endpoint))
             {
+                if (traceState != null)
+                    traceState.trace("reading data locally");
                 logger.trace("reading data locally");
                 StageManager.getStage(Stage.READ).execute(new LocalReadRunnable(command, handler));
             }
             else
             {
+                if (traceState != null)
+                    traceState.trace("reading data from {}", endpoint);
                 logger.trace("reading data from {}", endpoint);
                 MessagingService.instance().sendRR(command.createMessage(), endpoint, handler);
             }
@@ -101,11 +109,15 @@ public abstract class AbstractReadExecutor
         {
             if (isLocalRequest(endpoint))
             {
+                if (traceState != null)
+                    traceState.trace("reading digest locally");
                 logger.trace("reading digest locally");
                 StageManager.getStage(Stage.READ).execute(new LocalReadRunnable(digestCommand, handler));
             }
             else
             {
+                if (traceState != null)
+                    traceState.trace("reading digest from {}", endpoint);
                 logger.trace("reading digest from {}", endpoint);
                 MessagingService.instance().sendRR(message, endpoint, handler);
             }
@@ -158,7 +170,10 @@ public abstract class AbstractReadExecutor
             return new NeverSpeculatingReadExecutor(command, consistencyLevel, targetReplicas);
 
         if (repairDecision != ReadRepairDecision.NONE)
+        {
+            Tracing.trace("Read-repair {}", repairDecision);
             ReadRepairMetrics.attempted.mark();
+        }
 
         ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(command.cfName);
         RetryType retryType = cfs.metadata.getSpeculativeRetry().type;
@@ -279,6 +294,8 @@ public abstract class AbstractReadExecutor
                 }
 
                 InetAddress extraReplica = Iterables.getLast(targetReplicas);
+                if (traceState != null)
+                    traceState.trace("speculating read retry on {}", extraReplica);
                 logger.trace("speculating read retry on {}", extraReplica);
                 MessagingService.instance().sendRR(retryCommand.createMessage(), extraReplica, handler);
                 speculated = true;

@@ -722,7 +722,7 @@ public final class MessagingService implements MessagingServiceMBean
     {
         TraceState state = Tracing.instance.initializeFromMessage(message);
         if (state != null)
-            state.trace("Message received from {}", message.from);
+            state.trace("{} message received from {}", message.verb, message.from);
 
         Verb verb = message.verb;
         message = SinkManager.processInboundMessage(message, id);
