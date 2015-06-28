@@ -31,6 +31,7 @@ import org.apache.cassandra.db.columniterator.IdentityQueryFilter;
 import org.apache.cassandra.db.filter.IDiskAtomFilter;
 import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.net.*;
+import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.CloseableIterator;
 import org.apache.cassandra.utils.FBUtilities;
 
@@ -120,6 +121,7 @@ public class RowDataResolver extends AbstractRowResolver
             Mutation mutation = new Mutation(keyspaceName, key.getKey(), diffCf);
             // use a separate verb here because we don't want these to be get the white glove hint-
             // on-timeout behavior that a "real" mutation gets
+            Tracing.trace("Sending read-repair-mutation to {}", endpoints.get(i));
             results.add(MessagingService.instance().sendRR(mutation.createMessage(MessagingService.Verb.READ_REPAIR),
                                                            endpoints.get(i)));
         }

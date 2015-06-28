@@ -43,6 +43,8 @@ import org.apache.cassandra.metrics.ReadRepairMetrics;
 import org.apache.cassandra.net.MessageOut;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.StorageProxy.LocalReadRunnable;
+import org.apache.cassandra.tracing.TraceState;
+import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.FBUtilities;
 
 /**
@@ -61,12 +63,14 @@ public abstract class AbstractReadExecutor
     protected final List<InetAddress> targetReplicas;
     protected final RowDigestResolver resolver;
     protected final ReadCallback<ReadResponse, Row> handler;
+    protected final TraceState traceState;
 
     AbstractReadExecutor(ReadCommand command, ConsistencyLevel consistencyLevel, List<InetAddress> targetReplicas)
     {
         this.command = command;
         this.targetReplicas = targetReplicas;
         resolver = new RowDigestResolver(command.ksName, command.key);
+        traceState = Tracing.instance.get();
         handler = new ReadCallback<>(resolver, consistencyLevel, command, targetReplicas);
     }
 
@@ -78,6 +82,7 @@ public abstract class AbstractReadExecutor
     protected void makeDataRequests(Iterable<InetAddress> endpoints)
     {
         makeRequests(command, endpoints);
+
     }
 
     protected void makeDigestRequests(Iterable<InetAddress> endpoints)
@@ -98,6 +103,8 @@ public abstract class AbstractReadExecutor
                 continue;
             }
 
+            if (traceState != null)
+                traceState.trace("reading {} from {}", readCommand.isDigestQuery() ? "digest" : "data", endpoint);
             logger.trace("reading {} from {}", readCommand.isDigestQuery() ? "digest" : "data", endpoint);
             if (message == null)
                 message = readCommand.createMessage();
@@ -158,7 +165,10 @@ public abstract class AbstractReadExecutor
             return new NeverSpeculatingReadExecutor(command, consistencyLevel, targetReplicas);
 
         if (repairDecision != ReadRepairDecision.NONE)
+        {
+            Tracing.trace("Read-repair {}", repairDecision);
             ReadRepairMetrics.attempted.mark();
+        }
 
         ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(command.cfName);
         RetryType retryType = cfs.metadata.getSpeculativeRetry().type;
@@ -276,6 +286,8 @@ public abstract class AbstractReadExecutor
                     retryCommand = command.copy().setIsDigestQuery(true);
 
                 InetAddress extraReplica = Iterables.getLast(targetReplicas);
+                if (traceState != null)
+                    traceState.trace("speculating read retry on {}", extraReplica);
                 logger.trace("speculating read retry on {}", extraReplica);
                 MessagingService.instance().sendRR(retryCommand.createMessage(), extraReplica, handler);
                 speculated = true;

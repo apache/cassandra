@@ -40,6 +40,8 @@ import org.apache.cassandra.net.MessageIn;
 import org.apache.cassandra.net.MessageOut;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.db.ConsistencyLevel;
+import org.apache.cassandra.tracing.TraceState;
+import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.concurrent.SimpleCondition;
 
@@ -101,7 +103,7 @@ public class ReadCallback<TMessage, TResolved> implements IAsyncCallback<TMessag
         {
             // Same as for writes, see AbstractWriteResponseHandler
             ReadTimeoutException ex = new ReadTimeoutException(consistencyLevel, received, blockfor, resolver.isDataPresent());
-
+            Tracing.trace("Read timeout: {}", ex.toString());
             if (logger.isDebugEnabled())
                 logger.debug("Read timeout: {}", ex.toString());
             throw ex;
@@ -122,7 +124,12 @@ public class ReadCallback<TMessage, TResolved> implements IAsyncCallback<TMessag
             // kick off a background digest comparison if this is a result that (may have) arrived after
             // the original resolve that get() kicks off as soon as the condition is signaled
             if (blockfor < endpoints.size() && n == endpoints.size())
-                StageManager.getStage(Stage.READ_REPAIR).execute(new AsyncRepairRunner());
+            {
+                TraceState traceState = Tracing.instance.get();
+                if (traceState != null)
+                    traceState.trace("Initiating read-repair");
+                StageManager.getStage(Stage.READ_REPAIR).execute(new AsyncRepairRunner(traceState));
+            }
         }
     }
 
@@ -166,6 +173,13 @@ public class ReadCallback<TMessage, TResolved> implements IAsyncCallback<TMessag
 
     private class AsyncRepairRunner implements Runnable
     {
+        private final TraceState traceState;
+
+        public AsyncRepairRunner(TraceState traceState)
+        {
+            this.traceState = traceState;
+        }
+
         public void run()
         {
             // If the resolver is a RowDigestResolver, we need to do a full data read if there is a mismatch.
@@ -179,6 +193,8 @@ public class ReadCallback<TMessage, TResolved> implements IAsyncCallback<TMessag
             {
                 assert resolver instanceof RowDigestResolver;
 
+                if (traceState != null)
+                    traceState.trace("Digest mismatch: {}", e.toString());
                 if (logger.isDebugEnabled())
                     logger.debug("Digest mismatch:", e);
                 
