@@ -265,7 +265,7 @@ public class OutboundTcpConnection extends Thread
             {
                 UUID sessionId = UUIDGen.getUUID(ByteBuffer.wrap(sessionBytes));
                 TraceState state = Tracing.instance.get(sessionId);
-                String message = String.format("Sending message to %s", poolReference.endPoint());
+                String message = String.format("Sending %s message to %s", qm.message.verb, poolReference.endPoint());
                 // session may have already finished; see CASSANDRA-5668
                 if (state == null)
                 {

@@ -745,7 +745,7 @@ public final class MessagingService implements MessagingServiceMBean
     {
         TraceState state = Tracing.instance.initializeFromMessage(message);
         if (state != null)
-            state.trace("Message received from {}", message.from);
+            state.trace("{} message received from {}", message.verb, message.from);
 
         // message sinks are a testing hook
         for (IMessageSink ms : messageSinks)
