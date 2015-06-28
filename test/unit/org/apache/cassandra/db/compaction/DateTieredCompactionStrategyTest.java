@@ -221,7 +221,7 @@ public class DateTieredCompactionStrategyTest extends SchemaLoader
         }
         cfs.forceBlockingFlush();
 
-        List<SSTableReader> sstrs = new ArrayList<>(cfs.getSSTables());
+        List<SSTableReader> sstrs = new ArrayList<>(cfs.getLiveSSTables());
 
         List<SSTableReader> newBucket = newestBucket(Collections.singletonList(sstrs.subList(0, 2)), 4, 32, 9, 10);
         assertTrue("incoming bucket should not be accepted when it has below the min threshold SSTables", newBucket.isEmpty());
@@ -270,7 +270,7 @@ public class DateTieredCompactionStrategyTest extends SchemaLoader
         cfs.forceBlockingFlush();
 
         Iterable<SSTableReader> filtered;
-        List<SSTableReader> sstrs = new ArrayList<>(cfs.getSSTables());
+        List<SSTableReader> sstrs = new ArrayList<>(cfs.getLiveSSTables());
 
         filtered = filterOldSSTables(sstrs, 0, 2);
         assertEquals("when maxSSTableAge is zero, no sstables should be filtered", sstrs.size(), Iterables.size(filtered));
@@ -303,7 +303,7 @@ public class DateTieredCompactionStrategyTest extends SchemaLoader
             .add("val", value).build().applyUnsafe();
 
         cfs.forceBlockingFlush();
-        SSTableReader expiredSSTable = cfs.getSSTables().iterator().next();
+        SSTableReader expiredSSTable = cfs.getLiveSSTables().iterator().next();
         Thread.sleep(10);
 
         key = Util.dk(String.valueOf("nonexpired"));
@@ -312,7 +312,7 @@ public class DateTieredCompactionStrategyTest extends SchemaLoader
             .add("val", value).build().applyUnsafe();
 
         cfs.forceBlockingFlush();
-        assertEquals(cfs.getSSTables().size(), 2);
+        assertEquals(cfs.getLiveSSTables().size(), 2);
 
         Map<String, String> options = new HashMap<>();
 
@@ -320,7 +320,7 @@ public class DateTieredCompactionStrategyTest extends SchemaLoader
         options.put(DateTieredCompactionStrategyOptions.TIMESTAMP_RESOLUTION_KEY, "MILLISECONDS");
         options.put(DateTieredCompactionStrategyOptions.MAX_SSTABLE_AGE_KEY, Double.toString((1d / (24 * 60 * 60))));
         DateTieredCompactionStrategy dtcs = new DateTieredCompactionStrategy(cfs, options);
-        for (SSTableReader sstable : cfs.getSSTables())
+        for (SSTableReader sstable : cfs.getLiveSSTables())
             dtcs.addSSTable(sstable);
         dtcs.startup();
         assertNull(dtcs.getNextBackgroundTask((int) (System.currentTimeMillis() / 1000)));

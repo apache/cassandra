@@ -74,7 +74,7 @@ public class StreamTransferTaskTest
 
         // create streaming task that streams those two sstables
         StreamTransferTask task = new StreamTransferTask(session, cfs.metadata.cfId);
-        for (SSTableReader sstable : cfs.getSSTables())
+        for (SSTableReader sstable : cfs.getLiveSSTables())
         {
             List<Range<Token>> ranges = new ArrayList<>();
             ranges.add(new Range<>(sstable.first.getToken(), sstable.last.getToken()));

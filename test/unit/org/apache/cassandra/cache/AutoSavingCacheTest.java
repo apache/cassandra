@@ -63,10 +63,10 @@ public class AutoSavingCacheTest
             cfs.forceBlockingFlush();
         }
 
-        Assert.assertEquals(2, cfs.getSSTables().size());
+        Assert.assertEquals(2, cfs.getLiveSSTables().size());
 
         // preheat key cache
-        for (SSTableReader sstable : cfs.getSSTables())
+        for (SSTableReader sstable : cfs.getLiveSSTables())
             sstable.getPosition(Util.dk("key1"), SSTableReader.Operator.EQ);
 
         AutoSavingCache<KeyCacheKey, RowIndexEntry> keyCache = CacheService.instance.keyCache;
@@ -80,7 +80,7 @@ public class AutoSavingCacheTest
         // then load saved
         keyCache.loadSaved(cfs);
         Assert.assertEquals(2, keyCache.size());
-        for (SSTableReader sstable : cfs.getSSTables())
+        for (SSTableReader sstable : cfs.getLiveSSTables())
             Assert.assertNotNull(keyCache.get(new KeyCacheKey(cfs.metadata.cfId, sstable.descriptor, ByteBufferUtil.bytes("key1"))));
     }
 }

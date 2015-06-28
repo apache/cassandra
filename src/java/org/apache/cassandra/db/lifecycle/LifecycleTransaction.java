@@ -414,7 +414,7 @@ public class LifecycleTransaction extends Transactional.AbstractTransactional
     private List<SSTableReader> restoreUpdatedOriginals()
     {
         Iterable<SSTableReader> torestore = filterIn(originals, logged.update, logged.obsolete);
-        return ImmutableList.copyOf(transform(torestore, (reader) -> current(reader).cloneWithNewStart(reader.first, null)));
+        return ImmutableList.copyOf(transform(torestore, (reader) -> current(reader).cloneWithRestoredStart(reader.first)));
     }
 
     /**

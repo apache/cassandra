@@ -808,7 +808,7 @@ public final class SystemKeyspace
         if (result.isEmpty() || !result.one().has("cluster_name"))
         {
             // this is a brand new node
-            if (!cfs.getSSTables().isEmpty())
+            if (!cfs.getLiveSSTables().isEmpty())
                 throw new ConfigurationException("Found system keyspace files, but they couldn't be loaded!");
 
             // no system files.  this is a new node.

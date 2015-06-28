@@ -25,6 +25,8 @@ import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.concurrent.StageManager;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
+import org.apache.cassandra.db.lifecycle.SSTableSet;
+import org.apache.cassandra.db.lifecycle.View;
 import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.db.partitions.*;
 import org.apache.cassandra.db.filter.*;
@@ -73,7 +75,7 @@ public class SinglePartitionNamesCommand extends SinglePartitionReadCommand<Clus
     protected UnfilteredRowIterator queryMemtableAndDiskInternal(ColumnFamilyStore cfs, boolean copyOnHeap)
     {
         Tracing.trace("Acquiring sstable references");
-        ColumnFamilyStore.ViewFragment view = cfs.select(cfs.viewFilter(partitionKey()));
+        ColumnFamilyStore.ViewFragment view = cfs.select(View.select(SSTableSet.LIVE, partitionKey()));
 
         ArrayBackedPartition result = null;
         ClusteringIndexNamesFilter filter = clusteringIndexFilter();

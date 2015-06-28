@@ -59,6 +59,8 @@ import org.apache.cassandra.db.compaction.CompactionInfo.Holder;
 import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.db.index.SecondaryIndexBuilder;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
+import org.apache.cassandra.db.lifecycle.SSTableSet;
+import org.apache.cassandra.db.lifecycle.View;
 import org.apache.cassandra.dht.Bounds;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
@@ -484,7 +486,7 @@ public class CompactionManager implements CompactionManagerMBean
                                       LifecycleTransaction txn,
                                       long repairedAt) throws InterruptedException, IOException
     {
-        logger.info("Starting anticompaction for {}.{} on {}/{} sstables", cfs.keyspace.getName(), cfs.getColumnFamilyName(), validatedForRepair.size(), cfs.getSSTables().size());
+        logger.info("Starting anticompaction for {}.{} on {}/{} sstables", cfs.keyspace.getName(), cfs.getColumnFamilyName(), validatedForRepair.size(), cfs.getLiveSSTables());
         logger.debug("Starting anticompaction for ranges {}", ranges);
         Set<SSTableReader> sstables = new HashSet<>(validatedForRepair);
         Set<SSTableReader> mutatedRepairStatuses = new HashSet<>();
@@ -647,7 +649,7 @@ public class CompactionManager implements CompactionManagerMBean
     // This is not efficient, do not use in any critical path
     private SSTableReader lookupSSTable(final ColumnFamilyStore cfs, Descriptor descriptor)
     {
-        for (SSTableReader sstable : cfs.getSSTables())
+        for (SSTableReader sstable : cfs.getSSTables(SSTableSet.CANONICAL))
         {
             if (sstable.descriptor.equals(descriptor))
                 return sstable;
@@ -1039,7 +1041,7 @@ public class CompactionManager implements CompactionManagerMBean
                 // flush first so everyone is validating data that is as similar as possible
                 StorageService.instance.forceKeyspaceFlush(cfs.keyspace.getName(), cfs.name);
                 ActiveRepairService.ParentRepairSession prs = ActiveRepairService.instance.getParentRepairSession(validator.desc.parentSessionId);
-                ColumnFamilyStore.RefViewFragment sstableCandidates = cfs.selectAndReference(prs.isIncremental ? ColumnFamilyStore.UNREPAIRED_SSTABLES : ColumnFamilyStore.CANONICAL_SSTABLES);
+                ColumnFamilyStore.RefViewFragment sstableCandidates = cfs.selectAndReference(View.select(SSTableSet.CANONICAL, (s) -> !prs.isIncremental || !s.isRepaired()));
                 Set<SSTableReader> sstablesToValidate = new HashSet<>();
 
                 for (SSTableReader sstable : sstableCandidates.sstables)

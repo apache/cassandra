@@ -87,14 +87,14 @@ public class HintedHandOffTest
 
         // flush data to disk
         hintStore.forceBlockingFlush();
-        assertEquals(1, hintStore.getSSTables().size());
+        assertEquals(1, hintStore.getLiveSSTables().size());
 
         // submit compaction
         HintedHandOffManager.instance.compact();
 
         // single row should not be removed because of gc_grace_seconds
         // is 10 hours and there are no any tombstones in sstable
-        assertEquals(1, hintStore.getSSTables().size());
+        assertEquals(1, hintStore.getLiveSSTables().size());
     }
 
     @Test

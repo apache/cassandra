@@ -160,7 +160,7 @@ public class CompactionsPurgeTest
         // flush, remember the current sstable and then resurrect one column
         // for first key. Then submit minor compaction on remembered sstables.
         cfs.forceBlockingFlush();
-        Collection<SSTableReader> sstablesIncomplete = cfs.getSSTables();
+        Collection<SSTableReader> sstablesIncomplete = cfs.getLiveSSTables();
 
         RowUpdateBuilder builder = new RowUpdateBuilder(cfs.metadata, 2, "key1");
         builder.clustering(String.valueOf(5))
@@ -209,7 +209,7 @@ public class CompactionsPurgeTest
         RowUpdateBuilder.deleteRow(cfs.metadata, 10, key3, "c1").applyUnsafe();
 
         cfs.forceBlockingFlush();
-        Collection<SSTableReader> sstablesIncomplete = cfs.getSSTables();
+        Collection<SSTableReader> sstablesIncomplete = cfs.getLiveSSTables();
 
         // delete c2 so we have new delete in a diffrent SSTable
         RowUpdateBuilder.deleteRow(cfs.metadata, 9, key3, "c2").applyUnsafe();
@@ -252,11 +252,11 @@ public class CompactionsPurgeTest
             RowUpdateBuilder.deleteRow(cfs.metadata, 1, key, String.valueOf(i)).applyUnsafe();
         }
         cfs.forceBlockingFlush();
-        assertEquals(String.valueOf(cfs.getSSTables()), 1, cfs.getSSTables().size()); // inserts & deletes were in the same memtable -> only deletes in sstable
+        assertEquals(String.valueOf(cfs.getLiveSSTables()), 1, cfs.getLiveSSTables().size()); // inserts & deletes were in the same memtable -> only deletes in sstable
 
         // compact and test that the row is completely gone
         Util.compactAll(cfs, Integer.MAX_VALUE).get();
-        assertTrue(cfs.getSSTables().isEmpty());
+        assertTrue(cfs.getLiveSSTables().isEmpty());
 
         Util.assertEmpty(Util.cmd(cfs, key).build());
     }
@@ -372,7 +372,7 @@ public class CompactionsPurgeTest
         cfs.forceBlockingFlush();
 
         // basic check that the row is considered deleted
-        assertEquals(2, cfs.getSSTables().size());
+        assertEquals(2, cfs.getLiveSSTables().size());
         result = QueryProcessor.executeInternal(String.format("SELECT * FROM %s.%s WHERE k = %d", keyspace, table, 1));
         assertEquals(0, result.size());
 
@@ -380,7 +380,7 @@ public class CompactionsPurgeTest
         FBUtilities.waitOnFutures(CompactionManager.instance.submitMaximal(cfs, (int) (System.currentTimeMillis() / 1000) - 10000, false));
 
         // the data should be gone, but the tombstone should still exist
-        assertEquals(1, cfs.getSSTables().size());
+        assertEquals(1, cfs.getLiveSSTables().size());
         result = QueryProcessor.executeInternal(String.format("SELECT * FROM %s.%s WHERE k = %d", keyspace, table, 1));
         assertEquals(0, result.size());
 
@@ -388,7 +388,7 @@ public class CompactionsPurgeTest
         QueryProcessor.executeInternal(String.format("INSERT INTO %s.%s (k, v1, v2) VALUES (%d, '%s', %d)",
                                                      keyspace, table, 1, "foo", 1));
         cfs.forceBlockingFlush();
-        assertEquals(2, cfs.getSSTables().size());
+        assertEquals(2, cfs.getLiveSSTables().size());
         result = QueryProcessor.executeInternal(String.format("SELECT * FROM %s.%s WHERE k = %d", keyspace, table, 1));
         assertEquals(1, result.size());
 
@@ -400,7 +400,7 @@ public class CompactionsPurgeTest
         FBUtilities.waitOnFutures(CompactionManager.instance.submitMaximal(cfs, (int) (System.currentTimeMillis() / 1000) + 10000, false));
 
         // both the data and the tombstone should be gone this time
-        assertEquals(0, cfs.getSSTables().size());
+        assertEquals(0, cfs.getLiveSSTables().size());
         result = QueryProcessor.executeInternal(String.format("SELECT * FROM %s.%s WHERE k = %d", keyspace, table, 1));
         assertEquals(0, result.size());
     }

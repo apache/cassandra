@@ -122,7 +122,7 @@ public class TTLExpiryTest
 
         cfs.forceBlockingFlush();
 
-        Set<SSTableReader> sstables = Sets.newHashSet(cfs.getSSTables());
+        Set<SSTableReader> sstables = Sets.newHashSet(cfs.getLiveSSTables());
         int now = (int)(System.currentTimeMillis() / 1000);
         int gcBefore = now + 2;
         Set<SSTableReader> expired = CompactionController.getFullyExpiredSSTables(
@@ -173,9 +173,9 @@ public class TTLExpiryTest
 
         cfs.forceBlockingFlush();
         Thread.sleep(2000); // wait for ttl to expire
-        assertEquals(4, cfs.getSSTables().size());
+        assertEquals(4, cfs.getLiveSSTables().size());
         cfs.enableAutoCompaction(true);
-        assertEquals(0, cfs.getSSTables().size());
+        assertEquals(0, cfs.getLiveSSTables().size());
     }
 
     @Test
@@ -211,10 +211,10 @@ public class TTLExpiryTest
 
         cfs.forceBlockingFlush();
         Thread.sleep(2000); // wait for ttl to expire
-        assertEquals(4, cfs.getSSTables().size());
+        assertEquals(4, cfs.getLiveSSTables().size());
         cfs.enableAutoCompaction(true);
-        assertEquals(1, cfs.getSSTables().size());
-        SSTableReader sstable = cfs.getSSTables().iterator().next();
+        assertEquals(1, cfs.getLiveSSTables().size());
+        SSTableReader sstable = cfs.getLiveSSTables().iterator().next();
         ISSTableScanner scanner = sstable.getScanner(ColumnFilter.all(sstable.metadata), DataRange.allData(sstable.partitioner), false);
         assertTrue(scanner.hasNext());
         while(scanner.hasNext())

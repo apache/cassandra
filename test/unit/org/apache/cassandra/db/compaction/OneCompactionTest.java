@@ -76,7 +76,7 @@ public class OneCompactionTest
             assertEquals(inserted.size(), Util.getAll(Util.cmd(store).build()).size());
         }
         CompactionManager.instance.performMaximal(store, false);
-        assertEquals(1, store.getSSTables().size());
+        assertEquals(1, store.getLiveSSTables().size());
     }
 
     @Test

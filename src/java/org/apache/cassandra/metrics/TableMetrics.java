@@ -28,6 +28,8 @@ import com.codahale.metrics.Timer;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.Memtable;
+import org.apache.cassandra.db.lifecycle.SSTableSet;
+import org.apache.cassandra.db.lifecycle.View;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
 import org.apache.cassandra.utils.EstimatedHistogram;
@@ -278,7 +280,7 @@ public class TableMetrics
                                                            {
                                                                public long[] getValue()
                                                                {
-                                                                   return combineHistograms(cfs.getSSTables(), new GetHistogram()
+                                                                   return combineHistograms(cfs.getSSTables(SSTableSet.CANONICAL), new GetHistogram()
                                                                    {
                                                                        public EstimatedHistogram getHistogram(SSTableReader reader)
                                                                        {
@@ -296,7 +298,7 @@ public class TableMetrics
                                                            long memtablePartitions = 0;
                                                            for (Memtable memtable : cfs.getTracker().getView().getAllMemtables())
                                                                memtablePartitions += memtable.partitionCount();
-                                                           return SSTableReader.getApproximateKeyCount(cfs.getSSTables()) + memtablePartitions;
+                                                           return SSTableReader.getApproximateKeyCount(cfs.getSSTables(SSTableSet.CANONICAL)) + memtablePartitions;
                                                        }
                                                    });
         estimatedColumnCountHistogram = Metrics.register(factory.createMetricName("EstimatedColumnCountHistogram"),
@@ -305,7 +307,7 @@ public class TableMetrics
                                                          {
                                                              public long[] getValue()
                                                              {
-                                                                 return combineHistograms(cfs.getSSTables(), new GetHistogram()
+                                                                 return combineHistograms(cfs.getSSTables(SSTableSet.CANONICAL), new GetHistogram()
                                                                  {
                                                                      public EstimatedHistogram getHistogram(SSTableReader reader)
                                                                      {
@@ -321,7 +323,7 @@ public class TableMetrics
             {
                 double sum = 0;
                 int total = 0;
-                for (SSTableReader sstable : cfs.getSSTables())
+                for (SSTableReader sstable : cfs.getSSTables(SSTableSet.CANONICAL))
                 {
                     if (sstable.getCompressionRatio() != MetadataCollector.NO_COMPRESSION_RATIO)
                     {
@@ -339,7 +341,7 @@ public class TableMetrics
                 int total = 0;
                 for (Keyspace keyspace : Keyspace.all())
                 {
-                    for (SSTableReader sstable : keyspace.getAllSSTables())
+                    for (SSTableReader sstable : keyspace.getAllSSTables(SSTableSet.CANONICAL))
                     {
                         if (sstable.getCompressionRatio() != MetadataCollector.NO_COMPRESSION_RATIO)
                         {
@@ -366,7 +368,7 @@ public class TableMetrics
         {
             public Integer getValue()
             {
-                return cfs.getTracker().getSSTables().size();
+                return cfs.getTracker().getView().liveSSTables().size();
             }
         });
         liveDiskSpaceUsed = createTableCounter("LiveDiskSpaceUsed");
@@ -376,7 +378,7 @@ public class TableMetrics
             public Long getValue()
             {
                 long min = 0;
-                for (SSTableReader sstable : cfs.getSSTables())
+                for (SSTableReader sstable : cfs.getSSTables(SSTableSet.CANONICAL))
                 {
                     if (min == 0 || sstable.getEstimatedPartitionSize().min() < min)
                         min = sstable.getEstimatedPartitionSize().min();
@@ -400,7 +402,7 @@ public class TableMetrics
             public Long getValue()
             {
                 long max = 0;
-                for (SSTableReader sstable : cfs.getSSTables())
+                for (SSTableReader sstable : cfs.getSSTables(SSTableSet.CANONICAL))
                 {
                     if (sstable.getEstimatedPartitionSize().max() > max)
                         max = sstable.getEstimatedPartitionSize().max();
@@ -425,7 +427,7 @@ public class TableMetrics
             {
                 long sum = 0;
                 long count = 0;
-                for (SSTableReader sstable : cfs.getSSTables())
+                for (SSTableReader sstable : cfs.getSSTables(SSTableSet.CANONICAL))
                 {
                     long n = sstable.getEstimatedPartitionSize().count();
                     sum += sstable.getEstimatedPartitionSize().mean() * n;
@@ -441,7 +443,7 @@ public class TableMetrics
                 long count = 0;
                 for (Keyspace keyspace : Keyspace.all())
                 {
-                    for (SSTableReader sstable : keyspace.getAllSSTables())
+                    for (SSTableReader sstable : keyspace.getAllSSTables(SSTableSet.CANONICAL))
                     {
                         long n = sstable.getEstimatedPartitionSize().count();
                         sum += sstable.getEstimatedPartitionSize().mean() * n;
@@ -456,7 +458,7 @@ public class TableMetrics
             public Long getValue()
             {
                 long count = 0L;
-                for (SSTableReader sstable : cfs.getSSTables())
+                for (SSTableReader sstable: cfs.getSSTables(SSTableSet.LIVE))
                     count += sstable.getBloomFilterFalsePositiveCount();
                 return count;
             }
@@ -466,7 +468,7 @@ public class TableMetrics
             public Long getValue()
             {
                 long count = 0L;
-                for (SSTableReader sstable : cfs.getSSTables())
+                for (SSTableReader sstable : cfs.getSSTables(SSTableSet.LIVE))
                     count += sstable.getRecentBloomFilterFalsePositiveCount();
                 return count;
             }
@@ -477,7 +479,7 @@ public class TableMetrics
             {
                 long falseCount = 0L;
                 long trueCount = 0L;
-                for (SSTableReader sstable : cfs.getSSTables())
+                for (SSTableReader sstable : cfs.getSSTables(SSTableSet.LIVE))
                 {
                     falseCount += sstable.getBloomFilterFalsePositiveCount();
                     trueCount += sstable.getBloomFilterTruePositiveCount();
@@ -494,7 +496,7 @@ public class TableMetrics
                 long trueCount = 0L;
                 for (Keyspace keyspace : Keyspace.all())
                 {
-                    for (SSTableReader sstable : keyspace.getAllSSTables())
+                    for (SSTableReader sstable : keyspace.getAllSSTables(SSTableSet.LIVE))
                     {
                         falseCount += sstable.getBloomFilterFalsePositiveCount();
                         trueCount += sstable.getBloomFilterTruePositiveCount();
@@ -511,7 +513,7 @@ public class TableMetrics
             {
                 long falseCount = 0L;
                 long trueCount = 0L;
-                for (SSTableReader sstable : cfs.getSSTables())
+                for (SSTableReader sstable: cfs.getSSTables(SSTableSet.LIVE))
                 {
                     falseCount += sstable.getRecentBloomFilterFalsePositiveCount();
                     trueCount += sstable.getRecentBloomFilterTruePositiveCount();
@@ -528,7 +530,7 @@ public class TableMetrics
                 long trueCount = 0L;
                 for (Keyspace keyspace : Keyspace.all())
                 {
-                    for (SSTableReader sstable : keyspace.getAllSSTables())
+                    for (SSTableReader sstable : keyspace.getAllSSTables(SSTableSet.LIVE))
                     {
                         falseCount += sstable.getRecentBloomFilterFalsePositiveCount();
                         trueCount += sstable.getRecentBloomFilterTruePositiveCount();
@@ -544,7 +546,7 @@ public class TableMetrics
             public Long getValue()
             {
                 long total = 0;
-                for (SSTableReader sst : cfs.getSSTables())
+                for (SSTableReader sst : cfs.getSSTables(SSTableSet.CANONICAL))
                     total += sst.getBloomFilterSerializedSize();
                 return total;
             }
@@ -554,7 +556,7 @@ public class TableMetrics
             public Long getValue()
             {
                 long total = 0;
-                for (SSTableReader sst : cfs.getSSTables())
+                for (SSTableReader sst : cfs.getSSTables(SSTableSet.LIVE))
                     total += sst.getBloomFilterOffHeapSize();
                 return total;
             }
@@ -564,7 +566,7 @@ public class TableMetrics
             public Long getValue()
             {
                 long total = 0;
-                for (SSTableReader sst : cfs.getSSTables())
+                for (SSTableReader sst : cfs.getSSTables(SSTableSet.LIVE))
                     total += sst.getIndexSummaryOffHeapSize();
                 return total;
             }
@@ -574,7 +576,7 @@ public class TableMetrics
             public Long getValue()
             {
                 long total = 0;
-                for (SSTableReader sst : cfs.getSSTables())
+                for (SSTableReader sst : cfs.getSSTables(SSTableSet.LIVE))
                     total += sst.getCompressionMetadataOffHeapSize();
                 return total;
             }
@@ -593,7 +595,7 @@ public class TableMetrics
             protected double getNumerator()
             {
                 long hits = 0L;
-                for (SSTableReader sstable : cfs.getSSTables())
+                for (SSTableReader sstable : cfs.getSSTables(SSTableSet.LIVE))
                     hits += sstable.getKeyCacheHit();
                 return hits;
             }
@@ -601,7 +603,7 @@ public class TableMetrics
             protected double getDenominator()
             {
                 long requests = 0L;
-                for (SSTableReader sstable : cfs.getSSTables())
+                for (SSTableReader sstable : cfs.getSSTables(SSTableSet.LIVE))
                     requests += sstable.getKeyCacheRequest();
                 return Math.max(requests, 1); // to avoid NaN.
             }

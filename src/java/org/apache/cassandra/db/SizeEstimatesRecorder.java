@@ -23,6 +23,8 @@ import java.util.concurrent.TimeUnit;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.db.lifecycle.SSTableSet;
+import org.apache.cassandra.db.lifecycle.View;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
@@ -97,7 +99,7 @@ public class SizeEstimatesRecorder extends MigrationListener implements Runnable
             {
                 while (refs == null)
                 {
-                    ColumnFamilyStore.ViewFragment view = table.select(table.viewFilter(Range.makeRowRange(range)));
+                    ColumnFamilyStore.ViewFragment view = table.select(View.select(SSTableSet.CANONICAL, Range.makeRowRange(range)));
                     refs = Refs.tryRef(view.sstables);
                 }
 

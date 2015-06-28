@@ -76,13 +76,13 @@ public class CompactionAwareWriterTest extends CQLTester
         int rowCount = 1000;
         cfs.disableAutoCompaction();
         populate(rowCount);
-        LifecycleTransaction txn = cfs.getTracker().tryModify(cfs.getSSTables(), OperationType.COMPACTION);
+        LifecycleTransaction txn = cfs.getTracker().tryModify(cfs.getLiveSSTables(), OperationType.COMPACTION);
         long beforeSize = txn.originals().iterator().next().onDiskLength();
         CompactionAwareWriter writer = new DefaultCompactionWriter(cfs, txn, txn.originals(), false);
         int rows = compact(cfs, txn, writer);
-        assertEquals(1, cfs.getSSTables().size());
+        assertEquals(1, cfs.getLiveSSTables().size());
         assertEquals(rowCount, rows);
-        assertEquals(beforeSize, cfs.getSSTables().iterator().next().onDiskLength());
+        assertEquals(beforeSize, cfs.getLiveSSTables().iterator().next().onDiskLength());
         validateData(cfs, rowCount);
         cfs.truncateBlocking();
     }
@@ -94,12 +94,12 @@ public class CompactionAwareWriterTest extends CQLTester
         cfs.disableAutoCompaction();
         int rowCount = 1000;
         populate(rowCount);
-        LifecycleTransaction txn = cfs.getTracker().tryModify(cfs.getSSTables(), OperationType.COMPACTION);
+        LifecycleTransaction txn = cfs.getTracker().tryModify(cfs.getLiveSSTables(), OperationType.COMPACTION);
         long beforeSize = txn.originals().iterator().next().onDiskLength();
         int sstableSize = (int)beforeSize/10;
         CompactionAwareWriter writer = new MaxSSTableSizeWriter(cfs, txn, txn.originals(), sstableSize, 0, false);
         int rows = compact(cfs, txn, writer);
-        assertEquals(10, cfs.getSSTables().size());
+        assertEquals(10, cfs.getLiveSSTables().size());
         assertEquals(rowCount, rows);
         validateData(cfs, rowCount);
         cfs.truncateBlocking();
@@ -112,12 +112,12 @@ public class CompactionAwareWriterTest extends CQLTester
         cfs.disableAutoCompaction();
         int rowCount = 10000;
         populate(rowCount);
-        LifecycleTransaction txn = cfs.getTracker().tryModify(cfs.getSSTables(), OperationType.COMPACTION);
+        LifecycleTransaction txn = cfs.getTracker().tryModify(cfs.getLiveSSTables(), OperationType.COMPACTION);
         long beforeSize = txn.originals().iterator().next().onDiskLength();
         CompactionAwareWriter writer = new SplittingSizeTieredCompactionWriter(cfs, txn, txn.originals(), 0);
         int rows = compact(cfs, txn, writer);
         long expectedSize = beforeSize / 2;
-        List<SSTableReader> sortedSSTables = new ArrayList<>(cfs.getSSTables());
+        List<SSTableReader> sortedSSTables = new ArrayList<>(cfs.getLiveSSTables());
 
         Collections.sort(sortedSSTables, new Comparator<SSTableReader>()
                                 {
@@ -147,15 +147,15 @@ public class CompactionAwareWriterTest extends CQLTester
         int rowCount = 20000;
         int targetSSTableCount = 50;
         populate(rowCount);
-        LifecycleTransaction txn = cfs.getTracker().tryModify(cfs.getSSTables(), OperationType.COMPACTION);
+        LifecycleTransaction txn = cfs.getTracker().tryModify(cfs.getLiveSSTables(), OperationType.COMPACTION);
         long beforeSize = txn.originals().iterator().next().onDiskLength();
         int sstableSize = (int)beforeSize/targetSSTableCount;
         CompactionAwareWriter writer = new MajorLeveledCompactionWriter(cfs, txn, txn.originals(), sstableSize, false);
         int rows = compact(cfs, txn, writer);
-        assertEquals(targetSSTableCount, cfs.getSSTables().size());
+        assertEquals(targetSSTableCount, cfs.getLiveSSTables().size());
         int [] levelCounts = new int[5];
         assertEquals(rowCount, rows);
-        for (SSTableReader sstable : cfs.getSSTables())
+        for (SSTableReader sstable : cfs.getLiveSSTables())
         {
             levelCounts[sstable.getSSTableLevel()]++;
         }
@@ -199,7 +199,7 @@ public class CompactionAwareWriterTest extends CQLTester
 
         ColumnFamilyStore cfs = getColumnFamilyStore();
         cfs.forceBlockingFlush();
-        if (cfs.getSSTables().size() > 1)
+        if (cfs.getLiveSSTables().size() > 1)
         {
             // we want just one big sstable to avoid doing actual compaction in compact() above
             try
@@ -211,7 +211,7 @@ public class CompactionAwareWriterTest extends CQLTester
                 throw new RuntimeException(t);
             }
         }
-        assert cfs.getSSTables().size() == 1 : cfs.getSSTables();
+        assert cfs.getLiveSSTables().size() == 1 : cfs.getLiveSSTables();
     }
 
     private void validateData(ColumnFamilyStore cfs, int rowCount) throws Throwable

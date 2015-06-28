@@ -21,10 +21,12 @@ package org.apache.cassandra.db.lifecycle;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 
 import com.google.common.base.Function;
 import com.google.common.base.Predicates;
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -67,7 +69,7 @@ public class ViewTest
                     {
                         if (i == j && !(minInc && maxInc))
                             continue;
-                        List<SSTableReader> r = initialView.sstablesInBounds(AbstractBounds.bounds(min, minInc, max, maxInc));
+                        List<SSTableReader> r = ImmutableList.copyOf(initialView.sstablesInBounds(SSTableSet.LIVE, AbstractBounds.bounds(min, minInc, max, maxInc)));
                         Assert.assertEquals(String.format("%d(%s) %d(%s)", i, minInc, j, maxInc), j - i + (minInc ? 0 : -1) + (maxInc ? 1 : 0), r.size());
                     }
                 }
@@ -96,8 +98,8 @@ public class ViewTest
         Assert.assertFalse(View.permitCompacting(readers.subList(1, 2)).apply(cur));
         Assert.assertTrue(readers.subList(2, 5).containsAll(copyOf(cur.getUncompacting(readers))));
         Assert.assertEquals(3, copyOf(cur.getUncompacting(readers)).size());
-        Assert.assertTrue(cur.nonCompactingSStables().containsAll(readers.subList(2, 5)));
-        Assert.assertEquals(3, cur.nonCompactingSStables().size());
+        Assert.assertTrue(ImmutableSet.copyOf(cur.sstables(SSTableSet.NONCOMPACTING)).containsAll(readers.subList(2, 5)));
+        Assert.assertEquals(3, ImmutableSet.copyOf(cur.sstables(SSTableSet.NONCOMPACTING)).size());
 
         // check marking already compacting readers fails with an exception
         testFailure(View.updateCompacting(emptySet(), readers.subList(0, 1)), cur);
@@ -125,9 +127,10 @@ public class ViewTest
         testFailure(View.updateCompacting(copyOf(readers.subList(0, 2)), emptySet()), cur);
         Assert.assertTrue(copyOf(concat(readers.subList(0, 1), readers.subList(2, 5))).containsAll(copyOf(cur.getUncompacting(readers))));
         Assert.assertEquals(4, copyOf(cur.getUncompacting(readers)).size());
-        Assert.assertTrue(cur.nonCompactingSStables().containsAll(readers.subList(2, 5)));
-        Assert.assertTrue(cur.nonCompactingSStables().containsAll(readers.subList(0, 1)));
-        Assert.assertEquals(4, cur.nonCompactingSStables().size());
+        Set<SSTableReader> nonCompacting = ImmutableSet.copyOf(cur.sstables(SSTableSet.NONCOMPACTING));
+        Assert.assertTrue(nonCompacting.containsAll(readers.subList(2, 5)));
+        Assert.assertTrue(nonCompacting.containsAll(readers.subList(0, 1)));
+        Assert.assertEquals(4, nonCompacting.size());
     }
 
     private static void testFailure(Function<View, ?> function, View view)
@@ -207,6 +210,6 @@ public class ViewTest
         for (int i = 0 ; i < sstableCount ; i++)
             sstables.add(MockSchema.sstable(i, cfs));
         return new View(ImmutableList.copyOf(memtables), Collections.<Memtable>emptyList(), Helpers.identityMap(sstables),
-                        Collections.<SSTableReader>emptySet(), SSTableIntervalTree.build(sstables));
+                        Collections.<SSTableReader, SSTableReader>emptyMap(), SSTableIntervalTree.build(sstables));
     }
 }

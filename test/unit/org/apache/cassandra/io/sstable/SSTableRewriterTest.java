@@ -54,6 +54,8 @@ import org.apache.cassandra.db.compaction.SSTableSplitter;
 import org.apache.cassandra.db.partitions.ArrayBackedPartition;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.db.lifecycle.SSTableSet;
+import org.apache.cassandra.db.lifecycle.View;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.SSTableWriter;
@@ -126,7 +128,7 @@ public class SSTableRewriterTest extends SchemaLoader
                 .apply();
         }
         cfs.forceBlockingFlush();
-        Set<SSTableReader> sstables = new HashSet<>(cfs.getSSTables());
+        Set<SSTableReader> sstables = new HashSet<>(cfs.getLiveSSTables());
         assertEquals(1, sstables.size());
         assertEquals(sstables.iterator().next().bytesOnDisk(), cfs.metric.liveDiskSpaceUsed.getCount());
         int nowInSec = FBUtilities.nowInSeconds();
@@ -158,7 +160,7 @@ public class SSTableRewriterTest extends SchemaLoader
 
         SSTableReader s = writeFile(cfs, 1000);
         cfs.addSSTable(s);
-        Set<SSTableReader> sstables = new HashSet<>(cfs.getSSTables());
+        Set<SSTableReader> sstables = new HashSet<>(cfs.getLiveSSTables());
         assertEquals(1, sstables.size());
 
         int nowInSec = FBUtilities.nowInSeconds();
@@ -190,7 +192,7 @@ public class SSTableRewriterTest extends SchemaLoader
 
         SSTableReader s = writeFile(cfs, 1000);
         cfs.addSSTable(s);
-        Set<SSTableReader> sstables = new HashSet<>(cfs.getSSTables());
+        Set<SSTableReader> sstables = new HashSet<>(cfs.getLiveSSTables());
         assertEquals(1, sstables.size());
 
         int nowInSec = FBUtilities.nowInSeconds();
@@ -209,7 +211,7 @@ public class SSTableRewriterTest extends SchemaLoader
                 if (!checked && writer.currentWriter().getFilePointer() > 1500000)
                 {
                     checked = true;
-                    for (SSTableReader sstable : cfs.getSSTables())
+                    for (SSTableReader sstable : cfs.getLiveSSTables())
                     {
                         if (sstable.openReason == SSTableReader.OpenReason.EARLY)
                         {
@@ -317,7 +319,7 @@ public class SSTableRewriterTest extends SchemaLoader
                 {
                     rewriter.switchWriter(getWriter(cfs, s.descriptor.directory, txn));
                     files++;
-                    assertEquals(cfs.getSSTables().size(), files); // we have one original file plus the ones we have switched out.
+                    assertEquals(cfs.getLiveSSTables().size(), files); // we have one original file plus the ones we have switched out.
                     assertEquals(s.bytesOnDisk(), cfs.metric.liveDiskSpaceUsed.getCount());
                     assertEquals(s.bytesOnDisk(), cfs.metric.totalDiskSpaceUsed.getCount());
 
@@ -329,12 +331,12 @@ public class SSTableRewriterTest extends SchemaLoader
         TransactionLogs.waitForDeletions();
 
         long sum = 0;
-        for (SSTableReader x : cfs.getSSTables())
+        for (SSTableReader x : cfs.getLiveSSTables())
             sum += x.bytesOnDisk();
         assertEquals(sum, cfs.metric.liveDiskSpaceUsed.getCount());
         assertEquals(startStorageMetricsLoad - sBytesOnDisk + sum, StorageMetrics.load.getCount());
         assertEquals(files, sstables.size());
-        assertEquals(files, cfs.getSSTables().size());
+        assertEquals(files, cfs.getLiveSSTables().size());
         TransactionLogs.waitForDeletions();
 
         // tmplink and tmp files should be gone:
@@ -372,14 +374,14 @@ public class SSTableRewriterTest extends SchemaLoader
                 {
                     rewriter.switchWriter(getWriter(cfs, s.descriptor.directory, txn));
                     files++;
-                    assertEquals(cfs.getSSTables().size(), files); // we have one original file plus the ones we have switched out.
+                    assertEquals(cfs.getLiveSSTables().size(), files); // we have one original file plus the ones we have switched out.
                 }
             }
             sstables = rewriter.finish();
         }
 
         assertEquals(files, sstables.size());
-        assertEquals(files, cfs.getSSTables().size());
+        assertEquals(files, cfs.getLiveSSTables().size());
         TransactionLogs.waitForDeletions();
 
         assertFileCounts(s.descriptor.directory.list());
@@ -409,7 +411,7 @@ public class SSTableRewriterTest extends SchemaLoader
                         {
                         rewriter.switchWriter(getWriter(cfs, sstable.descriptor.directory, txn));
                             files++;
-                            assertEquals(cfs.getSSTables().size(), files); // we have one original file plus the ones we have switched out.
+                            assertEquals(cfs.getLiveSSTables().size(), files); // we have one original file plus the ones we have switched out.
                         }
                     }
                     rewriter.abort();
@@ -440,7 +442,7 @@ public class SSTableRewriterTest extends SchemaLoader
                         {
                         rewriter.switchWriter(getWriter(cfs, sstable.descriptor.directory, txn));
                             files++;
-                            assertEquals(cfs.getSSTables().size(), files); // we have one original file plus the ones we have switched out.
+                            assertEquals(cfs.getLiveSSTables().size(), files); // we have one original file plus the ones we have switched out.
                         }
                         if (files == 3)
                         {
@@ -476,7 +478,7 @@ public class SSTableRewriterTest extends SchemaLoader
                         {
                         rewriter.switchWriter(getWriter(cfs, sstable.descriptor.directory, txn));
                             files++;
-                            assertEquals(cfs.getSSTables().size(), files); // we have one original file plus the ones we have switched out.
+                            assertEquals(cfs.getLiveSSTables().size(), files); // we have one original file plus the ones we have switched out.
                         }
                     }
                     rewriter.abort();
@@ -520,10 +522,10 @@ public class SSTableRewriterTest extends SchemaLoader
         TransactionLogs.waitForDeletions();
 
         assertEquals(startSize, cfs.metric.liveDiskSpaceUsed.getCount());
-        assertEquals(1, cfs.getSSTables().size());
+        assertEquals(1, cfs.getLiveSSTables().size());
         assertFileCounts(s.descriptor.directory.list());
-        assertEquals(cfs.getSSTables().iterator().next().first, origFirst);
-        assertEquals(cfs.getSSTables().iterator().next().last, origLast);
+        assertEquals(cfs.getLiveSSTables().iterator().next().first, origFirst);
+        assertEquals(cfs.getLiveSSTables().iterator().next().last, origLast);
         validateCFS(cfs);
     }
 
@@ -554,7 +556,7 @@ public class SSTableRewriterTest extends SchemaLoader
                 {
                     rewriter.switchWriter(getWriter(cfs, s.descriptor.directory, txn));
                     files++;
-                    assertEquals(cfs.getSSTables().size(), files); // we have one original file plus the ones we have switched out.
+                    assertEquals(cfs.getLiveSSTables().size(), files); // we have one original file plus the ones we have switched out.
                 }
                 if (files == 3)
                 {
@@ -567,7 +569,7 @@ public class SSTableRewriterTest extends SchemaLoader
 
         TransactionLogs.waitForDeletions();
 
-        assertEquals(files - 1, cfs.getSSTables().size()); // we never wrote anything to the last file
+        assertEquals(files - 1, cfs.getLiveSSTables().size()); // we never wrote anything to the last file
         assertFileCounts(s.descriptor.directory.list());
         validateCFS(cfs);
     }
@@ -600,7 +602,7 @@ public class SSTableRewriterTest extends SchemaLoader
                 {
                     rewriter.switchWriter(getWriter(cfs, s.descriptor.directory, txn));
                     files++;
-                    assertEquals(cfs.getSSTables().size(), files); // we have one original file plus the ones we have switched out.
+                    assertEquals(cfs.getLiveSSTables().size(), files); // we have one original file plus the ones we have switched out.
                 }
             }
 
@@ -638,7 +640,7 @@ public class SSTableRewriterTest extends SchemaLoader
                 rewriter.append(ci.next());
                 if (rewriter.currentWriter().getOnDiskFilePointer() > 2500000)
                 {
-                    assertEquals(files, cfs.getSSTables().size()); // all files are now opened early
+                    assertEquals(files, cfs.getLiveSSTables().size()); // all files are now opened early
                     rewriter.switchWriter(getWriter(cfs, s.descriptor.directory, txn));
                     files++;
                 }
@@ -647,7 +649,7 @@ public class SSTableRewriterTest extends SchemaLoader
             sstables = rewriter.finish();
         }
         assertEquals(files, sstables.size());
-        assertEquals(files, cfs.getSSTables().size());
+        assertEquals(files, cfs.getLiveSSTables().size());
         TransactionLogs.waitForDeletions();
         assertFileCounts(s.descriptor.directory.list());
 
@@ -752,13 +754,13 @@ public class SSTableRewriterTest extends SchemaLoader
         assertEquals(filecount, 1);
         if (!offline)
         {
-            assertEquals(1, cfs.getSSTables().size());
+            assertEquals(1, cfs.getLiveSSTables().size());
             validateCFS(cfs);
             truncate(cfs);
         }
         else
         {
-            assertEquals(0, cfs.getSSTables().size());
+            assertEquals(0, cfs.getLiveSSTables().size());
             cfs.truncateBlocking();
         }
         filecount = assertFileCounts(s.descriptor.directory.list());
@@ -798,8 +800,8 @@ public class SSTableRewriterTest extends SchemaLoader
         cfs.forceMajorCompaction();
         validateKeys(keyspace);
 
-        assertEquals(1, cfs.getSSTables().size());
-        SSTableReader s = cfs.getSSTables().iterator().next();
+        assertEquals(1, cfs.getLiveSSTables().size());
+        SSTableReader s = cfs.getLiveSSTables().iterator().next();
         Set<SSTableReader> compacting = new HashSet<>();
         compacting.add(s);
 
@@ -856,7 +858,7 @@ public class SSTableRewriterTest extends SchemaLoader
                 if (!checked && writer.currentWriter().getFilePointer() > 15000000)
                 {
                     checked = true;
-                    ColumnFamilyStore.ViewFragment viewFragment = cfs.select(ColumnFamilyStore.CANONICAL_SSTABLES);
+                    ColumnFamilyStore.ViewFragment viewFragment = cfs.select(View.select(SSTableSet.CANONICAL));
                     // canonical view should have only one SSTable which is not opened early.
                     assertEquals(1, viewFragment.sstables.size());
                     SSTableReader sstable = viewFragment.sstables.get(0);
@@ -965,7 +967,7 @@ public class SSTableRewriterTest extends SchemaLoader
     {
         Set<Integer> liveDescriptors = new HashSet<>();
         long spaceUsed = 0;
-        for (SSTableReader sstable : cfs.getSSTables())
+        for (SSTableReader sstable : cfs.getLiveSSTables())
         {
             assertFalse(sstable.isMarkedCompacted());
             assertEquals(1, sstable.selfRef().globalCount());

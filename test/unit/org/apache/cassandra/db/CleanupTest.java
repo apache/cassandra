@@ -140,7 +140,7 @@ public class CleanupTest
         assertEquals(0, Util.getAll(Util.cmd(cfs).build()).size());
 
         // not only should it be gone but there should be no data on disk, not even tombstones
-        assert cfs.getSSTables().isEmpty();
+        assert cfs.getLiveSSTables().isEmpty();
 
         // 2ary indexes should result in no results, too (although tombstones won't be gone until compacted)
         assertEquals(0, Util.getAll(Util.cmd(cfs).filterOn("birthdate", Operator.EQ, VALUE).build()).size());
@@ -191,7 +191,7 @@ public class CleanupTest
     protected List<Long> getMaxTimestampList(ColumnFamilyStore cfs)
     {
         List<Long> list = new LinkedList<Long>();
-        for (SSTableReader sstable : cfs.getSSTables())
+        for (SSTableReader sstable : cfs.getLiveSSTables())
             list.add(sstable.getMaxTimestamp());
         return list;
     }

@@ -147,7 +147,7 @@ public class KeyCacheTest
 
         assertKeyCacheSize(2, KEYSPACE1, COLUMN_FAMILY1);
 
-        Set<SSTableReader> readers = cfs.getTracker().getSSTables();
+        Set<SSTableReader> readers = cfs.getLiveSSTables();
         Refs<SSTableReader> refs = Refs.tryRef(readers);
         if (refs == null)
             throw new IllegalStateException();

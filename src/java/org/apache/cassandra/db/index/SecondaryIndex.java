@@ -39,6 +39,8 @@ import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.index.composites.CompositesIndex;
 import org.apache.cassandra.db.index.keys.KeysIndex;
+import org.apache.cassandra.db.lifecycle.SSTableSet;
+import org.apache.cassandra.db.lifecycle.View;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.db.marshal.LocalByPartionerType;
@@ -204,9 +206,9 @@ public abstract class SecondaryIndex
     protected void buildIndexBlocking()
     {
         logger.info(String.format("Submitting index build of %s for data in %s",
-                getIndexName(), StringUtils.join(baseCfs.getSSTables(), ", ")));
+                getIndexName(), StringUtils.join(baseCfs.getSSTables(SSTableSet.CANONICAL), ", ")));
 
-        try (Refs<SSTableReader> sstables = baseCfs.selectAndReference(ColumnFamilyStore.CANONICAL_SSTABLES).refs)
+        try (Refs<SSTableReader> sstables = baseCfs.selectAndReference(View.select(SSTableSet.CANONICAL)).refs)
         {
             SecondaryIndexBuilder builder = new SecondaryIndexBuilder(baseCfs,
                                                                       Collections.singleton(getIndexName()),

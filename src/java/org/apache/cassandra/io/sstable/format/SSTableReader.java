@@ -26,6 +26,7 @@ import java.util.concurrent.atomic.AtomicLong;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Predicate;
+import com.google.common.collect.Iterables;
 import com.google.common.collect.Iterators;
 import com.google.common.collect.Ordering;
 import com.google.common.primitives.Longs;
@@ -218,12 +219,12 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
      * @param sstables SSTables to calculate key count
      * @return estimated key count
      */
-    public static long getApproximateKeyCount(Collection<SSTableReader> sstables)
+    public static long getApproximateKeyCount(Iterable<SSTableReader> sstables)
     {
         long count = -1;
 
         // check if cardinality estimator is available for all SSTables
-        boolean cardinalityAvailable = !sstables.isEmpty() && Iterators.all(sstables.iterator(), new Predicate<SSTableReader>()
+        boolean cardinalityAvailable = !Iterables.isEmpty(sstables) && Iterables.all(sstables, new Predicate<SSTableReader>()
         {
             public boolean apply(SSTableReader sstable)
             {
@@ -1069,6 +1070,14 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
         replacement.last = last;
         replacement.isSuspect.set(isSuspect.get());
         return replacement;
+    }
+
+    public SSTableReader cloneWithRestoredStart(DecoratedKey restoredStart)
+    {
+        synchronized (tidy.global)
+        {
+            return cloneAndReplace(restoredStart, OpenReason.NORMAL);
+        }
     }
 
     // runOnClose must NOT be an anonymous or non-static inner class, nor must it retain a reference chain to this reader

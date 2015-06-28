@@ -129,7 +129,7 @@ public class SSTableReaderTest
         ranges.add(new Range<>(t(9), t(91)));
 
         // confirm that positions increase continuously
-        SSTableReader sstable = store.getSSTables().iterator().next();
+        SSTableReader sstable = store.getLiveSSTables().iterator().next();
         long previous = -1;
         for (Pair<Long,Long> section : sstable.getPositionsForRanges(ranges))
         {
@@ -161,7 +161,7 @@ public class SSTableReaderTest
         CompactionManager.instance.performMaximal(store, false);
 
         // check that all our keys are found correctly
-        SSTableReader sstable = store.getSSTables().iterator().next();
+        SSTableReader sstable = store.getLiveSSTables().iterator().next();
         for (int j = 0; j < 100; j += 2)
         {
             DecoratedKey dk = Util.dk(String.valueOf(j));
@@ -223,7 +223,7 @@ public class SSTableReaderTest
 
         store.forceBlockingFlush();
 
-        SSTableReader sstable = store.getSSTables().iterator().next();
+        SSTableReader sstable = store.getLiveSSTables().iterator().next();
         assertEquals(0, sstable.getReadMeter().count());
 
         DecoratedKey key = sstable.partitioner.decorateKey(ByteBufferUtil.bytes("4"));
@@ -256,7 +256,7 @@ public class SSTableReaderTest
         store.forceBlockingFlush();
         CompactionManager.instance.performMaximal(store, false);
 
-        SSTableReader sstable = store.getSSTables().iterator().next();
+        SSTableReader sstable = store.getLiveSSTables().iterator().next();
         long p2 = sstable.getPosition(k(2), SSTableReader.Operator.EQ).position;
         long p3 = sstable.getPosition(k(3), SSTableReader.Operator.EQ).position;
         long p6 = sstable.getPosition(k(6), SSTableReader.Operator.EQ).position;
@@ -308,7 +308,7 @@ public class SSTableReaderTest
         store.forceBlockingFlush();
         CompactionManager.instance.performMaximal(store, false);
 
-        SSTableReader sstable = store.getSSTables().iterator().next();
+        SSTableReader sstable = store.getLiveSSTables().iterator().next();
         sstable.getPosition(k(2), SSTableReader.Operator.EQ);
         assertEquals(0, sstable.getKeyCacheHit());
         assertEquals(1, sstable.getBloomFilterTruePositiveCount());
@@ -356,7 +356,7 @@ public class SSTableReaderTest
         }
         store.forceBlockingFlush();
 
-        SSTableReader sstable = store.getSSTables().iterator().next();
+        SSTableReader sstable = store.getLiveSSTables().iterator().next();
         Descriptor desc = sstable.descriptor;
 
         // test to see if sstable can be opened as expected
@@ -384,7 +384,7 @@ public class SSTableReaderTest
 
         ColumnFamilyStore indexCfs = store.indexManager.getIndexForColumn(store.metadata.getColumnDefinition(bytes("birthdate"))).getIndexCfs();
         assert indexCfs.partitioner instanceof LocalPartitioner;
-        SSTableReader sstable = indexCfs.getSSTables().iterator().next();
+        SSTableReader sstable = indexCfs.getLiveSSTables().iterator().next();
         assert sstable.first.getToken() instanceof LocalToken;
 
         try(SegmentedFile.Builder ibuilder = SegmentedFile.getBuilder(DatabaseDescriptor.getIndexAccessMode(), false);
@@ -412,7 +412,7 @@ public class SSTableReaderTest
 
         store.forceBlockingFlush();
         boolean foundScanner = false;
-        for (SSTableReader s : store.getSSTables())
+        for (SSTableReader s : store.getLiveSSTables())
         {
             try (ISSTableScanner scanner = s.getScanner(new Range<Token>(t(0), t(1)), null))
             {
@@ -451,7 +451,7 @@ public class SSTableReaderTest
         List<Range<Token>> ranges = new ArrayList<Range<Token>>();
         ranges.add(new Range<Token>(t(98), t(99)));
 
-        SSTableReader sstable = store.getSSTables().iterator().next();
+        SSTableReader sstable = store.getLiveSSTables().iterator().next();
         List<Pair<Long,Long>> sections = sstable.getPositionsForRanges(ranges);
         assert sections.size() == 1 : "Expected to find range in sstable" ;
 
@@ -485,7 +485,7 @@ public class SSTableReaderTest
         store.forceBlockingFlush();
         CompactionManager.instance.performMaximal(store, false);
 
-        Collection<SSTableReader> sstables = store.getSSTables();
+        Collection<SSTableReader> sstables = store.getLiveSSTables();
         assert sstables.size() == 1;
         final SSTableReader sstable = sstables.iterator().next();
 

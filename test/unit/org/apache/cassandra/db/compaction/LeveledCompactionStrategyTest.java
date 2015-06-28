@@ -124,7 +124,7 @@ public class LeveledCompactionStrategyTest
         assert strategy.getSSTableCountPerLevel()[1] > 0;
         assert strategy.getSSTableCountPerLevel()[2] > 0;
 
-        Collection<Collection<SSTableReader>> groupedSSTables = cfs.getCompactionStrategyManager().groupSSTablesForAntiCompaction(cfs.getSSTables());
+        Collection<Collection<SSTableReader>> groupedSSTables = cfs.getCompactionStrategyManager().groupSSTablesForAntiCompaction(cfs.getLiveSSTables());
         for (Collection<SSTableReader> sstableGroup : groupedSSTables)
         {
             int groupLevel = -1;
@@ -256,7 +256,7 @@ public class LeveledCompactionStrategyTest
         while(CompactionManager.instance.isCompacting(Arrays.asList(cfs)))
             Thread.sleep(100);
 
-        for (SSTableReader s : cfs.getSSTables())
+        for (SSTableReader s : cfs.getLiveSSTables())
         {
             assertTrue(s.getSSTableLevel() != 6);
             strategy.manifest.remove(s);
@@ -265,12 +265,12 @@ public class LeveledCompactionStrategyTest
             strategy.manifest.add(s);
         }
         // verify that all sstables in the changed set is level 6
-        for (SSTableReader s : cfs.getSSTables())
+        for (SSTableReader s : cfs.getLiveSSTables())
             assertEquals(6, s.getSSTableLevel());
 
         int[] levels = strategy.manifest.getAllLevelSize();
         // verify that the manifest has correct amount of sstables
-        assertEquals(cfs.getSSTables().size(), levels[6]);
+        assertEquals(cfs.getLiveSSTables().size(), levels[6]);
     }
 
     @Test
@@ -308,14 +308,14 @@ public class LeveledCompactionStrategyTest
         assertTrue(strategy.getSSTableCountPerLevel()[1] > 0);
         assertTrue(strategy.getSSTableCountPerLevel()[2] > 0);
 
-        for (SSTableReader sstable : cfs.getSSTables())
+        for (SSTableReader sstable : cfs.getLiveSSTables())
             assertFalse(sstable.isRepaired());
 
         int sstableCount = 0;
         for (List<SSTableReader> level : unrepaired.manifest.generations)
             sstableCount += level.size();
         // we only have unrepaired sstables:
-        assertEquals(sstableCount, cfs.getSSTables().size());
+        assertEquals(sstableCount, cfs.getLiveSSTables().size());
 
         SSTableReader sstable1 = unrepaired.manifest.generations[2].get(0);
         SSTableReader sstable2 = unrepaired.manifest.generations[1].get(0);

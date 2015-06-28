@@ -28,6 +28,7 @@ import javax.management.ObjectName;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.*;
 
+import org.apache.cassandra.db.lifecycle.SSTableSet;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -192,7 +193,7 @@ public class IndexSummaryManager implements IndexSummaryManagerMBean
         for (Keyspace ks : Keyspace.all())
         {
             for (ColumnFamilyStore cfStore: ks.getColumnFamilyStores())
-                result.addAll(cfStore.getSSTables());
+                result.addAll(cfStore.getLiveSSTables());
         }
 
         return result;
@@ -216,7 +217,7 @@ public class IndexSummaryManager implements IndexSummaryManagerMBean
                 do
                 {
                     View view = cfStore.getTracker().getView();
-                    allSSTables = view.sstables;
+                    allSSTables = ImmutableSet.copyOf(view.sstables(SSTableSet.CANONICAL));
                     nonCompacting = ImmutableSet.copyOf(view.getUncompacting(allSSTables));
                 }
                 while (null == (txn = cfStore.getTracker().tryModify(nonCompacting, OperationType.UNKNOWN)));

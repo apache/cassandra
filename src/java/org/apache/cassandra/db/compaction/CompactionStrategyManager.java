@@ -33,6 +33,8 @@ import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Memtable;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
+import org.apache.cassandra.db.lifecycle.SSTableSet;
+import org.apache.cassandra.db.lifecycle.View;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
@@ -138,7 +140,7 @@ public class CompactionStrategyManager implements INotificationConsumer
 
     private void startup()
     {
-        for (SSTableReader sstable : cfs.getSSTables())
+        for (SSTableReader sstable : cfs.getSSTables(SSTableSet.CANONICAL))
         {
             if (sstable.openReason != SSTableReader.OpenReason.EARLY)
                 getCompactionStrategyFor(sstable).addSSTable(sstable);

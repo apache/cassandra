@@ -35,10 +35,7 @@ import com.google.common.base.Throwables;
 import com.google.common.collect.*;
 import com.google.common.util.concurrent.*;
 
-import org.apache.cassandra.db.lifecycle.SSTableIntervalTree;
-import org.apache.cassandra.db.lifecycle.View;
-import org.apache.cassandra.db.lifecycle.Tracker;
-import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
+import org.apache.cassandra.db.lifecycle.*;
 import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.metrics.TableMetrics;
 import org.json.simple.*;
@@ -291,7 +288,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     {
         try
         {
-            for (SSTableReader sstable : keyspace.getAllSSTables())
+            // TODO: this doesn't affect sstables being written
+            for (SSTableReader sstable : keyspace.getAllSSTables(SSTableSet.CANONICAL))
                 if (sstable.compression)
                     sstable.getCompressionMetadata().parameters.setCrcCheckChance(crcCheckChance);
         }
@@ -626,8 +624,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     {
         logger.info("Loading new SSTables for {}/{}...", keyspace.getName(), name);
 
-        Set<Descriptor> currentDescriptors = new HashSet<Descriptor>();
-        for (SSTableReader sstable : data.getView().sstables)
+        Set<Descriptor> currentDescriptors = new HashSet<>();
+        for (SSTableReader sstable : getSSTables(SSTableSet.CANONICAL))
             currentDescriptors.add(sstable.descriptor);
         Set<SSTableReader> newSSTables = new HashSet<>();
 
@@ -714,13 +712,12 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
         Set<String> indexes = new HashSet<String>(Arrays.asList(idxNames));
 
-        Collection<SSTableReader> sstables = cfs.getSSTables();
-
+        Iterable<SSTableReader> sstables = cfs.getSSTables(SSTableSet.CANONICAL);
         try (Refs<SSTableReader> refs = Refs.ref(sstables))
         {
             cfs.indexManager.setIndexRemoved(indexes);
             logger.info(String.format("User Requested secondary index re-build for %s/%s indexes", ksName, cfName));
-            cfs.indexManager.maybeBuildSecondaryIndexes(sstables, indexes);
+            cfs.indexManager.maybeBuildSecondaryIndexes(refs, indexes);
             cfs.indexManager.setIndexBuilt(indexes);
         }
     }
@@ -1155,7 +1152,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
      * @return sstables whose key range overlaps with that of the given sstables, not including itself.
      * (The given sstables may or may not overlap with each other.)
      */
-    public Collection<SSTableReader> getOverlappingSSTables(Iterable<SSTableReader> sstables)
+    public Collection<SSTableReader> getOverlappingSSTables(SSTableSet sstableSet, Iterable<SSTableReader> sstables)
     {
         logger.debug("Checking for sstables overlapping {}", sstables);
 
@@ -1164,12 +1161,12 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         if (!sstables.iterator().hasNext())
             return ImmutableSet.of();
 
-        SSTableIntervalTree tree = data.getView().intervalTree;
+        View view = data.getView();
 
         Set<SSTableReader> results = null;
         for (SSTableReader sstable : sstables)
         {
-            Set<SSTableReader> overlaps = ImmutableSet.copyOf(tree.search(Interval.<PartitionPosition, SSTableReader>create(sstable.first, sstable.last)));
+            Set<SSTableReader> overlaps = ImmutableSet.copyOf(view.sstablesInBounds(sstableSet, AbstractBounds.bounds(sstable.first, true, sstable.last, true)));
             results = results == null ? overlaps : Sets.union(results, overlaps).immutableCopy();
         }
         results = Sets.difference(results, ImmutableSet.copyOf(sstables));
@@ -1180,11 +1177,11 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     /**
      * like getOverlappingSSTables, but acquires references before returning
      */
-    public Refs<SSTableReader> getAndReferenceOverlappingSSTables(Iterable<SSTableReader> sstables)
+    public Refs<SSTableReader> getAndReferenceOverlappingSSTables(SSTableSet sstableSet, Iterable<SSTableReader> sstables)
     {
         while (true)
         {
-            Iterable<SSTableReader> overlapped = getOverlappingSSTables(sstables);
+            Iterable<SSTableReader> overlapped = getOverlappingSSTables(sstableSet, sstables);
             Refs<SSTableReader> refs = Refs.tryRef(overlapped);
             if (refs != null)
                 return refs;
@@ -1361,12 +1358,17 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return data;
     }
 
-    public Collection<SSTableReader> getSSTables()
+    public Set<SSTableReader> getLiveSSTables()
     {
-        return data.getSSTables();
+        return data.getView().liveSSTables();
     }
 
-    public Set<SSTableReader> getUncompactingSSTables()
+    public Iterable<SSTableReader> getSSTables(SSTableSet sstableSet)
+    {
+        return data.getView().sstables(sstableSet);
+    }
+
+    public Iterable<SSTableReader> getUncompactingSSTables()
     {
         return data.getUncompacting();
     }
@@ -1397,34 +1399,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return nowInSec - metadata.getGcGraceSeconds();
     }
 
-    public Set<SSTableReader> getUnrepairedSSTables()
-    {
-        Set<SSTableReader> unRepairedSSTables = new HashSet<>(getSSTables());
-        Iterator<SSTableReader> sstableIterator = unRepairedSSTables.iterator();
-        while(sstableIterator.hasNext())
-        {
-            SSTableReader sstable = sstableIterator.next();
-            if (sstable.isRepaired())
-                sstableIterator.remove();
-        }
-        return unRepairedSSTables;
-    }
-
-    public Set<SSTableReader> getRepairedSSTables()
-    {
-        Set<SSTableReader> repairedSSTables = new HashSet<>(getSSTables());
-        Iterator<SSTableReader> sstableIterator = repairedSSTables.iterator();
-        while(sstableIterator.hasNext())
-        {
-            SSTableReader sstable = sstableIterator.next();
-            if (!sstable.isRepaired())
-                sstableIterator.remove();
-        }
-        return repairedSSTables;
-    }
-
     @SuppressWarnings("resource")
-    public RefViewFragment selectAndReference(Function<View, List<SSTableReader>> filter)
+    public RefViewFragment selectAndReference(Function<View, Iterable<SSTableReader>> filter)
     {
         long failingSince = -1L;
         while (true)
@@ -1450,80 +1426,21 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         }
     }
 
-    public ViewFragment select(Function<View, List<SSTableReader>> filter)
+    public ViewFragment select(Function<View, Iterable<SSTableReader>> filter)
     {
         View view = data.getView();
-        List<SSTableReader> sstables = view.intervalTree.isEmpty()
-                                       ? Collections.<SSTableReader>emptyList()
-                                       : filter.apply(view);
+        List<SSTableReader> sstables = Lists.newArrayList(filter.apply(view));
         return new ViewFragment(sstables, view.getAllMemtables());
     }
 
-
-    /**
-     * @return a ViewFragment containing the sstables and memtables that may need to be merged
-     * for the given @param key, according to the interval tree
-     */
-    public Function<View, List<SSTableReader>> viewFilter(final DecoratedKey key)
-    {
-        assert !key.isMinimum();
-        return new Function<View, List<SSTableReader>>()
-        {
-            public List<SSTableReader> apply(View view)
-            {
-                return view.intervalTree.search(key);
-            }
-        };
-    }
-
-    /**
-     * @return a ViewFragment containing the sstables and memtables that may need to be merged
-     * for rows within @param rowBounds, inclusive, according to the interval tree.
-     */
-    public Function<View, List<SSTableReader>> viewFilter(final AbstractBounds<PartitionPosition> rowBounds)
-    {
-        return new Function<View, List<SSTableReader>>()
-        {
-            public List<SSTableReader> apply(View view)
-            {
-                return view.sstablesInBounds(rowBounds);
-            }
-        };
-    }
-
-    /**
-     * @return a ViewFragment containing the sstables and memtables that may need to be merged
-     * for rows for all of @param rowBoundsCollection, inclusive, according to the interval tree.
-     */
-    public Function<View, List<SSTableReader>> viewFilter(final Collection<AbstractBounds<PartitionPosition>> rowBoundsCollection, final boolean includeRepaired)
-    {
-        return new Function<View, List<SSTableReader>>()
-        {
-            public List<SSTableReader> apply(View view)
-            {
-                Set<SSTableReader> sstables = Sets.newHashSet();
-                for (AbstractBounds<PartitionPosition> rowBounds : rowBoundsCollection)
-                {
-                    for (SSTableReader sstable : view.sstablesInBounds(rowBounds))
-                    {
-                        if (includeRepaired || !sstable.isRepaired())
-                            sstables.add(sstable);
-                    }
-                }
-
-                logger.debug("ViewFilter for {}/{} sstables", sstables.size(), getSSTables().size());
-                return ImmutableList.copyOf(sstables);
-            }
-        };
-    }
-
+    // WARNING: this returns the set of LIVE sstables only, which may be only partially written
     public List<String> getSSTablesForKey(String key)
     {
         DecoratedKey dk = partitioner.decorateKey(metadata.getKeyValidator().fromString(key));
         try (OpOrder.Group op = readOrdering.start())
         {
             List<String> files = new ArrayList<>();
-            for (SSTableReader sstr : select(viewFilter(dk)).sstables)
+            for (SSTableReader sstr : select(View.select(SSTableSet.LIVE, dk)).sstables)
             {
                 // check if the key actually exists in this sstable, without updating cache and stats
                 if (sstr.getPosition(dk, SSTableReader.Operator.EQ, false) != null)
@@ -1602,13 +1519,10 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         for (ColumnFamilyStore cfs : concatWithIndexes())
         {
             final JSONArray filesJSONArr = new JSONArray();
-            try (RefViewFragment currentView = cfs.selectAndReference(CANONICAL_SSTABLES))
+            try (RefViewFragment currentView = cfs.selectAndReference(View.select(SSTableSet.CANONICAL, (x) -> predicate == null || predicate.apply(x))))
             {
                 for (SSTableReader ssTable : currentView.sstables)
                 {
-                    if (predicate != null && !predicate.apply(ssTable))
-                        continue;
-
                     File snapshotDirectory = Directories.getSnapshotDirectory(ssTable.descriptor, snapshotName);
                     ssTable.createLinks(snapshotDirectory.getPath()); // hard links
                     filesJSONArr.add(ssTable.descriptor.relativeFilenameFor(Component.DATA));
@@ -1681,7 +1595,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     public Refs<SSTableReader> getSnapshotSSTableReader(String tag) throws IOException
     {
         Map<Integer, SSTableReader> active = new HashMap<>();
-        for (SSTableReader sstable : data.getView().sstables)
+        for (SSTableReader sstable : getSSTables(SSTableSet.CANONICAL))
             active.put(sstable.descriptor.generation, sstable);
         Map<Descriptor, Set<Component>> snapshots = directories.sstableLister().snapshots(tag).list();
         Refs<SSTableReader> refs = new Refs<>();
@@ -1851,7 +1765,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     public Iterable<DecoratedKey> keySamples(Range<Token> range)
     {
-        try (RefViewFragment view = selectAndReference(CANONICAL_SSTABLES))
+        try (RefViewFragment view = selectAndReference(View.select(SSTableSet.CANONICAL)))
         {
             Iterable<DecoratedKey>[] samples = new Iterable[view.sstables.size()];
             int i = 0;
@@ -1865,7 +1779,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     public long estimatedKeysForRange(Range<Token> range)
     {
-        try (RefViewFragment view = selectAndReference(CANONICAL_SSTABLES))
+        try (RefViewFragment view = selectAndReference(View.select(SSTableSet.CANONICAL)))
         {
             long count = 0;
             for (SSTableReader sstable : view.sstables)
@@ -2014,7 +1928,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             public LifecycleTransaction call() throws Exception
             {
                 assert data.getCompacting().isEmpty() : data.getCompacting();
-                Collection<SSTableReader> sstables = Lists.newArrayList(AbstractCompactionStrategy.filterSuspectSSTables(getSSTables()));
+                Collection<SSTableReader> sstables = Lists.newArrayList(AbstractCompactionStrategy.filterSuspectSSTables(getSSTables(SSTableSet.LIVE)));
                 LifecycleTransaction modifier = data.tryModify(sstables, operationType);
                 assert modifier != null: "something marked things compacting while compactions are disabled";
                 return modifier;
@@ -2126,7 +2040,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     {
         long sum = 0;
         long count = 0;
-        for (SSTableReader sstable : getSSTables())
+        for (SSTableReader sstable : getSSTables(SSTableSet.CANONICAL))
         {
             long n = sstable.getEstimatedColumnCount().count();
             sum += sstable.getEstimatedColumnCount().mean() * n;
@@ -2138,7 +2052,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     public long estimateKeys()
     {
         long n = 0;
-        for (SSTableReader sstable : getSSTables())
+        for (SSTableReader sstable : getSSTables(SSTableSet.CANONICAL))
             n += sstable.estimatedKeys();
         return n;
     }
@@ -2206,8 +2120,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     public boolean isEmpty()
     {
-        View view = data.getView();
-        return view.sstables.isEmpty() && view.getCurrentMemtable().getOperations() == 0 && view.liveMemtables.size() <= 1 && view.flushingMemtables.size() == 0;
+        return data.getView().isEmpty();
     }
 
     public boolean isRowCacheEnabled()
@@ -2231,7 +2144,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
         List<SSTableReader> truncatedSSTables = new ArrayList<>();
 
-        for (SSTableReader sstable : getSSTables())
+        for (SSTableReader sstable : getSSTables(SSTableSet.LIVE))
         {
             if (!sstable.newSince(truncatedAt))
                 truncatedSSTables.add(sstable);
@@ -2250,7 +2163,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         long allColumns = 0;
         int localTime = (int)(System.currentTimeMillis()/1000);
 
-        for (SSTableReader sstable : getSSTables())
+        for (SSTableReader sstable : getSSTables(SSTableSet.LIVE))
         {
             allDroppable += sstable.getDroppableTombstonesBefore(localTime - sstable.metadata.getGcGraceSeconds());
             allColumns += sstable.getEstimatedColumnCount().mean() * sstable.getEstimatedColumnCount().count();
@@ -2269,35 +2182,4 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         fileIndexGenerator.set(0);
     }
 
-    // returns the "canonical" version of any current sstable, i.e. if an sstable is being replaced and is only partially
-    // visible to reads, this sstable will be returned as its original entirety, and its replacement will not be returned
-    // (even if it completely replaces it)
-    public static final Function<View, List<SSTableReader>> CANONICAL_SSTABLES = new Function<View, List<SSTableReader>>()
-    {
-        public List<SSTableReader> apply(View view)
-        {
-            List<SSTableReader> sstables = new ArrayList<>();
-            for (SSTableReader sstable : view.compacting)
-                if (sstable.openReason != SSTableReader.OpenReason.EARLY)
-                    sstables.add(sstable);
-            for (SSTableReader sstable : view.sstables)
-                if (!view.compacting.contains(sstable) && sstable.openReason != SSTableReader.OpenReason.EARLY)
-                    sstables.add(sstable);
-            return sstables;
-        }
-    };
-
-    public static final Function<View, List<SSTableReader>> UNREPAIRED_SSTABLES = new Function<View, List<SSTableReader>>()
-    {
-        public List<SSTableReader> apply(View view)
-        {
-            List<SSTableReader> sstables = new ArrayList<>();
-            for (SSTableReader sstable : CANONICAL_SSTABLES.apply(view))
-            {
-                if (!sstable.isRepaired())
-                    sstables.add(sstable);
-            }
-            return sstables;
-        }
-    };
 }

@@ -525,7 +525,7 @@ public class DefsTest
 
         cfs.forceBlockingFlush();
         ColumnFamilyStore indexedCfs = cfs.indexManager.getIndexForColumn(cfs.metadata.getColumnDefinition(ByteBufferUtil.bytes("birthdate"))).getIndexCfs();
-        Descriptor desc = indexedCfs.getSSTables().iterator().next().descriptor;
+        Descriptor desc = indexedCfs.getLiveSSTables().iterator().next().descriptor;
 
         // drop the index
         CFMetaData meta = cfs.metadata.copy();

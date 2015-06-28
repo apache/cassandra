@@ -94,10 +94,10 @@ public class SSTableMetadataTest
 
 
         store.forceBlockingFlush();
-        assertEquals(1, store.getSSTables().size());
+        assertEquals(1, store.getLiveSSTables().size());
         int ttltimestamp = (int)(System.currentTimeMillis()/1000);
         int firstDelTime = 0;
-        for(SSTableReader sstable : store.getSSTables())
+        for(SSTableReader sstable : store.getLiveSSTables())
         {
             firstDelTime = sstable.getSSTableMetadata().maxLocalDeletionTime;
             assertEquals(ttltimestamp + 10000, firstDelTime, 10);
@@ -113,8 +113,8 @@ public class SSTableMetadataTest
 
         ttltimestamp = (int) (System.currentTimeMillis()/1000);
         store.forceBlockingFlush();
-        assertEquals(2, store.getSSTables().size());
-        List<SSTableReader> sstables = new ArrayList<>(store.getSSTables());
+        assertEquals(2, store.getLiveSSTables().size());
+        List<SSTableReader> sstables = new ArrayList<>(store.getLiveSSTables());
         if(sstables.get(0).getSSTableMetadata().maxLocalDeletionTime < sstables.get(1).getSSTableMetadata().maxLocalDeletionTime)
         {
             assertEquals(sstables.get(0).getSSTableMetadata().maxLocalDeletionTime, firstDelTime);
@@ -126,9 +126,9 @@ public class SSTableMetadataTest
             assertEquals(sstables.get(0).getSSTableMetadata().maxLocalDeletionTime, ttltimestamp + 20000, 10);
         }
 
-        Util.compact(store, store.getSSTables());
-        assertEquals(1, store.getSSTables().size());
-        for(SSTableReader sstable : store.getSSTables())
+        Util.compact(store, store.getLiveSSTables());
+        assertEquals(1, store.getLiveSSTables().size());
+        for(SSTableReader sstable : store.getLiveSSTables())
         {
             assertEquals(sstable.getSSTableMetadata().maxLocalDeletionTime, ttltimestamp + 20000, 10);
         }
@@ -167,10 +167,10 @@ public class SSTableMetadataTest
         .applyUnsafe();
 
         store.forceBlockingFlush();
-        assertEquals(1,store.getSSTables().size());
+        assertEquals(1,store.getLiveSSTables().size());
         int ttltimestamp = (int) (System.currentTimeMillis()/1000);
         int firstMaxDelTime = 0;
-        for(SSTableReader sstable : store.getSSTables())
+        for(SSTableReader sstable : store.getLiveSSTables())
         {
             firstMaxDelTime = sstable.getSSTableMetadata().maxLocalDeletionTime;
             assertEquals(ttltimestamp + 1000, firstMaxDelTime, 10);
@@ -179,9 +179,9 @@ public class SSTableMetadataTest
         RowUpdateBuilder.deleteRow(store.metadata, timestamp + 1, "deletetest", "todelete").applyUnsafe();
 
         store.forceBlockingFlush();
-        assertEquals(2,store.getSSTables().size());
+        assertEquals(2,store.getLiveSSTables().size());
         boolean foundDelete = false;
-        for(SSTableReader sstable : store.getSSTables())
+        for(SSTableReader sstable : store.getLiveSSTables())
         {
             if(sstable.getSSTableMetadata().maxLocalDeletionTime != firstMaxDelTime)
             {
@@ -190,9 +190,9 @@ public class SSTableMetadataTest
             }
         }
         assertTrue(foundDelete);
-        Util.compact(store, store.getSSTables());
-        assertEquals(1,store.getSSTables().size());
-        for(SSTableReader sstable : store.getSSTables())
+        Util.compact(store, store.getLiveSSTables());
+        assertEquals(1,store.getLiveSSTables().size());
+        for(SSTableReader sstable : store.getLiveSSTables())
         {
             assertEquals(ttltimestamp + 100, sstable.getSSTableMetadata().maxLocalDeletionTime, 10);
         }
@@ -216,8 +216,8 @@ public class SSTableMetadataTest
             }
         }
         store.forceBlockingFlush();
-        assertEquals(1, store.getSSTables().size());
-        for (SSTableReader sstable : store.getSSTables())
+        assertEquals(1, store.getLiveSSTables().size());
+        for (SSTableReader sstable : store.getLiveSSTables())
         {
             assertEquals(ByteBufferUtil.string(sstable.getSSTableMetadata().minClusteringValues.get(0)), "0col100");
             assertEquals(ByteBufferUtil.string(sstable.getSSTableMetadata().maxClusteringValues.get(0)), "7col149");
@@ -235,8 +235,8 @@ public class SSTableMetadataTest
 
         store.forceBlockingFlush();
         store.forceMajorCompaction();
-        assertEquals(1, store.getSSTables().size());
-        for (SSTableReader sstable : store.getSSTables())
+        assertEquals(1, store.getLiveSSTables().size());
+        for (SSTableReader sstable : store.getLiveSSTables())
         {
             assertEquals(ByteBufferUtil.string(sstable.getSSTableMetadata().minClusteringValues.get(0)), "0col100");
             assertEquals(ByteBufferUtil.string(sstable.getSSTableMetadata().maxClusteringValues.get(0)), "9col298");
@@ -282,8 +282,8 @@ public class SSTableMetadataTest
         }
         cfs.forceBlockingFlush();
         cfs.forceMajorCompaction();
-        assertEquals(cfs.getSSTables().size(), 1);
-        for (SSTableReader sstable : cfs.getSSTables())
+        assertEquals(cfs.getLiveSSTables().size(), 1);
+        for (SSTableReader sstable : cfs.getLiveSSTables())
         {
             assertEquals("b9", ByteBufferUtil.string(sstable.getSSTableMetadata().maxClusteringValues.get(0)));
             assertEquals(9, ByteBufferUtil.toInt(sstable.getSSTableMetadata().maxClusteringValues.get(1)));
@@ -307,7 +307,7 @@ public class SSTableMetadataTest
         cells.addColumn(new BufferCounterCell(cellname("col"), state.context, 1L, Long.MIN_VALUE));
         new Mutation(Util.dk("k").getKey(), cells).applyUnsafe();
         cfs.forceBlockingFlush();
-        assertTrue(cfs.getSSTables().iterator().next().getSSTableMetadata().hasLegacyCounterShards);
+        assertTrue(cfs.getLiveSSTables().iterator().next().getSSTableMetadata().hasLegacyCounterShards);
         cfs.truncateBlocking();
 
         // A cell with global and remote shards
@@ -318,7 +318,7 @@ public class SSTableMetadataTest
         cells.addColumn(new BufferCounterCell(cellname("col"), state.context, 1L, Long.MIN_VALUE));
         new Mutation(Util.dk("k").getKey(), cells).applyUnsafe();
         cfs.forceBlockingFlush();
-        assertTrue(cfs.getSSTables().iterator().next().getSSTableMetadata().hasLegacyCounterShards);
+        assertTrue(cfs.getLiveSSTables().iterator().next().getSSTableMetadata().hasLegacyCounterShards);
         cfs.truncateBlocking();
 
         // A cell with global and local shards
@@ -329,7 +329,7 @@ public class SSTableMetadataTest
         cells.addColumn(new BufferCounterCell(cellname("col"), state.context, 1L, Long.MIN_VALUE));
         new Mutation(Util.dk("k").getKey(), cells).applyUnsafe();
         cfs.forceBlockingFlush();
-        assertTrue(cfs.getSSTables().iterator().next().getSSTableMetadata().hasLegacyCounterShards);
+        assertTrue(cfs.getLiveSSTables().iterator().next().getSSTableMetadata().hasLegacyCounterShards);
         cfs.truncateBlocking();
 
         // A cell with global only
@@ -339,7 +339,7 @@ public class SSTableMetadataTest
         cells.addColumn(new BufferCounterCell(cellname("col"), state.context, 1L, Long.MIN_VALUE));
         new Mutation(Util.dk("k").getKey(), cells).applyUnsafe();
         cfs.forceBlockingFlush();
-        assertFalse(cfs.getSSTables().iterator().next().getSSTableMetadata().hasLegacyCounterShards);
+        assertFalse(cfs.getLiveSSTables().iterator().next().getSSTableMetadata().hasLegacyCounterShards);
         cfs.truncateBlocking();
     } */
 }

@@ -214,7 +214,7 @@ public class Util
     public static Future<?> compactAll(ColumnFamilyStore cfs, int gcBefore)
     {
         List<Descriptor> descriptors = new ArrayList<>();
-        for (SSTableReader sstable : cfs.getSSTables())
+        for (SSTableReader sstable : cfs.getLiveSSTables())
             descriptors.add(sstable.descriptor);
         return CompactionManager.instance.submitUserDefined(cfs, descriptors, gcBefore);
     }

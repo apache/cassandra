@@ -126,7 +126,7 @@ public class BlacklistingCompactionsTest
             assertEquals(inserted.toString(), inserted.size(), Util.getAll(Util.cmd(cfs).build()).size());
         }
 
-        Collection<SSTableReader> sstables = cfs.getSSTables();
+        Collection<SSTableReader> sstables = cfs.getLiveSSTables();
         int currentSSTable = 0;
         int sstablesToCorrupt = 8;
 

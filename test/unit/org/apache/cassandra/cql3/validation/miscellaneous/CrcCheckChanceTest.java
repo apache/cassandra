@@ -53,9 +53,9 @@ public class CrcCheckChanceTest extends CQLTester
         cfs.forceBlockingFlush();
 
         Assert.assertEquals(0.99, cfs.metadata.compressionParameters.getCrcCheckChance());
-        Assert.assertEquals(0.99, cfs.getSSTables().iterator().next().getCompressionMetadata().parameters.getCrcCheckChance());
+        Assert.assertEquals(0.99, cfs.getLiveSSTables().iterator().next().getCompressionMetadata().parameters.getCrcCheckChance());
         Assert.assertEquals(0.99, indexCfs.metadata.compressionParameters.getCrcCheckChance());
-        Assert.assertEquals(0.99, indexCfs.getSSTables().iterator().next().getCompressionMetadata().parameters.getCrcCheckChance());
+        Assert.assertEquals(0.99, indexCfs.getLiveSSTables().iterator().next().getCompressionMetadata().parameters.getCrcCheckChance());
 
         //Test for stack overflow
         cfs.setCrcCheckChance(0.99);
@@ -96,9 +96,9 @@ public class CrcCheckChanceTest extends CQLTester
         alterTable("ALTER TABLE %s WITH compression = {'sstable_compression': 'LZ4Compressor', 'crc_check_chance': 0.01}");
 
         Assert.assertEquals( 0.01, cfs.metadata.compressionParameters.getCrcCheckChance());
-        Assert.assertEquals( 0.01, cfs.getSSTables().iterator().next().getCompressionMetadata().parameters.getCrcCheckChance());
+        Assert.assertEquals( 0.01, cfs.getLiveSSTables().iterator().next().getCompressionMetadata().parameters.getCrcCheckChance());
         Assert.assertEquals( 0.01, indexCfs.metadata.compressionParameters.getCrcCheckChance());
-        Assert.assertEquals( 0.01, indexCfs.getSSTables().iterator().next().getCompressionMetadata().parameters.getCrcCheckChance());
+        Assert.assertEquals( 0.01, indexCfs.getLiveSSTables().iterator().next().getCompressionMetadata().parameters.getCrcCheckChance());
 
         assertRows(execute("SELECT * FROM %s WHERE p=?", "p1"),
                 row("p1", "k1", "sv1", "v1"),
@@ -113,9 +113,9 @@ public class CrcCheckChanceTest extends CQLTester
         //Verify the call used by JMX still works
         cfs.setCrcCheckChance(0.03);
         Assert.assertEquals( 0.03, cfs.metadata.compressionParameters.getCrcCheckChance());
-        Assert.assertEquals( 0.03, cfs.getSSTables().iterator().next().getCompressionMetadata().parameters.getCrcCheckChance());
+        Assert.assertEquals( 0.03, cfs.getLiveSSTables().iterator().next().getCompressionMetadata().parameters.getCrcCheckChance());
         Assert.assertEquals( 0.03, indexCfs.metadata.compressionParameters.getCrcCheckChance());
-        Assert.assertEquals( 0.03, indexCfs.getSSTables().iterator().next().getCompressionMetadata().parameters.getCrcCheckChance());
+        Assert.assertEquals( 0.03, indexCfs.getLiveSSTables().iterator().next().getCompressionMetadata().parameters.getCrcCheckChance());
 
     }
 

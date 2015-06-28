@@ -168,7 +168,7 @@ public class SizeTieredCompactionStrategyTest
         }
         cfs.forceBlockingFlush();
 
-        List<SSTableReader> sstrs = new ArrayList<>(cfs.getSSTables());
+        List<SSTableReader> sstrs = new ArrayList<>(cfs.getLiveSSTables());
         Pair<List<SSTableReader>, Double> bucket;
 
         List<SSTableReader> interestingBucket = mostInterestingBucket(Collections.singletonList(sstrs.subList(0, 2)), 4, 32);

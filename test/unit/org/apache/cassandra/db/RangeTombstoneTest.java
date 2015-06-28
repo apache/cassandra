@@ -236,10 +236,10 @@ public class RangeTombstoneTest
         new Mutation(PartitionUpdate.fullPartitionDelete(cfs.metadata, Util.dk(key), 1000, nowInSec)).apply();
         cfs.forceBlockingFlush();
 
-        SSTableReader sstable = cfs.getSSTables().iterator().next();
+        SSTableReader sstable = cfs.getLiveSSTables().iterator().next();
         assertTimes(sstable.getSSTableMetadata(), 1000, 1000, nowInSec);
         cfs.forceMajorCompaction();
-        sstable = cfs.getSSTables().iterator().next();
+        sstable = cfs.getLiveSSTables().iterator().next();
         assertTimes(sstable.getSSTableMetadata(), 1000, 1000, nowInSec);
     }
 
@@ -258,10 +258,10 @@ public class RangeTombstoneTest
         new Mutation(PartitionUpdate.fullPartitionDelete(cfs.metadata, Util.dk(key), 1000, nowInSec)).apply();
         cfs.forceBlockingFlush();
 
-        SSTableReader sstable = cfs.getSSTables().iterator().next();
+        SSTableReader sstable = cfs.getLiveSSTables().iterator().next();
         assertTimes(sstable.getSSTableMetadata(), 999, 1000, Integer.MAX_VALUE);
         cfs.forceMajorCompaction();
-        sstable = cfs.getSSTables().iterator().next();
+        sstable = cfs.getLiveSSTables().iterator().next();
         assertTimes(sstable.getSSTableMetadata(), 999, 1000, Integer.MAX_VALUE);
     }
 
@@ -277,10 +277,10 @@ public class RangeTombstoneTest
         new RowUpdateBuilder(cfs.metadata, nowInSec, 1000L, key).addRangeTombstone(1, 2).build().apply();
         cfs.forceBlockingFlush();
 
-        SSTableReader sstable = cfs.getSSTables().iterator().next();
+        SSTableReader sstable = cfs.getLiveSSTables().iterator().next();
         assertTimes(sstable.getSSTableMetadata(), 1000, 1000, nowInSec);
         cfs.forceMajorCompaction();
-        sstable = cfs.getSSTables().iterator().next();
+        sstable = cfs.getLiveSSTables().iterator().next();
         assertTimes(sstable.getSSTableMetadata(), 1000, 1000, nowInSec);
     }
 
@@ -300,10 +300,10 @@ public class RangeTombstoneTest
         cfs.forceBlockingFlush();
 
         cfs.forceBlockingFlush();
-        SSTableReader sstable = cfs.getSSTables().iterator().next();
+        SSTableReader sstable = cfs.getLiveSSTables().iterator().next();
         assertTimes(sstable.getSSTableMetadata(), 999, 1000, Integer.MAX_VALUE);
         cfs.forceMajorCompaction();
-        sstable = cfs.getSSTables().iterator().next();
+        sstable = cfs.getLiveSSTables().iterator().next();
         assertTimes(sstable.getSSTableMetadata(), 999, 1000, Integer.MAX_VALUE);
     }
 
@@ -480,14 +480,14 @@ public class RangeTombstoneTest
         cfs.forceBlockingFlush();
 
         // there should be 2 sstables
-        assertEquals(2, cfs.getSSTables().size());
+        assertEquals(2, cfs.getLiveSSTables().size());
 
         // compact down to single sstable
         CompactionManager.instance.performMaximal(cfs, false);
-        assertEquals(1, cfs.getSSTables().size());
+        assertEquals(1, cfs.getLiveSSTables().size());
 
         // test the physical structure of the sstable i.e. rt & columns on disk
-        SSTableReader sstable = cfs.getSSTables().iterator().next();
+        SSTableReader sstable = cfs.getLiveSSTables().iterator().next();
         try (UnfilteredPartitionIterator scanner = sstable.getScanner())
         {
             try (UnfilteredRowIterator iter = scanner.next())
@@ -577,7 +577,7 @@ public class RangeTombstoneTest
         CompactionManager.instance.performMaximal(cfs, false);
 
         // compacted down to single sstable
-        assertEquals(1, cfs.getSSTables().size());
+        assertEquals(1, cfs.getLiveSSTables().size());
 
         assertEquals(8, index.deletes.size());
     }

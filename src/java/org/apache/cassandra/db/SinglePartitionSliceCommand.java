@@ -23,6 +23,8 @@ import com.google.common.collect.Iterables;
 
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.filter.ClusteringIndexSliceFilter;
+import org.apache.cassandra.db.lifecycle.SSTableSet;
+import org.apache.cassandra.db.lifecycle.View;
 import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.db.filter.*;
 import org.apache.cassandra.db.partitions.Partition;
@@ -103,7 +105,7 @@ public class SinglePartitionSliceCommand extends SinglePartitionReadCommand<Clus
     protected UnfilteredRowIterator queryMemtableAndDiskInternal(ColumnFamilyStore cfs, boolean copyOnHeap)
     {
         Tracing.trace("Acquiring sstable references");
-        ColumnFamilyStore.ViewFragment view = cfs.select(cfs.viewFilter(partitionKey()));
+        ColumnFamilyStore.ViewFragment view = cfs.select(View.select(SSTableSet.LIVE, partitionKey()));
 
         List<UnfilteredRowIterator> iterators = new ArrayList<>(Iterables.size(view.memtables) + view.sstables.size());
         ClusteringIndexSliceFilter filter = clusteringIndexFilter();

@@ -213,8 +213,8 @@ public class SSTableScannerTest
             insertRowWithKey(store.metadata, i);
         store.forceBlockingFlush();
 
-        assertEquals(1, store.getSSTables().size());
-        SSTableReader sstable = store.getSSTables().iterator().next();
+        assertEquals(1, store.getLiveSSTables().size());
+        SSTableReader sstable = store.getLiveSSTables().iterator().next();
 
         // full range scan
         ISSTableScanner scanner = sstable.getScanner(null);
@@ -319,8 +319,8 @@ public class SSTableScannerTest
                 insertRowWithKey(store.metadata, i * 100 + j);
         store.forceBlockingFlush();
 
-        assertEquals(1, store.getSSTables().size());
-        SSTableReader sstable = store.getSSTables().iterator().next();
+        assertEquals(1, store.getLiveSSTables().size());
+        SSTableReader sstable = store.getLiveSSTables().iterator().next();
 
         // full range scan
         ISSTableScanner fullScanner = sstable.getScanner(null);
@@ -449,8 +449,8 @@ public class SSTableScannerTest
         insertRowWithKey(store.metadata, 205);
         store.forceBlockingFlush();
 
-        assertEquals(1, store.getSSTables().size());
-        SSTableReader sstable = store.getSSTables().iterator().next();
+        assertEquals(1, store.getLiveSSTables().size());
+        SSTableReader sstable = store.getLiveSSTables().iterator().next();
 
         // full range scan
         ISSTableScanner fullScanner = sstable.getScanner(null);

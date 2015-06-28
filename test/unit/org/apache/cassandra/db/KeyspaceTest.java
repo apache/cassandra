@@ -119,7 +119,7 @@ public class KeyspaceTest extends CQLTester
         for (String key : new String[]{"0", "2"})
             Util.assertEmpty(Util.cmd(cfs, key).build());
 
-        Collection<SSTableReader> sstables = cfs.getSSTables();
+        Collection<SSTableReader> sstables = cfs.getLiveSSTables();
         assertEquals(1, sstables.size());
         sstables.iterator().next().forceFilterFailures();
 
@@ -381,11 +381,11 @@ public class KeyspaceTest extends CQLTester
         validateSliceLarge(cfs);
 
         // compact so we have a big row with more than the minimum index count
-        if (cfs.getSSTables().size() > 1)
+        if (cfs.getLiveSSTables().size() > 1)
             CompactionManager.instance.performMaximal(cfs, false);
 
         // verify that we do indeed have multiple index entries
-        SSTableReader sstable = cfs.getSSTables().iterator().next();
+        SSTableReader sstable = cfs.getLiveSSTables().iterator().next();
         RowIndexEntry indexEntry = sstable.getPosition(Util.dk("0"), SSTableReader.Operator.EQ);
         assert indexEntry.columnsIndex().size() > 2;
 

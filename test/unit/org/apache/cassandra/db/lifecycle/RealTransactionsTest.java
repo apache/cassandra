@@ -119,7 +119,7 @@ public class RealTransactionsTest extends SchemaLoader
 
         SSTableReader ssTableReader = getSSTable(cfs, 100);
 
-        String dataFolder = cfs.getSSTables().iterator().next().descriptor.directory.getPath();
+        String dataFolder = cfs.getLiveSSTables().iterator().next().descriptor.directory.getPath();
         String transactionLogsFolder = StringUtils.join(dataFolder, File.separator, Directories.TRANSACTIONS_SUBDIR);
 
         assertTrue(new File(transactionLogsFolder).exists());
@@ -132,7 +132,7 @@ public class RealTransactionsTest extends SchemaLoader
     {
         createSSTable(cfs, numPartitions);
 
-        Set<SSTableReader> sstables = new HashSet<>(cfs.getSSTables());
+        Set<SSTableReader> sstables = new HashSet<>(cfs.getLiveSSTables());
         assertEquals(1, sstables.size());
         return sstables.iterator().next();
     }

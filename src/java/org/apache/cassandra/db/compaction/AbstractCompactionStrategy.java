@@ -24,6 +24,9 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.base.Predicate;
 import com.google.common.collect.Iterables;
 import com.google.common.util.concurrent.RateLimiter;
+
+import org.apache.cassandra.db.lifecycle.SSTableSet;
+import org.apache.cassandra.db.lifecycle.View;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -370,7 +373,7 @@ public abstract class AbstractCompactionStrategy
         if (uncheckedTombstoneCompaction)
             return true;
 
-        Collection<SSTableReader> overlaps = cfs.getOverlappingSSTables(Collections.singleton(sstable));
+        Collection<SSTableReader> overlaps = cfs.getOverlappingSSTables(SSTableSet.CANONICAL, Collections.singleton(sstable));
         if (overlaps.isEmpty())
         {
             // there is no overlap, tombstones are safely droppable

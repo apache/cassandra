@@ -34,6 +34,8 @@ import javax.management.ObjectName;
 
 import com.google.common.util.concurrent.Futures;
 
+import org.apache.cassandra.db.lifecycle.SSTableSet;
+import org.apache.cassandra.db.lifecycle.View;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -465,7 +467,7 @@ public class CacheService implements CacheServiceMBean
             }
             ByteBuffer key = ByteBufferUtil.read(input, keyLength);
             int generation = input.readInt();
-            SSTableReader reader = findDesc(generation, cfs.getSSTables());
+            SSTableReader reader = findDesc(generation, cfs.getSSTables(SSTableSet.CANONICAL));
             input.readBoolean(); // backwards compatibility for "promoted indexes" boolean
             if (reader == null)
             {
@@ -479,7 +481,7 @@ public class CacheService implements CacheServiceMBean
             return Futures.immediateFuture(Pair.create(new KeyCacheKey(cfs.metadata.cfId, reader.descriptor, key), entry));
         }
 
-        private SSTableReader findDesc(int generation, Collection<SSTableReader> collection)
+        private SSTableReader findDesc(int generation, Iterable<SSTableReader> collection)
         {
             for (SSTableReader sstable : collection)
             {

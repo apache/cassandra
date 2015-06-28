@@ -19,6 +19,8 @@ package org.apache.cassandra.db.compaction;
 
 import java.util.*;
 
+import org.apache.cassandra.db.lifecycle.SSTableSet;
+import org.apache.cassandra.db.lifecycle.View;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -83,7 +85,7 @@ public class CompactionController implements AutoCloseable
         if (compacting == null)
             overlappingSSTables = Refs.tryRef(Collections.<SSTableReader>emptyList());
         else
-            overlappingSSTables = cfs.getAndReferenceOverlappingSSTables(compacting);
+            overlappingSSTables = cfs.getAndReferenceOverlappingSSTables(SSTableSet.LIVE, compacting);
         this.overlapIterator = new OverlapIterator<>(buildIntervals(overlappingSSTables));
     }
 

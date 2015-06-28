@@ -100,7 +100,7 @@ public class VerifyTest
 
         fillCF(cfs, 2);
 
-        SSTableReader sstable = cfs.getSSTables().iterator().next();
+        SSTableReader sstable = cfs.getLiveSSTables().iterator().next();
 
         try (Verifier verifier = new Verifier(cfs, sstable, false))
         {
@@ -121,7 +121,7 @@ public class VerifyTest
 
         fillCounterCF(cfs, 2);
 
-        SSTableReader sstable = cfs.getSSTables().iterator().next();
+        SSTableReader sstable = cfs.getLiveSSTables().iterator().next();
 
         try (Verifier verifier = new Verifier(cfs, sstable, false))
         {
@@ -142,7 +142,7 @@ public class VerifyTest
 
         fillCF(cfs, 2);
 
-        SSTableReader sstable = cfs.getSSTables().iterator().next();
+        SSTableReader sstable = cfs.getLiveSSTables().iterator().next();
 
         try (Verifier verifier = new Verifier(cfs, sstable, false))
         {
@@ -163,7 +163,7 @@ public class VerifyTest
 
         fillCounterCF(cfs, 2);
 
-        SSTableReader sstable = cfs.getSSTables().iterator().next();
+        SSTableReader sstable = cfs.getLiveSSTables().iterator().next();
 
         try (Verifier verifier = new Verifier(cfs, sstable, false))
         {
@@ -184,7 +184,7 @@ public class VerifyTest
 
         fillCF(cfs, 2);
 
-        SSTableReader sstable = cfs.getSSTables().iterator().next();
+        SSTableReader sstable = cfs.getLiveSSTables().iterator().next();
 
         try (Verifier verifier = new Verifier(cfs, sstable, false))
         {
@@ -205,7 +205,7 @@ public class VerifyTest
 
         fillCounterCF(cfs, 2);
 
-        SSTableReader sstable = cfs.getSSTables().iterator().next();
+        SSTableReader sstable = cfs.getLiveSSTables().iterator().next();
 
         try (Verifier verifier = new Verifier(cfs, sstable, false))
         {
@@ -226,7 +226,7 @@ public class VerifyTest
 
         fillCF(cfs, 2);
 
-        SSTableReader sstable = cfs.getSSTables().iterator().next();
+        SSTableReader sstable = cfs.getLiveSSTables().iterator().next();
 
         try (Verifier verifier = new Verifier(cfs, sstable, false))
         {
@@ -247,7 +247,7 @@ public class VerifyTest
 
         fillCounterCF(cfs, 2);
 
-        SSTableReader sstable = cfs.getSSTables().iterator().next();
+        SSTableReader sstable = cfs.getLiveSSTables().iterator().next();
 
         try (Verifier verifier = new Verifier(cfs, sstable, false))
         {
@@ -271,7 +271,7 @@ public class VerifyTest
 
         Util.getAll(Util.cmd(cfs).build());
 
-        SSTableReader sstable = cfs.getSSTables().iterator().next();
+        SSTableReader sstable = cfs.getLiveSSTables().iterator().next();
 
 
         RandomAccessFile file = new RandomAccessFile(sstable.descriptor.filenameFor(Component.DIGEST), "rw");
@@ -300,7 +300,7 @@ public class VerifyTest
 
         Util.getAll(Util.cmd(cfs).build());
 
-        SSTableReader sstable = cfs.getSSTables().iterator().next();
+        SSTableReader sstable = cfs.getLiveSSTables().iterator().next();
 
         // overwrite one row with garbage
         long row0Start = sstable.getPosition(PartitionPosition.ForKey.get(ByteBufferUtil.bytes("0"), sstable.partitioner), SSTableReader.Operator.EQ).position;

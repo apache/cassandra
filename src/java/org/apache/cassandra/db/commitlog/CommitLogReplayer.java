@@ -45,6 +45,7 @@ import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.rows.SerializationHelper;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
+import org.apache.cassandra.db.lifecycle.SSTableSet;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.compress.CompressionParameters;
 import org.apache.cassandra.io.compress.ICompressor;
@@ -105,7 +106,7 @@ public class CommitLogReplayer
             // it's important to call RP.gRP per-cf, before aggregating all the positions w/ the Ordering.min call
             // below: gRP will return NONE if there are no flushed sstables, which is important to have in the
             // list (otherwise we'll just start replay from the first flush position that we do have, which is not correct).
-            ReplayPosition rp = ReplayPosition.getReplayPosition(cfs.getSSTables());
+            ReplayPosition rp = ReplayPosition.getReplayPosition(cfs.getSSTables(SSTableSet.CANONICAL));
 
             // but, if we've truncated the cf in question, then we need to need to start replay after the truncation
             ReplayPosition truncatedAt = SystemKeyspace.getTruncatedPosition(cfs.metadata.cfId);

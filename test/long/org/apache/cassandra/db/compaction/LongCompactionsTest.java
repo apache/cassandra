@@ -195,7 +195,7 @@ public class LongCompactionsTest
             FBUtilities.waitOnFutures(compactions);
         } while (CompactionManager.instance.getPendingTasks() > 0 || CompactionManager.instance.getActiveCompactions() > 0);
 
-        if (cfs.getSSTables().size() > 1)
+        if (cfs.getLiveSSTables().size() > 1)
         {
             CompactionManager.instance.performMaximal(cfs, false);
         }

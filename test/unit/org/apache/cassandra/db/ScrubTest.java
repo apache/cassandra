@@ -137,9 +137,9 @@ public class ScrubTest
 
         assertOrderedAll(cfs, numPartitions);
 
-        assertEquals(1, cfs.getSSTables().size());
+        assertEquals(1, cfs.getLiveSSTables().size());
 
-        SSTableReader sstable = cfs.getSSTables().iterator().next();
+        SSTableReader sstable = cfs.getLiveSSTables().iterator().next();
 
         //make sure to override at most 1 chunk when compression is enabled
         overrideWithGarbage(sstable, ByteBufferUtil.bytes("0"), ByteBufferUtil.bytes("1"));
@@ -177,7 +177,7 @@ public class ScrubTest
             assertEquals(1, scrubResult.badRows);
             assertEquals(numPartitions-1, scrubResult.goodRows);
         }
-        assertEquals(1, cfs.getSSTables().size());
+        assertEquals(1, cfs.getLiveSSTables().size());
 
         assertOrderedAll(cfs, scrubResult.goodRows);
     }
@@ -197,7 +197,7 @@ public class ScrubTest
 
         assertOrderedAll(cfs, 2);
 
-        SSTableReader sstable = cfs.getSSTables().iterator().next();
+        SSTableReader sstable = cfs.getLiveSSTables().iterator().next();
 
         // overwrite one row with garbage
         overrideWithGarbage(sstable, ByteBufferUtil.bytes("0"), ByteBufferUtil.bytes("1"));
@@ -220,7 +220,7 @@ public class ScrubTest
             scrubber.close();
         }
 
-        assertEquals(1, cfs.getSSTables().size());
+        assertEquals(1, cfs.getLiveSSTables().size());
         // verify that we can read all of the rows, and there is now one less row
         assertOrderedAll(cfs, 1);
     }
@@ -240,7 +240,7 @@ public class ScrubTest
         fillCF(cfs, 4);
         assertOrderedAll(cfs, 4);
 
-        SSTableReader sstable = cfs.getSSTables().iterator().next();
+        SSTableReader sstable = cfs.getLiveSSTables().iterator().next();
         overrideWithGarbage(sstable, 0, 2);
 
         CompactionManager.instance.performScrub(cfs, false, true);
@@ -294,7 +294,7 @@ public class ScrubTest
         fillCF(cfs, 10);
         assertOrderedAll(cfs, 10);
 
-        for (SSTableReader sstable : cfs.getSSTables())
+        for (SSTableReader sstable : cfs.getLiveSSTables())
             new File(sstable.descriptor.filenameFor(Component.PRIMARY_INDEX)).delete();
 
         CompactionManager.instance.performScrub(cfs, false, true, true);
@@ -640,7 +640,7 @@ public class ScrubTest
                 boolean failure = !scrubs[i];
                 if (failure)
                 { //make sure the next scrub fails
-                    overrideWithGarbage(indexCfs.getSSTables().iterator().next(), ByteBufferUtil.bytes(1L), ByteBufferUtil.bytes(2L));
+                    overrideWithGarbage(indexCfs.getLiveSSTables().iterator().next(), ByteBufferUtil.bytes(1L), ByteBufferUtil.bytes(2L));
                 }
                 CompactionManager.AllSSTableOpStatus result = indexCfs.scrub(false, false, true, true);
                 assertEquals(failure ?

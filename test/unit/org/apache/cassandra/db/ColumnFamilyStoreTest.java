@@ -36,6 +36,7 @@ import com.google.common.collect.Iterators;
 import org.apache.cassandra.*;
 import org.apache.cassandra.config.*;
 import org.apache.cassandra.cql3.Operator;
+import org.apache.cassandra.db.lifecycle.SSTableSet;
 import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.db.partitions.*;
 import org.apache.cassandra.db.marshal.*;
@@ -128,7 +129,7 @@ public class ColumnFamilyStoreTest
 
         Util.writeColumnFamily(rms);
 
-        List<SSTableReader> ssTables = keyspace.getAllSSTables();
+        List<SSTableReader> ssTables = keyspace.getAllSSTables(SSTableSet.LIVE);
         assertEquals(1, ssTables.size());
         ssTables.get(0).forceFilterFailures();
         Util.assertEmpty(Util.cmd(cfs, "key2").build());
@@ -451,7 +452,7 @@ public class ColumnFamilyStoreTest
 //        assertTrue(generations.contains(1));
 //        assertTrue(generations.contains(2));
 //
-//        assertEquals(0, cfs.getSSTables().size());
+//        assertEquals(0, cfs.getLiveSSTables().size());
 //
 //        // start the generation counter at 1 again (other tests have incremented it already)
 //        cfs.resetFileIndexGenerator();
@@ -468,7 +469,7 @@ public class ColumnFamilyStoreTest
 //            DatabaseDescriptor.setIncrementalBackupsEnabled(incrementalBackupsEnabled);
 //        }
 //
-//        assertEquals(2, cfs.getSSTables().size());
+//        assertEquals(2, cfs.getLiveSSTables().size());
 //        generations = new HashSet<>();
 //        for (Descriptor descriptor : dir.sstableLister().list().keySet())
 //            generations.add(descriptor.generation);
@@ -521,7 +522,7 @@ public class ColumnFamilyStoreTest
         cfs.forceBlockingFlush();
 
         // Nuke the metadata and reload that sstable
-        Collection<SSTableReader> ssTables = cfs.getSSTables();
+        Collection<SSTableReader> ssTables = cfs.getLiveSSTables();
         assertEquals(1, ssTables.size());
         SSTableReader ssTable = ssTables.iterator().next();
 

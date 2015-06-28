@@ -201,7 +201,7 @@ public class Tracker
                          !isDummy() ? ImmutableList.of(new Memtable(cfstore)) : Collections.<Memtable>emptyList(),
                          ImmutableList.<Memtable>of(),
                          Collections.<SSTableReader, SSTableReader>emptyMap(),
-                         Collections.<SSTableReader>emptySet(),
+                         Collections.<SSTableReader, SSTableReader>emptyMap(),
                          SSTableIntervalTree.empty()));
     }
 
@@ -362,19 +362,14 @@ public class Tracker
 
     // MISCELLANEOUS public utility calls
 
-    public Set<SSTableReader> getSSTables()
-    {
-        return view.get().sstables;
-    }
-
     public Set<SSTableReader> getCompacting()
     {
         return view.get().compacting;
     }
 
-    public Set<SSTableReader> getUncompacting()
+    public Iterable<SSTableReader> getUncompacting()
     {
-        return view.get().nonCompactingSStables();
+        return view.get().sstables(SSTableSet.NONCOMPACTING);
     }
 
     public Iterable<SSTableReader> getUncompacting(Iterable<SSTableReader> candidates)

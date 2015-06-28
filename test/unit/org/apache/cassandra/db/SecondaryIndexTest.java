@@ -431,7 +431,7 @@ public class SecondaryIndexTest
         future.get();
         // we had a bug (CASSANDRA-2244) where index would get created but not flushed -- check for that
         ColumnDefinition cDef = cfs.metadata.getColumnDefinition(ByteBufferUtil.bytes("birthdate"));
-        assert cfs.indexManager.getIndexForColumn(cDef).getIndexCfs().getSSTables().size() > 0;
+        assert cfs.indexManager.getIndexForColumn(cDef).getIndexCfs().getLiveSSTables().size() > 0;
 
         assertIndexedOne(cfs, ByteBufferUtil.bytes("birthdate"), 1L);
 
