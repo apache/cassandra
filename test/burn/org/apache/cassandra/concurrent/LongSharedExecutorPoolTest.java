@@ -17,9 +17,7 @@
  */
 package org.apache.cassandra.concurrent;
 
-import java.util.ArrayList;
 import java.util.BitSet;
-import java.util.List;
 import java.util.TreeSet;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
@@ -99,12 +97,12 @@ public class LongSharedExecutorPoolTest
     }
 
     @Test
-    public void testPromptnessOfExecution() throws InterruptedException, ExecutionException, TimeoutException
+    public void testPromptnessOfExecution() throws InterruptedException, ExecutionException
     {
         testPromptnessOfExecution(TimeUnit.MINUTES.toNanos(2L), 0.5f);
     }
 
-    private void testPromptnessOfExecution(long intervalNanos, float loadIncrement) throws InterruptedException, ExecutionException, TimeoutException
+    private void testPromptnessOfExecution(long intervalNanos, float loadIncrement) throws InterruptedException, ExecutionException
     {
         final int executorCount = 4;
         int threadCount = 8;
@@ -118,7 +116,7 @@ public class LongSharedExecutorPoolTest
         final ExecutorService[] executors = new ExecutorService[executorCount];
         for (int i = 0 ; i < executors.length ; i++)
         {
-            executors[i] = JMXEnabledSharedExecutorPool.SHARED.newExecutor(threadCount, maxQueued, "test" + i, "test" + i);
+            executors[i] = SharedExecutorPool.SHARED.newExecutor(threadCount, maxQueued, "test" + i, "test" + i);
             threadCounts[i] = threadCount;
             workCount[i] = new WeibullDistribution(2, maxQueued);
             threadCount *= 2;
@@ -219,7 +217,7 @@ public class LongSharedExecutorPoolTest
         }
     }
 
-    public static void main(String[] args) throws InterruptedException, ExecutionException, TimeoutException
+    public static void main(String[] args) throws InterruptedException, ExecutionException
     {
         // do longer test
         new LongSharedExecutorPoolTest().testPromptnessOfExecution(TimeUnit.MINUTES.toNanos(10L), 0.1f);

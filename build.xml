@@ -93,6 +93,7 @@
 
     <property name="test.timeout" value="60000" />
     <property name="test.long.timeout" value="600000" />
+    <property name="test.burn.timeout" value="600000" />
 
     <!-- default for cql tests. Can be override by -Dcassandra.test.use_prepared=false -->
     <property name="cassandra.test.use_prepared" value="true" />
@@ -1255,6 +1256,12 @@
     <testmacro suitename="unit" inputdir="${test.unit.src}" 
         timeout="${test.timeout}" filter="**/SerializationsTest.java">
       <jvmarg value="-Dcassandra.version=1.0"/>
+    </testmacro>
+  </target>
+
+  <target name="test-burn" depends="build-test" description="Execute functional tests">
+    <testmacro suitename="burn" inputdir="${test.burn.src}"
+               timeout="${test.burn.timeout}">
     </testmacro>
   </target>
 

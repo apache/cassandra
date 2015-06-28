@@ -18,27 +18,41 @@
  */
 package org.apache.cassandra.utils;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Comparator;
+import java.util.Iterator;
+import java.util.List;
+import java.util.NavigableMap;
+import java.util.NavigableSet;
+import java.util.Random;
+import java.util.TreeMap;
+import java.util.TreeSet;
 import java.util.concurrent.Callable;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 
-import javax.annotation.Nullable;
-
+import com.google.common.base.Function;
+import com.google.common.base.Predicate;
+import com.google.common.collect.Iterables;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.ListenableFutureTask;
 import org.junit.Assert;
 import org.junit.Test;
 
-import com.yammer.metrics.Metrics;
-import com.yammer.metrics.core.Timer;
-import com.yammer.metrics.core.TimerContext;
-import com.yammer.metrics.stats.Snapshot;
+
+import com.codahale.metrics.MetricRegistry;
+import com.codahale.metrics.Snapshot;
+import com.codahale.metrics.Timer;
 import org.apache.cassandra.concurrent.NamedThreadFactory;
 import org.apache.cassandra.utils.btree.BTree;
+import org.apache.cassandra.utils.btree.BTreeSearchIterator;
 import org.apache.cassandra.utils.btree.BTreeSet;
 import org.apache.cassandra.utils.btree.UpdateFunction;
 
@@ -46,8 +60,9 @@ import org.apache.cassandra.utils.btree.UpdateFunction;
 public class LongBTreeTest
 {
 
-    private static final Timer BTREE_TIMER = Metrics.newTimer(BTree.class, "BTREE", TimeUnit.NANOSECONDS, TimeUnit.NANOSECONDS);
-    private static final Timer TREE_TIMER = Metrics.newTimer(BTree.class, "TREE", TimeUnit.NANOSECONDS, TimeUnit.NANOSECONDS);
+    private static final MetricRegistry metrics = new MetricRegistry();
+    private static final Timer BTREE_TIMER = metrics.timer(MetricRegistry.name(BTree.class, "BTREE"));
+    private static final Timer TREE_TIMER = metrics.timer(MetricRegistry.name(BTree.class, "TREE"));
     private static final ExecutorService MODIFY = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors(), new NamedThreadFactory("MODIFY"));
     private static final ExecutorService COMPARE = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors(), new NamedThreadFactory("COMPARE"));
     private static final RandomAbort<Integer> SPORADIC_ABORT = new RandomAbort<>(new Random(), 0.0001f);
@@ -105,6 +120,52 @@ public class LongBTreeTest
     public void testSlicingSmallRandomTrees() throws ExecutionException, InterruptedException
     {
         testInsertions(10000, 50, 10, 10, false);
+    }
+
+    @Test
+    public void testSearchIterator() throws InterruptedException
+    {
+        int threads = Runtime.getRuntime().availableProcessors();
+        final CountDownLatch latch = new CountDownLatch(threads);
+        final AtomicLong errors = new AtomicLong();
+        final AtomicLong count = new AtomicLong();
+        final int perThreadTrees = 100;
+        final int perTreeSelections = 100;
+        final long totalCount = threads * perThreadTrees * perTreeSelections;
+        for (int t = 0 ; t < threads ; t++)
+        {
+            MODIFY.execute(new Runnable()
+            {
+                public void run()
+                {
+                    ThreadLocalRandom random = ThreadLocalRandom.current();
+                    for (int i = 0 ; i < perThreadTrees ; i++)
+                    {
+                        Object[] tree = randomTree(10000, random);
+                        for (int j = 0 ; j < perTreeSelections ; j++)
+                        {
+                            BTreeSearchIterator<Integer, Integer, Integer> searchIterator = new BTreeSearchIterator<>(tree, ICMP);
+                            for (Integer key : randomSelection(tree, random))
+                                if (key != searchIterator.next(key))
+                                    errors.incrementAndGet();
+                            searchIterator = new BTreeSearchIterator<Integer, Integer, Integer>(tree, ICMP);
+                            for (Integer key : randomMix(tree, random))
+                                if (key != searchIterator.next(key))
+                                    if (BTree.find(tree, ICMP, key) == key)
+                                        errors.incrementAndGet();
+                            count.incrementAndGet();
+                        }
+                    }
+                    latch.countDown();
+                }
+            });
+        }
+        while (latch.getCount() > 0)
+        {
+            latch.await(10L, TimeUnit.SECONDS);
+            System.out.println(String.format("%.0f%% complete %s", 100 * count.get() / (double) totalCount, errors.get() > 0 ? ("Errors: " + errors.get()) : ""));
+            assert errors.get() == 0;
+        }
     }
 
     private static void testInsertions(int totalCount, int perTestCount, int testKeyRatio, int modificationBatchSize, boolean quickEquality) throws ExecutionException, InterruptedException
@@ -177,7 +238,7 @@ public class LongBTreeTest
                         }
                         mods -= c;
                     }
-                    TimerContext ctxt;
+                    Timer.Context ctxt;
                     ctxt = TREE_TIMER.time();
                     canon.putAll(buffer);
                     ctxt.stop();
@@ -367,6 +428,47 @@ public class LongBTreeTest
         };
     }
 
+    private static Object[] randomTree(int maxSize, Random random)
+    {
+        TreeSet<Integer> build = new TreeSet<>();
+        int size = random.nextInt(maxSize);
+        for (int i = 0 ; i < size ; i++)
+        {
+            build.add(random.nextInt());
+        }
+        return BTree.build(build, ICMP, true, UpdateFunction.NoOp.<Integer>instance());
+    }
+
+    private static Iterable<Integer> randomSelection(Object[] iter, final Random rnd)
+    {
+        final float proportion = rnd.nextFloat();
+        return Iterables.filter(new BTreeSet<>(iter, ICMP), new Predicate<Integer>()
+        {
+            public boolean apply(Integer integer)
+            {
+                return rnd.nextFloat() < proportion;
+            }
+        });
+    }
+
+    private static Iterable<Integer> randomMix(Object[] iter, final Random rnd)
+    {
+        final float proportion = rnd.nextFloat();
+        return Iterables.transform(new BTreeSet<>(iter, ICMP), new Function<Integer, Integer>()
+        {
+            long last = Integer.MIN_VALUE;
+
+            public Integer apply(Integer v)
+            {
+                long last = this.last;
+                this.last = v;
+                if (rnd.nextFloat() < proportion)
+                    return v;
+                return (int)((v - last) / 2);
+            }
+        });
+    }
+
     private static final class RandomAbort<V> implements UpdateFunction<V>
     {
         final Random rnd;
@@ -397,5 +499,4 @@ public class LongBTreeTest
             return v;
         }
     }
-
 }
