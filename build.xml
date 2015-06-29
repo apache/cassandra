@@ -1710,12 +1710,9 @@
   	<path id="idea-project-libs-path">
   	 <fileset dir="lib">
   	    <include name="**/*.jar" />
-     </fileset>
+	 </fileset>
  	 <fileset dir="build/lib/jars">
   	    <include name="**/*.jar" />
-  	 </fileset>
-  	 <fileset dir="tools/lib">
-  	     <include name="**/*.jar" />
   	 </fileset>
   	</path>
     <mkdir dir=".idea"/>
