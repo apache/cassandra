@@ -1,4 +1,5 @@
 2.1.8
+ * Update internal python driver for cqlsh (CASSANDRA-9064)
  * Avoids ballot clash in Paxos (CASSANDRA-9649)
  * Fix IndexOutOfBoundsException when inserting tuple with too many
    elements using the string literal notation (CASSANDRA-9559)
