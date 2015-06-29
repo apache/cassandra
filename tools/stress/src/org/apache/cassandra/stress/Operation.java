@@ -24,6 +24,8 @@ import java.util.List;
 import com.google.common.util.concurrent.RateLimiter;
 
 import org.apache.cassandra.stress.generate.*;
+import org.apache.cassandra.stress.settings.OptionDistribution;
+import org.apache.cassandra.stress.settings.OptionRatioDistribution;
 import org.apache.cassandra.stress.settings.SettingsLog;
 import org.apache.cassandra.stress.settings.StressSettings;
 import org.apache.cassandra.stress.util.JavaDriverClient;
@@ -37,6 +39,7 @@ public abstract class Operation
     public final StressSettings settings;
     public final Timer timer;
     protected final DataSpec spec;
+    private final static RatioDistribution defaultRowPopulationRatio = OptionRatioDistribution.BUILDER.apply("fixed(1)/1").get();
 
     private final List<PartitionIterator> partitionCache = new ArrayList<>();
     protected List<PartitionIterator> partitions;
@@ -47,22 +50,24 @@ public abstract class Operation
         final SeedManager seedManager;
         final Distribution partitionCount;
         final RatioDistribution useRatio;
+        final RatioDistribution rowPopulationRatio;
         final Integer targetCount;
 
-        public DataSpec(PartitionGenerator partitionGenerator, SeedManager seedManager, Distribution partitionCount, Integer targetCount)
+        public DataSpec(PartitionGenerator partitionGenerator, SeedManager seedManager, Distribution partitionCount, RatioDistribution rowPopulationRatio, Integer targetCount)
         {
-            this(partitionGenerator, seedManager, partitionCount, null, targetCount);
+            this(partitionGenerator, seedManager, partitionCount, null, rowPopulationRatio, targetCount);
         }
-        public DataSpec(PartitionGenerator partitionGenerator, SeedManager seedManager, Distribution partitionCount, RatioDistribution useRatio)
+        public DataSpec(PartitionGenerator partitionGenerator, SeedManager seedManager, Distribution partitionCount, RatioDistribution useRatio, RatioDistribution rowPopulationRatio)
         {
-            this(partitionGenerator, seedManager, partitionCount, useRatio, null);
+            this(partitionGenerator, seedManager, partitionCount, useRatio, rowPopulationRatio, null);
         }
-        private DataSpec(PartitionGenerator partitionGenerator, SeedManager seedManager, Distribution partitionCount, RatioDistribution useRatio, Integer targetCount)
+        private DataSpec(PartitionGenerator partitionGenerator, SeedManager seedManager, Distribution partitionCount, RatioDistribution useRatio, RatioDistribution rowPopulationRatio, Integer targetCount)
         {
             this.partitionGenerator = partitionGenerator;
             this.seedManager = seedManager;
             this.partitionCount = partitionCount;
             this.useRatio = useRatio;
+            this.rowPopulationRatio = rowPopulationRatio == null ? defaultRowPopulationRatio : rowPopulationRatio;
             this.targetCount = targetCount;
         }
     }
@@ -119,9 +124,9 @@ public abstract class Operation
     protected boolean reset(Seed seed, PartitionIterator iterator)
     {
         if (spec.useRatio == null)
-            return iterator.reset(seed, spec.targetCount, isWrite());
+            return iterator.reset(seed, spec.targetCount, spec.rowPopulationRatio.next(), isWrite());
         else
-            return iterator.reset(seed, spec.useRatio.next(), isWrite());
+            return iterator.reset(seed, spec.useRatio.next(), spec.rowPopulationRatio.next(), isWrite());
     }
 
     public boolean isWrite()

@@ -52,7 +52,7 @@ import org.apache.cassandra.utils.Pair;
 public abstract class PartitionIterator implements Iterator<Row>
 {
 
-    abstract boolean reset(double useChance, int targetCount, boolean isWrite, PartitionGenerator.Order order);
+    abstract boolean reset(double useChance, double rowPopulationRatio, int targetCount, boolean isWrite, PartitionGenerator.Order order);
     // picks random (inclusive) bounds to iterate, and returns them
     public abstract Pair<Row, Row> resetToBounds(Seed seed, int clusteringComponentDepth);
 
@@ -100,42 +100,47 @@ public abstract class PartitionIterator implements Iterator<Row>
         this.idseed = idseed;
     }
 
-    public boolean reset(Seed seed, double useChance, boolean isWrite)
+    public boolean reset(Seed seed, double useChance, double rowPopulationRatio, boolean isWrite)
     {
         setSeed(seed);
         this.order = generator.order;
-        return reset(useChance, 0, isWrite, PartitionIterator.this.order);
+        return reset(useChance, rowPopulationRatio, 0, isWrite, PartitionIterator.this.order);
     }
 
-    public boolean reset(Seed seed, int targetCount, boolean isWrite)
+    public boolean reset(Seed seed, int targetCount, double rowPopulationRatio,  boolean isWrite)
     {
         setSeed(seed);
         this.order = generator.order;
-        return reset(Double.NaN, targetCount, isWrite, PartitionIterator.this.order);
+        return reset(Double.NaN, rowPopulationRatio,targetCount, isWrite,PartitionIterator.this.order);
     }
 
     static class SingleRowIterator extends PartitionIterator
     {
         boolean done;
         boolean isWrite;
+        double rowPopulationRatio;
+        final double totalValueColumns;
 
         private SingleRowIterator(PartitionGenerator generator, SeedManager seedManager)
         {
             super(generator, seedManager);
+
+            this.totalValueColumns = generator.valueComponents.size();
         }
 
         public Pair<Row, Row> resetToBounds(Seed seed, int clusteringComponentDepth)
         {
             assert clusteringComponentDepth == 0;
             setSeed(seed);
-            reset(1d, 1, false, PartitionGenerator.Order.SORTED);
+            reset(1d, 1d, 1, false, PartitionGenerator.Order.SORTED);
             return Pair.create(new Row(partitionKey), new Row(partitionKey));
         }
 
-        boolean reset(double useChance, int targetCount, boolean isWrite, PartitionGenerator.Order order)
+        boolean reset(double useChance, double rowPopulationRatio, int targetCount, boolean isWrite, PartitionGenerator.Order order)
         {
             done = false;
             this.isWrite = isWrite;
+            this.rowPopulationRatio = rowPopulationRatio;
             return true;
         }
 
@@ -148,11 +153,20 @@ public abstract class PartitionIterator implements Iterator<Row>
         {
             if (done)
                 throw new NoSuchElementException();
+
+            double valueColumn = 0.0;
             for (int i = 0 ; i < row.row.length ; i++)
             {
-                Generator gen = generator.valueComponents.get(i);
-                gen.setSeed(idseed);
-                row.row[i] = gen.generate();
+                if (generator.permitNulls(i) && (++valueColumn/totalValueColumns) > rowPopulationRatio)
+                {
+                    row.row[i] = null;
+                }
+                else
+                {
+                    Generator gen = generator.valueComponents.get(i);
+                    gen.setSeed(idseed);
+                    row.row[i] = gen.generate();
+                }
             }
             done = true;
             if (isWrite)
@@ -180,6 +194,8 @@ public abstract class PartitionIterator implements Iterator<Row>
 
         // probability any single row will be generated in this iteration
         double useChance;
+        double rowPopulationRatio;
+        final double totalValueColumns;
         // we want our chance of selection to be applied uniformly, so we compound the roll we make at each level
         // so that we know with what chance we reached there, and we adjust our roll at that level by that amount
         final double[] chancemodifier = new double[generator.clusteringComponents.size()];
@@ -201,6 +217,7 @@ public abstract class PartitionIterator implements Iterator<Row>
                 clusteringComponents[i] = new ArrayDeque<>();
             rollmodifier[0] = 1f;
             chancemodifier[0] = generator.clusteringDescendantAverages[0];
+            this.totalValueColumns = generator.valueComponents.size();
         }
 
         /**
@@ -216,9 +233,10 @@ public abstract class PartitionIterator implements Iterator<Row>
          *
          * @return true if there is data to return, false otherwise
          */
-        boolean reset(double useChance, int targetCount, boolean isWrite, PartitionGenerator.Order order)
+        boolean reset(double useChance, double rowPopulationRatio, int targetCount, boolean isWrite, PartitionGenerator.Order order)
         {
             this.isWrite = isWrite;
+            this.rowPopulationRatio = rowPopulationRatio;
 
             this.order = order;
             // set the seed for the first clustering component
@@ -291,7 +309,7 @@ public abstract class PartitionIterator implements Iterator<Row>
             setUseChance(1d);
             if (clusteringComponentDepth == 0)
             {
-                reset(1d, -1, false, PartitionGenerator.Order.SORTED);
+                reset(1d, 1d, -1, false, PartitionGenerator.Order.SORTED);
                 return Pair.create(new Row(partitionKey), new Row(partitionKey));
             }
 
@@ -493,11 +511,20 @@ public abstract class PartitionIterator implements Iterator<Row>
 
             Row result = row.copy();
             // and then fill the row with the _non-clustering_ values for the position we _were_ at, as this is what we'll deliver
+            double valueColumn = 0.0;
+
             for (int i = clusteringSeeds.length ; i < row.row.length ; i++)
             {
                 Generator gen = generator.valueComponents.get(i - clusteringSeeds.length);
-                gen.setSeed(rowSeed);
-                result.row[i] = gen.generate();
+                if (++valueColumn / totalValueColumns > rowPopulationRatio)
+                {
+                    result.row[i] = null;
+                }
+                else
+                {
+                    gen.setSeed(rowSeed);
+                    result.row[i] = gen.generate();
+                }
             }
 
             // then we advance the leaf level

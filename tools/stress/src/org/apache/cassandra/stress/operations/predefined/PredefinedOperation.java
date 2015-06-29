@@ -40,14 +40,14 @@ public abstract class PredefinedOperation extends Operation
 
     public PredefinedOperation(Command type, Timer timer, PartitionGenerator generator, SeedManager seedManager, StressSettings settings)
     {
-        super(timer, settings, spec(generator, seedManager));
+        super(timer, settings, spec(generator, seedManager, settings.insert.rowPopulationRatio.get()));
         this.type = type;
         this.columnCount = settings.columns.countDistribution.get();
     }
 
-    private static DataSpec spec(PartitionGenerator generator, SeedManager seedManager)
+    private static DataSpec spec(PartitionGenerator generator, SeedManager seedManager, RatioDistribution rowPopulationCount)
     {
-        return new DataSpec(generator, seedManager, new DistributionFixed(1), 1);
+        return new DataSpec(generator, seedManager, new DistributionFixed(1), rowPopulationCount, 1);
     }
 
     public boolean isCql3()
