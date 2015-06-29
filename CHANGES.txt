@@ -1,4 +1,5 @@
 2.2
+ * BulkLoader has --transport-factory option but does not use it (CASSANDRA-9675)
  * Allow JMX over SSL directly from nodetool (CASSANDRA-9090)
  * Update cqlsh for UDFs (CASSANDRA-7556)
  * Change Windows kernel default timer resolution (CASSANDRA-9634)
