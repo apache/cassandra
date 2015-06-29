@@ -1,4 +1,5 @@
 2.2.0-rc2
+ * (cqlsh) Allow setting the initial connection timeout (CASSANDRA-9601)
  * BulkLoader has --transport-factory option but does not use it (CASSANDRA-9675)
  * Allow JMX over SSL directly from nodetool (CASSANDRA-9090)
  * Update cqlsh for UDFs (CASSANDRA-7556)

@@ -136,6 +136,7 @@ DEFAULT_HOST = '127.0.0.1'
 DEFAULT_PORT = 9042
 DEFAULT_CQLVER = '3.3.0'
 DEFAULT_PROTOCOL_VERSION = 4
+DEFAULT_CONNECT_TIMEOUT_SECONDS = 5
 
 DEFAULT_FLOAT_PRECISION = 5
 DEFAULT_MAX_TRACE_WAIT = 10
@@ -172,6 +173,8 @@ parser.add_option('--cqlversion', default=DEFAULT_CQLVER,
                   help='Specify a particular CQL version (default: %default).'
                        ' Examples: "3.0.3", "3.1.0"')
 parser.add_option("-e", "--execute", help='Execute the statement and quit.')
+parser.add_option("--connect-timeout", default=DEFAULT_CONNECT_TIMEOUT_SECONDS, dest='connect_timeout',
+                  help='Specify the connection timeout in seconds (default: %default seconds).')
 
 optvalues = optparse.Values()
 (options, arguments) = parser.parse_args(sys.argv[1:], values=optvalues)
@@ -598,7 +601,8 @@ class Shell(cmd.Cmd):
                  ssl=False,
                  single_statement=None,
                  client_timeout=10,
-                 protocol_version=DEFAULT_PROTOCOL_VERSION):
+                 protocol_version=DEFAULT_PROTOCOL_VERSION,
+                 connect_timeout=DEFAULT_CONNECT_TIMEOUT_SECONDS):
         cmd.Cmd.__init__(self, completekey=completekey)
         self.hostname = hostname
         self.port = port
@@ -619,7 +623,8 @@ class Shell(cmd.Cmd):
                                 protocol_version=protocol_version,
                                 auth_provider=self.auth_provider,
                                 ssl_options=sslhandling.ssl_settings(hostname, CONFIG_FILE) if ssl else None,
-                                load_balancing_policy=WhiteListRoundRobinPolicy([self.hostname]))
+                                load_balancing_policy=WhiteListRoundRobinPolicy([self.hostname]),
+                                connect_timeout=connect_timeout)
         self.owns_connection = not use_conn
         self.set_expanded_cql_version(cqlver)
 
@@ -1836,7 +1841,8 @@ class Shell(cmd.Cmd):
                 auth_provider=self.auth_provider,
                 ssl_options=sslhandling.ssl_settings(self.hostname, CONFIG_FILE) if self.ssl else None,
                 load_balancing_policy=WhiteListRoundRobinPolicy([self.hostname]),
-                compression=None)
+                compression=None,
+                connect_timeout=self.conn.connect_timeout)
         session = new_cluster.connect(self.keyspace)
         conn = session._pools.values()[0]._connection
 
@@ -2257,7 +2263,8 @@ class Shell(cmd.Cmd):
                        protocol_version=self.conn.protocol_version,
                        auth_provider=auth_provider,
                        ssl_options=self.conn.ssl_options,
-                       load_balancing_policy=WhiteListRoundRobinPolicy([self.hostname]))
+                       load_balancing_policy=WhiteListRoundRobinPolicy([self.hostname]),
+                       connect_timeout=self.conn.connect_timeout)
 
         if self.current_keyspace:
             session = conn.connect(self.current_keyspace)
@@ -2429,7 +2436,6 @@ def option_with_default(cparser_getter, section, option, default=None):
     except ConfigParser.Error:
         return default
 
-
 def raw_option_with_default(configs, section, option, default=None):
     """
     Same (almost) as option_with_default() but won't do any string interpolation.
@@ -2491,12 +2497,20 @@ def read_options(cmdlineargs, environment):
 
     optvalues.tty = sys.stdin.isatty()
     optvalues.cqlversion = option_with_default(configs.get, 'cql', 'version', DEFAULT_CQLVER)
+    optvalues.connect_timeout = option_with_default(configs.getint, 'connection', 'timeout', DEFAULT_CONNECT_TIMEOUT_SECONDS)
     optvalues.execute = None
 
     (options, arguments) = parser.parse_args(cmdlineargs, values=optvalues)
 
     hostname = option_with_default(configs.get, 'connection', 'hostname', DEFAULT_HOST)
     port = option_with_default(configs.get, 'connection', 'port', DEFAULT_PORT)
+
+    try:
+        options.connect_timeout = int(options.connect_timeout)
+    except ValueError:
+        parser.error('{} is not a valid timeout.'.format(options.connect_timeout))
+        options.connect_timeout = DEFAULT_CONNECT_TIMEOUT_SECONDS
+
     options.client_timeout = option_with_default(configs.get, 'connection', 'client_timeout', '10')
     if options.client_timeout.lower() == 'none':
         options.client_timeout = None
@@ -2590,7 +2604,8 @@ def main(options, hostname, port):
             sys.exit("Can't open %r: %s" % (options.file, e))
 
     if options.debug:
-        sys.stderr.write("Using CQL driver: %s\n" % (cassandra,))
+        sys.stderr.write("Using CQL driver: {}\n".format(cassandra))
+        sys.stderr.write("Using connect timeout: {} seconds\n".format(options.connect_timeout))
 
     try:
         shell = Shell(hostname,
@@ -2610,7 +2625,8 @@ def main(options, hostname, port):
                       max_trace_wait=options.max_trace_wait,
                       ssl=options.ssl,
                       single_statement=options.execute,
-                      client_timeout=options.client_timeout)
+                      client_timeout=options.client_timeout,
+                      connect_timeout=options.connect_timeout)
     except KeyboardInterrupt:
         sys.exit('Connection aborted.')
     except CQL_ERRORS, e:
