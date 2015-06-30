@@ -37,10 +37,11 @@ import org.junit.Test;
 import com.datastax.driver.core.*;
 import com.datastax.driver.core.exceptions.InvalidQueryException;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.KSMetaData;
+import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.cql3.functions.FunctionName;
-import org.apache.cassandra.cql3.functions.Functions;
 import org.apache.cassandra.cql3.functions.UDFunction;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.marshal.CollectionType;
@@ -119,7 +120,7 @@ public class UFTest extends CQLTester
 
         FunctionName fSinName = parseFunctionName(fSin);
 
-        Assert.assertEquals(1, Functions.find(parseFunctionName(fSin)).size());
+        Assert.assertEquals(1, Schema.instance.getFunctions(parseFunctionName(fSin)).size());
 
         assertRows(execute("SELECT function_name, language FROM system.schema_functions WHERE keyspace_name=?", KEYSPACE_PER_TEST),
                    row(fSinName.name, "java"));
@@ -128,7 +129,7 @@ public class UFTest extends CQLTester
 
         assertRows(execute("SELECT function_name, language FROM system.schema_functions WHERE keyspace_name=?", KEYSPACE_PER_TEST));
 
-        Assert.assertEquals(0, Functions.find(fSinName).size());
+        Assert.assertEquals(0, Schema.instance.getFunctions(fSinName).size());
     }
 
     @Test
@@ -145,7 +146,7 @@ public class UFTest extends CQLTester
 
         FunctionName fSinName = parseFunctionName(fSin);
 
-        Assert.assertEquals(1, Functions.find(parseFunctionName(fSin)).size());
+        Assert.assertEquals(1, Schema.instance.getFunctions(parseFunctionName(fSin)).size());
 
         // create a pairs of Select and Inserts. One statement in each pair uses the function so when we
         // drop it those statements should be removed from the cache in QueryProcessor. The other statements
@@ -183,7 +184,7 @@ public class UFTest extends CQLTester
                 "LANGUAGE java " +
                 "AS 'return Double.valueOf(Math.sin(input));'");
 
-        Assert.assertEquals(1, Functions.find(fSinName).size());
+        Assert.assertEquals(1, Schema.instance.getFunctions(fSinName).size());
 
         preparedSelect1= QueryProcessor.prepare(
                                          String.format("SELECT key, %s(d) FROM %s.%s", fSin, KEYSPACE, currentTable()),
@@ -298,7 +299,7 @@ public class UFTest extends CQLTester
                                         "RETURNS double " +
                                         "LANGUAGE javascript " +
                                         "AS 'input'");
-        Assert.assertEquals(1, Functions.find(parseFunctionName(function)).size());
+        Assert.assertEquals(1, Schema.instance.getFunctions(parseFunctionName(function)).size());
 
         List<ResultMessage.Prepared> prepared = new ArrayList<>();
         // prepare statements which use the function to provide a DelayedValue
@@ -1292,7 +1293,7 @@ public class UFTest extends CQLTester
 
         FunctionName fNameName = parseFunctionName(fName);
 
-        Assert.assertEquals(1, Functions.find(fNameName).size());
+        Assert.assertEquals(1, Schema.instance.getFunctions(fNameName).size());
 
         ResultMessage.Prepared prepared = QueryProcessor.prepare(String.format("SELECT key, %s(udt) FROM %s.%s", fName, KEYSPACE, currentTable()),
                                                                  ClientState.forInternalCalls(), false);
@@ -1309,7 +1310,7 @@ public class UFTest extends CQLTester
         Assert.assertNull(QueryProcessor.instance.getPrepared(prepared.statementId));
 
         // function stays
-        Assert.assertEquals(1, Functions.find(fNameName).size());
+        Assert.assertEquals(1, Schema.instance.getFunctions(fNameName).size());
     }
 
     @Test
@@ -1422,7 +1423,7 @@ public class UFTest extends CQLTester
                               "AS $$return " +
                               "     udt.getString(\"txt\");$$;",
                               fName1replace, type));
-        Assert.assertEquals(1, Functions.find(parseFunctionName(fName1replace)).size());
+        Assert.assertEquals(1, Schema.instance.getFunctions(parseFunctionName(fName1replace)).size());
         execute(String.format("CREATE OR REPLACE FUNCTION %s( udt %s ) " +
                               "CALLED ON NULL INPUT " +
                               "RETURNS int " +
@@ -1430,7 +1431,7 @@ public class UFTest extends CQLTester
                               "AS $$return " +
                               "     Integer.valueOf(udt.getInt(\"i\"));$$;",
                               fName2replace, type));
-        Assert.assertEquals(1, Functions.find(parseFunctionName(fName2replace)).size());
+        Assert.assertEquals(1, Schema.instance.getFunctions(parseFunctionName(fName2replace)).size());
         execute(String.format("CREATE OR REPLACE FUNCTION %s( udt %s ) " +
                               "CALLED ON NULL INPUT " +
                               "RETURNS double " +
@@ -1438,7 +1439,7 @@ public class UFTest extends CQLTester
                               "AS $$return " +
                               "     Double.valueOf(udt.getDouble(\"added\"));$$;",
                               fName3replace, type));
-        Assert.assertEquals(1, Functions.find(parseFunctionName(fName3replace)).size());
+        Assert.assertEquals(1, Schema.instance.getFunctions(parseFunctionName(fName3replace)).size());
         execute(String.format("CREATE OR REPLACE FUNCTION %s( udt %s ) " +
                               "RETURNS NULL ON NULL INPUT " +
                               "RETURNS %s " +
@@ -1446,7 +1447,7 @@ public class UFTest extends CQLTester
                               "AS $$return " +
                               "     udt;$$;",
                               fName4replace, type, type));
-        Assert.assertEquals(1, Functions.find(parseFunctionName(fName4replace)).size());
+        Assert.assertEquals(1, Schema.instance.getFunctions(parseFunctionName(fName4replace)).size());
 
         assertRows(execute("SELECT " + fName1replace + "(udt) FROM %s WHERE key = 2"),
                    row("two"));
@@ -2174,10 +2175,18 @@ public class UFTest extends CQLTester
                                       "LANGUAGE JAVA\n" +
                                       "AS 'throw new RuntimeException();';");
 
-        UDFunction f = (UDFunction) Functions.find(parseFunctionName(fName)).get(0);
+        KSMetaData ksm = Schema.instance.getKSMetaData(KEYSPACE_PER_TEST);
+        UDFunction f = (UDFunction) ksm.functions.get(parseFunctionName(fName)).iterator().next();
 
-        Functions.addOrReplaceFunction(UDFunction.createBrokenFunction(f.name(), f.argNames(), f.argTypes(), f.returnType(), true,
-                                                                       "java", f.body(), new InvalidRequestException("foo bar is broken")));
+        UDFunction broken = UDFunction.createBrokenFunction(f.name(),
+                                                            f.argNames(),
+                                                            f.argTypes(),
+                                                            f.returnType(),
+                                                            true,
+                                                            "java",
+                                                            f.body(),
+                                                            new InvalidRequestException("foo bar is broken"));
+        Schema.instance.setKeyspaceDefinition(ksm.cloneWith(ksm.functions.without(f.name(), f.argTypes()).with(broken)));
 
         assertInvalidThrowMessage("foo bar is broken", InvalidRequestException.class,
                                   "SELECT key, " + fName + "(dval) FROM %s");

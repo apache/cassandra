@@ -55,8 +55,12 @@ import static org.apache.cassandra.utils.FBUtilities.fromJsonMap;
 import static org.apache.cassandra.utils.FBUtilities.json;
 
 /** system.schema_* tables used to store keyspace/table/type attributes prior to C* 3.0 */
-public class LegacySchemaTables
+public final class LegacySchemaTables
 {
+    private LegacySchemaTables()
+    {
+    }
+
     private static final Logger logger = LoggerFactory.getLogger(LegacySchemaTables.class);
 
     public static final String KEYSPACES = "schema_keyspaces";
@@ -220,17 +224,10 @@ public class LegacySchemaTables
                     DecoratedKey key = partition.partitionKey();
 
                     readSchemaPartitionForKeyspaceAndApply(USERTYPES, key,
-                        types -> readSchemaPartitionForKeyspaceAndApply(COLUMNFAMILIES, key, tables -> keyspaces.add(createKeyspaceFromSchemaPartitions(partition, tables, types)))
-                    );
-
-                    // Will be moved away in #6717
-                    readSchemaPartitionForKeyspaceAndApply(FUNCTIONS, key,
-                        functions -> { createFunctionsFromFunctionsPartition(functions).forEach(function -> org.apache.cassandra.cql3.functions.Functions.addOrReplaceFunction(function)); return null; }
-                    );
-
-                    // Will be moved away in #6717
-                    readSchemaPartitionForKeyspaceAndApply(AGGREGATES, key,
-                        aggregates -> { createAggregatesFromAggregatesPartition(aggregates).forEach(aggregate -> org.apache.cassandra.cql3.functions.Functions.addOrReplaceFunction(aggregate)); return null; }
+                        types -> readSchemaPartitionForKeyspaceAndApply(COLUMNFAMILIES, key,
+                        tables -> readSchemaPartitionForKeyspaceAndApply(FUNCTIONS, key,
+                        functions -> readSchemaPartitionForKeyspaceAndApply(AGGREGATES, key,
+                        aggregates -> keyspaces.add(createKeyspaceFromSchemaPartitions(partition, tables, types, functions, aggregates)))))
                     );
                 }
             }
@@ -651,7 +648,7 @@ public class LegacySchemaTables
         return makeCreateKeyspaceMutation(keyspace, timestamp, true);
     }
 
-    private static Mutation makeCreateKeyspaceMutation(KSMetaData keyspace, long timestamp, boolean withTablesAndTypesAndFunctions)
+    public static Mutation makeCreateKeyspaceMutation(KSMetaData keyspace, long timestamp, boolean withTablesAndTypesAndFunctions)
     {
         // Note that because Keyspaces is a COMPACT TABLE, we're really only setting static columns internally and shouldn't set any clustering.
         RowUpdateBuilder adder = new RowUpdateBuilder(Keyspaces, timestamp, keyspace.name);
@@ -664,11 +661,10 @@ public class LegacySchemaTables
 
         if (withTablesAndTypesAndFunctions)
         {
-            for (UserType type : keyspace.userTypes.getAllTypes().values())
-                addTypeToSchemaMutation(type, timestamp, mutation);
-
-            for (CFMetaData table : keyspace.cfMetaData().values())
-                addTableToSchemaMutation(table, timestamp, true, mutation);
+            keyspace.userTypes.getAllTypes().values().forEach(type -> addTypeToSchemaMutation(type, timestamp, mutation));
+            keyspace.cfMetaData().values().forEach(table -> addTableToSchemaMutation(table, timestamp, true, mutation));
+            keyspace.functions.udfs().forEach(udf -> addFunctionToSchemaMutation(udf, timestamp, mutation));
+            keyspace.functions.udas().forEach(uda -> addAggregateToSchemaMutation(uda, timestamp, mutation));
         }
 
         return mutation;
@@ -684,11 +680,20 @@ public class LegacySchemaTables
         return mutation;
     }
 
-    private static KSMetaData createKeyspaceFromSchemaPartitions(RowIterator serializedKeyspace, RowIterator serializedTables, RowIterator serializedTypes)
+    private static KSMetaData createKeyspaceFromSchemaPartitions(RowIterator serializedKeyspace,
+                                                                 RowIterator serializedTables,
+                                                                 RowIterator serializedTypes,
+                                                                 RowIterator serializedFunctions,
+                                                                 RowIterator seriazliedAggregates)
     {
         Collection<CFMetaData> tables = createTablesFromTablesPartition(serializedTables);
         UTMetaData types = new UTMetaData(createTypesFromPartition(serializedTypes));
-        return createKeyspaceFromSchemaPartition(serializedKeyspace).cloneWith(tables, types);
+
+        Collection<UDFunction> udfs = createFunctionsFromFunctionsPartition(serializedFunctions);
+        Collection<UDAggregate> udas = createAggregatesFromAggregatesPartition(seriazliedAggregates);
+        Functions functions = org.apache.cassandra.schema.Functions.builder().add(udfs).add(udas).build();
+
+        return createKeyspaceFromSchemaPartition(serializedKeyspace).cloneWith(tables, types, functions);
     }
 
     public static KSMetaData createKeyspaceFromName(String keyspace)
@@ -1360,7 +1365,7 @@ public class LegacySchemaTables
         String body = row.getString("body");
         boolean calledOnNullInput = row.getBoolean("called_on_null_input");
 
-        org.apache.cassandra.cql3.functions.Function existing = org.apache.cassandra.cql3.functions.Functions.find(name, argTypes);
+        org.apache.cassandra.cql3.functions.Function existing = Schema.instance.findFunction(name, argTypes).orElse(null);
         if (existing instanceof UDFunction)
         {
             // This check prevents duplicate compilation of effectively the same UDF.
@@ -1509,17 +1514,6 @@ public class LegacySchemaTables
     {
         ListType<String> list = ListType.getInstance(UTF8Type.instance, false);
         List<String> strList = new ArrayList<>(fun.argTypes().size());
-        for (AbstractType<?> argType : fun.argTypes())
-            strList.add(argType.asCQL3Type().toString());
-        return list.decompose(strList);
-    }
-
-    public static ByteBuffer functionSignatureWithNameAndTypes(AbstractFunction fun)
-    {
-        ListType<String> list = ListType.getInstance(UTF8Type.instance, false);
-        List<String> strList = new ArrayList<>(fun.argTypes().size() + 2);
-        strList.add(fun.name().keyspace);
-        strList.add(fun.name().name);
         for (AbstractType<?> argType : fun.argTypes())
             strList.add(argType.asCQL3Type().toString());
         return list.decompose(strList);

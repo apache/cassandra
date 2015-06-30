@@ -36,9 +36,9 @@ import com.googlecode.concurrentlinkedhashmap.EntryWeigher;
 import com.googlecode.concurrentlinkedhashmap.EvictionListener;
 import org.antlr.runtime.*;
 import org.apache.cassandra.concurrent.ScheduledExecutors;
+import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.cql3.functions.Function;
 import org.apache.cassandra.cql3.functions.FunctionName;
-import org.apache.cassandra.cql3.functions.Functions;
 import org.apache.cassandra.cql3.statements.*;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.rows.RowIterator;
@@ -602,22 +602,24 @@ public class QueryProcessor implements QueryHandler
             return ksName.equals(statementKsName) && (cfName == null || cfName.equals(statementCfName));
         }
 
-        public void onCreateFunction(String ksName, String functionName, List<AbstractType<?>> argTypes) {
-            if (Functions.getOverloadCount(new FunctionName(ksName, functionName)) > 1)
+        public void onCreateFunction(String ksName, String functionName, List<AbstractType<?>> argTypes)
+        {
+            onCreateFunctionInternal(ksName, functionName, argTypes);
+        }
+
+        public void onCreateAggregate(String ksName, String aggregateName, List<AbstractType<?>> argTypes)
+        {
+            onCreateFunctionInternal(ksName, aggregateName, argTypes);
+        }
+
+        private static void onCreateFunctionInternal(String ksName, String functionName, List<AbstractType<?>> argTypes)
+        {
+            // in case there are other overloads, we have to remove all overloads since argument type
+            // matching may change (due to type casting)
+            if (Schema.instance.getKSMetaData(ksName).functions.get(new FunctionName(ksName, functionName)).size() > 1)
             {
-                // in case there are other overloads, we have to remove all overloads since argument type
-                // matching may change (due to type casting)
                 removeInvalidPreparedStatementsForFunction(preparedStatements.values().iterator(), ksName, functionName);
                 removeInvalidPreparedStatementsForFunction(thriftPreparedStatements.values().iterator(), ksName, functionName);
-            }
-        }
-        public void onCreateAggregate(String ksName, String aggregateName, List<AbstractType<?>> argTypes) {
-            if (Functions.getOverloadCount(new FunctionName(ksName, aggregateName)) > 1)
-            {
-                // in case there are other overloads, we have to remove all overloads since argument type
-                // matching may change (due to type casting)
-                removeInvalidPreparedStatementsForFunction(preparedStatements.values().iterator(), ksName, aggregateName);
-                removeInvalidPreparedStatementsForFunction(thriftPreparedStatements.values().iterator(), ksName, aggregateName);
             }
         }
 
@@ -642,35 +644,26 @@ public class QueryProcessor implements QueryHandler
 
         public void onDropFunction(String ksName, String functionName, List<AbstractType<?>> argTypes)
         {
-            removeInvalidPreparedStatementsForFunction(preparedStatements.values().iterator(), ksName, functionName);
-            removeInvalidPreparedStatementsForFunction(thriftPreparedStatements.values().iterator(), ksName, functionName);
+            onDropFunctionInternal(ksName, functionName, argTypes);
         }
 
         public void onDropAggregate(String ksName, String aggregateName, List<AbstractType<?>> argTypes)
         {
-            removeInvalidPreparedStatementsForFunction(preparedStatements.values().iterator(), ksName, aggregateName);
-            removeInvalidPreparedStatementsForFunction(thriftPreparedStatements.values().iterator(), ksName, aggregateName);
+            onDropFunctionInternal(ksName, aggregateName, argTypes);
+        }
+
+        private static void onDropFunctionInternal(String ksName, String functionName, List<AbstractType<?>> argTypes)
+        {
+            removeInvalidPreparedStatementsForFunction(preparedStatements.values().iterator(), ksName, functionName);
+            removeInvalidPreparedStatementsForFunction(thriftPreparedStatements.values().iterator(), ksName, functionName);
         }
 
         private static void removeInvalidPreparedStatementsForFunction(Iterator<ParsedStatement.Prepared> statements,
                                                                        final String ksName,
                                                                        final String functionName)
         {
-            final Predicate<Function> matchesFunction = new Predicate<Function>()
-            {
-                public boolean apply(Function f)
-                {
-                    return ksName.equals(f.name().keyspace) && functionName.equals(f.name().name);
-                }
-            };
-
-            Iterators.removeIf(statements, new Predicate<ParsedStatement.Prepared>()
-            {
-                public boolean apply(ParsedStatement.Prepared statement)
-                {
-                    return Iterables.any(statement.statement.getFunctions(), matchesFunction);
-                }
-            });
+            Predicate<Function> matchesFunction = f -> ksName.equals(f.name().keyspace) && functionName.equals(f.name().name);
+            Iterators.removeIf(statements, statement -> Iterables.any(statement.statement.getFunctions(), matchesFunction));
         }
     }
 }

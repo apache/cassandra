@@ -33,6 +33,7 @@ import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.exceptions.*;
+import org.apache.cassandra.schema.Functions;
 import org.apache.cassandra.service.MigrationManager;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
@@ -267,8 +268,8 @@ public abstract class UDFunction extends AbstractFunction implements ScalarFunct
         UDFunction that = (UDFunction)o;
         return Objects.equal(name, that.name)
             && Objects.equal(argNames, that.argNames)
-            && Functions.typeEquals(argTypes, that.argTypes)
-            && Functions.typeEquals(returnType, that.returnType)
+            && Functions.typesMatch(argTypes, that.argTypes)
+            && Functions.typesMatch(returnType, that.returnType)
             && Objects.equal(language, that.language)
             && Objects.equal(body, that.body);
     }

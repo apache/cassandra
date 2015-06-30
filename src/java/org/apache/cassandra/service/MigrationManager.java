@@ -182,7 +182,6 @@ public class MigrationManager
             listener.onCreateFunction(udf.name().keyspace, udf.name().name, udf.argTypes());
     }
 
-
     public void notifyCreateAggregate(UDAggregate udf)
     {
         for (MigrationListener listener : listeners)
@@ -205,6 +204,9 @@ public class MigrationManager
     {
         for (MigrationListener listener : listeners)
             listener.onUpdateUserType(ut.keyspace, ut.getNameAsString());
+
+        // FIXME: remove when we get rid of AbstractType in metadata. Doesn't really belong anywhere.
+        Schema.instance.getKSMetaData(ut.keyspace).functions.udfs().forEach(f -> f.userTypeUpdated(ut.keyspace, ut.getNameAsString()));
     }
 
     public void notifyUpdateFunction(UDFunction udf)
@@ -323,7 +325,7 @@ public class MigrationManager
             throw new ConfigurationException(String.format("Cannot update non existing keyspace '%s'.", ksm.name));
 
         logger.info(String.format("Update Keyspace '%s' From %s To %s", ksm.name, oldKsm, ksm));
-        announce(LegacySchemaTables.makeCreateKeyspaceMutation(ksm, FBUtilities.timestampMicros()), announceLocally);
+        announce(LegacySchemaTables.makeCreateKeyspaceMutation(ksm, FBUtilities.timestampMicros(), false), announceLocally);
     }
 
     public static void announceColumnFamilyUpdate(CFMetaData cfm, boolean fromThrift) throws ConfigurationException

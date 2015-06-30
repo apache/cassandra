@@ -21,7 +21,6 @@ import org.apache.cassandra.auth.Permission;
 import org.apache.cassandra.config.*;
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.cql3.functions.Function;
-import org.apache.cassandra.cql3.functions.Functions;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.exceptions.*;
 import org.apache.cassandra.service.ClientState;
@@ -74,30 +73,24 @@ public class DropTypeStatement extends SchemaAlteringStatement
         // we drop and 2) existing tables referencing the type (maybe in a nested
         // way).
 
-        for (Function function : Functions.all())
+        for (Function function : ksm.functions)
         {
             if (isUsedBy(function.returnType()))
                 throw new InvalidRequestException(String.format("Cannot drop user type %s as it is still used by function %s", name, function));
+
             for (AbstractType<?> argType : function.argTypes())
                 if (isUsedBy(argType))
                     throw new InvalidRequestException(String.format("Cannot drop user type %s as it is still used by function %s", name, function));
         }
 
-        for (KSMetaData ksm2 : Schema.instance.getKeyspaceDefinitions())
-        {
-            for (UserType ut : ksm2.userTypes.getAllTypes().values())
-            {
-                if (ut.keyspace.equals(name.getKeyspace()) && ut.name.equals(name.getUserTypeName()))
-                    continue;
-                if (isUsedBy(ut))
-                    throw new InvalidRequestException(String.format("Cannot drop user type %s as it is still used by user type %s", name, ut.asCQL3Type()));
-            }
+        for (UserType ut : ksm.userTypes.getAllTypes().values())
+            if (!ut.name.equals(name.getUserTypeName()) && isUsedBy(ut))
+                throw new InvalidRequestException(String.format("Cannot drop user type %s as it is still used by user type %s", name, ut.asCQL3Type()));
 
-            for (CFMetaData cfm : ksm2.cfMetaData().values())
-                for (ColumnDefinition def : cfm.allColumns())
-                    if (isUsedBy(def.type))
-                        throw new InvalidRequestException(String.format("Cannot drop user type %s as it is still used by table %s.%s", name, cfm.ksName, cfm.cfName));
-        }
+        for (CFMetaData cfm : ksm.cfMetaData().values())
+            for (ColumnDefinition def : cfm.allColumns())
+                if (isUsedBy(def.type))
+                    throw new InvalidRequestException(String.format("Cannot drop user type %s as it is still used by table %s.%s", name, cfm.ksName, cfm.cfName));
     }
 
     private boolean isUsedBy(AbstractType<?> toCheck) throws RequestValidationException

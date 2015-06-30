@@ -29,6 +29,7 @@ import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.functions.*;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.exceptions.*;
+import org.apache.cassandra.schema.Functions;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.MigrationManager;
 import org.apache.cassandra.service.QueryState;
@@ -120,7 +121,7 @@ public final class CreateFunctionStatement extends SchemaAlteringStatement
 
     public void checkAccess(ClientState state) throws UnauthorizedException, InvalidRequestException
     {
-        if (Functions.find(functionName, argTypes) != null && orReplace)
+        if (Schema.instance.findFunction(functionName, argTypes).isPresent() && orReplace)
             state.ensureHasPermission(Permission.ALTER, FunctionResource.function(functionName.keyspace,
                                                                                   functionName.name,
                                                                                   argTypes));
@@ -149,7 +150,7 @@ public final class CreateFunctionStatement extends SchemaAlteringStatement
 
     public boolean announceMigration(boolean isLocalOnly) throws RequestValidationException
     {
-        Function old = Functions.find(functionName, argTypes);
+        Function old = Schema.instance.findFunction(functionName, argTypes).orElse(null);
         if (old != null)
         {
             if (ifNotExists)
@@ -162,16 +163,13 @@ public final class CreateFunctionStatement extends SchemaAlteringStatement
                 throw new InvalidRequestException(String.format("Function %s can only be replaced with %s", old,
                                                                 calledOnNullInput ? "CALLED ON NULL INPUT" : "RETURNS NULL ON NULL INPUT"));
 
-            if (!Functions.typeEquals(old.returnType(), returnType))
+            if (!Functions.typesMatch(old.returnType(), returnType))
                 throw new InvalidRequestException(String.format("Cannot replace function %s, the new return type %s is not compatible with the return type %s of existing function",
                                                                 functionName, returnType.asCQL3Type(), old.returnType().asCQL3Type()));
         }
 
         this.udFunction = UDFunction.create(functionName, argNames, argTypes, returnType, calledOnNullInput, language, body);
         this.replaced = old != null;
-
-        // add function to registry to prevent duplicate compilation on coordinator during migration
-        Functions.addOrReplaceFunction(udFunction);
 
         MigrationManager.announceNewFunction(udFunction, isLocalOnly);
 

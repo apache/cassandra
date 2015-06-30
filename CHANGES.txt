@@ -1,5 +1,4 @@
-3.0:
- * Improve log output from unit tests (CASSANDRA-9528)
+3.0
  * Add algorithmic token allocation (CASSANDRA-7032)
  * Add nodetool command to replay batchlog (CASSANDRA-9547)
  * Make file buffer cache independent of paths being read (CASSANDRA-8897)
@@ -39,7 +38,7 @@ Merged from 2.1:
  * Fix bug in cardinality check when compacting (CASSANDRA-9580)
  * Fix memory leak in Ref due to ConcurrentLinkedQueue.remove() behaviour (CASSANDRA-9549)
  * Make rebuild only run one at a time (CASSANDRA-9119)
-Merged from 2.0
+Merged from 2.0:
  * Improve trace messages for RR (CASSANDRA-9479)
  * Fix suboptimal secondary index selection when restricted
    clustering column is also indexed (CASSANDRA-9631)

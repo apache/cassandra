@@ -36,6 +36,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.KSMetaData;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.UntypedResultSet;
+import org.apache.cassandra.cql3.functions.*;
 import org.apache.cassandra.db.partitions.*;
 import org.apache.cassandra.db.commitlog.ReplayPosition;
 import org.apache.cassandra.db.compaction.CompactionHistoryTabularData;
@@ -51,6 +52,7 @@ import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.locator.LocalStrategy;
 import org.apache.cassandra.metrics.RestorableMeter;
 import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.schema.Functions;
 import org.apache.cassandra.schema.LegacySchemaTables;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.paxos.Commit;
@@ -64,6 +66,10 @@ import static org.apache.cassandra.cql3.QueryProcessor.executeOnceInternal;
 
 public final class SystemKeyspace
 {
+    private SystemKeyspace()
+    {
+    }
+
     private static final Logger logger = LoggerFactory.getLogger(SystemKeyspace.class);
 
     // Used to indicate that there was a previous version written to the legacy (pre 1.2)
@@ -246,11 +252,11 @@ public final class SystemKeyspace
 
     private static final CFMetaData AvailableRanges =
         compile(AVAILABLE_RANGES,
-                "Available keyspace/ranges during bootstrap/replace that are ready to be served",
+                "available keyspace/ranges during bootstrap/replace that are ready to be served",
                 "CREATE TABLE %s ("
-                        + "keyspace_name text PRIMARY KEY,"
-                        + "ranges set<blob>"
-                        + ")");
+                + "keyspace_name text,"
+                + "ranges set<blob>,"
+                + "PRIMARY KEY ((keyspace_name)))");
 
     private static CFMetaData compile(String name, String description, String schema)
     {
@@ -275,7 +281,18 @@ public final class SystemKeyspace
                                            SSTableActivity,
                                            SizeEstimates,
                                            AvailableRanges));
-        return new KSMetaData(NAME, LocalStrategy.class, Collections.<String, String>emptyMap(), true, tables);
+
+        return new KSMetaData(NAME, LocalStrategy.class, Collections.<String, String>emptyMap(), true, tables, functions());
+    }
+
+    private static Functions functions()
+    {
+        return Functions.builder()
+                        .add(UuidFcts.all())
+                        .add(TimeFcts.all())
+                        .add(BytesConversionFcts.all())
+                        .add(AggregateFcts.all())
+                        .build();
     }
 
     private static volatile Map<UUID, Pair<ReplayPosition, Long>> truncationRecords;

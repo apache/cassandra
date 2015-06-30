@@ -27,8 +27,9 @@ import org.apache.commons.lang3.time.DateUtils;
 import org.junit.Assert;
 import org.junit.Test;
 
+import org.apache.cassandra.config.KSMetaData;
+import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.cql3.QueryProcessor;
-import org.apache.cassandra.cql3.functions.Functions;
 import org.apache.cassandra.cql3.functions.UDAggregate;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.exceptions.FunctionExecutionException;
@@ -1014,10 +1015,16 @@ public class AggregationTest extends CQLTester
                                    "SFUNC " + shortFunctionName(fState) + " " +
                                    "STYPE int ");
 
-        UDAggregate f = (UDAggregate) Functions.find(parseFunctionName(a)).get(0);
+        KSMetaData ksm = Schema.instance.getKSMetaData(keyspace());
+        UDAggregate f = (UDAggregate) ksm.functions.get(parseFunctionName(a)).iterator().next();
 
-        Functions.addOrReplaceFunction(UDAggregate.createBroken(f.name(), f.argTypes(), f.returnType(),
-                                                                null, new InvalidRequestException("foo bar is broken")));
+        UDAggregate broken = UDAggregate.createBroken(f.name(),
+                                                      f.argTypes(),
+                                                      f.returnType(),
+                                                      null,
+                                                      new InvalidRequestException("foo bar is broken"));
+
+        Schema.instance.setKeyspaceDefinition(ksm.cloneWith(ksm.functions.without(f.name(), f.argTypes()).with(broken)));
 
         assertInvalidThrowMessage("foo bar is broken", InvalidRequestException.class,
                                   "SELECT " + a + "(val) FROM %s");

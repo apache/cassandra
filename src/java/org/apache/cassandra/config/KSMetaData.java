@@ -23,6 +23,7 @@ import com.google.common.base.Objects;
 
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.locator.*;
+import org.apache.cassandra.schema.Functions;
 import org.apache.cassandra.service.StorageService;
 
 public final class KSMetaData
@@ -34,13 +35,14 @@ public final class KSMetaData
     public final boolean durableWrites;
 
     public final UTMetaData userTypes;
+    public final Functions functions;
 
     public KSMetaData(String name,
                       Class<? extends AbstractReplicationStrategy> strategyClass,
                       Map<String, String> strategyOptions,
                       boolean durableWrites)
     {
-        this(name, strategyClass, strategyOptions, durableWrites, Collections.<CFMetaData>emptyList(), new UTMetaData());
+        this(name, strategyClass, strategyOptions, durableWrites, Collections.<CFMetaData>emptyList(), new UTMetaData(), Functions.none());
     }
 
     public KSMetaData(String name,
@@ -49,7 +51,17 @@ public final class KSMetaData
                       boolean durableWrites,
                       Iterable<CFMetaData> cfDefs)
     {
-        this(name, strategyClass, strategyOptions, durableWrites, cfDefs, new UTMetaData());
+        this(name, strategyClass, strategyOptions, durableWrites, cfDefs, new UTMetaData(), Functions.none());
+    }
+
+    public KSMetaData(String name,
+                      Class<? extends AbstractReplicationStrategy> strategyClass,
+                      Map<String, String> strategyOptions,
+                      boolean durableWrites,
+                      Iterable<CFMetaData> cfDefs,
+                      Functions functions)
+    {
+        this(name, strategyClass, strategyOptions, durableWrites, cfDefs, new UTMetaData(), functions);
     }
 
     private KSMetaData(String name,
@@ -57,7 +69,8 @@ public final class KSMetaData
                        Map<String, String> strategyOptions,
                        boolean durableWrites,
                        Iterable<CFMetaData> cfDefs,
-                       UTMetaData userTypes)
+                       UTMetaData userTypes,
+                       Functions functions)
     {
         this.name = name;
         this.strategyClass = strategyClass == null ? NetworkTopologyStrategy.class : strategyClass;
@@ -68,6 +81,7 @@ public final class KSMetaData
         this.cfMetaData = Collections.unmodifiableMap(cfmap);
         this.durableWrites = durableWrites;
         this.userTypes = userTypes;
+        this.functions = functions;
     }
 
     // For new user created keyspaces (through CQL)
@@ -82,7 +96,7 @@ public final class KSMetaData
 
     public static KSMetaData newKeyspace(String name, Class<? extends AbstractReplicationStrategy> strategyClass, Map<String, String> options, boolean durablesWrites, Iterable<CFMetaData> cfDefs)
     {
-        return new KSMetaData(name, strategyClass, options, durablesWrites, cfDefs, new UTMetaData());
+        return new KSMetaData(name, strategyClass, options, durablesWrites, cfDefs, new UTMetaData(), Functions.none());
     }
 
     public KSMetaData cloneWithTableRemoved(CFMetaData table)
@@ -91,7 +105,7 @@ public final class KSMetaData
         List<CFMetaData> newTables = new ArrayList<>(cfMetaData().values());
         newTables.remove(table);
         assert newTables.size() == cfMetaData().size() - 1;
-        return cloneWith(newTables, userTypes);
+        return cloneWith(newTables, userTypes, functions);
     }
 
     public KSMetaData cloneWithTableAdded(CFMetaData table)
@@ -100,12 +114,17 @@ public final class KSMetaData
         List<CFMetaData> newTables = new ArrayList<>(cfMetaData().values());
         newTables.add(table);
         assert newTables.size() == cfMetaData().size() + 1;
-        return cloneWith(newTables, userTypes);
+        return cloneWith(newTables, userTypes, functions);
     }
 
-    public KSMetaData cloneWith(Iterable<CFMetaData> tables, UTMetaData types)
+    public KSMetaData cloneWith(Iterable<CFMetaData> tables, UTMetaData types, Functions functions)
     {
-        return new KSMetaData(name, strategyClass, strategyOptions, durableWrites, tables, types);
+        return new KSMetaData(name, strategyClass, strategyOptions, durableWrites, tables, types, functions);
+    }
+
+    public KSMetaData cloneWith(Functions functions)
+    {
+        return new KSMetaData(name, strategyClass, strategyOptions, durableWrites, cfMetaData.values(), userTypes, functions);
     }
 
     public static KSMetaData testMetadata(String name, Class<? extends AbstractReplicationStrategy> strategyClass, Map<String, String> strategyOptions, CFMetaData... cfDefs)
@@ -121,7 +140,7 @@ public final class KSMetaData
     @Override
     public int hashCode()
     {
-        return Objects.hashCode(name, strategyClass, strategyOptions, cfMetaData, durableWrites, userTypes);
+        return Objects.hashCode(name, strategyClass, strategyOptions, cfMetaData, durableWrites, functions, userTypes);
     }
 
     @Override
@@ -140,6 +159,7 @@ public final class KSMetaData
             && Objects.equal(strategyOptions, other.strategyOptions)
             && Objects.equal(cfMetaData, other.cfMetaData)
             && Objects.equal(durableWrites, other.durableWrites)
+            && Objects.equal(functions, other.functions)
             && Objects.equal(userTypes, other.userTypes);
     }
 
@@ -157,6 +177,7 @@ public final class KSMetaData
                       .add("strategyOptions", strategyOptions)
                       .add("cfMetaData", cfMetaData)
                       .add("durableWrites", durableWrites)
+                      .add("functions", functions)
                       .add("userTypes", userTypes)
                       .toString();
     }
@@ -176,9 +197,7 @@ public final class KSMetaData
         IEndpointSnitch eps = DatabaseDescriptor.getEndpointSnitch();
         AbstractReplicationStrategy.validateReplicationStrategy(name, strategyClass, tmd, eps, strategyOptions);
 
-        for (CFMetaData cfm : cfMetaData.values())
-            cfm.validate();
-
+        cfMetaData.values().forEach(CFMetaData::validate);
         return this;
     }
 }

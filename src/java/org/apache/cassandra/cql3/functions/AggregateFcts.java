@@ -20,21 +20,54 @@ package org.apache.cassandra.cql3.functions;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 
-import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.db.marshal.DecimalType;
-import org.apache.cassandra.db.marshal.DoubleType;
-import org.apache.cassandra.db.marshal.FloatType;
-import org.apache.cassandra.db.marshal.Int32Type;
-import org.apache.cassandra.db.marshal.IntegerType;
-import org.apache.cassandra.db.marshal.LongType;
+import org.apache.cassandra.cql3.CQL3Type;
+import org.apache.cassandra.db.marshal.*;
 
 /**
  * Factory methods for aggregate functions.
  */
 public abstract class AggregateFcts
 {
+    public static Collection<AggregateFunction> all()
+    {
+        Collection<AggregateFunction> functions = new ArrayList<>();
+
+        functions.add(countRowsFunction);
+
+        // sum for primitives
+        functions.add(sumFunctionForInt32);
+        functions.add(sumFunctionForLong);
+        functions.add(sumFunctionForFloat);
+        functions.add(sumFunctionForDouble);
+        functions.add(sumFunctionForDecimal);
+        functions.add(sumFunctionForVarint);
+
+        // avg for primitives
+        functions.add(avgFunctionForInt32);
+        functions.add(avgFunctionForLong);
+        functions.add(avgFunctionForFloat);
+        functions.add(avgFunctionForDouble);
+        functions.add(avgFunctionForDecimal);
+        functions.add(avgFunctionForVarint);
+
+        // count, max, and min for all standard types
+        for (CQL3Type type : CQL3Type.Native.values())
+        {
+            if (type != CQL3Type.Native.VARCHAR) // varchar and text both mapping to UTF8Type
+            {
+                functions.add(AggregateFcts.makeCountFunction(type.getType()));
+                functions.add(AggregateFcts.makeMaxFunction(type.getType()));
+                functions.add(AggregateFcts.makeMinFunction(type.getType()));
+            }
+        }
+
+        return functions;
+    }
+
     /**
      * The function used to count the number of rows of a result set. This function is called when COUNT(*) or COUNT(1)
      * is specified.
@@ -55,7 +88,7 @@ public abstract class AggregateFcts
 
                         public ByteBuffer compute(int protocolVersion)
                         {
-                            return ((LongType) returnType()).decompose(Long.valueOf(count));
+                            return ((LongType) returnType()).decompose(count);
                         }
 
                         public void addInput(int protocolVersion, List<ByteBuffer> values)

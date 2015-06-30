@@ -18,9 +18,11 @@
 package org.apache.cassandra.cql3.functions;
 
 import java.nio.ByteBuffer;
+import java.util.Collection;
 import java.util.Date;
 import java.util.List;
 
+import com.google.common.collect.ImmutableList;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -32,6 +34,22 @@ import org.apache.cassandra.utils.UUIDGen;
 public abstract class TimeFcts
 {
     public static Logger logger = LoggerFactory.getLogger(TimeFcts.class);
+
+    public static Collection<Function> all()
+    {
+        return ImmutableList.of(nowFct,
+                                minTimeuuidFct,
+                                maxTimeuuidFct,
+                                dateOfFct,
+                                unixTimestampOfFct,
+                                timeUuidtoDate,
+                                timeUuidToTimestamp,
+                                timeUuidToUnixTimestamp,
+                                timestampToUnixTimestamp,
+                                timestampToDate,
+                                dateToUnixTimestamp,
+                                dateToTimestamp);
+    }
 
     public static final Function nowFct = new NativeScalarFunction("now", TimeUUIDType.instance)
     {

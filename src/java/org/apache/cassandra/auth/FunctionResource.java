@@ -19,6 +19,7 @@ package org.apache.cassandra.auth;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 
 import com.google.common.base.Joiner;
@@ -31,7 +32,6 @@ import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.cql3.CQL3Type;
 import org.apache.cassandra.cql3.functions.Function;
 import org.apache.cassandra.cql3.functions.FunctionName;
-import org.apache.cassandra.cql3.functions.Functions;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.TypeParser;
 
@@ -244,7 +244,7 @@ public class FunctionResource implements IResource
             case KEYSPACE:
                 return Schema.instance.getKeyspaces().contains(keyspace);
             case FUNCTION:
-                return Functions.find(getFunctionName(), argTypes) != null;
+                return Schema.instance.findFunction(getFunctionName(), argTypes).isPresent();
         }
         throw new AssertionError();
     }
@@ -258,9 +258,9 @@ public class FunctionResource implements IResource
                 return COLLECTION_LEVEL_PERMISSIONS;
             case FUNCTION:
             {
-                Function function = Functions.find(getFunctionName(), argTypes);
-                assert function != null : "Unable to find function object for resource " + toString();
-                return function.isAggregate() ? AGGREGATE_FUNCTION_PERMISSIONS : SCALAR_FUNCTION_PERMISSIONS;
+                Optional<Function> function = Schema.instance.findFunction(getFunctionName(), argTypes);
+                assert function.isPresent() : "Unable to find function object for resource " + toString();
+                return function.get().isAggregate() ? AGGREGATE_FUNCTION_PERMISSIONS : SCALAR_FUNCTION_PERMISSIONS;
             }
         }
         throw new AssertionError();

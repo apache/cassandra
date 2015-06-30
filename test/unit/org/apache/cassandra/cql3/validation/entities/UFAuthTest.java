@@ -30,12 +30,12 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.auth.*;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.cql3.Attributes;
 import org.apache.cassandra.cql3.CQLStatement;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.functions.Function;
 import org.apache.cassandra.cql3.functions.FunctionName;
-import org.apache.cassandra.cql3.functions.Functions;
 import org.apache.cassandra.cql3.statements.BatchStatement;
 import org.apache.cassandra.cql3.statements.ModificationStatement;
 import org.apache.cassandra.cql3.CQLTester;
@@ -618,12 +618,12 @@ public class UFAuthTest extends CQLTester
         // It is here to avoid having to duplicate the functionality of CqlParser
         // for transforming cql types into AbstractTypes
         FunctionName fn = parseFunctionName(functionName);
-        List<Function> functions = Functions.find(fn);
+        Collection<Function> functions = Schema.instance.getFunctions(fn);
         assertEquals(String.format("Expected a single function definition for %s, but found %s",
                                    functionName,
                                    functions.size()),
                      1, functions.size());
-        return FunctionResource.function(fn.keyspace, fn.name, functions.get(0).argTypes());
+        return FunctionResource.function(fn.keyspace, fn.name, functions.iterator().next().argTypes());
     }
 
     private String functionCall(String functionName, String...args)

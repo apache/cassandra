@@ -26,13 +26,15 @@ import com.google.common.collect.Sets;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.cql3.functions.Functions;
+import org.apache.cassandra.cql3.functions.Function;
+import org.apache.cassandra.cql3.functions.FunctionName;
 import org.apache.cassandra.cql3.functions.UDAggregate;
 import org.apache.cassandra.cql3.functions.UDFunction;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.compaction.CompactionManager;
+import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.UserType;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.schema.LegacySchemaTables;
@@ -283,14 +285,6 @@ public class Schema
     }
 
     /**
-     * @return collection of the metadata about all keyspaces registered in the system (system and non-system)
-     */
-    public Collection<KSMetaData> getKeyspaceDefinitions()
-    {
-        return keyspaces.values();
-    }
-
-    /**
      * Update (or insert) new keyspace definition
      *
      * @param ksm The metadata about keyspace
@@ -362,6 +356,45 @@ public class Schema
         cfm.markPurged();
     }
 
+    /* Function helpers */
+
+    /**
+     * Get all function overloads with the specified name
+     *
+     * @param name fully qualified function name
+     * @return an empty list if the keyspace or the function name are not found;
+     *         a non-empty collection of {@link Function} otherwise
+     */
+    public Collection<Function> getFunctions(FunctionName name)
+    {
+        if (!name.hasKeyspace())
+            throw new IllegalArgumentException(String.format("Function name must be fully quallified: got %s", name));
+
+        KSMetaData ksm = getKSMetaData(name.keyspace);
+        return ksm == null
+             ? Collections.emptyList()
+             : ksm.functions.get(name);
+    }
+
+    /**
+     * Find the function with the specified name
+     *
+     * @param name fully qualified function name
+     * @param argTypes function argument types
+     * @return an empty {@link Optional} if the keyspace or the function name are not found;
+     *         a non-empty optional of {@link Function} otherwise
+     */
+    public Optional<Function> findFunction(FunctionName name, List<AbstractType<?>> argTypes)
+    {
+        if (!name.hasKeyspace())
+            throw new IllegalArgumentException(String.format("Function name must be fully quallified: got %s", name));
+
+        KSMetaData ksm = getKSMetaData(name.keyspace);
+        return ksm == null
+             ? Optional.empty()
+             : ksm.functions.find(name, argTypes);
+    }
+
     /* Version control */
 
     /**
@@ -420,7 +453,7 @@ public class Schema
     {
         KSMetaData oldKsm = getKSMetaData(ksName);
         assert oldKsm != null;
-        KSMetaData newKsm = LegacySchemaTables.createKeyspaceFromName(ksName).cloneWith(oldKsm.cfMetaData().values(), oldKsm.userTypes);
+        KSMetaData newKsm = LegacySchemaTables.createKeyspaceFromName(ksName).cloneWith(oldKsm.cfMetaData().values(), oldKsm.userTypes, oldKsm.functions);
 
         setKeyspaceDefinition(newKsm);
 
@@ -552,57 +585,67 @@ public class Schema
 
     public void addFunction(UDFunction udf)
     {
-        logger.info("Loading {}", udf);
-
-        Functions.addOrReplaceFunction(udf);
-
+        addFunctionInternal(udf);
         MigrationManager.instance.notifyCreateFunction(udf);
     }
 
     public void updateFunction(UDFunction udf)
     {
-        logger.info("Updating {}", udf);
-
-        Functions.addOrReplaceFunction(udf);
-
+        updateFunctionInternal(udf);
         MigrationManager.instance.notifyUpdateFunction(udf);
     }
 
     public void dropFunction(UDFunction udf)
     {
-        logger.info("Drop {}", udf);
-
-        // TODO: this is kind of broken as this remove all overloads of the function name
-        Functions.removeFunction(udf.name(), udf.argTypes());
-
+        dropFunctionInternal(udf);
         MigrationManager.instance.notifyDropFunction(udf);
     }
 
-    public void addAggregate(UDAggregate udf)
+    public void addAggregate(UDAggregate uda)
     {
-        logger.info("Loading {}", udf);
-
-        Functions.addOrReplaceFunction(udf);
-
-        MigrationManager.instance.notifyCreateAggregate(udf);
+        addFunctionInternal(uda);
+        MigrationManager.instance.notifyCreateAggregate(uda);
     }
 
-    public void updateAggregate(UDAggregate udf)
+    public void updateAggregate(UDAggregate uda)
     {
-        logger.info("Updating {}", udf);
-
-        Functions.addOrReplaceFunction(udf);
-
-        MigrationManager.instance.notifyUpdateAggregate(udf);
+        updateFunctionInternal(uda);
+        MigrationManager.instance.notifyUpdateAggregate(uda);
     }
 
-    public void dropAggregate(UDAggregate udf)
+    public void dropAggregate(UDAggregate uda)
     {
-        logger.info("Drop {}", udf);
+        dropFunctionInternal(uda);
+        MigrationManager.instance.notifyDropAggregate(uda);
+    }
 
-        // TODO: this is kind of broken as this remove all overloads of the function name
-        Functions.removeFunction(udf.name(), udf.argTypes());
+    private void addFunctionInternal(Function fun)
+    {
+        assert fun instanceof UDFunction || fun instanceof UDAggregate;
 
-        MigrationManager.instance.notifyDropAggregate(udf);
+        KSMetaData oldKsm = getKSMetaData(fun.name().keyspace);
+        assert oldKsm != null;
+        KSMetaData newKsm = oldKsm.cloneWith(oldKsm.functions.with(fun));
+        setKeyspaceDefinition(newKsm);
+    }
+
+    private void updateFunctionInternal(Function fun)
+    {
+        assert fun instanceof UDFunction || fun instanceof UDAggregate;
+
+        KSMetaData oldKsm = getKSMetaData(fun.name().keyspace);
+        assert oldKsm != null;
+        KSMetaData newKsm = oldKsm.cloneWith(oldKsm.functions.without(fun.name(), fun.argTypes()).with(fun));
+        setKeyspaceDefinition(newKsm);
+    }
+
+    private void dropFunctionInternal(Function fun)
+    {
+        assert fun instanceof UDFunction || fun instanceof UDAggregate;
+
+        KSMetaData oldKsm = getKSMetaData(fun.name().keyspace);
+        assert oldKsm != null;
+        KSMetaData newKsm = oldKsm.cloneWith(oldKsm.functions.without(fun.name(), fun.argTypes()));
+        setKeyspaceDefinition(newKsm);
     }
 }
