@@ -391,7 +391,7 @@ public class CQLSSTableWriter implements Closeable
          */
         private static void addTableToKeyspace(KSMetaData keyspace, CFMetaData table)
         {
-            KSMetaData clone = keyspace.cloneWithTableAdded(table);
+            KSMetaData clone = keyspace.cloneWith(keyspace.tables.with(table));
             Schema.instance.load(table);
             Schema.instance.setKeyspaceDefinition(clone);
         }

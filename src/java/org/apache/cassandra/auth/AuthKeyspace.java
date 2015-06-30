@@ -17,8 +17,6 @@
  */
 package org.apache.cassandra.auth;
 
-import java.util.Arrays;
-import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 import com.google.common.collect.ImmutableMap;
@@ -26,6 +24,7 @@ import com.google.common.collect.ImmutableMap;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.KSMetaData;
 import org.apache.cassandra.locator.SimpleStrategy;
+import org.apache.cassandra.schema.Tables;
 
 public class AuthKeyspace
 {
@@ -84,7 +83,7 @@ public class AuthKeyspace
 
     public static KSMetaData definition()
     {
-        List<CFMetaData> tables = Arrays.asList(Roles, RoleMembers, RolePermissions, ResourceRoleIndex);
+        Tables tables = Tables.of(Roles, RoleMembers, RolePermissions, ResourceRoleIndex);
         return new KSMetaData(NAME, SimpleStrategy.class, ImmutableMap.of("replication_factor", "1"), true, tables);
     }
 }

@@ -96,7 +96,7 @@ public class SystemKeyspaceTest
 
         // Compare versions again & verify that snapshots were created for all tables in the system ks
         SystemKeyspace.snapshotOnVersionChange();
-        assertEquals(SystemKeyspace.definition().cfMetaData().size(), getSystemSnapshotFiles().size());
+        assertEquals(SystemKeyspace.definition().tables.size(), getSystemSnapshotFiles().size());
 
         // clear out the snapshots & set the previous recorded version equal to the latest, we shouldn't
         // see any new snapshots created this time.

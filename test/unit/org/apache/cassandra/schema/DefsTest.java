@@ -171,11 +171,11 @@ public class DefsTest
 
         CFMetaData newCf = addTestTable(original.name, cf, null);
 
-        assertFalse(Schema.instance.getKSMetaData(ks).cfMetaData().containsKey(newCf.cfName));
+        assertFalse(Schema.instance.getKSMetaData(ks).tables.get(newCf.cfName).isPresent());
         MigrationManager.announceNewColumnFamily(newCf);
 
-        assertTrue(Schema.instance.getKSMetaData(ks).cfMetaData().containsKey(newCf.cfName));
-        assertEquals(newCf, Schema.instance.getKSMetaData(ks).cfMetaData().get(newCf.cfName));
+        assertTrue(Schema.instance.getKSMetaData(ks).tables.get(newCf.cfName).isPresent());
+        assertEquals(newCf, Schema.instance.getKSMetaData(ks).tables.get(newCf.cfName).get());
     }
 
     @Test
@@ -187,11 +187,11 @@ public class DefsTest
 
         CFMetaData cfm = addTestTable(original.name, tableName, "A New Table");
 
-        assertFalse(Schema.instance.getKSMetaData(ksName).cfMetaData().containsKey(cfm.cfName));
+        assertFalse(Schema.instance.getKSMetaData(ksName).tables.get(cfm.cfName).isPresent());
         MigrationManager.announceNewColumnFamily(cfm);
 
-        assertTrue(Schema.instance.getKSMetaData(ksName).cfMetaData().containsKey(cfm.cfName));
-        assertEquals(cfm, Schema.instance.getKSMetaData(ksName).cfMetaData().get(cfm.cfName));
+        assertTrue(Schema.instance.getKSMetaData(ksName).tables.get(cfm.cfName).isPresent());
+        assertEquals(cfm, Schema.instance.getKSMetaData(ksName).tables.get(cfm.cfName).get());
 
         // now read and write to it.
         QueryProcessor.executeInternal(String.format("INSERT INTO %s.%s (key, col, val) VALUES (?, ?, ?)",
@@ -214,7 +214,7 @@ public class DefsTest
         // sanity
         final KSMetaData ks = Schema.instance.getKSMetaData(KEYSPACE1);
         assertNotNull(ks);
-        final CFMetaData cfm = ks.cfMetaData().get(TABLE1);
+        final CFMetaData cfm = ks.tables.getNullable(TABLE1);
         assertNotNull(cfm);
 
         // write some data, force a flush, then verify that files exist on disk.
@@ -229,7 +229,7 @@ public class DefsTest
 
         MigrationManager.announceColumnFamilyDrop(ks.name, cfm.cfName);
 
-        assertFalse(Schema.instance.getKSMetaData(ks.name).cfMetaData().containsKey(cfm.cfName));
+        assertFalse(Schema.instance.getKSMetaData(ks.name).tables.get(cfm.cfName).isPresent());
 
         // any write should fail.
         boolean success = true;
@@ -285,7 +285,7 @@ public class DefsTest
         // sanity
         final KSMetaData ks = Schema.instance.getKSMetaData(KEYSPACE1);
         assertNotNull(ks);
-        final CFMetaData cfm = ks.cfMetaData().get(TABLE2);
+        final CFMetaData cfm = ks.tables.getNullable(TABLE2);
         assertNotNull(cfm);
 
         // write some data, force a flush, then verify that files exist on disk.
@@ -335,7 +335,7 @@ public class DefsTest
         // sanity
         final KSMetaData ks = Schema.instance.getKSMetaData(KEYSPACE3);
         assertNotNull(ks);
-        final CFMetaData cfm = ks.cfMetaData().get(TABLE1);
+        final CFMetaData cfm = ks.tables.getNullable(TABLE1);
         assertNotNull(cfm);
 
         // write some data
@@ -361,13 +361,13 @@ public class DefsTest
         CFMetaData newCf = addTestTable(EMPTY_KEYSPACE, tableName, "A new CF to add to an empty KS");
 
         //should not exist until apply
-        assertFalse(Schema.instance.getKSMetaData(newKs.name).cfMetaData().containsKey(newCf.cfName));
+        assertFalse(Schema.instance.getKSMetaData(newKs.name).tables.get(newCf.cfName).isPresent());
 
         //add the new CF to the empty space
         MigrationManager.announceNewColumnFamily(newCf);
 
-        assertTrue(Schema.instance.getKSMetaData(newKs.name).cfMetaData().containsKey(newCf.cfName));
-        assertEquals(Schema.instance.getKSMetaData(newKs.name).cfMetaData().get(newCf.cfName), newCf);
+        assertTrue(Schema.instance.getKSMetaData(newKs.name).tables.get(newCf.cfName).isPresent());
+        assertEquals(Schema.instance.getKSMetaData(newKs.name).tables.get(newCf.cfName).get(), newCf);
 
         // now read and write to it.
         QueryProcessor.executeInternal(String.format("INSERT INTO %s.%s (key, col, val) VALUES (?, ?, ?)",

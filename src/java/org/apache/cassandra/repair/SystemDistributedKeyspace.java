@@ -22,7 +22,6 @@ import java.io.StringWriter;
 import java.net.InetAddress;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Set;
@@ -42,6 +41,7 @@ import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.locator.SimpleStrategy;
+import org.apache.cassandra.schema.Tables;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 
@@ -97,7 +97,7 @@ public final class SystemDistributedKeyspace
 
     public static KSMetaData definition()
     {
-        List<CFMetaData> tables = Arrays.asList(RepairHistory, ParentRepairHistory);
+        Tables tables = Tables.of(RepairHistory, ParentRepairHistory);
         return new KSMetaData(NAME, SimpleStrategy.class, ImmutableMap.of("replication_factor", "3"), true, tables);
     }
 

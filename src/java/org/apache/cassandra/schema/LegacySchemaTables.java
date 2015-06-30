@@ -661,7 +661,7 @@ public final class LegacySchemaTables
 
         if (withTablesAndTypesAndFunctions)
         {
-            keyspace.cfMetaData().values().forEach(table -> addTableToSchemaMutation(table, timestamp, true, mutation));
+            keyspace.tables.forEach(table -> addTableToSchemaMutation(table, timestamp, true, mutation));
             keyspace.types.forEach(type -> addTypeToSchemaMutation(type, timestamp, mutation));
             keyspace.functions.udfs().forEach(udf -> addFunctionToSchemaMutation(udf, timestamp, mutation));
             keyspace.functions.udas().forEach(uda -> addAggregateToSchemaMutation(uda, timestamp, mutation));
@@ -686,7 +686,7 @@ public final class LegacySchemaTables
                                                                  RowIterator serializedFunctions,
                                                                  RowIterator seriazliedAggregates)
     {
-        Collection<CFMetaData> tables = createTablesFromTablesPartition(serializedTables);
+        Tables tables = createTablesFromTablesPartition(serializedTables);
         Types types = createTypesFromPartition(serializedTypes);
         Collection<UDFunction> udfs = createFunctionsFromFunctionsPartition(serializedFunctions);
         Collection<UDAggregate> udas = createAggregatesFromAggregatesPartition(seriazliedAggregates);
@@ -939,19 +939,13 @@ public final class LegacySchemaTables
 
     /**
      * Deserialize tables from low-level schema representation, all of them belong to the same keyspace
-     *
-     * @return map containing name of the table and its metadata for faster lookup
      */
-    private static Collection<CFMetaData> createTablesFromTablesPartition(RowIterator partition)
+    private static Tables createTablesFromTablesPartition(RowIterator partition)
     {
-        if (partition.isEmpty())
-            return Collections.emptyList();
-
         String query = String.format("SELECT * FROM %s.%s", SystemKeyspace.NAME, COLUMNFAMILIES);
-        List<CFMetaData> tables = new ArrayList<>();
-        for (UntypedResultSet.Row row : QueryProcessor.resultify(query, partition))
-            tables.add(createTableFromTableRow(row));
-        return tables;
+        Tables.Builder tables = Tables.builder();
+        QueryProcessor.resultify(query, partition).forEach(row -> tables.add(createTableFromTableRow(row)));
+        return tables.build();
     }
 
     public static CFMetaData createTableFromTablePartitionAndColumnsPartition(RowIterator serializedTable, RowIterator serializedColumns)

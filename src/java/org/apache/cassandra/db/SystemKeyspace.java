@@ -54,6 +54,7 @@ import org.apache.cassandra.metrics.RestorableMeter;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.schema.Functions;
 import org.apache.cassandra.schema.LegacySchemaTables;
+import org.apache.cassandra.schema.Tables;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.paxos.Commit;
 import org.apache.cassandra.service.paxos.PaxosState;
@@ -266,23 +267,27 @@ public final class SystemKeyspace
 
     public static KSMetaData definition()
     {
-        Iterable<CFMetaData> tables =
-            Iterables.concat(LegacySchemaTables.All,
-                             Arrays.asList(BuiltIndexes,
-                                           Hints,
-                                           Batchlog,
-                                           Paxos,
-                                           Local,
-                                           Peers,
-                                           PeerEvents,
-                                           RangeXfers,
-                                           CompactionsInProgress,
-                                           CompactionHistory,
-                                           SSTableActivity,
-                                           SizeEstimates,
-                                           AvailableRanges));
+        return new KSMetaData(NAME, LocalStrategy.class, Collections.<String, String>emptyMap(), true, tables(), functions());
+    }
 
-        return new KSMetaData(NAME, LocalStrategy.class, Collections.<String, String>emptyMap(), true, tables, functions());
+    private static Tables tables()
+    {
+        return Tables.builder()
+                     .add(LegacySchemaTables.All)
+                     .add(BuiltIndexes,
+                          Hints,
+                          Batchlog,
+                          Paxos,
+                          Local,
+                          Peers,
+                          PeerEvents,
+                          RangeXfers,
+                          CompactionsInProgress,
+                          CompactionHistory,
+                          SSTableActivity,
+                          SizeEstimates,
+                          AvailableRanges)
+                     .build();
     }
 
     private static Functions functions()

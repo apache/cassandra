@@ -1030,9 +1030,9 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         // the ks exists with the only the legacy tables defined.
         // Also, the addKeyspace above can be racy if multiple nodes are started
         // concurrently - see CASSANDRA-9201
-        for (Map.Entry<String, CFMetaData> table : AuthKeyspace.definition().cfMetaData().entrySet())
-            if (Schema.instance.getCFMetaData(AuthKeyspace.NAME, table.getKey()) == null)
-                maybeAddTable(table.getValue());
+        for (CFMetaData table : AuthKeyspace.definition().tables)
+            if (Schema.instance.getCFMetaData(table.ksName, table.cfName) == null)
+                maybeAddTable(table);
 
         DatabaseDescriptor.getRoleManager().setup();
         DatabaseDescriptor.getAuthenticator().setup();
@@ -3124,7 +3124,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         if (ksMetaData == null)
             throw new IllegalArgumentException("Unknown keyspace '" + keyspaceName + "'");
 
-        CFMetaData cfMetaData = ksMetaData.cfMetaData().get(cf);
+        CFMetaData cfMetaData = ksMetaData.tables.getNullable(cf);
         if (cfMetaData == null)
             throw new IllegalArgumentException("Unknown table '" + cf + "' in keyspace '" + keyspaceName + "'");
 

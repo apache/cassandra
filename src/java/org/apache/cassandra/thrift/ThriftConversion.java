@@ -38,6 +38,7 @@ import org.apache.cassandra.exceptions.*;
 import org.apache.cassandra.io.compress.CompressionParameters;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.locator.LocalStrategy;
+import org.apache.cassandra.schema.Tables;
 import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.schema.LegacySchemaTables;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -161,13 +162,13 @@ public class ThriftConversion
                               cls,
                               ksd.strategy_options == null ? Collections.<String, String>emptyMap() : ksd.strategy_options,
                               ksd.durable_writes,
-                              Arrays.asList(cfDefs));
+                              Tables.of(cfDefs));
     }
 
     public static KsDef toThrift(KSMetaData ksm)
     {
-        List<CfDef> cfDefs = new ArrayList<>(ksm.cfMetaData().size());
-        for (CFMetaData cfm : ksm.cfMetaData().values())
+        List<CfDef> cfDefs = new ArrayList<>();
+        for (CFMetaData cfm : ksm.tables)
             if (cfm.isThriftCompatible()) // Don't expose CF that cannot be correctly handle by thrift; see CASSANDRA-4377 for further details
                 cfDefs.add(toThrift(cfm));
 

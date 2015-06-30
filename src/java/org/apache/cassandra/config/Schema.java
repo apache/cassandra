@@ -38,6 +38,7 @@ import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.UserType;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.schema.LegacySchemaTables;
+import org.apache.cassandra.schema.Tables;
 import org.apache.cassandra.service.MigrationManager;
 import org.apache.cassandra.utils.ConcurrentBiMap;
 import org.apache.cassandra.utils.Pair;
@@ -122,9 +123,7 @@ public class Schema
      */
     public Schema load(Collection<KSMetaData> keyspaceDefs)
     {
-        for (KSMetaData def : keyspaceDefs)
-            load(def);
-
+        keyspaceDefs.forEach(this::load);
         return this;
     }
 
@@ -137,11 +136,8 @@ public class Schema
      */
     public Schema load(KSMetaData keyspaceDef)
     {
-        for (CFMetaData cfm : keyspaceDef.cfMetaData().values())
-            load(cfm);
-
+        keyspaceDef.tables.forEach(this::load);
         setKeyspaceDefinition(keyspaceDef);
-
         return this;
     }
 
@@ -219,7 +215,7 @@ public class Schema
     {
         assert keyspaceName != null;
         KSMetaData ksm = keyspaces.get(keyspaceName);
-        return (ksm == null) ? null : ksm.cfMetaData().get(cfName);
+        return (ksm == null) ? null : ksm.tables.getNullable(cfName);
     }
 
     /**
@@ -268,12 +264,12 @@ public class Schema
      *
      * @return metadata about ColumnFamilies the belong to the given keyspace
      */
-    public Map<String, CFMetaData> getKeyspaceMetaData(String keyspaceName)
+    public Tables getTables(String keyspaceName)
     {
         assert keyspaceName != null;
         KSMetaData ksm = keyspaces.get(keyspaceName);
         assert ksm != null;
-        return ksm.cfMetaData();
+        return ksm.tables;
     }
 
     /**
@@ -432,8 +428,7 @@ public class Schema
         for (String keyspaceName : getNonSystemKeyspaces())
         {
             KSMetaData ksm = getKSMetaData(keyspaceName);
-            for (CFMetaData cfm : ksm.cfMetaData().values())
-                purge(cfm);
+            ksm.tables.forEach(this::purge);
             clearKeyspaceDefinition(ksm);
         }
 
@@ -454,7 +449,7 @@ public class Schema
         KSMetaData oldKsm = getKSMetaData(ksName);
         assert oldKsm != null;
         KSMetaData newKsm = LegacySchemaTables.createKeyspaceFromName(ksName)
-                                              .cloneWith(oldKsm.cfMetaData().values(), oldKsm.types, oldKsm.functions);
+                                              .cloneWith(oldKsm.tables, oldKsm.types, oldKsm.functions);
         setKeyspaceDefinition(newKsm);
         Keyspace.open(ksName).createReplicationStrategy(newKsm);
         MigrationManager.instance.notifyUpdateKeyspace(newKsm);
@@ -465,13 +460,13 @@ public class Schema
         KSMetaData ksm = Schema.instance.getKSMetaData(ksName);
         String snapshotName = Keyspace.getTimestampedSnapshotName(ksName);
 
-        CompactionManager.instance.interruptCompactionFor(ksm.cfMetaData().values(), true);
+        CompactionManager.instance.interruptCompactionFor(ksm.tables, true);
 
         Keyspace keyspace = Keyspace.open(ksm.name);
 
         // remove all cfs from the keyspace instance.
         List<UUID> droppedCfs = new ArrayList<>();
-        for (CFMetaData cfm : ksm.cfMetaData().values())
+        for (CFMetaData cfm : ksm.tables)
         {
             ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(cfm.cfName);
 
@@ -499,7 +494,8 @@ public class Schema
     public void addTable(CFMetaData cfm)
     {
         assert getCFMetaData(cfm.ksName, cfm.cfName) == null;
-        KSMetaData ksm = getKSMetaData(cfm.ksName).cloneWithTableAdded(cfm);
+        KSMetaData oldKsm = getKSMetaData(cfm.ksName);
+        KSMetaData newKsm = oldKsm.cloneWith(oldKsm.tables.with(cfm));
 
         logger.info("Loading {}", cfm);
 
@@ -509,8 +505,8 @@ public class Schema
         // since we're going to call initCf on the new one manually
         Keyspace.open(cfm.ksName);
 
-        setKeyspaceDefinition(ksm);
-        Keyspace.open(ksm.name).initCf(cfm.cfId, cfm.cfName, true);
+        setKeyspaceDefinition(newKsm);
+        Keyspace.open(cfm.ksName).initCf(cfm.cfId, cfm.cfName, true);
         MigrationManager.instance.notifyCreateColumnFamily(cfm);
     }
 
@@ -527,22 +523,23 @@ public class Schema
 
     public void dropTable(String ksName, String tableName)
     {
-        KSMetaData ksm = getKSMetaData(ksName);
-        assert ksm != null;
+        KSMetaData oldKsm = getKSMetaData(ksName);
+        assert oldKsm != null;
         ColumnFamilyStore cfs = Keyspace.open(ksName).getColumnFamilyStore(tableName);
         assert cfs != null;
 
         // reinitialize the keyspace.
-        CFMetaData cfm = ksm.cfMetaData().get(tableName);
+        CFMetaData cfm = oldKsm.tables.get(tableName).get();
+        KSMetaData newKsm = oldKsm.cloneWith(oldKsm.tables.without(tableName));
 
         purge(cfm);
-        setKeyspaceDefinition(ksm.cloneWithTableRemoved(cfm));
+        setKeyspaceDefinition(newKsm);
 
-        CompactionManager.instance.interruptCompactionFor(Arrays.asList(cfm), true);
+        CompactionManager.instance.interruptCompactionFor(Collections.singleton(cfm), true);
 
         if (DatabaseDescriptor.isAutoSnapshot())
             cfs.snapshot(Keyspace.getTimestampedSnapshotName(cfs.name));
-        Keyspace.open(ksm.name).dropCf(cfm.cfId);
+        Keyspace.open(ksName).dropCf(cfm.cfId);
         MigrationManager.instance.notifyDropColumnFamily(cfm);
 
         CommitLog.instance.forceRecycleAllSegments(Collections.singleton(cfm.cfId));

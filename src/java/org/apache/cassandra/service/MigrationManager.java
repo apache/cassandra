@@ -284,7 +284,7 @@ public class MigrationManager
         KSMetaData ksm = Schema.instance.getKSMetaData(cfm.ksName);
         if (ksm == null)
             throw new ConfigurationException(String.format("Cannot add table '%s' to non existing keyspace '%s'.", cfm.cfName, cfm.ksName));
-        else if (ksm.cfMetaData().containsKey(cfm.cfName))
+        else if (ksm.tables.get(cfm.cfName).isPresent())
             throw new AlreadyExistsException(cfm.ksName, cfm.cfName);
 
         logger.info(String.format("Create new table: %s", cfm));

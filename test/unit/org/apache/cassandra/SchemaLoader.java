@@ -362,12 +362,8 @@ public class SchemaLoader
     private static void useCompression(List<KSMetaData> schema)
     {
         for (KSMetaData ksm : schema)
-        {
-            for (CFMetaData cfm : ksm.cfMetaData().values())
-            {
+            for (CFMetaData cfm : ksm.tables)
                 cfm.compressionParameters(new CompressionParameters(SnappyCompressor.instance));
-            }
-        }
     }
 
     public static CFMetaData counterCFMD(String ksName, String cfName)

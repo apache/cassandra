@@ -28,6 +28,7 @@ import org.apache.cassandra.config.KSMetaData;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.RowUpdateBuilder;
 import org.apache.cassandra.locator.SimpleStrategy;
+import org.apache.cassandra.schema.Tables;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.UUIDGen;
 
@@ -72,7 +73,7 @@ public final class TraceKeyspace
 
     public static KSMetaData definition()
     {
-        List<CFMetaData> tables = Arrays.asList(Sessions, Events);
+        Tables tables = Tables.of(Sessions, Events);
         return new KSMetaData(NAME, SimpleStrategy.class, ImmutableMap.of("replication_factor", "2"), true, tables);
     }
 

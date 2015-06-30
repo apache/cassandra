@@ -118,11 +118,10 @@ public class DropIndexStatement extends SchemaAlteringStatement
         KSMetaData ksm = Schema.instance.getKSMetaData(keyspace());
         if (ksm == null)
             throw new KeyspaceNotDefinedException("Keyspace " + keyspace() + " does not exist");
-        for (CFMetaData cfm : ksm.cfMetaData().values())
-        {
+
+        for (CFMetaData cfm : ksm.tables)
             if (findIndexedColumn(cfm) != null)
                 return cfm;
-        }
 
         if (ifExists)
             return null;
