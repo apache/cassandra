@@ -38,8 +38,6 @@ public class ClientWarningsTest extends CQLTester
     @BeforeClass
     public static void setUp()
     {
-        DatabaseDescriptor.setPartitioner(ByteOrderedPartitioner.instance);
-
         requireNetwork();
         DatabaseDescriptor.setBatchSizeWarnThresholdInKB(1);
     }
