@@ -95,10 +95,9 @@ public abstract class AlterTypeStatement extends SchemaAlteringStatement
         if (ksm == null)
             throw new InvalidRequestException(String.format("Cannot alter type in unknown keyspace %s", name.getKeyspace()));
 
-        UserType toUpdate = ksm.userTypes.getType(name.getUserTypeName());
-        // Shouldn't happen, unless we race with a drop
-        if (toUpdate == null)
-            throw new InvalidRequestException(String.format("No user type named %s exists.", name));
+        UserType toUpdate =
+            ksm.types.get(name.getUserTypeName())
+                     .orElseThrow(() -> new InvalidRequestException(String.format("No user type named %s exists.", name)));
 
         UserType updated = makeUpdatedType(toUpdate);
 
@@ -117,7 +116,7 @@ public abstract class AlterTypeStatement extends SchemaAlteringStatement
         }
 
         // Other user types potentially using the updated type
-        for (UserType ut : ksm.userTypes.getAllTypes().values())
+        for (UserType ut : ksm.types)
         {
             // Re-updating the type we've just updated would be harmless but useless so we avoid it.
             // Besides, we use the occasion to drop the old version of the type if it's a type rename

@@ -661,8 +661,8 @@ public final class LegacySchemaTables
 
         if (withTablesAndTypesAndFunctions)
         {
-            keyspace.userTypes.getAllTypes().values().forEach(type -> addTypeToSchemaMutation(type, timestamp, mutation));
             keyspace.cfMetaData().values().forEach(table -> addTableToSchemaMutation(table, timestamp, true, mutation));
+            keyspace.types.forEach(type -> addTypeToSchemaMutation(type, timestamp, mutation));
             keyspace.functions.udfs().forEach(udf -> addFunctionToSchemaMutation(udf, timestamp, mutation));
             keyspace.functions.udas().forEach(uda -> addAggregateToSchemaMutation(uda, timestamp, mutation));
         }
@@ -687,12 +687,10 @@ public final class LegacySchemaTables
                                                                  RowIterator seriazliedAggregates)
     {
         Collection<CFMetaData> tables = createTablesFromTablesPartition(serializedTables);
-        UTMetaData types = new UTMetaData(createTypesFromPartition(serializedTypes));
-
+        Types types = createTypesFromPartition(serializedTypes);
         Collection<UDFunction> udfs = createFunctionsFromFunctionsPartition(serializedFunctions);
         Collection<UDAggregate> udas = createAggregatesFromAggregatesPartition(seriazliedAggregates);
         Functions functions = org.apache.cassandra.schema.Functions.builder().add(udfs).add(udas).build();
-
         return createKeyspaceFromSchemaPartition(serializedKeyspace).cloneWith(tables, types, functions);
     }
 
@@ -759,16 +757,12 @@ public final class LegacySchemaTables
         return RowUpdateBuilder.deleteRow(Usertypes, timestamp, mutation, type.name);
     }
 
-    private static Map<ByteBuffer, UserType> createTypesFromPartition(RowIterator partition)
+    private static Types createTypesFromPartition(RowIterator partition)
     {
         String query = String.format("SELECT * FROM %s.%s", SystemKeyspace.NAME, USERTYPES);
-        Map<ByteBuffer, UserType> types = new HashMap<>();
-        for (UntypedResultSet.Row row : QueryProcessor.resultify(query, partition))
-        {
-            UserType type = createTypeFromRow(row);
-            types.put(type.name, type);
-        }
-        return types;
+        Types.Builder types = Types.builder();
+        QueryProcessor.resultify(query, partition).forEach(row -> types.add(createTypeFromRow(row)));
+        return types.build();
     }
 
     private static UserType createTypeFromRow(UntypedResultSet.Row row)

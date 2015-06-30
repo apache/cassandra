@@ -453,10 +453,9 @@ public class Schema
     {
         KSMetaData oldKsm = getKSMetaData(ksName);
         assert oldKsm != null;
-        KSMetaData newKsm = LegacySchemaTables.createKeyspaceFromName(ksName).cloneWith(oldKsm.cfMetaData().values(), oldKsm.userTypes, oldKsm.functions);
-
+        KSMetaData newKsm = LegacySchemaTables.createKeyspaceFromName(ksName)
+                                              .cloneWith(oldKsm.cfMetaData().values(), oldKsm.types, oldKsm.functions);
         setKeyspaceDefinition(newKsm);
-
         Keyspace.open(ksName).createReplicationStrategy(newKsm);
         MigrationManager.instance.notifyUpdateKeyspace(newKsm);
     }
@@ -551,35 +550,28 @@ public class Schema
 
     public void addType(UserType ut)
     {
-        KSMetaData ksm = getKSMetaData(ut.keyspace);
-        assert ksm != null;
-
-        logger.info("Loading {}", ut);
-
-        ksm.userTypes.addType(ut);
-
+        KSMetaData oldKsm = getKSMetaData(ut.keyspace);
+        assert oldKsm != null;
+        KSMetaData newKsm = oldKsm.cloneWith(oldKsm.types.with(ut));
+        setKeyspaceDefinition(newKsm);
         MigrationManager.instance.notifyCreateUserType(ut);
     }
 
     public void updateType(UserType ut)
     {
-        KSMetaData ksm = getKSMetaData(ut.keyspace);
-        assert ksm != null;
-
-        logger.info("Updating {}", ut);
-
-        ksm.userTypes.addType(ut);
-
+        KSMetaData oldKsm = getKSMetaData(ut.keyspace);
+        assert oldKsm != null;
+        KSMetaData newKsm = oldKsm.cloneWith(oldKsm.types.without(ut.name).with(ut));
+        setKeyspaceDefinition(newKsm);
         MigrationManager.instance.notifyUpdateUserType(ut);
     }
 
     public void dropType(UserType ut)
     {
-        KSMetaData ksm = getKSMetaData(ut.keyspace);
-        assert ksm != null;
-
-        ksm.userTypes.removeType(ut);
-
+        KSMetaData oldKsm = getKSMetaData(ut.keyspace);
+        assert oldKsm != null;
+        KSMetaData newKsm = oldKsm.cloneWith(oldKsm.types.without(ut.name));
+        setKeyspaceDefinition(newKsm);
         MigrationManager.instance.notifyDropUserType(ut);
     }
 

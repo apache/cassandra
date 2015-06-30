@@ -528,7 +528,7 @@ public interface CQL3Type
                 KSMetaData ksm = Schema.instance.getKSMetaData(name.getKeyspace());
                 if (ksm == null)
                     throw new InvalidRequestException("Unknown keyspace " + name.getKeyspace());
-                UserType type = ksm.userTypes.getType(name.getUserTypeName());
+                UserType type = ksm.types.getNullable(name.getUserTypeName());
                 if (type == null)
                     throw new InvalidRequestException("Unknown type " + name);
 

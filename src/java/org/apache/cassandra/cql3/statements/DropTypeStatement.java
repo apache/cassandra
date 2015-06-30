@@ -57,8 +57,7 @@ public class DropTypeStatement extends SchemaAlteringStatement
         if (ksm == null)
             throw new InvalidRequestException(String.format("Cannot drop type in unknown keyspace %s", name.getKeyspace()));
 
-        UserType old = ksm.userTypes.getType(name.getUserTypeName());
-        if (old == null)
+        if (!ksm.types.get(name.getUserTypeName()).isPresent())
         {
             if (ifExists)
                 return;
@@ -83,7 +82,7 @@ public class DropTypeStatement extends SchemaAlteringStatement
                     throw new InvalidRequestException(String.format("Cannot drop user type %s as it is still used by function %s", name, function));
         }
 
-        for (UserType ut : ksm.userTypes.getAllTypes().values())
+        for (UserType ut : ksm.types)
             if (!ut.name.equals(name.getUserTypeName()) && isUsedBy(ut))
                 throw new InvalidRequestException(String.format("Cannot drop user type %s as it is still used by user type %s", name, ut.asCQL3Type()));
 
@@ -140,7 +139,7 @@ public class DropTypeStatement extends SchemaAlteringStatement
         KSMetaData ksm = Schema.instance.getKSMetaData(name.getKeyspace());
         assert ksm != null;
 
-        UserType toDrop = ksm.userTypes.getType(name.getUserTypeName());
+        UserType toDrop = ksm.types.getNullable(name.getUserTypeName());
         // Can be null with ifExists
         if (toDrop == null)
             return false;

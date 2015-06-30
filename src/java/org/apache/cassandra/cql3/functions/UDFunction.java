@@ -295,7 +295,7 @@ public abstract class UDFunction extends AbstractFunction implements ScalarFunct
                     KSMetaData ksm = Schema.instance.getKSMetaData(ksName);
                     assert ksm != null;
 
-                    org.apache.cassandra.db.marshal.UserType ut = ksm.userTypes.getType(ByteBufferUtil.bytes(typeName));
+                    org.apache.cassandra.db.marshal.UserType ut = ksm.types.get(ByteBufferUtil.bytes(typeName)).get();
 
                     DataType newUserType = UDHelper.driverType(ut);
                     argDataTypes[i] = newUserType;

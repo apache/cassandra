@@ -69,7 +69,7 @@ public class CreateTypeStatement extends SchemaAlteringStatement
         if (ksm == null)
             throw new InvalidRequestException(String.format("Cannot add type in unknown keyspace %s", name.getKeyspace()));
 
-        if (ksm.userTypes.getType(name.getUserTypeName()) != null && !ifNotExists)
+        if (ksm.types.get(name.getUserTypeName()).isPresent() && !ifNotExists)
             throw new InvalidRequestException(String.format("A user type of name %s already exists", name));
 
         for (CQL3Type.Raw type : columnTypes)
@@ -122,7 +122,7 @@ public class CreateTypeStatement extends SchemaAlteringStatement
         assert ksm != null; // should haven't validate otherwise
 
         // Can happen with ifNotExists
-        if (ksm.userTypes.getType(name.getUserTypeName()) != null)
+        if (ksm.types.get(name.getUserTypeName()).isPresent())
             return false;
 
         UserType type = createType();
