@@ -146,6 +146,7 @@ public class Config
     public Integer batch_size_warn_threshold_in_kb = 5;
     public Integer concurrent_compactors;
     public volatile Integer compaction_throughput_mb_per_sec = 16;
+    public volatile Integer compaction_large_partition_warning_threshold_mb = 100;
 
     public Integer max_streaming_retries = 3;
 

@@ -1,4 +1,5 @@
 2.1.8
+ * Warn when an extra-large partition is compacted (CASSANDRA-9643)
  * Eliminate strong self-reference chains in sstable ref tidiers (CASSANDRA-9656)
  * Ensure StreamSession uses canonical sstable reader instances (CASSANDRA-9700) 
  * Ensure memtable book keeping is not corrupted in the event we shrink usage (CASSANDRA-9681)

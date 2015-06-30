@@ -198,7 +198,9 @@ public class SSTableWriter extends SSTable
             throw new FSWriteError(e, dataFile.getPath());
         }
         long endPosition = dataFile.getFilePointer();
-        sstableMetadataCollector.update(endPosition - startPosition, row.columnStats());
+        long rowSize = endPosition - startPosition;
+        maybeLogLargePartitionWarning(row.key, rowSize);
+        sstableMetadataCollector.update(rowSize, row.columnStats());
         afterAppend(row.key, endPosition, entry);
         return entry;
     }
@@ -225,7 +227,18 @@ public class SSTableWriter extends SSTable
         {
             throw new FSWriteError(e, dataFile.getPath());
         }
-        sstableMetadataCollector.update(endPosition - startPosition, cf.getColumnStats());
+        long rowSize = endPosition - startPosition;
+        maybeLogLargePartitionWarning(decoratedKey, rowSize);
+        sstableMetadataCollector.update(rowSize, cf.getColumnStats());
+    }
+
+    private void maybeLogLargePartitionWarning(DecoratedKey key, long rowSize)
+    {
+        if (rowSize > DatabaseDescriptor.getCompactionLargePartitionWarningThreshold())
+        {
+            String keyString = metadata.getKeyValidator().getString(key.getKey());
+            logger.warn("Compacting large partition {}/{}:{} ({} bytes)", metadata.ksName, metadata.cfName, keyString, rowSize);
+        }
     }
 
     public static RowIndexEntry rawAppend(ColumnFamily cf, long startPosition, DecoratedKey key, DataOutputPlus out) throws IOException
