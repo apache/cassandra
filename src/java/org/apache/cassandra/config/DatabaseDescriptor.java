@@ -1059,6 +1059,8 @@ public class DatabaseDescriptor
         conf.compaction_throughput_mb_per_sec = value;
     }
 
+    public static int getCompactionLargePartitionWarningThreshold() { return conf.compaction_large_partition_warning_threshold_mb * 1024 * 1024; }
+
     public static boolean getDisableSTCSInL0()
     {
         return Boolean.getBoolean("cassandra.disable_stcs_in_l0");

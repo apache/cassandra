@@ -13,6 +13,7 @@
  * Add support for selectively varint encoding fields (CASSANDRA-9499)
 
 2.2.0-rc2
+ * Warn when an extra-large partition is compacted (CASSANDRA-9643)
  * (cqlsh) Allow setting the initial connection timeout (CASSANDRA-9601)
  * BulkLoader has --transport-factory option but does not use it (CASSANDRA-9675)
  * Allow JMX over SSL directly from nodetool (CASSANDRA-9090)
