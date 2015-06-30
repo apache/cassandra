@@ -134,7 +134,7 @@ from cqlshlib.tracing import print_trace_session, print_trace
 
 DEFAULT_HOST = '127.0.0.1'
 DEFAULT_PORT = 9042
-DEFAULT_CQLVER = '3.2.0'
+DEFAULT_CQLVER = '3.3.0'
 DEFAULT_PROTOCOL_VERSION = 4
 
 DEFAULT_FLOAT_PRECISION = 5
