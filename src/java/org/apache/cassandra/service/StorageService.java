@@ -645,11 +645,9 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                 for (Keyspace keyspace : Keyspace.all())
                 {
                     KSMetaData ksm = Schema.instance.getKSMetaData(keyspace.getName());
-                    if (!ksm.durableWrites)
-                    {
+                    if (!ksm.params.durableWrites)
                         for (ColumnFamilyStore cfs : keyspace.getColumnFamilyStores())
                             flushes.add(cfs.forceFlush());
-                    }
                 }
                 try
                 {

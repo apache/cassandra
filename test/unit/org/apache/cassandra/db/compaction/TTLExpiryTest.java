@@ -1,6 +1,4 @@
-package org.apache.cassandra.db.compaction;
 /*
- * 
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -17,11 +15,10 @@ package org.apache.cassandra.db.compaction;
  * KIND, either express or implied.  See the License for the
  * specific language governing permissions and limitations
  * under the License.
- * 
  */
+package org.apache.cassandra.db.compaction;
 
 import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.db.marshal.AsciiType;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
@@ -33,14 +30,12 @@ import org.junit.runner.RunWith;
 import org.apache.cassandra.OrderedJUnit4ClassRunner;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
-import org.apache.cassandra.config.KSMetaData;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.sstable.ISSTableScanner;
-import org.apache.cassandra.locator.SimpleStrategy;
+import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.utils.FBUtilities;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -60,18 +55,17 @@ public class TTLExpiryTest
     {
         SchemaLoader.prepareServer();
         SchemaLoader.createKeyspace(KEYSPACE1,
-                SimpleStrategy.class,
-                KSMetaData.optsWithRF(1),
-                CFMetaData.Builder.create(KEYSPACE1, CF_STANDARD1)
-                        .addPartitionKey("pKey", AsciiType.instance)
-                        .addRegularColumn("col1", AsciiType.instance)
-                        .addRegularColumn("col", AsciiType.instance)
-                        .addRegularColumn("col311", AsciiType.instance)
-                        .addRegularColumn("col2", AsciiType.instance)
-                        .addRegularColumn("col3", AsciiType.instance)
-                        .addRegularColumn("col7", AsciiType.instance)
-                        .addRegularColumn("shadow", AsciiType.instance)
-                        .build().gcGraceSeconds(0));
+                                    KeyspaceParams.simple(1),
+                                    CFMetaData.Builder.create(KEYSPACE1, CF_STANDARD1)
+                                                      .addPartitionKey("pKey", AsciiType.instance)
+                                                      .addRegularColumn("col1", AsciiType.instance)
+                                                      .addRegularColumn("col", AsciiType.instance)
+                                                      .addRegularColumn("col311", AsciiType.instance)
+                                                      .addRegularColumn("col2", AsciiType.instance)
+                                                      .addRegularColumn("col3", AsciiType.instance)
+                                                      .addRegularColumn("col7", AsciiType.instance)
+                                                      .addRegularColumn("shadow", AsciiType.instance)
+                                                      .build().gcGraceSeconds(0));
     }
 
     @Test

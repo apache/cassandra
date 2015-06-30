@@ -38,6 +38,7 @@ import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.locator.SimpleStrategy;
+import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 
@@ -61,26 +62,22 @@ public class CompactionsPurgeTest
     {
         SchemaLoader.prepareServer();
         SchemaLoader.createKeyspace(KEYSPACE1,
-                SimpleStrategy.class,
-                KSMetaData.optsWithRF(1),
-                SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARD1),
-                SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARD2));
+                                    KeyspaceParams.simple(1),
+                                    SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARD1),
+                                    SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARD2));
         SchemaLoader.createKeyspace(KEYSPACE2,
-                SimpleStrategy.class,
-                KSMetaData.optsWithRF(1),
-                SchemaLoader.standardCFMD(KEYSPACE2, CF_STANDARD1));
+                                    KeyspaceParams.simple(1),
+                                    SchemaLoader.standardCFMD(KEYSPACE2, CF_STANDARD1));
         SchemaLoader.createKeyspace(KEYSPACE_CACHED,
-                SimpleStrategy.class,
-                KSMetaData.optsWithRF(1),
-                SchemaLoader.standardCFMD(KEYSPACE_CACHED, CF_CACHED).caching(CachingOptions.ALL));
+                                    KeyspaceParams.simple(1),
+                                    SchemaLoader.standardCFMD(KEYSPACE_CACHED, CF_CACHED).caching(CachingOptions.ALL));
         SchemaLoader.createKeyspace(KEYSPACE_CQL,
-                SimpleStrategy.class,
-                KSMetaData.optsWithRF(1),
-                CFMetaData.compile("CREATE TABLE " + CF_CQL + " ("
-                        + "k int PRIMARY KEY,"
-                        + "v1 text,"
-                        + "v2 int"
-                        + ")", KEYSPACE_CQL));
+                                    KeyspaceParams.simple(1),
+                                    CFMetaData.compile("CREATE TABLE " + CF_CQL + " ("
+                                            + "k int PRIMARY KEY,"
+                                            + "v1 text,"
+                                            + "v2 int"
+                                            + ")", KEYSPACE_CQL));
     }
 
     @Test

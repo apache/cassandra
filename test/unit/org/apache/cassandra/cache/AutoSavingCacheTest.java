@@ -19,7 +19,6 @@ package org.apache.cassandra.cache;
 
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
-import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.marshal.AsciiType;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
@@ -29,9 +28,8 @@ import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
-import org.apache.cassandra.config.KSMetaData;
 import org.apache.cassandra.exceptions.ConfigurationException;
-import org.apache.cassandra.locator.SimpleStrategy;
+import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.service.CacheService;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
@@ -45,12 +43,11 @@ public class AutoSavingCacheTest
     {
         SchemaLoader.prepareServer();
         SchemaLoader.createKeyspace(KEYSPACE1,
-                SimpleStrategy.class,
-                KSMetaData.optsWithRF(1),
-                CFMetaData.Builder.create(KEYSPACE1, CF_STANDARD1)
-                    .addPartitionKey("pKey", AsciiType.instance)
-                    .addRegularColumn("col1", AsciiType.instance)
-                    .build());
+                                    KeyspaceParams.simple(1),
+                                    CFMetaData.Builder.create(KEYSPACE1, CF_STANDARD1)
+                                                      .addPartitionKey("pKey", AsciiType.instance)
+                                                      .addRegularColumn("col1", AsciiType.instance)
+                                                      .build());
     }
 
     @Test

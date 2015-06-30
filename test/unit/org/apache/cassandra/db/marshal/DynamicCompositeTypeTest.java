@@ -32,15 +32,13 @@ import static org.junit.Assert.fail;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.config.ColumnDefinition;
-import org.apache.cassandra.config.KSMetaData;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.db.partitions.ArrayBackedPartition;
 import org.apache.cassandra.exceptions.ConfigurationException;
-import org.apache.cassandra.locator.SimpleStrategy;
+import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.serializers.MarshalException;
-import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.*;
 
 public class DynamicCompositeTypeTest
@@ -73,8 +71,7 @@ public class DynamicCompositeTypeTest
         AbstractType<?> dynamicComposite = DynamicCompositeType.getInstance(aliases);
         SchemaLoader.prepareServer();
         SchemaLoader.createKeyspace(KEYSPACE1,
-                                    SimpleStrategy.class,
-                                    KSMetaData.optsWithRF(1),
+                                    KeyspaceParams.simple(1),
                                     SchemaLoader.denseCFMD(KEYSPACE1, CF_STANDARDDYNCOMPOSITE, dynamicComposite));
     }
 

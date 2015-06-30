@@ -23,8 +23,6 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.*;
 
-import com.google.common.collect.ImmutableMap;
-
 import org.apache.cassandra.config.*;
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.cql3.statements.CreateTableStatement;
@@ -38,7 +36,8 @@ import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.RequestValidationException;
 import org.apache.cassandra.io.sstable.format.SSTableFormat;
-import org.apache.cassandra.locator.AbstractReplicationStrategy;
+import org.apache.cassandra.schema.KeyspaceParams;
+import org.apache.cassandra.schema.Tables;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.utils.Pair;
 
@@ -374,13 +373,7 @@ public class CQLSSTableWriter implements Closeable
          */
         private static void createKeyspaceWithTable(CFMetaData table)
         {
-            KSMetaData ksm;
-            ksm = KSMetaData.newKeyspace(table.ksName,
-                                         AbstractReplicationStrategy.getClass("org.apache.cassandra.locator.SimpleStrategy"),
-                                         ImmutableMap.of("replication_factor", "1"),
-                                         true,
-                                         Collections.singleton(table));
-            Schema.instance.load(ksm);
+            Schema.instance.load(KSMetaData.create(table.ksName, KeyspaceParams.simple(1), Tables.of(table)));
         }
 
         /**
@@ -391,9 +384,8 @@ public class CQLSSTableWriter implements Closeable
          */
         private static void addTableToKeyspace(KSMetaData keyspace, CFMetaData table)
         {
-            KSMetaData clone = keyspace.cloneWith(keyspace.tables.with(table));
             Schema.instance.load(table);
-            Schema.instance.setKeyspaceDefinition(clone);
+            Schema.instance.setKeyspaceDefinition(keyspace.withSwapped(keyspace.tables.with(table)));
         }
 
         /**

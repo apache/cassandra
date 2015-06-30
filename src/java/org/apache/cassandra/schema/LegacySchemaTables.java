@@ -44,7 +44,6 @@ import org.apache.cassandra.db.partitions.*;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.io.compress.CompressionParameters;
-import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
@@ -460,16 +459,14 @@ public final class LegacySchemaTables
     {
         for (FilteredPartition newPartition : after.values())
         {
+            String name = AsciiType.instance.compose(newPartition.partitionKey().getKey());
+            KeyspaceParams params = createKeyspaceParamsFromSchemaPartition(newPartition.rowIterator());
+
             FilteredPartition oldPartition = before.remove(newPartition.partitionKey());
             if (oldPartition == null || oldPartition.isEmpty())
-            {
-                Schema.instance.addKeyspace(createKeyspaceFromSchemaPartition(newPartition.rowIterator()));
-            }
+                Schema.instance.addKeyspace(KSMetaData.create(name, params));
             else
-            {
-                String name = AsciiType.instance.compose(newPartition.partitionKey().getKey());
-                Schema.instance.updateKeyspace(name);
-            }
+                Schema.instance.updateKeyspace(name, params);
         }
 
         // What's remain in old is those keyspace that are not in updated, i.e. the dropped ones.
@@ -478,7 +475,7 @@ public final class LegacySchemaTables
 
     private static Set<String> asKeyspaceNamesSet(Set<DecoratedKey> keys)
     {
-        Set<String> names = new HashSet(keys.size());
+        Set<String> names = new HashSet<>(keys.size());
         for (DecoratedKey key : keys)
             names.add(AsciiType.instance.compose(key.getKey()));
         return names;
@@ -653,9 +650,9 @@ public final class LegacySchemaTables
         // Note that because Keyspaces is a COMPACT TABLE, we're really only setting static columns internally and shouldn't set any clustering.
         RowUpdateBuilder adder = new RowUpdateBuilder(Keyspaces, timestamp, keyspace.name);
 
-        adder.add("durable_writes", keyspace.durableWrites);
-        adder.add("strategy_class", keyspace.strategyClass.getName());
-        adder.add("strategy_options", json(keyspace.strategyOptions));
+        adder.add("durable_writes", keyspace.params.durableWrites);
+        adder.add("strategy_class", keyspace.params.replication.klass.getName());
+        adder.add("strategy_options", json(keyspace.params.replication.options));
 
         Mutation mutation = adder.build();
 
@@ -680,45 +677,41 @@ public final class LegacySchemaTables
         return mutation;
     }
 
-    private static KSMetaData createKeyspaceFromSchemaPartitions(RowIterator serializedKeyspace,
+    private static KSMetaData createKeyspaceFromSchemaPartitions(RowIterator serializedParams,
                                                                  RowIterator serializedTables,
                                                                  RowIterator serializedTypes,
                                                                  RowIterator serializedFunctions,
-                                                                 RowIterator seriazliedAggregates)
+                                                                 RowIterator serializedAggregates)
     {
+        String name = AsciiType.instance.compose(serializedParams.partitionKey().getKey());
+
+        KeyspaceParams params = createKeyspaceParamsFromSchemaPartition(serializedParams);
         Tables tables = createTablesFromTablesPartition(serializedTables);
         Types types = createTypesFromPartition(serializedTypes);
+
         Collection<UDFunction> udfs = createFunctionsFromFunctionsPartition(serializedFunctions);
-        Collection<UDAggregate> udas = createAggregatesFromAggregatesPartition(seriazliedAggregates);
+        Collection<UDAggregate> udas = createAggregatesFromAggregatesPartition(serializedAggregates);
         Functions functions = org.apache.cassandra.schema.Functions.builder().add(udfs).add(udas).build();
-        return createKeyspaceFromSchemaPartition(serializedKeyspace).cloneWith(tables, types, functions);
+
+        return KSMetaData.create(name, params, tables, types, functions);
     }
-
-    public static KSMetaData createKeyspaceFromName(String keyspace)
-    {
-        return readSchemaPartitionForKeyspaceAndApply(KEYSPACES, keyspace, partition ->
-        {
-            if (partition.isEmpty())
-                throw new RuntimeException(String.format("%s not found in the schema definitions keyspaceName (%s).", keyspace, KEYSPACES));
-
-            return createKeyspaceFromSchemaPartition(partition);
-        });
-    }
-
 
     /**
      * Deserialize only Keyspace attributes without nested tables or types
      *
      * @param partition Keyspace attributes in serialized form
      */
-    private static KSMetaData createKeyspaceFromSchemaPartition(RowIterator partition)
+
+    private static KeyspaceParams createKeyspaceParamsFromSchemaPartition(RowIterator partition)
     {
         String query = String.format("SELECT * FROM %s.%s", SystemKeyspace.NAME, KEYSPACES);
         UntypedResultSet.Row row = QueryProcessor.resultify(query, partition).one();
-        return new KSMetaData(row.getString("keyspace_name"),
-                              AbstractReplicationStrategy.getClass(row.getString("strategy_class")),
-                              fromJsonMap(row.getString("strategy_options")),
-                              row.getBoolean("durable_writes"));
+
+        Map<String, String> replicationMap = new HashMap<>();
+        replicationMap.putAll(fromJsonMap(row.getString("strategy_options")));
+        replicationMap.put("class", row.getString("strategy_class"));
+
+        return KeyspaceParams.create(row.getBoolean("durable_writes"), replicationMap);
     }
 
     /*

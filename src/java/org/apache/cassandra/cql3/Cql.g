@@ -642,7 +642,7 @@ dropFunctionStatement returns [DropFunctionStatement expr]
  */
 createKeyspaceStatement returns [CreateKeyspaceStatement expr]
     @init {
-        KSPropDefs attrs = new KSPropDefs();
+        KeyspaceAttributes attrs = new KeyspaceAttributes();
         boolean ifNotExists = false;
     }
     : K_CREATE K_KEYSPACE (K_IF K_NOT K_EXISTS { ifNotExists = true; } )? ks=keyspaceName
@@ -760,7 +760,7 @@ dropTriggerStatement returns [DropTriggerStatement expr]
  * ALTER KEYSPACE <KS> WITH <property> = <value>;
  */
 alterKeyspaceStatement returns [AlterKeyspaceStatement expr]
-    @init { KSPropDefs attrs = new KSPropDefs(); }
+    @init { KeyspaceAttributes attrs = new KeyspaceAttributes(); }
     : K_ALTER K_KEYSPACE ks=keyspaceName
         K_WITH properties[attrs] { $expr = new AlterKeyspaceStatement(ks, attrs); }
     ;

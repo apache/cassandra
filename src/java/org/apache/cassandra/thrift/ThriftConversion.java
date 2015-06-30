@@ -38,6 +38,7 @@ import org.apache.cassandra.exceptions.*;
 import org.apache.cassandra.io.compress.CompressionParameters;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.locator.LocalStrategy;
+import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.Tables;
 import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.schema.LegacySchemaTables;
@@ -158,11 +159,12 @@ public class ThriftConversion
         if (cls.equals(LocalStrategy.class))
             throw new ConfigurationException("Unable to use given strategy class: LocalStrategy is reserved for internal use.");
 
-        return new KSMetaData(ksd.name,
-                              cls,
-                              ksd.strategy_options == null ? Collections.<String, String>emptyMap() : ksd.strategy_options,
-                              ksd.durable_writes,
-                              Tables.of(cfDefs));
+        Map<String, String> replicationMap = new HashMap<>();
+        if (ksd.strategy_options != null)
+            replicationMap.putAll(ksd.strategy_options);
+        replicationMap.put(KeyspaceParams.Replication.CLASS, cls.getName());
+
+        return KSMetaData.create(ksd.name, KeyspaceParams.create(ksd.durable_writes, replicationMap), Tables.of(cfDefs));
     }
 
     public static KsDef toThrift(KSMetaData ksm)
@@ -172,9 +174,9 @@ public class ThriftConversion
             if (cfm.isThriftCompatible()) // Don't expose CF that cannot be correctly handle by thrift; see CASSANDRA-4377 for further details
                 cfDefs.add(toThrift(cfm));
 
-        KsDef ksdef = new KsDef(ksm.name, ksm.strategyClass.getName(), cfDefs);
-        ksdef.setStrategy_options(ksm.strategyOptions);
-        ksdef.setDurable_writes(ksm.durableWrites);
+        KsDef ksdef = new KsDef(ksm.name, ksm.params.replication.klass.getName(), cfDefs);
+        ksdef.setStrategy_options(ksm.params.replication.options);
+        ksdef.setDurable_writes(ksm.params.durableWrites);
 
         return ksdef;
     }

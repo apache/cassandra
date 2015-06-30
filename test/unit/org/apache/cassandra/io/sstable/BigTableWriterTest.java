@@ -26,14 +26,13 @@ import org.junit.BeforeClass;
 import junit.framework.Assert;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.UpdateBuilder;
-import org.apache.cassandra.config.KSMetaData;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.SerializationHeader;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.db.rows.RowStats;
 import org.apache.cassandra.io.sstable.format.SSTableWriter;
-import org.apache.cassandra.locator.SimpleStrategy;
+import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.utils.concurrent.AbstractTransactionalTest;
 
 public class BigTableWriterTest extends AbstractTransactionalTest
@@ -48,8 +47,7 @@ public class BigTableWriterTest extends AbstractTransactionalTest
     {
         SchemaLoader.prepareServer();
         SchemaLoader.createKeyspace(KEYSPACE1,
-                                    SimpleStrategy.class,
-                                    KSMetaData.optsWithRF(1),
+                                    KeyspaceParams.simple(1),
                                     SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARD, 0, Int32Type.instance, AsciiType.instance, Int32Type.instance));
         cfs = Keyspace.open(KEYSPACE1).getColumnFamilyStore(CF_STANDARD);
     }

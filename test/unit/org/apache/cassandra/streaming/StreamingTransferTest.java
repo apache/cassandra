@@ -37,7 +37,6 @@ import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.config.KSMetaData;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.db.*;
@@ -48,7 +47,7 @@ import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
-import org.apache.cassandra.locator.SimpleStrategy;
+import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
@@ -79,27 +78,24 @@ public class StreamingTransferTest
         SchemaLoader.prepareServer();
         StorageService.instance.initServer();
         SchemaLoader.createKeyspace(KEYSPACE1,
-                SimpleStrategy.class,
-                KSMetaData.optsWithRF(1),
-                SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARD),
-                CFMetaData.Builder.create(KEYSPACE1, CF_COUNTER, false, true, true)
-                        .addPartitionKey("key", BytesType.instance)
-                        .build(),
-                CFMetaData.Builder.create(KEYSPACE1, CF_STANDARDINT)
-                        .addPartitionKey("key", AsciiType.instance)
-                        .addClusteringColumn("cols", Int32Type.instance)
-                        .addRegularColumn("val", BytesType.instance)
-                        .build(),
-                SchemaLoader.compositeIndexCFMD(KEYSPACE1, CF_INDEX, true));
+                                    KeyspaceParams.simple(1),
+                                    SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARD),
+                                    CFMetaData.Builder.create(KEYSPACE1, CF_COUNTER, false, true, true)
+                                                      .addPartitionKey("key", BytesType.instance)
+                                                      .build(),
+                                    CFMetaData.Builder.create(KEYSPACE1, CF_STANDARDINT)
+                                                      .addPartitionKey("key", AsciiType.instance)
+                                                      .addClusteringColumn("cols", Int32Type.instance)
+                                                      .addRegularColumn("val", BytesType.instance)
+                                                      .build(),
+                                    SchemaLoader.compositeIndexCFMD(KEYSPACE1, CF_INDEX, true));
         SchemaLoader.createKeyspace(KEYSPACE2,
-                SimpleStrategy.class,
-                KSMetaData.optsWithRF(1));
+                                    KeyspaceParams.simple(1));
         SchemaLoader.createKeyspace(KEYSPACE_CACHEKEY,
-                SimpleStrategy.class,
-                KSMetaData.optsWithRF(1),
-                SchemaLoader.standardCFMD(KEYSPACE_CACHEKEY, CF_STANDARD),
-                SchemaLoader.standardCFMD(KEYSPACE_CACHEKEY, CF_STANDARD2),
-                SchemaLoader.standardCFMD(KEYSPACE_CACHEKEY, CF_STANDARD3));
+                                    KeyspaceParams.simple(1),
+                                    SchemaLoader.standardCFMD(KEYSPACE_CACHEKEY, CF_STANDARD),
+                                    SchemaLoader.standardCFMD(KEYSPACE_CACHEKEY, CF_STANDARD2),
+                                    SchemaLoader.standardCFMD(KEYSPACE_CACHEKEY, CF_STANDARD3));
     }
 
     /**

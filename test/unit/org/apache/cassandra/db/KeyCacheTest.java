@@ -33,17 +33,13 @@ import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.cache.KeyCacheKey;
 import org.apache.cassandra.concurrent.ScheduledExecutors;
-import org.apache.cassandra.config.KSMetaData;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.compaction.CompactionManager;
-import org.apache.cassandra.db.filter.*;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
-import org.apache.cassandra.locator.SimpleStrategy;
+import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.service.CacheService;
-import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.concurrent.Refs;
 
 import static org.junit.Assert.assertEquals;
@@ -59,10 +55,9 @@ public class KeyCacheTest
     {
         SchemaLoader.prepareServer();
         SchemaLoader.createKeyspace(KEYSPACE1,
-                SimpleStrategy.class,
-                KSMetaData.optsWithRF(1),
-                SchemaLoader.standardCFMD(KEYSPACE1, COLUMN_FAMILY1),
-                SchemaLoader.standardCFMD(KEYSPACE1, COLUMN_FAMILY2));
+                                    KeyspaceParams.simple(1),
+                                    SchemaLoader.standardCFMD(KEYSPACE1, COLUMN_FAMILY1),
+                                    SchemaLoader.standardCFMD(KEYSPACE1, COLUMN_FAMILY2));
     }
 
     @AfterClass

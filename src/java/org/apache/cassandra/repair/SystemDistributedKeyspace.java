@@ -28,7 +28,6 @@ import java.util.Set;
 import java.util.UUID;
 
 import com.google.common.base.Joiner;
-import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Sets;
 
 import org.slf4j.Logger;
@@ -40,14 +39,18 @@ import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.locator.SimpleStrategy;
+import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.Tables;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 
 public final class SystemDistributedKeyspace
 {
-    private static Logger logger = LoggerFactory.getLogger(SystemDistributedKeyspace.class);
+    private SystemDistributedKeyspace()
+    {
+    }
+
+    private static final Logger logger = LoggerFactory.getLogger(SystemDistributedKeyspace.class);
 
     public static final String NAME = "system_distributed";
 
@@ -97,8 +100,7 @@ public final class SystemDistributedKeyspace
 
     public static KSMetaData definition()
     {
-        Tables tables = Tables.of(RepairHistory, ParentRepairHistory);
-        return new KSMetaData(NAME, SimpleStrategy.class, ImmutableMap.of("replication_factor", "3"), true, tables);
+        return KSMetaData.create(NAME, KeyspaceParams.simple(3), Tables.of(RepairHistory, ParentRepairHistory));
     }
 
     public static void startParentRepair(UUID parent_id, String keyspaceName, String[] cfnames, Collection<Range<Token>> ranges)

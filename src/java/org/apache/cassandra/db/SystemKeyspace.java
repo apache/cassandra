@@ -49,12 +49,13 @@ import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.locator.IEndpointSnitch;
-import org.apache.cassandra.locator.LocalStrategy;
 import org.apache.cassandra.metrics.RestorableMeter;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.schema.Functions;
+import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.LegacySchemaTables;
 import org.apache.cassandra.schema.Tables;
+import org.apache.cassandra.schema.Types;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.paxos.Commit;
 import org.apache.cassandra.service.paxos.PaxosState;
@@ -267,7 +268,7 @@ public final class SystemKeyspace
 
     public static KSMetaData definition()
     {
-        return new KSMetaData(NAME, LocalStrategy.class, Collections.<String, String>emptyMap(), true, tables(), functions());
+        return KSMetaData.create(NAME, KeyspaceParams.local(), tables(), Types.none(), functions());
     }
 
     private static Tables tables()

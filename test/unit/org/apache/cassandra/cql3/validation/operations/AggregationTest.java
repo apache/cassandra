@@ -1024,7 +1024,7 @@ public class AggregationTest extends CQLTester
                                                       null,
                                                       new InvalidRequestException("foo bar is broken"));
 
-        Schema.instance.setKeyspaceDefinition(ksm.cloneWith(ksm.functions.without(f.name(), f.argTypes()).with(broken)));
+        Schema.instance.setKeyspaceDefinition(ksm.withSwapped(ksm.functions.without(f.name(), f.argTypes()).with(broken)));
 
         assertInvalidThrowMessage("foo bar is broken", InvalidRequestException.class,
                                   "SELECT " + a + "(val) FROM %s");

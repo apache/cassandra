@@ -714,10 +714,10 @@ public class LeaveAndBootstrapTest
         KSMetaData ksmd = Schema.instance.getKSMetaData(keyspaceName);
         return AbstractReplicationStrategy.createReplicationStrategy(
                 keyspaceName,
-                ksmd.strategyClass,
+                ksmd.params.replication.klass,
                 tmd,
                 new SimpleSnitch(),
-                ksmd.strategyOptions);
+                ksmd.params.replication.options);
     }
 
 }

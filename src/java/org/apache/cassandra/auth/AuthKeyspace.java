@@ -19,15 +19,17 @@ package org.apache.cassandra.auth;
 
 import java.util.concurrent.TimeUnit;
 
-import com.google.common.collect.ImmutableMap;
-
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.KSMetaData;
-import org.apache.cassandra.locator.SimpleStrategy;
+import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.Tables;
 
-public class AuthKeyspace
+public final class AuthKeyspace
 {
+    private AuthKeyspace()
+    {
+    }
+
     public static final String NAME = "system_auth";
 
     public static final String ROLES = "roles";
@@ -83,7 +85,6 @@ public class AuthKeyspace
 
     public static KSMetaData definition()
     {
-        Tables tables = Tables.of(Roles, RoleMembers, RolePermissions, ResourceRoleIndex);
-        return new KSMetaData(NAME, SimpleStrategy.class, ImmutableMap.of("replication_factor", "1"), true, tables);
+        return KSMetaData.create(NAME, KeyspaceParams.simple(1), Tables.of(Roles, RoleMembers, RolePermissions, ResourceRoleIndex));
     }
 }

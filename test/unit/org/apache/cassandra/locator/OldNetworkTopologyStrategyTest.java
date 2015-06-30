@@ -15,7 +15,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.apache.cassandra.locator;
 
 import java.net.InetAddress;
@@ -23,6 +22,7 @@ import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -31,7 +31,6 @@ import java.util.Set;
 import org.junit.Before;
 import org.junit.Test;
 
-import org.apache.cassandra.config.KSMetaData;
 import org.apache.cassandra.dht.RandomPartitioner.BigIntegerToken;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
@@ -64,7 +63,7 @@ public class OldNetworkTopologyStrategyTest
     {
         RackInferringSnitch endpointSnitch = new RackInferringSnitch();
 
-        AbstractReplicationStrategy strategy = new OldNetworkTopologyStrategy("Keyspace1", tmd, endpointSnitch, KSMetaData.optsWithRF(1));
+        AbstractReplicationStrategy strategy = new OldNetworkTopologyStrategy("Keyspace1", tmd, endpointSnitch, optsWithRF(1));
         addEndpoint("0", "5", "254.0.0.1");
         addEndpoint("10", "15", "254.0.0.2");
         addEndpoint("20", "25", "254.0.0.3");
@@ -89,7 +88,7 @@ public class OldNetworkTopologyStrategyTest
     {
         RackInferringSnitch endpointSnitch = new RackInferringSnitch();
 
-        AbstractReplicationStrategy strategy = new OldNetworkTopologyStrategy("Keyspace1", tmd, endpointSnitch, KSMetaData.optsWithRF(1));
+        AbstractReplicationStrategy strategy = new OldNetworkTopologyStrategy("Keyspace1", tmd, endpointSnitch, optsWithRF(1));
         addEndpoint("0", "5", "254.0.0.1");
         addEndpoint("10", "15", "254.0.0.2");
         addEndpoint("20", "25", "254.1.0.3");
@@ -115,7 +114,7 @@ public class OldNetworkTopologyStrategyTest
     {
         RackInferringSnitch endpointSnitch = new RackInferringSnitch();
 
-        AbstractReplicationStrategy strategy = new OldNetworkTopologyStrategy("Keyspace1", tmd, endpointSnitch, KSMetaData.optsWithRF(1));
+        AbstractReplicationStrategy strategy = new OldNetworkTopologyStrategy("Keyspace1", tmd, endpointSnitch, optsWithRF(1));
         addEndpoint("0", "5", "254.0.0.1");
         addEndpoint("10", "15", "254.0.0.2");
         addEndpoint("20", "25", "254.0.1.3");
@@ -358,7 +357,7 @@ public class OldNetworkTopologyStrategyTest
 
         TokenMetadata tokenMetadataCurrent = initTokenMetadata(tokens);
         TokenMetadata tokenMetadataAfterMove = initTokenMetadata(tokensAfterMove);
-        AbstractReplicationStrategy strategy = new OldNetworkTopologyStrategy("Keyspace1", tokenMetadataCurrent, endpointSnitch, KSMetaData.optsWithRF(2));
+        AbstractReplicationStrategy strategy = new OldNetworkTopologyStrategy("Keyspace1", tokenMetadataCurrent, endpointSnitch, optsWithRF(2));
 
         Collection<Range<Token>> currentRanges = strategy.getAddressRanges().get(movingNode);
         Collection<Range<Token>> updatedRanges = strategy.getPendingAddressRanges(tokenMetadataAfterMove, tokensAfterMove[movingNodeIdx], movingNode);
@@ -368,5 +367,8 @@ public class OldNetworkTopologyStrategyTest
         return ranges;
     }
 
-
+    private static Map<String, String> optsWithRF(int rf)
+    {
+        return Collections.singletonMap("replication_factor", Integer.toString(rf));
+    }
 }

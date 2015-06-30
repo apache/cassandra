@@ -15,7 +15,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.apache.cassandra.locator;
 
 import java.net.InetAddress;
@@ -37,6 +36,7 @@ import org.apache.cassandra.dht.OrderPreservingPartitioner;
 import org.apache.cassandra.dht.OrderPreservingPartitioner.StringToken;
 import org.apache.cassandra.dht.RandomPartitioner.BigIntegerToken;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.service.PendingRangeCalculatorService;
 import org.apache.cassandra.service.StorageServiceAccessor;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -53,9 +53,7 @@ public class SimpleStrategyTest
     public static void defineSchema() throws Exception
     {
         SchemaLoader.prepareServer();
-        SchemaLoader.createKeyspace(KEYSPACE1,
-                                    SimpleStrategy.class,
-                                    KSMetaData.optsWithRF(1));
+        SchemaLoader.createKeyspace(KEYSPACE1, KeyspaceParams.simple(1));
     }
 
     @Test
@@ -186,9 +184,9 @@ public class SimpleStrategyTest
         KSMetaData ksmd = Schema.instance.getKSMetaData(keyspaceName);
         return AbstractReplicationStrategy.createReplicationStrategy(
                                                                     keyspaceName,
-                                                                    ksmd.strategyClass,
+                                                                    ksmd.params.replication.klass,
                                                                     tmd,
                                                                     new SimpleSnitch(),
-                                                                    ksmd.strategyOptions);
+                                                                    ksmd.params.replication.options);
     }
 }

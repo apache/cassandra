@@ -44,6 +44,7 @@ import org.apache.cassandra.io.sstable.*;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.SSTableWriter;
 import org.apache.cassandra.locator.SimpleStrategy;
+import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -72,9 +73,8 @@ public class AntiCompactionTest
         SchemaLoader.prepareServer();
         cfm = SchemaLoader.standardCFMD(KEYSPACE1, CF);
         SchemaLoader.createKeyspace(KEYSPACE1,
-                SimpleStrategy.class,
-                KSMetaData.optsWithRF(1),
-                cfm);
+                                    KeyspaceParams.simple(1),
+                                    cfm);
     }
 
     @After

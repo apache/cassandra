@@ -183,7 +183,7 @@ public class Mutation implements IMutation
     public void apply()
     {
         Keyspace ks = Keyspace.open(keyspaceName);
-        ks.apply(this, ks.metadata.durableWrites);
+        ks.apply(this, ks.getMetadata().params.durableWrites);
     }
 
     public void applyUnsafe()

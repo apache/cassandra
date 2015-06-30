@@ -21,14 +21,11 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
-import org.apache.cassandra.config.KSMetaData;
-import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.marshal.Int32Type;
-import org.apache.cassandra.locator.SimpleStrategy;
+import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.fail;
 
 public class ThriftCompatibilityTest extends SchemaLoader
 {
@@ -37,15 +34,14 @@ public class ThriftCompatibilityTest extends SchemaLoader
     {
         // The before class annotation of SchemaLoader will prepare the service so no need to do it here
         SchemaLoader.createKeyspace("thriftcompat",
-                SimpleStrategy.class,
-                KSMetaData.optsWithRF(1),
-                SchemaLoader.jdbcCFMD("thriftcompat", "JdbcInteger", Int32Type.instance)
-                            .addColumnDefinition(integerColumn("thriftcompat", "JdbcInteger")));
+                                    KeyspaceParams.simple(1),
+                                    SchemaLoader.jdbcCFMD("thriftcompat", "JdbcInteger", Int32Type.instance)
+                                                .addColumnDefinition(integerColumn("thriftcompat", "JdbcInteger")));
     }
 
     private static UntypedResultSet execute(String query)
     {
-        return QueryProcessor.executeInternal(String.format(query));
+        return QueryProcessor.executeInternal(query);
     }
 
     /** Test For CASSANDRA-8178 */

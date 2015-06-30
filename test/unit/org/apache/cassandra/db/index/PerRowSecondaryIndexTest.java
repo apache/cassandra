@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.db.index;
 
-
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.Set;
@@ -30,7 +29,6 @@ import junit.framework.Assert;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
-import org.apache.cassandra.config.KSMetaData;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.QueryProcessor;
@@ -43,7 +41,7 @@ import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.InvalidRequestException;
-import org.apache.cassandra.locator.SimpleStrategy;
+import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.concurrent.OpOrder;
@@ -67,9 +65,8 @@ public class PerRowSecondaryIndexTest
     {
         SchemaLoader.prepareServer();
         SchemaLoader.createKeyspace(KEYSPACE1,
-                SimpleStrategy.class,
-                KSMetaData.optsWithRF(1),
-                SchemaLoader.perRowIndexedCFMD(KEYSPACE1, CF_INDEXED));
+                                    KeyspaceParams.simple(1),
+                                    SchemaLoader.perRowIndexedCFMD(KEYSPACE1, CF_INDEXED));
     }
 
     @Before

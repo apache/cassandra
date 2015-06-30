@@ -34,7 +34,7 @@ import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.gms.Gossiper;
-import org.apache.cassandra.locator.SimpleStrategy;
+import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.service.MigrationManager;
 import org.apache.cassandra.thrift.ThriftConversion;
 
@@ -87,8 +87,8 @@ public class DatabaseDescriptorTest
         try
         {
             // add a few.
-            MigrationManager.announceNewKeyspace(KSMetaData.testMetadata("ks0", SimpleStrategy.class, KSMetaData.optsWithRF(3)));
-            MigrationManager.announceNewKeyspace(KSMetaData.testMetadata("ks1", SimpleStrategy.class, KSMetaData.optsWithRF(3)));
+            MigrationManager.announceNewKeyspace(KSMetaData.create("ks0", KeyspaceParams.simple(3)));
+            MigrationManager.announceNewKeyspace(KSMetaData.create("ks1", KeyspaceParams.simple(3)));
 
             assertNotNull(Schema.instance.getKSMetaData("ks0"));
             assertNotNull(Schema.instance.getKSMetaData("ks1"));

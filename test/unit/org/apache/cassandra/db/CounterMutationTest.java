@@ -22,21 +22,15 @@ import org.junit.Test;
 
 import org.apache.cassandra.Util;
 import org.apache.cassandra.config.ColumnDefinition;
-import org.apache.cassandra.config.KSMetaData;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.db.context.CounterContext;
-import org.apache.cassandra.db.partitions.PartitionIterator;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.WriteTimeoutException;
-import org.apache.cassandra.locator.SimpleStrategy;
+import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNull;
-
-import static org.apache.cassandra.Util.dk;
-import static org.apache.cassandra.utils.ByteBufferUtil.bytes;
 
 public class CounterMutationTest
 {
@@ -49,8 +43,7 @@ public class CounterMutationTest
     {
         SchemaLoader.prepareServer();
         SchemaLoader.createKeyspace(KEYSPACE1,
-                                    SimpleStrategy.class,
-                                    KSMetaData.optsWithRF(1),
+                                    KeyspaceParams.simple(1),
                                     SchemaLoader.counterCFMD(KEYSPACE1, CF1),
                                     SchemaLoader.counterCFMD(KEYSPACE1, CF2));
     }

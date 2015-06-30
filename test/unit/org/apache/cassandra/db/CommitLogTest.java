@@ -16,10 +16,8 @@
 * specific language governing permissions and limitations
 * under the License.
 */
-
 package org.apache.cassandra.db;
 
-import static junit.framework.Assert.assertFalse;
 import static junit.framework.Assert.assertTrue;
 import static org.apache.cassandra.utils.ByteBufferUtil.bytes;
 import static org.junit.Assert.assertEquals;
@@ -39,10 +37,8 @@ import java.util.zip.Checksum;
 
 import com.google.common.collect.ImmutableMap;
 
-import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.db.marshal.AsciiType;
 import org.apache.cassandra.db.marshal.BytesType;
-import org.apache.cassandra.db.partitions.PartitionIterator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -52,7 +48,6 @@ import org.junit.Test;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.config.KSMetaData;
 import org.apache.cassandra.config.ParameterizedClass;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.commitlog.CommitLogDescriptor;
@@ -62,8 +57,8 @@ import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.util.ByteBufferDataInput;
 import org.apache.cassandra.io.util.FileDataInput;
-import org.apache.cassandra.locator.SimpleStrategy;
 import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 public class CommitLogTest
@@ -80,15 +75,11 @@ public class CommitLogTest
     {
         SchemaLoader.prepareServer();
         SchemaLoader.createKeyspace(KEYSPACE1,
-                                    SimpleStrategy.class,
-                                    KSMetaData.optsWithRF(1),
+                                    KeyspaceParams.simple(1),
                                     SchemaLoader.standardCFMD(KEYSPACE1, STANDARD1, 0, AsciiType.instance, BytesType.instance),
                                     SchemaLoader.standardCFMD(KEYSPACE1, STANDARD2, 0, AsciiType.instance, BytesType.instance));
         SchemaLoader.createKeyspace(KEYSPACE2,
-                                    false,
-                                    true,
-                                    SimpleStrategy.class,
-                                    KSMetaData.optsWithRF(1),
+                                    KeyspaceParams.simpleTransient(1),
                                     SchemaLoader.standardCFMD(KEYSPACE1, STANDARD1, 0, AsciiType.instance, BytesType.instance),
                                     SchemaLoader.standardCFMD(KEYSPACE1, STANDARD2, 0, AsciiType.instance, BytesType.instance));
         System.setProperty("cassandra.commitlog.stop_on_errors", "true");
@@ -351,7 +342,7 @@ public class CommitLogTest
         {
             DatabaseDescriptor.setAutoSnapshot(false);
             Keyspace notDurableKs = Keyspace.open(KEYSPACE2);
-            Assert.assertFalse(notDurableKs.metadata.durableWrites);
+            Assert.assertFalse(notDurableKs.getMetadata().params.durableWrites);
 
             ColumnFamilyStore cfs = notDurableKs.getColumnFamilyStore("Standard1");
             new RowUpdateBuilder(cfs.metadata, 0, "key1")

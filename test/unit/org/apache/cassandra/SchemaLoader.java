@@ -1,4 +1,4 @@
-/**
+/*
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -41,8 +41,8 @@ import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.io.compress.CompressionParameters;
 import org.apache.cassandra.io.compress.SnappyCompressor;
 import org.apache.cassandra.io.util.FileUtils;
-import org.apache.cassandra.locator.AbstractReplicationStrategy;
-import org.apache.cassandra.locator.SimpleStrategy;
+import org.apache.cassandra.schema.KeyspaceParams;
+import org.apache.cassandra.schema.Tables;
 import org.apache.cassandra.service.MigrationManager;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
@@ -99,13 +99,6 @@ public class SchemaLoader
         String ks_prsi = testName + "PerRowSecondaryIndex";
         String ks_cql = testName + "cql_keyspace";
 
-        Class<? extends AbstractReplicationStrategy> simple = SimpleStrategy.class;
-
-        Map<String, String> opts_rf1 = KSMetaData.optsWithRF(1);
-        Map<String, String> opts_rf2 = KSMetaData.optsWithRF(2);
-        Map<String, String> opts_rf3 = KSMetaData.optsWithRF(3);
-        Map<String, String> opts_rf5 = KSMetaData.optsWithRF(5);
-
         AbstractType bytes = BytesType.instance;
 
         AbstractType<?> composite = CompositeType.getInstance(Arrays.asList(new AbstractType<?>[]{BytesType.instance, TimeUUIDType.instance, IntegerType.instance}));
@@ -124,10 +117,9 @@ public class SchemaLoader
         leveledOptions.put("sstable_size_in_mb", "1");
 
         // Keyspace 1
-        schema.add(KSMetaData.testMetadata(ks1,
-                simple,
-                opts_rf1,
-
+        schema.add(KSMetaData.create(ks1,
+                KeyspaceParams.simple(1),
+                Tables.of(
                 // Column Families
                 standardCFMD(ks1, "Standard1").compactionStrategyOptions(compactionOptions),
                 standardCFMD(ks1, "Standard2"),
@@ -171,13 +163,12 @@ public class SchemaLoader
                 //CFMetaData.Builder.create(ks1, "MixedTypes").withColumnNameComparator(LongType.instance).addPartitionKey("key", UUIDType.instance).build(),
                 //CFMetaData.Builder.create(ks1, "MixedTypesComposite", false, true, false).withColumnNameComparator(composite).addPartitionKey("key", composite).build(),
                 //CFMetaData.Builder.create(ks1, "AsciiKeys").addPartitionKey("key", AsciiType.instance).build()
-        ));
+        )));
 
         // Keyspace 2
-        schema.add(KSMetaData.testMetadata(ks2,
-                simple,
-                opts_rf1,
-
+        schema.add(KSMetaData.create(ks2,
+                KeyspaceParams.simple(1),
+                Tables.of(
                 // Column Families
                 standardCFMD(ks2, "Standard1"),
                 standardCFMD(ks2, "Standard3"),
@@ -185,58 +176,51 @@ public class SchemaLoader
                 superCFMD(ks2, "Super4", TimeUUIDType.instance),
                 keysIndexCFMD(ks2, "Indexed1", true),
                 compositeIndexCFMD(ks2, "Indexed2", true),
-                compositeIndexCFMD(ks2, "Indexed3", true).gcGraceSeconds(0)));
+                compositeIndexCFMD(ks2, "Indexed3", true).gcGraceSeconds(0))));
 
         // Keyspace 3
-        schema.add(KSMetaData.testMetadata(ks3,
-                simple,
-                opts_rf5,
-
-                // Column Families
+        schema.add(KSMetaData.create(ks3,
+                KeyspaceParams.simple(5),
+                Tables.of(
                 standardCFMD(ks3, "Standard1"),
-                keysIndexCFMD(ks3, "Indexed1", true)));
+                keysIndexCFMD(ks3, "Indexed1", true))));
 
         // Keyspace 4
-        schema.add(KSMetaData.testMetadata(ks4,
-                simple,
-                opts_rf3,
-
-                // Column Families
+        schema.add(KSMetaData.create(ks4,
+                KeyspaceParams.simple(3),
+                Tables.of(
                 standardCFMD(ks4, "Standard1"),
                 standardCFMD(ks4, "Standard3"),
                 superCFMD(ks4, "Super3", bytes),
                 superCFMD(ks4, "Super4", TimeUUIDType.instance),
-                superCFMD(ks4, "Super5", TimeUUIDType.instance, BytesType.instance)));
+                superCFMD(ks4, "Super5", TimeUUIDType.instance, BytesType.instance))));
 
         // Keyspace 5
-        schema.add(KSMetaData.testMetadata(ks5,
-                simple,
-                opts_rf2,
-                standardCFMD(ks5, "Standard1")));
-
+        schema.add(KSMetaData.create(ks5,
+                KeyspaceParams.simple(2),
+                Tables.of(standardCFMD(ks5, "Standard1"))));
         // Keyspace 6
-        schema.add(KSMetaData.testMetadata(ks6,
-                simple,
-                opts_rf1,
-                keysIndexCFMD(ks6, "Indexed1", true)));
+        schema.add(KSMetaData.create(ks6,
+                KeyspaceParams.simple(1),
+                Tables.of(keysIndexCFMD(ks6, "Indexed1", true))));
 
         // KeyCacheSpace
-        schema.add(KSMetaData.testMetadata(ks_kcs,
-                simple,
-                opts_rf1,
+        schema.add(KSMetaData.create(ks_kcs,
+                KeyspaceParams.simple(1),
+                Tables.of(
                 standardCFMD(ks_kcs, "Standard1"),
                 standardCFMD(ks_kcs, "Standard2"),
-                standardCFMD(ks_kcs, "Standard3")));
+                standardCFMD(ks_kcs, "Standard3"))));
 
         // RowCacheSpace
-        schema.add(KSMetaData.testMetadata(ks_rcs,
-                simple,
-                opts_rf1,
+        schema.add(KSMetaData.create(ks_rcs,
+                KeyspaceParams.simple(1),
+                Tables.of(
                 standardCFMD(ks_rcs, "CFWithoutCache").caching(CachingOptions.NONE),
                 standardCFMD(ks_rcs, "CachedCF").caching(CachingOptions.ALL),
                 standardCFMD(ks_rcs, "CachedIntCF").
                         caching(new CachingOptions(new CachingOptions.KeyCache(CachingOptions.KeyCache.Type.ALL),
-                                new CachingOptions.RowCache(CachingOptions.RowCache.Type.HEAD, 100)))));
+                                new CachingOptions.RowCache(CachingOptions.RowCache.Type.HEAD, 100))))));
 
         // CounterCacheSpace
         /*schema.add(KSMetaData.testMetadata(ks_ccs,
@@ -245,21 +229,15 @@ public class SchemaLoader
                 CFMetaData.Builder.create(ks_ccs, "Counter1", false, false, true).build(),
                 CFMetaData.Builder.create(ks_ccs, "Counter1", false, false, true).build()));*/
 
-        schema.add(KSMetaData.testMetadataNotDurable(ks_nocommit,
-                simple,
-                opts_rf1,
-                standardCFMD(ks_nocommit, "Standard1")));
+        schema.add(KSMetaData.create(ks_nocommit, KeyspaceParams.simpleTransient(1), Tables.of(
+                standardCFMD(ks_nocommit, "Standard1"))));
 
         // PerRowSecondaryIndexTest
-        schema.add(KSMetaData.testMetadata(ks_prsi,
-                simple,
-                opts_rf1,
-                perRowIndexedCFMD(ks_prsi, "Indexed1")));
+        schema.add(KSMetaData.create(ks_prsi, KeyspaceParams.simple(1), Tables.of(
+                perRowIndexedCFMD(ks_prsi, "Indexed1"))));
 
         // CQLKeyspace
-        schema.add(KSMetaData.testMetadata(ks_cql,
-                simple,
-                opts_rf1,
+        schema.add(KSMetaData.create(ks_cql, KeyspaceParams.simple(1), Tables.of(
 
                 // Column Families
                 CFMetaData.compile("CREATE TABLE table1 ("
@@ -287,7 +265,7 @@ public class SchemaLoader
                         + "foo text, "
                         + "PRIMARY KEY((bar, baz), qux, quz) ) "
                         + "WITH COMPACT STORAGE", ks_cql)
-        ));
+        )));
 
 
         if (Boolean.parseBoolean(System.getProperty("cassandra.test.compression", "false")))
@@ -299,24 +277,9 @@ public class SchemaLoader
             MigrationManager.announceNewKeyspace(ksm, false);
     }
 
-    public static void createKeyspace(String keyspaceName,
-                                      Class<? extends AbstractReplicationStrategy> strategy,
-                                      Map<String, String> options,
-                                      CFMetaData... cfmetas) throws ConfigurationException
+    public static void createKeyspace(String name, KeyspaceParams params, CFMetaData... tables)
     {
-        createKeyspace(keyspaceName, true, true, strategy, options, cfmetas);
-    }
-
-    public static void createKeyspace(String keyspaceName,
-                                      boolean durable,
-                                      boolean announceLocally,
-                                      Class<? extends AbstractReplicationStrategy> strategy,
-                                      Map<String, String> options,
-                                      CFMetaData... cfmetas) throws ConfigurationException
-    {
-        KSMetaData ksm = durable ? KSMetaData.testMetadata(keyspaceName, strategy, options, cfmetas)
-                                 : KSMetaData.testMetadataNotDurable(keyspaceName, strategy, options, cfmetas);
-        MigrationManager.announceNewKeyspace(ksm, announceLocally);
+        MigrationManager.announceNewKeyspace(KSMetaData.create(name, params, Tables.of(tables)), true);
     }
 
     public static ColumnDefinition integerColumn(String ksName, String cfName)

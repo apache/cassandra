@@ -28,15 +28,14 @@ import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.config.KSMetaData;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
-import org.apache.cassandra.locator.SimpleStrategy;
 import org.apache.cassandra.locator.TokenMetadata;
+import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.utils.FBUtilities;
 
 import static org.junit.Assert.assertEquals;
@@ -58,10 +57,9 @@ public class ActiveRepairServiceTest
     {
         SchemaLoader.prepareServer();
         SchemaLoader.createKeyspace(KEYSPACE5,
-                SimpleStrategy.class,
-                KSMetaData.optsWithRF(2),
-                SchemaLoader.standardCFMD(KEYSPACE5, CF_COUNTER),
-                SchemaLoader.standardCFMD(KEYSPACE5, CF_STANDRAD1));
+                                    KeyspaceParams.simple(2),
+                                    SchemaLoader.standardCFMD(KEYSPACE5, CF_COUNTER),
+                                    SchemaLoader.standardCFMD(KEYSPACE5, CF_STANDRAD1));
     }
 
     @Before

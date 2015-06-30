@@ -65,7 +65,7 @@ public class Keyspace
             DatabaseDescriptor.createAllDirectories();
     }
 
-    public final KSMetaData metadata;
+    private volatile KSMetaData metadata;
     public final OpOrder writeOrder = new OpOrder();
 
     /* ColumnFamilyStore per column family */
@@ -81,6 +81,7 @@ public class Keyspace
     };
 
     private static volatile boolean initialized = false;
+
     public static void setInitialized()
     {
         initialized = true;
@@ -163,6 +164,16 @@ public class Keyspace
                     cfs.maybeRemoveUnreadableSSTables(directory);
             }
         }
+    }
+
+    public void setMetadata(KSMetaData metadata)
+    {
+        this.metadata = metadata;
+    }
+
+    public KSMetaData getMetadata()
+    {
+        return metadata;
     }
 
     public Collection<ColumnFamilyStore> getColumnFamilyStores()
@@ -294,10 +305,10 @@ public class Keyspace
     public void createReplicationStrategy(KSMetaData ksm)
     {
         replicationStrategy = AbstractReplicationStrategy.createReplicationStrategy(ksm.name,
-                                                                                    ksm.strategyClass,
+                                                                                    ksm.params.replication.klass,
                                                                                     StorageService.instance.getTokenMetadata(),
                                                                                     DatabaseDescriptor.getEndpointSnitch(),
-                                                                                    ksm.strategyOptions);
+                                                                                    ksm.params.replication.options);
     }
 
     // best invoked on the compaction mananger.

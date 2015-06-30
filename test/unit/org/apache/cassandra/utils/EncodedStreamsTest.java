@@ -26,14 +26,13 @@ import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.config.KSMetaData;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.RowUpdateBuilder;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.exceptions.ConfigurationException;
-import org.apache.cassandra.locator.SimpleStrategy;
 import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.utils.vint.EncodedDataInputStream;
 import org.apache.cassandra.utils.vint.EncodedDataOutputStream;
 
@@ -50,10 +49,9 @@ public class EncodedStreamsTest
     {
     SchemaLoader.prepareServer();
     SchemaLoader.createKeyspace(KEYSPACE1,
-            SimpleStrategy.class,
-            KSMetaData.optsWithRF(1),
-            SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARD),
-            SchemaLoader.counterCFMD(KEYSPACE1, CF_COUNTER));
+                                KeyspaceParams.simple(1),
+                                SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARD),
+                                SchemaLoader.counterCFMD(KEYSPACE1, CF_COUNTER));
     }
 
     @Test
