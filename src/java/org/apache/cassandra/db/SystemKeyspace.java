@@ -1160,7 +1160,7 @@ public final class SystemKeyspace
 
         // delete all previous values with a single range tombstone.
         int nowInSec = FBUtilities.nowInSeconds();
-        update.addRangeTombstone(Slice.make(SizeEstimates.comparator, table), new SimpleDeletionTime(timestamp - 1, nowInSec));
+        update.add(new RangeTombstone(Slice.make(SizeEstimates.comparator, table), new DeletionTime(timestamp - 1, nowInSec)));
 
         // add a CQL row for each primary token range.
         for (Map.Entry<Range<Token>, Pair<Long, Long>> entry : estimates.entrySet())

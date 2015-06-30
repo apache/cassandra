@@ -141,10 +141,9 @@ public class AlterTableStatement extends SchemaAlteringStatement
                     }
                 }
 
-                Integer componentIndex = cfm.isCompound() ? cfm.comparator.size() : null;
                 cfm.addColumnDefinition(isStatic
-                                        ? ColumnDefinition.staticDef(cfm, columnName.bytes, type, componentIndex)
-                                        : ColumnDefinition.regularDef(cfm, columnName.bytes, type, componentIndex));
+                                        ? ColumnDefinition.staticDef(cfm, columnName.bytes, type)
+                                        : ColumnDefinition.regularDef(cfm, columnName.bytes, type));
                 break;
 
             case ALTER:

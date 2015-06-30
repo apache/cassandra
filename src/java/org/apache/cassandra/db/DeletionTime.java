@@ -17,13 +17,13 @@
  */
 package org.apache.cassandra.db;
 
-import java.io.DataInput;
 import java.io.IOException;
 import java.security.MessageDigest;
 
 import com.google.common.base.Objects;
 
 import org.apache.cassandra.cache.IMeasurableMemory;
+import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.io.ISerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
@@ -34,29 +34,44 @@ import org.apache.cassandra.utils.ObjectSizes;
 /**
  * Information on deletion of a storage engine object.
  */
-public abstract class DeletionTime implements Comparable<DeletionTime>, IMeasurableMemory, Aliasable<DeletionTime>
+public class DeletionTime implements Comparable<DeletionTime>, IMeasurableMemory
 {
-    private static final long EMPTY_SIZE = ObjectSizes.measure(new SimpleDeletionTime(0, 0));
+    private static final long EMPTY_SIZE = ObjectSizes.measure(new DeletionTime(0, 0));
 
     /**
      * A special DeletionTime that signifies that there is no top-level (row) tombstone.
      */
-    public static final DeletionTime LIVE = new SimpleDeletionTime(Long.MIN_VALUE, Integer.MAX_VALUE);
+    public static final DeletionTime LIVE = new DeletionTime(Long.MIN_VALUE, Integer.MAX_VALUE);
 
     public static final Serializer serializer = new Serializer();
+
+    private final long markedForDeleteAt;
+    private final int localDeletionTime;
+
+    public DeletionTime(long markedForDeleteAt, int localDeletionTime)
+    {
+        this.markedForDeleteAt = markedForDeleteAt;
+        this.localDeletionTime = localDeletionTime;
+    }
 
     /**
      * A timestamp (typically in microseconds since the unix epoch, although this is not enforced) after which
      * data should be considered deleted. If set to Long.MIN_VALUE, this implies that the data has not been marked
      * for deletion at all.
      */
-    public abstract long markedForDeleteAt();
+    public long markedForDeleteAt()
+    {
+        return markedForDeleteAt;
+    }
 
     /**
      * The local server timestamp, in seconds since the unix epoch, at which this tombstone was created. This is
      * only used for purposes of purging the tombstone after gc_grace_seconds have elapsed.
      */
-    public abstract int localDeletionTime();
+    public int localDeletionTime()
+    {
+        return localDeletionTime;
+    }
 
     /**
      * Returns whether this DeletionTime is live, that is deletes no columns.
@@ -112,14 +127,14 @@ public abstract class DeletionTime implements Comparable<DeletionTime>, IMeasura
         return markedForDeleteAt() > dt.markedForDeleteAt() || (markedForDeleteAt() == dt.markedForDeleteAt() && localDeletionTime() > dt.localDeletionTime());
     }
 
-    public boolean isPurgeable(long maxPurgeableTimestamp, int gcBefore)
-    {
-        return markedForDeleteAt() < maxPurgeableTimestamp && localDeletionTime() < gcBefore;
-    }
-
     public boolean deletes(LivenessInfo info)
     {
         return deletes(info.timestamp());
+    }
+
+    public boolean deletes(Cell cell)
+    {
+        return deletes(cell.timestamp());
     }
 
     public boolean deletes(long timestamp)
@@ -151,10 +166,10 @@ public abstract class DeletionTime implements Comparable<DeletionTime>, IMeasura
             long mfda = in.readLong();
             return mfda == Long.MIN_VALUE && ldt == Integer.MAX_VALUE
                  ? LIVE
-                 : new SimpleDeletionTime(mfda, ldt);
+                 : new DeletionTime(mfda, ldt);
         }
 
-        public void skip(DataInput in) throws IOException
+        public void skip(DataInputPlus in) throws IOException
         {
             FileUtils.skipBytesFully(in, 4 + 8);
         }

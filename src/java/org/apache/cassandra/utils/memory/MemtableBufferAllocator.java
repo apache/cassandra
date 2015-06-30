@@ -27,20 +27,15 @@ import org.apache.cassandra.utils.concurrent.OpOrder;
 
 public abstract class MemtableBufferAllocator extends MemtableAllocator
 {
-
     protected MemtableBufferAllocator(SubAllocator onHeap, SubAllocator offHeap)
     {
         super(onHeap, offHeap);
     }
 
-    public MemtableRowData.ReusableRow newReusableRow()
+    public Row.Builder rowBuilder(CFMetaData metadata, OpOrder.Group writeOp, boolean isStatic)
     {
-        return MemtableRowData.BufferRowData.createReusableRow();
-    }
-
-    public RowAllocator newRowAllocator(CFMetaData cfm, OpOrder.Group writeOp)
-    {
-        return new RowBufferAllocator(allocator(writeOp), cfm.isCounter());
+        Columns columns = isStatic ? metadata.partitionColumns().statics : metadata.partitionColumns().regulars;
+        return allocator(writeOp).cloningArrayBackedRowBuilder(columns);
     }
 
     public DecoratedKey clone(DecoratedKey key, OpOrder.Group writeOp)
@@ -53,72 +48,5 @@ public abstract class MemtableBufferAllocator extends MemtableAllocator
     protected AbstractAllocator allocator(OpOrder.Group writeOp)
     {
         return new ContextAllocator(writeOp, this);
-    }
-
-    private static class RowBufferAllocator extends RowDataBlock.Writer implements RowAllocator
-    {
-        private final AbstractAllocator allocator;
-        private final boolean isCounter;
-
-        private MemtableRowData.BufferClustering clustering;
-        private int clusteringIdx;
-        private LivenessInfo info;
-        private DeletionTime deletion;
-        private RowDataBlock data;
-
-        private RowBufferAllocator(AbstractAllocator allocator, boolean isCounter)
-        {
-            super(true);
-            this.allocator = allocator;
-            this.isCounter = isCounter;
-        }
-
-        public void allocateNewRow(int clusteringSize, Columns columns, boolean isStatic)
-        {
-            data = new RowDataBlock(columns, 1, false, isCounter);
-            clustering = isStatic ? null : new MemtableRowData.BufferClustering(clusteringSize);
-            clusteringIdx = 0;
-            updateWriter(data);
-        }
-
-        public MemtableRowData allocatedRowData()
-        {
-            MemtableRowData row = new MemtableRowData.BufferRowData(clustering == null ? Clustering.STATIC_CLUSTERING : clustering,
-                                                                    info,
-                                                                    deletion,
-                                                                    data);
-
-            clustering = null;
-            info = LivenessInfo.NONE;
-            deletion = DeletionTime.LIVE;
-            data = null;
-
-            return row;
-        }
-
-        public void writeClusteringValue(ByteBuffer value)
-        {
-            clustering.setClusteringValue(clusteringIdx++, value == null ? null : allocator.clone(value));
-        }
-
-        public void writePartitionKeyLivenessInfo(LivenessInfo info)
-        {
-            this.info = info;
-        }
-
-        public void writeRowDeletion(DeletionTime deletion)
-        {
-            this.deletion = deletion;
-        }
-
-        @Override
-        public void writeCell(ColumnDefinition column, boolean isCounter, ByteBuffer value, LivenessInfo info, CellPath path)
-        {
-            ByteBuffer v = allocator.clone(value);
-            if (column.isComplex())
-                complexWriter.addCell(column, v, info, MemtableRowData.BufferCellPath.clone(path, allocator));
-            else
-                simpleWriter.addCell(column, v, info);
-        }
     }
 }

@@ -23,6 +23,7 @@ import java.util.Objects;
 
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.*;
+import org.apache.cassandra.utils.memory.AbstractAllocator;
 
 /**
  * A range tombstone marker that indicates the bound of a range tombstone (start or end).
@@ -34,23 +35,13 @@ public class RangeTombstoneBoundMarker extends AbstractRangeTombstoneMarker
     public RangeTombstoneBoundMarker(RangeTombstone.Bound bound, DeletionTime deletion)
     {
         super(bound);
-        assert bound.kind().isBound();
+        assert !bound.isBoundary();
         this.deletion = deletion;
     }
 
     public RangeTombstoneBoundMarker(Slice.Bound bound, DeletionTime deletion)
     {
         this(new RangeTombstone.Bound(bound.kind(), bound.getRawValues()), deletion);
-    }
-
-    public static RangeTombstoneBoundMarker inclusiveStart(ClusteringPrefix clustering, DeletionTime deletion)
-    {
-        return new RangeTombstoneBoundMarker(new RangeTombstone.Bound(RangeTombstone.Bound.Kind.INCL_START_BOUND, clustering.getRawValues()), deletion);
-    }
-
-    public static RangeTombstoneBoundMarker inclusiveEnd(ClusteringPrefix clustering, DeletionTime deletion)
-    {
-        return new RangeTombstoneBoundMarker(new RangeTombstone.Bound(RangeTombstone.Bound.Kind.INCL_END_BOUND, clustering.getRawValues()), deletion);
     }
 
     public static RangeTombstoneBoundMarker inclusiveOpen(boolean reversed, ByteBuffer[] boundValues, DeletionTime deletion)
@@ -90,16 +81,6 @@ public class RangeTombstoneBoundMarker extends AbstractRangeTombstoneMarker
         return deletion;
     }
 
-    public boolean isOpen(boolean reversed)
-    {
-        return bound.kind().isOpen(reversed);
-    }
-
-    public boolean isClose(boolean reversed)
-    {
-        return bound.kind().isClose(reversed);
-    }
-
     public DeletionTime openDeletionTime(boolean reversed)
     {
         if (!isOpen(reversed))
@@ -128,11 +109,19 @@ public class RangeTombstoneBoundMarker extends AbstractRangeTombstoneMarker
         return bound.isInclusive();
     }
 
-    public void copyTo(RangeTombstoneMarker.Writer writer)
+    public RangeTombstone.Bound openBound(boolean reversed)
     {
-        copyBoundTo(writer);
-        writer.writeBoundDeletion(deletion);
-        writer.endOfMarker();
+        return isOpen(reversed) ? clustering() : null;
+    }
+
+    public RangeTombstone.Bound closeBound(boolean reversed)
+    {
+        return isClose(reversed) ? clustering() : null;
+    }
+
+    public RangeTombstoneBoundMarker copy(AbstractAllocator allocator)
+    {
+        return new RangeTombstoneBoundMarker(clustering().copy(allocator), deletion);
     }
 
     public void digest(MessageDigest digest)
@@ -143,11 +132,7 @@ public class RangeTombstoneBoundMarker extends AbstractRangeTombstoneMarker
 
     public String toString(CFMetaData metadata)
     {
-        StringBuilder sb = new StringBuilder();
-        sb.append("Marker ");
-        sb.append(bound.toString(metadata));
-        sb.append("@").append(deletion.markedForDeleteAt());
-        return sb.toString();
+        return "Marker " + bound.toString(metadata) + '@' + deletion.markedForDeleteAt();
     }
 
     @Override

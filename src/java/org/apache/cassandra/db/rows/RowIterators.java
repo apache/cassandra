@@ -25,7 +25,6 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.*;
-import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.utils.FBUtilities;
 
 /**
@@ -36,19 +35,6 @@ public abstract class RowIterators
     private static final Logger logger = LoggerFactory.getLogger(RowIterators.class);
 
     private RowIterators() {}
-
-    public static PartitionUpdate toUpdate(RowIterator iterator)
-    {
-        PartitionUpdate update = new PartitionUpdate(iterator.metadata(), iterator.partitionKey(), iterator.columns(), 1);
-
-        if (iterator.staticRow() != Rows.EMPTY_STATIC_ROW)
-            iterator.staticRow().copyTo(update.staticWriter());
-
-        while (iterator.hasNext())
-            iterator.next().copyTo(update.writer());
-
-        return update;
-    }
 
     public static void digest(RowIterator iterator, MessageDigest digest)
     {
@@ -123,11 +109,11 @@ public abstract class RowIterators
     {
         CFMetaData metadata = iterator.metadata();
         logger.info("[{}] Logging iterator on {}.{}, partition key={}, reversed={}",
-                    new Object[]{ id,
-                                  metadata.ksName,
-                                  metadata.cfName,
-                                  metadata.getKeyValidator().getString(iterator.partitionKey().getKey()),
-                                  iterator.isReverseOrder() });
+                    id,
+                    metadata.ksName,
+                    metadata.cfName,
+                    metadata.getKeyValidator().getString(iterator.partitionKey().getKey()),
+                    iterator.isReverseOrder());
 
         return new WrappingRowIterator(iterator)
         {

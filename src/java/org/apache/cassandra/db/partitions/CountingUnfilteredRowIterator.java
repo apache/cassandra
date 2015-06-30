@@ -49,10 +49,10 @@ public class CountingUnfilteredRowIterator extends WrappingUnfilteredRowIterator
     @Override
     public Unfiltered next()
     {
-        Unfiltered unfiltered = super.next();
-        if (unfiltered.kind() == Unfiltered.Kind.ROW)
-            counter.newRow((Row) unfiltered);
-        return unfiltered;
+        Unfiltered next = super.next();
+        if (next.isRow())
+            counter.newRow((Row)next);
+        return next;
     }
 
     @Override

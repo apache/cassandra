@@ -90,10 +90,9 @@ public class CompositesIndexOnCollectionValue extends CompositesIndex
 
     public boolean isStale(Row data, ByteBuffer indexValue, int nowInSec)
     {
-        Iterator<Cell> iter = data.getCells(columnDef);
-        while (iter.hasNext())
+        ComplexColumnData complexData = data.getComplexColumnData(columnDef);
+        for (Cell cell : complexData)
         {
-            Cell cell = iter.next();
             if (cell.isLive(nowInSec) && ((CollectionType) columnDef.type).valueComparator().compare(indexValue, cell.value()) == 0)
                 return false;
         }

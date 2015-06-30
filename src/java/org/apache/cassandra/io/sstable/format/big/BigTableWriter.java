@@ -18,7 +18,6 @@
 package org.apache.cassandra.io.sstable.format.big;
 
 import java.io.*;
-import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
@@ -30,7 +29,6 @@ import org.apache.cassandra.io.sstable.format.SSTableWriter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.dht.IPartitioner;
@@ -54,11 +52,8 @@ public class BigTableWriter extends SSTableWriter
 {
     private static final Logger logger = LoggerFactory.getLogger(BigTableWriter.class);
 
-    // not very random, but the only value that can't be mistaken for a legal column-name length
-    public static final int END_OF_ROW = 0x0000;
-
     private final IndexWriter iwriter;
-    private SegmentedFile.Builder dbuilder;
+    private final SegmentedFile.Builder dbuilder;
     private final SequentialWriter dataFile;
     private DecoratedKey lastWrittenKey;
     private FileMark dataMark;
@@ -101,8 +96,8 @@ public class BigTableWriter extends SSTableWriter
     private long beforeAppend(DecoratedKey decoratedKey)
     {
         assert decoratedKey != null : "Keys must not be null"; // empty keys ARE allowed b/c of indexed column values
-        if (lastWrittenKey != null && lastWrittenKey.compareTo(decoratedKey) >= 0)
-            throw new RuntimeException("Last written key " + lastWrittenKey + " >= current key " + decoratedKey + " writing into " + getFilename());
+        //if (lastWrittenKey != null && lastWrittenKey.compareTo(decoratedKey) >= 0)
+        //    throw new RuntimeException("Last written key " + lastWrittenKey + " >= current key " + decoratedKey + " writing into " + getFilename());
         return (lastWrittenKey == null) ? 0 : dataFile.getFilePointer();
     }
 
@@ -172,11 +167,10 @@ public class BigTableWriter extends SSTableWriter
         }
     }
 
-    private static class StatsCollector extends WrappingUnfilteredRowIterator
+    private static class StatsCollector extends AlteringUnfilteredRowIterator
     {
-        private int cellCount;
         private final MetadataCollector collector;
-        private final Set<ColumnDefinition> complexColumnsSetInRow = new HashSet<>();
+        private int cellCount;
 
         StatsCollector(UnfilteredRowIterator iter, MetadataCollector collector)
         {
@@ -186,55 +180,36 @@ public class BigTableWriter extends SSTableWriter
         }
 
         @Override
-        public Unfiltered next()
+        protected Row computeNextStatic(Row row)
         {
-            Unfiltered unfiltered = super.next();
-            collector.updateClusteringValues(unfiltered.clustering());
+            if (!row.isEmpty())
+                cellCount += Rows.collectStats(row, collector);
+            return row;
+        }
 
-            switch (unfiltered.kind())
+        @Override
+        protected Row computeNext(Row row)
+        {
+            collector.updateClusteringValues(row.clustering());
+            cellCount += Rows.collectStats(row, collector);
+            return row;
+        }
+
+        @Override
+        protected RangeTombstoneMarker computeNext(RangeTombstoneMarker marker)
+        {
+            collector.updateClusteringValues(marker.clustering());
+            if (marker.isBoundary())
             {
-                case ROW:
-                    Row row = (Row) unfiltered;
-                    collector.update(row.primaryKeyLivenessInfo());
-                    collector.update(row.deletion());
-
-                    int simpleColumnsSet = 0;
-                    complexColumnsSetInRow.clear();
-
-                    for (Cell cell : row)
-                    {
-                        if (cell.column().isComplex())
-                            complexColumnsSetInRow.add(cell.column());
-                        else
-                            ++simpleColumnsSet;
-
-                        ++cellCount;
-                        collector.update(cell.livenessInfo());
-
-                        if (cell.isCounterCell())
-                            collector.updateHasLegacyCounterShards(CounterCells.hasLegacyShards(cell));
-                    }
-
-                    for (int i = 0; i < row.columns().complexColumnCount(); i++)
-                        collector.update(row.getDeletion(row.columns().getComplex(i)));
-
-                    collector.updateColumnSetPerRow(simpleColumnsSet + complexColumnsSetInRow.size());
-
-                    break;
-                case RANGE_TOMBSTONE_MARKER:
-                    if (((RangeTombstoneMarker) unfiltered).isBoundary())
-                    {
-                        RangeTombstoneBoundaryMarker bm = (RangeTombstoneBoundaryMarker)unfiltered;
-                        collector.update(bm.endDeletionTime());
-                        collector.update(bm.startDeletionTime());
-                    }
-                    else
-                    {
-                        collector.update(((RangeTombstoneBoundMarker)unfiltered).deletionTime());
-                    }
-                    break;
+                RangeTombstoneBoundaryMarker bm = (RangeTombstoneBoundaryMarker)marker;
+                collector.update(bm.endDeletionTime());
+                collector.update(bm.startDeletionTime());
             }
-            return unfiltered;
+            else
+            {
+                collector.update(((RangeTombstoneBoundMarker)marker).deletionTime());
+            }
+            return marker;
         }
 
         @Override

@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.db.filter;
 
-import java.io.DataInput;
 import java.io.IOException;
 import java.util.*;
 
@@ -27,6 +26,7 @@ import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.db.partitions.*;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.utils.SearchIterator;
 import org.apache.cassandra.utils.btree.BTreeSet;
@@ -94,6 +94,9 @@ public class ClusteringIndexNamesFilter extends AbstractClusteringIndexFilter
 
     public boolean isFullyCoveredBy(CachedPartition partition)
     {
+        if (partition.isEmpty())
+            return false;
+
         // 'partition' contains all columns, so it covers our filter if our last clusterings
         // is smaller than the last in the cache
         return clusterings.comparator().compare(clusterings.last(), partition.lastRow().clustering()) <= 0;
@@ -109,18 +112,18 @@ public class ClusteringIndexNamesFilter extends AbstractClusteringIndexFilter
     {
         // Note that we don't filter markers because that's a bit trickier (we don't know in advance until when
         // the range extend) and it's harmless to left them.
-        return new FilteringRowIterator(iterator)
+        return new AlteringUnfilteredRowIterator(iterator)
         {
             @Override
-            public FilteringRow makeRowFilter()
+            public Row computeNextStatic(Row row)
             {
-                return FilteringRow.columnsFilteringRow(columnFilter);
+                return columnFilter.fetchedColumns().statics.isEmpty() ? null : row.filter(columnFilter, iterator.metadata());
             }
 
             @Override
-            protected boolean includeRow(Row row)
+            public Row computeNext(Row row)
             {
-                return clusterings.contains(row.clustering());
+                return clusterings.contains(row.clustering()) ? row.filter(columnFilter, iterator.metadata()) : null;
             }
         };
     }
@@ -214,7 +217,7 @@ public class ClusteringIndexNamesFilter extends AbstractClusteringIndexFilter
             sb.append(i++ == 0 ? "" : ", ").append(clustering.toString(metadata));
         if (reversed)
             sb.append(", reversed");
-        return sb.append(")").toString();
+        return sb.append(')').toString();
     }
 
     public String toCQLString(CFMetaData metadata)
@@ -223,7 +226,7 @@ public class ClusteringIndexNamesFilter extends AbstractClusteringIndexFilter
             return "";
 
         StringBuilder sb = new StringBuilder();
-        sb.append("(").append(ColumnDefinition.toCQLString(metadata.clusteringColumns())).append(")");
+        sb.append('(').append(ColumnDefinition.toCQLString(metadata.clusteringColumns())).append(')');
         sb.append(clusterings.size() == 1 ? " = " : " IN (");
         int i = 0;
         for (Clustering clustering : clusterings)
@@ -258,13 +261,13 @@ public class ClusteringIndexNamesFilter extends AbstractClusteringIndexFilter
 
     private static class NamesDeserializer extends InternalDeserializer
     {
-        public ClusteringIndexFilter deserialize(DataInput in, int version, CFMetaData metadata, boolean reversed) throws IOException
+        public ClusteringIndexFilter deserialize(DataInputPlus in, int version, CFMetaData metadata, boolean reversed) throws IOException
         {
             ClusteringComparator comparator = metadata.comparator;
             BTreeSet.Builder<Clustering> clusterings = BTreeSet.builder(comparator);
             int size = in.readInt();
             for (int i = 0; i < size; i++)
-                clusterings.add(Clustering.serializer.deserialize(in, version, comparator.subtypes()).takeAlias());
+                clusterings.add(Clustering.serializer.deserialize(in, version, comparator.subtypes()));
 
             return new ClusteringIndexNamesFilter(clusterings.build(), reversed);
         }

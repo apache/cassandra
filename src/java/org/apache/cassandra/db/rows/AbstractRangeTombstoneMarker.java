@@ -41,6 +41,21 @@ public abstract class AbstractRangeTombstoneMarker implements RangeTombstoneMark
         return Unfiltered.Kind.RANGE_TOMBSTONE_MARKER;
     }
 
+    public boolean isBoundary()
+    {
+        return bound.isBoundary();
+    }
+
+    public boolean isOpen(boolean reversed)
+    {
+        return bound.isOpen(reversed);
+    }
+
+    public boolean isClose(boolean reversed)
+    {
+        return bound.isClose(reversed);
+    }
+
     public void validateData(CFMetaData metadata)
     {
         Slice.Bound bound = clustering();
@@ -55,17 +70,5 @@ public abstract class AbstractRangeTombstoneMarker implements RangeTombstoneMark
     public String toString(CFMetaData metadata, boolean fullDetails)
     {
         return toString(metadata);
-    }
-
-    protected void copyBoundTo(RangeTombstoneMarker.Writer writer)
-    {
-        for (int i = 0; i < bound.size(); i++)
-            writer.writeClusteringValue(bound.get(i));
-        writer.writeBoundKind(bound.kind());
-    }
-
-    public Unfiltered takeAlias()
-    {
-        return this;
     }
 }

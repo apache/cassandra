@@ -17,11 +17,12 @@
  */
 package org.apache.cassandra.db;
 
-import java.io.DataInput;
 import java.io.IOException;
+import java.util.Iterator;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.Schema;
@@ -63,7 +64,7 @@ public abstract class ReadCommand implements ReadQuery
 
     protected static abstract class SelectionDeserializer
     {
-        public abstract ReadCommand deserialize(DataInput in, int version, boolean isDigest, boolean isForThrift, CFMetaData metadata, int nowInSec, ColumnFilter columnFilter, RowFilter rowFilter, DataLimits limits) throws IOException;
+        public abstract ReadCommand deserialize(DataInputPlus in, int version, boolean isDigest, boolean isForThrift, CFMetaData metadata, int nowInSec, ColumnFilter columnFilter, RowFilter rowFilter, DataLimits limits) throws IOException;
     }
 
     protected enum Kind
@@ -268,22 +269,13 @@ public abstract class ReadCommand implements ReadQuery
 
         try
         {
-            resultIterator = UnfilteredPartitionIterators.convertExpiredCellsToTombstones(resultIterator, nowInSec);
-            resultIterator = withMetricsRecording(withoutExpiredTombstones(resultIterator, cfs), cfs.metric, startTimeNanos);
-
-            // TODO: we should push the dropping of columns down the layers because
-            // 1) it'll be more efficient
-            // 2) it could help us solve #6276
-            // But there is not reason not to do this as a followup so keeping it here for now (we'll have
-            // to be wary of cached row if we move this down the layers)
-            if (!metadata().getDroppedColumns().isEmpty())
-                resultIterator = UnfilteredPartitionIterators.removeDroppedColumns(resultIterator, metadata().getDroppedColumns());
+            resultIterator = withMetricsRecording(withoutPurgeableTombstones(resultIterator, cfs), cfs.metric, startTimeNanos);
 
             // If we've used a 2ndary index, we know the result already satisfy the primary expression used, so
             // no point in checking it again.
             RowFilter updatedFilter = searcher == null
-                                       ? rowFilter()
-                                       : rowFilter().without(searcher.primaryClause(this));
+                                    ? rowFilter()
+                                    : rowFilter().without(searcher.primaryClause(this));
 
             // TODO: We'll currently do filtering by the rowFilter here because it's convenient. However,
             // we'll probably want to optimize by pushing it down the layer (like for dropped columns) as it
@@ -333,26 +325,33 @@ public abstract class ReadCommand implements ReadQuery
             {
                 currentKey = iter.partitionKey();
 
-                return new WrappingUnfilteredRowIterator(iter)
+                return new AlteringUnfilteredRowIterator(iter)
                 {
-                    public Unfiltered next()
+                    @Override
+                    protected Row computeNextStatic(Row row)
                     {
-                        Unfiltered unfiltered = super.next();
-                        if (unfiltered.kind() == Unfiltered.Kind.ROW)
-                        {
-                            Row row = (Row) unfiltered;
-                            if (row.hasLiveData(ReadCommand.this.nowInSec()))
-                                ++liveRows;
-                            for (Cell cell : row)
-                                if (!cell.isLive(ReadCommand.this.nowInSec()))
-                                    countTombstone(row.clustering());
-                        }
-                        else
-                        {
-                            countTombstone(unfiltered.clustering());
-                        }
+                        return computeNext(row);
+                    }
 
-                        return unfiltered;
+                    @Override
+                    protected Row computeNext(Row row)
+                    {
+                        if (row.hasLiveData(ReadCommand.this.nowInSec()))
+                            ++liveRows;
+
+                        for (Cell cell : row.cells())
+                        {
+                            if (!cell.isLive(ReadCommand.this.nowInSec()))
+                                countTombstone(row.clustering());
+                        }
+                        return row;
+                    }
+
+                    @Override
+                    protected RangeTombstoneMarker computeNext(RangeTombstoneMarker marker)
+                    {
+                        countTombstone(marker.clustering());
+                        return marker;
                     }
 
                     private void countTombstone(ClusteringPrefix clustering)
@@ -407,12 +406,12 @@ public abstract class ReadCommand implements ReadQuery
 
     protected abstract void appendCQLWhereClause(StringBuilder sb);
 
-    // Skip expired tombstones. We do this because it's safe to do (post-merge of the memtable and sstable at least), it
-    // can save us some bandwith, and avoid making us throw a TombstoneOverwhelmingException for expired tombstones (which
+    // Skip purgeable tombstones. We do this because it's safe to do (post-merge of the memtable and sstable at least), it
+    // can save us some bandwith, and avoid making us throw a TombstoneOverwhelmingException for purgeable tombstones (which
     // are to some extend an artefact of compaction lagging behind and hence counting them is somewhat unintuitive).
-    protected UnfilteredPartitionIterator withoutExpiredTombstones(UnfilteredPartitionIterator iterator, ColumnFamilyStore cfs)
+    protected UnfilteredPartitionIterator withoutPurgeableTombstones(UnfilteredPartitionIterator iterator, ColumnFamilyStore cfs)
     {
-        return new TombstonePurgingPartitionIterator(iterator, cfs.gcBefore(nowInSec()))
+        return new PurgingPartitionIterator(iterator, cfs.gcBefore(nowInSec()))
         {
             protected long getMaxPurgeableTimestamp()
             {

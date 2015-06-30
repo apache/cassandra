@@ -138,7 +138,7 @@ public class KeysSearcher extends SecondaryIndexSearcher
             // is the indexed name. Ans so we need to materialize the partition.
             ArrayBackedPartition result = ArrayBackedPartition.create(iterator);
             iterator.close();
-            Row data = result.getRow(new SimpleClustering(index.indexedColumn().name.bytes));
+            Row data = result.getRow(new Clustering(index.indexedColumn().name.bytes));
             Cell cell = data == null ? null : data.getCell(baseCfs.metadata.compactValueColumn());
             return deleteIfStale(iterator.partitionKey(), cell, index, indexHit, indexedValue, writeOp, nowInSec)
                  ? null
@@ -173,10 +173,10 @@ public class KeysSearcher extends SecondaryIndexSearcher
         {
             // Index is stale, remove the index entry and ignore
             index.delete(partitionKey.getKey(),
-                         new SimpleClustering(index.indexedColumn().name.bytes),
+                         new Clustering(index.indexedColumn().name.bytes),
                          indexedValue,
                          null,
-                         new SimpleDeletionTime(indexHit.primaryKeyLivenessInfo().timestamp(), nowInSec),
+                         new DeletionTime(indexHit.primaryKeyLivenessInfo().timestamp(), nowInSec),
                          writeOp);
             return true;
         }

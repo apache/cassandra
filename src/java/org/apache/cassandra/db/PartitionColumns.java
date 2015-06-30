@@ -66,6 +66,11 @@ public class PartitionColumns implements Iterable<ColumnDefinition>
         return statics.isEmpty() && regulars.isEmpty();
     }
 
+    public Columns columns(boolean isStatic)
+    {
+        return isStatic ? statics : regulars;
+    }
+
     public boolean contains(ColumnDefinition column)
     {
         return column.isStatic() ? statics.contains(column) : regulars.contains(column);

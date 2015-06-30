@@ -15,41 +15,16 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.db.rows;
+package org.apache.cassandra.db.partitions;
 
-import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.rows.Cell;
 
-public class TombstoneFilteringRow extends FilteringRow
+public interface PartitionStatisticsCollector
 {
-    private final int nowInSec;
-
-    public TombstoneFilteringRow(int nowInSec)
-    {
-        this.nowInSec = nowInSec;
-    }
-
-    @Override
-    protected boolean include (LivenessInfo info)
-    {
-        return info.isLive(nowInSec);
-    }
-
-    @Override
-    protected boolean include(DeletionTime dt)
-    {
-        return false;
-    }
-
-    @Override
-    protected boolean include(Cell cell)
-    {
-        return cell.isLive(nowInSec);
-    }
-
-    @Override
-    protected boolean include(ColumnDefinition c, DeletionTime dt)
-    {
-        return false;
-    }
+    public void update(LivenessInfo info);
+    public void update(DeletionTime deletionTime);
+    public void update(Cell cell);
+    public void updateColumnSetPerRow(long columnSetInRow);
+    public void updateHasLegacyCounterShards(boolean hasLegacyCounterShards);
 }

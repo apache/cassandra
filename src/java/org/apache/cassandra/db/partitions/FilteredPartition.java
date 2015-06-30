@@ -17,21 +17,24 @@
  */
 package org.apache.cassandra.db.partitions;
 
-import java.util.Iterator;
+import java.util.*;
 
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.rows.*;
 
-public class FilteredPartition extends AbstractPartitionData implements Iterable<Row>
+public class FilteredPartition extends AbstractThreadUnsafePartition
 {
+    private final Row staticRow;
+
     private FilteredPartition(CFMetaData metadata,
                               DecoratedKey partitionKey,
                               PartitionColumns columns,
-                              int initialRowCapacity,
-                              boolean sortable)
+                              Row staticRow,
+                              List<Row> rows)
     {
-        super(metadata, partitionKey, DeletionTime.LIVE, columns, initialRowCapacity, sortable);
+        super(metadata, partitionKey, columns, rows);
+        this.staticRow = staticRow;
     }
 
     /**
@@ -42,25 +45,43 @@ public class FilteredPartition extends AbstractPartitionData implements Iterable
      */
     public static FilteredPartition create(RowIterator iterator)
     {
-        FilteredPartition partition = new FilteredPartition(iterator.metadata(),
-                                                            iterator.partitionKey(),
-                                                            iterator.columns(),
-                                                            4,
-                                                            iterator.isReverseOrder());
+        CFMetaData metadata = iterator.metadata();
+        boolean reversed = iterator.isReverseOrder();
 
-        partition.staticRow = iterator.staticRow().takeAlias();
-
-        Writer writer = partition.new Writer(true);
+        List<Row> rows = new ArrayList<>();
 
         while (iterator.hasNext())
-            iterator.next().copyTo(writer);
+        {
+            Unfiltered unfiltered = iterator.next();
+            if (unfiltered.isRow())
+                rows.add((Row)unfiltered);
+        }
 
-        // A Partition (or more precisely AbstractPartitionData) always assumes that its data is in clustering
-        // order. So if we've just added them in reverse clustering order, reverse them.
-        if (iterator.isReverseOrder())
-            partition.reverse();
+        if (reversed)
+            Collections.reverse(rows);
 
-        return partition;
+        return new FilteredPartition(metadata, iterator.partitionKey(), iterator.columns(), iterator.staticRow(), rows);
+    }
+
+    protected boolean canHaveShadowedData()
+    {
+        // We only create instances from RowIterator that don't have shadowed data (nor deletion info really)
+        return false;
+    }
+
+    public Row staticRow()
+    {
+        return staticRow;
+    }
+
+    public DeletionInfo deletionInfo()
+    {
+        return DeletionInfo.LIVE;
+    }
+
+    public RowStats stats()
+    {
+        return RowStats.NO_STATS;
     }
 
     public RowIterator rowIterator()
@@ -90,7 +111,7 @@ public class FilteredPartition extends AbstractPartitionData implements Iterable
 
             public Row staticRow()
             {
-                return staticRow == null ? Rows.EMPTY_STATIC_ROW : staticRow;
+                return FilteredPartition.this.staticRow();
             }
 
             public boolean hasNext()
@@ -117,26 +138,20 @@ public class FilteredPartition extends AbstractPartitionData implements Iterable
     @Override
     public String toString()
     {
-        try (RowIterator iterator = rowIterator())
-        {
-            StringBuilder sb = new StringBuilder();
-            CFMetaData metadata = iterator.metadata();
-            PartitionColumns columns = iterator.columns();
+        StringBuilder sb = new StringBuilder();
 
-            sb.append(String.format("[%s.%s] key=%s columns=%s reversed=%b",
-                                    metadata.ksName,
-                                    metadata.cfName,
-                                    metadata.getKeyValidator().getString(iterator.partitionKey().getKey()),
-                                    columns,
-                                    iterator.isReverseOrder()));
+        sb.append(String.format("[%s.%s] key=%s columns=%s",
+                    metadata.ksName,
+                    metadata.cfName,
+                    metadata.getKeyValidator().getString(partitionKey().getKey()),
+                    columns));
 
-            if (iterator.staticRow() != Rows.EMPTY_STATIC_ROW)
-                sb.append("\n    ").append(iterator.staticRow().toString(metadata));
+        if (staticRow() != Rows.EMPTY_STATIC_ROW)
+            sb.append("\n    ").append(staticRow().toString(metadata));
 
-            while (iterator.hasNext())
-                sb.append("\n    ").append(iterator.next().toString(metadata));
+        for (Row row : this)
+            sb.append("\n    ").append(row.toString(metadata));
 
-            return sb.toString();
-        }
+        return sb.toString();
     }
 }

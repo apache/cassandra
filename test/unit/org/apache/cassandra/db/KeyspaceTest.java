@@ -129,8 +129,8 @@ public class KeyspaceTest extends CQLTester
 
     private static void assertRowsInSlice(ColumnFamilyStore cfs, String key, int sliceStart, int sliceEnd, int limit, boolean reversed, String columnValuePrefix)
     {
-        Clustering startClustering = new SimpleClustering(ByteBufferUtil.bytes(sliceStart));
-        Clustering endClustering = new SimpleClustering(ByteBufferUtil.bytes(sliceEnd));
+        Clustering startClustering = new Clustering(ByteBufferUtil.bytes(sliceStart));
+        Clustering endClustering = new Clustering(ByteBufferUtil.bytes(sliceEnd));
         Slices slices = Slices.with(cfs.getComparator(), Slice.make(startClustering, endClustering));
         ClusteringIndexSliceFilter filter = new ClusteringIndexSliceFilter(slices, reversed);
         SinglePartitionSliceCommand command = singlePartitionSlice(cfs, key, filter, limit);

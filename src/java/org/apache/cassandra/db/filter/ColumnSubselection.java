@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.db.filter;
 
-import java.io.DataInput;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Comparator;
@@ -29,6 +28,7 @@ import org.apache.cassandra.db.rows.CellPath;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.CollectionType;
 import org.apache.cassandra.db.marshal.UTF8Type;
+import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
@@ -38,7 +38,7 @@ import org.apache.cassandra.utils.ByteBufferUtil;
  * This only make sense for complex column. For those, this allow for instance
  * to select only a slice of a map.
  */
-public abstract class ColumnSubselection
+public abstract class ColumnSubselection implements Comparable<ColumnSubselection>
 {
     public static final Serializer serializer = new Serializer();
 
@@ -72,9 +72,19 @@ public abstract class ColumnSubselection
 
     protected abstract Kind kind();
 
-    public abstract CellPath minIncludedPath();
-    public abstract CellPath maxIncludedPath();
-    public abstract boolean includes(CellPath path);
+    protected abstract CellPath comparisonPath();
+
+    public int compareTo(ColumnSubselection other)
+    {
+        assert other.column().name.equals(column().name);
+        return column().cellPathComparator().compare(comparisonPath(), other.comparisonPath());
+    }
+
+    /**
+     * Given a path, return -1 if the path is before anything selected by this subselection, 0 if it is selected by this
+     * subselection and 1 if the path is after anything selected by this subselection.
+     */
+    public abstract int compareInclusionOf(CellPath path);
 
     private static class Slice extends ColumnSubselection
     {
@@ -93,20 +103,20 @@ public abstract class ColumnSubselection
             return Kind.SLICE;
         }
 
-        public CellPath minIncludedPath()
+        public CellPath comparisonPath()
         {
             return from;
         }
 
-        public CellPath maxIncludedPath()
-        {
-            return to;
-        }
-
-        public boolean includes(CellPath path)
+        public int compareInclusionOf(CellPath path)
         {
             Comparator<CellPath> cmp = column.cellPathComparator();
-            return cmp.compare(from, path) <= 0 && cmp.compare(path, to) <= 0;
+            if (cmp.compare(path, from) < 0)
+                return -1;
+            else if (cmp.compare(to, path) < 0)
+                return 1;
+            else
+                return 0;
         }
 
         @Override
@@ -133,20 +143,14 @@ public abstract class ColumnSubselection
             return Kind.ELEMENT;
         }
 
-        public CellPath minIncludedPath()
+        public CellPath comparisonPath()
         {
             return element;
         }
 
-        public CellPath maxIncludedPath()
+        public int compareInclusionOf(CellPath path)
         {
-            return element;
-        }
-
-        public boolean includes(CellPath path)
-        {
-            Comparator<CellPath> cmp = column.cellPathComparator();
-            return cmp.compare(element, path) == 0;
+            return column.cellPathComparator().compare(path, element);
         }
 
         @Override
@@ -180,7 +184,7 @@ public abstract class ColumnSubselection
             throw new AssertionError();
         }
 
-        public ColumnSubselection deserialize(DataInput in, int version, CFMetaData metadata) throws IOException
+        public ColumnSubselection deserialize(DataInputPlus in, int version, CFMetaData metadata) throws IOException
         {
             ByteBuffer name = ByteBufferUtil.readWithShortLength(in);
             ColumnDefinition column = metadata.getColumnDefinition(name);

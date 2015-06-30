@@ -234,17 +234,17 @@ public abstract class UntypedResultSet implements Iterable<UntypedResultSet.Row>
 
             for (ColumnDefinition def : metadata.partitionColumns())
             {
-                if (def.isComplex())
-                {
-                    Iterator<Cell> cells = row.getCells(def);
-                    if (cells != null)
-                        data.put(def.name.toString(), ((CollectionType)def.type).serializeForNativeProtocol(def, cells, Server.VERSION_3));
-                }
-                else
+                if (def.isSimple())
                 {
                     Cell cell = row.getCell(def);
                     if (cell != null)
                         data.put(def.name.toString(), cell.value());
+                }
+                else
+                {
+                    ComplexColumnData complexData = row.getComplexColumnData(def);
+                    if (complexData != null)
+                        data.put(def.name.toString(), ((CollectionType)def.type).serializeForNativeProtocol(def, complexData.iterator(), Server.VERSION_3));
                 }
             }
 

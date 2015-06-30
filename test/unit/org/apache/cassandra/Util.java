@@ -340,7 +340,7 @@ public class Util
                 assert !iterator.hasNext() : "Expecting a single partition but got more";
 
                 assert partition.hasNext() : "Expecting one row in one partition but got an empty partition";
-                Row row = ((Row)partition.next()).takeAlias();
+                Row row = ((Row)partition.next());
                 assert !partition.hasNext() : "Expecting a single row but got more";
                 return row;
             }
@@ -356,7 +356,7 @@ public class Util
             {
                 assert !iterator.hasNext() : "Expecting a single partition but got more";
                 assert partition.hasNext() : "Expecting one row in one partition but got an empty partition";
-                Row row = partition.next().takeAlias();
+                Row row = partition.next();
                 assert !partition.hasNext() : "Expecting a single row but got more";
                 return row;
             }
@@ -444,10 +444,22 @@ public class Util
         return CBuilder.create(new ClusteringComparator(types));
     }
 
+    public static boolean equal(UnfilteredRowIterator a, UnfilteredRowIterator b)
+    {
+        return Objects.equals(a.columns(), b.columns())
+            && Objects.equals(a.metadata(), b.metadata())
+            && Objects.equals(a.isReverseOrder(), b.isReverseOrder())
+            && Objects.equals(a.partitionKey(), b.partitionKey())
+            && Objects.equals(a.partitionLevelDeletion(), b.partitionLevelDeletion())
+            && Objects.equals(a.staticRow(), b.staticRow())
+            && Objects.equals(a.stats(), b.stats())
+            && Iterators.elementsEqual(a, b);
+    }
+
     // moved & refactored from KeyspaceTest in < 3.0
     public static void assertColumns(Row row, String... expectedColumnNames)
     {
-        Iterator<Cell> cells = row == null ? Iterators.<Cell>emptyIterator() : row.iterator();
+        Iterator<Cell> cells = row == null ? Iterators.<Cell>emptyIterator() : row.cells().iterator();
         String[] actual = Iterators.toArray(Iterators.transform(cells, new Function<Cell, String>()
         {
             public String apply(Cell cell)
@@ -472,7 +484,7 @@ public class Util
     {
         assertNotNull(cell);
         assertEquals(0, ByteBufferUtil.compareUnsigned(cell.value(), ByteBufferUtil.bytes(value)));
-        assertEquals(timestamp, cell.livenessInfo().timestamp());
+        assertEquals(timestamp, cell.timestamp());
     }
 
     public static void assertClustering(CFMetaData cfm, Row row, Object... clusteringValue)

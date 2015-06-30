@@ -17,28 +17,30 @@
  */
 package org.apache.cassandra.db.partitions;
 
-import java.io.DataInput;
-import java.io.IOException;
-import java.nio.ByteBuffer;
+import java.util.*;
 
 import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.rows.*;
-import org.apache.cassandra.io.ISerializer;
-import org.apache.cassandra.io.util.DataOutputPlus;
-import org.apache.cassandra.net.MessagingService;
 
-public class ArrayBackedPartition extends AbstractPartitionData
+public class ArrayBackedPartition extends AbstractThreadUnsafePartition
 {
+    private final Row staticRow;
+    private final DeletionInfo deletionInfo;
+    private final RowStats stats;
+
     protected ArrayBackedPartition(CFMetaData metadata,
                                    DecoratedKey partitionKey,
-                                   DeletionTime deletionTime,
                                    PartitionColumns columns,
-                                   int initialRowCapacity,
-                                   boolean sortable)
+                                   Row staticRow,
+                                   List<Row> rows,
+                                   DeletionInfo deletionInfo,
+                                   RowStats stats)
     {
-        super(metadata, partitionKey, deletionTime, columns, initialRowCapacity, sortable);
+        super(metadata, partitionKey, columns, rows);
+        this.staticRow = staticRow;
+        this.deletionInfo = deletionInfo;
+        this.stats = stats;
     }
 
     /**
@@ -52,7 +54,7 @@ public class ArrayBackedPartition extends AbstractPartitionData
      */
     public static ArrayBackedPartition create(UnfilteredRowIterator iterator)
     {
-        return create(iterator, 4);
+        return create(iterator, 16);
     }
 
     /**
@@ -68,37 +70,45 @@ public class ArrayBackedPartition extends AbstractPartitionData
      */
     public static ArrayBackedPartition create(UnfilteredRowIterator iterator, int initialRowCapacity)
     {
-        ArrayBackedPartition partition = new ArrayBackedPartition(iterator.metadata(),
-                                                                  iterator.partitionKey(),
-                                                                  iterator.partitionLevelDeletion(),
-                                                                  iterator.columns(),
-                                                                  initialRowCapacity,
-                                                                  iterator.isReverseOrder());
+        CFMetaData metadata = iterator.metadata();
+        boolean reversed = iterator.isReverseOrder();
 
-        partition.staticRow = iterator.staticRow().takeAlias();
+        List<Row> rows = new ArrayList<>(initialRowCapacity);
+        MutableDeletionInfo.Builder deletionBuilder = MutableDeletionInfo.builder(iterator.partitionLevelDeletion(), metadata.comparator, reversed);
 
-        Writer writer = partition.new Writer(true);
-        RangeTombstoneCollector markerCollector = partition.new RangeTombstoneCollector(iterator.isReverseOrder());
-
-        copyAll(iterator, writer, markerCollector, partition);
-
-        return partition;
-    }
-
-    protected static void copyAll(UnfilteredRowIterator iterator, Writer writer, RangeTombstoneCollector markerCollector, ArrayBackedPartition partition)
-    {
         while (iterator.hasNext())
         {
             Unfiltered unfiltered = iterator.next();
             if (unfiltered.kind() == Unfiltered.Kind.ROW)
-                ((Row) unfiltered).copyTo(writer);
+                rows.add((Row)unfiltered);
             else
-                ((RangeTombstoneMarker) unfiltered).copyTo(markerCollector);
+                deletionBuilder.add((RangeTombstoneMarker)unfiltered);
         }
 
-        // A Partition (or more precisely AbstractPartitionData) always assumes that its data is in clustering
-        // order. So if we've just added them in reverse clustering order, reverse them.
-        if (iterator.isReverseOrder())
-            partition.reverse();
+        if (reversed)
+            Collections.reverse(rows);
+
+        return new ArrayBackedPartition(metadata, iterator.partitionKey(), iterator.columns(), iterator.staticRow(), rows, deletionBuilder.build(), iterator.stats());
+    }
+
+    protected boolean canHaveShadowedData()
+    {
+        // We only create instances from UnfilteredRowIterator that don't have shadowed data
+        return false;
+    }
+
+    public Row staticRow()
+    {
+        return staticRow;
+    }
+
+    public DeletionInfo deletionInfo()
+    {
+        return deletionInfo;
+    }
+
+    public RowStats stats()
+    {
+        return stats;
     }
 }

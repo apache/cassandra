@@ -375,7 +375,7 @@ public class RangeTombstoneListTest
 
     private static Clustering clustering(int i)
     {
-        return new SimpleClustering(bb(i));
+        return new Clustering(bb(i));
     }
 
     private static ByteBuffer bb(int i)
@@ -395,12 +395,12 @@ public class RangeTombstoneListTest
 
     private static RangeTombstone rt(int start, boolean startInclusive, int end, boolean endInclusive, long tstamp)
     {
-        return new RangeTombstone(Slice.make(Slice.Bound.create(cmp, true, startInclusive, start), Slice.Bound.create(cmp, false, endInclusive, end)), new SimpleDeletionTime(tstamp, 0));
+        return new RangeTombstone(Slice.make(Slice.Bound.create(cmp, true, startInclusive, start), Slice.Bound.create(cmp, false, endInclusive, end)), new DeletionTime(tstamp, 0));
     }
 
     private static RangeTombstone rt(int start, int end, long tstamp, int delTime)
     {
-        return new RangeTombstone(Slice.make(Slice.Bound.inclusiveStartOf(bb(start)), Slice.Bound.inclusiveEndOf(bb(end))), new SimpleDeletionTime(tstamp, delTime));
+        return new RangeTombstone(Slice.make(Slice.Bound.inclusiveStartOf(bb(start)), Slice.Bound.inclusiveEndOf(bb(end))), new DeletionTime(tstamp, delTime));
     }
 
     private static RangeTombstone rtei(int start, int end, long tstamp)
@@ -410,7 +410,7 @@ public class RangeTombstoneListTest
 
     private static RangeTombstone rtei(int start, int end, long tstamp, int delTime)
     {
-        return new RangeTombstone(Slice.make(Slice.Bound.exclusiveStartOf(bb(start)), Slice.Bound.inclusiveEndOf(bb(end))), new SimpleDeletionTime(tstamp, delTime));
+        return new RangeTombstone(Slice.make(Slice.Bound.exclusiveStartOf(bb(start)), Slice.Bound.inclusiveEndOf(bb(end))), new DeletionTime(tstamp, delTime));
     }
 
     private static RangeTombstone rtie(int start, int end, long tstamp)
@@ -420,6 +420,6 @@ public class RangeTombstoneListTest
 
     private static RangeTombstone rtie(int start, int end, long tstamp, int delTime)
     {
-        return new RangeTombstone(Slice.make(Slice.Bound.inclusiveStartOf(bb(start)), Slice.Bound.exclusiveEndOf(bb(end))), new SimpleDeletionTime(tstamp, delTime));
+        return new RangeTombstone(Slice.make(Slice.Bound.inclusiveStartOf(bb(start)), Slice.Bound.exclusiveEndOf(bb(end))), new DeletionTime(tstamp, delTime));
     }
 }

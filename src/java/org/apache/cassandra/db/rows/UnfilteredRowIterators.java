@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.db.rows;
 
-import java.nio.ByteBuffer;
 import java.util.*;
 import java.security.MessageDigest;
 
@@ -26,13 +25,10 @@ import org.slf4j.LoggerFactory;
 import com.google.common.collect.AbstractIterator;
 
 import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.db.*;
-import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.io.sstable.CorruptSSTableException;
 import org.apache.cassandra.serializers.MarshalException;
-import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.IMergeIterator;
 import org.apache.cassandra.utils.MergeIterator;
@@ -49,13 +45,9 @@ public abstract class UnfilteredRowIterators
 
     public interface MergeListener
     {
-        public void onMergePartitionLevelDeletion(DeletionTime mergedDeletion, DeletionTime[] versions);
+        public void onMergedPartitionLevelDeletion(DeletionTime mergedDeletion, DeletionTime[] versions);
 
-        public void onMergingRows(Clustering clustering, LivenessInfo mergedInfo, DeletionTime mergedDeletion, Row[] versions);
-        public void onMergedComplexDeletion(ColumnDefinition c, DeletionTime mergedComplexDeletion, DeletionTime[] versions);
-        public void onMergedCells(Cell mergedCell, Cell[] versions);
-        public void onRowDone();
-
+        public void onMergedRows(Row merged, Columns columns, Row[] versions);
         public void onMergedRangeTombstoneMarkers(RangeTombstoneMarker merged, RangeTombstoneMarker[] versions);
 
         public void close();
@@ -87,14 +79,13 @@ public abstract class UnfilteredRowIterators
     }
 
     /**
-     * Returns an iterator that is the result of merging other iterators, and using
+     * Returns an iterator that is the result of merging other iterators, and (optionally) using
      * specific MergeListener.
      *
      * Note that this method assumes that there is at least 2 iterators to merge.
      */
     public static UnfilteredRowIterator merge(List<UnfilteredRowIterator> iterators, int nowInSec, MergeListener mergeListener)
     {
-        assert mergeListener != null;
         return UnfilteredRowMergeIterator.create(iterators, nowInSec, mergeListener);
     }
 
@@ -175,10 +166,7 @@ public abstract class UnfilteredRowIterators
         while (iterator.hasNext())
         {
             Unfiltered unfiltered = iterator.next();
-            if (unfiltered.kind() == Unfiltered.Kind.ROW)
-                ((Row) unfiltered).digest(digest);
-            else
-                ((RangeTombstoneMarker) unfiltered).digest(digest);
+            unfiltered.digest(digest);
         }
     }
 
@@ -198,12 +186,12 @@ public abstract class UnfilteredRowIterators
             && iter1.staticRow().equals(iter2.staticRow());
 
         return new AbstractUnfilteredRowIterator(iter1.metadata(),
-                                        iter1.partitionKey(),
-                                        iter1.partitionLevelDeletion(),
-                                        iter1.columns(),
-                                        iter1.staticRow(),
-                                        iter1.isReverseOrder(),
-                                        iter1.stats())
+                                                 iter1.partitionKey(),
+                                                 iter1.partitionLevelDeletion(),
+                                                 iter1.columns(),
+                                                 iter1.staticRow(),
+                                                 iter1.isReverseOrder(),
+                                                 iter1.stats())
         {
             protected Unfiltered computeNext()
             {
@@ -230,152 +218,32 @@ public abstract class UnfilteredRowIterators
 
     public static UnfilteredRowIterator cloningIterator(UnfilteredRowIterator iterator, final AbstractAllocator allocator)
     {
-        return new WrappingUnfilteredRowIterator(iterator)
+        return new AlteringUnfilteredRowIterator(iterator)
         {
-            private final CloningRow cloningRow = new CloningRow();
-            private final RangeTombstoneMarker.Builder markerBuilder = new RangeTombstoneMarker.Builder(iterator.metadata().comparator.size());
+            private Row.Builder regularBuilder;
 
-            public Unfiltered next()
+            @Override
+            protected Row computeNextStatic(Row row)
             {
-                Unfiltered next = super.next();
-                return next.kind() == Unfiltered.Kind.ROW
-                     ? cloningRow.setTo((Row)next)
-                     : clone((RangeTombstoneMarker)next);
+                Row.Builder staticBuilder = allocator.cloningArrayBackedRowBuilder(columns().statics);
+                return Rows.copy(row, staticBuilder).build();
             }
 
-            private RangeTombstoneMarker clone(RangeTombstoneMarker marker)
+            @Override
+            protected Row computeNext(Row row)
             {
-                markerBuilder.reset();
+                if (regularBuilder == null)
+                    regularBuilder = allocator.cloningArrayBackedRowBuilder(columns().regulars);
 
-                RangeTombstone.Bound bound = marker.clustering();
-                for (int i = 0; i < bound.size(); i++)
-                    markerBuilder.writeClusteringValue(allocator.clone(bound.get(i)));
-                markerBuilder.writeBoundKind(bound.kind());
-                if (marker.isBoundary())
-                {
-                    RangeTombstoneBoundaryMarker bm = (RangeTombstoneBoundaryMarker)marker;
-                    markerBuilder.writeBoundaryDeletion(bm.endDeletionTime(), bm.startDeletionTime());
-                }
-                else
-                {
-                    markerBuilder.writeBoundDeletion(((RangeTombstoneBoundMarker)marker).deletionTime());
-                }
-                markerBuilder.endOfMarker();
-                return markerBuilder.build();
+                return Rows.copy(row, regularBuilder).build();
             }
 
-            class CloningRow extends WrappingRow
+            @Override
+            protected RangeTombstoneMarker computeNext(RangeTombstoneMarker marker)
             {
-                private final CloningClustering cloningClustering = new CloningClustering();
-                private final CloningCell cloningCell = new CloningCell();
-
-                protected Cell filterCell(Cell cell)
-                {
-                    return cloningCell.setTo(cell);
-                }
-
-                @Override
-                public Clustering clustering()
-                {
-                    return cloningClustering.setTo(super.clustering());
-                }
-            }
-
-            class CloningClustering extends Clustering
-            {
-                private Clustering wrapped;
-
-                public Clustering setTo(Clustering wrapped)
-                {
-                    this.wrapped = wrapped;
-                    return this;
-                }
-
-                public int size()
-                {
-                    return wrapped.size();
-                }
-
-                public ByteBuffer get(int i)
-                {
-                    ByteBuffer value = wrapped.get(i);
-                    return value == null ? null : allocator.clone(value);
-                }
-
-                public ByteBuffer[] getRawValues()
-                {
-                    throw new UnsupportedOperationException();
-                }
-            }
-
-            class CloningCell extends AbstractCell
-            {
-                private Cell wrapped;
-
-                public Cell setTo(Cell wrapped)
-                {
-                    this.wrapped = wrapped;
-                    return this;
-                }
-
-                public ColumnDefinition column()
-                {
-                    return wrapped.column();
-                }
-
-                public boolean isCounterCell()
-                {
-                    return wrapped.isCounterCell();
-                }
-
-                public ByteBuffer value()
-                {
-                    return allocator.clone(wrapped.value());
-                }
-
-                public LivenessInfo livenessInfo()
-                {
-                    return wrapped.livenessInfo();
-                }
-
-                public CellPath path()
-                {
-                    CellPath path = wrapped.path();
-                    if (path == null)
-                        return null;
-
-                    assert path.size() == 1;
-                    return CellPath.create(allocator.clone(path.get(0)));
-                }
+                return marker.copy(allocator);
             }
         };
-    }
-
-    /**
-     * Turns the given iterator into an update.
-     *
-     * Warning: this method does not close the provided iterator, it is up to
-     * the caller to close it.
-     */
-    public static PartitionUpdate toUpdate(UnfilteredRowIterator iterator)
-    {
-        PartitionUpdate update = new PartitionUpdate(iterator.metadata(), iterator.partitionKey(), iterator.columns(), 1);
-
-        update.addPartitionDeletion(iterator.partitionLevelDeletion());
-
-        if (iterator.staticRow() != Rows.EMPTY_STATIC_ROW)
-            iterator.staticRow().copyTo(update.staticWriter());
-
-        while (iterator.hasNext())
-        {
-            Unfiltered unfiltered = iterator.next();
-            if (unfiltered.kind() == Unfiltered.Kind.ROW)
-                ((Row) unfiltered).copyTo(update.writer());
-            else
-                ((RangeTombstoneMarker) unfiltered).copyTo(update.markerWriter(iterator.isReverseOrder()));
-        }
-
-        return update;
     }
 
     /**
@@ -393,70 +261,39 @@ public abstract class UnfilteredRowIterators
      */
     public static UnfilteredRowIterator withValidation(UnfilteredRowIterator iterator, final String filename)
     {
-        return new WrappingUnfilteredRowIterator(iterator)
+        return new AlteringUnfilteredRowIterator(iterator)
         {
-            public Unfiltered next()
+            @Override
+            protected Row computeNextStatic(Row row)
             {
-                Unfiltered next = super.next();
+                validate(row);
+                return row;
+            }
+
+            @Override
+            protected Row computeNext(Row row)
+            {
+                validate(row);
+                return row;
+            }
+
+            @Override
+            protected RangeTombstoneMarker computeNext(RangeTombstoneMarker marker)
+            {
+                validate(marker);
+                return marker;
+            }
+
+            private void validate(Unfiltered unfiltered)
+            {
                 try
                 {
-                    next.validateData(metadata());
-                    return next;
+                    unfiltered.validateData(iterator.metadata());
                 }
                 catch (MarshalException me)
                 {
                     throw new CorruptSSTableException(me, filename);
                 }
-            }
-        };
-    }
-
-    /**
-     * Convert all expired cells to equivalent tombstones.
-     * <p>
-     * Once a cell expires, it acts exactly as a tombstone and this until it is purged. But in particular that
-     * means we don't care about the value of an expired cell, and it is thus equivalent but more efficient to
-     * replace the expired cell by an equivalent tombstone (that has no value).
-     *
-     * @param iterator the iterator in which to conver expired cells.
-     * @param nowInSec the current time to use to decide if a cell is expired.
-     * @return an iterator that returns the same data than {@code iterator} but with all expired cells converted
-     * to equivalent tombstones.
-     */
-    public static UnfilteredRowIterator convertExpiredCellsToTombstones(UnfilteredRowIterator iterator, final int nowInSec)
-    {
-        return new FilteringRowIterator(iterator)
-        {
-            protected FilteringRow makeRowFilter()
-            {
-                return new FilteringRow()
-                {
-                    @Override
-                    protected Cell filterCell(Cell cell)
-                    {
-                        Cell filtered = super.filterCell(cell);
-                        if (filtered == null)
-                            return null;
-
-                        LivenessInfo info = filtered.livenessInfo();
-                        if (info.hasTTL() && !filtered.isLive(nowInSec))
-                        {
-                            // The column is now expired, we can safely return a simple tombstone. Note that as long as the expiring
-                            // column and the tombstone put together live longer than GC grace seconds, we'll fulfil our responsibility
-                            // to repair. See discussion at
-                            // http://cassandra-user-incubator-apache-org.3065146.n2.nabble.com/repair-compaction-and-tombstone-rows-td7583481.html
-                            return Cells.create(filtered.column(),
-                                                filtered.isCounterCell(),
-                                                ByteBufferUtil.EMPTY_BYTE_BUFFER,
-                                                SimpleLivenessInfo.forDeletion(info.timestamp(), info.localDeletionTime() - info.ttl()),
-                                                filtered.path());
-                        }
-                        else
-                        {
-                            return filtered;
-                        }
-                    }
-                };
             }
         };
     }
@@ -478,26 +315,28 @@ public abstract class UnfilteredRowIterators
                     iterator.isReverseOrder(),
                     iterator.partitionLevelDeletion().markedForDeleteAt());
 
-        return new WrappingUnfilteredRowIterator(iterator)
+        return new AlteringUnfilteredRowIterator(iterator)
         {
             @Override
-            public Row staticRow()
+            protected Row computeNextStatic(Row row)
             {
-                Row row = super.staticRow();
                 if (!row.isEmpty())
                     logger.info("[{}] {}", id, row.toString(metadata(), fullDetails));
                 return row;
             }
 
             @Override
-            public Unfiltered next()
+            protected Row computeNext(Row row)
             {
-                Unfiltered next = super.next();
-                if (next.kind() == Unfiltered.Kind.ROW)
-                    logger.info("[{}] {}", id, ((Row)next).toString(metadata(), fullDetails));
-                else
-                    logger.info("[{}] {}", id, ((RangeTombstoneMarker)next).toString(metadata()));
-                return next;
+                logger.info("[{}] {}", id, row.toString(metadata(), fullDetails));
+                return row;
+            }
+
+            @Override
+            protected RangeTombstoneMarker computeNext(RangeTombstoneMarker marker)
+            {
+                logger.info("[{}] {}", id, marker.toString(metadata()));
+                return marker;
             }
         };
     }
@@ -526,10 +365,10 @@ public abstract class UnfilteredRowIterators
                   reversed,
                   mergeStats(iterators));
 
-            this.listener = listener;
             this.mergeIterator = MergeIterator.get(iterators,
                                                    reversed ? metadata.comparator.reversed() : metadata.comparator,
-                                                   new MergeReducer(metadata, iterators.size(), reversed, nowInSec));
+                                                   new MergeReducer(iterators.size(), reversed, nowInSec, listener));
+            this.listener = listener;
         }
 
         private static UnfilteredRowMergeIterator create(List<UnfilteredRowIterator> iterators, int nowInSec, MergeListener listener)
@@ -591,7 +430,7 @@ public abstract class UnfilteredRowIterators
                     delTime = iterDeletion;
             }
             if (listener != null && !delTime.isLive())
-                listener.onMergePartitionLevelDeletion(delTime, versions);
+                listener.onMergedPartitionLevelDeletion(delTime, versions);
             return delTime;
         }
 
@@ -605,14 +444,19 @@ public abstract class UnfilteredRowIterators
             if (columns.isEmpty())
                 return Rows.EMPTY_STATIC_ROW;
 
-            Row.Merger merger = Row.Merger.createStatic(metadata, iterators.size(), nowInSec, columns, listener);
+            if (iterators.stream().allMatch(iter -> iter.staticRow().isEmpty()))
+                return Rows.EMPTY_STATIC_ROW;
+
+            Row.Merger merger = new Row.Merger(iterators.size(), nowInSec, columns);
             for (int i = 0; i < iterators.size(); i++)
                 merger.add(i, iterators.get(i).staticRow());
 
-            // Note that we should call 'takeAlias' on the result in theory, but we know that we
-            // won't reuse the merger and so that it's ok not to.
             Row merged = merger.merge(partitionDeletion);
-            return merged == null ? Rows.EMPTY_STATIC_ROW : merged;
+            if (merged == null)
+                merged = Rows.EMPTY_STATIC_ROW;
+            if (listener != null)
+                listener.onMergedRows(merged, columns, merger.mergedRows());
+            return merged;
         }
 
         private static PartitionColumns collectColumns(List<UnfilteredRowIterator> iterators)
@@ -659,26 +503,26 @@ public abstract class UnfilteredRowIterators
                 listener.close();
         }
 
-        /**
-         * Specific reducer for merge operations that rewrite the same reusable
-         * row every time. This also skip cells shadowed by range tombstones when writing.
-         */
         private class MergeReducer extends MergeIterator.Reducer<Unfiltered, Unfiltered>
         {
+            private final MergeListener listener;
+
             private Unfiltered.Kind nextKind;
 
             private final Row.Merger rowMerger;
             private final RangeTombstoneMarker.Merger markerMerger;
 
-            private MergeReducer(CFMetaData metadata, int size, boolean reversed, int nowInSec)
+            private MergeReducer(int size, boolean reversed, int nowInSec, MergeListener listener)
             {
-                this.rowMerger = Row.Merger.createRegular(metadata, size, nowInSec, columns().regulars, listener);
-                this.markerMerger = new RangeTombstoneMarker.Merger(metadata, size, partitionLevelDeletion(), reversed, listener);
+                this.rowMerger = new Row.Merger(size, nowInSec, columns().regulars);
+                this.markerMerger = new RangeTombstoneMarker.Merger(size, partitionLevelDeletion(), reversed);
+                this.listener = listener;
             }
 
             @Override
             public boolean trivialReduceIsTrivial()
             {
+                // If we have a listener, we must signal it even when we have a single version
                 return listener == null;
             }
 
@@ -693,9 +537,20 @@ public abstract class UnfilteredRowIterators
 
             protected Unfiltered getReduced()
             {
-                return nextKind == Unfiltered.Kind.ROW
-                     ? rowMerger.merge(markerMerger.activeDeletion())
-                     : markerMerger.merge();
+                if (nextKind == Unfiltered.Kind.ROW)
+                {
+                    Row merged = rowMerger.merge(markerMerger.activeDeletion());
+                    if (listener != null)
+                        listener.onMergedRows(merged == null ? ArrayBackedRow.emptyRow(rowMerger.mergedClustering()) : merged, columns().regulars, rowMerger.mergedRows());
+                    return merged;
+                }
+                else
+                {
+                    RangeTombstoneMarker merged = markerMerger.merge();
+                    if (merged != null && listener != null)
+                        listener.onMergedRangeTombstoneMarkers(merged, markerMerger.mergedMarkers());
+                    return merged;
+                }
             }
 
             protected void onKeyChange()
@@ -712,13 +567,11 @@ public abstract class UnfilteredRowIterators
     {
         private final UnfilteredRowIterator iter;
         private final int nowInSec;
-        private final TombstoneFilteringRow filter;
 
         public FilteringIterator(UnfilteredRowIterator iter, int nowInSec)
         {
             this.iter = iter;
             this.nowInSec = nowInSec;
-            this.filter = new TombstoneFilteringRow(nowInSec);
         }
 
         public CFMetaData metadata()
@@ -744,7 +597,11 @@ public abstract class UnfilteredRowIterators
         public Row staticRow()
         {
             Row row = iter.staticRow();
-            return row.isEmpty() ? row : new TombstoneFilteringRow(nowInSec).setTo(row);
+            if (row.isEmpty())
+                return Rows.EMPTY_STATIC_ROW;
+
+            row = row.purge(DeletionPurger.PURGE_ALL, nowInSec);
+            return row == null ? Rows.EMPTY_STATIC_ROW : row;
         }
 
         protected Row computeNext()
@@ -752,11 +609,11 @@ public abstract class UnfilteredRowIterators
             while (iter.hasNext())
             {
                 Unfiltered next = iter.next();
-                if (next.kind() != Unfiltered.Kind.ROW)
+                if (next.isRangeTombstoneMarker())
                     continue;
 
-                Row row = filter.setTo((Row)next);
-                if (!row.isEmpty())
+                Row row = ((Row)next).purge(DeletionPurger.PURGE_ALL, nowInSec);
+                if (row != null)
                     return row;
             }
             return endOfData();

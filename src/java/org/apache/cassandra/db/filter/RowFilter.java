@@ -137,11 +137,11 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
         if (metadata.isCompound())
         {
             List<ByteBuffer> values = CompositeType.splitName(name);
-            return new SimpleClustering(values.toArray(new ByteBuffer[metadata.comparator.size()]));
+            return new Clustering(values.toArray(new ByteBuffer[metadata.comparator.size()]));
         }
         else
         {
-            return new SimpleClustering(name);
+            return new Clustering(name);
         }
     }
 
@@ -165,28 +165,18 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
             super(expressions);
         }
 
-        public UnfilteredPartitionIterator filter(UnfilteredPartitionIterator iter, final int nowInSec)
+        public UnfilteredPartitionIterator filter(UnfilteredPartitionIterator iter, int nowInSec)
         {
             if (expressions.isEmpty())
                 return iter;
 
-            return new WrappingUnfilteredPartitionIterator(iter)
+            return new AlteringUnfilteredPartitionIterator(iter)
             {
-                @Override
-                public UnfilteredRowIterator computeNext(final UnfilteredRowIterator iter)
+                protected Row computeNext(DecoratedKey partitionKey, Row row)
                 {
-                    return new FilteringRowIterator(iter)
-                    {
-                        // We filter tombstones when passing the row to isSatisfiedBy so that the method doesn't have to bother with them.
-                        // (we should however not filter them in the output of the method, hence it's not used as row filter for the
-                        // FilteringRowIterator)
-                        private final TombstoneFilteringRow filter = new TombstoneFilteringRow(nowInSec);
-
-                        protected boolean includeRow(Row row)
-                        {
-                            return CQLFilter.this.isSatisfiedBy(iter.partitionKey(), filter.setTo(row));
-                        }
-                    };
+                    // We filter tombstones when passing the row to isSatisfiedBy so that the method doesn't have to bother with them.
+                    Row purged = row.purge(DeletionPurger.PURGE_ALL, nowInSec);
+                    return purged != null && CQLFilter.this.isSatisfiedBy(partitionKey, purged) ? row : null;
                 }
             };
         }
@@ -515,10 +505,9 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
                     CollectionType<?> type = (CollectionType<?>)column.type;
                     if (column.isComplex())
                     {
-                        Iterator<Cell> iter = row.getCells(column);
-                        while (iter.hasNext())
+                        ComplexColumnData complexData = row.getComplexColumnData(column);
+                        for (Cell cell : complexData)
                         {
-                            Cell cell = iter.next();
                             if (type.kind == CollectionType.Kind.SET)
                             {
                                 if (type.nameComparator().compare(cell.path().get(0), value) == 0)
@@ -720,7 +709,7 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
 
             // In thrift, we actually allow expression on non-defined columns for the sake of filtering. To accomodate
             // this we create a "fake" definition. This is messy but it works so is probably good enough.
-            return ColumnDefinition.regularDef(metadata, name, metadata.compactValueColumn().type, null);
+            return ColumnDefinition.regularDef(metadata, name, metadata.compactValueColumn().type);
         }
 
         public boolean isSatisfiedBy(DecoratedKey partitionKey, Row row)

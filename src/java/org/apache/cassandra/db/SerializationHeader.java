@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.db;
 
-import java.io.DataInput;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.*;
@@ -97,7 +96,7 @@ public class SerializationHeader
         // We always use a dense layout for the static row. Having very many static columns with  only a few set at
         // any given time doesn't feel very common at all (and we already optimize the case where no static at all
         // are provided).
-        return isStatic ? false : useSparseColumnLayout;
+        return !isStatic && useSparseColumnLayout;
     }
 
     public static SerializationHeader forKeyCache(CFMetaData metadata)
@@ -159,13 +158,7 @@ public class SerializationHeader
 
     private static List<AbstractType<?>> typesOf(List<ColumnDefinition> columns)
     {
-        return ImmutableList.copyOf(Lists.transform(columns, new Function<ColumnDefinition, AbstractType<?>>()
-        {
-            public AbstractType<?> apply(ColumnDefinition column)
-            {
-                return column.type;
-            }
-        }));
+        return ImmutableList.copyOf(Lists.transform(columns, column -> column.type));
     }
 
     public PartitionColumns columns()
@@ -365,7 +358,7 @@ public class SerializationHeader
             Columns.serializer.serialize(header.columns.regulars, out);
         }
 
-        public SerializationHeader deserializeForMessaging(DataInput in, CFMetaData metadata, boolean hasStatic) throws IOException
+        public SerializationHeader deserializeForMessaging(DataInputPlus in, CFMetaData metadata, boolean hasStatic) throws IOException
         {
             RowStats stats = RowStats.serializer.deserialize(in);
 
@@ -458,7 +451,7 @@ public class SerializationHeader
             return size;
         }
 
-        private void readColumnsWithType(DataInput in, Map<ByteBuffer, AbstractType<?>> typeMap) throws IOException
+        private void readColumnsWithType(DataInputPlus in, Map<ByteBuffer, AbstractType<?>> typeMap) throws IOException
         {
             int length = in.readUnsignedShort();
             for (int i = 0; i < length; i++)
@@ -474,7 +467,7 @@ public class SerializationHeader
             ByteBufferUtil.writeWithLength(UTF8Type.instance.decompose(type.toString()), out);
         }
 
-        private AbstractType<?> readType(DataInput in) throws IOException
+        private AbstractType<?> readType(DataInputPlus in) throws IOException
         {
             ByteBuffer raw = ByteBufferUtil.readWithLength(in);
             return TypeParser.parse(UTF8Type.instance.compose(raw));

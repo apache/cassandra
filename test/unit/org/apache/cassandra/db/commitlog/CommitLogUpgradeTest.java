@@ -24,6 +24,7 @@ package org.apache.cassandra.db.commitlog;
 import java.io.*;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
+import java.util.Iterator;
 import java.util.Properties;
 import java.util.UUID;
 
@@ -131,7 +132,7 @@ public class CommitLogUpgradeTest
             {
                 for (Row row : update)
                 {
-                    for (Cell cell : row)
+                    for (Cell cell : row.cells())
                     {
                         hash = hash(hash, cell.value());
                         ++cells;

@@ -68,6 +68,11 @@ public final class TypeSizes
         return sizeof(value.remaining()) + value.remaining();
     }
 
+    public static int sizeofWithVIntLength(ByteBuffer value)
+    {
+        return sizeofVInt(value.remaining()) + value.remaining();
+    }
+
     public static int sizeof(boolean value)
     {
         return BOOL_SIZE;

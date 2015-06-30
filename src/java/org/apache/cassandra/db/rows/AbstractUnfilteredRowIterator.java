@@ -90,18 +90,4 @@ public abstract class AbstractUnfilteredRowIterator extends AbstractIterator<Unf
     public void close()
     {
     }
-
-    public static boolean equal(UnfilteredRowIterator a, UnfilteredRowIterator b)
-    {
-        return Objects.equals(a.columns(), b.columns())
-            && Objects.equals(a.metadata(), b.metadata())
-            && Objects.equals(a.isReverseOrder(), b.isReverseOrder())
-            && Objects.equals(a.partitionKey(), b.partitionKey())
-            && Objects.equals(a.partitionLevelDeletion(), b.partitionLevelDeletion())
-            && Objects.equals(a.staticRow(), b.staticRow())
-            && Objects.equals(a.stats(), b.stats())
-            && Objects.equals(a.metadata(), b.metadata())
-            && Iterators.elementsEqual(a, b);
-    }
-
 }

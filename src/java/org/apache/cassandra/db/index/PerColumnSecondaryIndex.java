@@ -18,6 +18,7 @@
 package org.apache.cassandra.db.index;
 
 import java.nio.ByteBuffer;
+import java.util.Iterator;
 
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.rows.*;
@@ -87,17 +88,18 @@ public abstract class PerColumnSecondaryIndex extends SecondaryIndex
             long timestamp = row.primaryKeyLivenessInfo().timestamp();
             int ttl = row.primaryKeyLivenessInfo().ttl();
 
-            for (Cell cell : row)
+            for (Cell cell : row.cells())
             {
-                if (cell.isLive(nowInSec) && cell.livenessInfo().timestamp() > timestamp)
+                if (cell.isLive(nowInSec) && cell.timestamp() > timestamp)
                 {
-                    timestamp = cell.livenessInfo().timestamp();
-                    ttl = cell.livenessInfo().ttl();
+                    timestamp = cell.timestamp();
+                    ttl = cell.ttl();
                 }
             }
             maybeIndex(key.getKey(), clustering, timestamp, ttl, opGroup, nowInSec);
         }
-        for (Cell cell : row)
+
+        for (Cell cell : row.cells())
         {
             if (!indexes(cell.column()))
                 continue;

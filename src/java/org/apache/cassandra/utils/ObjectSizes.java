@@ -23,6 +23,8 @@ package org.apache.cassandra.utils;
 
 import java.nio.ByteBuffer;
 
+import java.util.ArrayList;
+
 import org.github.jamm.MemoryLayoutSpecification;
 import org.github.jamm.MemoryMeter;
 
@@ -111,6 +113,7 @@ public class ObjectSizes
     {
         return BUFFER_EMPTY_SIZE * array.length + sizeOfArray(array);
     }
+
     /**
      * Memory a byte buffer consumes
      * @param buffer ByteBuffer to calculate in memory size

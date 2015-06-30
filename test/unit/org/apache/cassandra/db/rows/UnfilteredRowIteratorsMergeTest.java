@@ -138,7 +138,7 @@ public class UnfilteredRowIteratorsMergeTest
     {
         List<UnfilteredRowIterator> us = sources.stream().map(l -> new Source(l.iterator())).collect(Collectors.toList());
         List<Unfiltered> merged = new ArrayList<>();
-        Iterators.addAll(merged, safeIterator(mergeIterators(us, iterations)));
+        Iterators.addAll(merged, mergeIterators(us, iterations));
         return merged;
     }
 
@@ -197,7 +197,7 @@ public class UnfilteredRowIteratorsMergeTest
                     includesEnd = r.nextBoolean();
                 }
                 int deltime = r.nextInt(DEL_RANGE);
-                DeletionTime dt = new SimpleDeletionTime(deltime, deltime);
+                DeletionTime dt = new DeletionTime(deltime, deltime);
                 content.add(new RangeTombstoneBoundMarker(boundFor(pos, true, includesStart), dt));
                 content.add(new RangeTombstoneBoundMarker(boundFor(pos + span, false, includesEnd), dt));
                 prev = pos + span - (includesEnd ? 0 : 1);
@@ -365,173 +365,16 @@ public class UnfilteredRowIteratorsMergeTest
         return Bound.create(Bound.boundKind(start, inclusive), new ByteBuffer[] {Int32Type.instance.decompose(pos)});
     }
 
-    private static SimpleClustering clusteringFor(int i)
+    private static Clustering clusteringFor(int i)
     {
-        return new SimpleClustering(Int32Type.instance.decompose(i));
+        return new Clustering(Int32Type.instance.decompose(i));
     }
 
     static Row emptyRowAt(int pos, Function<Integer, Integer> timeGenerator)
     {
         final Clustering clustering = clusteringFor(pos);
-        final LivenessInfo live = SimpleLivenessInfo.forUpdate(timeGenerator.apply(pos), 0, nowInSec, metadata);
-        return emptyRowAt(clustering, live, DeletionTime.LIVE);
-    }
-
-    public static class TestCell extends AbstractCell
-    {
-        private final ColumnDefinition column;
-        private final ByteBuffer value;
-        private final LivenessInfo info;
-
-        public TestCell(ColumnDefinition column, ByteBuffer value, LivenessInfo info)
-        {
-            this.column = column;
-            this.value = value;
-            this.info = info.takeAlias();
-        }
-
-        @Override
-        public ColumnDefinition column()
-        {
-            return column;
-        }
-
-        @Override
-        public boolean isCounterCell()
-        {
-            return false;
-        }
-
-        @Override
-        public ByteBuffer value()
-        {
-            return value;
-        }
-
-        @Override
-        public LivenessInfo livenessInfo()
-        {
-            return info;
-        }
-
-        @Override
-        public CellPath path()
-        {
-            return null;
-        }
-    }
-
-    static Row emptyRowAt(final Clustering clustering, final LivenessInfo live, final DeletionTime deletion)
-    {
-        final ColumnDefinition columnDef = metadata.getColumnDefinition(new ColumnIdentifier("data", true));
-        final Cell cell = new TestCell(columnDef, clustering.get(0), live);
-
-        return new AbstractRow()
-        {
-            @Override
-            public Columns columns()
-            {
-                return Columns.of(columnDef);
-            }
-
-            @Override
-            public LivenessInfo primaryKeyLivenessInfo()
-            {
-                return live;
-            }
-
-            @Override
-            public DeletionTime deletion()
-            {
-                return deletion;
-            }
-
-            @Override
-            public boolean isEmpty()
-            {
-                return true;
-            }
-
-            @Override
-            public boolean hasComplexDeletion()
-            {
-                return false;
-            }
-
-            @Override
-            public Clustering clustering()
-            {
-                return clustering;
-            }
-
-            @Override
-            public Cell getCell(ColumnDefinition c)
-            {
-                return c == columnDef ? cell : null;
-            }
-
-            @Override
-            public Cell getCell(ColumnDefinition c, CellPath path)
-            {
-                return null;
-            }
-
-            @Override
-            public Iterator<Cell> getCells(ColumnDefinition c)
-            {
-                return Iterators.singletonIterator(cell);
-            }
-
-            @Override
-            public DeletionTime getDeletion(ColumnDefinition c)
-            {
-                return DeletionTime.LIVE;
-            }
-
-            @Override
-            public Iterator<Cell> iterator()
-            {
-                return Iterators.<Cell>emptyIterator();
-            }
-
-            @Override
-            public SearchIterator<ColumnDefinition, ColumnData> searchIterator()
-            {
-                return new SearchIterator<ColumnDefinition, ColumnData>()
-                {
-                    @Override
-                    public boolean hasNext()
-                    {
-                        return false;
-                    }
-
-                    @Override
-                    public ColumnData next(ColumnDefinition column)
-                    {
-                        return null;
-                    }
-                };
-            }
-
-            @Override
-            public Kind kind()
-            {
-                return Unfiltered.Kind.ROW;
-            }
-
-            @Override
-            public Row takeAlias()
-            {
-                return this;
-            }
-
-            @Override
-            public String toString()
-            {
-                return Int32Type.instance.getString(clustering.get(0));
-            }
-        };
-
+        final LivenessInfo live = LivenessInfo.create(metadata, timeGenerator.apply(pos), nowInSec);
+        return ArrayBackedRow.noCellLiveRow(clustering, live);
     }
 
     private void dumpList(List<Unfiltered> list)
@@ -578,33 +421,6 @@ public class UnfilteredRowIteratorsMergeTest
         {
             return content.hasNext() ? content.next() : endOfData();
         }
-    }
-
-    static RangeTombstoneMarker safeMarker(RangeTombstoneMarker marker)
-    {
-        RangeTombstoneMarker.Builder writer = new RangeTombstoneMarker.Builder(1);
-        marker.copyTo(writer);
-        return writer.build();
-    }
-
-    private static Row safeRow(Row row)
-    {
-        return emptyRowAt(new SimpleClustering(row.clustering().get(0)), row.primaryKeyLivenessInfo(), row.deletion());
-    }
-    
-    public static UnfilteredRowIterator safeIterator(UnfilteredRowIterator iterator)
-    {
-        return new WrappingUnfilteredRowIterator(iterator)
-        {
-            @Override
-            public Unfiltered next()
-            {
-                Unfiltered next = super.next();
-                return next.kind() == Unfiltered.Kind.ROW
-                     ? safeRow((Row) next)
-                     : safeMarker((RangeTombstoneMarker) next);
-            }
-        };
     }
 
     public void testForInput(String... inputs)
@@ -674,6 +490,6 @@ public class UnfilteredRowIteratorsMergeTest
     {
         return new RangeTombstoneBoundMarker(Bound.create(Bound.boundKind(isStart, inclusive),
                                                           new ByteBuffer[] {clusteringFor(pos).get(0)}),
-                                             new SimpleDeletionTime(delTime, delTime));
+                                             new DeletionTime(delTime, delTime));
     }
 }

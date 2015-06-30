@@ -33,6 +33,8 @@ import com.clearspring.analytics.stream.cardinality.ICardinality;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.commitlog.ReplayPosition;
 import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.partitions.PartitionStatisticsCollector;
+import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.SSTable;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
@@ -41,7 +43,7 @@ import org.apache.cassandra.utils.EstimatedHistogram;
 import org.apache.cassandra.utils.MurmurHash;
 import org.apache.cassandra.utils.StreamingHistogram;
 
-public class MetadataCollector
+public class MetadataCollector implements PartitionStatisticsCollector
 {
     public static final double NO_COMPRESSION_RATIO = -1.0;
 
@@ -89,8 +91,8 @@ public class MetadataCollector
     protected EstimatedHistogram estimatedCellPerPartitionCount = defaultCellPerPartitionCountHistogram();
     protected ReplayPosition replayPosition = ReplayPosition.NONE;
     protected final MinMaxLongTracker timestampTracker = new MinMaxLongTracker();
-    protected final MinMaxIntTracker localDeletionTimeTracker = new MinMaxIntTracker(LivenessInfo.NO_DELETION_TIME, LivenessInfo.NO_DELETION_TIME);
-    protected final MinMaxIntTracker ttlTracker = new MinMaxIntTracker(LivenessInfo.NO_TTL, LivenessInfo.NO_TTL);
+    protected final MinMaxIntTracker localDeletionTimeTracker = new MinMaxIntTracker(Cell.NO_DELETION_TIME, Cell.NO_DELETION_TIME);
+    protected final MinMaxIntTracker ttlTracker = new MinMaxIntTracker(Cell.NO_TTL, Cell.NO_TTL);
     protected double compressionRatio = NO_COMPRESSION_RATIO;
     protected Set<Integer> ancestors = new HashSet<>();
     protected StreamingHistogram estimatedTombstoneDropTime = defaultTombstoneDropTimeHistogram();
@@ -178,34 +180,39 @@ public class MetadataCollector
         return this;
     }
 
-    public MetadataCollector update(LivenessInfo newInfo)
+    public void update(LivenessInfo newInfo)
     {
-        // If the info doesn't have a timestamp, this means the info is basically irrelevant (it's a row
-        // update whose only info we care are the cells info basically).
-        if (newInfo.hasTimestamp())
+        if (newInfo.isEmpty())
+            return;
+
+        updateTimestamp(newInfo.timestamp());
+        if (newInfo.isExpiring())
         {
-            updateTimestamp(newInfo.timestamp());
             updateTTL(newInfo.ttl());
-            updateLocalDeletionTime(newInfo.localDeletionTime());
+            updateLocalDeletionTime(newInfo.localExpirationTime());
         }
-        return this;
     }
 
-    public MetadataCollector update(DeletionTime dt)
+    public void update(Cell cell)
+    {
+        updateTimestamp(cell.timestamp());
+        updateTTL(cell.ttl());
+        updateLocalDeletionTime(cell.localDeletionTime());
+    }
+
+    public void update(DeletionTime dt)
     {
         if (!dt.isLive())
         {
             updateTimestamp(dt.markedForDeleteAt());
             updateLocalDeletionTime(dt.localDeletionTime());
         }
-        return this;
     }
 
-    public MetadataCollector updateColumnSetPerRow(long columnSetInRow)
+    public void updateColumnSetPerRow(long columnSetInRow)
     {
         totalColumnsSet += columnSetInRow;
         ++totalRows;
-        return this;
     }
 
     private void updateTimestamp(long newTimestamp)
@@ -279,10 +286,9 @@ public class MetadataCollector
         return b2;
     }
 
-    public MetadataCollector updateHasLegacyCounterShards(boolean hasLegacyCounterShards)
+    public void updateHasLegacyCounterShards(boolean hasLegacyCounterShards)
     {
         this.hasLegacyCounterShards = this.hasLegacyCounterShards || hasLegacyCounterShards;
-        return this;
     }
 
     public Map<MetadataType, MetadataComponent> finalizeMetadata(String partitioner, double bloomFilterFPChance, long repairedAt, SerializationHeader header)

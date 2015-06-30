@@ -163,7 +163,7 @@ public abstract class CBuilder
             built = true;
 
             // Currently, only dense table can leave some clustering column out (see #7990)
-            return size == 0 ? Clustering.EMPTY : new SimpleClustering(values);
+            return size == 0 ? Clustering.EMPTY : new Clustering(values);
         }
 
         public Slice.Bound buildBound(boolean isStart, boolean isInclusive)
@@ -197,7 +197,7 @@ public abstract class CBuilder
 
             ByteBuffer[] newValues = Arrays.copyOf(values, size+1);
             newValues[size] = value;
-            return new SimpleClustering(newValues);
+            return new Clustering(newValues);
         }
 
         public Clustering buildWith(List<ByteBuffer> newValues)
@@ -208,7 +208,7 @@ public abstract class CBuilder
             for (ByteBuffer value : newValues)
                 buffers[newSize++] = value;
 
-            return new SimpleClustering(buffers);
+            return new Clustering(buffers);
         }
 
         public Slice.Bound buildBoundWith(ByteBuffer value, boolean isStart, boolean isInclusive)

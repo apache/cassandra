@@ -18,7 +18,6 @@
 package org.apache.cassandra.db.marshal;
 
 import java.nio.ByteBuffer;
-import java.io.DataInput;
 import java.io.IOException;
 import java.util.List;
 import java.util.Iterator;
@@ -34,6 +33,7 @@ import org.apache.cassandra.cql3.Sets;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.db.rows.CellPath;
+import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.serializers.CollectionSerializer;
@@ -236,23 +236,22 @@ public abstract class CollectionType<T> extends AbstractType<T>
     {
         public void serialize(CellPath path, DataOutputPlus out) throws IOException
         {
-            ByteBufferUtil.writeWithLength(path.get(0), out);
+            ByteBufferUtil.writeWithVIntLength(path.get(0), out);
         }
 
-        public CellPath deserialize(DataInput in) throws IOException
+        public CellPath deserialize(DataInputPlus in) throws IOException
         {
-            return CellPath.create(ByteBufferUtil.readWithLength(in));
+            return CellPath.create(ByteBufferUtil.readWithVIntLength(in));
         }
 
         public long serializedSize(CellPath path)
         {
-            return TypeSizes.sizeofWithLength(path.get(0));
+            return ByteBufferUtil.serializedSizeWithVIntLength(path.get(0));
         }
 
-        public void skip(DataInput in) throws IOException
+        public void skip(DataInputPlus in) throws IOException
         {
-            int length = in.readInt();
-            FileUtils.skipBytesFully(in, length);
+            ByteBufferUtil.skipWithVIntLength(in);
         }
     }
 }

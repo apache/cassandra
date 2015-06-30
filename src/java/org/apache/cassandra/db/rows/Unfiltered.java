@@ -57,4 +57,14 @@ public interface Unfiltered extends Clusterable
 
     public String toString(CFMetaData metadata);
     public String toString(CFMetaData metadata, boolean fullDetails);
+
+    default boolean isRow()
+    {
+        return kind() == Kind.ROW;
+    }
+
+    default boolean isRangeTombstoneMarker()
+    {
+        return kind() == Kind.RANGE_TOMBSTONE_MARKER;
+    }
 }

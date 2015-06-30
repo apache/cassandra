@@ -17,20 +17,15 @@
  */
 package org.apache.cassandra.db;
 
-import java.io.DataInput;
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.security.MessageDigest;
 import java.util.*;
 
-import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.io.ISSTableSerializer;
-import org.apache.cassandra.io.sstable.format.Version;
-import org.apache.cassandra.io.util.DataOutputBuffer;
+import org.apache.cassandra.db.rows.RangeTombstoneMarker;
+import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
-import org.apache.cassandra.serializers.MarshalException;
-import org.apache.cassandra.utils.Interval;
+import org.apache.cassandra.utils.memory.AbstractAllocator;
 
 /**
  * A range tombstone is a tombstone that covers a slice/range of rows.
@@ -48,7 +43,7 @@ public class RangeTombstone
     public RangeTombstone(Slice slice, DeletionTime deletion)
     {
         this.slice = slice;
-        this.deletion = deletion.takeAlias();
+        this.deletion = deletion;
     }
 
     /**
@@ -73,7 +68,7 @@ public class RangeTombstone
 
     public String toString(ClusteringComparator comparator)
     {
-        return slice.toString(comparator) + "@" + deletion;
+        return slice.toString(comparator) + '@' + deletion;
     }
 
     @Override
@@ -108,9 +103,30 @@ public class RangeTombstone
     {
         public static final Serializer serializer = new Serializer();
 
+        /** The smallest start bound, i.e. the one that starts before any row. */
+        public static final Bound BOTTOM = new Bound(Kind.INCL_START_BOUND, EMPTY_VALUES_ARRAY);
+        /** The biggest end bound, i.e. the one that ends after any row. */
+        public static final Bound TOP = new Bound(Kind.INCL_END_BOUND, EMPTY_VALUES_ARRAY);
+
         public Bound(Kind kind, ByteBuffer[] values)
         {
             super(kind, values);
+            assert values.length > 0 || !kind.isBoundary();
+        }
+
+        public boolean isBoundary()
+        {
+            return kind.isBoundary();
+        }
+
+        public boolean isOpen(boolean reversed)
+        {
+            return kind.isOpen(reversed);
+        }
+
+        public boolean isClose(boolean reversed)
+        {
+            return kind.isClose(reversed);
         }
 
         public static RangeTombstone.Bound inclusiveOpen(boolean reversed, ByteBuffer[] boundValues)
@@ -143,6 +159,19 @@ public class RangeTombstone
             return new Bound(reversed ? Kind.INCL_END_EXCL_START_BOUNDARY : Kind.EXCL_END_INCL_START_BOUNDARY, boundValues);
         }
 
+        public static RangeTombstone.Bound fromSliceBound(Slice.Bound sliceBound)
+        {
+            return new RangeTombstone.Bound(sliceBound.kind(), sliceBound.getRawValues());
+        }
+
+        public RangeTombstone.Bound copy(AbstractAllocator allocator)
+        {
+            ByteBuffer[] newValues = new ByteBuffer[size()];
+            for (int i = 0; i < size(); i++)
+                newValues[i] = allocator.clone(get(i));
+            return new Bound(kind(), newValues);
+        }
+
         @Override
         public Bound withNewKind(Kind kind)
         {
@@ -165,13 +194,15 @@ public class RangeTombstone
                      + ClusteringPrefix.serializer.valuesWithoutSizeSerializedSize(bound, version, types);
             }
 
-            public Kind deserialize(DataInput in, int version, List<AbstractType<?>> types, Writer writer) throws IOException
+            public RangeTombstone.Bound deserialize(DataInputPlus in, int version, List<AbstractType<?>> types) throws IOException
             {
                 Kind kind = Kind.values()[in.readByte()];
-                writer.writeBoundKind(kind);
                 int size = in.readUnsignedShort();
-                ClusteringPrefix.serializer.deserializeValuesWithoutSize(in, size, version, types, writer);
-                return kind;
+                if (size == 0)
+                    return kind.isStart() ? BOTTOM : TOP;
+
+                ByteBuffer[] values = ClusteringPrefix.serializer.deserializeValuesWithoutSize(in, size, version, types);
+                return new RangeTombstone.Bound(kind, values);
             }
         }
     }

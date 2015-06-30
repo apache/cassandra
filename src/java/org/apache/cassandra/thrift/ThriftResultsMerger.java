@@ -101,10 +101,10 @@ public class ThriftResultsMerger extends WrappingUnfilteredPartitionIterator
         // We initialize lazily to avoid having this iterator fetch the wrapped iterator before it's actually asked for it.
         private boolean isInit;
 
-        private Row staticRow;
-        private int i; // the index of the next column of static row to return
+        private Iterator<Cell> staticCells;
 
-        private ReusableRow nextToMerge;
+        private final Row.Builder builder;
+        private Row nextToMerge;
         private Unfiltered nextFromWrapped;
 
         private PartitionMerger(UnfilteredRowIterator results, int nowInSec)
@@ -112,15 +112,16 @@ public class ThriftResultsMerger extends WrappingUnfilteredPartitionIterator
             super(results);
             assert results.metadata().isStaticCompactTable();
             this.nowInSec = nowInSec;
+            this.builder = ArrayBackedRow.sortedBuilder(results.columns().regulars);
         }
 
         private void init()
         {
             assert !isInit;
-            this.staticRow = super.staticRow();
+            Row staticRow = super.staticRow();
             assert staticRow.columns().complexColumnCount() == 0;
 
-            this.nextToMerge = createReusableRow();
+            staticCells = staticRow.cells().iterator();
             updateNextToMerge();
             isInit = true;
         }
@@ -129,11 +130,6 @@ public class ThriftResultsMerger extends WrappingUnfilteredPartitionIterator
         public Row staticRow()
         {
             return Rows.EMPTY_STATIC_ROW;
-        }
-
-        private ReusableRow createReusableRow()
-        {
-            return new ReusableRow(metadata().clusteringColumns().size(), metadata().partitionColumns().regulars, true, metadata().isCounter());
         }
 
         @Override
@@ -171,11 +167,9 @@ public class ThriftResultsMerger extends WrappingUnfilteredPartitionIterator
             if (cmp > 0)
                 return consumeNextWrapped();
 
-            // Same row, but we know the row has only a single column so just pick the more recent
+            // Same row, so merge them
             assert nextFromWrapped instanceof Row;
-            ReusableRow row = createReusableRow();
-            Rows.merge((Row)consumeNextWrapped(), consumeNextToMerge(), columns().regulars, row.writer(), nowInSec);
-            return row;
+            return Rows.merge((Row)consumeNextWrapped(), consumeNextToMerge(), nowInSec);
         }
 
         private Unfiltered consumeNextWrapped()
@@ -194,29 +188,26 @@ public class ThriftResultsMerger extends WrappingUnfilteredPartitionIterator
 
         private void updateNextToMerge()
         {
-            while (i < staticRow.columns().simpleColumnCount())
+            if (!staticCells.hasNext())
             {
-                Cell cell = staticRow.getCell(staticRow.columns().getSimple(i++));
-                if (cell != null)
-                {
-                    // Given a static cell, the equivalent row uses the column name as clustering and the
-                    // value as unique cell value.
-                    Row.Writer writer = nextToMerge.writer();
-                    writer.writeClusteringValue(cell.column().name.bytes);
-                    writer.writeCell(metadata().compactValueColumn(), cell.isCounterCell(), cell.value(), cell.livenessInfo(), cell.path());
-                    writer.endOfRow();
-                    return;
-                }
+                // Nothing more to merge.
+                nextToMerge = null;
+                return;
             }
-            // Nothing more to merge.
-            nextToMerge = null;
+
+            Cell cell = staticCells.next();
+
+            // Given a static cell, the equivalent row uses the column name as clustering and the value as unique cell value.
+            builder.newRow(new Clustering(cell.column().name.bytes));
+            builder.addCell(new BufferCell(metadata().compactValueColumn(), cell.timestamp(), cell.ttl(), cell.localDeletionTime(), cell.value(), cell.path()));
+            nextToMerge = builder.build();
         }
     }
 
-    private static class SuperColumnsPartitionMerger extends WrappingUnfilteredRowIterator
+    private static class SuperColumnsPartitionMerger extends AlteringUnfilteredRowIterator
     {
         private final int nowInSec;
-        private final ReusableRow reusableRow;
+        private final Row.Builder builder;
         private final ColumnDefinition superColumnMapColumn;
         private final AbstractType<?> columnComparator;
 
@@ -229,30 +220,23 @@ public class ThriftResultsMerger extends WrappingUnfilteredPartitionIterator
             this.superColumnMapColumn = results.metadata().compactValueColumn();
             assert superColumnMapColumn != null && superColumnMapColumn.type instanceof MapType;
 
-            this.reusableRow = new ReusableRow(results.metadata().clusteringColumns().size(),
-                                               Columns.of(superColumnMapColumn),
-                                               true,
-                                               results.metadata().isCounter());
+            this.builder = ArrayBackedRow.sortedBuilder(Columns.of(superColumnMapColumn));
             this.columnComparator = ((MapType)superColumnMapColumn.type).nameComparator();
         }
 
         @Override
-        public Unfiltered next()
+        protected Row computeNext(Row row)
         {
-            Unfiltered next = super.next();
-            if (next.kind() != Unfiltered.Kind.ROW)
-                return next;
-
-            Row row = (Row)next;
-            Row.Writer writer = reusableRow.writer();
-            row.clustering().writeTo(writer);
-
-            PeekingIterator<Cell> staticCells = Iterators.peekingIterator(makeStaticCellIterator(row));
+            PeekingIterator<Cell> staticCells = Iterators.peekingIterator(simpleCellsIterator(row));
             if (!staticCells.hasNext())
                 return row;
 
-            Iterator<Cell> cells = row.getCells(superColumnMapColumn);
-            PeekingIterator<Cell> dynamicCells = Iterators.peekingIterator(cells.hasNext() ? cells : Collections.<Cell>emptyIterator());
+            builder.newRow(row.clustering());
+
+            ComplexColumnData complexData = row.getComplexColumnData(superColumnMapColumn);
+            PeekingIterator<Cell> dynamicCells = Iterators.peekingIterator(complexData == null ? Collections.<Cell>emptyIterator() : complexData.iterator());
+
+            builder.addComplexDeletion(superColumnMapColumn, complexData.complexDeletion());
 
             while (staticCells.hasNext() && dynamicCells.hasNext())
             {
@@ -260,52 +244,37 @@ public class ThriftResultsMerger extends WrappingUnfilteredPartitionIterator
                 Cell dynamicCell = dynamicCells.peek();
                 int cmp = columnComparator.compare(staticCell.column().name.bytes, dynamicCell.path().get(0));
                 if (cmp < 0)
-                {
-                    staticCell = staticCells.next();
-                    writer.writeCell(superColumnMapColumn, staticCell.isCounterCell(), staticCell.value(), staticCell.livenessInfo(), CellPath.create(staticCell.column().name.bytes));
-                }
+                    builder.addCell(makeDynamicCell(staticCells.next()));
                 else if (cmp > 0)
-                {
-                    dynamicCells.next().writeTo(writer);
-                }
+                    builder.addCell(dynamicCells.next());
                 else
-                {
-                    staticCell = staticCells.next();
-                    Cell toMerge = Cells.create(superColumnMapColumn,
-                                                 staticCell.isCounterCell(),
-                                                 staticCell.value(),
-                                                 staticCell.livenessInfo(),
-                                                 CellPath.create(staticCell.column().name.bytes));
-                    Cells.reconcile(toMerge, dynamicCells.next(), nowInSec).writeTo(writer);
-                }
+                    builder.addCell(Cells.reconcile(makeDynamicCell(staticCells.next()), dynamicCells.next(), nowInSec));
             }
 
             while (staticCells.hasNext())
-            {
-                Cell staticCell = staticCells.next();
-                writer.writeCell(superColumnMapColumn, staticCell.isCounterCell(), staticCell.value(), staticCell.livenessInfo(), CellPath.create(staticCell.column().name.bytes));
-            }
+                builder.addCell(makeDynamicCell(staticCells.next()));
             while (dynamicCells.hasNext())
-            {
-                dynamicCells.next().writeTo(writer);
-            }
+                builder.addCell(dynamicCells.next());
 
-            writer.endOfRow();
-            return reusableRow;
+            return builder.build();
         }
 
-        private static Iterator<Cell> makeStaticCellIterator(final Row row)
+        private Cell makeDynamicCell(Cell staticCell)
         {
+            return new BufferCell(superColumnMapColumn, staticCell.timestamp(), staticCell.ttl(), staticCell.localDeletionTime(), staticCell.value(), CellPath.create(staticCell.column().name.bytes));
+        }
+
+        private Iterator<Cell> simpleCellsIterator(Row row)
+        {
+            final Iterator<Cell> cells = row.cells().iterator();
             return new AbstractIterator<Cell>()
             {
-                private int i;
-
                 protected Cell computeNext()
                 {
-                    while (i < row.columns().simpleColumnCount())
+                    if (cells.hasNext())
                     {
-                        Cell cell = row.getCell(row.columns().getSimple(i++));
-                        if (cell != null)
+                        Cell cell = cells.next();
+                        if (cell.column().isSimple())
                             return cell;
                     }
                     return endOfData();

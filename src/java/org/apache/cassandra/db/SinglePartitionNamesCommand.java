@@ -146,7 +146,7 @@ public class SinglePartitionNamesCommand extends SinglePartitionReadCommand<Clus
 
             try (UnfilteredRowIterator iter = result.unfilteredIterator(columnFilter(), Slices.ALL, false))
             {
-                final Mutation mutation = new Mutation(UnfilteredRowIterators.toUpdate(iter));
+                final Mutation mutation = new Mutation(PartitionUpdate.fromIterator(iter));
                 StageManager.getStage(Stage.MUTATION).execute(new Runnable()
                 {
                     public void run()
@@ -232,7 +232,7 @@ public class SinglePartitionNamesCommand extends SinglePartitionReadCommand<Clus
         // We can remove a row if it has data that is more recent that the next sstable to consider for the data that the query
         // cares about. And the data we care about is 1) the row timestamp (since every query cares if the row exists or not)
         // and 2) the requested columns.
-        if (!row.primaryKeyLivenessInfo().hasTimestamp() || row.primaryKeyLivenessInfo().timestamp() <= sstableTimestamp)
+        if (row.primaryKeyLivenessInfo().isEmpty() || row.primaryKeyLivenessInfo().timestamp() <= sstableTimestamp)
             return false;
 
         for (ColumnDefinition column : requestedColumns)
@@ -242,7 +242,7 @@ public class SinglePartitionNamesCommand extends SinglePartitionReadCommand<Clus
                 return false;
 
             Cell cell = row.getCell(column);
-            if (cell == null || cell.livenessInfo().timestamp() <= sstableTimestamp)
+            if (cell == null || cell.timestamp() <= sstableTimestamp)
                 return false;
         }
         return true;

@@ -21,11 +21,8 @@ import static org.apache.cassandra.cql3.Constants.UNSET_VALUE;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
-import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
-
-import com.google.common.collect.Iterators;
 
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.cql3.functions.Function;
@@ -72,7 +69,7 @@ public abstract class Lists
             validateAssignableTo(keyspace, receiver);
 
             ColumnSpecification valueSpec = Lists.valueSpecOf(receiver);
-            List<Term> values = new ArrayList<Term>(elements.size());
+            List<Term> values = new ArrayList<>(elements.size());
             boolean allTerminal = true;
             for (Term.Raw rt : elements)
             {
@@ -300,7 +297,7 @@ public abstract class Lists
             super(column, t);
         }
 
-        public void execute(DecoratedKey partitionKey, Clustering clustering, Row.Writer writer, UpdateParameters params) throws InvalidRequestException
+        public void execute(DecoratedKey partitionKey, UpdateParameters params) throws InvalidRequestException
         {
             Term.Terminal value = t.bind(params.options);
             if (value == UNSET_VALUE)
@@ -308,8 +305,8 @@ public abstract class Lists
 
             // delete + append
             if (column.type.isMultiCell())
-                params.setComplexDeletionTimeForOverwrite(column, writer);
-            Appender.doAppend(value, clustering, writer, column, params);
+                params.setComplexDeletionTimeForOverwrite(column);
+            Appender.doAppend(value, column, params);
         }
     }
 
@@ -318,17 +315,8 @@ public abstract class Lists
         if (row == null)
             return 0;
 
-        Iterator<Cell> cells = row.getCells(column);
-        return cells == null ? 0 : Iterators.size(cells);
-    }
-
-    private static Cell existingElement(Row row, ColumnDefinition column, int idx)
-    {
-        assert row != null;
-        Iterator<Cell> cells = row.getCells(column);
-        assert cells != null;
-
-        return Iterators.get(cells, idx);
+        ComplexColumnData complexData = row.getComplexColumnData(column);
+        return complexData == null ? 0 : complexData.cellsCount();
     }
 
     public static class SetterByIndex extends Operation
@@ -354,7 +342,7 @@ public abstract class Lists
             idx.collectMarkerSpecification(boundNames);
         }
 
-        public void execute(DecoratedKey partitionKey, Clustering clustering, Row.Writer writer, UpdateParameters params) throws InvalidRequestException
+        public void execute(DecoratedKey partitionKey, UpdateParameters params) throws InvalidRequestException
         {
             // we should not get here for frozen lists
             assert column.type.isMultiCell() : "Attempted to set an individual element on a frozen list";
@@ -367,7 +355,7 @@ public abstract class Lists
             if (index == ByteBufferUtil.UNSET_BYTE_BUFFER)
                 throw new InvalidRequestException("Invalid unset value for list index");
 
-            Row existingRow = params.getPrefetchedRow(partitionKey, clustering);
+            Row existingRow = params.getPrefetchedRow(partitionKey, params.currentClustering());
             int existingSize = existingSize(existingRow, column);
             int idx = ByteBufferUtil.toInt(index);
             if (existingSize == 0)
@@ -375,10 +363,10 @@ public abstract class Lists
             if (idx < 0 || idx >= existingSize)
                 throw new InvalidRequestException(String.format("List index %d out of bound, list has size %d", idx, existingSize));
 
-            CellPath elementPath = existingElement(existingRow, column, idx).path();
+            CellPath elementPath = existingRow.getComplexColumnData(column).getCellByIndex(idx).path();
             if (value == null)
             {
-                params.addTombstone(column, writer);
+                params.addTombstone(column);
             }
             else if (value != ByteBufferUtil.UNSET_BYTE_BUFFER)
             {
@@ -388,7 +376,7 @@ public abstract class Lists
                                                                     FBUtilities.MAX_UNSIGNED_SHORT,
                                                                     value.remaining()));
 
-                params.addCell(clustering, column, writer, elementPath, value);
+                params.addCell(column, elementPath, value);
             }
         }
     }
@@ -400,14 +388,14 @@ public abstract class Lists
             super(column, t);
         }
 
-        public void execute(DecoratedKey partitionKey, Clustering clustering, Row.Writer writer, UpdateParameters params) throws InvalidRequestException
+        public void execute(DecoratedKey partitionKey, UpdateParameters params) throws InvalidRequestException
         {
             assert column.type.isMultiCell() : "Attempted to append to a frozen list";
             Term.Terminal value = t.bind(params.options);
-            doAppend(value, clustering, writer, column, params);
+            doAppend(value, column, params);
         }
 
-        static void doAppend(Term.Terminal value, Clustering clustering, Row.Writer writer, ColumnDefinition column, UpdateParameters params) throws InvalidRequestException
+        static void doAppend(Term.Terminal value, ColumnDefinition column, UpdateParameters params) throws InvalidRequestException
         {
             if (column.type.isMultiCell())
             {
@@ -419,16 +407,16 @@ public abstract class Lists
                 for (ByteBuffer buffer : ((Value) value).elements)
                 {
                     ByteBuffer uuid = ByteBuffer.wrap(UUIDGen.getTimeUUIDBytes());
-                    params.addCell(clustering, column, writer, CellPath.create(uuid), buffer);
+                    params.addCell(column, CellPath.create(uuid), buffer);
                 }
             }
             else
             {
                 // for frozen lists, we're overwriting the whole cell value
                 if (value == null)
-                    params.addTombstone(column, writer);
+                    params.addTombstone(column);
                 else
-                    params.addCell(clustering, column, writer, value.get(Server.CURRENT_VERSION));
+                    params.addCell(column, value.get(Server.CURRENT_VERSION));
             }
         }
     }
@@ -440,7 +428,7 @@ public abstract class Lists
             super(column, t);
         }
 
-        public void execute(DecoratedKey partitionKey, Clustering clustering, Row.Writer writer, UpdateParameters params) throws InvalidRequestException
+        public void execute(DecoratedKey partitionKey, UpdateParameters params) throws InvalidRequestException
         {
             assert column.type.isMultiCell() : "Attempted to prepend to a frozen list";
             Term.Terminal value = t.bind(params.options);
@@ -454,7 +442,7 @@ public abstract class Lists
             {
                 PrecisionTime pt = PrecisionTime.getNext(time);
                 ByteBuffer uuid = ByteBuffer.wrap(UUIDGen.getTimeUUIDBytes(pt.millis, pt.nanos));
-                params.addCell(clustering, column, writer, CellPath.create(uuid), toAdd.get(i));
+                params.addCell(column, CellPath.create(uuid), toAdd.get(i));
             }
         }
     }
@@ -472,16 +460,16 @@ public abstract class Lists
             return true;
         }
 
-        public void execute(DecoratedKey partitionKey, Clustering clustering, Row.Writer writer, UpdateParameters params) throws InvalidRequestException
+        public void execute(DecoratedKey partitionKey, UpdateParameters params) throws InvalidRequestException
         {
             assert column.type.isMultiCell() : "Attempted to delete from a frozen list";
 
             // We want to call bind before possibly returning to reject queries where the value provided is not a list.
             Term.Terminal value = t.bind(params.options);
 
-            Row existingRow = params.getPrefetchedRow(partitionKey, clustering);
-            Iterator<Cell> cells = existingRow == null ? null : existingRow.getCells(column);
-            if (value == null || value == UNSET_VALUE || cells == null)
+            Row existingRow = params.getPrefetchedRow(partitionKey, params.currentClustering());
+            ComplexColumnData complexData = existingRow == null ? null : existingRow.getComplexColumnData(column);
+            if (value == null || value == UNSET_VALUE || complexData == null)
                 return;
 
             // Note: below, we will call 'contains' on this toDiscard list for each element of existingList.
@@ -489,11 +477,10 @@ public abstract class Lists
             // the read-before-write this operation requires limits its usefulness on big lists, so in practice
             // toDiscard will be small and keeping a list will be more efficient.
             List<ByteBuffer> toDiscard = ((Value)value).elements;
-            while (cells.hasNext())
+            for (Cell cell : complexData)
             {
-                Cell cell = cells.next();
                 if (toDiscard.contains(cell.value()))
-                    params.addTombstone(column, writer, cell.path());
+                    params.addTombstone(column, cell.path());
             }
         }
     }
@@ -511,7 +498,7 @@ public abstract class Lists
             return true;
         }
 
-        public void execute(DecoratedKey partitionKey, Clustering clustering, Row.Writer writer, UpdateParameters params) throws InvalidRequestException
+        public void execute(DecoratedKey partitionKey, UpdateParameters params) throws InvalidRequestException
         {
             assert column.type.isMultiCell() : "Attempted to delete an item by index from a frozen list";
             Term.Terminal index = t.bind(params.options);
@@ -520,7 +507,7 @@ public abstract class Lists
             if (index == Constants.UNSET_VALUE)
                 return;
 
-            Row existingRow = params.getPrefetchedRow(partitionKey, clustering);
+            Row existingRow = params.getPrefetchedRow(partitionKey, params.currentClustering());
             int existingSize = existingSize(existingRow, column);
             int idx = ByteBufferUtil.toInt(index.get(params.options.getProtocolVersion()));
             if (existingSize == 0)
@@ -528,7 +515,7 @@ public abstract class Lists
             if (idx < 0 || idx >= existingSize)
                 throw new InvalidRequestException(String.format("List index %d out of bound, list has size %d", idx, existingSize));
 
-            params.addTombstone(column, writer, existingElement(existingRow, column, idx).path());
+            params.addTombstone(column, existingRow.getComplexColumnData(column).getCellByIndex(idx).path());
         }
     }
 }

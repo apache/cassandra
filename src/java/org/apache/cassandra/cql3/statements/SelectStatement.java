@@ -594,7 +594,7 @@ public class SelectStatement implements CQLStatement
 
         ByteBuffer[] keyComponents = getComponents(cfm, partition.partitionKey());
 
-        Row staticRow = partition.staticRow().takeAlias();
+        Row staticRow = partition.staticRow();
         // If there is no rows, then provided the select was a full partition selection
         // (i.e. not a 2ndary index search and there was no condition on clustering columns),
         // we want to include static columns and we're done.
@@ -653,11 +653,11 @@ public class SelectStatement implements CQLStatement
         {
             // Collections are the only complex types we have so far
             assert def.type.isCollection() && def.type.isMultiCell();
-            Iterator<Cell> cells = row.getCells(def);
-            if (cells == null)
+            ComplexColumnData complexData = row.getComplexColumnData(def);
+            if (complexData == null)
                 result.add((ByteBuffer)null);
             else
-                result.add(((CollectionType)def.type).serializeForNativeProtocol(def, cells, protocolVersion));
+                result.add(((CollectionType)def.type).serializeForNativeProtocol(def, complexData.iterator(), protocolVersion));
         }
         else
         {

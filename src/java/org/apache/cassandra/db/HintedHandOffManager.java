@@ -132,19 +132,13 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
         UUID hintId = UUIDGen.getTimeUUID();
         // serialize the hint with id and version as a composite column name
 
-        PartitionUpdate upd = new PartitionUpdate(SystemKeyspace.Hints,
-                                                  StorageService.getPartitioner().decorateKey(UUIDType.instance.decompose(targetId)),
-                                                  PartitionColumns.of(hintColumn),
-                                                  1);
+        DecoratedKey key = StorageService.getPartitioner().decorateKey(UUIDType.instance.decompose(targetId));
 
-        Row.Writer writer = upd.writer();
-        Rows.writeClustering(SystemKeyspace.Hints.comparator.make(hintId, MessagingService.current_version), writer);
-
+        Clustering clustering = SystemKeyspace.Hints.comparator.make(hintId, MessagingService.current_version);
         ByteBuffer value = ByteBuffer.wrap(FBUtilities.serialize(mutation, Mutation.serializer, MessagingService.current_version));
-        writer.writeCell(hintColumn, false, value, SimpleLivenessInfo.forUpdate(now, ttl, FBUtilities.nowInSeconds(), SystemKeyspace.Hints), null);
-        writer.endOfRow();
+        Cell cell = BufferCell.expiring(hintColumn, now, ttl, FBUtilities.nowInSeconds(), value);
 
-        return new Mutation(upd);
+        return new Mutation(PartitionUpdate.singleRowUpdate(SystemKeyspace.Hints, key, ArrayBackedRow.singleCellRow(clustering, cell)));
     }
 
     /*
@@ -187,13 +181,8 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
     private static void deleteHint(ByteBuffer tokenBytes, Clustering clustering, long timestamp)
     {
         DecoratedKey dk =  StorageService.getPartitioner().decorateKey(tokenBytes);
-
-        PartitionUpdate upd = new PartitionUpdate(SystemKeyspace.Hints, dk, PartitionColumns.of(hintColumn), 1);
-
-        Row.Writer writer = upd.writer();
-        Rows.writeClustering(clustering, writer);
-        Cells.writeTombstone(writer, hintColumn, timestamp, FBUtilities.nowInSeconds());
-
+        Cell cell = BufferCell.tombstone(hintColumn, timestamp, FBUtilities.nowInSeconds());
+        PartitionUpdate upd = PartitionUpdate.singleRowUpdate(SystemKeyspace.Hints, dk, ArrayBackedRow.singleCellRow(clustering, cell));
         new Mutation(upd).applyUnsafe(); // don't bother with commitlog since we're going to flush as soon as we're done with delivery
     }
 
@@ -420,7 +409,7 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
                 int version = Int32Type.instance.compose(hint.clustering().get(1));
                 Cell cell = hint.getCell(hintColumn);
 
-                final long timestamp = cell.livenessInfo().timestamp();
+                final long timestamp = cell.timestamp();
                 DataInputPlus in = new NIODataInputStream(cell.value(), true);
                 Mutation mutation;
                 try

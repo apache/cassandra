@@ -18,7 +18,6 @@
 package org.apache.cassandra.streaming;
 
 import java.io.*;
-import java.nio.ByteBuffer;
 import java.nio.channels.Channels;
 import java.nio.channels.ReadableByteChannel;
 import java.util.Collection;
@@ -36,7 +35,6 @@ import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.rows.*;
-import org.apache.cassandra.db.context.CounterContext;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.SSTableSimpleIterator;
 import org.apache.cassandra.io.sstable.format.SSTableFormat;
@@ -184,16 +182,13 @@ public class StreamReader
         private Row staticRow;
         private IOException exception;
 
-        private final CounterFilteredRow counterRow;
-
         public StreamDeserializer(CFMetaData metadata, DataInputPlus in, Version version, SerializationHeader header)
         {
             assert version.storeRows() : "We don't allow streaming from pre-3.0 nodes";
             this.metadata = metadata;
             this.in = in;
-            this.helper = new SerializationHelper(version.correspondingMessagingVersion(), SerializationHelper.Flag.PRESERVE_SIZE);
+            this.helper = new SerializationHelper(metadata, version.correspondingMessagingVersion(), SerializationHelper.Flag.PRESERVE_SIZE);
             this.header = header;
-            this.counterRow = metadata.isCounter() ? new CounterFilteredRow() : null;
         }
 
         public DecoratedKey newPartition() throws IOException
@@ -271,9 +266,7 @@ public class StreamReader
 
         private Row maybeMarkLocalToBeCleared(Row row)
         {
-            return metadata.isCounter()
-                 ? counterRow.setTo(row)
-                 : row;
+            return metadata.isCounter() ? row.markCounterLocalToBeCleared() : row;
         }
 
         public void checkForExceptions() throws IOException
@@ -284,20 +277,6 @@ public class StreamReader
 
         public void close()
         {
-        }
-    }
-
-    private static class CounterFilteredRow extends WrappingRow
-    {
-        protected Cell filterCell(Cell cell)
-        {
-            if (!cell.isCounterCell())
-                return cell;
-
-            ByteBuffer marked = CounterContext.instance().markLocalToBeCleared(cell.value());
-            return marked == cell.value()
-                 ? cell
-                 : Cells.create(cell.column(), true, marked, cell.livenessInfo(), cell.path());
         }
     }
 }

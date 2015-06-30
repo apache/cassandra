@@ -23,9 +23,8 @@ import java.util.Iterator;
 
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.db.*;
-import org.apache.cassandra.db.context.CounterContext;
+import org.apache.cassandra.db.partitions.PartitionStatisticsCollector;
 import org.apache.cassandra.db.index.SecondaryIndexManager;
-import org.apache.cassandra.utils.ByteBufferUtil;
 
 /**
  * Static methods to work on cells.
@@ -35,54 +34,17 @@ public abstract class Cells
     private Cells() {}
 
     /**
-     * Writes a tombstone cell to the provided writer.
+     * Collect statistics ont a given cell.
      *
-     * @param writer the {@code Row.Writer} to write the tombstone to.
-     * @param column the column for the tombstone.
-     * @param timestamp the timestamp for the tombstone.
-     * @param localDeletionTime the local deletion time (in seconds) for the tombstone.
+     * @param cell the cell for which to collect stats.
+     * @param collector the stats collector.
      */
-    public static void writeTombstone(Row.Writer writer, ColumnDefinition column, long timestamp, int localDeletionTime)
+    public static void collectStats(Cell cell, PartitionStatisticsCollector collector)
     {
-        writer.writeCell(column, false, ByteBufferUtil.EMPTY_BYTE_BUFFER, SimpleLivenessInfo.forDeletion(timestamp, localDeletionTime), null);
-    }
+        collector.update(cell);
 
-    /**
-     * Computes the difference between a cell and the result of merging this
-     * cell to other cells.
-     * <p>
-     * This method is used when cells from multiple sources are merged and we want to
-     * find for a given source if it was up to date for that cell, and if not, what
-     * should be sent to the source to repair it.
-     *
-     * @param merged the cell that is the result of merging multiple source.
-     * @param cell the cell from one of the source that has been merged to yied
-     * {@code merged}.
-     * @return {@code null} if the source having {@code cell} is up-to-date for that
-     * cell, or a cell that applied to the source will "repair" said source otherwise.
-     */
-    public static Cell diff(Cell merged, Cell cell)
-    {
-        // Note that it's enough to check if merged is a counterCell. If it isn't and
-        // cell is one, it means that merged is a tombstone with a greater timestamp
-        // than cell, because that's the only case where reconciling a counter with
-        // a tombstone don't yield a counter. If that's the case, the normal path will
-        // return what it should.
-        if (merged.isCounterCell())
-        {
-            if (merged.livenessInfo().supersedes(cell.livenessInfo()))
-                return merged;
-
-            // Reconciliation never returns something with a timestamp strictly lower than its operand. This
-            // means we're in the case where merged.timestamp() == cell.timestamp(). As 1) tombstones
-            // always win over counters (CASSANDRA-7346) and 2) merged is a counter, it follows that cell
-            // can't be a tombstone or merged would be one too.
-            assert !cell.isTombstone();
-
-            CounterContext.Relationship rel = CounterContext.instance().diff(merged.value(), cell.value());
-            return (rel == CounterContext.Relationship.GREATER_THAN || rel == CounterContext.Relationship.DISJOINT) ? merged : null;
-        }
-        return merged.livenessInfo().supersedes(cell.livenessInfo()) ? merged : null;
+        if (cell.isCounterCell())
+            collector.updateHasLegacyCounterShards(CounterCells.hasLegacyShards(cell));
     }
 
     /**
@@ -106,7 +68,7 @@ public abstract class Cells
      * {@code writer}.
      * @param deletion the deletion time that applies to the cells being considered.
      * This deletion time may delete both {@code existing} or {@code update}.
-     * @param writer the row writer to which the result of the reconciliation is written.
+     * @param builder the row builder to which the result of the reconciliation is written.
      * @param nowInSec the current time in seconds (which plays a role during reconciliation
      * because deleted cells always have precedence on timestamp equality and deciding if a
      * cell is a live or not depends on the current time due to expiring cells).
@@ -121,12 +83,12 @@ public abstract class Cells
                                  Cell existing,
                                  Cell update,
                                  DeletionTime deletion,
-                                 Row.Writer writer,
+                                 Row.Builder builder,
                                  int nowInSec,
                                  SecondaryIndexManager.Updater indexUpdater)
     {
-        existing = existing == null || deletion.deletes(existing.livenessInfo()) ? null : existing;
-        update = update == null || deletion.deletes(update.livenessInfo()) ? null : update;
+        existing = existing == null || deletion.deletes(existing) ? null : existing;
+        update = update == null || deletion.deletes(update) ? null : update;
         if (existing == null || update == null)
         {
             if (update != null)
@@ -135,17 +97,17 @@ public abstract class Cells
                 // we'll need to fix that damn 2ndary index API to avoid that.
                 updatePKIndexes(clustering, update, nowInSec, indexUpdater);
                 indexUpdater.insert(clustering, update);
-                update.writeTo(writer);
+                builder.addCell(update);
             }
             else if (existing != null)
             {
-                existing.writeTo(writer);
+                builder.addCell(existing);
             }
             return Long.MAX_VALUE;
         }
 
         Cell reconciled = reconcile(existing, update, nowInSec);
-        reconciled.writeTo(writer);
+        builder.addCell(reconciled);
 
         // Note that this test rely on reconcile returning either 'existing' or 'update'. That's not true for counters but we don't index them
         if (reconciled == update)
@@ -153,13 +115,13 @@ public abstract class Cells
             updatePKIndexes(clustering, update, nowInSec, indexUpdater);
             indexUpdater.update(clustering, existing, reconciled);
         }
-        return Math.abs(existing.livenessInfo().timestamp() - update.livenessInfo().timestamp());
+        return Math.abs(existing.timestamp() - update.timestamp());
     }
 
     private static void updatePKIndexes(Clustering clustering, Cell cell, int nowInSec, SecondaryIndexManager.Updater indexUpdater)
     {
         if (indexUpdater != SecondaryIndexManager.nullUpdater && cell.isLive(nowInSec))
-            indexUpdater.maybeIndex(clustering, cell.livenessInfo().timestamp(), cell.livenessInfo().ttl(), DeletionTime.LIVE);
+            indexUpdater.maybeIndex(clustering, cell.timestamp(), cell.ttl(), DeletionTime.LIVE);
     }
 
     /**
@@ -190,10 +152,10 @@ public abstract class Cells
 
         if (c1.isCounterCell() || c2.isCounterCell())
         {
-            Conflicts.Resolution res = Conflicts.resolveCounter(c1.livenessInfo().timestamp(),
+            Conflicts.Resolution res = Conflicts.resolveCounter(c1.timestamp(),
                                                                 c1.isLive(nowInSec),
                                                                 c1.value(),
-                                                                c2.livenessInfo().timestamp(),
+                                                                c2.timestamp(),
                                                                 c2.isLive(nowInSec),
                                                                 c2.value());
 
@@ -203,26 +165,26 @@ public abstract class Cells
                 case RIGHT_WINS: return c2;
                 default:
                     ByteBuffer merged = Conflicts.mergeCounterValues(c1.value(), c2.value());
-                    LivenessInfo mergedInfo = c1.livenessInfo().mergeWith(c2.livenessInfo());
+                    long timestamp = Math.max(c1.timestamp(), c2.timestamp());
 
                     // We save allocating a new cell object if it turns out that one cell was
                     // a complete superset of the other
-                    if (merged == c1.value() && mergedInfo == c1.livenessInfo())
+                    if (merged == c1.value() && timestamp == c1.timestamp())
                         return c1;
-                    else if (merged == c2.value() && mergedInfo == c2.livenessInfo())
+                    else if (merged == c2.value() && timestamp == c2.timestamp())
                         return c2;
                     else // merge clocks and timestamps.
-                        return create(c1.column(), true, merged, mergedInfo, null);
+                        return new BufferCell(c1.column(), timestamp, Cell.NO_TTL, Cell.NO_DELETION_TIME, merged, c1.path());
             }
         }
 
-        Conflicts.Resolution res = Conflicts.resolveRegular(c1.livenessInfo().timestamp(),
+        Conflicts.Resolution res = Conflicts.resolveRegular(c1.timestamp(),
                                                             c1.isLive(nowInSec),
-                                                            c1.livenessInfo().localDeletionTime(),
+                                                            c1.localDeletionTime(),
                                                             c1.value(),
-                                                            c2.livenessInfo().timestamp(),
+                                                            c2.timestamp(),
                                                             c2.isLive(nowInSec),
-                                                            c2.livenessInfo().localDeletionTime(),
+                                                            c2.localDeletionTime(),
                                                             c2.value());
         assert res != Conflicts.Resolution.MERGE;
         return res == Conflicts.Resolution.LEFT_WINS ? c1 : c2;
@@ -251,7 +213,7 @@ public abstract class Cells
      * {@code existing} to {@code writer}.
      * @param deletion the deletion time that applies to the cells being considered.
      * This deletion time may delete cells in both {@code existing} and {@code update}.
-     * @param writer the row writer to which the result of the reconciliation is written.
+     * @param builder the row build to which the result of the reconciliation is written.
      * @param nowInSec the current time in seconds (which plays a role during reconciliation
      * because deleted cells always have precedence on timestamp equality and deciding if a
      * cell is a live or not depends on the current time due to expiring cells).
@@ -270,7 +232,7 @@ public abstract class Cells
                                         Iterator<Cell> existing,
                                         Iterator<Cell> update,
                                         DeletionTime deletion,
-                                        Row.Writer writer,
+                                        Row.Builder builder,
                                         int nowInSec,
                                         SecondaryIndexManager.Updater indexUpdater)
     {
@@ -285,17 +247,17 @@ public abstract class Cells
                      : comparator.compare(nextExisting.path(), nextUpdate.path()));
             if (cmp < 0)
             {
-                reconcile(clustering, nextExisting, null, deletion, writer, nowInSec, indexUpdater);
+                reconcile(clustering, nextExisting, null, deletion, builder, nowInSec, indexUpdater);
                 nextExisting = getNext(existing);
             }
             else if (cmp > 0)
             {
-                reconcile(clustering, null, nextUpdate, deletion, writer, nowInSec, indexUpdater);
+                reconcile(clustering, null, nextUpdate, deletion, builder, nowInSec, indexUpdater);
                 nextUpdate = getNext(update);
             }
             else
             {
-                timeDelta = Math.min(timeDelta, reconcile(clustering, nextExisting, nextUpdate, deletion, writer, nowInSec, indexUpdater));
+                timeDelta = Math.min(timeDelta, reconcile(clustering, nextExisting, nextUpdate, deletion, builder, nowInSec, indexUpdater));
                 nextExisting = getNext(existing);
                 nextUpdate = getNext(update);
             }
@@ -306,66 +268,5 @@ public abstract class Cells
     private static Cell getNext(Iterator<Cell> iterator)
     {
         return iterator == null || !iterator.hasNext() ? null : iterator.next();
-    }
-
-    /**
-     * Creates a simple cell.
-     * <p>
-     * Note that in general cell objects are created by the container they are in and so this method should
-     * only be used in a handful of cases when we know it's the right thing to do.
-     *
-     * @param column the column for the cell to create.
-     * @param isCounter whether the create cell should be a counter one.
-     * @param value the value for the cell.
-     * @param info the liveness info for the cell.
-     * @param path the cell path for the cell.
-     * @return the newly allocated cell object.
-     */
-    public static Cell create(ColumnDefinition column, boolean isCounter, ByteBuffer value, LivenessInfo info, CellPath path)
-    {
-        return new SimpleCell(column, isCounter, value, info, path);
-    }
-
-    private static class SimpleCell extends AbstractCell
-    {
-        private final ColumnDefinition column;
-        private final boolean isCounter;
-        private final ByteBuffer value;
-        private final LivenessInfo info;
-        private final CellPath path;
-
-        private SimpleCell(ColumnDefinition column, boolean isCounter, ByteBuffer value, LivenessInfo info, CellPath path)
-        {
-            this.column = column;
-            this.isCounter = isCounter;
-            this.value = value;
-            this.info = info.takeAlias();
-            this.path = path;
-        }
-
-        public ColumnDefinition column()
-        {
-            return column;
-        }
-
-        public boolean isCounterCell()
-        {
-            return isCounter;
-        }
-
-        public ByteBuffer value()
-        {
-            return value;
-        }
-
-        public LivenessInfo livenessInfo()
-        {
-            return info;
-        }
-
-        public CellPath path()
-        {
-            return path;
-        }
     }
 }

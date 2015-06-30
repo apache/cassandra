@@ -17,35 +17,31 @@
  */
 package org.apache.cassandra.db.rows;
 
-import java.nio.ByteBuffer;
 import java.util.*;
-
-import com.google.common.collect.Iterators;
 
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.filter.ColumnFilter;
+import org.apache.cassandra.service.paxos.Commit;
 import org.apache.cassandra.utils.MergeIterator;
 import org.apache.cassandra.utils.SearchIterator;
 
 /**
  * Storage engine representation of a row.
  *
- * A row is identified by it's clustering column values (it's an Unfiltered),
- * has row level informations (deletion and partition key liveness infos (see below))
- * and contains data (Cells) regarding the columns it contains.
+ * A row mainly contains the following informations:
+ *   1) Its {@code Clustering}, which holds the values for the clustering columns identifying the row.
+ *   2) Its row level informations: the primary key liveness infos and the row deletion (see
+ *      {@link #primaryKeyLivenessInfo()} and {@link #deletion()} for more details).
+ *   3) Data for the columns it contains, or in other words, it's a (sorted) collection of
+ *      {@code ColumnData}.
  *
- * A row implements {@code WithLivenessInfo} and has thus a timestamp, ttl and
- * local deletion time. Those information do not apply to the row content, they
- * apply to the partition key columns. In other words, the timestamp is the
- * timestamp for the partition key columns: it is what allows to distinguish
- * between a dead row, and a live row but for which only the partition key columns
- * are set. The ttl and local deletion time information are for the case where
- * a TTL is set on those partition key columns. Note however that a row can have
- * live cells but no partition key columns timestamp, because said timestamp (and
- * its corresponding ttl) is only set on INSERT (not UPDATE).
+ * Also note that as for every other storage engine object, a {@code Row} object cannot shadow
+ * it's own data. For instance, a {@code Row} cannot contains a cell that is deleted by its own
+ * row deletion.
  */
-public interface Row extends Unfiltered, Iterable<Cell>, Aliasable<Row>
+public interface Row extends Unfiltered, Iterable<ColumnData>
 {
     /**
      * The clustering values for this row.
@@ -79,17 +75,14 @@ public interface Row extends Unfiltered, Iterable<Cell>, Aliasable<Row>
      * As a row is uniquely identified by its primary key, all its primary key columns
      * share the same {@code LivenessInfo}. This liveness information is what allows us
      * to distinguish between a dead row (it has no live cells and its primary key liveness
-     * info has no timestamp) and a live row but where all non PK columns are null (it has no
-     * live cells, but its primary key liveness has a timestamp). Please note that the ttl
-     * (and local deletion time) of the PK liveness information only apply to the
-     * liveness info timestamp, and not to the content of the row. Also note that because
-     * in practice there is not way to only delete the primary key columns (without deleting
-     * the row itself), the returned {@code LivenessInfo} can only have a local deletion time
-     * if it has a TTL.
+     * info is empty) and a live row but where all non PK columns are null (it has no
+     * live cells, but its primary key liveness is not empty). Please note that the liveness
+     * info (including it's eventually ttl/local deletion time) only apply to the primary key
+     * columns and has no impact on the row content.
      * <p>
-     * Lastly, note that it is possible for a row to have live cells but no PK liveness
-     * info timestamp, because said timestamp is only set on {@code INSERT} (which makes sense
-     * in itself, see #6782) but live cells can be add through {@code UPDATE} even if the row
+     * Note in particular that a row may have live cells but no PK liveness info, because the
+     * primary key liveness informations are only set on {@code INSERT} (which makes sense
+     * in itself, see #6782) but live cells can be added through {@code UPDATE} even if the row
      * wasn't pre-existing (which users are encouraged not to do, but we can't validate).
      */
     public LivenessInfo primaryKeyLivenessInfo();
@@ -102,10 +95,10 @@ public interface Row extends Unfiltered, Iterable<Cell>, Aliasable<Row>
     public boolean isStatic();
 
     /**
-     * Whether the row has no information whatsoever. This means no row infos
-     * (timestamp, ttl, deletion), no cells and no complex deletion info.
+     * Whether the row has no information whatsoever. This means no PK liveness info, no row
+     * deletion, no cells and no complex deletion info.
      *
-     * @return {@code true} if the row has no data whatsoever, {@code false} otherwise.
+     * @return {@code true} if the row has no data, {@code false} otherwise.
      */
     public boolean isEmpty();
 
@@ -115,19 +108,7 @@ public interface Row extends Unfiltered, Iterable<Cell>, Aliasable<Row>
     public boolean hasLiveData(int nowInSec);
 
     /**
-     * Whether or not this row contains any deletion for a complex column. That is if
-     * there is at least one column for which {@code getDeletion} returns a non
-     * live deletion time.
-     */
-    public boolean hasComplexDeletion();
-
-    /**
      * Returns a cell for a simple column.
-     *
-     * Calls to this method are allowed to return the same Cell object, and hence the returned
-     * object is only valid until the next getCell/getCells call on the same Row object. You will need
-     * to copy the returned data if you plan on using a reference to the Cell object
-     * longer than that.
      *
      * @param c the simple column for which to fetch the cell.
      * @return the corresponding cell or {@code null} if the row has no such cell.
@@ -137,11 +118,6 @@ public interface Row extends Unfiltered, Iterable<Cell>, Aliasable<Row>
     /**
      * Return a cell for a given complex column and cell path.
      *
-     * Calls to this method are allowed to return the same Cell object, and hence the returned
-     * object is only valid until the next getCell/getCells call on the same Row object. You will need
-     * to copy the returned data if you plan on using a reference to the Cell object
-     * longer than that.
-     *
      * @param c the complex column for which to fetch the cell.
      * @param path the cell path for which to fetch the cell.
      * @return the corresponding cell or {@code null} if the row has no such cell.
@@ -149,43 +125,35 @@ public interface Row extends Unfiltered, Iterable<Cell>, Aliasable<Row>
     public Cell getCell(ColumnDefinition c, CellPath path);
 
     /**
-     * Returns an iterator on the cells of a complex column c.
+     * The data for a complex column.
+     * <p>
+     * The returned object groups all the cells for the column, as well as it's complex deletion (if relevant).
      *
-     * Calls to this method are allowed to return the same iterator object, and
-     * hence the returned object is only valid until the next getCell/getCells call
-     * on the same Row object. You will need to copy the returned data if you
-     * plan on using a reference to the Cell object longer than that.
-     *
-     * @param c the complex column for which to fetch the cells.
-     * @return an iterator on the cells of complex column {@code c} or {@code null} if the row has no
-     * cells for that column.
+     * @param c the complex column for which to return the complex data.
+     * @return the data for {@code c} or {@code null} is the row has no data for this column.
      */
-    public Iterator<Cell> getCells(ColumnDefinition c);
+    public ComplexColumnData getComplexColumnData(ColumnDefinition c);
 
     /**
-     * Deletion informations for complex columns.
+     * An iterable over the cells of this row.
+     * <p>
+     * The iterable guarantees that cells are returned in order of {@link Cell#comparator}.
      *
-     * @param c the complex column for which to fetch deletion info.
-     * @return the deletion time for complex column {@code c} in this row.
+     * @return an iterable over the cells of this row.
      */
-    public DeletionTime getDeletion(ColumnDefinition c);
+    public Iterable<Cell> cells();
 
     /**
-     * An iterator over the cells of this row.
-     *
-     * The iterator guarantees that for 2 rows of the same partition, columns
-     * are returned in a consistent order in the sense that if the cells for
-     * column c1 is returned before the cells for column c2 by the first iterator,
-     * it is also the case for the 2nd iterator.
-     *
-     * The object returned by a call to next() is only guaranteed to be valid until
-     * the next call to hasNext() or next(). If a consumer wants to keep a
-     * reference on the returned Cell objects for longer than the iteration, it must
-     * make a copy of it explicitly.
-     *
-     * @return an iterator over the cells of this row.
+     * Whether the row stores any (non-live) complex deletion for any complex column.
      */
-    public Iterator<Cell> iterator();
+    public boolean hasComplexDeletion();
+
+    /**
+     * Whether the row has any deletion info (row deletion, cell tombstone, expired cell or complex deletion).
+     *
+     * @param nowInSec the current time in seconds to decid if a cell is expired.
+     */
+    public boolean hasDeletion(int nowInSec);
 
     /**
      * An iterator to efficiently search data for a given column.
@@ -195,134 +163,167 @@ public interface Row extends Unfiltered, Iterable<Cell>, Aliasable<Row>
     public SearchIterator<ColumnDefinition, ColumnData> searchIterator();
 
     /**
-     * Copy this row to the provided writer.
-     *
-     * @param writer the row writer to write this row to.
+     * Returns a copy of this row that:
+     *   1) only includes the data for the column included by {@code filter}.
+     *   2) doesn't include any data that belongs to a dropped column (recorded in {@code metadata}).
      */
-    public void copyTo(Row.Writer writer);
+    public Row filter(ColumnFilter filter, CFMetaData metadata);
+
+    /**
+     * Returns a copy of this row that:
+     *   1) only includes the data for the column included by {@code filter}.
+     *   2) doesn't include any data that belongs to a dropped column (recorded in {@code metadata}).
+     *   3) doesn't include any data that is shadowed/deleted by {@code activeDeletion}.
+     *   4) uses {@code activeDeletion} as row deletion iff {@code setActiveDeletionToRow} and {@code activeDeletion} supersedes the row deletion.
+     */
+    public Row filter(ColumnFilter filter, DeletionTime activeDeletion, boolean setActiveDeletionToRow, CFMetaData metadata);
+
+    /**
+     * Returns a copy of this row without any deletion info that should be purged according to {@code purger}.
+     *
+     * @param purger the {@code DeletionPurger} to use to decide what can be purged.
+     * @param nowInSec the current time to decide what is deleted and what isn't (in the case of expired cells).
+     * @return this row but without any deletion info purged by {@code purger}.
+     */
+    public Row purge(DeletionPurger purger, int nowInSec);
+
+    /**
+     * Returns a copy of this row where all counter cells have they "local" shard marked for clearing.
+     */
+    public Row markCounterLocalToBeCleared();
+
+    /**
+     * returns a copy of this row where all live timestamp have been replaced by {@code newTimestamp} and every deletion timestamp
+     * by {@code newTimestamp - 1}. See {@link Commit} for why we need this.
+     */
+    public Row updateAllTimestamp(long newTimestamp);
+
+    public int dataSize();
+
+    public long unsharedHeapSizeExcludingData();
 
     public String toString(CFMetaData metadata, boolean fullDetails);
 
     /**
-     * Interface for writing a row.
+     * Interface for building rows.
      * <p>
-     * Clients of this interface should abid to the following assumptions:
-     *   1) if the row has a non empty clustering (it's not a static one and it doesn't belong to a table without
-     *      clustering columns), then that clustering should be the first thing written (through
-     *      {@link ClusteringPrefix.Writer#writeClusteringValue})).
-     *   2) for a given complex column, calls to {@link #writeCell} are performed consecutively (without
-     *      any call to {@code writeCell} for another column intermingled) and in {@code CellPath} order.
-     *   3) {@link #endOfRow} is always called to end the writing of a given row.
+     * The builder of a row should always abid to the following rules:
+     *   1) {@link #newRow} is always called as the first thing for the row.
+     *   2) {@link #addPrimaryKeyLivenessInfo} and {@link #addRowDeletion}, if called, are called before
+     *      any {@link #addCell}/{@link #addComplexDeletion} call.
+     *   3) {@link #build} is called to construct the new row. The builder can then be reused.
+     *
+     * There is 2 variants of a builder: sorted and unsorted ones. A sorted builder expects user to abid to the
+     * following additional rules:
+     *   4) Calls to {@link #addCell}/{@link #addComplexDeletion} are done in strictly increasing column order.
+     *      In other words, all calls to these methods for a give column {@code c} are done after any call for
+     *      any column before {@code c} and before any call for any column after {@code c}.
+     *   5) Calls to {@link #addCell} are further done in strictly increasing cell order (the one defined by
+     *      {@link Cell#comparator}. That is, for a give column, cells are passed in {@code CellPath} order.
+     *
+     * An unsorted builder will not expect those last rules however: {@link #addCell} and {@link #addComplexDeletion}
+     * can be done in any order. And in particular unsorted builder allows multiple calls for the same column/cell. In
+     * that latter case, the result will follow the usual reconciliation rules (so equal cells are reconciled with
+     * {@link Cells#reconcile} and the "biggest" of multiple complex deletion for the same column wins).
      */
-    public interface Writer extends ClusteringPrefix.Writer
+    public interface Builder
     {
         /**
-         * Writes the livness information for the partition key columns of this row.
+         * Whether the builder is a sorted one or not.
          *
-         * This call is optional: skipping it is equivalent to calling {@code writePartitionKeyLivenessInfo(LivenessInfo.NONE)}.
-         *
-         * @param info the liveness information for the partition key columns of the written row.
+         * @return if the builder requires calls to be done in sorted order or not (see above).
          */
-        public void writePartitionKeyLivenessInfo(LivenessInfo info);
+        public boolean isSorted();
 
         /**
-         * Writes the deletion information for this row.
+         * Prepares the builder to build a new row of clustering {@code clustering}.
+         * <p>
+         * This should always be the first call for a given row.
+         *
+         * @param clustering the clustering for the new row.
+         */
+        public void newRow(Clustering clustering);
+
+        /**
+         * The clustering for the row that is currently being built.
+         *
+         * @return the clustering for the row that is currently being built, or {@code null} if {@link #newRow} hasn't
+         * yet been called.
+         */
+        public Clustering clustering();
+
+        /**
+         * Adds the liveness information for the partition key columns of this row.
+         *
+         * This call is optional (skipping it is equivalent to calling {@code addPartitionKeyLivenessInfo(LivenessInfo.NONE)}).
+         *
+         * @param info the liveness information for the partition key columns of the built row.
+         */
+        public void addPrimaryKeyLivenessInfo(LivenessInfo info);
+
+        /**
+         * Adds the deletion information for this row.
          *
          * This call is optional and can be skipped if the row is not deleted.
          *
          * @param deletion the row deletion time, or {@code DeletionTime.LIVE} if the row isn't deleted.
          */
-        public void writeRowDeletion(DeletionTime deletion);
+        public void addRowDeletion(DeletionTime deletion);
 
         /**
-         * Writes a cell to the writer.
+         * Adds a cell to this builder.
          *
-         * As mentionned above, add cells for a given column should be added consecutively (and in {@code CellPath} order for complex columns).
-         *
-         * @param column the column for the written cell.
-         * @param isCounter whether or not this is a counter cell.
-         * @param value the value for the cell. For tombstones, which don't have values, this should be an empty buffer.
-         * @param info the cell liveness information.
-         * @param path the {@link CellPath} for complex cells and {@code null} for regular cells.
+         * @param cell the cell to add.
          */
-        public void writeCell(ColumnDefinition column, boolean isCounter, ByteBuffer value, LivenessInfo info, CellPath path);
+        public void addCell(Cell cell);
 
         /**
-         * Writes a deletion for a complex column, that is one that apply to all cells of the complex column.
+         * Adds a complex deletion.
          *
-         * @param column the (complex) column this is a deletion for.
-         * @param complexDeletion the deletion time.
+         * @param column the column for which to add the {@code complexDeletion}.
+         * @param complexDeletion the complex deletion time to add.
          */
-        public void writeComplexDeletion(ColumnDefinition column, DeletionTime complexDeletion);
+        public void addComplexDeletion(ColumnDefinition column, DeletionTime complexDeletion);
 
         /**
-         * Should be called to indicates that the row has been fully written.
+         * Builds and return built row.
+         *
+         * @return the last row built by this builder.
          */
-        public void endOfRow();
+        public Row build();
     }
 
     /**
      * Utility class to help merging rows from multiple inputs (UnfilteredRowIterators).
      */
-    public abstract static class Merger
+    public static class Merger
     {
-        private final CFMetaData metadata;
-        private final int nowInSec;
-        private final UnfilteredRowIterators.MergeListener listener;
         private final Columns columns;
+        private final Row[] rows;
+        private final List<Iterator<ColumnData>> columnDataIterators;
 
         private Clustering clustering;
-        private final Row[] rows;
         private int rowsToMerge;
+        private int lastRowSet = -1;
 
-        private LivenessInfo rowInfo = LivenessInfo.NONE;
-        private DeletionTime rowDeletion = DeletionTime.LIVE;
+        private final List<ColumnData> dataBuffer = new ArrayList<>();
+        private final ColumnDataReducer columnDataReducer;
 
-        private final Cell[] cells;
-        private final List<Iterator<Cell>> complexCells;
-        private final ComplexColumnReducer complexReducer = new ComplexColumnReducer();
-
-        // For the sake of the listener if there is one
-        private final DeletionTime[] complexDelTimes;
-
-        private boolean signaledListenerForRow;
-
-        public static Merger createStatic(CFMetaData metadata, int size, int nowInSec, Columns columns, UnfilteredRowIterators.MergeListener listener)
+        public Merger(int size, int nowInSec, Columns columns)
         {
-            return new StaticMerger(metadata, size, nowInSec, columns, listener);
-        }
-
-        public static Merger createRegular(CFMetaData metadata, int size, int nowInSec, Columns columns, UnfilteredRowIterators.MergeListener listener)
-        {
-            return new RegularMerger(metadata, size, nowInSec, columns, listener);
-        }
-
-        protected Merger(CFMetaData metadata, int size, int nowInSec, Columns columns, UnfilteredRowIterators.MergeListener listener)
-        {
-            this.metadata = metadata;
-            this.nowInSec = nowInSec;
-            this.listener = listener;
             this.columns = columns;
             this.rows = new Row[size];
-            this.complexCells = new ArrayList<>(size);
-
-            this.cells = new Cell[size];
-            this.complexDelTimes = listener == null ? null : new DeletionTime[size];
+            this.columnDataIterators = new ArrayList<>(size);
+            this.columnDataReducer = new ColumnDataReducer(size, nowInSec, columns.hasComplex());
         }
 
         public void clear()
         {
+            dataBuffer.clear();
             Arrays.fill(rows, null);
-            Arrays.fill(cells, null);
-            if (complexDelTimes != null)
-                Arrays.fill(complexDelTimes, null);
-            complexCells.clear();
+            columnDataIterators.clear();
             rowsToMerge = 0;
-
-            rowInfo = LivenessInfo.NONE;
-            rowDeletion = DeletionTime.LIVE;
-
-            signaledListenerForRow = false;
+            lastRowSet = -1;
         }
 
         public void add(int i, Row row)
@@ -330,225 +331,187 @@ public interface Row extends Unfiltered, Iterable<Cell>, Aliasable<Row>
             clustering = row.clustering();
             rows[i] = row;
             ++rowsToMerge;
+            lastRowSet = i;
         }
-
-        protected abstract Row.Writer getWriter();
-        protected abstract Row getRow();
 
         public Row merge(DeletionTime activeDeletion)
         {
             // If for this clustering we have only one row version and have no activeDeletion (i.e. nothing to filter out),
-            // then we can just return that single row (we also should have no listener)
-            if (rowsToMerge == 1 && activeDeletion.isLive() && listener == null)
+            // then we can just return that single row
+            if (rowsToMerge == 1 && activeDeletion.isLive())
             {
-                for (int i = 0; i < rows.length; i++)
-                    if (rows[i] != null)
-                        return rows[i];
-                throw new AssertionError();
+                Row row = rows[lastRowSet];
+                assert row != null;
+                return row;
             }
 
-            Row.Writer writer = getWriter();
-            Rows.writeClustering(clustering, writer);
-
-            for (int i = 0; i < rows.length; i++)
+            LivenessInfo rowInfo = LivenessInfo.EMPTY;
+            DeletionTime rowDeletion = DeletionTime.LIVE;
+            for (Row row : rows)
             {
-                if (rows[i] == null)
+                if (row == null)
                     continue;
 
-                rowInfo = rowInfo.mergeWith(rows[i].primaryKeyLivenessInfo());
-
-                if (rows[i].deletion().supersedes(rowDeletion))
-                    rowDeletion = rows[i].deletion();
+                if (row.primaryKeyLivenessInfo().supersedes(rowInfo))
+                    rowInfo = row.primaryKeyLivenessInfo();
+                if (row.deletion().supersedes(rowDeletion))
+                    rowDeletion = row.deletion();
             }
 
-            if (rowDeletion.supersedes(activeDeletion))
+            if (activeDeletion.supersedes(rowDeletion))
+                rowDeletion = DeletionTime.LIVE;
+            else
                 activeDeletion = rowDeletion;
 
             if (activeDeletion.deletes(rowInfo))
-                rowInfo = LivenessInfo.NONE;
+                rowInfo = LivenessInfo.EMPTY;
 
-            writer.writePartitionKeyLivenessInfo(rowInfo);
-            writer.writeRowDeletion(rowDeletion);
+            for (Row row : rows)
+                columnDataIterators.add(row == null ? Collections.emptyIterator() : row.iterator());
 
-            for (int i = 0; i < columns.simpleColumnCount(); i++)
+            columnDataReducer.setActiveDeletion(activeDeletion);
+            Iterator<ColumnData> merged = MergeIterator.get(columnDataIterators, ColumnData.comparator, columnDataReducer);
+            while (merged.hasNext())
             {
-                ColumnDefinition c = columns.getSimple(i);
-                for (int j = 0; j < rows.length; j++)
-                    cells[j] = rows[j] == null ? null : rows[j].getCell(c);
-
-                reconcileCells(activeDeletion, writer);
+                ColumnData data = merged.next();
+                if (data != null)
+                    dataBuffer.add(data);
             }
 
-            complexReducer.activeDeletion = activeDeletion;
-            complexReducer.writer = writer;
-            for (int i = 0; i < columns.complexColumnCount(); i++)
-            {
-                ColumnDefinition c = columns.getComplex(i);
-
-                DeletionTime maxComplexDeletion = DeletionTime.LIVE;
-                for (int j = 0; j < rows.length; j++)
-                {
-                    if (rows[j] == null)
-                        continue;
-
-                    DeletionTime dt = rows[j].getDeletion(c);
-                    if (complexDelTimes != null)
-                        complexDelTimes[j] = dt;
-
-                    if (dt.supersedes(maxComplexDeletion))
-                        maxComplexDeletion = dt;
-                }
-
-                boolean overrideActive = maxComplexDeletion.supersedes(activeDeletion);
-                maxComplexDeletion =  overrideActive ? maxComplexDeletion : DeletionTime.LIVE;
-                writer.writeComplexDeletion(c, maxComplexDeletion);
-                if (listener != null)
-                    listener.onMergedComplexDeletion(c, maxComplexDeletion, complexDelTimes);
-
-                mergeComplex(overrideActive ? maxComplexDeletion : activeDeletion, c);
-            }
-            writer.endOfRow();
-
-            Row row = getRow();
-            // Because shadowed cells are skipped, the row could be empty. In which case
-            // we return null (we also don't want to signal anything in that case since that
-            // means everything in the row was shadowed and the listener will have been signalled
-            // for whatever shadows it).
-            if (row.isEmpty())
-                return null;
-
-            maybeSignalEndOfRow();
-            return row;
+            // Because some data might have been shadowed by the 'activeDeletion', we could have an empty row
+            return rowInfo.isEmpty() && rowDeletion.isLive() && dataBuffer.isEmpty()
+                 ? null
+                 : ArrayBackedRow.create(clustering, columns, rowInfo, rowDeletion, dataBuffer.size(), dataBuffer.toArray(new ColumnData[dataBuffer.size()]));
         }
 
-        private void maybeSignalListenerForRow()
+        public Clustering mergedClustering()
         {
-            if (listener != null && !signaledListenerForRow)
-            {
-                listener.onMergingRows(clustering, rowInfo, rowDeletion, rows);
-                signaledListenerForRow = true;
-            }
+            return clustering;
         }
 
-        private void maybeSignalListenerForCell(Cell merged, Cell[] versions)
+        public Row[] mergedRows()
         {
-            if (listener != null)
-            {
-                maybeSignalListenerForRow();
-                listener.onMergedCells(merged, versions);
-            }
+            return rows;
         }
 
-        private void maybeSignalEndOfRow()
+        private static class ColumnDataReducer extends MergeIterator.Reducer<ColumnData, ColumnData>
         {
-            if (listener != null)
-            {
-                // If we haven't signaled the listener yet (we had no cells but some deletion info), do it now
-                maybeSignalListenerForRow();
-                listener.onRowDone();
-            }
-        }
+            private final int nowInSec;
 
-        private void reconcileCells(DeletionTime activeDeletion, Row.Writer writer)
-        {
-            Cell reconciled = null;
-            for (int j = 0; j < cells.length; j++)
-            {
-                Cell cell = cells[j];
-                if (cell != null && !activeDeletion.deletes(cell.livenessInfo()))
-                    reconciled = Cells.reconcile(reconciled, cell, nowInSec);
-            }
-
-            if (reconciled != null)
-            {
-                reconciled.writeTo(writer);
-                maybeSignalListenerForCell(reconciled, cells);
-            }
-        }
-
-        private void mergeComplex(DeletionTime activeDeletion, ColumnDefinition c)
-        {
-            complexCells.clear();
-            for (int j = 0; j < rows.length; j++)
-            {
-                Row row = rows[j];
-                Iterator<Cell> iter = row == null ? null : row.getCells(c);
-                complexCells.add(iter == null ? Iterators.<Cell>emptyIterator() : iter);
-            }
-
-            complexReducer.column = c;
-            complexReducer.activeDeletion = activeDeletion;
-
-            // Note that we use the mergeIterator only to group cells to merge, but we
-            // write the result to the writer directly in the reducer, so all we care
-            // about is iterating over the result.
-            Iterator<Void> iter = MergeIterator.get(complexCells, c.cellComparator(), complexReducer);
-            while (iter.hasNext())
-                iter.next();
-        }
-
-        private class ComplexColumnReducer extends MergeIterator.Reducer<Cell, Void>
-        {
-            private DeletionTime activeDeletion;
-            private Row.Writer writer;
             private ColumnDefinition column;
+            private final List<ColumnData> versions;
 
-            public void reduce(int idx, Cell current)
+            private DeletionTime activeDeletion;
+
+            private final ComplexColumnData.Builder complexBuilder;
+            private final List<Iterator<Cell>> complexCells;
+            private final CellReducer cellReducer;
+
+            public ColumnDataReducer(int size, int nowInSec, boolean hasComplex)
             {
-                cells[idx] = current;
+                this.nowInSec = nowInSec;
+                this.versions = new ArrayList<>(size);
+                this.complexBuilder = hasComplex ? ComplexColumnData.builder() : null;
+                this.complexCells = hasComplex ? new ArrayList<>(size) : null;
+                this.cellReducer = new CellReducer(nowInSec);
             }
 
-            protected Void getReduced()
+            public void setActiveDeletion(DeletionTime activeDeletion)
             {
-                reconcileCells(activeDeletion, writer);
-                return null;
+                this.activeDeletion = activeDeletion;
+            }
+
+            public void reduce(int idx, ColumnData data)
+            {
+                column = data.column();
+                versions.add(data);
+            }
+
+            protected ColumnData getReduced()
+            {
+                if (column.isSimple())
+                {
+                    Cell merged = null;
+                    for (ColumnData data : versions)
+                    {
+                        Cell cell = (Cell)data;
+                        if (!activeDeletion.deletes(cell))
+                            merged = merged == null ? cell : Cells.reconcile(merged, cell, nowInSec);
+                    }
+                    return merged;
+                }
+                else
+                {
+                    complexBuilder.newColumn(column);
+                    complexCells.clear();
+                    DeletionTime complexDeletion = DeletionTime.LIVE;
+                    for (ColumnData data : versions)
+                    {
+                        ComplexColumnData cd = (ComplexColumnData)data;
+                        if (cd.complexDeletion().supersedes(complexDeletion))
+                            complexDeletion = cd.complexDeletion();
+                        complexCells.add(cd.iterator());
+                    }
+
+                    if (complexDeletion.supersedes(activeDeletion))
+                    {
+                        cellReducer.setActiveDeletion(complexDeletion);
+                        complexBuilder.addComplexDeletion(complexDeletion);
+                    }
+                    else
+                    {
+                        cellReducer.setActiveDeletion(activeDeletion);
+                    }
+
+                    Iterator<Cell> cells = MergeIterator.get(complexCells, ColumnData.cellComparator, cellReducer);
+                    while (cells.hasNext())
+                    {
+                        Cell merged = cells.next();
+                        if (merged != null)
+                            complexBuilder.addCell(merged);
+                    }
+                    return complexBuilder.build();
+                }
             }
 
             protected void onKeyChange()
             {
-                Arrays.fill(cells, null);
+                versions.clear();
             }
         }
 
-        private static class StaticMerger extends Merger
+        private static class CellReducer extends MergeIterator.Reducer<Cell, Cell>
         {
-            private final StaticRow.Builder builder;
+            private final int nowInSec;
 
-            private StaticMerger(CFMetaData metadata, int size, int nowInSec, Columns columns, UnfilteredRowIterators.MergeListener listener)
+            private DeletionTime activeDeletion;
+            private Cell merged;
+
+            public CellReducer(int nowInSec)
             {
-                super(metadata, size, nowInSec, columns, listener);
-                this.builder = StaticRow.builder(columns, true, metadata.isCounter());
+                this.nowInSec = nowInSec;
             }
 
-            protected Row.Writer getWriter()
+            public void setActiveDeletion(DeletionTime activeDeletion)
             {
-                return builder;
+                this.activeDeletion = activeDeletion;
+                onKeyChange();
             }
 
-            protected Row getRow()
+            public void reduce(int idx, Cell cell)
             {
-                return builder.build();
-            }
-        }
-
-        private static class RegularMerger extends Merger
-        {
-            private final ReusableRow row;
-
-            private RegularMerger(CFMetaData metadata, int size, int nowInSec, Columns columns, UnfilteredRowIterators.MergeListener listener)
-            {
-                super(metadata, size, nowInSec, columns, listener);
-                this.row = new ReusableRow(metadata.clusteringColumns().size(), columns, true, metadata.isCounter());
+                if (!activeDeletion.deletes(cell))
+                    merged = merged == null ? cell : Cells.reconcile(merged, cell, nowInSec);
             }
 
-            protected Row.Writer getWriter()
+            protected Cell getReduced()
             {
-                return row.writer();
+                return merged;
             }
 
-            protected Row getRow()
+            protected void onKeyChange()
             {
-                return row;
+                merged = null;
             }
         }
     }

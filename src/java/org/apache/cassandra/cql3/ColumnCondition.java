@@ -38,7 +38,6 @@ import static com.google.common.collect.Lists.newArrayList;
  */
 public class ColumnCondition
 {
-
     public final ColumnDefinition column;
 
     // For collection, when testing the equality of a specific element, null otherwise.
@@ -210,7 +209,11 @@ public class ColumnCondition
     {
         // If we're asking for a complex cells, and we didn't got any row from our read, it's
         // the same as not having any cells for that column.
-        return row == null ? Collections.<Cell>emptyIterator() : row.getCells(column);
+        if (row == null)
+            return Collections.<Cell>emptyIterator();
+
+        ComplexColumnData complexData = row.getComplexColumnData(column);
+        return complexData == null ? Collections.<Cell>emptyIterator() : complexData.iterator();
     }
 
     /**

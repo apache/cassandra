@@ -29,19 +29,21 @@ import org.apache.cassandra.db.context.CounterContext;
 import org.apache.cassandra.db.index.SecondaryIndexManager;
 import org.apache.cassandra.db.partitions.*;
 import org.apache.cassandra.exceptions.InvalidRequestException;
-import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 
 /**
- * A simple container that simplify passing parameters for collections methods.
+ * Groups the parameters of an update query, and make building updates easier.
  */
 public class UpdateParameters
 {
     public final CFMetaData metadata;
+    public final PartitionColumns updatedColumns;
     public final QueryOptions options;
 
-    private final LivenessInfo defaultLiveness;
-    private final LivenessInfo deletionLiveness;
+    private final int nowInSec;
+    private final long timestamp;
+    private final int ttl;
+
     private final DeletionTime deletionTime;
 
     private final SecondaryIndexManager indexManager;
@@ -49,16 +51,30 @@ public class UpdateParameters
     // For lists operation that require a read-before-write. Will be null otherwise.
     private final Map<DecoratedKey, Partition> prefetchedRows;
 
-    public UpdateParameters(CFMetaData metadata, QueryOptions options, long timestamp, int ttl, Map<DecoratedKey, Partition> prefetchedRows, boolean validateIndexedColumns)
+    private Row.Builder staticBuilder;
+    private Row.Builder regularBuilder;
+
+    // The builder currently in use. Will alias either staticBuilder or regularBuilder, which are themselves built lazily.
+    private Row.Builder builder;
+
+    public UpdateParameters(CFMetaData metadata,
+                            PartitionColumns updatedColumns,
+                            QueryOptions options,
+                            long timestamp,
+                            int ttl,
+                            Map<DecoratedKey, Partition> prefetchedRows,
+                            boolean validateIndexedColumns)
     throws InvalidRequestException
     {
         this.metadata = metadata;
+        this.updatedColumns = updatedColumns;
         this.options = options;
 
-        int nowInSec = FBUtilities.nowInSeconds();
-        this.defaultLiveness = SimpleLivenessInfo.forUpdate(timestamp, ttl, nowInSec, metadata);
-        this.deletionLiveness = SimpleLivenessInfo.forDeletion(timestamp, nowInSec);
-        this.deletionTime = new SimpleDeletionTime(timestamp, nowInSec);
+        this.nowInSec = FBUtilities.nowInSeconds();
+        this.timestamp = timestamp;
+        this.ttl = ttl;
+
+        this.deletionTime = new DeletionTime(timestamp, nowInSec);
 
         this.prefetchedRows = prefetchedRows;
 
@@ -85,7 +101,7 @@ public class UpdateParameters
             indexManager.validate(partitionKey);
     }
 
-    public void writeClustering(Clustering clustering, Row.Writer writer) throws InvalidRequestException
+    public void newRow(Clustering clustering) throws InvalidRequestException
     {
         if (indexManager != null)
             indexManager.validate(clustering);
@@ -101,66 +117,93 @@ public class UpdateParameters
                 throw new InvalidRequestException("Invalid empty or null value for column " + metadata.clusteringColumns().get(0).name);
         }
 
-        Rows.writeClustering(clustering, writer);
+        if (clustering == Clustering.STATIC_CLUSTERING)
+        {
+            if (staticBuilder == null)
+                staticBuilder = ArrayBackedRow.unsortedBuilder(updatedColumns.statics, nowInSec);
+            builder = staticBuilder;
+        }
+        else
+        {
+            if (regularBuilder == null)
+                regularBuilder = ArrayBackedRow.unsortedBuilder(updatedColumns.regulars, nowInSec);
+            builder = regularBuilder;
+        }
+
+        builder.newRow(clustering);
     }
 
-    public void writePartitionKeyLivenessInfo(Row.Writer writer)
+    public Clustering currentClustering()
     {
-        writer.writePartitionKeyLivenessInfo(defaultLiveness);
+        return builder.clustering();
     }
 
-    public void writeRowDeletion(Row.Writer writer)
+    public void addPrimaryKeyLivenessInfo()
     {
-        writer.writeRowDeletion(deletionTime);
+        builder.addPrimaryKeyLivenessInfo(LivenessInfo.create(metadata, timestamp, ttl, nowInSec));
     }
 
-    public void addTombstone(ColumnDefinition column, Row.Writer writer) throws InvalidRequestException
+    public void addRowDeletion()
     {
-        addTombstone(column, writer, null);
+        builder.addRowDeletion(deletionTime);
     }
 
-    public void addTombstone(ColumnDefinition column, Row.Writer writer, CellPath path) throws InvalidRequestException
+    public void addTombstone(ColumnDefinition column) throws InvalidRequestException
     {
-        writer.writeCell(column, false, ByteBufferUtil.EMPTY_BYTE_BUFFER, deletionLiveness, path);
+        addTombstone(column, null);
     }
 
-    public void addCell(Clustering clustering, ColumnDefinition column, Row.Writer writer, ByteBuffer value) throws InvalidRequestException
+    public void addTombstone(ColumnDefinition column, CellPath path) throws InvalidRequestException
     {
-        addCell(clustering, column, writer, null, value);
+        builder.addCell(BufferCell.tombstone(column, timestamp, nowInSec, path));
     }
 
-    public void addCell(Clustering clustering, ColumnDefinition column, Row.Writer writer, CellPath path, ByteBuffer value) throws InvalidRequestException
+    public void addCell(ColumnDefinition column, ByteBuffer value) throws InvalidRequestException
+    {
+        addCell(column, null, value);
+    }
+
+    public void addCell(ColumnDefinition column, CellPath path, ByteBuffer value) throws InvalidRequestException
     {
         if (indexManager != null)
             indexManager.validate(column, value, path);
 
-        writer.writeCell(column, false, value, defaultLiveness, path);
+        Cell cell = ttl == LivenessInfo.NO_TTL
+                  ? BufferCell.live(metadata, column, timestamp, value, path)
+                  : BufferCell.expiring(column, timestamp, ttl, nowInSec, value, path);
+        builder.addCell(cell);
     }
 
-    public void addCounter(ColumnDefinition column, Row.Writer writer, long increment) throws InvalidRequestException
+    public void addCounter(ColumnDefinition column, long increment) throws InvalidRequestException
     {
-        assert defaultLiveness.ttl() == LivenessInfo.NO_TTL;
+        assert ttl == LivenessInfo.NO_TTL;
 
         // In practice, the actual CounterId (and clock really) that we use doesn't matter, because we will
-        // actually ignore it in CounterMutation when we do the read-before-write to create the actual value
-        // that is applied. In other words, this is not the actual value that will be written to the memtable
+        // ignore it in CounterMutation when we do the read-before-write to create the actual value that is
+        // applied. In other words, this is not the actual value that will be written to the memtable
         // because this will be replaced in CounterMutation.updateWithCurrentValue().
         // As an aside, since we don't care about the CounterId/clock, we used to only send the incremement,
         // but that makes things a bit more complex as this means we need to be able to distinguish inside
         // PartitionUpdate between counter updates that has been processed by CounterMutation and those that
         // haven't.
-        ByteBuffer value = CounterContext.instance().createLocal(increment);
-        writer.writeCell(column, true, value, defaultLiveness, null);
+        builder.addCell(BufferCell.live(metadata, column, timestamp, CounterContext.instance().createLocal(increment)));
     }
 
-    public void setComplexDeletionTime(ColumnDefinition column, Row.Writer writer)
+    public void setComplexDeletionTime(ColumnDefinition column)
     {
-        writer.writeComplexDeletion(column, deletionTime);
+        builder.addComplexDeletion(column, deletionTime);
     }
 
-    public void setComplexDeletionTimeForOverwrite(ColumnDefinition column, Row.Writer writer)
+    public void setComplexDeletionTimeForOverwrite(ColumnDefinition column)
     {
-        writer.writeComplexDeletion(column, new SimpleDeletionTime(deletionTime.markedForDeleteAt() - 1, deletionTime.localDeletionTime()));
+        builder.addComplexDeletion(column, new DeletionTime(deletionTime.markedForDeleteAt() - 1, deletionTime.localDeletionTime()));
+    }
+
+    public Row buildRow()
+    {
+        Row built = builder.build();
+        builder = null; // Resetting to null just so we quickly bad usage where we forget to call newRow() after that.
+        return built;
     }
 
     public DeletionTime deletionTime()

@@ -60,6 +60,7 @@ import org.apache.cassandra.io.util.FileDataInput;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.vint.VIntCoding;
 
 public class CommitLogTest
 {
@@ -230,7 +231,7 @@ public class CommitLogTest
     private static int getMaxRecordDataSize(String keyspace, ByteBuffer key, String cfName, String colName)
     {
         ColumnFamilyStore cfs = Keyspace.open(keyspace).getColumnFamilyStore(cfName);
-        // We don't want to allocate a size of 0 as this is optimize under the hood and our computation would
+        // We don't want to allocate a size of 0 as this is optimized under the hood and our computation would
         // break testEqualRecordLimit
         int allocSize = 1;
         Mutation rm = new RowUpdateBuilder(cfs.metadata, 0, key)
@@ -239,7 +240,16 @@ public class CommitLogTest
 
         int max = (DatabaseDescriptor.getCommitLogSegmentSize() / 2);
         max -= CommitLogSegment.ENTRY_OVERHEAD_SIZE; // log entry overhead
-        return max - (int) Mutation.serializer.serializedSize(rm, MessagingService.current_version) + allocSize;
+
+        // Note that the size of the value if vint encoded. So we first compute the ovehead of the mutation without the value and it's size
+        int mutationOverhead = (int)Mutation.serializer.serializedSize(rm, MessagingService.current_version) - (VIntCoding.computeVIntSize(allocSize) + allocSize);
+        max -= mutationOverhead;
+
+        // Now, max is the max for both the value and it's size. But we want to know how much we can allocate, i.e. the size of the value.
+        int sizeOfMax = VIntCoding.computeVIntSize(max);
+        max -= sizeOfMax;
+        assert VIntCoding.computeVIntSize(max) == sizeOfMax; // sanity check that we're still encoded with the size we though we would
+        return max;
     }
 
     private static int getMaxRecordDataSize()
@@ -351,7 +361,7 @@ public class CommitLogTest
                 .applyUnsafe();
 
             assertTrue(Util.getOnlyRow(Util.cmd(cfs).columns("val").build())
-                            .iterator().next().value().equals(ByteBufferUtil.bytes("abcd")));
+                            .cells().iterator().next().value().equals(ByteBufferUtil.bytes("abcd")));
 
             cfs.truncateBlocking();
 

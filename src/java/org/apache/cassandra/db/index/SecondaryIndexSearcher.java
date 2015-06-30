@@ -112,7 +112,7 @@ public abstract class SecondaryIndexSearcher
                 NavigableSet<Clustering> requested = ((ClusteringIndexNamesFilter)filter).requestedRows();
                 BTreeSet.Builder<Clustering> clusterings = BTreeSet.builder(index.getIndexComparator());
                 for (Clustering c : requested)
-                    clusterings.add(index.makeIndexClustering(pk, c, (Cell)null).takeAlias());
+                    clusterings.add(index.makeIndexClustering(pk, c, (Cell)null));
                 return new ClusteringIndexNamesFilter(clusterings.build(), filter.isReversed());
             }
             else

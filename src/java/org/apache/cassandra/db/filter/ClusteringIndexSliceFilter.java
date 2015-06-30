@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.db.filter;
 
-import java.io.DataInput;
 import java.io.IOException;
 import java.util.List;
 import java.nio.ByteBuffer;
@@ -28,6 +27,7 @@ import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.db.partitions.CachedPartition;
 import org.apache.cassandra.db.partitions.Partition;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 
 /**
@@ -91,24 +91,24 @@ public class ClusteringIndexSliceFilter extends AbstractClusteringIndexFilter
 
         // Note that we don't filter markers because that's a bit trickier (we don't know in advance until when
         // the range extend) and it's harmless to leave them.
-        return new FilteringRowIterator(iterator)
+        return new AlteringUnfilteredRowIterator(iterator)
         {
-            @Override
-            public FilteringRow makeRowFilter()
-            {
-                return FilteringRow.columnsFilteringRow(columnFilter);
-            }
-
-            @Override
-            protected boolean includeRow(Row row)
-            {
-                return tester.includes(row.clustering());
-            }
-
             @Override
             public boolean hasNext()
             {
                 return !tester.isDone() && super.hasNext();
+            }
+
+            @Override
+            public Row computeNextStatic(Row row)
+            {
+                return columnFilter.fetchedColumns().statics.isEmpty() ? null : row.filter(columnFilter, iterator.metadata());
+            }
+
+            @Override
+            public Row computeNext(Row row)
+            {
+                return tester.includes(row.clustering()) ? row.filter(columnFilter, iterator.metadata()) : null;
             }
         };
     }
@@ -170,7 +170,7 @@ public class ClusteringIndexSliceFilter extends AbstractClusteringIndexFilter
 
     private static class SliceDeserializer extends InternalDeserializer
     {
-        public ClusteringIndexFilter deserialize(DataInput in, int version, CFMetaData metadata, boolean reversed) throws IOException
+        public ClusteringIndexFilter deserialize(DataInputPlus in, int version, CFMetaData metadata, boolean reversed) throws IOException
         {
             Slices slices = Slices.serializer.deserialize(in, version, metadata);
             return new ClusteringIndexSliceFilter(slices, reversed);

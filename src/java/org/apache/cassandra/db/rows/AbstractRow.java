@@ -18,11 +18,11 @@ package org.apache.cassandra.db.rows;
 
 import java.nio.ByteBuffer;
 import java.security.MessageDigest;
-import java.util.Iterator;
 import java.util.Objects;
 
+import com.google.common.collect.Iterables;
+
 import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.marshal.CollectionType;
 import org.apache.cassandra.serializers.MarshalException;
@@ -46,19 +46,14 @@ public abstract class AbstractRow implements Row
         if (primaryKeyLivenessInfo().isLive(nowInSec))
             return true;
 
-        for (Cell cell : this)
-            if (cell.isLive(nowInSec))
-                return true;
-
-        return false;
+        return Iterables.any(cells(), cell -> cell.isLive(nowInSec));
     }
 
     public boolean isEmpty()
     {
-        return !primaryKeyLivenessInfo().hasTimestamp()
+        return primaryKeyLivenessInfo().isEmpty()
             && deletion().isLive()
-            && !iterator().hasNext()
-            && !hasComplexDeletion();
+            && !iterator().hasNext();
     }
 
     public boolean isStatic()
@@ -74,36 +69,8 @@ public abstract class AbstractRow implements Row
         deletion().digest(digest);
         primaryKeyLivenessInfo().digest(digest);
 
-        Iterator<ColumnDefinition> iter = columns().complexColumns();
-        while (iter.hasNext())
-            getDeletion(iter.next()).digest(digest);
-
-        for (Cell cell : this)
-            cell.digest(digest);
-    }
-
-    /**
-     * Copy this row to the provided writer.
-     *
-     * @param writer the row writer to write this row to.
-     */
-    public void copyTo(Row.Writer writer)
-    {
-        Rows.writeClustering(clustering(), writer);
-        writer.writePartitionKeyLivenessInfo(primaryKeyLivenessInfo());
-        writer.writeRowDeletion(deletion());
-
-        for (Cell cell : this)
-            cell.writeTo(writer);
-
-        for (int i = 0; i < columns().complexColumnCount(); i++)
-        {
-            ColumnDefinition c = columns().getComplex(i);
-            DeletionTime dt = getDeletion(c);
-            if (!dt.isLive())
-                writer.writeComplexDeletion(c, dt);
-        }
-        writer.endOfRow();
+        for (ColumnData cd : this)
+            cd.digest(digest);
     }
 
     public void validateData(CFMetaData metadata)
@@ -120,8 +87,8 @@ public abstract class AbstractRow implements Row
         if (deletion().localDeletionTime() < 0)
             throw new MarshalException("A local deletion time should not be negative");
 
-        for (Cell cell : this)
-            cell.validate();
+        for (ColumnData cd : this)
+            cd.validate();
     }
 
     public String toString(CFMetaData metadata)
@@ -142,33 +109,43 @@ public abstract class AbstractRow implements Row
         }
         sb.append(": ").append(clustering().toString(metadata)).append(" | ");
         boolean isFirst = true;
-        ColumnDefinition prevColumn = null;
-        for (Cell cell : this)
+        for (ColumnData cd : this)
         {
             if (isFirst) isFirst = false; else sb.append(", ");
             if (fullDetails)
             {
-                if (cell.column().isComplex() && !cell.column().equals(prevColumn))
+                if (cd.column().isSimple())
                 {
-                    DeletionTime complexDel = getDeletion(cell.column());
-                    if (!complexDel.isLive())
-                        sb.append("del(").append(cell.column().name).append(")=").append(complexDel).append(", ");
-                }
-                sb.append(cell);
-                prevColumn = cell.column();
-            }
-            else
-            {
-                sb.append(cell.column().name);
-                if (cell.column().type instanceof CollectionType)
-                {
-                    CollectionType ct = (CollectionType)cell.column().type;
-                    sb.append("[").append(ct.nameComparator().getString(cell.path().get(0))).append("]");
-                    sb.append("=").append(ct.valueComparator().getString(cell.value()));
+                    sb.append(cd);
                 }
                 else
                 {
-                    sb.append("=").append(cell.column().type.getString(cell.value()));
+                    ComplexColumnData complexData = (ComplexColumnData)cd;
+                    if (!complexData.complexDeletion().isLive())
+                        sb.append("del(").append(cd.column().name).append(")=").append(complexData.complexDeletion());
+                    for (Cell cell : complexData)
+                        sb.append(", ").append(cell);
+                }
+            }
+            else
+            {
+                if (cd.column().isSimple())
+                {
+                    Cell cell = (Cell)cd;
+                    sb.append(cell.column().name).append('=').append(cell.column().type.getString(cell.value()));
+                }
+                else
+                {
+                    ComplexColumnData complexData = (ComplexColumnData)cd;
+                    CollectionType ct = (CollectionType)cd.column().type;
+                    sb.append(cd.column().name).append("={");
+                    int i = 0;
+                    for (Cell cell : complexData)
+                    {
+                        sb.append(i++ == 0 ? "" : ", ");
+                        sb.append(ct.nameComparator().getString(cell.path().get(0))).append("->").append(ct.valueComparator().getString(cell.value()));
+                    }
+                    sb.append('}');
                 }
             }
         }
@@ -188,22 +165,15 @@ public abstract class AbstractRow implements Row
              || !this.deletion().equals(that.deletion()))
             return false;
 
-        Iterator<Cell> thisCells = this.iterator();
-        Iterator<Cell> thatCells = that.iterator();
-        while (thisCells.hasNext())
-        {
-            if (!thatCells.hasNext() || !thisCells.next().equals(thatCells.next()))
-                return false;
-        }
-        return !thatCells.hasNext();
+        return Iterables.elementsEqual(this, that);
     }
 
     @Override
     public int hashCode()
     {
         int hash = Objects.hash(clustering(), columns(), primaryKeyLivenessInfo(), deletion());
-        for (Cell cell : this)
-            hash += 31 * cell.hashCode();
+        for (ColumnData cd : this)
+            hash += 31 * cd.hashCode();
         return hash;
     }
 }

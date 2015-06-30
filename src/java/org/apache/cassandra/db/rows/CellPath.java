@@ -17,13 +17,16 @@
  */
 package org.apache.cassandra.db.rows;
 
-import java.io.DataInput;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.security.MessageDigest;
 import java.util.Objects;
 
 import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.io.util.DataInputPlus;
+import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.ObjectSizes;
+import org.apache.cassandra.utils.memory.AbstractAllocator;
 
 /**
  * A path for a cell belonging to a complex column type (non-frozen collection or UDT).
@@ -40,7 +43,7 @@ public abstract class CellPath
     public static CellPath create(ByteBuffer value)
     {
         assert value != null;
-        return new SimpleCellPath(new ByteBuffer[]{ value });
+        return new CollectionCellPath(value);
     }
 
     public int dataSize()
@@ -56,6 +59,10 @@ public abstract class CellPath
         for (int i = 0; i < size(); i++)
             digest.update(get(i).duplicate());
     }
+
+    public abstract CellPath copy(AbstractAllocator allocator);
+
+    public abstract long unsharedHeapSizeExcludingData();
 
     @Override
     public final int hashCode()
@@ -86,28 +93,41 @@ public abstract class CellPath
     public interface Serializer
     {
         public void serialize(CellPath path, DataOutputPlus out) throws IOException;
-        public CellPath deserialize(DataInput in) throws IOException;
+        public CellPath deserialize(DataInputPlus in) throws IOException;
         public long serializedSize(CellPath path);
-        public void skip(DataInput in) throws IOException;
+        public void skip(DataInputPlus in) throws IOException;
     }
 
-    static class SimpleCellPath extends CellPath
+    private static class CollectionCellPath extends CellPath
     {
-        protected final ByteBuffer[] values;
+        private static final long EMPTY_SIZE = ObjectSizes.measure(new CollectionCellPath(ByteBufferUtil.EMPTY_BYTE_BUFFER));
 
-        public SimpleCellPath(ByteBuffer[] values)
+        protected final ByteBuffer value;
+
+        private CollectionCellPath(ByteBuffer value)
         {
-            this.values = values;
+            this.value = value;
         }
 
         public int size()
         {
-            return values.length;
+            return 1;
         }
 
         public ByteBuffer get(int i)
         {
-            return values[i];
+            assert i == 0;
+            return value;
+        }
+
+        public CellPath copy(AbstractAllocator allocator)
+        {
+            return new CollectionCellPath(allocator.clone(value));
+        }
+
+        public long unsharedHeapSizeExcludingData()
+        {
+            return EMPTY_SIZE + ObjectSizes.sizeOnHeapExcludingData(value);
         }
     }
 
@@ -121,6 +141,16 @@ public abstract class CellPath
         public ByteBuffer get(int i)
         {
             throw new UnsupportedOperationException();
+        }
+
+        public CellPath copy(AbstractAllocator allocator)
+        {
+            return this;
+        }
+
+        public long unsharedHeapSizeExcludingData()
+        {
+            return 0;
         }
     }
 }

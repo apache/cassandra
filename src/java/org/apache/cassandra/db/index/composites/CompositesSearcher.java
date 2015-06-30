@@ -171,49 +171,20 @@ public class CompositesSearcher extends SecondaryIndexSearcher
                                                      final OpOrder.Group writeOp,
                                                      final int nowInSec)
     {
-        return new WrappingUnfilteredRowIterator(dataIter)
+        return new AlteringUnfilteredRowIterator(dataIter)
         {
             private int entriesIdx;
-            private Unfiltered next;
 
             @Override
-            public boolean hasNext()
+            protected Row computeNext(Row row)
             {
-                return prepareNext();
-            }
+                CompositesIndex.IndexedEntry entry = findEntry(row.clustering(), writeOp, nowInSec);
+                if (!index.isStale(row, indexValue, nowInSec))
+                    return row;
 
-            @Override
-            public Unfiltered next()
-            {
-                if (next == null)
-                    prepareNext();
-
-                Unfiltered toReturn = next;
-                next = null;
-                return toReturn;
-            }
-
-            private boolean prepareNext()
-            {
-                if (next != null)
-                    return true;
-
-                while (super.hasNext())
-                {
-                    next = super.next();
-                    if (next.kind() != Unfiltered.Kind.ROW)
-                        return true;
-
-                    Row row = (Row)next;
-                    CompositesIndex.IndexedEntry entry = findEntry(row.clustering(), writeOp, nowInSec);
-                    if (!index.isStale(row, indexValue, nowInSec))
-                        return true;
-
-                    // The entry is stale: delete the entry and ignore otherwise
-                    index.delete(entry, writeOp, nowInSec);
-                    next = null;
-                }
-                return false;
+                // The entry is stale: delete the entry and ignore otherwise
+                index.delete(entry, writeOp, nowInSec);
+                return null;
             }
 
             private CompositesIndex.IndexedEntry findEntry(Clustering clustering, OpOrder.Group writeOp, int nowInSec)

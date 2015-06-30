@@ -27,7 +27,6 @@ import java.util.UUID;
 import com.google.common.base.Objects;
 
 import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
@@ -63,7 +62,8 @@ public class Commit
 
     public static Commit newProposal(UUID ballot, PartitionUpdate update)
     {
-        return new Commit(ballot, updatesWithPaxosTime(update, ballot));
+        update.updateAllTimestamp(UUIDGen.microsTimestamp(ballot));
+        return new Commit(ballot, update);
     }
 
     public static Commit emptyCommit(DecoratedKey key, CFMetaData metadata)
@@ -83,7 +83,6 @@ public class Commit
 
     public Mutation makeMutation()
     {
-        assert update != null;
         return new Mutation(update);
     }
 
@@ -95,56 +94,13 @@ public class Commit
 
         Commit commit = (Commit) o;
 
-        if (!ballot.equals(commit.ballot)) return false;
-        if (!update.equals(commit.update)) return false;
-
-        return true;
+        return ballot.equals(commit.ballot) && update.equals(commit.update);
     }
 
     @Override
     public int hashCode()
     {
         return Objects.hashCode(ballot, update);
-    }
-
-    private static PartitionUpdate updatesWithPaxosTime(PartitionUpdate update, UUID ballot)
-    {
-        long t = UUIDGen.microsTimestamp(ballot);
-        // Using t-1 for tombstones so deletion doesn't trump newly inserted data (#6069)
-        PartitionUpdate newUpdate = new PartitionUpdate(update.metadata(),
-                                                        update.partitionKey(),
-                                                        update.deletionInfo().updateAllTimestamp(t-1),
-                                                        update.columns(),
-                                                        update.rowCount());
-
-        if (!update.staticRow().isEmpty())
-            copyWithUpdatedTimestamp(update.staticRow(), newUpdate.staticWriter(), t);
-
-        for (Row row : update)
-            copyWithUpdatedTimestamp(row, newUpdate.writer(), t);
-
-        return newUpdate;
-    }
-
-    private static void copyWithUpdatedTimestamp(Row row, Row.Writer writer, long timestamp)
-    {
-        Rows.writeClustering(row.clustering(), writer);
-        writer.writePartitionKeyLivenessInfo(row.primaryKeyLivenessInfo().withUpdatedTimestamp(timestamp));
-        writer.writeRowDeletion(row.deletion());
-
-        for (Cell cell : row)
-            writer.writeCell(cell.column(), cell.isCounterCell(), cell.value(), cell.livenessInfo().withUpdatedTimestamp(timestamp), cell.path());
-
-        for (int i = 0; i < row.columns().complexColumnCount(); i++)
-        {
-            ColumnDefinition c = row.columns().getComplex(i);
-            DeletionTime dt = row.getDeletion(c);
-            // We use t-1 to make sure that on inserting a collection literal, the deletion that comes with it does not
-            // end up deleting the inserted data (see #6069)
-            if (!dt.isLive())
-                writer.writeComplexDeletion(c, new SimpleDeletionTime(timestamp-1, dt.localDeletionTime()));
-        }
-        writer.endOfRow();
     }
 
     @Override

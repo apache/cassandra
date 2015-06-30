@@ -20,29 +20,19 @@ package org.apache.cassandra.db.columniterator;
 import java.io.IOException;
 import java.util.*;
 
-import com.google.common.collect.AbstractIterator;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.rows.*;
-import org.apache.cassandra.db.partitions.AbstractPartitionData;
+import org.apache.cassandra.db.partitions.AbstractThreadUnsafePartition;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
-import org.apache.cassandra.io.sstable.CorruptSSTableException;
-import org.apache.cassandra.io.sstable.IndexHelper;
 import org.apache.cassandra.io.util.FileDataInput;
-import org.apache.cassandra.io.util.FileMark;
-import org.apache.cassandra.utils.ByteBufferUtil;
 
 /**
  *  A Cell Iterator in reversed clustering order over SSTable
  */
 public class SSTableReversedIterator extends AbstractSSTableIterator
 {
-    private static final Logger logger = LoggerFactory.getLogger(SSTableReversedIterator.class);
-
     public SSTableReversedIterator(SSTableReader sstable, DecoratedKey key, ColumnFilter columns, boolean isForThrift)
     {
         this(sstable, null, key, sstable.getPosition(key, SSTableReader.Operator.EQ), columns, isForThrift);
@@ -70,319 +60,290 @@ public class SSTableReversedIterator extends AbstractSSTableIterator
         return true;
     }
 
-    private ReusablePartitionData createBuffer(int blocksCount)
-    {
-        int estimatedRowCount = 16;
-        int columnCount = metadata().partitionColumns().regulars.columnCount();
-        if (columnCount == 0 || metadata().clusteringColumns().size() == 0)
-        {
-            estimatedRowCount = 1;
-        }
-        else
-        {
-            try
-            {
-                // To avoid wasted resizing we guess-estimate the number of rows we're likely to read. For that
-                // we use the stats on the number of rows per partition for that sstable.
-                // FIXME: so far we only keep stats on cells, so to get a rough estimate on the number of rows,
-                // we divide by the number of regular columns the table has. We should fix once we collect the
-                // stats on rows
-                int estimatedRowsPerPartition = (int)(sstable.getEstimatedColumnCount().percentile(0.75) / columnCount);
-                estimatedRowCount = Math.max(estimatedRowsPerPartition / blocksCount, 1);
-            }
-            catch (IllegalStateException e)
-            {
-                // The EstimatedHistogram mean() method can throw this (if it overflows). While such overflow
-                // shouldn't happen, it's not worth taking the risk of letting the exception bubble up.
-            }
-        }
-        return new ReusablePartitionData(metadata(), partitionKey(), DeletionTime.LIVE, columns(), estimatedRowCount);
-    }
-
     private class ReverseReader extends Reader
     {
-        private ReusablePartitionData partition;
-        private UnfilteredRowIterator iterator;
+        protected ReusablePartitionData buffer;
+        protected Iterator<Unfiltered> iterator;
 
         private ReverseReader(FileDataInput file, boolean isAtPartitionStart, boolean shouldCloseFile)
         {
-            super(file, shouldCloseFile);
-            assert isAtPartitionStart;
+            super(file, isAtPartitionStart, shouldCloseFile);
         }
 
-        public boolean hasNext() throws IOException
+        protected ReusablePartitionData createBuffer(int blocksCount)
         {
-            if (partition == null)
+            int estimatedRowCount = 16;
+            int columnCount = metadata().partitionColumns().regulars.columnCount();
+            if (columnCount == 0 || metadata().clusteringColumns().isEmpty())
             {
-                partition = createBuffer(1);
-                partition.populateFrom(this, null, null, new Tester()
-                {
-                    public boolean isDone()
-                    {
-                        return false;
-                    }
-                });
-                iterator = partition.unfilteredIterator(columns, Slices.ALL, true);
+                estimatedRowCount = 1;
             }
-            return iterator.hasNext();
-        }
-
-        public Unfiltered next() throws IOException
-        {
-            if (!hasNext())
-                throw new NoSuchElementException();
-            return iterator.next();
-        }
-
-        public Iterator<Unfiltered> slice(final Slice slice) throws IOException
-        {
-            if (partition == null)
-            {
-                partition = createBuffer(1);
-                partition.populateFrom(this, slice.start(), slice.end(), new Tester()
-                {
-                    public boolean isDone()
-                    {
-                        return false;
-                    }
-                });
-            }
-
-            return partition.unfilteredIterator(columns, Slices.with(metadata().comparator, slice), true);
-        }
-    }
-
-    private class ReverseIndexedReader extends IndexedReader
-    {
-        private ReusablePartitionData partition;
-        private UnfilteredRowIterator iterator;
-
-        private ReverseIndexedReader(RowIndexEntry indexEntry, FileDataInput file, boolean isAtPartitionStart, boolean shouldCloseFile)
-        {
-            super(file, shouldCloseFile, indexEntry, isAtPartitionStart);
-            this.currentIndexIdx = indexEntry.columnsIndex().size();
-        }
-
-        public boolean hasNext() throws IOException
-        {
-            // If it's called before we've created the file, create it. This then mean
-            // we're reading from the end of the partition.
-            if (!isInit)
-            {
-                seekToPosition(indexEntry.position);
-                ByteBufferUtil.skipShortLength(file); // partition key
-                DeletionTime.serializer.skip(file);   // partition deletion
-                if (sstable.header.hasStatic())
-                    UnfilteredSerializer.serializer.skipStaticRow(file, sstable.header, helper);
-                isInit = true;
-            }
-
-            if (partition == null)
-            {
-                partition = createBuffer(indexes.size());
-                partition.populateFrom(this, null, null, new Tester()
-                {
-                    public boolean isDone()
-                    {
-                        return false;
-                    }
-                });
-                iterator = partition.unfilteredIterator(columns, Slices.ALL, true);
-            }
-
-            return iterator.hasNext();
-        }
-
-        public Unfiltered next() throws IOException
-        {
-            if (!hasNext())
-                throw new NoSuchElementException();
-            return iterator.next();
-        }
-
-        private void prepareBlock(int blockIdx, Slice.Bound start, Slice.Bound end) throws IOException
-        {
-            updateBlock(blockIdx);
-
-            if (partition == null)
-                partition = createBuffer(indexes.size());
             else
-                partition.clear();
-
-            final FileMark fileMark = mark;
-            final long width = currentIndex().width;
-
-            partition.populateFrom(this, start, end, new Tester()
             {
-                public boolean isDone()
+                try
                 {
-                    return file.bytesPastMark(fileMark) >= width;
+                    // To avoid wasted resizing we guess-estimate the number of rows we're likely to read. For that
+                    // we use the stats on the number of rows per partition for that sstable.
+                    // FIXME: so far we only keep stats on cells, so to get a rough estimate on the number of rows,
+                    // we divide by the number of regular columns the table has. We should fix once we collect the
+                    // stats on rows
+                    int estimatedRowsPerPartition = (int)(sstable.getEstimatedColumnCount().percentile(0.75) / columnCount);
+                    estimatedRowCount = Math.max(estimatedRowsPerPartition / blocksCount, 1);
                 }
-            });
-        }
-
-        @Override
-        public Iterator<Unfiltered> slice(final Slice slice) throws IOException
-        {
-            // if our previous slicing already got us the smallest row in the sstable, we're done
-            if (currentIndexIdx < 0)
-                return Collections.emptyIterator();
-
-            final List<IndexHelper.IndexInfo> indexes = indexEntry.columnsIndex();
-
-            // Find the first index block we'll need to read for the slice.
-            final int startIdx = IndexHelper.indexFor(slice.end(), indexes, sstable.metadata.comparator, true, currentIndexIdx);
-            if (startIdx < 0)
-                return Collections.emptyIterator();
-
-            // Find the last index block we'll need to read for the slice.
-            int lastIdx = IndexHelper.indexFor(slice.start(), indexes, sstable.metadata.comparator, true, startIdx);
-
-            // The index search is by firstname and so lastIdx is such that
-            //   indexes[lastIdx].firstName < slice.start <= indexes[lastIdx + 1].firstName
-            // However, if indexes[lastIdx].lastName < slice.start we can bump lastIdx.
-            if (lastIdx >= 0 && metadata().comparator.compare(indexes.get(lastIdx).lastName, slice.start()) < 0)
-                ++lastIdx;
-
-            final int endIdx = lastIdx;
-
-            // Because we're reversed, even if it is our current block, we should re-prepare the block since we would
-            // have skipped anything not in the previous slice.
-            prepareBlock(startIdx, slice.start(), slice.end());
-
-            return new AbstractIterator<Unfiltered>()
-            {
-                private Iterator<Unfiltered> currentBlockIterator = partition.unfilteredIterator(columns, Slices.with(metadata().comparator, slice), true);
-
-                protected Unfiltered computeNext()
+                catch (IllegalStateException e)
                 {
-                    try
-                    {
-                        if (currentBlockIterator.hasNext())
-                            return currentBlockIterator.next();
-
-                        --currentIndexIdx;
-                        if (currentIndexIdx < 0 || currentIndexIdx < endIdx)
-                            return endOfData();
-
-                        // Note that since we know we're read blocks backward, there is no point in checking the slice end, so we pass null
-                        prepareBlock(currentIndexIdx, slice.start(), null);
-                        currentBlockIterator = partition.unfilteredIterator(columns, Slices.with(metadata().comparator, slice), true);
-                        return computeNext();
-                    }
-                    catch (IOException e)
-                    {
-                        try
-                        {
-                            close();
-                        }
-                        catch (IOException suppressed)
-                        {
-                            e.addSuppressed(suppressed);
-                        }
-                        sstable.markSuspect();
-                        throw new CorruptSSTableException(e, file.getPath());
-                    }
+                    // The EstimatedHistogram mean() method can throw this (if it overflows). While such overflow
+                    // shouldn't happen, it's not worth taking the risk of letting the exception bubble up.
                 }
-            };
-        }
-    }
-
-    private abstract class Tester
-    {
-        public abstract boolean isDone();
-    }
-
-    private class ReusablePartitionData extends AbstractPartitionData
-    {
-        private final Writer rowWriter;
-        private final RangeTombstoneCollector markerWriter;
-
-        private ReusablePartitionData(CFMetaData metadata,
-                                      DecoratedKey partitionKey,
-                                      DeletionTime deletionTime,
-                                      PartitionColumns columns,
-                                      int initialRowCapacity)
-        {
-            super(metadata, partitionKey, deletionTime, columns, initialRowCapacity, false);
-
-            this.rowWriter = new Writer(true);
-            // Note that even though the iterator handles the reverse case, this object holds the data for a single index bock, and we read index blocks in
-            // forward clustering order.
-            this.markerWriter = new RangeTombstoneCollector(false);
+            }
+            return new ReusablePartitionData(metadata(), partitionKey(), columns(), estimatedRowCount);
         }
 
-        // Note that this method is here rather than in the readers because we want to use it for both readers and they
-        // don't extend one another
-        private void populateFrom(Reader reader, Slice.Bound start, Slice.Bound end, Tester tester) throws IOException
+        protected void init() throws IOException
         {
-            // If we have a start bound, skip everything that comes before it.
-            while (reader.deserializer.hasNext() && start != null && reader.deserializer.compareNextTo(start) <= 0 && !tester.isDone())
+            // We should always have been initialized (at the beginning of the partition). Only indexed readers may
+            // have to initialize.
+            throw new IllegalStateException();
+        }
+
+        public void setForSlice(Slice slice) throws IOException
+        {
+            // If we have read the data, just create the iterator for the slice. Otherwise, read the data.
+            if (buffer == null)
             {
-                if (reader.deserializer.nextIsRow())
-                    reader.deserializer.skipNext();
-                else
-                    reader.updateOpenMarker((RangeTombstoneMarker)reader.deserializer.readNext());
+                buffer = createBuffer(1);
+                // Note that we can reuse that buffer between slices (we could alternatively re-read from disk
+                // every time, but that feels more wasteful) so we want to include everything from the beginning.
+                // We can stop at the slice end however since any following slice will be before that.
+                loadFromDisk(null, slice.end());
+            }
+            setIterator(slice);
+        }
+
+        protected void setIterator(Slice slice)
+        {
+            assert buffer != null;
+            iterator = buffer.unfilteredIterator(columns, Slices.with(metadata().comparator, slice), true);
+        }
+
+        protected boolean hasNextInternal() throws IOException
+        {
+            // If we've never called setForSlice, we're reading everything
+            if (iterator == null)
+                setForSlice(Slice.ALL);
+
+            return iterator.hasNext();
+        }
+
+        protected Unfiltered nextInternal() throws IOException
+        {
+            if (!hasNext())
+                throw new NoSuchElementException();
+            return iterator.next();
+        }
+
+        protected boolean stopReadingDisk()
+        {
+            return false;
+        }
+
+        // Reads the unfiltered from disk and load them into the reader buffer. It stops reading when either the partition
+        // is fully read, or when stopReadingDisk() returns true.
+        protected void loadFromDisk(Slice.Bound start, Slice.Bound end) throws IOException
+        {
+            buffer.reset();
+
+            // If the start might be in this block, skip everything that comes before it.
+            if (start != null)
+            {
+                while (deserializer.hasNext() && deserializer.compareNextTo(start) <= 0 && !stopReadingDisk())
+                {
+                    if (deserializer.nextIsRow())
+                        deserializer.skipNext();
+                    else
+                        updateOpenMarker((RangeTombstoneMarker)deserializer.readNext());
+                }
             }
 
             // If we have an open marker, it's either one from what we just skipped (if start != null), or it's from the previous index block.
-            if (reader.openMarker != null)
+            if (openMarker != null)
             {
-                // If we have no start but still an openMarker, this means we're indexed and it's coming from the previous block
-                Slice.Bound markerStart = start;
-                if (start == null)
-                {
-                    ClusteringPrefix c = ((IndexedReader)reader).previousIndex().lastName;
-                    markerStart = Slice.Bound.exclusiveStartOf(c);
-                }
-                writeMarker(markerStart, reader.openMarker);
+                RangeTombstone.Bound markerStart = start == null ? RangeTombstone.Bound.BOTTOM : RangeTombstone.Bound.fromSliceBound(start);
+                buffer.add(new RangeTombstoneBoundMarker(markerStart, openMarker));
             }
 
             // Now deserialize everything until we reach our requested end (if we have one)
-            while (reader.deserializer.hasNext()
-                   && (end == null || reader.deserializer.compareNextTo(end) <= 0)
-                   && !tester.isDone())
+            while (deserializer.hasNext()
+                   && (end == null || deserializer.compareNextTo(end) <= 0)
+                   && !stopReadingDisk())
             {
-                Unfiltered unfiltered = reader.deserializer.readNext();
-                if (unfiltered.kind() == Unfiltered.Kind.ROW)
-                {
-                    ((Row) unfiltered).copyTo(rowWriter);
-                }
-                else
-                {
-                    RangeTombstoneMarker marker = (RangeTombstoneMarker) unfiltered;
-                    reader.updateOpenMarker(marker);
-                    marker.copyTo(markerWriter);
-                }
+                Unfiltered unfiltered = deserializer.readNext();
+                buffer.add(unfiltered);
+
+                if (unfiltered.isRangeTombstoneMarker())
+                    updateOpenMarker((RangeTombstoneMarker)unfiltered);
             }
 
             // If we have an open marker, we should close it before finishing
-            if (reader.openMarker != null)
+            if (openMarker != null)
             {
-                // If we no end and still an openMarker, this means we're indexed and the marker can be close using the blocks end
-                Slice.Bound markerEnd = end;
-                if (end == null)
-                {
-                    ClusteringPrefix c = ((IndexedReader)reader).currentIndex().lastName;
-                    markerEnd = Slice.Bound.inclusiveEndOf(c);
-                }
-                writeMarker(markerEnd, reader.getAndClearOpenMarker());
+                // If we have no end and still an openMarker, this means we're indexed and the marker is closed in a following block.
+                RangeTombstone.Bound markerEnd = end == null ? RangeTombstone.Bound.TOP : RangeTombstone.Bound.fromSliceBound(end);
+                buffer.add(new RangeTombstoneBoundMarker(markerEnd, getAndClearOpenMarker()));
             }
+
+            buffer.build();
+        }
+    }
+
+    private class ReverseIndexedReader extends ReverseReader
+    {
+        private final IndexState indexState;
+
+        // The slice we're currently iterating over
+        private Slice slice;
+        // The last index block to consider for the slice
+        private int lastBlockIdx;
+
+        private ReverseIndexedReader(RowIndexEntry indexEntry, FileDataInput file, boolean isAtPartitionStart, boolean shouldCloseFile)
+        {
+            super(file, isAtPartitionStart, shouldCloseFile);
+            this.indexState = new IndexState(this, sstable.metadata.comparator, indexEntry, true);
         }
 
-        private void writeMarker(Slice.Bound bound, DeletionTime dt)
+        protected void init() throws IOException
         {
-            bound.writeTo(markerWriter);
-            markerWriter.writeBoundDeletion(dt);
-            markerWriter.endOfMarker();
+            // If this is called, it means we're calling hasNext() before any call to setForSlice. Which means
+            // we're reading everything from the end. So just set us up on the last block.
+            indexState.setToBlock(indexState.blocksCount() - 1);
         }
 
         @Override
-        public void clear()
+        public void setForSlice(Slice slice) throws IOException
         {
-            super.clear();
-            rowWriter.reset();
-            markerWriter.reset();
+            this.slice = slice;
+            isInit = true;
+
+            // if our previous slicing already got us pas the beginning of the sstable, we're done
+            if (indexState.isDone())
+            {
+                iterator = Collections.emptyIterator();
+                return;
+            }
+
+            // Find the first index block we'll need to read for the slice.
+            int startIdx = indexState.findBlockIndex(slice.end());
+            if (startIdx < 0)
+            {
+                iterator = Collections.emptyIterator();
+                return;
+            }
+
+            boolean isCurrentBlock = startIdx == indexState.currentBlockIdx();
+            if (!isCurrentBlock)
+                indexState.setToBlock(startIdx);
+
+            lastBlockIdx = indexState.findBlockIndex(slice.start());
+
+            if (!isCurrentBlock)
+                readCurrentBlock(true);
+
+            setIterator(slice);
+        }
+
+        @Override
+        protected boolean hasNextInternal() throws IOException
+        {
+            if (super.hasNextInternal())
+                return true;
+
+            // We have nothing more for our current block, move the previous one.
+            int previousBlockIdx = indexState.currentBlockIdx() - 1;
+            if (previousBlockIdx < 0 || previousBlockIdx < lastBlockIdx)
+                return false;
+
+            // The slice start can be in 
+            indexState.setToBlock(previousBlockIdx);
+            readCurrentBlock(false);
+            setIterator(slice);
+            // since that new block is within the bounds we've computed in setToSlice(), we know there will
+            // always be something matching the slice unless we're on the lastBlockIdx (in which case there
+            // may or may not be results, but if there isn't, we're done for the slice).
+            return iterator.hasNext();
+        }
+
+        /**
+         * Reads the current block, the last one we've set.
+         *
+         * @param canIncludeSliceEnd whether the block can include the slice end.
+         */
+        private void readCurrentBlock(boolean canIncludeSliceEnd) throws IOException
+        {
+            if (buffer == null)
+                buffer = createBuffer(indexState.blocksCount());
+
+            boolean canIncludeSliceStart = indexState.currentBlockIdx() == lastBlockIdx;
+            loadFromDisk(canIncludeSliceStart ? slice.start() : null, canIncludeSliceEnd ? slice.end() : null);
+        }
+
+        @Override
+        protected boolean stopReadingDisk()
+        {
+            return indexState.isPastCurrentBlock();
+        }
+    }
+
+    private class ReusablePartitionData extends AbstractThreadUnsafePartition
+    {
+        private MutableDeletionInfo.Builder deletionBuilder;
+        private MutableDeletionInfo deletionInfo;
+
+        private ReusablePartitionData(CFMetaData metadata,
+                                      DecoratedKey partitionKey,
+                                      PartitionColumns columns,
+                                      int initialRowCapacity)
+        {
+            super(metadata, partitionKey, columns, new ArrayList<>(initialRowCapacity));
+        }
+
+        public DeletionInfo deletionInfo()
+        {
+            return deletionInfo;
+        }
+
+        protected boolean canHaveShadowedData()
+        {
+            return false;
+        }
+
+        public Row staticRow()
+        {
+            return Rows.EMPTY_STATIC_ROW; // we don't actually use that
+        }
+
+        public RowStats stats()
+        {
+            return RowStats.NO_STATS; // we don't actually use that
+        }
+
+        public void add(Unfiltered unfiltered)
+        {
+            if (unfiltered.isRow())
+                rows.add((Row)unfiltered);
+            else
+                deletionBuilder.add((RangeTombstoneMarker)unfiltered);
+        }
+
+        public void reset()
+        {
+            rows.clear();
+            deletionBuilder = MutableDeletionInfo.builder(partitionLevelDeletion, metadata().comparator, false);
+        }
+
+        public void build()
+        {
+            deletionInfo = deletionBuilder.build();
+            deletionBuilder = null;
         }
     }
 }

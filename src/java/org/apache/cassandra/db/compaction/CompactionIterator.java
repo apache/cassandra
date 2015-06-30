@@ -26,7 +26,6 @@ import org.apache.cassandra.db.index.SecondaryIndexManager;
 import org.apache.cassandra.db.partitions.*;
 import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.io.sstable.ISSTableScanner;
-import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.metrics.CompactionMetrics;
 
 /**
@@ -34,7 +33,7 @@ import org.apache.cassandra.metrics.CompactionMetrics;
  * <p>
  * On top of the actual merging the source iterators, this class:
  * <ul>
- *   <li>purge gc-able tombstones if possible (see PurgingPartitionIterator below).</li>
+ *   <li>purge gc-able tombstones if possible (see PurgeIterator below).</li>
  *   <li>update 2ndary indexes if necessary (as we don't read-before-write on index updates, index entries are
  *       not deleted on deletion of the base table data, which is ok because we'll fix index inconsistency
  *       on reads. This however mean that potentially obsolete index entries could be kept a long time for
@@ -65,11 +64,8 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
      */
     private final long[] mergeCounters;
 
-    private final UnfilteredPartitionIterator mergedIterator;
+    private final UnfilteredPartitionIterator compacted;
     private final CompactionMetrics metrics;
-
-    // The number of row/RT merged by the iterator
-    private int merged;
 
     public CompactionIterator(OperationType type, List<ISSTableScanner> scanners, CompactionController controller, int nowInSec, UUID compactionId)
     {
@@ -96,9 +92,9 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
         if (metrics != null)
             metrics.beginCompaction(this);
 
-        this.mergedIterator = scanners.isEmpty()
-                            ? UnfilteredPartitionIterators.EMPTY
-                            : UnfilteredPartitionIterators.convertExpiredCellsToTombstones(new PurgingPartitionIterator(UnfilteredPartitionIterators.merge(scanners, nowInSec, listener()), controller), nowInSec);
+        this.compacted = scanners.isEmpty()
+                       ? UnfilteredPartitionIterators.EMPTY
+                       : new PurgeIterator(UnfilteredPartitionIterators.merge(scanners, nowInSec, listener()), controller);
     }
 
     public boolean isForThrift()
@@ -143,57 +139,46 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
 
                 CompactionIterator.this.updateCounterFor(merged);
 
-                /*
-                 * The row level listener does 2 things:
-                 *  - It updates 2ndary indexes for deleted/shadowed cells
-                 *  - It updates progress regularly (every UNFILTERED_TO_UPDATE_PROGRESS)
-                 */
-                final SecondaryIndexManager.Updater indexer = type == OperationType.COMPACTION
-                                                            ? controller.cfs.indexManager.gcUpdaterFor(partitionKey, nowInSec)
-                                                            : SecondaryIndexManager.nullUpdater;
+                if (type != OperationType.COMPACTION || !controller.cfs.indexManager.hasIndexes())
+                    return null;
+
+                // If we have a 2ndary index, we must update it with deleted/shadowed cells.
+                // TODO: this should probably be done asynchronously and batched.
+                final SecondaryIndexManager.Updater indexer = controller.cfs.indexManager.gcUpdaterFor(partitionKey, nowInSec);
+                final RowDiffListener diffListener = new RowDiffListener()
+                {
+                    public void onPrimaryKeyLivenessInfo(int i, Clustering clustering, LivenessInfo merged, LivenessInfo original)
+                    {
+                    }
+
+                    public void onDeletion(int i, Clustering clustering, DeletionTime merged, DeletionTime original)
+                    {
+                    }
+
+                    public void onComplexDeletion(int i, Clustering clustering, ColumnDefinition column, DeletionTime merged, DeletionTime original)
+                    {
+                    }
+
+                    public void onCell(int i, Clustering clustering, Cell merged, Cell original)
+                    {
+                        if (original != null && (merged == null || !merged.isLive(nowInSec)))
+                            indexer.remove(clustering, original);
+                    }
+                };
 
                 return new UnfilteredRowIterators.MergeListener()
                 {
-                    private Clustering clustering;
-
-                    public void onMergePartitionLevelDeletion(DeletionTime mergedDeletion, DeletionTime[] versions)
+                    public void onMergedPartitionLevelDeletion(DeletionTime mergedDeletion, DeletionTime[] versions)
                     {
                     }
 
-                    public void onMergingRows(Clustering clustering, LivenessInfo mergedInfo, DeletionTime mergedDeletion, Row[] versions)
+                    public void onMergedRows(Row merged, Columns columns, Row[] versions)
                     {
-                        this.clustering = clustering;
-                    }
-
-                    public void onMergedComplexDeletion(ColumnDefinition c, DeletionTime mergedCompositeDeletion, DeletionTime[] versions)
-                    {
-                    }
-
-                    public void onMergedCells(Cell mergedCell, Cell[] versions)
-                    {
-                        if (indexer == SecondaryIndexManager.nullUpdater)
-                            return;
-
-                        for (int i = 0; i < versions.length; i++)
-                        {
-                            Cell version = versions[i];
-                            if (version != null && (mergedCell == null || !mergedCell.equals(version)))
-                                indexer.remove(clustering, version);
-                        }
-                    }
-
-                    public void onRowDone()
-                    {
-                        int merged = ++CompactionIterator.this.merged;
-                        if (merged % UNFILTERED_TO_UPDATE_PROGRESS == 0)
-                            updateBytesRead();
+                        Rows.diff(merged, columns, versions, diffListener);
                     }
 
                     public void onMergedRangeTombstoneMarkers(RangeTombstoneMarker mergedMarker, RangeTombstoneMarker[] versions)
                     {
-                        int merged = ++CompactionIterator.this.merged;
-                        if (merged % UNFILTERED_TO_UPDATE_PROGRESS == 0)
-                            updateBytesRead();
                     }
 
                     public void close()
@@ -218,12 +203,12 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
 
     public boolean hasNext()
     {
-        return mergedIterator.hasNext();
+        return compacted.hasNext();
     }
 
     public UnfilteredRowIterator next()
     {
-        return mergedIterator.next();
+        return compacted.next();
     }
 
     public void remove()
@@ -235,7 +220,7 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
     {
         try
         {
-            mergedIterator.close();
+            compacted.close();
         }
         finally
         {
@@ -249,7 +234,7 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
         return this.getCompactionInfo().toString();
     }
 
-    private class PurgingPartitionIterator extends TombstonePurgingPartitionIterator
+    private class PurgeIterator extends PurgingPartitionIterator
     {
         private final CompactionController controller;
 
@@ -257,28 +242,33 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
         private long maxPurgeableTimestamp;
         private boolean hasCalculatedMaxPurgeableTimestamp;
 
-        private PurgingPartitionIterator(UnfilteredPartitionIterator toPurge, CompactionController controller)
+        private long compactedUnfiltered;
+
+        private PurgeIterator(UnfilteredPartitionIterator toPurge, CompactionController controller)
         {
             super(toPurge, controller.gcBefore);
             this.controller = controller;
         }
 
         @Override
-        protected void onEmpty(DecoratedKey key)
+        protected void onEmptyPartitionPostPurge(DecoratedKey key)
         {
             if (type == OperationType.COMPACTION)
                 controller.cfs.invalidateCachedPartition(key);
         }
 
         @Override
-        protected boolean shouldFilter(UnfilteredRowIterator iterator)
+        protected void onNewPartition(DecoratedKey key)
         {
-            currentKey = iterator.partitionKey();
+            currentKey = key;
             hasCalculatedMaxPurgeableTimestamp = false;
+        }
 
-            // TODO: we could be able to skip filtering if UnfilteredRowIterator was giving us some stats
-            // (like the smallest local deletion time).
-            return true;
+        @Override
+        protected void updateProgress()
+        {
+            if ((++compactedUnfiltered) % UNFILTERED_TO_UPDATE_PROGRESS == 0)
+                updateBytesRead();
         }
 
         /*

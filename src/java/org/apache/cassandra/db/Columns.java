@@ -20,6 +20,7 @@ package org.apache.cassandra.db;
 import java.io.DataInput;
 import java.io.IOException;
 import java.util.*;
+import java.util.function.Predicate;
 import java.nio.ByteBuffer;
 import java.security.MessageDigest;
 
@@ -329,9 +330,9 @@ public class Columns implements Iterable<ColumnDefinition>
     }
 
     /**
-     * Whether this object is a subset of the provided other {@code Columns object}.
+     * Whether this object is a superset of the provided other {@code Columns object}.
      *
-     * @param other the othere object to test for inclusion in this object.
+     * @param other the other object to test for inclusion in this object.
      *
      * @return whether all the columns of {@code other} are contained by this object.
      */
@@ -437,6 +438,34 @@ public class Columns implements Iterable<ColumnDefinition>
         System.arraycopy(columns, 0, newColumns, 0, realIdx);
         System.arraycopy(columns, realIdx + 1, newColumns, realIdx, newColumns.length - realIdx);
         return new Columns(newColumns);
+    }
+
+    /**
+     * Returns a predicate to test whether columns are included in this {@code Columns} object,
+     * assuming that tes tested columns are passed to the predicate in sorted order.
+     *
+     * @return a predicate to test the inclusion of sorted columns in this object.
+     */
+    public Predicate<ColumnDefinition> inOrderInclusionTester()
+    {
+        return new Predicate<ColumnDefinition>()
+        {
+            private int i = 0;
+
+            public boolean test(ColumnDefinition column)
+            {
+                while (i < columns.length)
+                {
+                    int cmp = column.compareTo(columns[i]);
+                    if (cmp < 0)
+                        return false;
+                    i++;
+                    if (cmp == 0)
+                        return true;
+                }
+                return false;
+            }
+        };
     }
 
     public void digest(MessageDigest digest)

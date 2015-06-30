@@ -26,7 +26,6 @@ import com.google.common.base.Joiner;
 
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.cql3.functions.Function;
-import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.db.marshal.*;
@@ -257,7 +256,7 @@ public abstract class Sets
             super(column, t);
         }
 
-        public void execute(DecoratedKey partitionKey, Clustering clustering, Row.Writer writer, UpdateParameters params) throws InvalidRequestException
+        public void execute(DecoratedKey partitionKey, UpdateParameters params) throws InvalidRequestException
         {
             Term.Terminal value = t.bind(params.options);
             if (value == UNSET_VALUE)
@@ -265,8 +264,8 @@ public abstract class Sets
 
             // delete + add
             if (column.type.isMultiCell())
-                params.setComplexDeletionTimeForOverwrite(column, writer);
-            Adder.doAdd(value, clustering, writer, column, params);
+                params.setComplexDeletionTimeForOverwrite(column);
+            Adder.doAdd(value, column, params);
         }
     }
 
@@ -277,15 +276,15 @@ public abstract class Sets
             super(column, t);
         }
 
-        public void execute(DecoratedKey partitionKey, Clustering clustering, Row.Writer writer, UpdateParameters params) throws InvalidRequestException
+        public void execute(DecoratedKey partitionKey, UpdateParameters params) throws InvalidRequestException
         {
             assert column.type.isMultiCell() : "Attempted to add items to a frozen set";
             Term.Terminal value = t.bind(params.options);
             if (value != UNSET_VALUE)
-                doAdd(value, clustering, writer, column, params);
+                doAdd(value, column, params);
         }
 
-        static void doAdd(Term.Terminal value, Clustering clustering, Row.Writer writer, ColumnDefinition column, UpdateParameters params) throws InvalidRequestException
+        static void doAdd(Term.Terminal value, ColumnDefinition column, UpdateParameters params) throws InvalidRequestException
         {
             if (column.type.isMultiCell())
             {
@@ -297,16 +296,16 @@ public abstract class Sets
                     if (bb == ByteBufferUtil.UNSET_BYTE_BUFFER)
                         continue;
 
-                    params.addCell(clustering, column, writer, CellPath.create(bb), ByteBufferUtil.EMPTY_BYTE_BUFFER);
+                    params.addCell(column, CellPath.create(bb), ByteBufferUtil.EMPTY_BYTE_BUFFER);
                 }
             }
             else
             {
                 // for frozen sets, we're overwriting the whole cell
                 if (value == null)
-                    params.addTombstone(column, writer);
+                    params.addTombstone(column);
                 else
-                    params.addCell(clustering, column, writer, value.get(Server.CURRENT_VERSION));
+                    params.addCell(column, value.get(Server.CURRENT_VERSION));
             }
         }
     }
@@ -319,7 +318,7 @@ public abstract class Sets
             super(column, t);
         }
 
-        public void execute(DecoratedKey partitionKey, Clustering clustering, Row.Writer writer, UpdateParameters params) throws InvalidRequestException
+        public void execute(DecoratedKey partitionKey, UpdateParameters params) throws InvalidRequestException
         {
             assert column.type.isMultiCell() : "Attempted to remove items from a frozen set";
 
@@ -333,7 +332,7 @@ public abstract class Sets
                                       : Collections.singleton(value.get(params.options.getProtocolVersion()));
 
             for (ByteBuffer bb : toDiscard)
-                params.addTombstone(column, writer, CellPath.create(bb));
+                params.addTombstone(column, CellPath.create(bb));
         }
     }
 
@@ -344,14 +343,14 @@ public abstract class Sets
             super(column, k);
         }
 
-        public void execute(DecoratedKey partitionKey, Clustering clustering, Row.Writer writer, UpdateParameters params) throws InvalidRequestException
+        public void execute(DecoratedKey partitionKey, UpdateParameters params) throws InvalidRequestException
         {
             assert column.type.isMultiCell() : "Attempted to delete a single element in a frozen set";
             Term.Terminal elt = t.bind(params.options);
             if (elt == null)
                 throw new InvalidRequestException("Invalid null set element");
 
-            params.addTombstone(column, writer, CellPath.create(elt.get(params.options.getProtocolVersion())));
+            params.addTombstone(column, CellPath.create(elt.get(params.options.getProtocolVersion())));
         }
     }
 }

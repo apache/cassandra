@@ -34,6 +34,7 @@ import java.util.UUID;
 
 import net.nicoulaj.compilecommand.annotations.Inline;
 import org.apache.cassandra.db.TypeSizes;
+import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.io.util.FileDataInput;
 import org.apache.cassandra.io.util.FileUtils;
@@ -290,6 +291,12 @@ public class ByteBufferUtil
         out.write(bytes);
     }
 
+    public static void writeWithVIntLength(ByteBuffer bytes, DataOutputPlus out) throws IOException
+    {
+        out.writeVInt(bytes.remaining());
+        out.write(bytes);
+    }
+
     public static void writeWithLength(byte[] bytes, DataOutput out) throws IOException
     {
         out.writeInt(bytes.length);
@@ -323,10 +330,34 @@ public class ByteBufferUtil
         return ByteBufferUtil.read(in, length);
     }
 
+    public static ByteBuffer readWithVIntLength(DataInputPlus in) throws IOException
+    {
+        int length = (int)in.readVInt();
+        if (length < 0)
+            throw new IOException("Corrupt (negative) value length encountered");
+
+        return ByteBufferUtil.read(in, length);
+    }
+
     public static int serializedSizeWithLength(ByteBuffer buffer)
     {
         int size = buffer.remaining();
         return TypeSizes.sizeof(size) + size;
+    }
+
+    public static int serializedSizeWithVIntLength(ByteBuffer buffer)
+    {
+        int size = buffer.remaining();
+        return TypeSizes.sizeofVInt(size) + size;
+    }
+
+    public static void skipWithVIntLength(DataInputPlus in) throws IOException
+    {
+        int length = (int)in.readVInt();
+        if (length < 0)
+            throw new IOException("Corrupt (negative) value length encountered");
+
+        FileUtils.skipBytesFully(in, length);
     }
 
     /* @return An unsigned short in an integer. */

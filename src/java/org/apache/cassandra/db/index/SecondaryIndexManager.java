@@ -18,15 +18,7 @@
 package org.apache.cassandra.db.index;
 
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.IdentityHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ConcurrentNavigableMap;
@@ -469,7 +461,8 @@ public class SecondaryIndexManager
             if (!row.deletion().isLive())
                 for (PerColumnSecondaryIndex index : indexes)
                     index.maybeDelete(key, clustering, row.deletion(), opGroup);
-            for (Cell cell : row)
+
+            for (Cell cell : row.cells())
             {
                 for (PerColumnSecondaryIndex index : indexes)
                 {
@@ -636,8 +629,7 @@ public class SecondaryIndexManager
         // Completely identical cells (including expiring columns with
         // identical ttl & localExpirationTime) will not get this far due
         // to the oldCell.equals(newCell) in StandardUpdater.update
-        return !oldCell.value().equals(newCell.value())
-            || oldCell.livenessInfo().timestamp() != newCell.livenessInfo().timestamp();
+        return !oldCell.value().equals(newCell.value()) || oldCell.timestamp() != newCell.timestamp();
     }
 
     private Set<String> filterByColumn(Set<String> idxNames)

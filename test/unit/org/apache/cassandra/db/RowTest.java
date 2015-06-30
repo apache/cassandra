@@ -107,12 +107,12 @@ public class RowTest
             {
                 RangeTombstoneBoundMarker openMarker = (RangeTombstoneBoundMarker)merged.next();
                 Slice.Bound openBound = openMarker.clustering();
-                DeletionTime openDeletion = new SimpleDeletionTime(openMarker.deletionTime().markedForDeleteAt(),
+                DeletionTime openDeletion = new DeletionTime(openMarker.deletionTime().markedForDeleteAt(),
                                                                    openMarker.deletionTime().localDeletionTime());
 
                 RangeTombstoneBoundMarker closeMarker = (RangeTombstoneBoundMarker)merged.next();
                 Slice.Bound closeBound = closeMarker.clustering();
-                DeletionTime closeDeletion = new SimpleDeletionTime(closeMarker.deletionTime().markedForDeleteAt(),
+                DeletionTime closeDeletion = new DeletionTime(closeMarker.deletionTime().markedForDeleteAt(),
                                                                     closeMarker.deletionTime().localDeletionTime());
 
                 assertEquals(openDeletion, closeDeletion);
@@ -127,16 +127,18 @@ public class RowTest
         ColumnDefinition defA = cfm.getColumnDefinition(new ColumnIdentifier("a", true));
         ColumnDefinition defB = cfm.getColumnDefinition(new ColumnIdentifier("b", true));
 
-        PartitionUpdate update = new PartitionUpdate(cfm, dk, cfm.partitionColumns(), 1);
-        Rows.writeClustering(update.metadata().comparator.make("c1"), update.writer());
-        writeSimpleCellValue(update.writer(), cfm, defA, "a1", 0, nowInSeconds);
-        writeSimpleCellValue(update.writer(), cfm, defA, "a2", 1, nowInSeconds);
-        writeSimpleCellValue(update.writer(), cfm, defB, "b1", 1, nowInSeconds);
-        update.writer().endOfRow();
+        Row.Builder builder = ArrayBackedRow.unsortedBuilder(cfm.partitionColumns().regulars, nowInSeconds);
+        builder.newRow(cfm.comparator.make("c1"));
+        writeSimpleCellValue(builder, cfm, defA, "a1", 0);
+        writeSimpleCellValue(builder, cfm, defA, "a2", 1);
+        writeSimpleCellValue(builder, cfm, defB, "b1", 1);
+        Row row = builder.build();
+
+        PartitionUpdate update = PartitionUpdate.singleRowUpdate(cfm, dk, row);
 
         Unfiltered unfiltered = update.unfilteredIterator().next();
         assertTrue(unfiltered.kind() == Unfiltered.Kind.ROW);
-        Row row = (Row) unfiltered;
+        row = (Row) unfiltered;
         assertEquals("a2", defA.cellValueType().getString(row.getCell(defA).value()));
         assertEquals("b1", defB.cellValueType().getString(row.getCell(defB).value()));
         assertEquals(2, row.columns().columnCount());
@@ -147,12 +149,10 @@ public class RowTest
     {
         int ttl = 1;
         ColumnDefinition def = cfm.getColumnDefinition(new ColumnIdentifier("a", true));
-        PartitionUpdate update = new PartitionUpdate(cfm, dk, cfm.partitionColumns(), 1);
-        Rows.writeClustering(update.metadata().comparator.make("c1"), update.writer());
-        update.writer().writeCell(def, false, ((AbstractType) def.cellValueType()).decompose("a1"),
-                                  SimpleLivenessInfo.forUpdate(0, ttl, nowInSeconds, cfm),
-                                  null);
-        update.writer().endOfRow();
+
+        Cell cell = BufferCell.expiring(def, 0, ttl, nowInSeconds, ((AbstractType) def.cellValueType()).decompose("a1"));
+
+        PartitionUpdate update = PartitionUpdate.singleRowUpdate(cfm, dk, ArrayBackedRow.singleCellRow(cfm.comparator.make("c1"), cell));
         new Mutation(update).applyUnsafe();
 
         // when we read with a nowInSeconds before the cell has expired,
@@ -184,21 +184,15 @@ public class RowTest
     public void writeRangeTombstone(PartitionUpdate update, Object start, Object end, long markedForDeleteAt, int localDeletionTime)
     {
         ClusteringComparator comparator = cfs.getComparator();
-        update.addRangeTombstone(Slice.make(comparator.make(start), comparator.make(end)),
-                                 new SimpleDeletionTime(markedForDeleteAt, localDeletionTime));
+        update.add(new RangeTombstone(Slice.make(comparator.make(start), comparator.make(end)), new DeletionTime(markedForDeleteAt, localDeletionTime)));
     }
 
-    private void writeSimpleCellValue(Row.Writer writer,
+    private void writeSimpleCellValue(Row.Builder builder,
                                       CFMetaData cfm,
                                       ColumnDefinition columnDefinition,
                                       String value,
-                                      long timestamp,
-                                      int nowInSeconds)
+                                      long timestamp)
     {
-        writer.writeCell(columnDefinition,
-                         false,
-                         ((AbstractType) columnDefinition.cellValueType()).decompose(value),
-                         SimpleLivenessInfo.forUpdate(timestamp, LivenessInfo.NO_TTL, nowInSeconds, cfm),
-                         null);
+       builder.addCell(BufferCell.live(cfm, columnDefinition, timestamp, ((AbstractType) columnDefinition.cellValueType()).decompose(value)));
     }
 }

@@ -18,11 +18,11 @@
 package org.apache.cassandra.db.partitions;
 
 import java.io.IOException;
-import java.nio.ByteBuffer;
+import java.util.*;
 
 import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.filter.DataLimits;
 import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.io.ISerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
@@ -33,24 +33,31 @@ public class ArrayBackedCachedPartition extends ArrayBackedPartition implements 
 {
     private final int createdAtInSec;
 
-    // Note that those fields are really immutable, but we can't easily pass their values to
-    // the ctor so they are not final.
-    private int cachedLiveRows;
-    private int rowsWithNonExpiringCells;
+    private final int cachedLiveRows;
+    private final int rowsWithNonExpiringCells;
 
-    private int nonTombstoneCellCount;
-    private int nonExpiringLiveCells;
+    private final int nonTombstoneCellCount;
+    private final int nonExpiringLiveCells;
 
     private ArrayBackedCachedPartition(CFMetaData metadata,
                                        DecoratedKey partitionKey,
-                                       DeletionTime deletionTime,
                                        PartitionColumns columns,
-                                       int initialRowCapacity,
-                                       boolean sortable,
-                                       int createdAtInSec)
+                                       Row staticRow,
+                                       List<Row> rows,
+                                       DeletionInfo deletionInfo,
+                                       RowStats stats,
+                                       int createdAtInSec,
+                                       int cachedLiveRows,
+                                       int rowsWithNonExpiringCells,
+                                       int nonTombstoneCellCount,
+                                       int nonExpiringLiveCells)
     {
-        super(metadata, partitionKey, deletionTime, columns, initialRowCapacity, sortable);
+        super(metadata, partitionKey, columns, staticRow, rows, deletionInfo, stats);
         this.createdAtInSec = createdAtInSec;
+        this.cachedLiveRows = cachedLiveRows;
+        this.rowsWithNonExpiringCells = rowsWithNonExpiringCells;
+        this.nonTombstoneCellCount = nonTombstoneCellCount;
+        this.nonExpiringLiveCells = nonExpiringLiveCells;
     }
 
     /**
@@ -65,7 +72,7 @@ public class ArrayBackedCachedPartition extends ArrayBackedPartition implements 
      */
     public static ArrayBackedCachedPartition create(UnfilteredRowIterator iterator, int nowInSec)
     {
-        return create(iterator, 4, nowInSec);
+        return create(iterator, 16, nowInSec);
     }
 
     /**
@@ -82,30 +89,76 @@ public class ArrayBackedCachedPartition extends ArrayBackedPartition implements 
      */
     public static ArrayBackedCachedPartition create(UnfilteredRowIterator iterator, int initialRowCapacity, int nowInSec)
     {
-        ArrayBackedCachedPartition partition = new ArrayBackedCachedPartition(iterator.metadata(),
-                                                                              iterator.partitionKey(),
-                                                                              iterator.partitionLevelDeletion(),
-                                                                              iterator.columns(),
-                                                                              initialRowCapacity,
-                                                                              iterator.isReverseOrder(),
-                                                                              nowInSec);
+        CFMetaData metadata = iterator.metadata();
+        boolean reversed = iterator.isReverseOrder();
 
-        partition.staticRow = iterator.staticRow().takeAlias();
+        List<Row> rows = new ArrayList<>(initialRowCapacity);
+        MutableDeletionInfo.Builder deletionBuilder = MutableDeletionInfo.builder(iterator.partitionLevelDeletion(), metadata.comparator, reversed);
 
-        Writer writer = partition.new Writer(nowInSec);
-        RangeTombstoneCollector markerCollector = partition.new RangeTombstoneCollector(iterator.isReverseOrder());
+        int cachedLiveRows = 0;
+        int rowsWithNonExpiringCells = 0;
 
-        copyAll(iterator, writer, markerCollector, partition);
+        int nonTombstoneCellCount = 0;
+        int nonExpiringLiveCells = 0;
 
-        return partition;
+        while (iterator.hasNext())
+        {
+            Unfiltered unfiltered = iterator.next();
+            if (unfiltered.kind() == Unfiltered.Kind.ROW)
+            {
+                Row row = (Row)unfiltered;
+                rows.add(row);
+
+                // Collect stats
+                if (row.hasLiveData(nowInSec))
+                    ++cachedLiveRows;
+
+                boolean hasNonExpiringCell = false;
+                for (Cell cell : row.cells())
+                {
+                    if (!cell.isTombstone())
+                    {
+                        ++nonTombstoneCellCount;
+                        if (!cell.isExpiring())
+                        {
+                            hasNonExpiringCell = true;
+                            ++nonExpiringLiveCells;
+                        }
+                    }
+                }
+
+                if (hasNonExpiringCell)
+                    ++rowsWithNonExpiringCells;
+            }
+            else
+            {
+                deletionBuilder.add((RangeTombstoneMarker)unfiltered);
+            }
+        }
+
+        if (reversed)
+            Collections.reverse(rows);
+
+        return new ArrayBackedCachedPartition(metadata,
+                                              iterator.partitionKey(),
+                                              iterator.columns(),
+                                              iterator.staticRow(),
+                                              rows,
+                                              deletionBuilder.build(),
+                                              iterator.stats(),
+                                              nowInSec,
+                                              cachedLiveRows,
+                                              rowsWithNonExpiringCells,
+                                              nonTombstoneCellCount,
+                                              nonExpiringLiveCells);
     }
 
     public Row lastRow()
     {
-        if (rows == 0)
+        if (rows.isEmpty())
             return null;
 
-        return new InternalReusableRow().setTo(rows - 1);
+        return rows.get(rows.size() - 1);
     }
 
     /**
@@ -146,62 +199,6 @@ public class ArrayBackedCachedPartition extends ArrayBackedPartition implements 
         return nonExpiringLiveCells;
     }
 
-    // Writers that collect the values for 'cachedLiveRows', 'rowsWithNonExpiringCells', 'nonTombstoneCellCount'
-    // and 'nonExpiringLiveCells'.
-    protected class Writer extends AbstractPartitionData.Writer
-    {
-        private final int nowInSec;
-
-        private boolean hasLiveData;
-        private boolean hasNonExpiringCell;
-
-        protected Writer(int nowInSec)
-        {
-            super(true);
-            this.nowInSec = nowInSec;
-        }
-
-        @Override
-        public void writePartitionKeyLivenessInfo(LivenessInfo info)
-        {
-            super.writePartitionKeyLivenessInfo(info);
-            if (info.isLive(nowInSec))
-                hasLiveData = true;
-        }
-
-        @Override
-        public void writeCell(ColumnDefinition column, boolean isCounter, ByteBuffer value, LivenessInfo info, CellPath path)
-        {
-            super.writeCell(column, isCounter, value, info, path);
-
-            if (info.isLive(nowInSec))
-            {
-                hasLiveData = true;
-                if (!info.hasTTL())
-                {
-                    hasNonExpiringCell = true;
-                    ++ArrayBackedCachedPartition.this.nonExpiringLiveCells;
-                }
-            }
-
-            if (!info.hasLocalDeletionTime() || info.hasTTL())
-                ++ArrayBackedCachedPartition.this.nonTombstoneCellCount;
-        }
-
-        @Override
-        public void endOfRow()
-        {
-            super.endOfRow();
-            if (hasLiveData)
-                ++ArrayBackedCachedPartition.this.cachedLiveRows;
-            if (hasNonExpiringCell)
-                ++ArrayBackedCachedPartition.this.rowsWithNonExpiringCells;
-
-            hasLiveData = false;
-            hasNonExpiringCell = false;
-        }
-    }
-
     static class Serializer implements ISerializer<CachedPartition>
     {
         public void serialize(CachedPartition partition, DataOutputPlus out) throws IOException
@@ -210,9 +207,13 @@ public class ArrayBackedCachedPartition extends ArrayBackedPartition implements 
             ArrayBackedCachedPartition p = (ArrayBackedCachedPartition)partition;
 
             out.writeInt(p.createdAtInSec);
+            out.writeInt(p.cachedLiveRows);
+            out.writeInt(p.rowsWithNonExpiringCells);
+            out.writeInt(p.nonTombstoneCellCount);
+            out.writeInt(p.nonExpiringLiveCells);
             try (UnfilteredRowIterator iter = p.sliceableUnfilteredIterator())
             {
-                UnfilteredRowIteratorSerializer.serializer.serialize(iter, out, MessagingService.current_version, p.rows);
+                UnfilteredRowIteratorSerializer.serializer.serialize(iter, out, MessagingService.current_version, p.rowCount());
             }
         }
 
@@ -226,18 +227,42 @@ public class ArrayBackedCachedPartition extends ArrayBackedPartition implements 
             //      is slightly faster.
 
             int createdAtInSec = in.readInt();
+            int cachedLiveRows = in.readInt();
+            int rowsWithNonExpiringCells = in.readInt();
+            int nonTombstoneCellCount = in.readInt();
+            int nonExpiringLiveCells = in.readInt();
 
-            UnfilteredRowIteratorSerializer.Header h = UnfilteredRowIteratorSerializer.serializer.deserializeHeader(in, MessagingService.current_version, SerializationHelper.Flag.LOCAL);
-            assert !h.isReversed && h.rowEstimate >= 0;
+            UnfilteredRowIteratorSerializer.Header header = UnfilteredRowIteratorSerializer.serializer.deserializeHeader(in, MessagingService.current_version, SerializationHelper.Flag.LOCAL);
+            assert !header.isReversed && header.rowEstimate >= 0;
 
-            ArrayBackedCachedPartition partition = new ArrayBackedCachedPartition(h.metadata, h.key, h.partitionDeletion, h.sHeader.columns(), h.rowEstimate, false, createdAtInSec);
-            partition.staticRow = h.staticRow;
+            MutableDeletionInfo.Builder deletionBuilder = MutableDeletionInfo.builder(header.partitionDeletion, header.metadata.comparator, false);
+            List<Row> rows = new ArrayList<>(header.rowEstimate);
 
-            Writer writer = partition.new Writer(createdAtInSec);
-            RangeTombstoneMarker.Writer markerWriter = partition.new RangeTombstoneCollector(false);
+            try (UnfilteredRowIterator partition = UnfilteredRowIteratorSerializer.serializer.deserialize(in, MessagingService.current_version, SerializationHelper.Flag.LOCAL, header))
+            {
+                while (partition.hasNext())
+                {
+                    Unfiltered unfiltered = partition.next();
+                    if (unfiltered.kind() == Unfiltered.Kind.ROW)
+                        rows.add((Row)unfiltered);
+                    else
+                        deletionBuilder.add((RangeTombstoneMarker)unfiltered);
+                }
+            }
 
-            UnfilteredRowIteratorSerializer.serializer.deserialize(in, new SerializationHelper(MessagingService.current_version, SerializationHelper.Flag.LOCAL), h.sHeader, writer, markerWriter);
-            return partition;
+            return new ArrayBackedCachedPartition(header.metadata,
+                                                  header.key,
+                                                  header.sHeader.columns(),
+                                                  header.staticRow,
+                                                  rows,
+                                                  deletionBuilder.build(),
+                                                  header.sHeader.stats(),
+                                                  createdAtInSec,
+                                                  cachedLiveRows,
+                                                  rowsWithNonExpiringCells,
+                                                  nonTombstoneCellCount,
+                                                  nonExpiringLiveCells);
+
         }
 
         public long serializedSize(CachedPartition partition)
@@ -248,7 +273,11 @@ public class ArrayBackedCachedPartition extends ArrayBackedPartition implements 
             try (UnfilteredRowIterator iter = p.sliceableUnfilteredIterator())
             {
                 return TypeSizes.sizeof(p.createdAtInSec)
-                     + UnfilteredRowIteratorSerializer.serializer.serializedSize(iter, MessagingService.current_version, p.rows);
+                     + TypeSizes.sizeof(p.cachedLiveRows)
+                     + TypeSizes.sizeof(p.rowsWithNonExpiringCells)
+                     + TypeSizes.sizeof(p.nonTombstoneCellCount)
+                     + TypeSizes.sizeof(p.nonExpiringLiveCells)
+                     + UnfilteredRowIteratorSerializer.serializer.serializedSize(iter, MessagingService.current_version, p.rowCount());
             }
         }
     }

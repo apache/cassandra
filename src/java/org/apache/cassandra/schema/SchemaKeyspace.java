@@ -353,7 +353,7 @@ public final class SchemaKeyspace
                         mutationMap.put(key, mutation);
                     }
 
-                    mutation.add(UnfilteredRowIterators.toUpdate(partition));
+                    mutation.add(PartitionUpdate.fromIterator(partition));
                 }
             }
         }

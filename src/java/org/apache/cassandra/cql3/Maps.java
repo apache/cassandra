@@ -26,7 +26,6 @@ import com.google.common.collect.Iterables;
 
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.cql3.functions.Function;
-import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.db.marshal.MapType;
@@ -290,7 +289,7 @@ public abstract class Maps
             super(column, t);
         }
 
-        public void execute(DecoratedKey partitionKey, Clustering clustering, Row.Writer writer, UpdateParameters params) throws InvalidRequestException
+        public void execute(DecoratedKey partitionKey, UpdateParameters params) throws InvalidRequestException
         {
             Term.Terminal value = t.bind(params.options);
             if (value == UNSET_VALUE)
@@ -298,8 +297,8 @@ public abstract class Maps
 
             // delete + put
             if (column.type.isMultiCell())
-                params.setComplexDeletionTimeForOverwrite(column, writer);
-            Putter.doPut(value, clustering, writer, column, params);
+                params.setComplexDeletionTimeForOverwrite(column);
+            Putter.doPut(value, column, params);
         }
     }
 
@@ -320,7 +319,7 @@ public abstract class Maps
             k.collectMarkerSpecification(boundNames);
         }
 
-        public void execute(DecoratedKey partitionKey, Clustering clustering, Row.Writer writer, UpdateParameters params) throws InvalidRequestException
+        public void execute(DecoratedKey partitionKey, UpdateParameters params) throws InvalidRequestException
         {
             assert column.type.isMultiCell() : "Attempted to set a value for a single key on a frozen map";
             ByteBuffer key = k.bindAndGet(params.options);
@@ -334,7 +333,7 @@ public abstract class Maps
 
             if (value == null)
             {
-                params.addTombstone(column, writer, path);
+                params.addTombstone(column, path);
             }
             else if (value != ByteBufferUtil.UNSET_BYTE_BUFFER)
             {
@@ -344,7 +343,7 @@ public abstract class Maps
                                                                     FBUtilities.MAX_UNSIGNED_SHORT,
                                                                     value.remaining()));
 
-                params.addCell(clustering, column, writer, path, value);
+                params.addCell(column, path, value);
             }
         }
     }
@@ -356,15 +355,15 @@ public abstract class Maps
             super(column, t);
         }
 
-        public void execute(DecoratedKey partitionKey, Clustering clustering, Row.Writer writer, UpdateParameters params) throws InvalidRequestException
+        public void execute(DecoratedKey partitionKey, UpdateParameters params) throws InvalidRequestException
         {
             assert column.type.isMultiCell() : "Attempted to add items to a frozen map";
             Term.Terminal value = t.bind(params.options);
             if (value != UNSET_VALUE)
-                doPut(value, clustering, writer, column, params);
+                doPut(value, column, params);
         }
 
-        static void doPut(Term.Terminal value, Clustering clustering, Row.Writer writer, ColumnDefinition column, UpdateParameters params) throws InvalidRequestException
+        static void doPut(Term.Terminal value, ColumnDefinition column, UpdateParameters params) throws InvalidRequestException
         {
             if (column.type.isMultiCell())
             {
@@ -373,15 +372,15 @@ public abstract class Maps
 
                 Map<ByteBuffer, ByteBuffer> elements = ((Value) value).map;
                 for (Map.Entry<ByteBuffer, ByteBuffer> entry : elements.entrySet())
-                    params.addCell(clustering, column, writer, CellPath.create(entry.getKey()), entry.getValue());
+                    params.addCell(column, CellPath.create(entry.getKey()), entry.getValue());
             }
             else
             {
                 // for frozen maps, we're overwriting the whole cell
                 if (value == null)
-                    params.addTombstone(column, writer);
+                    params.addTombstone(column);
                 else
-                    params.addCell(clustering, column, writer, value.get(Server.CURRENT_VERSION));
+                    params.addCell(column, value.get(Server.CURRENT_VERSION));
             }
         }
     }
@@ -393,7 +392,7 @@ public abstract class Maps
             super(column, k);
         }
 
-        public void execute(DecoratedKey partitionKey, Clustering clustering, Row.Writer writer, UpdateParameters params) throws InvalidRequestException
+        public void execute(DecoratedKey partitionKey, UpdateParameters params) throws InvalidRequestException
         {
             assert column.type.isMultiCell() : "Attempted to delete a single key in a frozen map";
             Term.Terminal key = t.bind(params.options);
@@ -402,7 +401,7 @@ public abstract class Maps
             if (key == Constants.UNSET_VALUE)
                 throw new InvalidRequestException("Invalid unset map key");
 
-            params.addTombstone(column, writer, CellPath.create(key.get(params.options.getProtocolVersion())));
+            params.addTombstone(column, CellPath.create(key.get(params.options.getProtocolVersion())));
         }
     }
 }

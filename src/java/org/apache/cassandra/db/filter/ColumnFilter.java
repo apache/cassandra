@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.db.filter;
 
-import java.io.DataInput;
 import java.io.IOException;
 import java.util.*;
 
@@ -30,8 +29,8 @@ import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.db.rows.CellPath;
 import org.apache.cassandra.config.ColumnDefinition;
+import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
-import org.apache.cassandra.utils.ByteBufferUtil;
 
 /**
  * Represents which (non-PK) columns (and optionally which sub-part of a column for complex columns) are selected
@@ -51,15 +50,6 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 public class ColumnFilter
 {
     public static final Serializer serializer = new Serializer();
-
-    private static final Comparator<ColumnSubselection> valueComparator = new Comparator<ColumnSubselection>()
-    {
-        public int compare(ColumnSubselection s1, ColumnSubselection s2)
-        {
-            assert s1.column().name.equals(s2.column().name);
-            return s1.column().cellPathComparator().compare(s1.minIncludedPath(), s2.minIncludedPath());
-        }
-    };
 
     // Distinguish between the 2 cases described above: if 'isFetchAll' is true, then all columns will be retrieved
     // by the query, but the values for column/cells not selected by 'selection' and 'subSelections' will be skipped.
@@ -115,6 +105,11 @@ public class ColumnFilter
         return isFetchAll ? metadata.partitionColumns() : selection;
     }
 
+    public boolean includesAllColumns()
+    {
+        return isFetchAll;
+    }
+
     /**
      * Whether the provided column is selected by this selection.
      */
@@ -144,7 +139,7 @@ public class ColumnFilter
             return true;
 
         for (ColumnSubselection subSel : s)
-            if (subSel.includes(cell.path()))
+            if (subSel.compareInclusionOf(cell.path()) == 0)
                 return true;
 
         return false;
@@ -163,7 +158,7 @@ public class ColumnFilter
             return false;
 
         for (ColumnSubselection subSel : s)
-            if (subSel.includes(path))
+            if (subSel.compareInclusionOf(path) == 0)
                 return false;
 
         return true;
@@ -182,7 +177,7 @@ public class ColumnFilter
         if (s.isEmpty())
             return null;
 
-        return new Tester(s.iterator());
+        return new Tester(isFetchAll, s.iterator());
     }
 
     /**
@@ -205,46 +200,43 @@ public class ColumnFilter
 
     public static class Tester
     {
+        private final boolean isFetchAll;
         private ColumnSubselection current;
         private final Iterator<ColumnSubselection> iterator;
 
-        private Tester(Iterator<ColumnSubselection> iterator)
+        private Tester(boolean isFetchAll, Iterator<ColumnSubselection> iterator)
         {
+            this.isFetchAll = isFetchAll;
             this.iterator = iterator;
         }
 
         public boolean includes(CellPath path)
         {
-            while (current == null)
-            {
-                if (!iterator.hasNext())
-                    return false;
-
-                current = iterator.next();
-                if (current.includes(path))
-                    return true;
-
-                if (current.column().cellPathComparator().compare(current.maxIncludedPath(), path) < 0)
-                    current = null;
-            }
-            return false;
+            return isFetchAll || includedBySubselection(path);
         }
 
         public boolean canSkipValue(CellPath path)
         {
-            while (current == null)
+            return isFetchAll && !includedBySubselection(path);
+        }
+
+        private boolean includedBySubselection(CellPath path)
+        {
+            while (current != null || iterator.hasNext())
             {
-                if (!iterator.hasNext())
+                if (current == null)
+                    current = iterator.next();
+
+                int cmp = current.compareInclusionOf(path);
+                if (cmp == 0) // The path is included
+                    return true;
+                else if (cmp < 0) // The path is before this sub-selection, it's not included by any
                     return false;
 
-                current = iterator.next();
-                if (current.includes(path))
-                    return false;
-
-                if (current.column().cellPathComparator().compare(current.maxIncludedPath(), path) < 0)
-                    current = null;
+                // the path is after this sub-selection, we need to check the next one.
+                current = null;
             }
-            return true;
+            return false;
         }
     }
 
@@ -302,7 +294,7 @@ public class ColumnFilter
             SortedSetMultimap<ColumnIdentifier, ColumnSubselection> s = null;
             if (subSelections != null)
             {
-                s = TreeMultimap.create(Comparator.<ColumnIdentifier>naturalOrder(), valueComparator);
+                s = TreeMultimap.create(Comparator.<ColumnIdentifier>naturalOrder(), Comparator.<ColumnSubselection>naturalOrder());
                 for (ColumnSubselection subSelection : subSelections)
                     s.put(subSelection.column().name, subSelection);
             }
@@ -316,6 +308,9 @@ public class ColumnFilter
     {
         if (selection == null)
             return "*";
+
+        if (selection.isEmpty())
+            return "";
 
         Iterator<ColumnDefinition> defs = selection.selectOrderIterator();
         StringBuilder sb = new StringBuilder();
@@ -351,7 +346,7 @@ public class ColumnFilter
         private static final int HAS_SELECTION_MASK      = 0x02;
         private static final int HAS_SUB_SELECTIONS_MASK = 0x04;
 
-        private int makeHeaderByte(ColumnFilter selection)
+        private static int makeHeaderByte(ColumnFilter selection)
         {
             return (selection.isFetchAll ? IS_FETCH_ALL_MASK : 0)
                  | (selection.selection != null ? HAS_SELECTION_MASK : 0)
@@ -376,7 +371,7 @@ public class ColumnFilter
             }
         }
 
-        public ColumnFilter deserialize(DataInput in, int version, CFMetaData metadata) throws IOException
+        public ColumnFilter deserialize(DataInputPlus in, int version, CFMetaData metadata) throws IOException
         {
             int header = in.readUnsignedByte();
             boolean isFetchAll = (header & IS_FETCH_ALL_MASK) != 0;
@@ -394,7 +389,7 @@ public class ColumnFilter
             SortedSetMultimap<ColumnIdentifier, ColumnSubselection> subSelections = null;
             if (hasSubSelections)
             {
-                subSelections = TreeMultimap.create(Comparator.<ColumnIdentifier>naturalOrder(), valueComparator);
+                subSelections = TreeMultimap.create(Comparator.<ColumnIdentifier>naturalOrder(), Comparator.<ColumnSubselection>naturalOrder());
                 int size = in.readUnsignedShort();
                 for (int i = 0; i < size; i++)
                 {

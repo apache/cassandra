@@ -319,7 +319,7 @@ public class SchemaLoader
                 .addPartitionKey("key", AsciiType.instance)
                 .build();
 
-        return cfm.addOrReplaceColumnDefinition(ColumnDefinition.regularDef(ksName, cfName, "indexed", AsciiType.instance, null)
+        return cfm.addOrReplaceColumnDefinition(ColumnDefinition.regularDef(ksName, cfName, "indexed", AsciiType.instance)
                                                                 .setIndex("indexe1", IndexType.CUSTOM, indexOptions));
     }
 

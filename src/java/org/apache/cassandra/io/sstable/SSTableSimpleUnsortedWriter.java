@@ -32,7 +32,9 @@ import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.*;
-import org.apache.cassandra.db.rows.CellPath;
+import org.apache.cassandra.db.rows.Row;
+import org.apache.cassandra.db.rows.RowStats;
+import org.apache.cassandra.db.rows.UnfilteredSerializer;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.io.sstable.format.SSTableWriter;
@@ -58,6 +60,9 @@ class SSTableSimpleUnsortedWriter extends AbstractSSTableSimpleWriter
     private final long bufferSize;
     private long currentSize;
 
+    // Used to compute the row serialized size
+    private final SerializationHeader header;
+
     private final BlockingQueue<Buffer> writeQueue = new SynchronousQueue<Buffer>();
     private final DiskWriter diskWriter = new DiskWriter();
 
@@ -65,6 +70,7 @@ class SSTableSimpleUnsortedWriter extends AbstractSSTableSimpleWriter
     {
         super(directory, metadata, partitioner, columns);
         this.bufferSize = bufferSizeInMB * 1024L * 1024L;
+        this.header = new SerializationHeader(metadata, columns, RowStats.NO_STATS);
         diskWriter.start();
     }
 
@@ -76,42 +82,21 @@ class SSTableSimpleUnsortedWriter extends AbstractSSTableSimpleWriter
         if (previous == null)
         {
             previous = createPartitionUpdate(key);
-            count(PartitionUpdate.serializer.serializedSize(previous, formatType.info.getLatestVersion().correspondingMessagingVersion()));
+            currentSize += PartitionUpdate.serializer.serializedSize(previous, formatType.info.getLatestVersion().correspondingMessagingVersion());
             previous.allowNewUpdates();
             buffer.put(key, previous);
         }
         return previous;
     }
 
-    private void count(long size)
+    private void countRow(Row row)
     {
-        currentSize += size;
-    }
-
-    private void countCell(ColumnDefinition column, ByteBuffer value, LivenessInfo info, CellPath path)
-    {
-        // Note that the accounting of a cell is a bit inaccurate (it doesn't take some of the file format optimization into account)
+        // Note that the accounting of a row is a bit inaccurate (it doesn't take some of the file format optimization into account)
         // and the maintaining of the bufferSize is in general not perfect. This has always been the case for this class but we should
         // improve that. In particular, what we count is closer to the serialized value, but it's debatable that it's the right thing
         // to count since it will take a lot more space in memory and the bufferSize if first and foremost used to avoid OOM when
         // using this writer.
-
-        count(1); // Each cell has a byte flag on disk
-
-        if (value.hasRemaining())
-            count(column.type.writtenLength(value));
-
-        count(8); // timestamp
-        if (info.hasLocalDeletionTime())
-            count(4);
-        if (info.hasTTL())
-            count(4);
-
-        if (path != null)
-        {
-            assert path.size() == 1;
-            count(2 + path.get(0).remaining());
-        }
+        currentSize += UnfilteredSerializer.serializer.serializedSize(row, header, formatType.info.getLatestVersion().correspondingMessagingVersion());
     }
 
     private void maybeSync() throws SyncException
@@ -134,52 +119,11 @@ class SSTableSimpleUnsortedWriter extends AbstractSSTableSimpleWriter
         return new PartitionUpdate(metadata, key, columns, 4)
         {
             @Override
-            protected StaticWriter createStaticWriter()
+            public void add(Row row)
             {
-                return new StaticWriter()
-                {
-                    @Override
-                    public void writeCell(ColumnDefinition column, boolean isCounter, ByteBuffer value, LivenessInfo info, CellPath path)
-                    {
-                        super.writeCell(column, isCounter, value, info, path);
-                        countCell(column, value, info, path);
-                    }
-
-                    @Override
-                    public void endOfRow()
-                    {
-                        super.endOfRow();
-                        maybeSync();
-                    }
-                };
-            }
-
-            @Override
-            protected Writer createWriter()
-            {
-                return new RegularWriter()
-                {
-                    @Override
-                    public void writeClusteringValue(ByteBuffer value)
-                    {
-                        super.writeClusteringValue(value);
-                        count(2 + value.remaining());
-                    }
-
-                    @Override
-                    public void writeCell(ColumnDefinition column, boolean isCounter, ByteBuffer value, LivenessInfo info, CellPath path)
-                    {
-                        super.writeCell(column, isCounter, value, info, path);
-                        countCell(column, value, info, path);
-                    }
-
-                    @Override
-                    public void endOfRow()
-                    {
-                        super.endOfRow();
-                        maybeSync();
-                    }
-                };
+                super.add(row);
+                countRow(row);
+                maybeSync();
             }
         };
     }

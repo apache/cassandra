@@ -43,6 +43,7 @@ import org.apache.cassandra.exceptions.RequestExecutionException;
 import org.apache.cassandra.io.compress.CompressionMetadata;
 import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.io.sstable.format.SSTableWriter;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.commons.lang3.StringUtils;
 import org.junit.BeforeClass;
@@ -333,7 +334,7 @@ public class ScrubTest
             writer.append(update.unfilteredIterator());
         }
         writer.finish(false);
-        */
+         */
 
         String root = System.getProperty("corrupt-sstable-root");
         assert root != null;

@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.db;
 
-import java.io.DataInput;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.security.MessageDigest;
@@ -25,6 +24,7 @@ import java.util.*;
 
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.ObjectSizes;
@@ -68,8 +68,8 @@ public class Slice
     private Slice(Bound start, Bound end)
     {
         assert start.isStart() && end.isEnd();
-        this.start = start.takeAlias();
-        this.end = end.takeAlias();
+        this.start = start;
+        this.end = end;
     }
 
     public static Slice make(Bound start, Bound end)
@@ -331,7 +331,7 @@ public class Slice
                  + Bound.serializer.serializedSize(slice.end, version, types);
         }
 
-        public Slice deserialize(DataInput in, int version, List<AbstractType<?>> types) throws IOException
+        public Slice deserialize(DataInputPlus in, int version, List<AbstractType<?>> types) throws IOException
         {
             Bound start = Bound.serializer.deserialize(in, version, types);
             Bound end = Bound.serializer.deserialize(in, version, types);
@@ -346,21 +346,19 @@ public class Slice
      */
     public static class Bound extends AbstractClusteringPrefix
     {
-        private static final long EMPTY_SIZE = ObjectSizes.measure(new Bound(Kind.INCL_START_BOUND, new ByteBuffer[0]));
         public static final Serializer serializer = new Serializer();
 
-        /** The smallest start bound, i.e. the one that starts before any row. */
-        public static final Bound BOTTOM = inclusiveStartOf();
-        /** The biggest end bound, i.e. the one that ends after any row. */
-        public static final Bound TOP = inclusiveEndOf();
-
-        protected final Kind kind;
-        protected final ByteBuffer[] values;
+        /**
+         * The smallest and biggest bound. Note that as range tomstone bounds are (special case) of slice bounds,
+         * we want the BOTTOM and TOP to be the same object, but we alias them here because it's cleaner when dealing
+         * with slices to refer to Slice.Bound.BOTTOM and Slice.Bound.TOP.
+         */
+        public static final Bound BOTTOM = RangeTombstone.Bound.BOTTOM;
+        public static final Bound TOP = RangeTombstone.Bound.TOP;
 
         protected Bound(Kind kind, ByteBuffer[] values)
         {
-            this.kind = kind;
-            this.values = values;
+            super(kind, values);
         }
 
         public static Bound create(Kind kind, ByteBuffer[] values)
@@ -396,22 +394,6 @@ public class Slice
             return create(Kind.EXCL_END_BOUND, values);
         }
 
-        public static Bound exclusiveStartOf(ClusteringPrefix prefix)
-        {
-            ByteBuffer[] values = new ByteBuffer[prefix.size()];
-            for (int i = 0; i < prefix.size(); i++)
-                values[i] = prefix.get(i);
-            return exclusiveStartOf(values);
-        }
-
-        public static Bound inclusiveEndOf(ClusteringPrefix prefix)
-        {
-            ByteBuffer[] values = new ByteBuffer[prefix.size()];
-            for (int i = 0; i < prefix.size(); i++)
-                values[i] = prefix.get(i);
-            return inclusiveEndOf(values);
-        }
-
         public static Bound create(ClusteringComparator comparator, boolean isStart, boolean isInclusive, Object... values)
         {
             CBuilder builder = CBuilder.create(comparator);
@@ -424,21 +406,6 @@ public class Slice
                     builder.add(val);
             }
             return builder.buildBound(isStart, isInclusive);
-        }
-
-        public Kind kind()
-        {
-            return kind;
-        }
-
-        public int size()
-        {
-            return values.length;
-        }
-
-        public ByteBuffer get(int i)
-        {
-            return values[i];
         }
 
         public Bound withNewKind(Kind kind)
@@ -478,24 +445,6 @@ public class Slice
         public Slice.Bound invert()
         {
             return withNewKind(kind().invert());
-        }
-
-        public ByteBuffer[] getRawValues()
-        {
-            return values;
-        }
-
-        public void digest(MessageDigest digest)
-        {
-            for (int i = 0; i < size(); i++)
-                digest.update(get(i).duplicate());
-            FBUtilities.updateWithByte(digest, kind().ordinal());
-        }
-
-        public void writeTo(Slice.Bound.Writer writer)
-        {
-            super.writeTo(writer);
-            writer.writeBoundKind(kind());
         }
 
         // For use by intersects, it's called with the sstable bound opposite to the slice bound
@@ -544,66 +493,10 @@ public class Slice
             return sb.append(")").toString();
         }
 
-        // Overriding to get a more precise type
-        @Override
-        public Bound takeAlias()
-        {
-            return this;
-        }
-
-        @Override
-        public long unsharedHeapSize()
-        {
-            return EMPTY_SIZE + ObjectSizes.sizeOnHeapOf(values);
-        }
-
-        public long unsharedHeapSizeExcludingData()
-        {
-            return EMPTY_SIZE + ObjectSizes.sizeOnHeapExcludingData(values);
-        }
-
-        public static Builder builder(int size)
-        {
-            return new Builder(size);
-        }
-
-        public interface Writer extends ClusteringPrefix.Writer
-        {
-            public void writeBoundKind(Kind kind);
-        }
-
-        public static class Builder implements Writer
-        {
-            private final ByteBuffer[] values;
-            private Kind kind;
-            private int idx;
-
-            private Builder(int size)
-            {
-                this.values = new ByteBuffer[size];
-            }
-
-            public void writeClusteringValue(ByteBuffer value)
-            {
-                values[idx++] = value;
-            }
-
-            public void writeBoundKind(Kind kind)
-            {
-                this.kind = kind;
-            }
-
-            public Slice.Bound build()
-            {
-                assert idx == values.length;
-                return Slice.Bound.create(kind, values);
-            }
-        }
-
         /**
          * Serializer for slice bounds.
          * <p>
-         * Contrarily to {@code Clustering}, a slice bound can only be a true prefix of the full clustering, so we actually record
+         * Contrarily to {@code Clustering}, a slice bound can be a true prefix of the full clustering, so we actually record
          * its size.
          */
         public static class Serializer
@@ -622,31 +515,21 @@ public class Slice
                      + ClusteringPrefix.serializer.valuesWithoutSizeSerializedSize(bound, version, types);
             }
 
-            public Slice.Bound deserialize(DataInput in, int version, List<AbstractType<?>> types) throws IOException
+            public Slice.Bound deserialize(DataInputPlus in, int version, List<AbstractType<?>> types) throws IOException
             {
                 Kind kind = Kind.values()[in.readByte()];
                 return deserializeValues(in, kind, version, types);
             }
 
-            public Slice.Bound deserializeValues(DataInput in, Kind kind, int version, List<AbstractType<?>> types) throws IOException
+            public Slice.Bound deserializeValues(DataInputPlus in, Kind kind, int version, List<AbstractType<?>> types) throws IOException
             {
                 int size = in.readUnsignedShort();
                 if (size == 0)
                     return kind.isStart() ? BOTTOM : TOP;
 
-                Builder builder = builder(size);
-                ClusteringPrefix.serializer.deserializeValuesWithoutSize(in, size, version, types, builder);
-                builder.writeBoundKind(kind);
-                return builder.build();
+                ByteBuffer[] values = ClusteringPrefix.serializer.deserializeValuesWithoutSize(in, size, version, types);
+                return Slice.Bound.create(kind, values);
             }
-
-            public void deserializeValues(DataInput in, Bound.Kind kind, int version, List<AbstractType<?>> types, Writer writer) throws IOException
-            {
-                int size = in.readUnsignedShort();
-                ClusteringPrefix.serializer.deserializeValuesWithoutSize(in, size, version, types, writer);
-                writer.writeBoundKind(kind);
-            }
-
         }
     }
 }

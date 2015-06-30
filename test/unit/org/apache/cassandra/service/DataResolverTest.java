@@ -360,7 +360,7 @@ public class DataResolverTest
         assertEquals(1, messageRecorder.sent.size());
         MessageOut msg = getSentMessage(peer1);
         assertRepairMetadata(msg);
-        assertRepairContainsDeletions(msg, new SimpleDeletionTime(1, nowInSec));
+        assertRepairContainsDeletions(msg, new DeletionTime(1, nowInSec));
         assertRepairContainsNoColumns(msg);
     }
 
@@ -397,19 +397,19 @@ public class DataResolverTest
         assertEquals(4, messageRecorder.sent.size());
         MessageOut msg = getSentMessage(peer1);
         assertRepairMetadata(msg);
-        assertRepairContainsDeletions(msg, new SimpleDeletionTime(2, nowInSec));
+        assertRepairContainsDeletions(msg, new DeletionTime(2, nowInSec));
         assertRepairContainsColumn(msg, "1", "two", "B", 3);
 
         // peer 2 needs the deletion from peer 4 and the row from peer 3
         msg = getSentMessage(peer2);
         assertRepairMetadata(msg);
-        assertRepairContainsDeletions(msg, new SimpleDeletionTime(2, nowInSec));
+        assertRepairContainsDeletions(msg, new DeletionTime(2, nowInSec));
         assertRepairContainsColumn(msg, "1", "two", "B", 3);
 
         // peer 3 needs just the deletion from peer 4
         msg = getSentMessage(peer3);
         assertRepairMetadata(msg);
-        assertRepairContainsDeletions(msg, new SimpleDeletionTime(2, nowInSec));
+        assertRepairContainsDeletions(msg, new DeletionTime(2, nowInSec));
         assertRepairContainsNoColumns(msg);
 
         // peer 4 needs just the row from peer 3
@@ -500,7 +500,7 @@ public class DataResolverTest
     private RangeTombstone tombstone(Object start, Object end, long markedForDeleteAt, int localDeletionTime)
     {
         return new RangeTombstone(Slice.make(cfm.comparator.make(start), cfm.comparator.make(end)),
-                                  new SimpleDeletionTime(markedForDeleteAt, localDeletionTime));
+                                  new DeletionTime(markedForDeleteAt, localDeletionTime));
     }
 
     private UnfilteredPartitionIterator fullPartitionDelete(CFMetaData cfm, DecoratedKey dk, long timestamp, int nowInSec)

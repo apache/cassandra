@@ -60,12 +60,12 @@ public class CellTest
                 // don't test equality for both sides native, as this is based on CellName resolution
                 if (lhs && rhs)
                     continue;
-                Cell a = buildCell(cfm, "a", "a", 1, 1);
-                Cell b = buildCell(cfm, "a", "a", 1, 0);
+                Cell a = expiring(cfm, "val", "a", 1, 1);
+                Cell b = regular(cfm, "val", "a", 1);
                 Assert.assertNotSame(a, b);
                 Assert.assertNotSame(b, a);
 
-                a = deleted(cfm, "a", "a", 1, 1);
+                a = deleted(cfm, "val", 1, 1);
                 Assert.assertNotSame(a, b);
                 Assert.assertNotSame(b, a);
             }
@@ -76,18 +76,18 @@ public class CellTest
     public void testExpiringCellReconile()
     {
         // equal
-        Assert.assertEquals(0, testExpiring("a", "a", 1, 1, null, null, null, null));
+        Assert.assertEquals(0, testExpiring("val", "a", 1, 1, null, null, null, null));
 
         // newer timestamp
-        Assert.assertEquals(-1, testExpiring("a", "a", 2, 1, null, null, 1L, null));
-        Assert.assertEquals(-1, testExpiring("a", "a", 2, 1, null, "b", 1L, 2));
+        Assert.assertEquals(-1, testExpiring("val", "a", 2, 1, null, null, 1L, null));
+        Assert.assertEquals(-1, testExpiring("val", "a", 2, 1, null, "val", 1L, 2));
 
-        Assert.assertEquals(-1, testExpiring("a", "a", 1, 2, null, null, null, 1));
-        Assert.assertEquals(1, testExpiring("a", "a", 1, 2, null, "b", null, 1));
+        Assert.assertEquals(-1, testExpiring("val", "a", 1, 2, null, null, null, 1));
+        Assert.assertEquals(1, testExpiring("val", "a", 1, 2, null, "val", null, 1));
 
         // newer value
-        Assert.assertEquals(-1, testExpiring("a", "b", 2, 1, null, "a", null, null));
-        Assert.assertEquals(-1, testExpiring("a", "b", 2, 1, null, "a", null, 2));
+        Assert.assertEquals(-1, testExpiring("val", "b", 2, 1, null, "a", null, null));
+        Assert.assertEquals(-1, testExpiring("val", "b", 2, 1, null, "a", null, 2));
     }
 
     private int testExpiring(String n1, String v1, long t1, int et1, String n2, String v2, Long t2, Integer et2)
@@ -100,8 +100,8 @@ public class CellTest
             t2 = t1;
         if (et2 == null)
             et2 = et1;
-        Cell c1 = buildCell(cfm, n1, v1, t1, et1);
-        Cell c2 = buildCell(cfm, n2, v2, t2, et2);
+        Cell c1 = expiring(cfm, n1, v1, t1, et1);
+        Cell c2 = expiring(cfm, n2, v2, t2, et2);
 
         int now = FBUtilities.nowInSeconds();
         if (Cells.reconcile(c1, c2, now) == c1)
@@ -109,56 +109,21 @@ public class CellTest
         return Cells.reconcile(c2, c1, now) == c2 ? 1 : 0;
     }
 
-    private Cell buildCell(CFMetaData cfm, String columnName, String value, long timestamp, int ttl)
+    private Cell regular(CFMetaData cfm, String columnName, String value, long timestamp)
     {
         ColumnDefinition cdef = cfm.getColumnDefinition(ByteBufferUtil.bytes(columnName));
-        LivenessInfo info = SimpleLivenessInfo.forUpdate(timestamp, ttl, FBUtilities.nowInSeconds(), cfm);
-        return new TestCell(cdef, ByteBufferUtil.bytes(value), info);
+        return BufferCell.live(cfm, cdef, timestamp, ByteBufferUtil.bytes(value));
     }
 
-    private Cell deleted(CFMetaData cfm, String columnName, String value, int localDeletionTime, long timestamp)
+    private Cell expiring(CFMetaData cfm, String columnName, String value, long timestamp, int localExpirationTime)
     {
         ColumnDefinition cdef = cfm.getColumnDefinition(ByteBufferUtil.bytes(columnName));
-        LivenessInfo info = SimpleLivenessInfo.forDeletion(timestamp, localDeletionTime);
-        return new TestCell(cdef, ByteBufferUtil.bytes(value), info);
+        return new BufferCell(cdef, timestamp, 1, localExpirationTime, ByteBufferUtil.bytes(value), null);
     }
 
-    public static class TestCell extends AbstractCell
+    private Cell deleted(CFMetaData cfm, String columnName, int localDeletionTime, long timestamp)
     {
-        private final ColumnDefinition column;
-        private final ByteBuffer value;
-        private final LivenessInfo info;
-
-        public TestCell(ColumnDefinition column, ByteBuffer value, LivenessInfo info)
-        {
-            this.column = column;
-            this.value = value;
-            this.info = info.takeAlias();
-        }
-
-        public ColumnDefinition column()
-        {
-            return column;
-        }
-
-        public boolean isCounterCell()
-        {
-            return false;
-        }
-
-        public ByteBuffer value()
-        {
-            return value;
-        }
-
-        public LivenessInfo livenessInfo()
-        {
-            return info;
-        }
-
-        public CellPath path()
-        {
-            return null;
-        }
+        ColumnDefinition cdef = cfm.getColumnDefinition(ByteBufferUtil.bytes(columnName));
+        return BufferCell.tombstone(cdef, timestamp, localDeletionTime);
     }
 }

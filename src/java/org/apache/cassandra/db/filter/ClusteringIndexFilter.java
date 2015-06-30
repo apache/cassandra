@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.db.filter;
 
-import java.io.DataInput;
 import java.io.IOException;
 
 import org.apache.cassandra.config.CFMetaData;
@@ -26,6 +25,7 @@ import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.db.partitions.CachedPartition;
 import org.apache.cassandra.db.partitions.Partition;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 
 /**
@@ -146,7 +146,7 @@ public interface ClusteringIndexFilter
     public interface Serializer
     {
         public void serialize(ClusteringIndexFilter filter, DataOutputPlus out, int version) throws IOException;
-        public ClusteringIndexFilter deserialize(DataInput in, int version, CFMetaData metadata) throws IOException;
+        public ClusteringIndexFilter deserialize(DataInputPlus in, int version, CFMetaData metadata) throws IOException;
         public long serializedSize(ClusteringIndexFilter filter, int version);
     }
 }

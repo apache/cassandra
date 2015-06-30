@@ -32,10 +32,7 @@ import org.apache.cassandra.cache.CachingOptions;
 import org.apache.cassandra.cache.RowCacheKey;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.Schema;
-import org.apache.cassandra.db.rows.Unfiltered;
-import org.apache.cassandra.db.rows.UnfilteredRowIterator;
-import org.apache.cassandra.db.rows.Cell;
-import org.apache.cassandra.db.rows.Row;
+import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.marshal.IntegerType;
@@ -113,10 +110,9 @@ public class RowCacheTest
         for (Unfiltered unfiltered : Util.once(cachedCf.unfilteredIterator(ColumnFilter.selection(cachedCf.columns()), Slices.ALL, false)))
         {
             Row r = (Row) unfiltered;
-
-            for (Cell c : r)
+            for (ColumnData c : r)
             {
-                assertEquals(c.value(), ByteBufferUtil.bytes("val" + 0));
+                assertEquals(((Cell)c).value(), ByteBufferUtil.bytes("val" + 0));
             }
         }
         cachedStore.truncateBlocking();
@@ -156,7 +152,7 @@ public class RowCacheTest
                 Row r = (Row)ai.next();
                 assertFalse(ai.hasNext());
 
-                Iterator<Cell> ci = r.iterator();
+                Iterator<Cell> ci = r.cells().iterator();
                 assert(ci.hasNext());
                 Cell cell = ci.next();
 
@@ -183,7 +179,7 @@ public class RowCacheTest
                 Row r = (Row)ai.next();
                 assertFalse(ai.hasNext());
 
-                Iterator<Cell> ci = r.iterator();
+                Iterator<Cell> ci = r.cells().iterator();
                 assert(ci.hasNext());
                 Cell cell = ci.next();
 
@@ -309,9 +305,9 @@ public class RowCacheTest
 
             assertEquals(r.clustering().get(0), ByteBufferUtil.bytes(values[i].substring(3)));
 
-            for (Cell c : r)
+            for (ColumnData c : r)
             {
-                assertEquals(c.value(), ByteBufferUtil.bytes(values[i]));
+                assertEquals(((Cell)c).value(), ByteBufferUtil.bytes(values[i]));
             }
             i++;
         }
@@ -351,7 +347,7 @@ public class RowCacheTest
         for (int i = offset; i < offset + numberOfRows; i++)
         {
             DecoratedKey key = Util.dk("key" + i);
-            Clustering cl = new SimpleClustering(ByteBufferUtil.bytes("col" + i));
+            Clustering cl = new Clustering(ByteBufferUtil.bytes("col" + i));
             Util.getAll(Util.cmd(store, key).build());
         }
     }

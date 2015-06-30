@@ -59,8 +59,7 @@ public abstract class MemtableAllocator
         this.offHeap = offHeap;
     }
 
-    public abstract MemtableRowData.ReusableRow newReusableRow();
-    public abstract RowAllocator newRowAllocator(CFMetaData cfm, OpOrder.Group writeOp);
+    public abstract Row.Builder rowBuilder(CFMetaData metadata, OpOrder.Group opGroup, boolean isStatic);
     public abstract DecoratedKey clone(DecoratedKey key, OpOrder.Group opGroup);
     public abstract DataReclaimer reclaimer();
 
@@ -103,16 +102,10 @@ public abstract class MemtableAllocator
         return state == LifeCycle.LIVE;
     }
 
-    public static interface RowAllocator extends Row.Writer
-    {
-        public void allocateNewRow(int clusteringSize, Columns columns, boolean isStatic);
-        public MemtableRowData allocatedRowData();
-    }
-
     public static interface DataReclaimer
     {
-        public DataReclaimer reclaim(MemtableRowData row);
-        public DataReclaimer reclaimImmediately(MemtableRowData row);
+        public DataReclaimer reclaim(Row row);
+        public DataReclaimer reclaimImmediately(Row row);
         public DataReclaimer reclaimImmediately(DecoratedKey key);
         public void cancel();
         public void commit();
@@ -120,12 +113,12 @@ public abstract class MemtableAllocator
 
     public static final DataReclaimer NO_OP = new DataReclaimer()
     {
-        public DataReclaimer reclaim(MemtableRowData update)
+        public DataReclaimer reclaim(Row update)
         {
             return this;
         }
 
-        public DataReclaimer reclaimImmediately(MemtableRowData update)
+        public DataReclaimer reclaimImmediately(Row update)
         {
             return this;
         }

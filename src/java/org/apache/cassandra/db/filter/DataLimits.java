@@ -115,16 +115,13 @@ public abstract class DataLimits
      * The max number of results this limits enforces.
      * <p>
      * Note that the actual definition of "results" depends a bit: for CQL, it's always rows, but for
-     * thrift, it means cells. The {@link #countsCells} allows to distinguish between the two cases if
-     * needed.
+     * thrift, it means cells.
      *
      * @return the maximum number of results this limits enforces.
      */
     public abstract int count();
 
     public abstract int perPartitionCount();
-
-    public abstract boolean countsCells();
 
     public UnfilteredPartitionIterator filter(UnfilteredPartitionIterator iter, int nowInSec)
     {
@@ -269,11 +266,6 @@ public abstract class DataLimits
             return perPartitionLimit;
         }
 
-        public boolean countsCells()
-        {
-            return false;
-        }
-
         public float estimateTotalResults(ColumnFamilyStore cfs)
         {
             // TODO: we should start storing stats on the number of rows (instead of the number of cells, which
@@ -353,7 +345,7 @@ public abstract class DataLimits
             {
                 sb.append("LIMIT ").append(rowLimit);
                 if (perPartitionLimit != Integer.MAX_VALUE)
-                    sb.append(" ");
+                    sb.append(' ');
             }
 
             if (perPartitionLimit != Integer.MAX_VALUE)
@@ -511,11 +503,6 @@ public abstract class DataLimits
             return cellPerPartitionLimit;
         }
 
-        public boolean countsCells()
-        {
-            return true;
-        }
-
         public float estimateTotalResults(ColumnFamilyStore cfs)
         {
             // remember that getMeansColumns returns a number of cells: we should clean nomenclature
@@ -572,7 +559,7 @@ public abstract class DataLimits
 
             public void newRow(Row row)
             {
-                for (Cell cell : row)
+                for (Cell cell : row.cells())
                 {
                     if (assumeLiveData || cell.isLive(nowInSec))
                     {

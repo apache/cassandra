@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.db.rows;
 
-import java.io.DataInput;
 import java.io.IOException;
 import java.io.IOError;
 
@@ -30,7 +29,6 @@ import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.utils.FBUtilities;
 
 /**
  * Serialize/Deserialize an unfiltered row iterator.
@@ -38,7 +36,7 @@ import org.apache.cassandra.utils.FBUtilities;
  * The serialization is composed of a header, follows by the rows and range tombstones of the iterator serialized
  * until we read the end of the partition (see UnfilteredSerializer for details). The header itself
  * is:
- *     <cfid><key><flags><s_header>[<partition_deletion>][<static_row>]
+ *     <cfid><key><flags><s_header>[<partition_deletion>][<static_row>][<row_estimate>]
  * where:
  *     <cfid> is the table cfid.
  *     <key> is the partition key.
@@ -49,23 +47,17 @@ import org.apache.cassandra.utils.FBUtilities;
  *         - has partition deletion: whether or not there is a <partition_deletion> following
  *         - has static row: whether or not there is a <static_row> following
  *         - has row estimate: whether or not there is a <row_estimate> following
- *     <s_header> is the SerializationHeader. More precisely it's
- *           <min_timetamp><min_localDelTime><min_ttl>[<static_columns>]<columns>
- *         where:
- *           - <min_timestamp> is the base timestamp used for delta-encoding timestamps
- *           - <min_localDelTime> is the base localDeletionTime used for delta-encoding local deletion times
- *           - <min_ttl> is the base localDeletionTime used for delta-encoding ttls
- *           - <static_columns> is the static columns if a static row is present. It's
- *             the number of columns as an unsigned short, followed by the column names.
- *           - <columns> is the columns of the rows of the iterator. It's serialized as <static_columns>.
+ *     <s_header> is the {@code SerializationHeader}. It contains in particular the columns contains in the serialized
+ *         iterator as well as other information necessary to decoding the serialized rows
+ *         (see {@code SerializationHeader.Serializer for details}).
  *     <partition_deletion> is the deletion time for the partition (delta-encoded)
  *     <static_row> is the static row for this partition as serialized by UnfilteredSerializer.
- *     <row_estimate> is the (potentially estimated) number of rows serialized. This is only use for
- *         the purpose of some sizing on the receiving end and should not be relied upon too strongly.
+ *     <row_estimate> is the (potentially estimated) number of rows serialized. This is only used for
+ *         the purpose of sizing on the receiving end and should not be relied upon too strongly.
  *
- * !!! Please note that the serialized value depends on the schema and as such should not be used as is if
- *     it might be deserialized after the schema as changed !!!
- * TODO: we should add a flag to include the relevant metadata in the header for commit log etc.....
+ * Please note that the format described above is the on-wire format. On-disk, the format is basically the
+ * same, but the header is written once per sstable, not once per-partition. Further, the actual row and
+ * range tombstones are not written using this class, but rather by {@link ColumnIndex}.
  */
 public class UnfilteredRowIteratorSerializer
 {
@@ -79,11 +71,13 @@ public class UnfilteredRowIteratorSerializer
 
     public static final UnfilteredRowIteratorSerializer serializer = new UnfilteredRowIteratorSerializer();
 
+    // Should only be used for the on-wire format.
     public void serialize(UnfilteredRowIterator iterator, DataOutputPlus out, int version) throws IOException
     {
         serialize(iterator, out, version, -1);
     }
 
+    // Should only be used for the on-wire format.
     public void serialize(UnfilteredRowIterator iterator, DataOutputPlus out, int version, int rowEstimate) throws IOException
     {
         SerializationHeader header = new SerializationHeader(iterator.metadata(),
@@ -92,6 +86,7 @@ public class UnfilteredRowIteratorSerializer
         serialize(iterator, out, header, version, rowEstimate);
     }
 
+    // Should only be used for the on-wire format.
     public void serialize(UnfilteredRowIterator iterator, DataOutputPlus out, SerializationHeader header, int version, int rowEstimate) throws IOException
     {
         CFMetaData.serializer.serialize(iterator.metadata(), out, version);
@@ -129,7 +124,7 @@ public class UnfilteredRowIteratorSerializer
             UnfilteredSerializer.serializer.serialize(staticRow, header, out, version);
 
         if (rowEstimate >= 0)
-            out.writeInt(rowEstimate);
+            out.writeVInt(rowEstimate);
 
         while (iterator.hasNext())
             UnfilteredSerializer.serializer.serialize(iterator.next(), header, out, version);
@@ -137,7 +132,7 @@ public class UnfilteredRowIteratorSerializer
     }
 
     // Please note that this consume the iterator, and as such should not be called unless we have a simple way to
-    // recreate an iterator for both serialize and serializedSize, which is mostly only PartitionUpdate
+    // recreate an iterator for both serialize and serializedSize, which is mostly only PartitionUpdate/ArrayBackedCachedPartition.
     public long serializedSize(UnfilteredRowIterator iterator, int version, int rowEstimate)
     {
         SerializationHeader header = new SerializationHeader(iterator.metadata(),
@@ -166,7 +161,7 @@ public class UnfilteredRowIteratorSerializer
             size += UnfilteredSerializer.serializer.serializedSize(staticRow, header, version);
 
         if (rowEstimate >= 0)
-            size += TypeSizes.sizeof(rowEstimate);
+            size += TypeSizes.sizeofVInt(rowEstimate);
 
         while (iterator.hasNext())
             size += UnfilteredSerializer.serializer.serializedSize(iterator.next(), header, version);
@@ -197,41 +192,29 @@ public class UnfilteredRowIteratorSerializer
 
         Row staticRow = Rows.EMPTY_STATIC_ROW;
         if (hasStatic)
-            staticRow = UnfilteredSerializer.serializer.deserializeStaticRow(in, header, new SerializationHelper(version, flag));
+            staticRow = UnfilteredSerializer.serializer.deserializeStaticRow(in, header, new SerializationHelper(metadata, version, flag));
 
-        int rowEstimate = hasRowEstimate ? in.readInt() : -1;
+        int rowEstimate = hasRowEstimate ? (int)in.readVInt() : -1;
         return new Header(header, metadata, key, isReversed, false, partitionDeletion, staticRow, rowEstimate);
     }
 
-    public void deserialize(DataInput in, SerializationHelper helper, SerializationHeader header, Row.Writer rowWriter, RangeTombstoneMarker.Writer markerWriter) throws IOException
+    public UnfilteredRowIterator deserialize(DataInputPlus in, int version, SerializationHelper.Flag flag, Header header) throws IOException
     {
-        while (UnfilteredSerializer.serializer.deserialize(in, header, helper, rowWriter, markerWriter) != null);
-    }
+        if (header.isEmpty)
+            return UnfilteredRowIterators.emptyIterator(header.metadata, header.key, header.isReversed);
 
-    public UnfilteredRowIterator deserialize(final DataInputPlus in, int version, SerializationHelper.Flag flag) throws IOException
-    {
-        final Header h = deserializeHeader(in, version, flag);
-
-        if (h.isEmpty)
-            return UnfilteredRowIterators.emptyIterator(h.metadata, h.key, h.isReversed);
-
-        final int clusteringSize = h.metadata.clusteringColumns().size();
-        final SerializationHelper helper = new SerializationHelper(version, flag);
-
-        return new AbstractUnfilteredRowIterator(h.metadata, h.key, h.partitionDeletion, h.sHeader.columns(), h.staticRow, h.isReversed, h.sHeader.stats())
+        final SerializationHelper helper = new SerializationHelper(header.metadata, version, flag);
+        final SerializationHeader sHeader = header.sHeader;
+        return new AbstractUnfilteredRowIterator(header.metadata, header.key, header.partitionDeletion, sHeader.columns(), header.staticRow, header.isReversed, sHeader.stats())
         {
-            private final ReusableRow row = new ReusableRow(clusteringSize, h.sHeader.columns().regulars, true, h.metadata.isCounter());
-            private final RangeTombstoneMarker.Builder markerBuilder = new RangeTombstoneMarker.Builder(clusteringSize);
+            private final Row.Builder builder = ArrayBackedRow.sortedBuilder(sHeader.columns().regulars);
 
             protected Unfiltered computeNext()
             {
                 try
                 {
-                    Unfiltered.Kind kind = UnfilteredSerializer.serializer.deserialize(in, h.sHeader, helper, row.writer(), markerBuilder.reset());
-                    if (kind == null)
-                        return endOfData();
-
-                    return kind == Unfiltered.Kind.ROW ? row : markerBuilder.build();
+                    Unfiltered unfiltered = UnfilteredSerializer.serializer.deserialize(in, sHeader, helper, builder);
+                    return unfiltered == null ? endOfData() : unfiltered;
                 }
                 catch (IOException e)
                 {
@@ -241,30 +224,34 @@ public class UnfilteredRowIteratorSerializer
         };
     }
 
+    public UnfilteredRowIterator deserialize(DataInputPlus in, int version, SerializationHelper.Flag flag) throws IOException
+    {
+        return deserialize(in, version, flag,  deserializeHeader(in, version, flag));
+    }
+
     public static void writeDelTime(DeletionTime dt, SerializationHeader header, DataOutputPlus out) throws IOException
     {
-        out.writeLong(header.encodeTimestamp(dt.markedForDeleteAt()));
-        out.writeInt(header.encodeDeletionTime(dt.localDeletionTime()));
+        out.writeVInt(header.encodeTimestamp(dt.markedForDeleteAt()));
+        out.writeVInt(header.encodeDeletionTime(dt.localDeletionTime()));
     }
 
     public static long delTimeSerializedSize(DeletionTime dt, SerializationHeader header)
     {
-        return TypeSizes.sizeof(header.encodeTimestamp(dt.markedForDeleteAt()))
-             + TypeSizes.sizeof(header.encodeDeletionTime(dt.localDeletionTime()));
+        return TypeSizes.sizeofVInt(header.encodeTimestamp(dt.markedForDeleteAt()))
+             + TypeSizes.sizeofVInt(header.encodeDeletionTime(dt.localDeletionTime()));
     }
 
-    public static DeletionTime readDelTime(DataInput in, SerializationHeader header) throws IOException
+    public static DeletionTime readDelTime(DataInputPlus in, SerializationHeader header) throws IOException
     {
-        long markedAt = header.decodeTimestamp(in.readLong());
-        int localDelTime = header.decodeDeletionTime(in.readInt());
-        return new SimpleDeletionTime(markedAt, localDelTime);
+        long markedAt = header.decodeTimestamp(in.readVInt());
+        int localDelTime = header.decodeDeletionTime((int)in.readVInt());
+        return new DeletionTime(markedAt, localDelTime);
     }
 
-    public static void skipDelTime(DataInput in, SerializationHeader header) throws IOException
+    public static void skipDelTime(DataInputPlus in, SerializationHeader header) throws IOException
     {
-        // Note that since we might use VINT, we shouldn't assume the size of a long or an int
-        in.readLong();
-        in.readInt();
+        in.readVInt();
+        in.readVInt();
     }
 
     public static class Header

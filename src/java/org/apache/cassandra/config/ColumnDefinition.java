@@ -70,7 +70,6 @@ public class ColumnDefinition extends ColumnSpecification implements Comparable<
     private final Integer componentIndex;
 
     private final Comparator<CellPath> cellPathComparator;
-    private final Comparator<Cell> cellComparator;
 
     /**
      * These objects are compared frequently, so we encode several of their comparison components
@@ -103,19 +102,19 @@ public class ColumnDefinition extends ColumnSpecification implements Comparable<
         return new ColumnDefinition(ksName, cfName, ColumnIdentifier.getInterned(name, true),  validator, null, null, null, componentIndex, Kind.CLUSTERING);
     }
 
-    public static ColumnDefinition regularDef(CFMetaData cfm, ByteBuffer name, AbstractType<?> validator, Integer componentIndex)
+    public static ColumnDefinition regularDef(CFMetaData cfm, ByteBuffer name, AbstractType<?> validator)
     {
-        return new ColumnDefinition(cfm, name, validator, componentIndex, Kind.REGULAR);
+        return new ColumnDefinition(cfm, name, validator, null, Kind.REGULAR);
     }
 
-    public static ColumnDefinition regularDef(String ksName, String cfName, String name, AbstractType<?> validator, Integer componentIndex)
+    public static ColumnDefinition regularDef(String ksName, String cfName, String name, AbstractType<?> validator)
     {
-        return new ColumnDefinition(ksName, cfName, ColumnIdentifier.getInterned(name, true), validator, null, null, null, componentIndex, Kind.REGULAR);
+        return new ColumnDefinition(ksName, cfName, ColumnIdentifier.getInterned(name, true), validator, null, null, null, null, Kind.REGULAR);
     }
 
-    public static ColumnDefinition staticDef(CFMetaData cfm, ByteBuffer name, AbstractType<?> validator, Integer componentIndex)
+    public static ColumnDefinition staticDef(CFMetaData cfm, ByteBuffer name, AbstractType<?> validator)
     {
-        return new ColumnDefinition(cfm, name, validator, componentIndex, Kind.STATIC);
+        return new ColumnDefinition(cfm, name, validator, null, Kind.STATIC);
     }
 
     public ColumnDefinition(CFMetaData cfm, ByteBuffer name, AbstractType<?> validator, Integer componentIndex, Kind kind)
@@ -150,12 +149,13 @@ public class ColumnDefinition extends ColumnSpecification implements Comparable<
         super(ksName, cfName, name, validator);
         assert name != null && validator != null && kind != null;
         assert name.isInterned();
+        assert componentIndex == null || kind.isPrimaryKeyKind(); // The componentIndex really only make sense for partition and clustering columns,
+                                                                  // so make sure we don't sneak it for something else since it'd breaks equals()
         this.kind = kind;
         this.indexName = indexName;
         this.componentIndex = componentIndex;
         this.setIndexType(indexType, indexOptions);
         this.cellPathComparator = makeCellPathComparator(kind, validator);
-        this.cellComparator = makeCellComparator(cellPathComparator);
         this.comparisonOrder = comparisonOrder(kind, isComplex(), position());
     }
 
@@ -181,21 +181,6 @@ public class ColumnDefinition extends ColumnSpecification implements Comparable<
                 // This will get more complicated once we have non-frozen UDT and nested collections
                 assert path1.size() == 1 && path2.size() == 1;
                 return type.nameComparator().compare(path1.get(0), path2.get(0));
-            }
-        };
-    }
-
-    private static Comparator<Cell> makeCellComparator(final Comparator<CellPath> cellPathComparator)
-    {
-        return new Comparator<Cell>()
-        {
-            public int compare(Cell c1, Cell c2)
-            {
-                int cmp = c1.column().compareTo(c2.column());
-                if (cmp != 0 || cellPathComparator == null)
-                    return cmp;
-
-                return cellPathComparator.compare(c1.path(), c2.path());
             }
         };
     }
@@ -422,14 +407,14 @@ public class ColumnDefinition extends ColumnSpecification implements Comparable<
         return cellPathComparator;
     }
 
-    public Comparator<Cell> cellComparator()
-    {
-        return cellComparator;
-    }
-
     public boolean isComplex()
     {
         return cellPathComparator != null;
+    }
+
+    public boolean isSimple()
+    {
+        return !isComplex();
     }
 
     public CellPath.Serializer cellPathSerializer()

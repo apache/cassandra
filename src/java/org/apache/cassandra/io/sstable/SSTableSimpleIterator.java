@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.io.sstable;
 
-import java.io.DataInput;
 import java.io.IOException;
 import java.io.IOError;
 import java.util.Iterator;
@@ -42,10 +41,10 @@ import org.apache.cassandra.net.MessagingService;
 public abstract class SSTableSimpleIterator extends AbstractIterator<Unfiltered> implements Iterator<Unfiltered>
 {
     protected final CFMetaData metadata;
-    protected final DataInput in;
+    protected final DataInputPlus in;
     protected final SerializationHelper helper;
 
-    private SSTableSimpleIterator(CFMetaData metadata, DataInput in, SerializationHelper helper)
+    private SSTableSimpleIterator(CFMetaData metadata, DataInputPlus in, SerializationHelper helper)
     {
         this.metadata = metadata;
         this.in = in;
@@ -66,37 +65,26 @@ public abstract class SSTableSimpleIterator extends AbstractIterator<Unfiltered>
     {
         private final SerializationHeader header;
 
-        private final ReusableRow row;
-        private final RangeTombstoneMarker.Builder markerBuilder;
+        private final Row.Builder builder;
 
-        private CurrentFormatIterator(CFMetaData metadata, DataInput in, SerializationHeader header, SerializationHelper helper)
+        private CurrentFormatIterator(CFMetaData metadata, DataInputPlus in, SerializationHeader header, SerializationHelper helper)
         {
             super(metadata, in, helper);
             this.header = header;
-
-            int clusteringSize = metadata.comparator.size();
-            Columns regularColumns = header == null ? metadata.partitionColumns().regulars : header.columns().regulars;
-
-            this.row = new ReusableRow(clusteringSize, regularColumns, true, metadata.isCounter());
-            this.markerBuilder = new RangeTombstoneMarker.Builder(clusteringSize);
+            this.builder = ArrayBackedRow.sortedBuilder(helper.fetchedRegularColumns(header));
         }
 
         public Row readStaticRow() throws IOException
         {
-            return header.hasStatic()
-                ? UnfilteredSerializer.serializer.deserializeStaticRow(in, header, helper)
-                : Rows.EMPTY_STATIC_ROW;
+            return header.hasStatic() ? UnfilteredSerializer.serializer.deserializeStaticRow(in, header, helper) : Rows.EMPTY_STATIC_ROW;
         }
 
         protected Unfiltered computeNext()
         {
             try
             {
-                Unfiltered.Kind kind = UnfilteredSerializer.serializer.deserialize(in, header, helper, row.writer(), markerBuilder.reset());
-
-                return kind == null
-                     ? endOfData()
-                     : (kind == Unfiltered.Kind.ROW ? row : markerBuilder.build());
+                Unfiltered unfiltered = UnfilteredSerializer.serializer.deserialize(in, header, helper, builder);
+                return unfiltered == null ? endOfData() : unfiltered;
             }
             catch (IOException e)
             {

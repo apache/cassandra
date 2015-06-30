@@ -25,7 +25,9 @@ import java.util.Objects;
 
 import com.google.common.base.Joiner;
 
+import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 import static org.apache.cassandra.io.sstable.IndexHelper.IndexInfo;
@@ -46,9 +48,11 @@ public class ClusteringComparator implements Comparator<Clusterable>
     private final Comparator<IndexInfo> indexReverseComparator;
     private final Comparator<Clusterable> reverseComparator;
 
+    private final Comparator<Row> rowComparator = (r1, r2) -> compare(r1.clustering(), r2.clustering());
+
     public ClusteringComparator(AbstractType<?>... clusteringTypes)
     {
-        this(Arrays.<AbstractType<?>>asList(clusteringTypes));
+        this(Arrays.asList(clusteringTypes));
     }
 
     public ClusteringComparator(List<AbstractType<?>> clusteringTypes)
@@ -56,27 +60,9 @@ public class ClusteringComparator implements Comparator<Clusterable>
         this.clusteringTypes = clusteringTypes;
         this.isByteOrderComparable = isByteOrderComparable(clusteringTypes);
 
-        this.indexComparator = new Comparator<IndexInfo>()
-        {
-            public int compare(IndexInfo o1, IndexInfo o2)
-            {
-                return ClusteringComparator.this.compare(o1.lastName, o2.lastName);
-            }
-        };
-        this.indexReverseComparator = new Comparator<IndexInfo>()
-        {
-            public int compare(IndexInfo o1, IndexInfo o2)
-            {
-                return ClusteringComparator.this.compare(o1.firstName, o2.firstName);
-            }
-        };
-        this.reverseComparator = new Comparator<Clusterable>()
-        {
-            public int compare(Clusterable c1, Clusterable c2)
-            {
-                return ClusteringComparator.this.compare(c2, c1);
-            }
-        };
+        this.indexComparator = (o1, o2) -> ClusteringComparator.this.compare(o1.lastName, o2.lastName);
+        this.indexReverseComparator = (o1, o2) -> ClusteringComparator.this.compare(o1.firstName, o2.firstName);
+        this.reverseComparator = (c1, c2) -> ClusteringComparator.this.compare(c2, c1);
     }
 
     private static boolean isByteOrderComparable(Iterable<AbstractType<?>> types)
@@ -130,11 +116,10 @@ public class ClusteringComparator implements Comparator<Clusterable>
             throw new IllegalArgumentException(String.format("Invalid number of components, expecting %d but got %d", size(), values.length));
 
         CBuilder builder = CBuilder.create(this);
-        for (int i = 0; i < values.length; i++)
+        for (Object val : values)
         {
-            Object val = values[i];
             if (val instanceof ByteBuffer)
-                builder.add((ByteBuffer)val);
+                builder.add((ByteBuffer) val);
             else
                 builder.add(val);
         }
@@ -179,7 +164,7 @@ public class ClusteringComparator implements Comparator<Clusterable>
     public int compareComponent(int i, ByteBuffer v1, ByteBuffer v2)
     {
         if (v1 == null)
-            return v1 == null ? 0 : -1;
+            return v2 == null ? 0 : -1;
         if (v2 == null)
             return 1;
 
@@ -233,6 +218,19 @@ public class ClusteringComparator implements Comparator<Clusterable>
         }
     }
 
+    /**
+     * A comparator for rows.
+     *
+     * A {@code Row} is a {@code Clusterable} so {@code ClusteringComparator} can be used
+     * to compare rows directly, but when we know we deal with rows (and not {@code Clusterable} in
+     * general), this is a little faster because by knowing we compare {@code Clustering} objects,
+     * we know that 1) they all have the same size and 2) they all have the same kind.
+     */
+    public Comparator<Row> rowComparator()
+    {
+        return rowComparator;
+    }
+
     public Comparator<IndexInfo> indexComparator(boolean reversed)
     {
         return reversed ? indexReverseComparator : indexComparator;
@@ -241,27 +239,6 @@ public class ClusteringComparator implements Comparator<Clusterable>
     public Comparator<Clusterable> reversed()
     {
         return reverseComparator;
-    }
-
-    /**
-     * Whether the two provided clustering prefix are on the same clustering values.
-     *
-     * @param c1 the first prefix.
-     * @param c2 the second prefix.
-     * @return whether {@code c1} and {@code c2} have the same clustering values (but not necessarily
-     * the same "kind") or not.
-     */
-    public boolean isOnSameClustering(ClusteringPrefix c1, ClusteringPrefix c2)
-    {
-        if (c1.size() != c2.size())
-            return false;
-
-        for (int i = 0; i < c1.size(); i++)
-        {
-            if (compareComponent(i, c1.get(i), c2.get(i)) != 0)
-                return false;
-        }
-        return true;
     }
 
     @Override

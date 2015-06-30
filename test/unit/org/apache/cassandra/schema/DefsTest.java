@@ -99,7 +99,7 @@ public class DefsTest
         for (int i = 0; i < 5; i++)
         {
             ByteBuffer name = ByteBuffer.wrap(new byte[] { (byte)i });
-            cfm.addColumnDefinition(ColumnDefinition.regularDef(cfm, name, BytesType.instance, null).setIndex(Integer.toString(i), IndexType.KEYS, null));
+            cfm.addColumnDefinition(ColumnDefinition.regularDef(cfm, name, BytesType.instance).setIndex(Integer.toString(i), IndexType.KEYS, null));
         }
 
         cfm.comment("No comment")
@@ -114,12 +114,12 @@ public class DefsTest
         CFMetaData cfNew = cfm.copy();
 
         // add one.
-        ColumnDefinition addIndexDef = ColumnDefinition.regularDef(cfm, ByteBuffer.wrap(new byte[] { 5 }), BytesType.instance, null)
+        ColumnDefinition addIndexDef = ColumnDefinition.regularDef(cfm, ByteBuffer.wrap(new byte[] { 5 }), BytesType.instance)
                                                        .setIndex("5", IndexType.KEYS, null);
         cfNew.addColumnDefinition(addIndexDef);
 
         // remove one.
-        ColumnDefinition removeIndexDef = ColumnDefinition.regularDef(cfm, ByteBuffer.wrap(new byte[] { 0 }), BytesType.instance, null)
+        ColumnDefinition removeIndexDef = ColumnDefinition.regularDef(cfm, ByteBuffer.wrap(new byte[] { 0 }), BytesType.instance)
                                                           .setIndex("0", IndexType.KEYS, null);
         assertTrue(cfNew.removeColumnDefinition(removeIndexDef));
 
@@ -530,7 +530,7 @@ public class DefsTest
         // drop the index
         CFMetaData meta = cfs.metadata.copy();
         ColumnDefinition cdOld = cfs.metadata.getColumnDefinition(ByteBufferUtil.bytes("birthdate"));
-        ColumnDefinition cdNew = ColumnDefinition.regularDef(meta, cdOld.name.bytes, cdOld.type, null);
+        ColumnDefinition cdNew = ColumnDefinition.regularDef(meta, cdOld.name.bytes, cdOld.type);
         meta.addOrReplaceColumnDefinition(cdNew);
         MigrationManager.announceColumnFamilyUpdate(meta, false);
 

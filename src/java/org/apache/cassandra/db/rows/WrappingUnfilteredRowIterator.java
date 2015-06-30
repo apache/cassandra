@@ -17,16 +17,21 @@
  */
 package org.apache.cassandra.db.rows;
 
+import java.util.NoSuchElementException;
+
 import com.google.common.collect.UnmodifiableIterator;
 
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.*;
 
 /**
- * Abstract class to make writing atom iterators that wrap another iterator
+ * Abstract class to make writing unfiltered iterators that wrap another iterator
  * easier. By default, the wrapping iterator simply delegate every call to
- * the wrapped iterator so concrete implementations will override some of the
- * methods.
+ * the wrapped iterator so concrete implementations will have to override
+ * some of the methods.
+ * <p>
+ * Note that if most of what you want to do is modifying/filtering the returned
+ * {@code Unfiltered}, {@link AlteringUnfilteredRowIterator} can be a simpler option.
  */
 public abstract class WrappingUnfilteredRowIterator extends UnmodifiableIterator<Unfiltered>  implements UnfilteredRowIterator
 {
@@ -67,6 +72,11 @@ public abstract class WrappingUnfilteredRowIterator extends UnmodifiableIterator
         return wrapped.staticRow();
     }
 
+    public RowStats stats()
+    {
+        return wrapped.stats();
+    }
+
     public boolean hasNext()
     {
         return wrapped.hasNext();
@@ -75,11 +85,6 @@ public abstract class WrappingUnfilteredRowIterator extends UnmodifiableIterator
     public Unfiltered next()
     {
         return wrapped.next();
-    }
-
-    public RowStats stats()
-    {
-        return wrapped.stats();
     }
 
     public void close()

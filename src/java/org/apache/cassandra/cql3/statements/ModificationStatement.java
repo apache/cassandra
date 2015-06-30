@@ -816,7 +816,7 @@ public abstract class ModificationStatement implements CQLStatement
     {
         // Some lists operation requires reading
         Map<DecoratedKey, Partition> lists = readRequiredLists(keys, clustering, local, options.getConsistency());
-        return new UpdateParameters(cfm, options, getTimestamp(now, options), getTimeToLive(options), lists, true);
+        return new UpdateParameters(cfm, updatedColumns(), options, getTimestamp(now, options), getTimeToLive(options), lists, true);
     }
 
     /**

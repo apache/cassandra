@@ -43,25 +43,27 @@ public class RowUpdateBuilder
 {
     private final PartitionUpdate update;
 
-    private final LivenessInfo defaultLiveness;
-    private final LivenessInfo deletionLiveness;
+    private final long timestamp;
+    private final int ttl;
+    private final int localDeletionTime;
+
     private final DeletionTime deletionTime;
 
     private final Mutation mutation;
 
-    private Row.Writer regularWriter;
-    private Row.Writer staticWriter;
+    private Row.Builder regularBuilder;
+    private Row.Builder staticBuilder;
 
-    private boolean hasSetClustering;
     private boolean useRowMarker = true;
 
     private RowUpdateBuilder(PartitionUpdate update, long timestamp, int ttl, int localDeletionTime, Mutation mutation)
     {
         this.update = update;
 
-        this.defaultLiveness = SimpleLivenessInfo.forUpdate(timestamp, ttl, localDeletionTime, update.metadata());
-        this.deletionLiveness = SimpleLivenessInfo.forDeletion(timestamp, localDeletionTime);
-        this.deletionTime = new SimpleDeletionTime(timestamp, localDeletionTime);
+        this.timestamp = timestamp;
+        this.ttl = ttl;
+        this.localDeletionTime = localDeletionTime;
+        this.deletionTime = new DeletionTime(timestamp, localDeletionTime);
 
         // note that the created mutation may get further update later on, so we don't use the ctor that create a singletonMap
         // underneath (this class if for convenience, not performance)
@@ -73,31 +75,45 @@ public class RowUpdateBuilder
         this(update, timestamp, ttl, FBUtilities.nowInSeconds(), mutation);
     }
 
-    private Row.Writer writer()
+    private void startRow(Clustering clustering)
     {
-        assert staticWriter == null : "Cannot update both static and non-static columns with the same RowUpdateBuilder object";
-        if (regularWriter == null)
+        assert staticBuilder == null : "Cannot update both static and non-static columns with the same RowUpdateBuilder object";
+        assert regularBuilder == null : "Cannot add the clustering twice to the same row";
+
+        regularBuilder = ArrayBackedRow.unsortedBuilder(update.columns().regulars, FBUtilities.nowInSeconds());
+        regularBuilder.newRow(clustering);
+
+        // If a CQL table, add the "row marker"
+        if (update.metadata().isCQLTable() && useRowMarker)
+            regularBuilder.addPrimaryKeyLivenessInfo(LivenessInfo.create(update.metadata(), timestamp, ttl, localDeletionTime));
+    }
+
+    private Row.Builder builder()
+    {
+        assert staticBuilder == null : "Cannot update both static and non-static columns with the same RowUpdateBuilder object";
+        if (regularBuilder == null)
         {
-            regularWriter = update.writer();
-
-            // If a CQL table, add the "row marker"
-            if (update.metadata().isCQLTable() && useRowMarker)
-                regularWriter.writePartitionKeyLivenessInfo(defaultLiveness);
+            // we don't force people to call clustering() if the table has no clustering, so call it ourselves
+            assert update.metadata().comparator.size() == 0 : "Missing call to clustering()";
+            startRow(Clustering.EMPTY);
         }
-        return regularWriter;
+        return regularBuilder;
     }
 
-    private Row.Writer staticWriter()
+    private Row.Builder staticBuilder()
     {
-        assert regularWriter == null : "Cannot update both static and non-static columns with the same RowUpdateBuilder object";
-        if (staticWriter == null)
-            staticWriter = update.staticWriter();
-        return staticWriter;
+        assert regularBuilder == null : "Cannot update both static and non-static columns with the same RowUpdateBuilder object";
+        if (staticBuilder == null)
+        {
+            staticBuilder = ArrayBackedRow.unsortedBuilder(update.columns().statics, FBUtilities.nowInSeconds());
+            staticBuilder.newRow(Clustering.STATIC_CLUSTERING);
+        }
+        return staticBuilder;
     }
 
-    private Row.Writer writer(ColumnDefinition c)
+    private Row.Builder builder(ColumnDefinition c)
     {
-        return c.isStatic() ? staticWriter() : writer();
+        return c.isStatic() ? staticBuilder() : builder();
     }
 
     public RowUpdateBuilder(CFMetaData metadata, long timestamp, Object partitionKey)
@@ -145,18 +161,17 @@ public class RowUpdateBuilder
     public RowUpdateBuilder clustering(Object... clusteringValues)
     {
         assert clusteringValues.length == update.metadata().comparator.size()
-            : "Invalid clustering values length. Expected: " + update.metadata().comparator.size() + " got: " + clusteringValues.length;
-        hasSetClustering = true;
-        if (clusteringValues.length > 0)
-            Rows.writeClustering(update.metadata().comparator.make(clusteringValues), writer());
+             : "Invalid clustering values length. Expected: " + update.metadata().comparator.size() + " got: " + clusteringValues.length;
+
+        startRow(clusteringValues.length == 0 ? Clustering.EMPTY : update.metadata().comparator.make(clusteringValues));
         return this;
     }
 
     public Mutation build()
     {
-        Row.Writer writer = regularWriter == null ? staticWriter : regularWriter;
-        if (writer != null)
-            writer.endOfRow();
+        Row.Builder builder = regularBuilder == null ? staticBuilder : regularBuilder;
+        if (builder != null)
+            update.add(builder.build());
         return mutation;
     }
 
@@ -170,14 +185,16 @@ public class RowUpdateBuilder
     {
         assert clusteringValues.length == update.metadata().comparator.size() || (clusteringValues.length == 0 && !update.columns().statics.isEmpty());
 
-        Row.Writer writer = clusteringValues.length == update.metadata().comparator.size()
-                          ? update.writer()
-                          : update.staticWriter();
+        boolean isStatic = clusteringValues.length != update.metadata().comparator.size();
+        Row.Builder builder = ArrayBackedRow.sortedBuilder(isStatic ? update.columns().statics : update.columns().regulars);
 
-        if (clusteringValues.length > 0)
-            Rows.writeClustering(update.metadata().comparator.make(clusteringValues), writer);
-        writer.writeRowDeletion(new SimpleDeletionTime(timestamp, FBUtilities.nowInSeconds()));
-        writer.endOfRow();
+        if (isStatic)
+            builder.newRow(Clustering.STATIC_CLUSTERING);
+        else
+            builder.newRow(clusteringValues.length == 0 ? Clustering.EMPTY : update.metadata().comparator.make(clusteringValues));
+        builder.addRowDeletion(new DeletionTime(timestamp, FBUtilities.nowInSeconds()));
+
+        update.add(builder.build());
     }
 
     public static Mutation deleteRow(CFMetaData metadata, long timestamp, Mutation mutation, Object... clusteringValues)
@@ -219,22 +236,21 @@ public class RowUpdateBuilder
     {
         ColumnDefinition c = getDefinition(columnName);
         assert c != null : "Cannot find column " + columnName;
-        assert c.isStatic() || update.metadata().comparator.size() == 0 || hasSetClustering : "Cannot set non static column " + c + " since no clustering has been provided";
+        assert c.isStatic() || update.metadata().comparator.size() == 0 || regularBuilder != null : "Cannot set non static column " + c + " since no clustering has been provided";
         assert c.type.isCollection() && c.type.isMultiCell();
-        writer(c).writeComplexDeletion(c, new SimpleDeletionTime(defaultLiveness.timestamp() - 1, deletionTime.localDeletionTime()));
+        builder(c).addComplexDeletion(c, new DeletionTime(timestamp - 1, localDeletionTime));
         return this;
     }
 
     public RowUpdateBuilder addRangeTombstone(RangeTombstone rt)
     {
-        update.addRangeTombstone(rt);
+        update.add(rt);
         return this;
     }
 
     public RowUpdateBuilder addRangeTombstone(Slice slice)
     {
-        update.addRangeTombstone(slice, deletionTime);
-        return this;
+        return addRangeTombstone(new RangeTombstone(slice, deletionTime));
     }
 
     public RowUpdateBuilder addRangeTombstone(Object start, Object end)
@@ -251,13 +267,17 @@ public class RowUpdateBuilder
         return add(c, value);
     }
 
+    private Cell makeCell(ColumnDefinition c, ByteBuffer value, CellPath path)
+    {
+        return value == null
+             ? BufferCell.tombstone(c, timestamp, localDeletionTime)
+             : (ttl == LivenessInfo.NO_TTL ? BufferCell.live(update.metadata(), c, timestamp, value, path) : BufferCell.expiring(c, timestamp, ttl, localDeletionTime, value, path));
+    }
+
     public RowUpdateBuilder add(ColumnDefinition columnDefinition, Object value)
     {
-        assert columnDefinition.isStatic() || update.metadata().comparator.size() == 0 || hasSetClustering : "Cannot set non static column " + columnDefinition + " since no clustering hasn't been provided";
-        if (value == null)
-            writer(columnDefinition).writeCell(columnDefinition, false, ByteBufferUtil.EMPTY_BYTE_BUFFER, deletionLiveness, null);
-        else
-            writer(columnDefinition).writeCell(columnDefinition, false, bb(value, columnDefinition.type), defaultLiveness, null);
+        assert columnDefinition.isStatic() || update.metadata().comparator.size() == 0 || regularBuilder != null : "Cannot set non static column " + columnDefinition + " since no clustering hasn't been provided";
+        builder(columnDefinition).addCell(makeCell(columnDefinition, bb(value, columnDefinition.type), null));
         return this;
     }
 
@@ -273,8 +293,11 @@ public class RowUpdateBuilder
         return add(columnDefinition, null);
     }
 
-    private ByteBuffer bb(Object value, AbstractType<?> type)
+    private static ByteBuffer bb(Object value, AbstractType<?> type)
     {
+        if (value == null)
+            return null;
+
         if (value instanceof ByteBuffer)
             return (ByteBuffer)value;
 
@@ -306,30 +329,30 @@ public class RowUpdateBuilder
     public RowUpdateBuilder addMapEntry(String columnName, Object key, Object value)
     {
         ColumnDefinition c = getDefinition(columnName);
-        assert c.isStatic() || update.metadata().comparator.size() == 0 || hasSetClustering : "Cannot set non static column " + c + " since no clustering has been provided";
+        assert c.isStatic() || update.metadata().comparator.size() == 0 || regularBuilder != null : "Cannot set non static column " + c + " since no clustering has been provided";
         assert c.type instanceof MapType && c.type.isMultiCell();
         MapType mt = (MapType)c.type;
-        writer(c).writeCell(c, false, bb(value, mt.getValuesType()), defaultLiveness, CellPath.create(bb(key, mt.getKeysType())));
+        builder(c).addCell(makeCell(c, bb(value, mt.getValuesType()), CellPath.create(bb(key, mt.getKeysType()))));
         return this;
     }
 
     public RowUpdateBuilder addListEntry(String columnName, Object value)
     {
         ColumnDefinition c = getDefinition(columnName);
-        assert c.isStatic() || hasSetClustering : "Cannot set non static column " + c + " since no clustering has been provided";
+        assert c.isStatic() || regularBuilder != null : "Cannot set non static column " + c + " since no clustering has been provided";
         assert c.type instanceof ListType && c.type.isMultiCell();
         ListType lt = (ListType)c.type;
-        writer(c).writeCell(c, false, bb(value, lt.getElementsType()), defaultLiveness, CellPath.create(ByteBuffer.wrap(UUIDGen.getTimeUUIDBytes())));
+        builder(c).addCell(makeCell(c, bb(value, lt.getElementsType()), CellPath.create(ByteBuffer.wrap(UUIDGen.getTimeUUIDBytes()))));
         return this;
     }
 
     public RowUpdateBuilder addSetEntry(String columnName, Object value)
     {
         ColumnDefinition c = getDefinition(columnName);
-        assert c.isStatic() || hasSetClustering : "Cannot set non static column " + c + " since no clustering has been provided";
+        assert c.isStatic() || regularBuilder != null : "Cannot set non static column " + c + " since no clustering has been provided";
         assert c.type instanceof SetType && c.type.isMultiCell();
         SetType st = (SetType)c.type;
-        writer(c).writeCell(c, false, ByteBufferUtil.EMPTY_BYTE_BUFFER, defaultLiveness, CellPath.create(bb(value, st.getElementsType())));
+        builder(c).addCell(makeCell(c, ByteBufferUtil.EMPTY_BYTE_BUFFER, CellPath.create(bb(value, st.getElementsType()))));
         return this;
     }
 

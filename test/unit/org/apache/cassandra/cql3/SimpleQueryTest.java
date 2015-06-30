@@ -307,7 +307,7 @@ public class SimpleQueryTest extends CQLTester
         createTable("CREATE TABLE %s (k text, t int, v1 text, v2 int, PRIMARY KEY (k, t));");
 
         for (int t = 0; t < N; t++)
-                execute("INSERT INTO %s (k, t, v1, v2) values (?, ?, ?, ?)", "key", t, "v" + t, t + 10);
+            execute("INSERT INTO %s (k, t, v1, v2) values (?, ?, ?, ?)", "key", t, "v" + t, t + 10);
 
         flush();
 
@@ -434,7 +434,7 @@ public class SimpleQueryTest extends CQLTester
     @Test
     public void collectionDeletionTest() throws Throwable
     {
-        createTable("CREATE TABLE %s (k text PRIMARY KEY, s set<int>);");
+        createTable("CREATE TABLE %s (k int PRIMARY KEY, s set<int>);");
 
         execute("INSERT INTO %s (k, s) VALUES (?, ?)", 1, set(1));
 

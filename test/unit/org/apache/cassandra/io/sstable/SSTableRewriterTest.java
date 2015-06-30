@@ -249,17 +249,10 @@ public class SSTableRewriterTest extends SchemaLoader
         {
             for (int i = 0; i < 10000; i++)
             {
-                RowUpdateBuilder builder = new RowUpdateBuilder(cfs.metadata, 1,  random(i, 10));
-
-                PartitionUpdate update = null;
-
+                UpdateBuilder builder = UpdateBuilder.create(cfs.metadata, random(i, 10)).withTimestamp(1);
                 for (int j = 0; j < 100; j++)
-                {
-                    builder.clustering("" + j).add("val", ByteBuffer.allocate(1000));
-                    update = builder.buildUpdate();
-                }
-
-                writer.append(update.unfilteredIterator());
+                    builder.newRow("" + j).add("val", ByteBuffer.allocate(1000));
+                writer.append(builder.build().unfilteredIterator());
             }
 
             SSTableReader s = writer.setMaxDataAge(1000).openEarly();
@@ -267,17 +260,10 @@ public class SSTableRewriterTest extends SchemaLoader
             assertFileCounts(dir.list(), 2, 2);
             for (int i = 10000; i < 20000; i++)
             {
-                RowUpdateBuilder builder = new RowUpdateBuilder(cfs.metadata, 1,  random(i, 10));
-
-                PartitionUpdate update = null;
-
+                UpdateBuilder builder = UpdateBuilder.create(cfs.metadata, random(i, 10)).withTimestamp(1);
                 for (int j = 0; j < 100; j++)
-                {
-                    builder.clustering("" + j).add("val", ByteBuffer.allocate(1000));
-                    update = builder.buildUpdate();
-                }
-
-                writer.append(update.unfilteredIterator());
+                    builder.newRow("" + j).add("val", ByteBuffer.allocate(1000));
+                writer.append(builder.build().unfilteredIterator());
             }
             SSTableReader s2 = writer.setMaxDataAge(1000).openEarly();
             assertTrue(s.last.compareTo(s2.last) < 0);

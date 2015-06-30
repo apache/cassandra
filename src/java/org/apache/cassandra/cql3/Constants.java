@@ -23,7 +23,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.db.*;
-import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.db.marshal.CounterColumnType;
@@ -318,13 +317,13 @@ public abstract class Constants
             super(column, t);
         }
 
-        public void execute(DecoratedKey partitionKey, Clustering clustering, Row.Writer writer, UpdateParameters params) throws InvalidRequestException
+        public void execute(DecoratedKey partitionKey, UpdateParameters params) throws InvalidRequestException
         {
             ByteBuffer value = t.bindAndGet(params.options);
             if (value == null)
-                params.addTombstone(column, writer);
+                params.addTombstone(column);
             else if (value != ByteBufferUtil.UNSET_BYTE_BUFFER) // use reference equality and not object equality
-                params.addCell(clustering, column, writer, value);
+                params.addCell(column, value);
         }
     }
 
@@ -335,7 +334,7 @@ public abstract class Constants
             super(column, t);
         }
 
-        public void execute(DecoratedKey partitionKey, Clustering clustering, Row.Writer writer, UpdateParameters params) throws InvalidRequestException
+        public void execute(DecoratedKey partitionKey, UpdateParameters params) throws InvalidRequestException
         {
             ByteBuffer bytes = t.bindAndGet(params.options);
             if (bytes == null)
@@ -344,7 +343,7 @@ public abstract class Constants
                 return;
 
             long increment = ByteBufferUtil.toLong(bytes);
-            params.addCounter(column, writer, increment);
+            params.addCounter(column, increment);
         }
     }
 
@@ -355,7 +354,7 @@ public abstract class Constants
             super(column, t);
         }
 
-        public void execute(DecoratedKey partitionKey, Clustering clustering, Row.Writer writer, UpdateParameters params) throws InvalidRequestException
+        public void execute(DecoratedKey partitionKey, UpdateParameters params) throws InvalidRequestException
         {
             ByteBuffer bytes = t.bindAndGet(params.options);
             if (bytes == null)
@@ -367,7 +366,7 @@ public abstract class Constants
             if (increment == Long.MIN_VALUE)
                 throw new InvalidRequestException("The negation of " + increment + " overflows supported counter precision (signed 8 bytes integer)");
 
-            params.addCounter(column, writer, -increment);
+            params.addCounter(column, -increment);
         }
     }
 
@@ -380,12 +379,12 @@ public abstract class Constants
             super(column, null);
         }
 
-        public void execute(DecoratedKey partitionKey, Clustering clustering, Row.Writer writer, UpdateParameters params) throws InvalidRequestException
+        public void execute(DecoratedKey partitionKey, UpdateParameters params) throws InvalidRequestException
         {
             if (column.type.isMultiCell())
-                params.setComplexDeletionTime(column, writer);
+                params.setComplexDeletionTime(column);
             else
-                params.addTombstone(column, writer);
+                params.addTombstone(column);
         }
-    };
+    }
 }

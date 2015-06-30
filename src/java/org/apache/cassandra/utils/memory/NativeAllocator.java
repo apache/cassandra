@@ -27,7 +27,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.NativeDecoratedKey;
-import org.apache.cassandra.db.rows.MemtableRowData;
+import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.utils.concurrent.OpOrder;
 
 public class NativeAllocator extends MemtableAllocator
@@ -53,13 +53,7 @@ public class NativeAllocator extends MemtableAllocator
         super(pool.onHeap.newAllocator(), pool.offHeap.newAllocator());
     }
 
-    public MemtableRowData.ReusableRow newReusableRow()
-    {
-        // TODO
-        throw new UnsupportedOperationException();
-    }
-
-    public RowAllocator newRowAllocator(CFMetaData cfm, OpOrder.Group writeOp)
+    public Row.Builder rowBuilder(CFMetaData metadata, OpOrder.Group opGroup, boolean isStatic)
     {
         // TODO
         throw new UnsupportedOperationException();

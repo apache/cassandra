@@ -111,8 +111,7 @@ public abstract class UnfilteredDeserializer
         private boolean isReady;
         private boolean isDone;
 
-        private final ReusableRow row;
-        private final RangeTombstoneMarker.Builder markerBuilder;
+        private final Row.Builder builder;
 
         private CurrentDeserializer(CFMetaData metadata,
                                     DataInputPlus in,
@@ -122,8 +121,7 @@ public abstract class UnfilteredDeserializer
             super(metadata, in, helper);
             this.header = header;
             this.clusteringDeserializer = new ClusteringPrefix.Deserializer(metadata.comparator, in, header);
-            this.row = new ReusableRow(metadata.clusteringColumns().size(), header.columns().regulars, true, metadata.isCounter());
-            this.markerBuilder = new RangeTombstoneMarker.Builder(metadata.clusteringColumns().size());
+            this.builder = ArrayBackedRow.sortedBuilder(helper.fetchedRegularColumns(header));
         }
 
         public boolean hasNext() throws IOException
@@ -181,17 +179,13 @@ public abstract class UnfilteredDeserializer
             isReady = false;
             if (UnfilteredSerializer.kind(nextFlags) == Unfiltered.Kind.RANGE_TOMBSTONE_MARKER)
             {
-                markerBuilder.reset();
-                RangeTombstone.Bound.Kind kind = clusteringDeserializer.deserializeNextBound(markerBuilder);
-                UnfilteredSerializer.serializer.deserializeMarkerBody(in, header, kind.isBoundary(), markerBuilder);
-                return markerBuilder.build();
+                RangeTombstone.Bound bound = clusteringDeserializer.deserializeNextBound();
+                return UnfilteredSerializer.serializer.deserializeMarkerBody(in, header, bound);
             }
             else
             {
-                Row.Writer writer = row.writer();
-                clusteringDeserializer.deserializeNextClustering(writer);
-                UnfilteredSerializer.serializer.deserializeRowBody(in, header, helper, nextFlags, writer);
-                return row;
+                builder.newRow(clusteringDeserializer.deserializeNextClustering());
+                return UnfilteredSerializer.serializer.deserializeRowBody(in, header, helper, nextFlags, builder);
             }
         }
 
@@ -205,7 +199,7 @@ public abstract class UnfilteredDeserializer
             }
             else
             {
-                UnfilteredSerializer.serializer.skipRowBody(in, header, helper, nextFlags);
+                UnfilteredSerializer.serializer.skipRowBody(in, header, nextFlags);
             }
         }
 
@@ -221,7 +215,6 @@ public abstract class UnfilteredDeserializer
         private final boolean readAllAsDynamic;
         private boolean skipStatic;
 
-        private int nextFlags;
         private boolean isDone;
         private boolean isStart = true;
 
@@ -254,13 +247,7 @@ public abstract class UnfilteredDeserializer
 
         public boolean hasNext() throws IOException
         {
-            if (nextAtom != null)
-                return true;
-
-            if (isDone)
-                return false;
-
-            return deserializeNextAtom();
+            return nextAtom != null || (!isDone && deserializeNextAtom());
         }
 
         private boolean deserializeNextAtom() throws IOException
@@ -392,6 +379,7 @@ public abstract class UnfilteredDeserializer
             grouper.addAtom(nextAtom);
             while (deserializeNextAtom() && grouper.addAtom(nextAtom))
             {
+                // Nothing to do, deserializeNextAtom() changes nextAtom and it's then added to the grouper
             }
 
             // if this was the first static row, we're done with it. Otherwise, we're also done with static.

@@ -22,12 +22,46 @@ import java.security.MessageDigest;
 import java.util.Objects;
 
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.ObjectSizes;
 
 public abstract class AbstractClusteringPrefix implements ClusteringPrefix
 {
+    protected static final ByteBuffer[] EMPTY_VALUES_ARRAY = new ByteBuffer[0];
+
+    private static final long EMPTY_SIZE = ObjectSizes.measure(new Clustering(EMPTY_VALUES_ARRAY));
+
+    protected final Kind kind;
+    protected final ByteBuffer[] values;
+
+    protected AbstractClusteringPrefix(Kind kind, ByteBuffer[] values)
+    {
+        this.kind = kind;
+        this.values = values;
+    }
+
+    public Kind kind()
+    {
+        return kind;
+    }
+
     public ClusteringPrefix clustering()
     {
         return this;
+    }
+
+    public int size()
+    {
+        return values.length;
+    }
+
+    public ByteBuffer get(int i)
+    {
+        return values[i];
+    }
+
+    public ByteBuffer[] getRawValues()
+    {
+        return values;
     }
 
     public int dataSize()
@@ -47,22 +81,19 @@ public abstract class AbstractClusteringPrefix implements ClusteringPrefix
         {
             ByteBuffer bb = get(i);
             if (bb != null)
-            digest.update(bb.duplicate());
+                digest.update(bb.duplicate());
         }
         FBUtilities.updateWithByte(digest, kind().ordinal());
     }
 
-    public void writeTo(Writer writer)
-    {
-        for (int i = 0; i < size(); i++)
-            writer.writeClusteringValue(get(i));
-    }
-
     public long unsharedHeapSize()
     {
-        // unsharedHeapSize is used inside the cache and in memtables. Implementations that are
-        // safe to use there (SimpleClustering, Slice.Bound.SimpleBound and MemtableRow.* classes) overwrite this.
-        throw new UnsupportedOperationException();
+        return EMPTY_SIZE + ObjectSizes.sizeOnHeapOf(values);
+    }
+
+    public long unsharedHeapSizeExcludingData()
+    {
+        return EMPTY_SIZE + ObjectSizes.sizeOnHeapExcludingData(values);
     }
 
     @Override

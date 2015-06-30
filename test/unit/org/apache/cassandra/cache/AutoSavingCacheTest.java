@@ -56,7 +56,7 @@ public class AutoSavingCacheTest
         ColumnFamilyStore cfs = Keyspace.open(KEYSPACE1).getColumnFamilyStore(CF_STANDARD1);
         for (int i = 0; i < 2; i++)
         {
-            ColumnDefinition colDef = new ColumnDefinition(cfs.metadata, ByteBufferUtil.bytes("col1"), AsciiType.instance, 0, ColumnDefinition.Kind.REGULAR);
+            ColumnDefinition colDef = ColumnDefinition.regularDef(cfs.metadata, ByteBufferUtil.bytes("col1"), AsciiType.instance);
             RowUpdateBuilder rowBuilder = new RowUpdateBuilder(cfs.metadata, System.currentTimeMillis(), "key1");
             rowBuilder.add(colDef, "val1");
             rowBuilder.build().apply();

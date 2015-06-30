@@ -350,7 +350,7 @@ public class ThriftConversion
         {
             // SuperColumn tables: we use a special map to hold dynamic values within a given super column
             defs.add(ColumnDefinition.clusteringKeyDef(ks, cf, names.defaultClusteringName(), comparator, 0));
-            defs.add(ColumnDefinition.regularDef(ks, cf, CompactTables.SUPER_COLUMN_MAP_COLUMN_STR, MapType.getInstance(subComparator, defaultValidator, true), null));
+            defs.add(ColumnDefinition.regularDef(ks, cf, CompactTables.SUPER_COLUMN_MAP_COLUMN_STR, MapType.getInstance(subComparator, defaultValidator, true)));
         }
         else
         {
@@ -361,7 +361,7 @@ public class ThriftConversion
             for (int i = 0; i < subTypes.size(); i++)
                 defs.add(ColumnDefinition.clusteringKeyDef(ks, cf, names.defaultClusteringName(), subTypes.get(i), i));
 
-            defs.add(ColumnDefinition.regularDef(ks, cf, names.defaultCompactValueName(), defaultValidator, null));
+            defs.add(ColumnDefinition.regularDef(ks, cf, names.defaultCompactValueName(), defaultValidator));
         }
     }
 
@@ -454,7 +454,6 @@ public class ThriftConversion
     {
         boolean isSuper = thriftSubcomparator != null;
         // For super columns, the componentIndex is 1 because the ColumnDefinition applies to the column component.
-        Integer componentIndex = isSuper ? 1 : null;
         AbstractType<?> comparator = thriftSubcomparator == null ? thriftComparator : thriftSubcomparator;
         try
         {
@@ -475,7 +474,7 @@ public class ThriftConversion
                                     thriftColumnDef.index_type == null ? null : org.apache.cassandra.config.IndexType.valueOf(thriftColumnDef.index_type.name()),
                                     thriftColumnDef.index_options,
                                     thriftColumnDef.index_name,
-                                    componentIndex,
+                                    null,
                                     kind);
     }
 

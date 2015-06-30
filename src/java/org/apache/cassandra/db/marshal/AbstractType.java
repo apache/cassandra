@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.db.marshal;
 
-import java.io.DataInput;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
@@ -36,6 +35,7 @@ import org.apache.cassandra.serializers.MarshalException;
 
 import org.github.jamm.Unmetered;
 import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
@@ -325,7 +325,7 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>
         if (valueLengthIfFixed() >= 0)
             out.write(value);
         else
-            ByteBufferUtil.writeWithLength(value, out);
+            ByteBufferUtil.writeWithVIntLength(value, out);
     }
 
     public long writtenLength(ByteBuffer value)
@@ -333,25 +333,25 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>
         assert value.hasRemaining();
         return valueLengthIfFixed() >= 0
              ? value.remaining()
-             : TypeSizes.sizeofWithLength(value);
+             : TypeSizes.sizeofWithVIntLength(value);
     }
 
-    public ByteBuffer readValue(DataInput in) throws IOException
+    public ByteBuffer readValue(DataInputPlus in) throws IOException
     {
         int length = valueLengthIfFixed();
         if (length >= 0)
             return ByteBufferUtil.read(in, length);
         else
-            return ByteBufferUtil.readWithLength(in);
+            return ByteBufferUtil.readWithVIntLength(in);
     }
 
-    public void skipValue(DataInput in) throws IOException
+    public void skipValue(DataInputPlus in) throws IOException
     {
         int length = valueLengthIfFixed();
-        if (length < 0)
-            length = in.readInt();
-
-        FileUtils.skipBytesFully(in, length);
+        if (length >= 0)
+            FileUtils.skipBytesFully(in, length);
+        else
+            ByteBufferUtil.skipWithVIntLength(in);
     }
 
     /**

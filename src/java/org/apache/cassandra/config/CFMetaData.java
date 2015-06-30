@@ -715,7 +715,7 @@ public final class CFMetaData
         // it means that it's a dropped column from before 3.0, and in that case using
         // BytesType is fine for what we'll be using it for, even if that's a hack.
         AbstractType<?> type = dropped.type == null ? BytesType.instance : dropped.type;
-        return ColumnDefinition.regularDef(this, name, type, null);
+        return ColumnDefinition.regularDef(this, name, type);
     }
 
     @Override

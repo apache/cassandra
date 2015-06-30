@@ -80,6 +80,6 @@ public class SinglePartitionPager extends AbstractQueryPager
     protected void recordLast(DecoratedKey key, Row last)
     {
         if (last != null)
-            lastReturned = last.clustering().takeAlias();
+            lastReturned = last.clustering();
     }
 }

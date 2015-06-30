@@ -118,7 +118,7 @@ public class CompositesIndexOnClusteringKey extends CompositesIndex
     public void maybeIndex(ByteBuffer partitionKey, Clustering clustering, long timestamp, int ttl, OpOrder.Group opGroup, int nowInSec)
     {
         if (clustering != Clustering.STATIC_CLUSTERING && clustering.get(columnDef.position()) != null)
-            insert(partitionKey, clustering, null, SimpleLivenessInfo.forUpdate(timestamp, ttl, nowInSec, indexCfs.metadata), opGroup);
+            insert(partitionKey, clustering, null, LivenessInfo.create(indexCfs.metadata, timestamp, ttl, nowInSec), opGroup);
     }
 
     @Override

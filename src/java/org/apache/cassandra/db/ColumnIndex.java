@@ -74,7 +74,7 @@ public class ColumnIndex
         private int written;
 
         private ClusteringPrefix firstClustering;
-        private final ReusableClusteringPrefix lastClustering;
+        private ClusteringPrefix lastClustering;
 
         private DeletionTime openMarker;
 
@@ -90,7 +90,6 @@ public class ColumnIndex
 
             this.result = new ColumnIndex(new ArrayList<IndexHelper.IndexInfo>());
             this.initialPosition = writer.getFilePointer();
-            this.lastClustering = new ReusableClusteringPrefix(iterator.metadata().clusteringColumns().size());
         }
 
         private void writePartitionHeader(UnfilteredRowIterator iterator) throws IOException
@@ -119,7 +118,7 @@ public class ColumnIndex
         private void addIndexBlock()
         {
             IndexHelper.IndexInfo cIndexInfo = new IndexHelper.IndexInfo(firstClustering,
-                                                                         lastClustering.get().takeAlias(),
+                                                                         lastClustering,
                                                                          startPosition,
                                                                          currentPosition() - startPosition,
                                                                          openMarker);
@@ -129,28 +128,27 @@ public class ColumnIndex
 
         private void add(Unfiltered unfiltered) throws IOException
         {
-            lastClustering.copy(unfiltered.clustering());
-            boolean isMarker = unfiltered.kind() == Unfiltered.Kind.RANGE_TOMBSTONE_MARKER;
-
             if (firstClustering == null)
             {
                 // Beginning of an index block. Remember the start and position
-                firstClustering = lastClustering.get().takeAlias();
+                firstClustering = unfiltered.clustering();
                 startPosition = currentPosition();
             }
 
             UnfilteredSerializer.serializer.serialize(unfiltered, header, writer.stream, version);
+            lastClustering = unfiltered.clustering();
             ++written;
 
-            if (isMarker)
+            if (unfiltered.kind() == Unfiltered.Kind.RANGE_TOMBSTONE_MARKER)
             {
-                RangeTombstoneMarker marker = (RangeTombstoneMarker) unfiltered;
+                RangeTombstoneMarker marker = (RangeTombstoneMarker)unfiltered;
                 openMarker = marker.isOpen(false) ? marker.openDeletionTime(false) : null;
             }
 
             // if we hit the column index size that we have to index after, go ahead and index it.
             if (currentPosition() - startPosition >= DatabaseDescriptor.getColumnIndexSize())
                 addIndexBlock();
+
         }
 
         private ColumnIndex close() throws IOException

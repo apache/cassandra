@@ -17,17 +17,17 @@
  */
 package org.apache.cassandra.db.rows;
 
-import java.io.DataInput;
 import java.io.IOException;
 import java.util.Objects;
 
-import org.apache.cassandra.db.DeletionTime;
-import org.apache.cassandra.db.TypeSizes;
+import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.partitions.PartitionStatisticsCollector;
+import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 
 import static org.apache.cassandra.db.LivenessInfo.NO_TIMESTAMP;
 import static org.apache.cassandra.db.LivenessInfo.NO_TTL;
-import static org.apache.cassandra.db.LivenessInfo.NO_DELETION_TIME;
+import static org.apache.cassandra.db.LivenessInfo.NO_EXPIRATION_TIME;
 
 /**
  * General statistics on rows (and and tombstones) for a given source.
@@ -45,7 +45,7 @@ import static org.apache.cassandra.db.LivenessInfo.NO_DELETION_TIME;
 public class RowStats
 {
     // We should use this sparingly obviously
-    public static final RowStats NO_STATS = new RowStats(NO_TIMESTAMP, NO_DELETION_TIME, NO_TTL, -1);
+    public static final RowStats NO_STATS = new RowStats(NO_TIMESTAMP, NO_EXPIRATION_TIME, NO_TTL, -1);
 
     public static final Serializer serializer = new Serializer();
 
@@ -74,7 +74,7 @@ public class RowStats
 
     public boolean hasMinLocalDeletionTime()
     {
-        return minLocalDeletionTime != NO_DELETION_TIME;
+        return minLocalDeletionTime != NO_EXPIRATION_TIME;
     }
 
     /**
@@ -89,9 +89,9 @@ public class RowStats
                           ? that.minTimestamp
                           : (that.minTimestamp == NO_TIMESTAMP ? this.minTimestamp : Math.min(this.minTimestamp, that.minTimestamp));
 
-        int minDelTime = this.minLocalDeletionTime == NO_DELETION_TIME
+        int minDelTime = this.minLocalDeletionTime == NO_EXPIRATION_TIME
                        ? that.minLocalDeletionTime
-                       : (that.minLocalDeletionTime == NO_DELETION_TIME ? this.minLocalDeletionTime : Math.min(this.minLocalDeletionTime, that.minLocalDeletionTime));
+                       : (that.minLocalDeletionTime == NO_EXPIRATION_TIME ? this.minLocalDeletionTime : Math.min(this.minLocalDeletionTime, that.minLocalDeletionTime));
 
         int minTTL = this.minTTL == NO_TTL
                    ? that.minTTL
@@ -132,7 +132,7 @@ public class RowStats
         return String.format("RowStats(ts=%d, ldt=%d, ttl=%d, avgColPerRow=%d)", minTimestamp, minLocalDeletionTime, minTTL, avgColumnSetPerRow);
     }
 
-    public static class Collector
+    public static class Collector implements PartitionStatisticsCollector
     {
         private boolean isTimestampSet;
         private long minTimestamp = Long.MAX_VALUE;
@@ -147,6 +147,27 @@ public class RowStats
         private long totalColumnsSet;
         private long rows;
 
+        public void update(LivenessInfo info)
+        {
+            if (info.isEmpty())
+                return;
+
+            updateTimestamp(info.timestamp());
+
+            if (info.isExpiring())
+            {
+                updateTTL(info.ttl());
+                updateLocalDeletionTime(info.localExpirationTime());
+            }
+        }
+
+        public void update(Cell cell)
+        {
+            updateTimestamp(cell.timestamp());
+            updateTTL(cell.ttl());
+            updateLocalDeletionTime(cell.localDeletionTime());
+        }
+
         public void updateTimestamp(long timestamp)
         {
             if (timestamp == NO_TIMESTAMP)
@@ -158,14 +179,14 @@ public class RowStats
 
         public void updateLocalDeletionTime(int deletionTime)
         {
-            if (deletionTime == NO_DELETION_TIME)
+            if (deletionTime == NO_EXPIRATION_TIME)
                 return;
 
             isDelTimeSet = true;
             minDeletionTime = Math.min(minDeletionTime, deletionTime);
         }
 
-        public void updateDeletionTime(DeletionTime deletionTime)
+        public void update(DeletionTime deletionTime)
         {
             if (deletionTime.isLive())
                 return;
@@ -183,7 +204,7 @@ public class RowStats
             minTTL = Math.min(minTTL, ttl);
         }
 
-        public void updateColumnSetPerRow(int columnSetInRow)
+        public void updateColumnSetPerRow(long columnSetInRow)
         {
             updateColumnSetPerRow(columnSetInRow, 1);
         }
@@ -198,12 +219,17 @@ public class RowStats
             this.rows += rows;
         }
 
+        public void updateHasLegacyCounterShards(boolean hasLegacyCounterShards)
+        {
+            // We don't care about this but this come with PartitionStatisticsCollector
+        }
+
         public RowStats get()
         {
             return new RowStats(isTimestampSet ? minTimestamp : NO_TIMESTAMP,
-                                 isDelTimeSet ? minDeletionTime : NO_DELETION_TIME,
-                                 isTTLSet ? minTTL : NO_TTL,
-                                 isColumnSetPerRowSet ? (rows == 0 ? 0 : (int)(totalColumnsSet / rows)) : -1);
+                                isDelTimeSet ? minDeletionTime : NO_EXPIRATION_TIME,
+                                isTTLSet ? minTTL : NO_TTL,
+                                isColumnSetPerRowSet ? (rows == 0 ? 0 : (int)(totalColumnsSet / rows)) : -1);
         }
     }
 
@@ -211,26 +237,26 @@ public class RowStats
     {
         public void serialize(RowStats stats, DataOutputPlus out) throws IOException
         {
-            out.writeLong(stats.minTimestamp);
-            out.writeInt(stats.minLocalDeletionTime);
-            out.writeInt(stats.minTTL);
-            out.writeInt(stats.avgColumnSetPerRow);
+            out.writeVInt(stats.minTimestamp);
+            out.writeVInt(stats.minLocalDeletionTime);
+            out.writeVInt(stats.minTTL);
+            out.writeVInt(stats.avgColumnSetPerRow);
         }
 
         public int serializedSize(RowStats stats)
         {
-            return TypeSizes.sizeof(stats.minTimestamp)
-                 + TypeSizes.sizeof(stats.minLocalDeletionTime)
-                 + TypeSizes.sizeof(stats.minTTL)
-                 + TypeSizes.sizeof(stats.avgColumnSetPerRow);
+            return TypeSizes.sizeofVInt(stats.minTimestamp)
+                 + TypeSizes.sizeofVInt(stats.minLocalDeletionTime)
+                 + TypeSizes.sizeofVInt(stats.minTTL)
+                 + TypeSizes.sizeofVInt(stats.avgColumnSetPerRow);
         }
 
-        public RowStats deserialize(DataInput in) throws IOException
+        public RowStats deserialize(DataInputPlus in) throws IOException
         {
-            long minTimestamp = in.readLong();
-            int minLocalDeletionTime = in.readInt();
-            int minTTL = in.readInt();
-            int avgColumnSetPerRow = in.readInt();
+            long minTimestamp = in.readVInt();
+            int minLocalDeletionTime = (int)in.readVInt();
+            int minTTL = (int)in.readVInt();
+            int avgColumnSetPerRow = (int)in.readVInt();
             return new RowStats(minTimestamp, minLocalDeletionTime, minTTL, avgColumnSetPerRow);
         }
     }

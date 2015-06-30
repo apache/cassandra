@@ -19,6 +19,11 @@ package org.apache.cassandra.utils.memory;
 
 import java.nio.ByteBuffer;
 
+import org.apache.cassandra.db.Clustering;
+import org.apache.cassandra.db.Columns;
+import org.apache.cassandra.db.rows.ArrayBackedRow;
+import org.apache.cassandra.db.rows.Cell;
+import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 public abstract class AbstractAllocator
@@ -40,4 +45,32 @@ public abstract class AbstractAllocator
     }
 
     public abstract ByteBuffer allocate(int size);
+
+    public Row.Builder cloningArrayBackedRowBuilder(Columns columns)
+    {
+        return new CloningArrayBackedRowBuilder(columns, this);
+    }
+
+    private static class CloningArrayBackedRowBuilder extends ArrayBackedRow.SortedBuilder
+    {
+        private final AbstractAllocator allocator;
+
+        private CloningArrayBackedRowBuilder(Columns columns, AbstractAllocator allocator)
+        {
+            super(columns);
+            this.allocator = allocator;
+        }
+
+        @Override
+        public void newRow(Clustering clustering)
+        {
+            super.newRow(clustering.copy(allocator));
+        }
+
+        @Override
+        public void addCell(Cell cell)
+        {
+            super.addCell(cell.copy(allocator));
+        }
+    }
 }

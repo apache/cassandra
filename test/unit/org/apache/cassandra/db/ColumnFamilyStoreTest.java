@@ -146,7 +146,7 @@ public class ColumnFamilyStoreTest
             public void runMayThrow() throws IOException
             {
                 Row toCheck = Util.getOnlyRowUnfiltered(Util.cmd(cfs, "key1").build());
-                Iterator<Cell> iter = toCheck.iterator();
+                Iterator<Cell> iter = toCheck.cells().iterator();
                 assert(Iterators.size(iter) == 0);
             }
         };
@@ -254,7 +254,7 @@ public class ColumnFamilyStoreTest
         ByteBuffer val = ByteBufferUtil.bytes("val1");
 
         // insert
-        ColumnDefinition newCol = new ColumnDefinition(cfs.metadata, ByteBufferUtil.bytes("val2"), AsciiType.instance, 1, ColumnDefinition.Kind.REGULAR);
+        ColumnDefinition newCol = ColumnDefinition.regularDef(cfs.metadata, ByteBufferUtil.bytes("val2"), AsciiType.instance);
         new RowUpdateBuilder(cfs.metadata, 0, "key1").clustering("Column1").add("val", "val1").build().applyUnsafe();
         new RowUpdateBuilder(cfs.metadata, 0, "key2").clustering("Column1").add("val", "val1").build().applyUnsafe();
         assertRangeCount(cfs, col, val, 2);

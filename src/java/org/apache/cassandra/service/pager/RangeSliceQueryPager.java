@@ -96,7 +96,7 @@ public class RangeSliceQueryPager extends AbstractQueryPager
         if (last != null)
         {
             lastReturnedKey = key;
-            lastReturnedClustering = last.clustering().takeAlias();
+            lastReturnedClustering = last.clustering();
         }
     }
 

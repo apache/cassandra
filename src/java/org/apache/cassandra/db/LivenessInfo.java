@@ -17,128 +17,154 @@
  */
 package org.apache.cassandra.db;
 
+import java.util.Objects;
 import java.security.MessageDigest;
 
-import org.apache.cassandra.db.*;
+import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.serializers.MarshalException;
+import org.apache.cassandra.utils.FBUtilities;
 
 /**
- * Groups the informations necessary to decide the liveness of a given piece of
- * column data.
+ * Stores the information relating to the liveness of the primary key columns of a row.
  * <p>
- * In practice, a {@code LivenessInfo} groups 3 informations:
- *   1) the data timestamp. It is sometimes allowed for a given piece of data to have
- *      no timestamp (for {@link Row#partitionKeyLivenessInfo} more precisely), but if that
- *      is the case it means the data has no liveness info at all.
- *   2) the data ttl if relevant.
- *   2) the data local deletion time if relevant (that is, if either the data has a ttl or is deleted).
+ * A {@code LivenessInfo} can first be empty. If it isn't, it contains at least a timestamp,
+ * which is the timestamp for the row primary key columns. On top of that, the info can be
+ * ttl'ed, in which case the {@code LivenessInfo} also has both a ttl and a local expiration time.
  */
-public interface LivenessInfo extends Aliasable<LivenessInfo>
+public class LivenessInfo
 {
     public static final long NO_TIMESTAMP = Long.MIN_VALUE;
     public static final int NO_TTL = 0;
-    public static final int NO_DELETION_TIME = Integer.MAX_VALUE;
+    public static final int NO_EXPIRATION_TIME = Integer.MAX_VALUE;
 
-    public static final LivenessInfo NONE = new SimpleLivenessInfo(NO_TIMESTAMP, NO_TTL, NO_DELETION_TIME);
+    public static final LivenessInfo EMPTY = new LivenessInfo(NO_TIMESTAMP);
+
+    protected final long timestamp;
+
+    protected LivenessInfo(long timestamp)
+    {
+        this.timestamp = timestamp;
+    }
+
+    public static LivenessInfo create(CFMetaData metadata, long timestamp, int nowInSec)
+    {
+        int defaultTTL = metadata.getDefaultTimeToLive();
+        if (defaultTTL != NO_TTL)
+            return expiring(timestamp, defaultTTL, nowInSec);
+
+        return new LivenessInfo(timestamp);
+    }
+
+    public static LivenessInfo expiring(long timestamp, int ttl, int nowInSec)
+    {
+        return new ExpiringLivenessInfo(timestamp, ttl, nowInSec + ttl);
+    }
+
+    public static LivenessInfo create(CFMetaData metadata, long timestamp, int ttl, int nowInSec)
+    {
+        return ttl == NO_TTL
+             ? create(metadata, timestamp, nowInSec)
+             : expiring(timestamp, ttl, nowInSec);
+    }
+
+    // Note that this ctor ignores the default table ttl and takes the expiration time, not the current time.
+    // Use when you know that's what you want.
+    public static LivenessInfo create(long timestamp, int ttl, int localExpirationTime)
+    {
+        return ttl == NO_TTL ? new LivenessInfo(timestamp) : new ExpiringLivenessInfo(timestamp, ttl, localExpirationTime);
+    }
 
     /**
-     * The timestamp at which the data was inserted or {@link NO_TIMESTAMP}
-     * if it has no timestamp (which may or may not be allowed).
+     * Whether this liveness info is empty (has no timestamp).
      *
-     * @return the liveness info timestamp.
+     * @return whether this liveness info is empty or not.
      */
-    public long timestamp();
+    public boolean isEmpty()
+    {
+        return timestamp == NO_TIMESTAMP;
+    }
 
     /**
-     * Whether this liveness info has a timestamp or not.
-     * <p>
-     * Note that if this return {@code false}, then both {@link #hasTTL} and
-     * {@link #hasLocalDeletionTime} must return {@code false} too.
+     * The timestamp for this liveness info.
      *
-     * @return whether this liveness info has a timestamp or not.
+     * @return the liveness info timestamp (or {@link #NO_TIMESTAMP} if the info is empty).
      */
-    public boolean hasTimestamp();
+    public long timestamp()
+    {
+        return timestamp;
+    }
 
     /**
-     * The ttl (if any) on the data or {@link NO_TTL} if the data is not
+     * Whether the info has a ttl.
+     */
+    public boolean isExpiring()
+    {
+        return false;
+    }
+
+    /**
+     * The ttl (if any) on the row primary key columns or {@link #NO_TTL} if it is not
      * expiring.
      *
      * Please note that this value is the TTL that was set originally and is thus not
-     * changing. If you want to figure out how much time the data has before it expires,
-     * then you should use {@link #remainingTTL}.
+     * changing.
      */
-    public int ttl();
+    public int ttl()
+    {
+        return NO_TTL;
+    }
 
     /**
-     * Whether this liveness info has a TTL or not.
+     * The expiration time (in seconds) if the info is expiring ({@link #NO_EXPIRATION_TIME} otherwise).
      *
-     * @return whether this liveness info has a TTL or not.
      */
-    public boolean hasTTL();
+    public int localExpirationTime()
+    {
+        return NO_EXPIRATION_TIME;
+    }
 
     /**
-     * The deletion time (in seconds) on the data if applicable ({@link NO_DELETION}
-     * otherwise).
+     * Whether that info is still live.
      *
-     * There is 3 cases in practice:
-     *   1) the data is neither deleted nor expiring: it then has neither {@code ttl()}
-     *      nor {@code localDeletionTime()}.
-     *   2) the data is expiring/expired: it then has both a {@code ttl()} and a
-     *      {@code localDeletionTime()}. Whether it's still live or is expired depends
-     *      on the {@code localDeletionTime()}.
-     *   3) the data is deleted: it has no {@code ttl()} but has a
-     *      {@code localDeletionTime()}.
-     */
-    public int localDeletionTime();
-
-    /**
-     * Whether this liveness info has a local deletion time or not.
-     *
-     * @return whether this liveness info has a local deletion time or not.
-     */
-    public boolean hasLocalDeletionTime();
-
-    /**
-     * The actual remaining time to live (in seconds) for the data this is
-     * the liveness information of.
-     *
-     * {@code #ttl} returns the initial TTL sets on the piece of data while this
-     * method computes how much time the data actually has to live given the
-     * current time.
+     * A {@code LivenessInfo} is live if it is either not expiring, or if its expiration time if after
+     * {@code nowInSec}.
      *
      * @param nowInSec the current time in seconds.
-     * @return the remaining time to live (in seconds) the data has, or
-     * {@code -1} if the data is either expired or not expiring.
+     * @return whether this liveness info is live or not.
      */
-    public int remainingTTL(int nowInSec);
-
-    /**
-     * Checks whether a given piece of data is live given the current time.
-     *
-     * @param nowInSec the current time in seconds.
-     * @return whether the data having this liveness info is live or not.
-     */
-    public boolean isLive(int nowInSec);
+    public boolean isLive(int nowInSec)
+    {
+        return !isEmpty();
+    }
 
     /**
      * Adds this liveness information to the provided digest.
      *
      * @param digest the digest to add this liveness information to.
      */
-    public void digest(MessageDigest digest);
+    public void digest(MessageDigest digest)
+    {
+        FBUtilities.updateWithLong(digest, timestamp());
+    }
 
     /**
      * Validate the data contained by this liveness information.
      *
      * @throws MarshalException if some of the data is corrupted.
      */
-    public void validate();
+    public void validate()
+    {
+    }
 
     /**
      * The size of the (useful) data this liveness information contains.
      *
      * @return the size of the data this liveness information contains.
      */
-    public int dataSize();
+    public int dataSize()
+    {
+        return TypeSizes.sizeof(timestamp());
+    }
 
     /**
      * Whether this liveness information supersedes another one (that is
@@ -148,31 +174,10 @@ public interface LivenessInfo extends Aliasable<LivenessInfo>
      *
      * @return whether this {@code LivenessInfo} supersedes {@code other}.
      */
-    public boolean supersedes(LivenessInfo other);
-
-    /**
-     * Returns the result of merging this info to another one (that is, it
-     * return this info if it supersedes the other one, or the other one
-     * otherwise).
-     */
-    public LivenessInfo mergeWith(LivenessInfo other);
-
-    /**
-     * Whether this liveness information can be purged.
-     * <p>
-     * A liveness info can be purged if it is not live and hasn't been so
-     * for longer than gcGrace (or more precisely, it's local deletion time
-     * is smaller than gcBefore, which is itself "now - gcGrace").
-     *
-     * @param maxPurgeableTimestamp the biggest timestamp that can be purged.
-     * A liveness info will not be considered purgeable if its timestamp is
-     * greater than this value, even if it mets the other criteria for purging.
-     * @param gcBefore the local deletion time before which deleted/expired
-     * liveness info can be purged.
-     *
-     * @return whether this liveness information can be purged.
-     */
-    public boolean isPurgeable(long maxPurgeableTimestamp, int gcBefore);
+    public boolean supersedes(LivenessInfo other)
+    {
+        return timestamp > other.timestamp;
+    }
 
     /**
      * Returns a copy of this liveness info updated with the provided timestamp.
@@ -182,5 +187,108 @@ public interface LivenessInfo extends Aliasable<LivenessInfo>
      * as timestamp. If it has no timestamp however, this liveness info is returned
      * unchanged.
      */
-    public LivenessInfo withUpdatedTimestamp(long newTimestamp);
+    public LivenessInfo withUpdatedTimestamp(long newTimestamp)
+    {
+        return new LivenessInfo(newTimestamp);
+    }
+
+    @Override
+    public String toString()
+    {
+        return String.format("[ts=%d]", timestamp);
+    }
+
+    @Override
+    public boolean equals(Object other)
+    {
+        if(!(other instanceof LivenessInfo))
+            return false;
+
+        LivenessInfo that = (LivenessInfo)other;
+        return this.timestamp() == that.timestamp()
+            && this.ttl() == that.ttl()
+            && this.localExpirationTime() == that.localExpirationTime();
+    }
+
+    @Override
+    public int hashCode()
+    {
+        return Objects.hash(timestamp(), ttl(), localExpirationTime());
+    }
+
+    private static class ExpiringLivenessInfo extends LivenessInfo
+    {
+        private final int ttl;
+        private final int localExpirationTime;
+
+        private ExpiringLivenessInfo(long timestamp, int ttl, int localExpirationTime)
+        {
+            super(timestamp);
+            assert ttl != NO_TTL && localExpirationTime != NO_EXPIRATION_TIME;
+            this.ttl = ttl;
+            this.localExpirationTime = localExpirationTime;
+        }
+
+        @Override
+        public int ttl()
+        {
+            return ttl;
+        }
+
+        @Override
+        public int localExpirationTime()
+        {
+            return localExpirationTime;
+        }
+
+        @Override
+        public boolean isExpiring()
+        {
+            return true;
+        }
+
+        @Override
+        public boolean isLive(int nowInSec)
+        {
+            return nowInSec < localExpirationTime;
+        }
+
+        @Override
+        public void digest(MessageDigest digest)
+        {
+            super.digest(digest);
+            FBUtilities.updateWithInt(digest, localExpirationTime);
+            FBUtilities.updateWithInt(digest, ttl);
+        }
+
+        @Override
+        public void validate()
+        {
+            if (ttl < 0)
+                throw new MarshalException("A TTL should not be negative");
+            if (localExpirationTime < 0)
+                throw new MarshalException("A local expiration time should not be negative");
+        }
+
+        @Override
+        public int dataSize()
+        {
+            return super.dataSize()
+                 + TypeSizes.sizeof(ttl)
+                 + TypeSizes.sizeof(localExpirationTime);
+
+        }
+
+        @Override
+        public LivenessInfo withUpdatedTimestamp(long newTimestamp)
+        {
+            return new ExpiringLivenessInfo(newTimestamp, ttl, localExpirationTime);
+        }
+
+        @Override
+        public String toString()
+        {
+            return String.format("[ts=%d ttl=%d, let=%d]", timestamp, ttl, localExpirationTime);
+        }
+    }
 }

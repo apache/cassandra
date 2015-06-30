@@ -17,13 +17,13 @@
  */
 package org.apache.cassandra.db.filter;
 
-import java.io.DataInput;
 import java.io.IOException;
 
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.marshal.ReversedType;
+import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 
 public abstract class AbstractClusteringIndexFilter implements ClusteringIndexFilter
@@ -68,7 +68,7 @@ public abstract class AbstractClusteringIndexFilter implements ClusteringIndexFi
             int i = 0;
             for (ColumnDefinition column : metadata.clusteringColumns())
                 sb.append(i++ == 0 ? "" : ", ").append(column.name).append(column.type instanceof ReversedType ? " ASC" : " DESC");
-            sb.append(")");
+            sb.append(')');
         }
     }
 
@@ -84,7 +84,7 @@ public abstract class AbstractClusteringIndexFilter implements ClusteringIndexFi
             filter.serializeInternal(out, version);
         }
 
-        public ClusteringIndexFilter deserialize(DataInput in, int version, CFMetaData metadata) throws IOException
+        public ClusteringIndexFilter deserialize(DataInputPlus in, int version, CFMetaData metadata) throws IOException
         {
             Kind kind = Kind.values()[in.readUnsignedByte()];
             boolean reversed = in.readBoolean();
@@ -104,6 +104,6 @@ public abstract class AbstractClusteringIndexFilter implements ClusteringIndexFi
 
     protected static abstract class InternalDeserializer
     {
-        public abstract ClusteringIndexFilter deserialize(DataInput in, int version, CFMetaData metadata, boolean reversed) throws IOException;
+        public abstract ClusteringIndexFilter deserialize(DataInputPlus in, int version, CFMetaData metadata, boolean reversed) throws IOException;
     }
 }

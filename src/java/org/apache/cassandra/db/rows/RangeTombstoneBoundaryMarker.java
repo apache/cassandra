@@ -23,6 +23,7 @@ import java.util.Objects;
 
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.*;
+import org.apache.cassandra.utils.memory.AbstractAllocator;
 
 /**
  * A range tombstone marker that represents a boundary between 2 range tombstones (i.e. it closes one range and open another).
@@ -35,7 +36,7 @@ public class RangeTombstoneBoundaryMarker extends AbstractRangeTombstoneMarker
     public RangeTombstoneBoundaryMarker(RangeTombstone.Bound bound, DeletionTime endDeletion, DeletionTime startDeletion)
     {
         super(bound);
-        assert bound.kind().isBoundary();
+        assert bound.isBoundary();
         this.endDeletion = endDeletion;
         this.startDeletion = startDeletion;
     }
@@ -54,11 +55,6 @@ public class RangeTombstoneBoundaryMarker extends AbstractRangeTombstoneMarker
         DeletionTime endDeletion = reversed ? openDeletion : closeDeletion;
         DeletionTime startDeletion = reversed ? closeDeletion : openDeletion;
         return new RangeTombstoneBoundaryMarker(bound, endDeletion, startDeletion);
-    }
-
-    public boolean isBoundary()
-    {
-        return true;
     }
 
     /**
@@ -92,6 +88,16 @@ public class RangeTombstoneBoundaryMarker extends AbstractRangeTombstoneMarker
         return (bound.kind() == ClusteringPrefix.Kind.EXCL_END_INCL_START_BOUNDARY) ^ reversed;
     }
 
+    public RangeTombstone.Bound openBound(boolean reversed)
+    {
+        return bound.withNewKind(bound.kind().openBoundOfBoundary(reversed));
+    }
+
+    public RangeTombstone.Bound closeBound(boolean reversed)
+    {
+        return bound.withNewKind(bound.kind().closeBoundOfBoundary(reversed));
+    }
+
     public boolean closeIsInclusive(boolean reversed)
     {
         return (bound.kind() == ClusteringPrefix.Kind.INCL_END_EXCL_START_BOUNDARY) ^ reversed;
@@ -109,6 +115,11 @@ public class RangeTombstoneBoundaryMarker extends AbstractRangeTombstoneMarker
         return true;
     }
 
+    public RangeTombstoneBoundaryMarker copy(AbstractAllocator allocator)
+    {
+        return new RangeTombstoneBoundaryMarker(clustering().copy(allocator), endDeletion, startDeletion);
+    }
+
     public static RangeTombstoneBoundaryMarker makeBoundary(boolean reversed, Slice.Bound close, Slice.Bound open, DeletionTime closeDeletion, DeletionTime openDeletion)
     {
         assert RangeTombstone.Bound.Kind.compare(close.kind(), open.kind()) == 0 : "Both bound don't form a boundary";
@@ -118,21 +129,14 @@ public class RangeTombstoneBoundaryMarker extends AbstractRangeTombstoneMarker
              : inclusiveCloseExclusiveOpen(reversed, close.getRawValues(), closeDeletion, openDeletion);
     }
 
-    public RangeTombstoneBoundMarker createCorrespondingCloseBound(boolean reversed)
+    public RangeTombstoneBoundMarker createCorrespondingCloseMarker(boolean reversed)
     {
-        return new RangeTombstoneBoundMarker(bound.withNewKind(bound.kind().closeBoundOfBoundary(reversed)), endDeletion);
+        return new RangeTombstoneBoundMarker(closeBound(reversed), endDeletion);
     }
 
-    public RangeTombstoneBoundMarker createCorrespondingOpenBound(boolean reversed)
+    public RangeTombstoneBoundMarker createCorrespondingOpenMarker(boolean reversed)
     {
-        return new RangeTombstoneBoundMarker(bound.withNewKind(bound.kind().openBoundOfBoundary(reversed)), startDeletion);
-    }
-
-    public void copyTo(RangeTombstoneMarker.Writer writer)
-    {
-        copyBoundTo(writer);
-        writer.writeBoundaryDeletion(endDeletion, startDeletion);
-        writer.endOfMarker();
+        return new RangeTombstoneBoundMarker(openBound(reversed), startDeletion);
     }
 
     public void digest(MessageDigest digest)
@@ -144,11 +148,7 @@ public class RangeTombstoneBoundaryMarker extends AbstractRangeTombstoneMarker
 
     public String toString(CFMetaData metadata)
     {
-        StringBuilder sb = new StringBuilder();
-        sb.append("Marker ");
-        sb.append(bound.toString(metadata));
-        sb.append("@").append(endDeletion.markedForDeleteAt()).append("-").append(startDeletion.markedForDeleteAt());
-        return sb.toString();
+        return String.format("Marker %s@%d-%d", bound.toString(metadata), endDeletion.markedForDeleteAt(), startDeletion.markedForDeleteAt());
     }
 
     @Override

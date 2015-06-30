@@ -1,8 +1,8 @@
 Statistics.db
-Filter.db
-Data.db
-Summary.db
-Digest.adler32
 CRC.db
 TOC.txt
+Data.db
 Index.db
+Summary.db
+Digest.adler32
+Filter.db

@@ -24,10 +24,7 @@ import org.junit.Test;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.*;
-import org.apache.cassandra.db.rows.UnfilteredRowIterators;
-import org.apache.cassandra.db.rows.Cell;
-import org.apache.cassandra.db.rows.Row;
-import org.apache.cassandra.db.rows.RowIterator;
+import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.db.partitions.Partition;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
@@ -51,7 +48,7 @@ public class TriggerExecutorTest
 
         RowIterator rowIterator = UnfilteredRowIterators.filter(mutated.unfilteredIterator(), FBUtilities.nowInSeconds());
 
-        Iterator<Cell> cells = rowIterator.next().iterator();
+        Iterator<Cell> cells = rowIterator.next().cells().iterator();
         assertEquals(bytes("trigger"), cells.next().value());
 
         assertTrue(!rowIterator.hasNext());
@@ -271,22 +268,15 @@ public class TriggerExecutorTest
 
     private static PartitionUpdate makeCf(CFMetaData metadata, String key, String columnValue1, String columnValue2)
     {
-        PartitionUpdate update = new PartitionUpdate(metadata, Util.dk(key), metadata.partitionColumns(), 1);
-
-        LivenessInfo info = SimpleLivenessInfo.forUpdate(FBUtilities.timestampMicros(), LivenessInfo.NO_TTL, FBUtilities.nowInSeconds(), metadata);
-
+        Row.Builder builder = ArrayBackedRow.unsortedBuilder(metadata.partitionColumns().regulars, FBUtilities.nowInSeconds());
+        builder.newRow(Clustering.EMPTY);
+        long ts = FBUtilities.timestampMicros();
         if (columnValue1 != null)
-        {
-            update.writer().writeCell(metadata.getColumnDefinition(bytes("c1")), false, bytes(columnValue1), info, null);
-            update.writer().endOfRow();
-        }
+            builder.addCell(BufferCell.live(metadata, metadata.getColumnDefinition(bytes("c1")), ts, bytes(columnValue1)));
         if (columnValue2 != null)
-        {
-            update.writer().writeCell(metadata.getColumnDefinition(bytes("c2")), false, bytes(columnValue1), info, null);
-            update.writer().endOfRow();
-        }
+            builder.addCell(BufferCell.live(metadata, metadata.getColumnDefinition(bytes("c2")), ts, bytes(columnValue2)));
 
-        return update;
+        return PartitionUpdate.singleRowUpdate(metadata, Util.dk(key), builder.build());
     }
 
     public static class NoOpTrigger implements ITrigger

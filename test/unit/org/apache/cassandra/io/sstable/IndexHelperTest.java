@@ -27,7 +27,7 @@ import org.junit.Test;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.db.ClusteringComparator;
 import org.apache.cassandra.db.ClusteringPrefix;
-import org.apache.cassandra.db.SimpleDeletionTime;
+import org.apache.cassandra.db.DeletionTime;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.IntegerType;
 import org.apache.cassandra.db.marshal.LongType;
@@ -48,7 +48,7 @@ public class IndexHelperTest
     @Test
     public void testIndexHelper()
     {
-        SimpleDeletionTime deletionInfo = new SimpleDeletionTime(FBUtilities.timestampMicros(), FBUtilities.nowInSeconds());
+        DeletionTime deletionInfo = new DeletionTime(FBUtilities.timestampMicros(), FBUtilities.nowInSeconds());
 
         List<IndexInfo> indexes = new ArrayList<>();
         indexes.add(new IndexInfo(cn(0L), cn(5L), 0, 0, deletionInfo));

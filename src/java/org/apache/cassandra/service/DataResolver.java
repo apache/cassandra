@@ -39,7 +39,7 @@ import org.apache.cassandra.utils.FBUtilities;
 
 public class DataResolver extends ResponseResolver
 {
-    private final List<AsyncOneResponse> repairResults = Collections.synchronizedList(new ArrayList<AsyncOneResponse>());
+    private final List<AsyncOneResponse> repairResults = Collections.synchronizedList(new ArrayList<>());
 
     public DataResolver(Keyspace keyspace, ReadCommand command, ConsistencyLevel consistency, int maxResponseCount)
     {
@@ -162,9 +162,8 @@ public class DataResolver extends ResponseResolver
             private final boolean isReversed;
             private final PartitionUpdate[] repairs = new PartitionUpdate[sources.length];
 
-            private final Row.Writer[] currentRows = new Row.Writer[sources.length];
-            private Clustering currentClustering;
-            private ColumnDefinition currentColumn;
+            private final Row.Builder[] currentRows = new Row.Builder[sources.length];
+            private final RowDiffListener diffListener;
 
             private final Slice.Bound[] markerOpen = new Slice.Bound[sources.length];
             private final DeletionTime[] markerTime = new DeletionTime[sources.length];
@@ -174,87 +173,75 @@ public class DataResolver extends ResponseResolver
                 this.partitionKey = partitionKey;
                 this.columns = columns;
                 this.isReversed = isReversed;
+
+                this.diffListener = new RowDiffListener()
+                {
+                    public void onPrimaryKeyLivenessInfo(int i, Clustering clustering, LivenessInfo merged, LivenessInfo original)
+                    {
+                        if (merged != null && !merged.equals(original))
+                            currentRow(i, clustering).addPrimaryKeyLivenessInfo(merged);
+                    }
+
+                    public void onDeletion(int i, Clustering clustering, DeletionTime merged, DeletionTime original)
+                    {
+                        if (merged != null && !merged.equals(original))
+                            currentRow(i, clustering).addRowDeletion(merged);
+                    }
+
+                    public void onComplexDeletion(int i, Clustering clustering, ColumnDefinition column, DeletionTime merged, DeletionTime original)
+                    {
+                        if (merged != null && !merged.equals(original))
+                            currentRow(i, clustering).addComplexDeletion(column, merged);
+                    }
+
+                    public void onCell(int i, Clustering clustering, Cell merged, Cell original)
+                    {
+                        if (merged != null && !merged.equals(original))
+                            currentRow(i, clustering).addCell(merged);
+                    }
+
+                };
             }
 
             private PartitionUpdate update(int i)
             {
-                PartitionUpdate upd = repairs[i];
-                if (upd == null)
-                {
-                    upd = new PartitionUpdate(command.metadata(), partitionKey, columns, 1);
-                    repairs[i] = upd;
-                }
-                return upd;
+                if (repairs[i] == null)
+                    repairs[i] = new PartitionUpdate(command.metadata(), partitionKey, columns, 1);
+                return repairs[i];
             }
 
-            private Row.Writer currentRow(int i)
+            private Row.Builder currentRow(int i, Clustering clustering)
             {
-                Row.Writer row = currentRows[i];
-                if (row == null)
+                if (currentRows[i] == null)
                 {
-                    row = currentClustering == Clustering.STATIC_CLUSTERING ? update(i).staticWriter() : update(i).writer();
-                    currentClustering.writeTo(row);
-                    currentRows[i] = row;
+                    currentRows[i] = ArrayBackedRow.sortedBuilder(clustering == Clustering.STATIC_CLUSTERING ? columns.statics : columns.regulars);
+                    currentRows[i].newRow(clustering);
                 }
-                return row;
+                return currentRows[i];
             }
 
-            public void onMergePartitionLevelDeletion(DeletionTime mergedDeletion, DeletionTime[] versions)
+            public void onMergedPartitionLevelDeletion(DeletionTime mergedDeletion, DeletionTime[] versions)
             {
                 for (int i = 0; i < versions.length; i++)
                 {
-                    DeletionTime version = versions[i];
                     if (mergedDeletion.supersedes(versions[i]))
                         update(i).addPartitionDeletion(mergedDeletion);
                 }
             }
 
-            public void onMergingRows(Clustering clustering,
-                                      LivenessInfo mergedInfo,
-                                      DeletionTime mergedDeletion,
-                                      Row[] versions)
+            public void onMergedRows(Row merged, Columns columns, Row[] versions)
             {
-                currentClustering = clustering;
-                for (int i = 0; i < versions.length; i++)
-                {
-                    Row version = versions[i];
+                // If a row was shadowed post merged, it must be by a partition level or range tombstone, and we handle
+                // those case directly in their respective methods (in other words, it would be inefficient to send a row
+                // deletion as repair when we know we've already send a partition level or range tombstone that covers it).
+                if (merged.isEmpty())
+                    return;
 
-                    if (version == null || mergedInfo.supersedes(version.primaryKeyLivenessInfo()))
-                        currentRow(i).writePartitionKeyLivenessInfo(mergedInfo);
-
-                    if (version == null || mergedDeletion.supersedes(version.deletion()))
-                        currentRow(i).writeRowDeletion(mergedDeletion);
-                }
-            }
-
-            public void onMergedComplexDeletion(ColumnDefinition c, DeletionTime mergedCompositeDeletion, DeletionTime[] versions)
-            {
-                currentColumn = c;
-                for (int i = 0; i < versions.length; i++)
-                {
-                    DeletionTime version = versions[i] == null ? DeletionTime.LIVE : versions[i];
-                    if (mergedCompositeDeletion.supersedes(version))
-                        currentRow(i).writeComplexDeletion(c, mergedCompositeDeletion);
-                }
-            }
-
-            public void onMergedCells(Cell mergedCell, Cell[] versions)
-            {
-                for (int i = 0; i < versions.length; i++)
-                {
-                    Cell version = versions[i];
-                    Cell toAdd = version == null ? mergedCell : Cells.diff(mergedCell, version);
-                    if (toAdd != null)
-                        toAdd.writeTo(currentRow(i));
-                }
-            }
-
-            public void onRowDone()
-            {
+                Rows.diff(merged, columns, versions, diffListener);
                 for (int i = 0; i < currentRows.length; i++)
                 {
                     if (currentRows[i] != null)
-                        currentRows[i].endOfRow();
+                        update(i).add(currentRows[i].build());
                 }
                 Arrays.fill(currentRows, null);
             }
@@ -268,12 +255,12 @@ public class DataResolver extends ResponseResolver
                     if (merged.isClose(isReversed) && markerOpen[i] != null)
                     {
                         Slice.Bound open = markerOpen[i];
-                        Slice.Bound close = merged.isBoundary() ? ((RangeTombstoneBoundaryMarker)merged).createCorrespondingCloseBound(isReversed).clustering() : merged.clustering();
-                        update(i).addRangeTombstone(Slice.make(isReversed ? close : open, isReversed ? open : close), markerTime[i]);
+                        Slice.Bound close = merged.closeBound(isReversed);
+                        update(i).add(new RangeTombstone(Slice.make(isReversed ? close : open, isReversed ? open : close), markerTime[i]));
                     }
                     if (merged.isOpen(isReversed) && (marker == null || merged.openDeletionTime(isReversed).supersedes(marker.openDeletionTime(isReversed))))
                     {
-                        markerOpen[i] = merged.isBoundary() ? ((RangeTombstoneBoundaryMarker)merged).createCorrespondingOpenBound(isReversed).clustering() : merged.clustering();
+                        markerOpen[i] = merged.openBound(isReversed);
                         markerTime[i] = merged.openDeletionTime(isReversed);
                     }
                 }

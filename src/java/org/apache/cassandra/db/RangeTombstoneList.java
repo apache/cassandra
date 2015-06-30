@@ -244,7 +244,7 @@ public class RangeTombstoneList implements Iterable<RangeTombstone>, IMeasurable
     {
         int idx = searchInternal(clustering, 0, size);
         // No matter what the counter cell's timestamp is, a tombstone always takes precedence. See CASSANDRA-7346.
-        return idx >= 0 && (cell.isCounterCell() || markedAts[idx] >= cell.livenessInfo().timestamp());
+        return idx >= 0 && (cell.isCounterCell() || markedAts[idx] >= cell.timestamp());
     }
 
     /**
@@ -254,7 +254,7 @@ public class RangeTombstoneList implements Iterable<RangeTombstone>, IMeasurable
     public DeletionTime searchDeletionTime(Clustering name)
     {
         int idx = searchInternal(name, 0, size);
-        return idx < 0 ? null : new SimpleDeletionTime(markedAts[idx], delTimes[idx]);
+        return idx < 0 ? null : new DeletionTime(markedAts[idx], delTimes[idx]);
     }
 
     public RangeTombstone search(Clustering name)
@@ -300,6 +300,23 @@ public class RangeTombstoneList implements Iterable<RangeTombstone>, IMeasurable
         return dataSize;
     }
 
+    public long maxMarkedAt()
+    {
+        long max = Long.MIN_VALUE;
+        for (int i = 0; i < size; i++)
+            max = Math.max(max, markedAts[i]);
+        return max;
+    }
+
+    public void collectStats(RowStats.Collector collector)
+    {
+        for (int i = 0; i < size; i++)
+        {
+            collector.updateTimestamp(markedAts[i]);
+            collector.updateLocalDeletionTime(delTimes[i]);
+        }
+    }
+
     public void updateAllTimestamp(long timestamp)
     {
         for (int i = 0; i < size; i++)
@@ -308,22 +325,22 @@ public class RangeTombstoneList implements Iterable<RangeTombstone>, IMeasurable
 
     private RangeTombstone rangeTombstone(int idx)
     {
-        return new RangeTombstone(Slice.make(starts[idx], ends[idx]), new SimpleDeletionTime(markedAts[idx], delTimes[idx]));
+        return new RangeTombstone(Slice.make(starts[idx], ends[idx]), new DeletionTime(markedAts[idx], delTimes[idx]));
     }
 
     private RangeTombstone rangeTombstoneWithNewStart(int idx, Slice.Bound newStart)
     {
-        return new RangeTombstone(Slice.make(newStart, ends[idx]), new SimpleDeletionTime(markedAts[idx], delTimes[idx]));
+        return new RangeTombstone(Slice.make(newStart, ends[idx]), new DeletionTime(markedAts[idx], delTimes[idx]));
     }
 
     private RangeTombstone rangeTombstoneWithNewEnd(int idx, Slice.Bound newEnd)
     {
-        return new RangeTombstone(Slice.make(starts[idx], newEnd), new SimpleDeletionTime(markedAts[idx], delTimes[idx]));
+        return new RangeTombstone(Slice.make(starts[idx], newEnd), new DeletionTime(markedAts[idx], delTimes[idx]));
     }
 
     private RangeTombstone rangeTombstoneWithNewBounds(int idx, Slice.Bound newStart, Slice.Bound newEnd)
     {
-        return new RangeTombstone(Slice.make(newStart, newEnd), new SimpleDeletionTime(markedAts[idx], delTimes[idx]));
+        return new RangeTombstone(Slice.make(newStart, newEnd), new DeletionTime(markedAts[idx], delTimes[idx]));
     }
 
     public Iterator<RangeTombstone> iterator()
