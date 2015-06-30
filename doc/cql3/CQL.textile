@@ -369,7 +369,7 @@ For the @compression@ property, the following default sub-options are available:
 
 h4. Other considerations:
 
-* When "inserting":#insertStmt/"updating":#updateStmt a given row, not all columns needs to be defined (except for those part of the key), and missing columns occupy no space on disk. Furthermore, adding new columns (see <a href=#alterStmt><tt>ALTER TABLE</tt></a>) is a constant time operation. There is thus no need to try to anticipate future usage (or to cry when you haven't) when creating a table.
+* When "inserting":#insertStmt / "updating":#updateStmt a given row, not all columns needs to be defined (except for those part of the key), and missing columns occupy no space on disk. Furthermore, adding new columns (see <a href=#alterStmt><tt>ALTER TABLE</tt></a>) is a constant time operation. There is thus no need to try to anticipate future usage (or to cry when you haven't) when creating a table.
 
 
 h3(#alterTableStmt). ALTER TABLE
@@ -663,7 +663,7 @@ DROP FUNCTION afunction ( int );
 DROP FUNCTION afunction ( text );
 
 @DROP FUNCTION@ statement removes a function created using @CREATE FUNCTION@.
-You must specify the argument types ("signature":#functionSignature) of the function to drop if there are multiple functions with the same name but a different signature (overloaded functions).
+You must specify the argument types ("signature":#functionSignature ) of the function to drop if there are multiple functions with the same name but a different signature (overloaded functions).
 
 @DROP FUNCTION@ with the optional @IF EXISTS@ keywords drops a function if it exists.
 
@@ -1054,7 +1054,7 @@ The @CONTAINS@ operator may only be used on collection columns (lists, sets, and
 
 h4(#selectOrderBy). @<order-by>@
 
-The @ORDER BY@ option allows to select the order of the returned results. It takes as argument a list of column names along with the order for the column (@ASC@ for ascendant and @DESC@ for descendant, omitting the order being equivalent to @ASC@). Currently the possible orderings are limited (which depends on the table "@CLUSTERING ORDER@":#createTableOptions):
+The @ORDER BY@ option allows to select the order of the returned results. It takes as argument a list of column names along with the order for the column (@ASC@ for ascendant and @DESC@ for descendant, omitting the order being equivalent to @ASC@). Currently the possible orderings are limited (which depends on the table "@CLUSTERING ORDER@":#createTableOptions ):
 * if the table has been defined without any specific @CLUSTERING ORDER@, then then allowed orderings are the order induced by the clustering columns and the reverse of that one.
 * otherwise, the orderings allowed are the order of the @CLUSTERING ORDER@ option and the reversed one.
 
@@ -1810,7 +1810,7 @@ will never return any result by design, since the value returned by @now()@ is g
 
 h4. @minTimeuuid@ and @maxTimeuuid@
 
-The @minTimeuuid@ (resp. @maxTimeuuid@) function takes a @timestamp@ value @t@ (which can be "either a timestamp or a date string":#usingtimestamps) and return a _fake_ @timeuuid@ corresponding to the _smallest_ (resp. _biggest_) possible @timeuuid@ having for timestamp @t@. So for instance:
+The @minTimeuuid@ (resp. @maxTimeuuid@) function takes a @timestamp@ value @t@ (which can be "either a timestamp or a date string":#usingtimestamps ) and return a _fake_ @timeuuid@ corresponding to the _smallest_ (resp. _biggest_) possible @timeuuid@ having for timestamp @t@. So for instance:
  
 bc(sample). 
 SELECT * FROM myTable WHERE t > maxTimeuuid('2013-01-01 00:05+0000') AND t < minTimeuuid('2013-02-02 10:00+0000')
@@ -1837,6 +1837,38 @@ A number of functions are provided to "convert" a @timeuuid@, a @timestamp@ or a
 h3(#blobFun). Blob conversion functions
 
 A number of functions are provided to "convert" the native types into binary data (@blob@). For every @<native-type>@ @type@ supported by CQL3 (a notable exceptions is @blob@, for obvious reasons), the function @typeAsBlob@ takes a argument of type @type@ and return it as a @blob@.  Conversely, the function @blobAsType@ takes a 64-bit @blob@ argument and convert it to a @bigint@ value.  And so for instance, @bigintAsBlob(3)@ is @0x0000000000000003@ and @blobAsBigint(0x0000000000000003)@ is @3@.
+
+h2(#aggregates). Aggregates
+
+CQL3 distinguishes between built-in aggregates (so called 'native aggregates') and "user-defined aggregates":#udas.  CQL3 includes several native aggregates, described below:
+
+h3(#countFct). Count
+
+The @count@ function can be used to count the rows returned by a query. Example:
+
+bc(sample).
+SELECT COUNT(*) FROM plays;
+SELECT COUNT(1) FROM plays;
+
+It also can be used to count the non null value of a given column. Example:
+
+bc(sample).
+SELECT COUNT(scores) FROM plays;
+
+h3(#maxMinFcts). Max and Min
+
+The @max@ and @min@ functions can be used to compute the maximum and the minimum value returned by a query for a given column.
+
+bc(sample).
+SELECT MIN(players), MAX(players) FROM plays WHERE game = 'quake';
+
+h3(#sumFct). Sum
+
+The @sum@ function can be used to sum up all the values returned by a query for a given column.
+
+h3(#sumFct). Avg
+
+The @avg@ function can be used to compute the average of all the values returned by a query for a given column.
 
 h2(#udfs). User-Defined Functions
 
@@ -2142,17 +2174,21 @@ The following describes the changes in each version of CQL.
 
 h3. 3.3.0
 
-* User-defined functions are now supported through "@CREATE FUNCTION@":#createFunctionStmt and "@DROP FUNCTION@":#dropFunctionStmt, 
+* Adds new "aggregates":#aggregates
+* User-defined functions are now supported through "@CREATE FUNCTION@":#createFunctionStmt and "@DROP FUNCTION@":#dropFunctionStmt.
 * User-defined aggregates are now supported through "@CREATE AGGREGATE@":#createAggregateStmt and "@DROP AGGREGATE@":#dropAggregateStmt.
 * Allows double-dollar enclosed strings literals as an alternative to single-quote enclosed strings.
 * Introduces Roles to supercede user based authentication and access control
+* "@Date@":#usingdates and "@Time@":usingtime data types have been added
+* "@JSON@":#json support has been added
+* Adds new time conversion functions and deprecate @dateOf@ and @unixTimestampOf@. See "@Time conversion functions@":#timeFun
 
 h3. 3.2.0
 
 * User-defined types are now supported through "@CREATE TYPE@":#createTypeStmt, "@ALTER TYPE@":#alterTypeStmt, and "@DROP TYPE@":#dropTypeStmt
 * "@CREATE INDEX@":#createIndexStmt now supports indexing collection columns, including indexing the keys of map collections through the @keys()@ function
 * Indexes on collections may be queried using the new @CONTAINS@ and @CONTAINS KEY@ operators
-* Tuple types were added to hold fixed-length sets of typed positional fields (see the section on "types":#types)
+* Tuple types were added to hold fixed-length sets of typed positional fields (see the section on "types":#types )
 * "@DROP INDEX@":#dropIndexStmt now supports optionally specifying a keyspace
 
 h3. 3.1.7
@@ -2172,15 +2208,15 @@ h3. 3.1.5
 
 h3. 3.1.4
 
-* @CREATE INDEX@ now allows specifying options when creating CUSTOM indexes (see "CREATE INDEX reference":#createIndexStmt).
+* @CREATE INDEX@ now allows specifying options when creating CUSTOM indexes (see "CREATE INDEX reference":#createIndexStmt ).
 
 h3. 3.1.3
 
-* Millisecond precision formats have been added to the timestamp parser (see "working with dates":#usingtimestamps).
+* Millisecond precision formats have been added to the timestamp parser (see "working with dates":#usingtimestamps ).
 
 h3. 3.1.2
 
-* @NaN@ and @Infinity@ has been added as valid float contants. They are now reserved keywords. In the unlikely case you we using them as a column identifier (or keyspace/table one), you will noew need to double quote them (see "quote identifiers":#identifiers).
+* @NaN@ and @Infinity@ has been added as valid float contants. They are now reserved keywords. In the unlikely case you we using them as a column identifier (or keyspace/table one), you will noew need to double quote them (see "quote identifiers":#identifiers ).
 
 h3. 3.1.1
 
@@ -2202,7 +2238,7 @@ h3. 3.0.5
 h3. 3.0.4
 
 * Updated the syntax for custom "secondary indexes":#createIndexStmt.
-* Non-equal condition on the partition key are now never supported, even for ordering partitioner as this was not correct (the order was *not* the one of the type of the partition key). Instead, the @token@ method should always be used for range queries on the partition key (see "WHERE clauses":#selectWhere).
+* Non-equal condition on the partition key are now never supported, even for ordering partitioner as this was not correct (the order was *not* the one of the type of the partition key). Instead, the @token@ method should always be used for range queries on the partition key (see "WHERE clauses":#selectWhere ).
 
 h3. 3.0.3
 
@@ -2216,7 +2252,7 @@ h3. 3.0.2
 
 h3. 3.0.1
 
-* "Date strings":#usingtimestamps (and timestamps) are no longer accepted as valid @timeuuid@ values. Doing so was a bug in the sense that date string are not valid @timeuuid@, and it was thus resulting in "confusing behaviors":https://issues.apache.org/jira/browse/CASSANDRA-4936.  However, the following new methods have been added to help working with @timeuuid@: @now@, @minTimeuuid@, @maxTimeuuid@ , @dateOf@ and @unixTimestampOf@. See the "section dedicated to these methods":#usingtimeuuid for more detail.
+* "Date strings":#usingtimestamps (and timestamps) are no longer accepted as valid @timeuuid@ values. Doing so was a bug in the sense that date string are not valid @timeuuid@, and it was thus resulting in "confusing behaviors":https://issues.apache.org/jira/browse/CASSANDRA-4936.  However, the following new methods have been added to help working with @timeuuid@: @now@, @minTimeuuid@, @maxTimeuuid@ , @dateOf@ and @unixTimestampOf@. See the "section dedicated to these methods":#timeuuidFun for more detail.
 * "Float constants"#constants now support the exponent notation. In other words, @4.2E10@ is now a valid floating point value.
 
 h2. Versioning
