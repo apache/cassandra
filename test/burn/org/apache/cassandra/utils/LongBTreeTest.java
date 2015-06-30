@@ -52,7 +52,6 @@ import com.codahale.metrics.Snapshot;
 import com.codahale.metrics.Timer;
 import org.apache.cassandra.concurrent.NamedThreadFactory;
 import org.apache.cassandra.utils.btree.BTree;
-import org.apache.cassandra.utils.btree.BTreeSearchIterator;
 import org.apache.cassandra.utils.btree.BTreeSet;
 import org.apache.cassandra.utils.btree.UpdateFunction;
 
@@ -120,52 +119,6 @@ public class LongBTreeTest
     public void testSlicingSmallRandomTrees() throws ExecutionException, InterruptedException
     {
         testInsertions(10000, 50, 10, 10, false);
-    }
-
-    @Test
-    public void testSearchIterator() throws InterruptedException
-    {
-        int threads = Runtime.getRuntime().availableProcessors();
-        final CountDownLatch latch = new CountDownLatch(threads);
-        final AtomicLong errors = new AtomicLong();
-        final AtomicLong count = new AtomicLong();
-        final int perThreadTrees = 100;
-        final int perTreeSelections = 100;
-        final long totalCount = threads * perThreadTrees * perTreeSelections;
-        for (int t = 0 ; t < threads ; t++)
-        {
-            MODIFY.execute(new Runnable()
-            {
-                public void run()
-                {
-                    ThreadLocalRandom random = ThreadLocalRandom.current();
-                    for (int i = 0 ; i < perThreadTrees ; i++)
-                    {
-                        Object[] tree = randomTree(10000, random);
-                        for (int j = 0 ; j < perTreeSelections ; j++)
-                        {
-                            BTreeSearchIterator<Integer, Integer, Integer> searchIterator = new BTreeSearchIterator<>(tree, ICMP);
-                            for (Integer key : randomSelection(tree, random))
-                                if (key != searchIterator.next(key))
-                                    errors.incrementAndGet();
-                            searchIterator = new BTreeSearchIterator<Integer, Integer, Integer>(tree, ICMP);
-                            for (Integer key : randomMix(tree, random))
-                                if (key != searchIterator.next(key))
-                                    if (BTree.find(tree, ICMP, key) == key)
-                                        errors.incrementAndGet();
-                            count.incrementAndGet();
-                        }
-                    }
-                    latch.countDown();
-                }
-            });
-        }
-        while (latch.getCount() > 0)
-        {
-            latch.await(10L, TimeUnit.SECONDS);
-            System.out.println(String.format("%.0f%% complete %s", 100 * count.get() / (double) totalCount, errors.get() > 0 ? ("Errors: " + errors.get()) : ""));
-            assert errors.get() == 0;
-        }
     }
 
     private static void testInsertions(int totalCount, int perTestCount, int testKeyRatio, int modificationBatchSize, boolean quickEquality) throws ExecutionException, InterruptedException
