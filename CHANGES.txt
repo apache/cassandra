@@ -11,7 +11,7 @@
  * Display min timestamp in sstablemetadata viewer (CASSANDRA-6767)
 
 
-2.0.16:
+2.0.16
  * Expose some internals of SelectStatement for inspection (CASSANDRA-9532)
  * ArrivalWindow should use primitives (CASSANDRA-9496)
  * Periodically submit background compaction tasks (CASSANDRA-9592)
@@ -36,7 +36,7 @@
  * Backport CASSANDRA-3569 (CASSANDRA-9455)
 
 
-2.0.15:
+2.0.15
  * Fix counting of tombstones for TombstoneOverwhelmingException (CASSANDRA-9299)
  * Fix ReconnectableSnitch reconnecting to peers during upgrade (CASSANDRA-6702)
  * Include keyspace and table name in error log for collections over the size
@@ -111,7 +111,7 @@
  * Bind JMX to localhost unless explicitly configured otherwise (CASSANDRA-9085)
 
 
-2.0.13:
+2.0.13
  * Add offline tool to relevel sstables (CASSANDRA-8301)
  * Preserve stream ID for more protocol errors (CASSANDRA-8848)
  * Fix combining token() function with multi-column relations on
@@ -210,7 +210,7 @@
  * Fix hints serialized size calculation (CASSANDRA-8587)
 
 
-2.0.11:
+2.0.11
  * Reject conditions on DELETE unless full PK is given (CASSANDRA-6430)
  * Properly reject the token function DELETE (CASSANDRA-7747)
  * Force batchlog replay before decommissioning a node (CASSANDRA-7446)
