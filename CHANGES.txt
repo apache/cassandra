@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 2.2.0-rc2
  * (cqlsh) Allow setting the initial connection timeout (CASSANDRA-9601)
  * BulkLoader has --transport-factory option but does not use it (CASSANDRA-9675)
@@ -18,12 +17,10 @@
  * Fix deprecated repair JMX API (CASSANDRA-9570)
  * Add logback metrics (CASSANDRA-9378)
  * Update and refactor ant test/test-compression to run the tests in parallel (CASSANDRA-9583)
+ * Fix upgrading to new directory for secondary index (CASSANDRA-9687)
 Merged from 2.1:
-=======
-2.1.8
  * Eliminate strong self-reference chains in sstable ref tidiers (CASSANDRA-9656)
  * Ensure StreamSession uses canonical sstable reader instances (CASSANDRA-9700) 
->>>>>>> cassandra-2.1
  * Ensure memtable book keeping is not corrupted in the event we shrink usage (CASSANDRA-9681)
  * Update internal python driver for cqlsh (CASSANDRA-9064)
  * Fix IndexOutOfBoundsException when inserting tuple with too many

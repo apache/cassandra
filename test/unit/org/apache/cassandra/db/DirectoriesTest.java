@@ -1,4 +1,4 @@
-/**
+/*
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -17,16 +17,8 @@
  */
 package org.apache.cassandra.db;
 
-import java.io.File;
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.IdentityHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.io.*;
+import java.util.*;
 import java.util.concurrent.Callable;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
@@ -46,6 +38,7 @@ import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.io.FSWriteError;
+import org.apache.cassandra.utils.Pair;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -60,7 +53,11 @@ public class DirectoriesTest
     private static final String[] CFS = new String[] { "cf1", "ks" };
 
     private static final Set<CFMetaData> CFM = new HashSet<>(CFS.length);
-    private static Map<String, List<File>> files = new HashMap<String, List<File>>();
+
+    private static final CFMetaData PARENT_CFM = new CFMetaData(KS, "cf", ColumnFamilyType.Standard, null);
+    private static final CFMetaData INDEX_CFM = new CFMetaData(KS, "cf.idx", ColumnFamilyType.Standard, null, PARENT_CFM.cfId);
+
+    private static final Map<String, List<File>> files = new HashMap<>();
 
     @BeforeClass
     public static void beforeClass() throws IOException
@@ -122,7 +119,19 @@ public class DirectoriesTest
     private static File cfDir(CFMetaData metadata)
     {
         String cfId = ByteBufferUtil.bytesToHex(ByteBufferUtil.bytes(metadata.cfId));
-        return new File(tempDataDir, metadata.ksName + File.separator + metadata.cfName + "-" + cfId);
+        int idx = metadata.cfName.indexOf(Directories.SECONDARY_INDEX_NAME_SEPARATOR);
+        if (idx >= 0)
+        {
+            // secondary index
+            return new File(tempDataDir,
+                            metadata.ksName + File.separator +
+                            metadata.cfName.substring(0, idx) + '-' + cfId + File.separator +
+                            metadata.cfName.substring(idx));
+        }
+        else
+        {
+            return new File(tempDataDir, metadata.ksName + File.separator + metadata.cfName + '-' + cfId);
+        }
     }
 
     @Test
@@ -140,6 +149,69 @@ public class DirectoriesTest
             File backupsDir = new File(cfDir(cfm),  File.separator + Directories.BACKUPS_SUBDIR);
             assertEquals(backupsDir, Directories.getBackupsDirectory(desc));
         }
+    }
+
+    @Test
+    public void testSecondaryIndexDirectories()
+    {
+        Directories parentDirectories = new Directories(PARENT_CFM);
+        Directories indexDirectories = new Directories(INDEX_CFM);
+        // secondary index has its own directory
+        for (File dir : indexDirectories.getCFDirectories())
+        {
+            assertEquals(cfDir(INDEX_CFM), dir);
+        }
+        Descriptor parentDesc = new Descriptor(parentDirectories.getDirectoryForNewSSTables(), KS, PARENT_CFM.cfName, 0, Descriptor.Type.FINAL);
+        Descriptor indexDesc = new Descriptor(indexDirectories.getDirectoryForNewSSTables(), KS, INDEX_CFM.cfName, 0, Descriptor.Type.FINAL);
+
+        // snapshot dir should be created under its parent's
+        File parentSnapshotDirectory = Directories.getSnapshotDirectory(parentDesc, "test");
+        File indexSnapshotDirectory = Directories.getSnapshotDirectory(indexDesc, "test");
+        assertEquals(parentSnapshotDirectory, indexSnapshotDirectory.getParentFile());
+
+        // check if snapshot directory exists
+        parentSnapshotDirectory.mkdirs();
+        assertTrue(parentDirectories.snapshotExists("test"));
+        assertTrue(indexDirectories.snapshotExists("test"));
+
+        // check their creation time
+        assertEquals(parentDirectories.snapshotCreationTime("test"),
+                     indexDirectories.snapshotCreationTime("test"));
+
+        // check true snapshot size
+        Descriptor parentSnapshot = new Descriptor(parentSnapshotDirectory, KS, PARENT_CFM.cfName, 0, Descriptor.Type.FINAL);
+        createFile(parentSnapshot.filenameFor(Component.DATA), 30);
+        Descriptor indexSnapshot = new Descriptor(indexSnapshotDirectory, KS, INDEX_CFM.cfName, 0, Descriptor.Type.FINAL);
+        createFile(indexSnapshot.filenameFor(Component.DATA), 40);
+
+        assertEquals(30, parentDirectories.trueSnapshotsSize());
+        assertEquals(40, indexDirectories.trueSnapshotsSize());
+
+        // check snapshot details
+        Map<String, Pair<Long, Long>> parentSnapshotDetail = parentDirectories.getSnapshotDetails();
+        assertTrue(parentSnapshotDetail.containsKey("test"));
+        assertEquals(30L, parentSnapshotDetail.get("test").right.longValue());
+
+        Map<String, Pair<Long, Long>> indexSnapshotDetail = indexDirectories.getSnapshotDetails();
+        assertTrue(indexSnapshotDetail.containsKey("test"));
+        assertEquals(40L, indexSnapshotDetail.get("test").right.longValue());
+
+        // check backup directory
+        File parentBackupDirectory = Directories.getBackupsDirectory(parentDesc);
+        File indexBackupDirectory = Directories.getBackupsDirectory(indexDesc);
+        assertEquals(parentBackupDirectory, indexBackupDirectory.getParentFile());
+    }
+
+    private File createFile(String fileName, int size)
+    {
+        File newFile = new File(fileName);
+        try (FileOutputStream writer = new FileOutputStream(newFile))
+        {
+            writer.write(new byte[size]);
+            writer.flush();
+        }
+        catch (IOException ignore) {}
+        return newFile;
     }
 
     @Test
