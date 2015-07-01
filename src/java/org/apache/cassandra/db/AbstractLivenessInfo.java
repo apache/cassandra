@@ -85,11 +85,11 @@ public abstract class AbstractLivenessInfo implements LivenessInfo
     {
         int size = 0;
         if (hasTimestamp())
-            size += TypeSizes.NATIVE.sizeof(timestamp());
+            size += TypeSizes.sizeof(timestamp());
         if (hasTTL())
-            size += TypeSizes.NATIVE.sizeof(ttl());
+            size += TypeSizes.sizeof(ttl());
         if (hasLocalDeletionTime())
-            size += TypeSizes.NATIVE.sizeof(localDeletionTime());
+            size += TypeSizes.sizeof(localDeletionTime());
         return size;
 
     }

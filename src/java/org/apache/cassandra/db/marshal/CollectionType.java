@@ -25,7 +25,6 @@ import java.util.Iterator;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.cql3.CQL3Type;
 import org.apache.cassandra.cql3.ColumnSpecification;
@@ -245,9 +244,9 @@ public abstract class CollectionType<T> extends AbstractType<T>
             return CellPath.create(ByteBufferUtil.readWithLength(in));
         }
 
-        public long serializedSize(CellPath path, TypeSizes sizes)
+        public long serializedSize(CellPath path)
         {
-            return sizes.sizeofWithLength(path.get(0));
+            return TypeSizes.sizeofWithLength(path.get(0));
         }
 
         public void skip(DataInput in) throws IOException

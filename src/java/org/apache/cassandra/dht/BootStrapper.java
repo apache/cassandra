@@ -17,16 +17,15 @@
  */
 package org.apache.cassandra.dht;
 
-import java.io.DataInput;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import com.google.common.util.concurrent.ListenableFuture;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.Keyspace;
@@ -35,6 +34,7 @@ import org.apache.cassandra.dht.tokenallocator.TokenAllocation;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.gms.FailureDetector;
 import org.apache.cassandra.io.IVersionedSerializer;
+import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.locator.TokenMetadata;
@@ -227,14 +227,14 @@ public class BootStrapper extends ProgressEventNotifierSupport
             out.writeUTF(s);
         }
 
-        public String deserialize(DataInput in, int version) throws IOException
+        public String deserialize(DataInputPlus in, int version) throws IOException
         {
             return in.readUTF();
         }
 
         public long serializedSize(String s, int version)
         {
-            return TypeSizes.NATIVE.sizeof(s);
+            return TypeSizes.sizeof(s);
         }
     }
 }

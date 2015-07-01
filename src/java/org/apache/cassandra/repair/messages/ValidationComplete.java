@@ -17,10 +17,10 @@
  */
 package org.apache.cassandra.repair.messages;
 
-import java.io.DataInput;
 import java.io.IOException;
 
 import org.apache.cassandra.db.TypeSizes;
+import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.repair.RepairJobDesc;
 import org.apache.cassandra.utils.MerkleTree;
@@ -64,7 +64,7 @@ public class ValidationComplete extends RepairMessage
                 MerkleTree.serializer.serialize(message.tree, out, version);
         }
 
-        public ValidationComplete deserialize(DataInput in, int version) throws IOException
+        public ValidationComplete deserialize(DataInputPlus in, int version) throws IOException
         {
             RepairJobDesc desc = RepairJobDesc.serializer.deserialize(in, version);
             if (in.readBoolean())
@@ -81,7 +81,7 @@ public class ValidationComplete extends RepairMessage
         public long serializedSize(ValidationComplete message, int version)
         {
             long size = RepairJobDesc.serializer.serializedSize(message.desc, version);
-            size += TypeSizes.NATIVE.sizeof(message.success);
+            size += TypeSizes.sizeof(message.success);
             if (message.success)
                 size += MerkleTree.serializer.serializedSize(message.tree, version);
             return size;

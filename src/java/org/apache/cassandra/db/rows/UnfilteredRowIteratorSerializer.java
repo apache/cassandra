@@ -137,7 +137,7 @@ public class UnfilteredRowIteratorSerializer
 
     // Please note that this consume the iterator, and as such should not be called unless we have a simple way to
     // recreate an iterator for both serialize and serializedSize, which is mostly only PartitionUpdate
-    public long serializedSize(UnfilteredRowIterator iterator, int version, int rowEstimate, TypeSizes sizes)
+    public long serializedSize(UnfilteredRowIterator iterator, int version, int rowEstimate)
     {
         SerializationHeader header = new SerializationHeader(iterator.metadata(),
                                                              iterator.columns(),
@@ -145,8 +145,8 @@ public class UnfilteredRowIteratorSerializer
 
         assert rowEstimate >= 0;
 
-        long size = CFMetaData.serializer.serializedSize(iterator.metadata(), version, sizes)
-                  + sizes.sizeofWithLength(iterator.partitionKey().getKey())
+        long size = CFMetaData.serializer.serializedSize(iterator.metadata(), version)
+                  + TypeSizes.sizeofWithLength(iterator.partitionKey().getKey())
                   + 1; // flags
 
         if (iterator.isEmpty())
@@ -156,20 +156,20 @@ public class UnfilteredRowIteratorSerializer
         Row staticRow = iterator.staticRow();
         boolean hasStatic = staticRow != Rows.EMPTY_STATIC_ROW;
 
-        size += SerializationHeader.serializer.serializedSizeForMessaging(header, sizes, hasStatic);
+        size += SerializationHeader.serializer.serializedSizeForMessaging(header, hasStatic);
 
         if (!partitionDeletion.isLive())
-            size += delTimeSerializedSize(partitionDeletion, header, sizes);
+            size += delTimeSerializedSize(partitionDeletion, header);
 
         if (hasStatic)
-            size += UnfilteredSerializer.serializer.serializedSize(staticRow, header, version, sizes);
+            size += UnfilteredSerializer.serializer.serializedSize(staticRow, header, version);
 
         if (rowEstimate >= 0)
-            size += sizes.sizeof(rowEstimate);
+            size += TypeSizes.sizeof(rowEstimate);
 
         while (iterator.hasNext())
-            size += UnfilteredSerializer.serializer.serializedSize(iterator.next(), header, version, sizes);
-        size += UnfilteredSerializer.serializer.serializedSizeEndOfPartition(sizes);
+            size += UnfilteredSerializer.serializer.serializedSize(iterator.next(), header, version);
+        size += UnfilteredSerializer.serializer.serializedSizeEndOfPartition();
 
         return size;
     }
@@ -246,10 +246,10 @@ public class UnfilteredRowIteratorSerializer
         out.writeInt(header.encodeDeletionTime(dt.localDeletionTime()));
     }
 
-    public static long delTimeSerializedSize(DeletionTime dt, SerializationHeader header, TypeSizes sizes)
+    public static long delTimeSerializedSize(DeletionTime dt, SerializationHeader header)
     {
-        return sizes.sizeof(header.encodeTimestamp(dt.markedForDeleteAt()))
-             + sizes.sizeof(header.encodeDeletionTime(dt.localDeletionTime()));
+        return TypeSizes.sizeof(header.encodeTimestamp(dt.markedForDeleteAt()))
+             + TypeSizes.sizeof(header.encodeDeletionTime(dt.localDeletionTime()));
     }
 
     public static DeletionTime readDelTime(DataInput in, SerializationHeader header) throws IOException

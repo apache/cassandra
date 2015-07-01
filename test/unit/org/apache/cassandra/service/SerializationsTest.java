@@ -25,12 +25,13 @@ import java.util.Collections;
 import java.util.UUID;
 
 import org.junit.Test;
-
 import org.apache.cassandra.AbstractSerializationsTester;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.RandomPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.io.util.DataInputPlus;
+import org.apache.cassandra.io.util.DataInputPlus.DataInputStreamPlus;
 import org.apache.cassandra.io.util.DataOutputStreamPlus;
 import org.apache.cassandra.net.MessageIn;
 import org.apache.cassandra.net.MessagingService;
@@ -79,7 +80,7 @@ public class SerializationsTest extends AbstractSerializationsTester
         if (EXECUTE_WRITES)
             testValidationRequestWrite();
 
-        try (DataInputStream in = getInput("service.ValidationRequest.bin"))
+        try (DataInputStreamPlus in = getInput("service.ValidationRequest.bin"))
         {
             RepairMessage message = RepairMessage.serializer.deserialize(in, getVersion());
             assert message.messageType == RepairMessage.Type.VALIDATION_REQUEST;
@@ -117,7 +118,7 @@ public class SerializationsTest extends AbstractSerializationsTester
         if (EXECUTE_WRITES)
             testValidationCompleteWrite();
 
-        try (DataInputStream in = getInput("service.ValidationComplete.bin"))
+        try (DataInputStreamPlus in = getInput("service.ValidationComplete.bin"))
         {
             // empty validation
             RepairMessage message = RepairMessage.serializer.deserialize(in, getVersion());
@@ -169,7 +170,7 @@ public class SerializationsTest extends AbstractSerializationsTester
         InetAddress src = InetAddress.getByAddress(new byte[]{127, 0, 0, 2});
         InetAddress dest = InetAddress.getByAddress(new byte[]{127, 0, 0, 3});
 
-        try (DataInputStream in = getInput("service.SyncRequest.bin"))
+        try (DataInputStreamPlus in = getInput("service.SyncRequest.bin"))
         {
             RepairMessage message = RepairMessage.serializer.deserialize(in, getVersion());
             assert message.messageType == RepairMessage.Type.SYNC_REQUEST;
@@ -205,7 +206,7 @@ public class SerializationsTest extends AbstractSerializationsTester
         InetAddress dest = InetAddress.getByAddress(new byte[]{127, 0, 0, 3});
         NodePair nodes = new NodePair(src, dest);
 
-        try (DataInputStream in = getInput("service.SyncComplete.bin"))
+        try (DataInputStreamPlus in = getInput("service.SyncComplete.bin"))
         {
             // success
             RepairMessage message = RepairMessage.serializer.deserialize(in, getVersion());

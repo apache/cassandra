@@ -705,28 +705,27 @@ public abstract class DataLimits
 
         public long serializedSize(DataLimits limits, int version)
         {
-            TypeSizes sizes = TypeSizes.NATIVE;
-            long size = sizes.sizeof((byte)limits.kind().ordinal());
+            long size = TypeSizes.sizeof((byte)limits.kind().ordinal());
             switch (limits.kind())
             {
                 case CQL_LIMIT:
                 case CQL_PAGING_LIMIT:
                     CQLLimits cqlLimits = (CQLLimits)limits;
-                    size += sizes.sizeof(cqlLimits.rowLimit);
-                    size += sizes.sizeof(cqlLimits.perPartitionLimit);
-                    size += sizes.sizeof(cqlLimits.isDistinct);
+                    size += TypeSizes.sizeof(cqlLimits.rowLimit);
+                    size += TypeSizes.sizeof(cqlLimits.perPartitionLimit);
+                    size += TypeSizes.sizeof(cqlLimits.isDistinct);
                     if (limits.kind() == Kind.CQL_PAGING_LIMIT)
                     {
                         CQLPagingLimits pagingLimits = (CQLPagingLimits)cqlLimits;
-                        size += ByteBufferUtil.serializedSizeWithShortLength(pagingLimits.lastReturnedKey, sizes);
-                        size += sizes.sizeof(pagingLimits.lastReturnedKeyRemaining);
+                        size += ByteBufferUtil.serializedSizeWithShortLength(pagingLimits.lastReturnedKey);
+                        size += TypeSizes.sizeof(pagingLimits.lastReturnedKeyRemaining);
                     }
                     break;
                 case THRIFT_LIMIT:
                 case SUPER_COLUMN_COUNTING_LIMIT:
                     ThriftLimits thriftLimits = (ThriftLimits)limits;
-                    size += sizes.sizeof(thriftLimits.partitionLimit);
-                    size += sizes.sizeof(thriftLimits.cellPerPartitionLimit);
+                    size += TypeSizes.sizeof(thriftLimits.partitionLimit);
+                    size += TypeSizes.sizeof(thriftLimits.cellPerPartitionLimit);
                     break;
                 default:
                     throw new AssertionError();

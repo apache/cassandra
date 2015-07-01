@@ -25,8 +25,8 @@ import java.util.Collection;
 import java.util.UUID;
 
 import com.google.common.base.Throwables;
-
 import com.google.common.collect.UnmodifiableIterator;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -42,11 +42,11 @@ import org.apache.cassandra.io.sstable.SSTableSimpleIterator;
 import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.sstable.format.SSTableWriter;
 import org.apache.cassandra.io.sstable.format.Version;
+import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.streaming.messages.FileMessageHeader;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.BytesReadTracker;
-import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
 
 
@@ -174,7 +174,7 @@ public class StreamReader
     public static class StreamDeserializer extends UnmodifiableIterator<Unfiltered> implements UnfilteredRowIterator
     {
         private final CFMetaData metadata;
-        private final DataInput in;
+        private final DataInputPlus in;
         private final SerializationHeader header;
         private final SerializationHelper helper;
 
@@ -186,7 +186,7 @@ public class StreamReader
 
         private final CounterFilteredRow counterRow;
 
-        public StreamDeserializer(CFMetaData metadata, DataInput in, Version version, SerializationHeader header)
+        public StreamDeserializer(CFMetaData metadata, DataInputPlus in, Version version, SerializationHeader header)
         {
             assert version.storeRows() : "We don't allow streaming from pre-3.0 nodes";
             this.metadata = metadata;

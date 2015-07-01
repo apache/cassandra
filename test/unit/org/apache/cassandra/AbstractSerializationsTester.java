@@ -20,12 +20,14 @@
 package org.apache.cassandra;
 
 import org.apache.cassandra.io.IVersionedSerializer;
+import org.apache.cassandra.io.util.DataInputPlus;
+import org.apache.cassandra.io.util.DataInputPlus.DataInputStreamPlus;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.util.DataOutputStreamPlus;
 import org.apache.cassandra.io.util.BufferedDataOutputStreamPlus;
+import org.apache.cassandra.io.util.NIODataInputStream;
 import org.apache.cassandra.net.MessagingService;
 
-import java.io.DataInputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
@@ -59,11 +61,11 @@ public class AbstractSerializationsTester
         assert out.getLength() == serializer.serializedSize(obj, getVersion());
     }
 
-    protected static DataInputStream getInput(String name) throws IOException
+    protected static DataInputStreamPlus getInput(String name) throws IOException
     {
         File f = new File("test/data/serialization/" + CUR_VER + "/" + name);
         assert f.exists() : f.getPath();
-        return new DataInputStream(new FileInputStream(f));
+        return new DataInputPlus.DataInputStreamPlus(new FileInputStream(f));
     }
 
     @SuppressWarnings("resource")

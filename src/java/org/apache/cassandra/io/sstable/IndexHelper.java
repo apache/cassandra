@@ -26,6 +26,7 @@ import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.io.ISerializer;
 import org.apache.cassandra.io.sstable.format.Version;
+import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.io.util.FileDataInput;
 import org.apache.cassandra.io.util.FileUtils;
@@ -165,7 +166,7 @@ public class IndexHelper
                 }
             }
 
-            public IndexInfo deserialize(DataInput in, SerializationHeader header) throws IOException
+            public IndexInfo deserialize(DataInputPlus in, SerializationHeader header) throws IOException
             {
                 ISerializer<ClusteringPrefix> clusteringSerializer = metadata.serializers().clusteringPrefixSerializer(version, header);
 
@@ -180,19 +181,19 @@ public class IndexHelper
                 return new IndexInfo(firstName, lastName, offset, width, endOpenMarker);
             }
 
-            public long serializedSize(IndexInfo info, SerializationHeader header, TypeSizes typeSizes)
+            public long serializedSize(IndexInfo info, SerializationHeader header)
             {
                 ISerializer<ClusteringPrefix> clusteringSerializer = metadata.serializers().clusteringPrefixSerializer(version, header);
-                long size = clusteringSerializer.serializedSize(info.firstName, typeSizes)
-                          + clusteringSerializer.serializedSize(info.lastName, typeSizes)
-                          + typeSizes.sizeof(info.offset)
-                          + typeSizes.sizeof(info.width);
+                long size = clusteringSerializer.serializedSize(info.firstName)
+                          + clusteringSerializer.serializedSize(info.lastName)
+                          + TypeSizes.sizeof(info.offset)
+                          + TypeSizes.sizeof(info.width);
 
                 if (version.storeRows())
                 {
-                    size += typeSizes.sizeof(info.endOpenMarker != null);
+                    size += TypeSizes.sizeof(info.endOpenMarker != null);
                     if (info.endOpenMarker != null)
-                        size += DeletionTime.serializer.serializedSize(info.endOpenMarker, typeSizes);
+                        size += DeletionTime.serializer.serializedSize(info.endOpenMarker);
                 }
                 return size;
             }

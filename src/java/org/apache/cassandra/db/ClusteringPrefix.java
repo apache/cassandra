@@ -273,14 +273,14 @@ public interface ClusteringPrefix extends Aliasable<ClusteringPrefix>, IMeasurab
                 return Slice.Bound.serializer.deserializeValues(in, kind, version, types);
         }
 
-        public long serializedSize(ClusteringPrefix clustering, int version, List<AbstractType<?>> types, TypeSizes sizes)
+        public long serializedSize(ClusteringPrefix clustering, int version, List<AbstractType<?>> types)
         {
             // We shouldn't serialize static clusterings
             assert clustering.kind() != Kind.STATIC_CLUSTERING;
             if (clustering.kind() == Kind.CLUSTERING)
-                return 1 + Clustering.serializer.serializedSize((Clustering)clustering, version, types, sizes);
+                return 1 + Clustering.serializer.serializedSize((Clustering)clustering, version, types);
             else
-                return Slice.Bound.serializer.serializedSize((Slice.Bound)clustering, version, types, sizes);
+                return Slice.Bound.serializer.serializedSize((Slice.Bound)clustering, version, types);
         }
 
         void serializeValuesWithoutSize(ClusteringPrefix clustering, DataOutputPlus out, int version, List<AbstractType<?>> types) throws IOException
@@ -299,7 +299,7 @@ public interface ClusteringPrefix extends Aliasable<ClusteringPrefix>, IMeasurab
             }
         }
 
-        long valuesWithoutSizeSerializedSize(ClusteringPrefix clustering, int version, List<AbstractType<?>> types, TypeSizes sizes)
+        long valuesWithoutSizeSerializedSize(ClusteringPrefix clustering, int version, List<AbstractType<?>> types)
         {
             if (clustering.size() == 0)
                 return 0;
@@ -311,7 +311,7 @@ public interface ClusteringPrefix extends Aliasable<ClusteringPrefix>, IMeasurab
                 if (v == null || !v.hasRemaining())
                     continue; // handled in the header
 
-                size += types.get(i).writtenLength(v, sizes);
+                size += types.get(i).writtenLength(v);
             }
             return size;
         }

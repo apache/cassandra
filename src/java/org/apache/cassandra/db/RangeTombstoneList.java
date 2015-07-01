@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.db;
 
-import java.io.DataInput;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
@@ -25,12 +24,13 @@ import java.util.Iterator;
 
 import com.google.common.collect.AbstractIterator;
 import com.google.common.collect.Iterators;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
 import org.apache.cassandra.cache.IMeasurableMemory;
 import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.io.IVersionedSerializer;
+import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.memory.AbstractAllocator;
@@ -289,12 +289,12 @@ public class RangeTombstoneList implements Iterable<RangeTombstone>, IMeasurable
 
     public int dataSize()
     {
-        int dataSize = TypeSizes.NATIVE.sizeof(size);
+        int dataSize = TypeSizes.sizeof(size);
         for (int i = 0; i < size; i++)
         {
             dataSize += starts[i].dataSize() + ends[i].dataSize();
-            dataSize += TypeSizes.NATIVE.sizeof(markedAts[i]);
-            dataSize += TypeSizes.NATIVE.sizeof(delTimes[i]);
+            dataSize += TypeSizes.sizeof(markedAts[i]);
+            dataSize += TypeSizes.sizeof(delTimes[i]);
         }
         return dataSize;
     }
@@ -463,7 +463,7 @@ public class RangeTombstoneList implements Iterable<RangeTombstone>, IMeasurable
         RangeTombstoneList that = (RangeTombstoneList)o;
         if (size != that.size)
             return false;
-        
+
         for (int i = 0; i < size; i++)
         {
             if (!starts[i].equals(that.starts[i]))
@@ -796,7 +796,7 @@ public class RangeTombstoneList implements Iterable<RangeTombstone>, IMeasurable
             //}
         }
 
-        public RangeTombstoneList deserialize(DataInput in, int version) throws IOException
+        public RangeTombstoneList deserialize(DataInputPlus in, int version) throws IOException
         {
             // TODO
             throw new UnsupportedOperationException();
@@ -834,27 +834,22 @@ public class RangeTombstoneList implements Iterable<RangeTombstone>, IMeasurable
             //return tombstones;
         }
 
-        public long serializedSize(RangeTombstoneList tombstones, TypeSizes typeSizes, int version)
+        public long serializedSize(RangeTombstoneList tombstones, int version)
         {
             // TODO
             throw new UnsupportedOperationException();
             //if (tombstones == null)
-            //    return typeSizes.sizeof(0);
+            //    return TypeSizes.sizeof(0);
 
-            //long size = typeSizes.sizeof(tombstones.size);
+            //long size = TypeSizes.sizeof(tombstones.size);
             //for (int i = 0; i < tombstones.size; i++)
             //{
             //    size += type.serializer().serializedSize(tombstones.starts[i], typeSizes);
             //    size += type.serializer().serializedSize(tombstones.ends[i], typeSizes);
-            //    size += typeSizes.sizeof(tombstones.delTimes[i]);
-            //    size += typeSizes.sizeof(tombstones.markedAts[i]);
+            //    size += TypeSizes.sizeof(tombstones.delTimes[i]);
+            //    size += TypeSizes.sizeof(tombstones.markedAts[i]);
             //}
             //return size;
-        }
-
-        public long serializedSize(RangeTombstoneList tombstones, int version)
-        {
-            return serializedSize(tombstones, TypeSizes.NATIVE, version);
         }
     }
 }

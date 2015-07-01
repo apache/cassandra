@@ -151,9 +151,9 @@ public abstract class Clustering extends AbstractClusteringPrefix
             ClusteringPrefix.serializer.serializeValuesWithoutSize(clustering, out, version, types);
         }
 
-        public long serializedSize(Clustering clustering, int version, List<AbstractType<?>> types, TypeSizes sizes)
+        public long serializedSize(Clustering clustering, int version, List<AbstractType<?>> types)
         {
-            return ClusteringPrefix.serializer.valuesWithoutSizeSerializedSize(clustering, version, types, sizes);
+            return ClusteringPrefix.serializer.valuesWithoutSizeSerializedSize(clustering, version, types);
         }
 
         public void deserialize(DataInput in, int version, List<AbstractType<?>> types, Writer writer) throws IOException

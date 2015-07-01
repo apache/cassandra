@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.utils;
 
-import java.io.DataInput;
 import java.io.IOException;
 import java.util.*;
 
@@ -25,6 +24,7 @@ import com.google.common.base.Objects;
 
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.ISerializer;
+import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 
 /**
@@ -182,7 +182,7 @@ public class StreamingHistogram
             }
         }
 
-        public StreamingHistogram deserialize(DataInput in) throws IOException
+        public StreamingHistogram deserialize(DataInputPlus in) throws IOException
         {
             int maxBinSize = in.readInt();
             int size = in.readInt();
@@ -195,11 +195,11 @@ public class StreamingHistogram
             return new StreamingHistogram(maxBinSize, tmp);
         }
 
-        public long serializedSize(StreamingHistogram histogram, TypeSizes typeSizes)
+        public long serializedSize(StreamingHistogram histogram)
         {
-            long size = typeSizes.sizeof(histogram.maxBinSize);
+            long size = TypeSizes.sizeof(histogram.maxBinSize);
             Map<Double, Long> entries = histogram.getAsMap();
-            size += typeSizes.sizeof(entries.size());
+            size += TypeSizes.sizeof(entries.size());
             // size of entries = size * (8(double) + 8(long))
             size += entries.size() * (8L + 8L);
             return size;

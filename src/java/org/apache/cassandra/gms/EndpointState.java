@@ -22,11 +22,10 @@ import java.util.Map;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.IVersionedSerializer;
+import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
-
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
 
 /**
@@ -156,7 +155,7 @@ class EndpointStateSerializer implements IVersionedSerializer<EndpointState>
         }
     }
 
-    public EndpointState deserialize(DataInput in, int version) throws IOException
+    public EndpointState deserialize(DataInputPlus in, int version) throws IOException
     {
         HeartBeatState hbState = HeartBeatState.serializer.deserialize(in, version);
         EndpointState epState = new EndpointState(hbState);
@@ -174,11 +173,11 @@ class EndpointStateSerializer implements IVersionedSerializer<EndpointState>
     public long serializedSize(EndpointState epState, int version)
     {
         long size = HeartBeatState.serializer.serializedSize(epState.getHeartBeatState(), version);
-        size += TypeSizes.NATIVE.sizeof(epState.applicationState.size());
+        size += TypeSizes.sizeof(epState.applicationState.size());
         for (Map.Entry<ApplicationState, VersionedValue> entry : epState.applicationState.entrySet())
         {
             VersionedValue value = entry.getValue();
-            size += TypeSizes.NATIVE.sizeof(entry.getKey().ordinal());
+            size += TypeSizes.sizeof(entry.getKey().ordinal());
             size += VersionedValue.serializer.serializedSize(value, version);
         }
         return size;

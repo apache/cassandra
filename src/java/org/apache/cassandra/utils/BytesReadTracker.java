@@ -21,10 +21,12 @@ import java.io.DataInput;
 import java.io.DataInputStream;
 import java.io.IOException;
 
+import org.apache.cassandra.io.util.DataInputPlus;
+
 /**
  * This class is to track bytes read from given DataInput
  */
-public class BytesReadTracker implements DataInput
+public class BytesReadTracker implements DataInputPlus
 {
 
     private long bytesRead;

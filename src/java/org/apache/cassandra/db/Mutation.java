@@ -17,24 +17,22 @@
  */
 package org.apache.cassandra.db;
 
-import java.io.DataInput;
 import java.io.IOException;
 import java.util.*;
 
 import org.apache.commons.lang3.StringUtils;
-
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.rows.SerializationHelper;
 import org.apache.cassandra.db.partitions.*;
 import org.apache.cassandra.io.IVersionedSerializer;
+import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.net.MessageOut;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.ByteBufferUtil;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -261,7 +259,7 @@ public class Mutation implements IMutation
                 PartitionUpdate.serializer.serialize(entry.getValue(), out, version);
         }
 
-        public Mutation deserialize(DataInput in, int version, SerializationHelper.Flag flag) throws IOException
+        public Mutation deserialize(DataInputPlus in, int version, SerializationHelper.Flag flag) throws IOException
         {
             String keyspaceName = null; // will always be set from cf.metadata but javac isn't smart enough to see that
             if (version < MessagingService.VERSION_20)
@@ -293,28 +291,27 @@ public class Mutation implements IMutation
             return new Mutation(keyspaceName, key, modifications);
         }
 
-        public Mutation deserialize(DataInput in, int version) throws IOException
+        public Mutation deserialize(DataInputPlus in, int version) throws IOException
         {
             return deserialize(in, version, SerializationHelper.Flag.FROM_REMOTE);
         }
 
         public long serializedSize(Mutation mutation, int version)
         {
-            TypeSizes sizes = TypeSizes.NATIVE;
             int size = 0;
 
             if (version < MessagingService.VERSION_20)
-                size += sizes.sizeof(mutation.getKeyspaceName());
+                size += TypeSizes.sizeof(mutation.getKeyspaceName());
 
             if (version < MessagingService.VERSION_30)
             {
                 int keySize = mutation.key().getKey().remaining();
-                size += sizes.sizeof((short) keySize) + keySize;
+                size += TypeSizes.sizeof((short) keySize) + keySize;
             }
 
-            size += sizes.sizeof(mutation.modifications.size());
+            size += TypeSizes.sizeof(mutation.modifications.size());
             for (Map.Entry<UUID, PartitionUpdate> entry : mutation.modifications.entrySet())
-                size += PartitionUpdate.serializer.serializedSize(entry.getValue(), version, sizes);
+                size += PartitionUpdate.serializer.serializedSize(entry.getValue(), version);
 
             return size;
         }

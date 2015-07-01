@@ -21,13 +21,10 @@ package org.apache.cassandra.db.commitlog;
  *
  */
 
-import java.io.DataInputStream;
 import java.io.File;
 import java.io.FileInputStream;
-import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Iterator;
@@ -55,14 +52,12 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.ParameterizedClass;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.Mutation;
-import org.apache.cassandra.db.RowUpdateBuilder;
 import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.db.rows.SerializationHelper;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.marshal.UTF8Type;
-import org.apache.cassandra.io.util.FastByteArrayInputStream;
-import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.io.util.NIODataInputStream;
 
 public class CommitLogStressTest
 {
@@ -467,11 +462,11 @@ public class CommitLogStressTest
                 // Skip over this mutation.
                 return;
 
-            FastByteArrayInputStream bufIn = new FastByteArrayInputStream(inputBuffer, 0, size);
+            NIODataInputStream bufIn = new NIODataInputStream(inputBuffer, 0, size);
             Mutation mutation;
             try
             {
-                mutation = Mutation.serializer.deserialize(new DataInputStream(bufIn),
+                mutation = Mutation.serializer.deserialize(bufIn,
                                                            desc.getMessagingVersion(),
                                                            SerializationHelper.Flag.LOCAL);
             }

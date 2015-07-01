@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.net;
 
-import java.io.DataInput;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.util.Collections;
@@ -27,10 +26,10 @@ import com.google.common.collect.ImmutableMap;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.IVersionedSerializer;
+import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.FileUtils;
 
 public class MessageIn<T>
@@ -57,7 +56,7 @@ public class MessageIn<T>
         return new MessageIn<T>(from, payload, parameters, verb, version);
     }
 
-    public static <T2> MessageIn<T2> read(DataInput in, int version, int id) throws IOException
+    public static <T2> MessageIn<T2> read(DataInputPlus in, int version, int id) throws IOException
     {
         InetAddress from = CompactEndpointSerializationHelper.deserialize(in);
 

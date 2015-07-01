@@ -23,7 +23,6 @@ import java.nio.ByteBuffer;
 import java.security.MessageDigest;
 import java.util.Objects;
 
-import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.util.DataOutputPlus;
 
 /**
@@ -88,7 +87,7 @@ public abstract class CellPath
     {
         public void serialize(CellPath path, DataOutputPlus out) throws IOException;
         public CellPath deserialize(DataInput in) throws IOException;
-        public long serializedSize(CellPath path, TypeSizes sizes);
+        public long serializedSize(CellPath path);
         public void skip(DataInput in) throws IOException;
     }
 

@@ -301,9 +301,9 @@ public abstract class Slices implements Iterable<Slice>
                 Slice.serializer.serialize(slice, out, version, types);
         }
 
-        public long serializedSize(Slices slices, int version, TypeSizes sizes)
+        public long serializedSize(Slices slices, int version)
         {
-            long size = sizes.sizeof(slices.size());
+            long size = TypeSizes.sizeof(slices.size());
 
             if (slices.size() == 0)
                 return size;
@@ -313,7 +313,7 @@ public abstract class Slices implements Iterable<Slice>
                                         : ((ArrayBackedSlices)slices).comparator.subtypes();
 
             for (Slice slice : slices)
-                size += Slice.serializer.serializedSize(slice, version, types, sizes);
+                size += Slice.serializer.serializedSize(slice, version, types);
 
             return size;
         }

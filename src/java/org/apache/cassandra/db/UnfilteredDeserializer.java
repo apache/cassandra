@@ -17,14 +17,13 @@
  */
 package org.apache.cassandra.db;
 
-import java.io.DataInput;
 import java.io.IOException;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.rows.*;
+import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.net.MessagingService;
 
 /**
@@ -39,11 +38,11 @@ public abstract class UnfilteredDeserializer
     private static final Logger logger = LoggerFactory.getLogger(UnfilteredDeserializer.class);
 
     protected final CFMetaData metadata;
-    protected final DataInput in;
+    protected final DataInputPlus in;
     protected final SerializationHelper helper;
 
     protected UnfilteredDeserializer(CFMetaData metadata,
-                                     DataInput in,
+                                     DataInputPlus in,
                                      SerializationHelper helper)
     {
         this.metadata = metadata;
@@ -52,7 +51,7 @@ public abstract class UnfilteredDeserializer
     }
 
     public static UnfilteredDeserializer create(CFMetaData metadata,
-                                                DataInput in,
+                                                DataInputPlus in,
                                                 SerializationHeader header,
                                                 SerializationHelper helper,
                                                 DeletionTime partitionDeletion,
@@ -116,7 +115,7 @@ public abstract class UnfilteredDeserializer
         private final RangeTombstoneMarker.Builder markerBuilder;
 
         private CurrentDeserializer(CFMetaData metadata,
-                                    DataInput in,
+                                    DataInputPlus in,
                                     SerializationHeader header,
                                     SerializationHelper helper)
         {
@@ -237,7 +236,7 @@ public abstract class UnfilteredDeserializer
         private RangeTombstoneMarker closingMarker;
 
         private OldFormatDeserializer(CFMetaData metadata,
-                                      DataInput in,
+                                      DataInputPlus in,
                                       SerializationHelper helper,
                                       DeletionTime partitionDeletion,
                                       boolean readAllAsDynamic)

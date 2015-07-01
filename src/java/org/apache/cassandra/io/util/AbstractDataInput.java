@@ -19,9 +19,7 @@ package org.apache.cassandra.io.util;
 
 import java.io.*;
 
-import org.apache.cassandra.utils.vint.VIntCoding;
-
-public abstract class AbstractDataInput extends InputStream implements DataInput
+public abstract class AbstractDataInput extends InputStream implements DataInputPlus
 {
     public abstract void seek(long position) throws IOException;
     public abstract long getPosition();
@@ -264,38 +262,6 @@ public abstract class AbstractDataInput extends InputStream implements DataInput
      */
     public long readLong() throws IOException {
         return ((long)(readInt()) << 32) + (readInt() & 0xFFFFFFFFL);
-    }
-
-    /**
-     * Reads a varint encoded integer from the current position in this file. Blocks until
-     * the end of the varint is reached, the end of the file is reached, or an exception is
-     * thrown.
-     *
-     * @return the next varint value from this file.
-     * @throws EOFException
-     *             if the end of this file is detected.
-     * @throws IOException
-     *             if this file is closed or another I/O error occurs.
-     */
-    public long readVInt() throws IOException
-    {
-        return VIntCoding.readVInt(this);
-    }
-
-    /**
-     * Reads an unsigned varint encoded integer from the current position in this file. Blocks until
-     * the end of the varint is reached, the end of the file is reached, or an exception is
-     * thrown.
-     *
-     * @return the next unsigned varint value from this file.
-     * @throws EOFException
-     *             if the end of this file is detected.
-     * @throws IOException
-     *             if this file is closed or another I/O error occurs.
-     */
-    public long readUnsignedVInt() throws IOException
-    {
-        return VIntCoding.readUnsignedVInt(this);
     }
 
     /**

@@ -217,12 +217,12 @@ public class RowStats
             out.writeInt(stats.avgColumnSetPerRow);
         }
 
-        public int serializedSize(RowStats stats, TypeSizes sizes)
+        public int serializedSize(RowStats stats)
         {
-            return sizes.sizeof(stats.minTimestamp)
-                 + sizes.sizeof(stats.minLocalDeletionTime)
-                 + sizes.sizeof(stats.minTTL)
-                 + sizes.sizeof(stats.avgColumnSetPerRow);
+            return TypeSizes.sizeof(stats.minTimestamp)
+                 + TypeSizes.sizeof(stats.minLocalDeletionTime)
+                 + TypeSizes.sizeof(stats.minTTL)
+                 + TypeSizes.sizeof(stats.avgColumnSetPerRow);
         }
 
         public RowStats deserialize(DataInput in) throws IOException

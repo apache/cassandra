@@ -1579,7 +1579,7 @@ public final class CFMetaData
             return metadata;
         }
 
-        public long serializedSize(CFMetaData metadata, int version, TypeSizes sizes)
+        public long serializedSize(CFMetaData metadata, int version)
         {
             // We've made sure it was encoded as 16 bytes whatever the TypeSizes is.
             return 16;

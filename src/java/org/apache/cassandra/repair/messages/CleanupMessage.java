@@ -17,10 +17,10 @@
  */
 package org.apache.cassandra.repair.messages;
 
-import java.io.DataInput;
 import java.io.IOException;
 import java.util.UUID;
 
+import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.utils.UUIDSerializer;
 
@@ -47,7 +47,7 @@ public class CleanupMessage extends RepairMessage
             UUIDSerializer.serializer.serialize(message.parentRepairSession, out, version);
         }
 
-        public CleanupMessage deserialize(DataInput in, int version) throws IOException
+        public CleanupMessage deserialize(DataInputPlus in, int version) throws IOException
         {
             UUID parentRepairSession = UUIDSerializer.serializer.deserialize(in, version);
             return new CleanupMessage(parentRepairSession);

@@ -20,12 +20,12 @@ package org.apache.cassandra.gms;
 
 import org.apache.cassandra.AbstractSerializationsTester;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.io.util.DataInputPlus.DataInputStreamPlus;
 import org.apache.cassandra.io.util.DataOutputStreamPlus;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
 import org.junit.Test;
 
-import java.io.DataInputStream;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.util.ArrayList;
@@ -58,7 +58,7 @@ public class SerializationsTest extends AbstractSerializationsTester
         if (EXECUTE_WRITES)
             testEndpointStateWrite();
 
-        DataInputStream in = getInput("gms.EndpointState.bin");
+        DataInputStreamPlus in = getInput("gms.EndpointState.bin");
         assert HeartBeatState.serializer.deserialize(in, getVersion()) != null;
         assert EndpointState.serializer.deserialize(in, getVersion()) != null;
         assert VersionedValue.serializer.deserialize(in, getVersion()) != null;
@@ -98,7 +98,7 @@ public class SerializationsTest extends AbstractSerializationsTester
             testGossipDigestWrite();
 
         int count = 0;
-        DataInputStream in = getInput("gms.Gossip.bin");
+        DataInputStreamPlus in = getInput("gms.Gossip.bin");
         while (count < Statics.Digests.size())
             assert GossipDigestAck2.serializer.deserialize(in, getVersion()) != null;
         assert GossipDigestAck.serializer.deserialize(in, getVersion()) != null;

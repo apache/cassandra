@@ -17,13 +17,13 @@
  */
 package org.apache.cassandra.repair;
 
-import java.io.DataInput;
 import java.io.IOException;
 import java.net.InetAddress;
 
 import com.google.common.base.Objects;
 
 import org.apache.cassandra.io.IVersionedSerializer;
+import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.net.CompactEndpointSerializationHelper;
 
@@ -69,7 +69,7 @@ public class NodePair
             CompactEndpointSerializationHelper.serialize(nodePair.endpoint2, out);
         }
 
-        public NodePair deserialize(DataInput in, int version) throws IOException
+        public NodePair deserialize(DataInputPlus in, int version) throws IOException
         {
             InetAddress ep1 = CompactEndpointSerializationHelper.deserialize(in);
             InetAddress ep2 = CompactEndpointSerializationHelper.deserialize(in);

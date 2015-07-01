@@ -25,6 +25,7 @@ import com.google.common.base.Objects;
 
 import org.apache.cassandra.cache.IMeasurableMemory;
 import org.apache.cassandra.io.ISerializer;
+import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.utils.FBUtilities;
@@ -144,7 +145,7 @@ public abstract class DeletionTime implements Comparable<DeletionTime>, IMeasura
             out.writeLong(delTime.markedForDeleteAt());
         }
 
-        public DeletionTime deserialize(DataInput in) throws IOException
+        public DeletionTime deserialize(DataInputPlus in) throws IOException
         {
             int ldt = in.readInt();
             long mfda = in.readLong();
@@ -158,10 +159,10 @@ public abstract class DeletionTime implements Comparable<DeletionTime>, IMeasura
             FileUtils.skipBytesFully(in, 4 + 8);
         }
 
-        public long serializedSize(DeletionTime delTime, TypeSizes typeSizes)
+        public long serializedSize(DeletionTime delTime)
         {
-            return typeSizes.sizeof(delTime.localDeletionTime())
-                 + typeSizes.sizeof(delTime.markedForDeleteAt());
+            return TypeSizes.sizeof(delTime.localDeletionTime())
+                 + TypeSizes.sizeof(delTime.markedForDeleteAt());
         }
     }
 }

@@ -17,9 +17,9 @@
  */
 package org.apache.cassandra.repair.messages;
 
-import java.io.DataInput;
 import java.io.IOException;
 
+import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.repair.RepairJobDesc;
 
@@ -39,7 +39,7 @@ public class SnapshotMessage extends RepairMessage
             RepairJobDesc.serializer.serialize(message.desc, out, version);
         }
 
-        public SnapshotMessage deserialize(DataInput in, int version) throws IOException
+        public SnapshotMessage deserialize(DataInputPlus in, int version) throws IOException
         {
             RepairJobDesc desc = RepairJobDesc.serializer.deserialize(in, version);
             return new SnapshotMessage(desc);

@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.db.partitions;
 
-import java.io.DataInput;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 
@@ -26,6 +25,7 @@ import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.io.ISerializer;
+import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.net.MessagingService;
 
@@ -216,7 +216,7 @@ public class ArrayBackedCachedPartition extends ArrayBackedPartition implements 
             }
         }
 
-        public CachedPartition deserialize(DataInput in) throws IOException
+        public CachedPartition deserialize(DataInputPlus in) throws IOException
         {
             // Note that it would be slightly simpler to just do
             //   ArrayBackedCachedPiartition.create(UnfilteredRowIteratorSerializer.serializer.deserialize(...));
@@ -240,15 +240,15 @@ public class ArrayBackedCachedPartition extends ArrayBackedPartition implements 
             return partition;
         }
 
-        public long serializedSize(CachedPartition partition, TypeSizes sizes)
+        public long serializedSize(CachedPartition partition)
         {
             assert partition instanceof ArrayBackedCachedPartition;
             ArrayBackedCachedPartition p = (ArrayBackedCachedPartition)partition;
 
             try (UnfilteredRowIterator iter = p.sliceableUnfilteredIterator())
             {
-                return sizes.sizeof(p.createdAtInSec)
-                     + UnfilteredRowIteratorSerializer.serializer.serializedSize(iter, MessagingService.current_version, p.rows, sizes);
+                return TypeSizes.sizeof(p.createdAtInSec)
+                     + UnfilteredRowIteratorSerializer.serializer.serializedSize(iter, MessagingService.current_version, p.rows);
             }
         }
     }

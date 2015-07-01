@@ -17,11 +17,11 @@
  */
 package org.apache.cassandra.io.sstable.metadata;
 
-import java.io.DataInput;
 import java.io.IOException;
 
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.sstable.format.Version;
+import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 
 /**
@@ -73,7 +73,7 @@ public class ValidationMetadata extends MetadataComponent
     {
         public int serializedSize(ValidationMetadata component) throws IOException
         {
-            return TypeSizes.NATIVE.sizeof(component.partitioner) + 8;
+            return TypeSizes.sizeof(component.partitioner) + 8;
         }
 
         public void serialize(ValidationMetadata component, DataOutputPlus out) throws IOException
@@ -82,7 +82,7 @@ public class ValidationMetadata extends MetadataComponent
             out.writeDouble(component.bloomFilterFPChance);
         }
 
-        public ValidationMetadata deserialize(Version version, DataInput in) throws IOException
+        public ValidationMetadata deserialize(Version version, DataInputPlus in) throws IOException
         {
 
             return new ValidationMetadata(in.readUTF(), in.readDouble());

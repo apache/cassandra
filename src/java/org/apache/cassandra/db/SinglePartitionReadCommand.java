@@ -401,8 +401,7 @@ public abstract class SinglePartitionReadCommand<F extends ClusteringIndexFilter
 
     protected long selectionSerializedSize(int version)
     {
-        TypeSizes sizes = TypeSizes.NATIVE;
-        return metadata().getKeyValidator().writtenLength(partitionKey().getKey(), sizes)
+        return metadata().getKeyValidator().writtenLength(partitionKey().getKey())
              + ClusteringIndexFilter.serializer.serializedSize(clusteringIndexFilter(), version);
     }
 

@@ -246,12 +246,12 @@ public class ClusteringIndexNamesFilter extends AbstractClusteringIndexFilter
             Clustering.serializer.serialize(clustering, out, version, comparator.subtypes());
     }
 
-    protected long serializedSizeInternal(int version, TypeSizes sizes)
+    protected long serializedSizeInternal(int version)
     {
         long size = 0;
         ClusteringComparator comparator = (ClusteringComparator)clusterings.comparator();
         for (Clustering clustering : clusterings)
-            size += Clustering.serializer.serializedSize(clustering, version, comparator.subtypes(), sizes);
+            size += Clustering.serializer.serializedSize(clustering, version, comparator.subtypes());
         return size;
     }
 

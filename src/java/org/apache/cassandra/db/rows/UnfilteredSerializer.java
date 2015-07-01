@@ -226,14 +226,14 @@ public class UnfilteredSerializer
         }
     }
 
-    public long serializedSize(Unfiltered unfiltered, SerializationHeader header, int version, TypeSizes sizes)
+    public long serializedSize(Unfiltered unfiltered, SerializationHeader header, int version)
     {
         return unfiltered.kind() == Unfiltered.Kind.RANGE_TOMBSTONE_MARKER
-             ? serializedSize((RangeTombstoneMarker) unfiltered, header, version, sizes)
-             : serializedSize((Row) unfiltered, header, version, sizes);
+             ? serializedSize((RangeTombstoneMarker) unfiltered, header, version)
+             : serializedSize((Row) unfiltered, header, version);
     }
 
-    public long serializedSize(Row row, SerializationHeader header, int version, TypeSizes sizes)
+    public long serializedSize(Row row, SerializationHeader header, int version)
     {
         long size = 1; // flags
 
@@ -243,17 +243,17 @@ public class UnfilteredSerializer
         boolean hasComplexDeletion = row.hasComplexDeletion();
 
         if (!isStatic)
-            size += Clustering.serializer.serializedSize(row.clustering(), version, header.clusteringTypes(), sizes);
+            size += Clustering.serializer.serializedSize(row.clustering(), version, header.clusteringTypes());
 
         if (pkLiveness.hasTimestamp())
-            size += sizes.sizeof(header.encodeTimestamp(pkLiveness.timestamp()));
+            size += TypeSizes.sizeof(header.encodeTimestamp(pkLiveness.timestamp()));
         if (pkLiveness.hasTTL())
         {
-            size += sizes.sizeof(header.encodeTTL(pkLiveness.ttl()));
-            size += sizes.sizeof(header.encodeDeletionTime(pkLiveness.localDeletionTime()));
+            size += TypeSizes.sizeof(header.encodeTTL(pkLiveness.ttl()));
+            size += TypeSizes.sizeof(header.encodeDeletionTime(pkLiveness.localDeletionTime()));
         }
         if (!deletion.isLive())
-            size += UnfilteredRowIteratorSerializer.delTimeSerializedSize(deletion, header, sizes);
+            size += UnfilteredRowIteratorSerializer.delTimeSerializedSize(deletion, header);
 
         Columns columns = header.columns(isStatic);
         int simpleCount = columns.simpleColumnCount();
@@ -261,18 +261,18 @@ public class UnfilteredSerializer
         SearchIterator<ColumnDefinition, ColumnData> cells = row.searchIterator();
 
         for (int i = 0; i < simpleCount; i++)
-            size += sizeOfSimpleColumn(i, cells.next(columns.getSimple(i)), header, sizes, pkLiveness, useSparse);
+            size += sizeOfSimpleColumn(i, cells.next(columns.getSimple(i)), header, pkLiveness, useSparse);
 
         for (int i = simpleCount; i < columns.columnCount(); i++)
-            size += sizeOfComplexColumn(i, cells.next(columns.getComplex(i - simpleCount)), hasComplexDeletion, header, sizes, pkLiveness, useSparse);
+            size += sizeOfComplexColumn(i, cells.next(columns.getComplex(i - simpleCount)), hasComplexDeletion, header, pkLiveness, useSparse);
 
         if (useSparse)
-            size += sizes.sizeof((short)-1);
+            size += TypeSizes.sizeof((short)-1);
 
         return size;
     }
 
-    private long sizeOfSimpleColumn(int idx, ColumnData data, SerializationHeader header, TypeSizes sizes, LivenessInfo rowLiveness, boolean useSparse)
+    private long sizeOfSimpleColumn(int idx, ColumnData data, SerializationHeader header, LivenessInfo rowLiveness, boolean useSparse)
     {
         long size = 0;
         if (useSparse)
@@ -280,12 +280,12 @@ public class UnfilteredSerializer
             if (data == null)
                 return size;
 
-            size += sizes.sizeof((short)idx);
+            size += TypeSizes.sizeof((short)idx);
         }
-        return size + sizeOfCell(data == null ? null : data.cell(), header, sizes, rowLiveness);
+        return size + sizeOfCell(data == null ? null : data.cell(), header, rowLiveness);
     }
 
-    private long sizeOfComplexColumn(int idx, ColumnData data, boolean hasComplexDeletion, SerializationHeader header, TypeSizes sizes, LivenessInfo rowLiveness, boolean useSparse)
+    private long sizeOfComplexColumn(int idx, ColumnData data, boolean hasComplexDeletion, SerializationHeader header, LivenessInfo rowLiveness, boolean useSparse)
     {
         long size = 0;
         Iterator<Cell> cells = data == null ? null : data.cells();
@@ -296,33 +296,33 @@ public class UnfilteredSerializer
             if (cells == null && deletion.isLive())
                 return size;
 
-            size += sizes.sizeof((short)idx);
+            size += TypeSizes.sizeof((short)idx);
         }
 
         if (hasComplexDeletion)
-            size += UnfilteredRowIteratorSerializer.delTimeSerializedSize(deletion, header, sizes);
+            size += UnfilteredRowIteratorSerializer.delTimeSerializedSize(deletion, header);
 
         if (cells != null)
             while (cells.hasNext())
-                size += sizeOfCell(cells.next(), header, sizes, rowLiveness);
+                size += sizeOfCell(cells.next(), header, rowLiveness);
 
-        return size + sizeOfCell(null, header, sizes, rowLiveness);
+        return size + sizeOfCell(null, header, rowLiveness);
     }
 
-    public long serializedSize(RangeTombstoneMarker marker, SerializationHeader header, int version, TypeSizes sizes)
+    public long serializedSize(RangeTombstoneMarker marker, SerializationHeader header, int version)
     {
         long size = 1 // flags
-                  + RangeTombstone.Bound.serializer.serializedSize(marker.clustering(), version, header.clusteringTypes(), sizes);
+                  + RangeTombstone.Bound.serializer.serializedSize(marker.clustering(), version, header.clusteringTypes());
 
         if (marker.isBoundary())
         {
             RangeTombstoneBoundaryMarker bm = (RangeTombstoneBoundaryMarker)marker;
-            size += UnfilteredRowIteratorSerializer.delTimeSerializedSize(bm.endDeletionTime(), header, sizes);
-            size += UnfilteredRowIteratorSerializer.delTimeSerializedSize(bm.startDeletionTime(), header, sizes);
+            size += UnfilteredRowIteratorSerializer.delTimeSerializedSize(bm.endDeletionTime(), header);
+            size += UnfilteredRowIteratorSerializer.delTimeSerializedSize(bm.startDeletionTime(), header);
         }
         else
         {
-           size += UnfilteredRowIteratorSerializer.delTimeSerializedSize(((RangeTombstoneBoundMarker)marker).deletionTime(), header, sizes);
+           size += UnfilteredRowIteratorSerializer.delTimeSerializedSize(((RangeTombstoneBoundMarker)marker).deletionTime(), header);
         }
         return size;
     }
@@ -332,7 +332,7 @@ public class UnfilteredSerializer
         out.writeByte((byte)1);
     }
 
-    public long serializedSizeEndOfPartition(TypeSizes sizes)
+    public long serializedSizeEndOfPartition()
     {
         return 1;
     }
@@ -602,7 +602,7 @@ public class UnfilteredSerializer
             cell.column().cellPathSerializer().serialize(cell.path(), out);
     }
 
-    private long sizeOfCell(Cell cell, SerializationHeader header, TypeSizes sizes, LivenessInfo rowLiveness)
+    private long sizeOfCell(Cell cell, SerializationHeader header, LivenessInfo rowLiveness)
     {
         long size = 1; // flags
 
@@ -616,18 +616,18 @@ public class UnfilteredSerializer
         boolean useRowTTL = isExpiring && rowLiveness.hasTTL() && cell.livenessInfo().ttl() == rowLiveness.ttl() && cell.livenessInfo().localDeletionTime() == rowLiveness.localDeletionTime();
 
         if (hasValue)
-            size += header.getType(cell.column()).writtenLength(cell.value(), sizes);
+            size += header.getType(cell.column()).writtenLength(cell.value());
 
         if (!useRowTimestamp)
-            size += sizes.sizeof(header.encodeTimestamp(cell.livenessInfo().timestamp()));
+            size += TypeSizes.sizeof(header.encodeTimestamp(cell.livenessInfo().timestamp()));
 
         if ((isDeleted || isExpiring) && !useRowTTL)
-            size += sizes.sizeof(header.encodeDeletionTime(cell.livenessInfo().localDeletionTime()));
+            size += TypeSizes.sizeof(header.encodeDeletionTime(cell.livenessInfo().localDeletionTime()));
         if (isExpiring && !useRowTTL)
-            size += sizes.sizeof(header.encodeTTL(cell.livenessInfo().ttl()));
+            size += TypeSizes.sizeof(header.encodeTTL(cell.livenessInfo().ttl()));
 
         if (cell.column().isComplex())
-            size += cell.column().cellPathSerializer().serializedSize(cell.path(), sizes);
+            size += cell.column().cellPathSerializer().serializedSize(cell.path());
 
         return size;
     }

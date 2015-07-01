@@ -76,7 +76,7 @@ class SSTableSimpleUnsortedWriter extends AbstractSSTableSimpleWriter
         if (previous == null)
         {
             previous = createPartitionUpdate(key);
-            count(PartitionUpdate.serializer.serializedSize(previous, formatType.info.getLatestVersion().correspondingMessagingVersion(), TypeSizes.NATIVE));
+            count(PartitionUpdate.serializer.serializedSize(previous, formatType.info.getLatestVersion().correspondingMessagingVersion()));
             previous.allowNewUpdates();
             buffer.put(key, previous);
         }
@@ -99,7 +99,7 @@ class SSTableSimpleUnsortedWriter extends AbstractSSTableSimpleWriter
         count(1); // Each cell has a byte flag on disk
 
         if (value.hasRemaining())
-            count(column.type.writtenLength(value, TypeSizes.NATIVE));
+            count(column.type.writtenLength(value));
 
         count(8); // timestamp
         if (info.hasLocalDeletionTime())

@@ -17,10 +17,10 @@
  */
 package org.apache.cassandra.db;
 
-import java.io.DataInput;
 import java.io.IOException;
 
 import org.apache.cassandra.io.IVersionedSerializer;
+import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.net.MessageOut;
 import org.apache.cassandra.net.MessagingService;
@@ -43,7 +43,7 @@ public class WriteResponse
         {
         }
 
-        public WriteResponse deserialize(DataInput in, int version) throws IOException
+        public WriteResponse deserialize(DataInputPlus in, int version) throws IOException
         {
             return new WriteResponse();
         }

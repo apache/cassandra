@@ -17,21 +17,15 @@
  */
 package org.apache.cassandra.service;
 
-import java.io.DataInput;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.util.*;
-import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.Future;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.*;
-
 import java.lang.management.ManagementFactory;
 import java.lang.management.RuntimeMXBean;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
 import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.concurrent.StageManager;
@@ -45,6 +39,7 @@ import org.apache.cassandra.exceptions.AlreadyExistsException;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.gms.*;
 import org.apache.cassandra.io.IVersionedSerializer;
+import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.net.MessageOut;
 import org.apache.cassandra.net.MessagingService;
@@ -521,7 +516,7 @@ public class MigrationManager
                 Mutation.serializer.serialize(mutation, out, version);
         }
 
-        public Collection<Mutation> deserialize(DataInput in, int version) throws IOException
+        public Collection<Mutation> deserialize(DataInputPlus in, int version) throws IOException
         {
             int count = in.readInt();
             Collection<Mutation> schema = new ArrayList<>(count);
@@ -534,7 +529,7 @@ public class MigrationManager
 
         public long serializedSize(Collection<Mutation> schema, int version)
         {
-            int size = TypeSizes.NATIVE.sizeof(schema.size());
+            int size = TypeSizes.sizeof(schema.size());
             for (Mutation mutation : schema)
                 size += Mutation.serializer.serializedSize(mutation, version);
             return size;

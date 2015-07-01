@@ -17,10 +17,10 @@
  */
 package org.apache.cassandra.db;
 
-import java.io.DataInput;
 import java.io.IOException;
 
 import org.apache.cassandra.io.IVersionedSerializer;
+import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.net.MessageOut;
 import org.apache.cassandra.net.MessagingService;
@@ -58,7 +58,7 @@ public class TruncateResponse
             out.writeBoolean(tr.success);
         }
 
-        public TruncateResponse deserialize(DataInput in, int version) throws IOException
+        public TruncateResponse deserialize(DataInputPlus in, int version) throws IOException
         {
             String keyspace = in.readUTF();
             String columnFamily = in.readUTF();
@@ -68,9 +68,9 @@ public class TruncateResponse
 
         public long serializedSize(TruncateResponse tr, int version)
         {
-            return TypeSizes.NATIVE.sizeof(tr.keyspace)
-                 + TypeSizes.NATIVE.sizeof(tr.columnFamily)
-                 + TypeSizes.NATIVE.sizeof(tr.success);
+            return TypeSizes.sizeof(tr.keyspace)
+                 + TypeSizes.sizeof(tr.columnFamily)
+                 + TypeSizes.sizeof(tr.success);
         }
     }
 }

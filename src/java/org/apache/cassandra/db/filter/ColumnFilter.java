@@ -413,22 +413,22 @@ public class ColumnFilter
             return new ColumnFilter(isFetchAll, isFetchAll ? metadata : null, selection, subSelections);
         }
 
-        public long serializedSize(ColumnFilter selection, int version, TypeSizes sizes)
+        public long serializedSize(ColumnFilter selection, int version)
         {
             long size = 1; // header byte
 
             if (selection.selection != null)
             {
-                size += Columns.serializer.serializedSize(selection.selection.statics, sizes);
-                size += Columns.serializer.serializedSize(selection.selection.regulars, sizes);
+                size += Columns.serializer.serializedSize(selection.selection.statics);
+                size += Columns.serializer.serializedSize(selection.selection.regulars);
             }
 
             if (selection.subSelections != null)
             {
 
-                size += sizes.sizeof((short)selection.subSelections.size());
+                size += TypeSizes.sizeof((short)selection.subSelections.size());
                 for (ColumnSubselection subSel : selection.subSelections.values())
-                    size += ColumnSubselection.serializer.serializedSize(subSel, version, sizes);
+                    size += ColumnSubselection.serializer.serializedSize(subSel, version);
             }
 
             return size;

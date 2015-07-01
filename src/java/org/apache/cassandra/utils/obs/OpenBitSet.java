@@ -416,16 +416,16 @@ public class OpenBitSet implements IBitSet
     }
 }
 
-  public long serializedSize(TypeSizes type) {
+  public long serializedSize() {
     int bitLength = getNumWords();
     int pageSize = getPageSize();
     int pageCount = getPageCount();
 
-    long size = type.sizeof(bitLength); // length
+    long size = TypeSizes.sizeof(bitLength); // length
     for (int p = 0; p < pageCount; p++) {
       long[] bits = getPage(p);
       for (int i = 0; i < pageSize && bitLength-- > 0; i++)
-        size += type.sizeof(bits[i]); // bucket
+        size += TypeSizes.sizeof(bits[i]); // bucket
     }
     return size;
   }

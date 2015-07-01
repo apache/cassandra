@@ -208,23 +208,23 @@ public abstract class ColumnSubselection
             throw new AssertionError();
         }
 
-        public long serializedSize(ColumnSubselection subSel, int version, TypeSizes sizes)
+        public long serializedSize(ColumnSubselection subSel, int version)
         {
             long size = 0;
 
             ColumnDefinition column = subSel.column();
-            size += sizes.sizeofWithShortLength(column.name.bytes);
+            size += TypeSizes.sizeofWithShortLength(column.name.bytes);
             size += 1; // kind
             switch (subSel.kind())
             {
                 case SLICE:
                     Slice slice = (Slice)subSel;
-                    size += column.cellPathSerializer().serializedSize(slice.from, sizes);
-                    size += column.cellPathSerializer().serializedSize(slice.to, sizes);
+                    size += column.cellPathSerializer().serializedSize(slice.from);
+                    size += column.cellPathSerializer().serializedSize(slice.to);
                     break;
                 case ELEMENT:
                     Element element = (Element)subSel;
-                    size += column.cellPathSerializer().serializedSize(element.element, sizes);
+                    size += column.cellPathSerializer().serializedSize(element.element);
                     break;
             }
             return size;

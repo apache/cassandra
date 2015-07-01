@@ -452,25 +452,24 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
 
             public long serializedSize(Expression expression, int version)
             {
-                TypeSizes sizes = TypeSizes.NATIVE;
-                long size = ByteBufferUtil.serializedSizeWithShortLength(expression.column().name.bytes, sizes)
+                long size = ByteBufferUtil.serializedSizeWithShortLength(expression.column().name.bytes)
                           + expression.operator.serializedSize();
 
                 switch (expression.kind())
                 {
                     case SIMPLE:
-                        size += ByteBufferUtil.serializedSizeWithShortLength(((SimpleExpression)expression).value, sizes);
+                        size += ByteBufferUtil.serializedSizeWithShortLength(((SimpleExpression)expression).value);
                         break;
                     case MAP_EQUALITY:
                         MapEqualityExpression mexpr = (MapEqualityExpression)expression;
                         if (version < MessagingService.VERSION_30)
-                            size += ByteBufferUtil.serializedSizeWithShortLength(mexpr.getIndexValue(), sizes);
+                            size += ByteBufferUtil.serializedSizeWithShortLength(mexpr.getIndexValue());
                         else
-                            size += ByteBufferUtil.serializedSizeWithShortLength(mexpr.key, sizes)
-                                  + ByteBufferUtil.serializedSizeWithShortLength(mexpr.value, sizes);
+                            size += ByteBufferUtil.serializedSizeWithShortLength(mexpr.key)
+                                  + ByteBufferUtil.serializedSizeWithShortLength(mexpr.value);
                         break;
                     case THRIFT_DYN_EXPR:
-                        size += ByteBufferUtil.serializedSizeWithShortLength(((ThriftExpression)expression).value, sizes);
+                        size += ByteBufferUtil.serializedSizeWithShortLength(((ThriftExpression)expression).value);
                         break;
                 }
                 return size;
@@ -773,9 +772,8 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
 
         public long serializedSize(RowFilter filter, int version)
         {
-            TypeSizes sizes = TypeSizes.NATIVE;
             long size = 1 // forThrift
-                      + sizes.sizeof((short)filter.expressions.size());
+                      + TypeSizes.sizeof((short)filter.expressions.size());
             for (Expression expr : filter.expressions)
                 size += Expression.serializer.serializedSize(expr, version);
             return size;

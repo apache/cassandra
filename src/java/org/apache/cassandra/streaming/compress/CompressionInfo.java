@@ -17,13 +17,13 @@
  */
 package org.apache.cassandra.streaming.compress;
 
-import java.io.DataInput;
 import java.io.IOException;
 
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.compress.CompressionMetadata;
 import org.apache.cassandra.io.compress.CompressionParameters;
+import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 
 /**
@@ -61,7 +61,7 @@ public class CompressionInfo
             CompressionParameters.serializer.serialize(info.parameters, out, version);
         }
 
-        public CompressionInfo deserialize(DataInput in, int version) throws IOException
+        public CompressionInfo deserialize(DataInputPlus in, int version) throws IOException
         {
             // chunks
             int chunkCount = in.readInt();
@@ -80,11 +80,11 @@ public class CompressionInfo
         public long serializedSize(CompressionInfo info, int version)
         {
             if (info == null)
-                return TypeSizes.NATIVE.sizeof(-1);
+                return TypeSizes.sizeof(-1);
 
             // chunks
             int chunkCount = info.chunks.length;
-            long size = TypeSizes.NATIVE.sizeof(chunkCount);
+            long size = TypeSizes.sizeof(chunkCount);
             for (int i = 0; i < chunkCount; i++)
                 size += CompressionMetadata.Chunk.serializer.serializedSize(info.chunks[i], version);
             // compression params

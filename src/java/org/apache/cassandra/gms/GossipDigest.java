@@ -22,6 +22,7 @@ import java.net.InetAddress;
 
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.IVersionedSerializer;
+import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.net.CompactEndpointSerializationHelper;
 
@@ -87,7 +88,7 @@ class GossipDigestSerializer implements IVersionedSerializer<GossipDigest>
         out.writeInt(gDigest.maxVersion);
     }
 
-    public GossipDigest deserialize(DataInput in, int version) throws IOException
+    public GossipDigest deserialize(DataInputPlus in, int version) throws IOException
     {
         InetAddress endpoint = CompactEndpointSerializationHelper.deserialize(in);
         int generation = in.readInt();
@@ -98,8 +99,8 @@ class GossipDigestSerializer implements IVersionedSerializer<GossipDigest>
     public long serializedSize(GossipDigest gDigest, int version)
     {
         long size = CompactEndpointSerializationHelper.serializedSize(gDigest.endpoint);
-        size += TypeSizes.NATIVE.sizeof(gDigest.generation);
-        size += TypeSizes.NATIVE.sizeof(gDigest.maxVersion);
+        size += TypeSizes.sizeof(gDigest.generation);
+        size += TypeSizes.sizeof(gDigest.maxVersion);
         return size;
     }
 }

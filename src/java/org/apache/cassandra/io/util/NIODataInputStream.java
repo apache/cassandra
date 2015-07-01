@@ -18,7 +18,6 @@
 package org.apache.cassandra.io.util;
 
 import java.io.Closeable;
-import java.io.DataInput;
 import java.io.DataInputStream;
 import java.io.EOFException;
 import java.io.IOException;
@@ -43,11 +42,35 @@ import com.google.common.base.Preconditions;
  *
  * NIODataInputStream is not thread safe.
  */
-public class NIODataInputStream extends InputStream implements DataInput, Closeable
+public class NIODataInputStream extends InputStream implements DataInputPlus, Closeable
 {
     private final ReadableByteChannel rbc;
     private final ByteBuffer buf;
 
+    /*
+     *  Used when wrapping a fixed buffer of data instead of a channel
+     */
+    private static final ReadableByteChannel emptyReadableByteChannel = new ReadableByteChannel()
+    {
+
+        @Override
+        public boolean isOpen()
+        {
+            return true;
+        }
+
+        @Override
+        public void close() throws IOException
+        {
+        }
+
+        @Override
+        public int read(ByteBuffer dst) throws IOException
+        {
+            return -1;
+        }
+
+    };
 
     public NIODataInputStream(ReadableByteChannel rbc, int bufferSize)
     {
@@ -57,6 +80,53 @@ public class NIODataInputStream extends InputStream implements DataInput, Closea
         buf = ByteBuffer.allocateDirect(bufferSize);
         buf.position(0);
         buf.limit(0);
+    }
+
+    /**
+     *
+     * @param buf
+     * @param duplicate Whether or not to duplicate the buffer to ensure thread safety
+     */
+    public NIODataInputStream(ByteBuffer buf, boolean duplicate)
+    {
+        Preconditions.checkNotNull(buf);
+        Preconditions.checkArgument(buf.capacity() >= 9, "Buffer size must be large enough to accomadate a varint");
+        if (duplicate)
+            this.buf = buf.duplicate();
+        else
+            this.buf = buf;
+        this.rbc = emptyReadableByteChannel;
+    }
+
+    /*
+     * The decision to duplicate or not really needs to conscious since it a real impact
+     * in terms of thread safety so don't expose this constructor with an implicit default.
+     */
+    private NIODataInputStream(ByteBuffer buf)
+    {
+        this(buf, false);
+    }
+
+    private static ByteBuffer slice(byte buffer[], int offset, int length)
+    {
+        ByteBuffer buf = ByteBuffer.wrap(buffer);
+        if (offset > 0 || length < buf.capacity())
+        {
+            buf.position(offset);
+            buf.limit(offset + length);
+            buf = buf.slice();
+        }
+        return buf;
+    }
+
+    public NIODataInputStream(byte buffer[], int offset, int length)
+    {
+        this(slice(buffer, offset, length));
+    }
+
+    public NIODataInputStream(byte buffer[])
+    {
+        this(ByteBuffer.wrap(buffer));
     }
 
     @Override

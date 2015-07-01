@@ -21,7 +21,6 @@ import com.google.common.annotations.VisibleForTesting;
 
 import org.apache.cassandra.utils.concurrent.WrappedSharedCloseable;
 import org.apache.cassandra.utils.obs.IBitSet;
-import org.apache.cassandra.db.TypeSizes;
 
 public class BloomFilter extends WrappedSharedCloseable implements IFilter
 {
@@ -54,7 +53,7 @@ public class BloomFilter extends WrappedSharedCloseable implements IFilter
 
     public long serializedSize()
     {
-        return serializer.serializedSize(this, TypeSizes.NATIVE);
+        return serializer.serializedSize(this);
     }
 
     // Murmur is faster than an SHA-based approach and provides as-good collision

@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.db;
 
-import java.io.DataInput;
 import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
@@ -37,6 +36,7 @@ import org.apache.cassandra.db.partitions.*;
 import org.apache.cassandra.db.context.CounterContext;
 import org.apache.cassandra.exceptions.WriteTimeoutException;
 import org.apache.cassandra.io.IVersionedSerializer;
+import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.net.MessageOut;
 import org.apache.cassandra.net.MessagingService;
@@ -322,7 +322,7 @@ public class CounterMutation implements IMutation
             out.writeUTF(cm.consistency.name());
         }
 
-        public CounterMutation deserialize(DataInput in, int version) throws IOException
+        public CounterMutation deserialize(DataInputPlus in, int version) throws IOException
         {
             Mutation m = Mutation.serializer.deserialize(in, version);
             ConsistencyLevel consistency = Enum.valueOf(ConsistencyLevel.class, in.readUTF());
@@ -332,7 +332,7 @@ public class CounterMutation implements IMutation
         public long serializedSize(CounterMutation cm, int version)
         {
             return Mutation.serializer.serializedSize(cm.mutation, version)
-                 + TypeSizes.NATIVE.sizeof(cm.consistency.name());
+                 + TypeSizes.sizeof(cm.consistency.name());
         }
     }
 }

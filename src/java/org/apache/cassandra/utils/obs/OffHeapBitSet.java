@@ -108,7 +108,7 @@ public class OffHeapBitSet implements IBitSet
         out.writeInt((int) (bytes.size() / 8));
         for (long i = 0; i < bytes.size();)
         {
-            long value = ((bytes.getByte(i++) & 0xff) << 0) 
+            long value = ((bytes.getByte(i++) & 0xff) << 0)
                        + ((bytes.getByte(i++) & 0xff) << 8)
                        + ((bytes.getByte(i++) & 0xff) << 16)
                        + ((long) (bytes.getByte(i++) & 0xff) << 24)
@@ -120,9 +120,9 @@ public class OffHeapBitSet implements IBitSet
         }
     }
 
-    public long serializedSize(TypeSizes type)
+    public long serializedSize()
     {
-        return type.sizeof((int) bytes.size()) + bytes.size();
+        return TypeSizes.sizeof((int) bytes.size()) + bytes.size();
     }
 
     @SuppressWarnings("resource")

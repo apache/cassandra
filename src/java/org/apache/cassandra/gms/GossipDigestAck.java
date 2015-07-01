@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.gms;
 
-import java.io.DataInput;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.util.HashMap;
@@ -26,6 +25,7 @@ import java.util.Map;
 
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.IVersionedSerializer;
+import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.net.CompactEndpointSerializationHelper;
 
@@ -71,7 +71,7 @@ class GossipDigestAckSerializer implements IVersionedSerializer<GossipDigestAck>
         }
     }
 
-    public GossipDigestAck deserialize(DataInput in, int version) throws IOException
+    public GossipDigestAck deserialize(DataInputPlus in, int version) throws IOException
     {
         List<GossipDigest> gDigestList = GossipDigestSerializationHelper.deserialize(in, version);
         int size = in.readInt();
@@ -89,7 +89,7 @@ class GossipDigestAckSerializer implements IVersionedSerializer<GossipDigestAck>
     public long serializedSize(GossipDigestAck ack, int version)
     {
         int size = GossipDigestSerializationHelper.serializedSize(ack.gDigestList, version);
-        size += TypeSizes.NATIVE.sizeof(ack.epStateMap.size());
+        size += TypeSizes.sizeof(ack.epStateMap.size());
         for (Map.Entry<InetAddress, EndpointState> entry : ack.epStateMap.entrySet())
             size += CompactEndpointSerializationHelper.serializedSize(entry.getKey())
                     + EndpointState.serializer.serializedSize(entry.getValue(), version);

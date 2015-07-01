@@ -17,10 +17,10 @@
  */
 package org.apache.cassandra.io.sstable.metadata;
 
-import java.io.DataInput;
 import java.io.IOException;
 
 import org.apache.cassandra.io.sstable.format.Version;
+import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 
 /**
@@ -55,5 +55,5 @@ public interface IMetadataComponentSerializer<T extends MetadataComponent>
      * @return Deserialized component
      * @throws IOException
      */
-    T deserialize(Version version, DataInput in) throws IOException;
+    T deserialize(Version version, DataInputPlus in) throws IOException;
 }

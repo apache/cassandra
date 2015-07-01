@@ -163,7 +163,7 @@ public abstract class AbstractBounds<T extends RingPosition<T>> implements Seria
 
         public long serializedSize(AbstractBounds<T> ab, int version)
         {
-            int size = TypeSizes.NATIVE.sizeof(kindInt(ab));
+            int size = TypeSizes.sizeof(kindInt(ab));
             size += serializer.serializedSize(ab.left, version);
             size += serializer.serializedSize(ab.right, version);
             return size;

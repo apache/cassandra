@@ -153,11 +153,11 @@ public class RangeTombstone
                 ClusteringPrefix.serializer.serializeValuesWithoutSize(bound, out, version, types);
             }
 
-            public long serializedSize(RangeTombstone.Bound bound, int version, List<AbstractType<?>> types, TypeSizes sizes)
+            public long serializedSize(RangeTombstone.Bound bound, int version, List<AbstractType<?>> types)
             {
                 return 1 // kind ordinal
-                     + sizes.sizeof((short)bound.size())
-                     + ClusteringPrefix.serializer.valuesWithoutSizeSerializedSize(bound, version, types, sizes);
+                     + TypeSizes.sizeof((short)bound.size())
+                     + ClusteringPrefix.serializer.valuesWithoutSizeSerializedSize(bound, version, types);
             }
 
             public Kind deserialize(DataInput in, int version, List<AbstractType<?>> types, Writer writer) throws IOException

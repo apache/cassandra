@@ -328,12 +328,12 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>
             ByteBufferUtil.writeWithLength(value, out);
     }
 
-    public long writtenLength(ByteBuffer value, TypeSizes sizes)
+    public long writtenLength(ByteBuffer value)
     {
         assert value.hasRemaining();
         return valueLengthIfFixed() >= 0
              ? value.remaining()
-             : sizes.sizeofWithLength(value);
+             : TypeSizes.sizeofWithLength(value);
     }
 
     public ByteBuffer readValue(DataInput in) throws IOException

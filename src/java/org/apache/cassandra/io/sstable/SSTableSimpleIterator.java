@@ -28,6 +28,7 @@ import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.rows.*;
+import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.FileDataInput;
 import org.apache.cassandra.io.util.FileMark;
 import org.apache.cassandra.net.MessagingService;
@@ -51,7 +52,7 @@ public abstract class SSTableSimpleIterator extends AbstractIterator<Unfiltered>
         this.helper = helper;
     }
 
-    public static SSTableSimpleIterator create(CFMetaData metadata, DataInput in, SerializationHeader header, SerializationHelper helper, DeletionTime partitionDeletion)
+    public static SSTableSimpleIterator create(CFMetaData metadata, DataInputPlus in, SerializationHeader header, SerializationHelper helper, DeletionTime partitionDeletion)
     {
         if (helper.version < MessagingService.VERSION_30)
             return new OldFormatIterator(metadata, in, helper, partitionDeletion);
@@ -108,7 +109,7 @@ public abstract class SSTableSimpleIterator extends AbstractIterator<Unfiltered>
     {
         private final UnfilteredDeserializer deserializer;
 
-        private OldFormatIterator(CFMetaData metadata, DataInput in, SerializationHelper helper, DeletionTime partitionDeletion)
+        private OldFormatIterator(CFMetaData metadata, DataInputPlus in, SerializationHelper helper, DeletionTime partitionDeletion)
         {
             super(metadata, in, helper);
             // We use an UnfilteredDeserializer because even though we don't need all it's fanciness, it happens to handle all

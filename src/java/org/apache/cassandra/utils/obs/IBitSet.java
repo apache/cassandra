@@ -21,8 +21,6 @@ import java.io.Closeable;
 import java.io.DataOutput;
 import java.io.IOException;
 
-import org.apache.cassandra.db.TypeSizes;
-
 public interface IBitSet extends Closeable
 {
     public long capacity();
@@ -46,7 +44,7 @@ public interface IBitSet extends Closeable
 
     public void serialize(DataOutput out) throws IOException;
 
-    public long serializedSize(TypeSizes type);
+    public long serializedSize();
 
     public void clear();
 

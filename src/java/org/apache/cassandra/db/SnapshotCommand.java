@@ -17,10 +17,10 @@
  */
 package org.apache.cassandra.db;
 
-import java.io.DataInput;
 import java.io.IOException;
 
 import org.apache.cassandra.io.IVersionedSerializer;
+import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.net.MessageOut;
 import org.apache.cassandra.net.MessagingService;
@@ -67,7 +67,7 @@ class SnapshotCommandSerializer implements IVersionedSerializer<SnapshotCommand>
         out.writeBoolean(snapshot_command.clear_snapshot);
     }
 
-    public SnapshotCommand deserialize(DataInput in, int version) throws IOException
+    public SnapshotCommand deserialize(DataInputPlus in, int version) throws IOException
     {
         String keyspace = in.readUTF();
         String column_family = in.readUTF();
@@ -78,9 +78,9 @@ class SnapshotCommandSerializer implements IVersionedSerializer<SnapshotCommand>
 
     public long serializedSize(SnapshotCommand sc, int version)
     {
-        return TypeSizes.NATIVE.sizeof(sc.keyspace)
-             + TypeSizes.NATIVE.sizeof(sc.column_family)
-             + TypeSizes.NATIVE.sizeof(sc.snapshot_name)
-             + TypeSizes.NATIVE.sizeof(sc.clear_snapshot);
+        return TypeSizes.sizeof(sc.keyspace)
+             + TypeSizes.sizeof(sc.column_family)
+             + TypeSizes.sizeof(sc.snapshot_name)
+             + TypeSizes.sizeof(sc.clear_snapshot);
     }
 }

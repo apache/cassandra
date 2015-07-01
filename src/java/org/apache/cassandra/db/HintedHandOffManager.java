@@ -26,6 +26,7 @@ import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
+
 import javax.management.MBeanServer;
 import javax.management.ObjectName;
 
@@ -33,9 +34,9 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Lists;
 import com.google.common.util.concurrent.RateLimiter;
 import com.google.common.util.concurrent.Uninterruptibles;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
 import org.apache.cassandra.concurrent.JMXEnabledScheduledThreadPoolExecutor;
 import org.apache.cassandra.concurrent.NamedThreadFactory;
 import org.apache.cassandra.config.ColumnDefinition;
@@ -53,6 +54,8 @@ import org.apache.cassandra.gms.FailureDetector;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.SSTable;
+import org.apache.cassandra.io.util.DataInputPlus;
+import org.apache.cassandra.io.util.NIODataInputStream;
 import org.apache.cassandra.metrics.HintedHandoffMetrics;
 import org.apache.cassandra.net.MessageOut;
 import org.apache.cassandra.net.MessagingService;
@@ -418,7 +421,7 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
                 Cell cell = hint.getCell(hintColumn);
 
                 final long timestamp = cell.livenessInfo().timestamp();
-                DataInputStream in = new DataInputStream(ByteBufferUtil.inputStream(cell.value()));
+                DataInputPlus in = new NIODataInputStream(cell.value(), true);
                 Mutation mutation;
                 try
                 {

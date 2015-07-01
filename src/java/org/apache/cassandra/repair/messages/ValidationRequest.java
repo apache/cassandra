@@ -17,10 +17,10 @@
  */
 package org.apache.cassandra.repair.messages;
 
-import java.io.DataInput;
 import java.io.IOException;
 
 import org.apache.cassandra.db.TypeSizes;
+import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.repair.RepairJobDesc;
 
@@ -73,7 +73,7 @@ public class ValidationRequest extends RepairMessage
             out.writeInt(message.gcBefore);
         }
 
-        public ValidationRequest deserialize(DataInput dis, int version) throws IOException
+        public ValidationRequest deserialize(DataInputPlus dis, int version) throws IOException
         {
             RepairJobDesc desc = RepairJobDesc.serializer.deserialize(dis, version);
             return new ValidationRequest(desc, dis.readInt());
@@ -82,7 +82,7 @@ public class ValidationRequest extends RepairMessage
         public long serializedSize(ValidationRequest message, int version)
         {
             long size = RepairJobDesc.serializer.serializedSize(message.desc, version);
-            size += TypeSizes.NATIVE.sizeof(message.gcBefore);
+            size += TypeSizes.sizeof(message.gcBefore);
             return size;
         }
     }

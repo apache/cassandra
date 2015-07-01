@@ -26,6 +26,7 @@ import java.util.List;
 import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.db.partitions.*;
 import org.apache.cassandra.io.IVersionedSerializer;
+import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.net.MessagingService;
@@ -161,7 +162,7 @@ public abstract class ReadResponse
             }
         }
 
-        public ReadResponse deserialize(DataInput in, int version) throws IOException
+        public ReadResponse deserialize(DataInputPlus in, int version) throws IOException
         {
             if (version < MessagingService.VERSION_30)
             {
@@ -186,9 +187,8 @@ public abstract class ReadResponse
                 throw new UnsupportedOperationException();
             }
 
-            TypeSizes sizes = TypeSizes.NATIVE;
             boolean isDigest = response.isDigestQuery();
-            long size = ByteBufferUtil.serializedSizeWithShortLength(isDigest ? response.digest() : ByteBufferUtil.EMPTY_BYTE_BUFFER, sizes);
+            long size = ByteBufferUtil.serializedSizeWithShortLength(isDigest ? response.digest() : ByteBufferUtil.EMPTY_BYTE_BUFFER);
 
             if (!isDigest)
             {
@@ -196,7 +196,7 @@ public abstract class ReadResponse
                 // version, we'll have to deserialize/re-serialize the data to be in the proper version.
                 assert version == MessagingService.VERSION_30;
                 ByteBuffer data = ((DataResponse)response).data;
-                size += ByteBufferUtil.serializedSizeWithLength(data, sizes);
+                size += ByteBufferUtil.serializedSizeWithLength(data);
             }
             return size;
         }
@@ -213,7 +213,7 @@ public abstract class ReadResponse
             //            Row.serializer.serialize(row, out, version);
         }
 
-        public ReadResponse deserialize(DataInput in, int version) throws IOException
+        public ReadResponse deserialize(DataInputPlus in, int version) throws IOException
         {
             // TODO
             throw new UnsupportedOperationException();
@@ -228,7 +228,7 @@ public abstract class ReadResponse
         {
             // TODO
             throw new UnsupportedOperationException();
-            //        int size = TypeSizes.NATIVE.sizeof(rsr.rows.size());
+            //        int size = TypeSizes.sizeof(rsr.rows.size());
             //        for (Row row : rsr.rows)
             //            size += Row.serializer.serializedSize(row, version);
             //        return size;

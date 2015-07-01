@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.repair.messages;
 
-import java.io.DataInput;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.util.ArrayList;
@@ -28,6 +27,7 @@ import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.net.CompactEndpointSerializationHelper;
 import org.apache.cassandra.net.MessagingService;
@@ -73,7 +73,7 @@ public class SyncRequest extends RepairMessage
             }
         }
 
-        public SyncRequest deserialize(DataInput in, int version) throws IOException
+        public SyncRequest deserialize(DataInputPlus in, int version) throws IOException
         {
             RepairJobDesc desc = RepairJobDesc.serializer.deserialize(in, version);
             InetAddress owner = CompactEndpointSerializationHelper.deserialize(in);
@@ -90,7 +90,7 @@ public class SyncRequest extends RepairMessage
         {
             long size = RepairJobDesc.serializer.serializedSize(message.desc, version);
             size += 3 * CompactEndpointSerializationHelper.serializedSize(message.initiator);
-            size += TypeSizes.NATIVE.sizeof(message.ranges.size());
+            size += TypeSizes.sizeof(message.ranges.size());
             for (Range<Token> range : message.ranges)
                 size += AbstractBounds.tokenSerializer.serializedSize(range, version);
             return size;

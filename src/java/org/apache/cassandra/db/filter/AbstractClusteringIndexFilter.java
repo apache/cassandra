@@ -58,7 +58,7 @@ public abstract class AbstractClusteringIndexFilter implements ClusteringIndexFi
     }
 
     protected abstract void serializeInternal(DataOutputPlus out, int version) throws IOException;
-    protected abstract long serializedSizeInternal(int version, TypeSizes sizes);
+    protected abstract long serializedSizeInternal(int version);
 
     protected void appendOrderByToCQLString(CFMetaData metadata, StringBuilder sb)
     {
@@ -96,10 +96,9 @@ public abstract class AbstractClusteringIndexFilter implements ClusteringIndexFi
         {
             AbstractClusteringIndexFilter filter = (AbstractClusteringIndexFilter)pfilter;
 
-            TypeSizes sizes = TypeSizes.NATIVE;
             return 1
-                 + sizes.sizeof(filter.isReversed())
-                 + filter.serializedSizeInternal(version, sizes);
+                 + TypeSizes.sizeof(filter.isReversed())
+                 + filter.serializedSizeInternal(version);
         }
     }
 

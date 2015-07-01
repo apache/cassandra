@@ -18,7 +18,6 @@
 package org.apache.cassandra.gms;
 
 import java.io.*;
-
 import java.net.InetAddress;
 import java.util.Collection;
 import java.util.UUID;
@@ -31,10 +30,10 @@ import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.IVersionedSerializer;
+import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.utils.FBUtilities;
-
 import org.apache.commons.lang3.StringUtils;
 
 
@@ -272,7 +271,7 @@ public class VersionedValue implements Comparable<VersionedValue>
             return value.value;
         }
 
-        public VersionedValue deserialize(DataInput in, int version) throws IOException
+        public VersionedValue deserialize(DataInputPlus in, int version) throws IOException
         {
             String value = in.readUTF();
             int valVersion = in.readInt();
@@ -281,7 +280,7 @@ public class VersionedValue implements Comparable<VersionedValue>
 
         public long serializedSize(VersionedValue value, int version)
         {
-            return TypeSizes.NATIVE.sizeof(outValue(value, version)) + TypeSizes.NATIVE.sizeof(value.version);
+            return TypeSizes.sizeof(outValue(value, version)) + TypeSizes.sizeof(value.version);
         }
     }
 }

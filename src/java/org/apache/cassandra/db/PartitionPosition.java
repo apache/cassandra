@@ -100,7 +100,7 @@ public interface PartitionPosition extends RingPosition<PartitionPosition>
             if (kind == Kind.ROW_KEY)
             {
                 int keySize = ((DecoratedKey)pos).getKey().remaining();
-                size += TypeSizes.NATIVE.sizeof((short) keySize) + keySize;
+                size += TypeSizes.sizeof((short) keySize) + keySize;
             }
             else
             {

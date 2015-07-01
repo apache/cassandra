@@ -21,10 +21,10 @@ package org.apache.cassandra.gms;
  */
 
 
-import java.io.DataInput;
 import java.io.IOException;
 
 import org.apache.cassandra.io.IVersionedSerializer;
+import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 
 public final class EchoMessage
@@ -43,7 +43,7 @@ public final class EchoMessage
         {
         }
 
-        public EchoMessage deserialize(DataInput in, int version) throws IOException
+        public EchoMessage deserialize(DataInputPlus in, int version) throws IOException
         {
             return EchoMessage.instance;
         }

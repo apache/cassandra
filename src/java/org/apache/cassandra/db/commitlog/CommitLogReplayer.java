@@ -18,7 +18,6 @@
  */
 package org.apache.cassandra.db.commitlog;
 
-import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.EOFException;
 import java.io.File;
@@ -36,7 +35,6 @@ import com.google.common.collect.Multimap;
 import com.google.common.collect.Ordering;
 
 import org.apache.commons.lang3.StringUtils;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -53,9 +51,9 @@ import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.compress.CompressionParameters;
 import org.apache.cassandra.io.compress.ICompressor;
 import org.apache.cassandra.io.util.ByteBufferDataInput;
-import org.apache.cassandra.io.util.FastByteArrayInputStream;
 import org.apache.cassandra.io.util.FileDataInput;
 import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.io.util.NIODataInputStream;
 import org.apache.cassandra.io.util.RandomAccessReader;
 import org.apache.cassandra.utils.CRC32Factory;
 import org.apache.cassandra.utils.FBUtilities;
@@ -193,7 +191,7 @@ public class CommitLogReplayer
         }
         return end;
     }
-    
+
     abstract static class ReplayFilter
     {
         public abstract Iterable<PartitionUpdate> filter(Mutation mutation);
@@ -476,9 +474,9 @@ public class CommitLogReplayer
     {
 
         final Mutation mutation;
-        try (FastByteArrayInputStream bufIn = new FastByteArrayInputStream(inputBuffer, 0, size))
+        try (NIODataInputStream bufIn = new NIODataInputStream(inputBuffer, 0, size))
         {
-            mutation = Mutation.serializer.deserialize(new DataInputStream(bufIn),
+            mutation = Mutation.serializer.deserialize(bufIn,
                                                        desc.getMessagingVersion(),
                                                        SerializationHelper.Flag.LOCAL);
             // doublecheck that what we read is [still] valid for the current schema

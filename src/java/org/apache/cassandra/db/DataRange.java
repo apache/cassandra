@@ -397,7 +397,7 @@ public class DataRange
 
             if (range instanceof Paging)
             {
-                size += Clustering.serializer.serializedSize(((Paging)range).lastReturned, version, metadata.comparator.subtypes(), TypeSizes.NATIVE);
+                size += Clustering.serializer.serializedSize(((Paging)range).lastReturned, version, metadata.comparator.subtypes());
                 size += 1; // inclusive boolean
             }
             return size;

@@ -23,9 +23,9 @@ import java.io.IOException;
 
 import org.junit.Assert;
 import org.junit.Test;
-
 import org.apache.cassandra.AbstractSerializationsTester;
 import org.apache.cassandra.dht.IPartitioner;
+import org.apache.cassandra.io.util.DataInputPlus.DataInputStreamPlus;
 import org.apache.cassandra.io.util.DataOutputStreamPlus;
 import org.apache.cassandra.service.StorageService;
 
@@ -87,7 +87,7 @@ public class SerializationsTest extends AbstractSerializationsTester
         if (EXECUTE_WRITES)
             testEstimatedHistogramWrite();
 
-        try (DataInputStream in = getInput("utils.EstimatedHistogram.bin"))
+        try (DataInputStreamPlus in = getInput("utils.EstimatedHistogram.bin"))
         {
             Assert.assertNotNull(EstimatedHistogram.serializer.deserialize(in));
             Assert.assertNotNull(EstimatedHistogram.serializer.deserialize(in));

@@ -26,15 +26,16 @@ import java.util.*;
 import com.google.common.collect.AbstractIterator;
 import com.google.common.collect.Iterators;
 import com.google.common.collect.PeekingIterator;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.db.partitions.*;
 import org.apache.cassandra.db.context.CounterContext;
 import org.apache.cassandra.db.marshal.*;
+import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.thrift.ColumnDef;
 import org.apache.cassandra.utils.*;
@@ -330,7 +331,7 @@ public abstract class LegacyLayout
         };
     }
 
-    public static Row extractStaticColumns(CFMetaData metadata, DataInput in, Columns statics) throws IOException
+    public static Row extractStaticColumns(CFMetaData metadata, DataInputPlus in, Columns statics) throws IOException
     {
         assert !statics.isEmpty();
         assert metadata.isCompactTable();
@@ -609,7 +610,7 @@ public abstract class LegacyLayout
         };
     }
 
-    public static LegacyAtom readLegacyAtom(CFMetaData metadata, DataInput in, boolean readAllAsDynamic) throws IOException
+    public static LegacyAtom readLegacyAtom(CFMetaData metadata, DataInputPlus in, boolean readAllAsDynamic) throws IOException
     {
         while (true)
         {
@@ -677,14 +678,14 @@ public abstract class LegacyLayout
         }
     }
 
-    public static LegacyRangeTombstone readLegacyRangeTombstone(CFMetaData metadata, DataInput in) throws IOException
+    public static LegacyRangeTombstone readLegacyRangeTombstone(CFMetaData metadata, DataInputPlus in) throws IOException
     {
         ByteBuffer boundname = ByteBufferUtil.readWithShortLength(in);
         in.readUnsignedByte();
         return readLegacyRangeTombstoneBody(metadata, in, boundname);
     }
 
-    public static LegacyRangeTombstone readLegacyRangeTombstoneBody(CFMetaData metadata, DataInput in, ByteBuffer boundname) throws IOException
+    public static LegacyRangeTombstone readLegacyRangeTombstoneBody(CFMetaData metadata, DataInputPlus in, ByteBuffer boundname) throws IOException
     {
         LegacyBound min = decodeBound(metadata, boundname, true);
         LegacyBound max = decodeBound(metadata, ByteBufferUtil.readWithShortLength(in), false);
@@ -1214,7 +1215,7 @@ public abstract class LegacyLayout
                 //rtlSerializer.serialize(info.ranges, out, version);
             }
 
-            public LegacyDeletionInfo deserialize(CFMetaData metadata, DataInput in, int version) throws IOException
+            public LegacyDeletionInfo deserialize(CFMetaData metadata, DataInputPlus in, int version) throws IOException
             {
                 DeletionTime topLevel = DeletionTime.serializer.deserialize(in);
 

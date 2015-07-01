@@ -323,10 +323,10 @@ public class ByteBufferUtil
         return ByteBufferUtil.read(in, length);
     }
 
-    public static int serializedSizeWithLength(ByteBuffer buffer, TypeSizes sizes)
+    public static int serializedSizeWithLength(ByteBuffer buffer)
     {
         int size = buffer.remaining();
-        return sizes.sizeof(size) + size;
+        return TypeSizes.sizeof(size) + size;
     }
 
     /* @return An unsigned short in an integer. */
@@ -345,10 +345,10 @@ public class ByteBufferUtil
         return ByteBufferUtil.read(in, readShortLength(in));
     }
 
-    public static int serializedSizeWithShortLength(ByteBuffer buffer, TypeSizes sizes)
+    public static int serializedSizeWithShortLength(ByteBuffer buffer)
     {
         int size = buffer.remaining();
-        return sizes.sizeof((short)size) + size;
+        return TypeSizes.sizeof((short)size) + size;
     }
 
     /**

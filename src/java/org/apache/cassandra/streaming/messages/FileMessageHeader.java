@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.streaming.messages;
 
-import java.io.DataInput;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
@@ -30,6 +29,7 @@ import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.compress.CompressionMetadata;
 import org.apache.cassandra.io.sstable.format.SSTableFormat;
+import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.io.sstable.format.Version;
 import org.apache.cassandra.net.MessagingService;
@@ -165,7 +165,7 @@ public class FileMessageHeader
                 SerializationHeader.serializer.serialize(header.header, out);
         }
 
-        public FileMessageHeader deserialize(DataInput in, int version) throws IOException
+        public FileMessageHeader deserialize(DataInputPlus in, int version) throws IOException
         {
             UUID cfId = UUIDSerializer.serializer.deserialize(in, MessagingService.current_version);
             int sequenceNumber = in.readInt();
@@ -193,22 +193,22 @@ public class FileMessageHeader
         public long serializedSize(FileMessageHeader header, int version)
         {
             long size = UUIDSerializer.serializer.serializedSize(header.cfId, version);
-            size += TypeSizes.NATIVE.sizeof(header.sequenceNumber);
-            size += TypeSizes.NATIVE.sizeof(header.version.toString());
+            size += TypeSizes.sizeof(header.sequenceNumber);
+            size += TypeSizes.sizeof(header.version.toString());
 
             if (version >= StreamMessage.VERSION_22)
-                size += TypeSizes.NATIVE.sizeof(header.format.name);
+                size += TypeSizes.sizeof(header.format.name);
 
-            size += TypeSizes.NATIVE.sizeof(header.estimatedKeys);
+            size += TypeSizes.sizeof(header.estimatedKeys);
 
-            size += TypeSizes.NATIVE.sizeof(header.sections.size());
+            size += TypeSizes.sizeof(header.sections.size());
             for (Pair<Long, Long> section : header.sections)
             {
-                size += TypeSizes.NATIVE.sizeof(section.left);
-                size += TypeSizes.NATIVE.sizeof(section.right);
+                size += TypeSizes.sizeof(section.left);
+                size += TypeSizes.sizeof(section.right);
             }
             size += CompressionInfo.serializer.serializedSize(header.compressionInfo, version);
-            size += TypeSizes.NATIVE.sizeof(header.sstableLevel);
+            size += TypeSizes.sizeof(header.sstableLevel);
 
             if (version >= StreamMessage.VERSION_30)
                 size += SerializationHeader.serializer.serializedSize(header.header);

@@ -65,7 +65,7 @@ public abstract class Token implements RingPosition<Token>, Serializable
         {
             IPartitioner p = object.getPartitioner();
             ByteBuffer b = p.getTokenFactory().toByteArray(object);
-            return TypeSizes.NATIVE.sizeof(b.remaining()) + b.remaining();
+            return TypeSizes.sizeof(b.remaining()) + b.remaining();
         }
     }
 

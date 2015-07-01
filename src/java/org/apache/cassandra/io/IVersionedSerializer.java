@@ -17,9 +17,9 @@
  */
 package org.apache.cassandra.io;
 
-import java.io.DataInput;
 import java.io.IOException;
 
+import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 
 public interface IVersionedSerializer<T>
@@ -41,7 +41,7 @@ public interface IVersionedSerializer<T>
      * @return the type that was deserialized
      * @throws IOException if deserialization fails
      */
-    public T deserialize(DataInput in, int version) throws IOException;
+    public T deserialize(DataInputPlus in, int version) throws IOException;
 
     /**
      * Calculate serialized size of object without actually serializing.

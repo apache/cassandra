@@ -20,19 +20,15 @@ package org.apache.cassandra.cache;
 import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
-import java.nio.ByteBuffer;
-import java.nio.channels.WritableByteChannel;
 import java.util.Iterator;
 import java.util.UUID;
 
-import com.google.common.base.Function;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.partitions.CachedPartition;
+import org.apache.cassandra.io.util.DataInputPlus.DataInputPlusAdapter;
 import org.apache.cassandra.io.util.DataOutputPlus;
-import org.apache.cassandra.io.util.Memory;
-import org.apache.cassandra.net.MessagingService;
 import org.caffinitas.ohc.OHCache;
 import org.caffinitas.ohc.OHCacheBuilder;
 
@@ -42,8 +38,8 @@ public class OHCProvider implements CacheProvider<RowCacheKey, IRowCacheEntry>
     {
         OHCacheBuilder<RowCacheKey, IRowCacheEntry> builder = OHCacheBuilder.newBuilder();
         builder.capacity(DatabaseDescriptor.getRowCacheSizeInMB() * 1024 * 1024)
-               .keySerializer(new KeySerializer())
-               .valueSerializer(new ValueSerializer())
+               .keySerializer(KeySerializer.instance)
+               .valueSerializer(ValueSerializer.instance)
                .throwOOME(true);
 
         return new OHCacheAdapter(builder.build());
@@ -70,7 +66,7 @@ public class OHCProvider implements CacheProvider<RowCacheKey, IRowCacheEntry>
 
         public void put(RowCacheKey key, IRowCacheEntry value)
         {
-            ohCache.put(key, value);
+            ohCache.put(key,  value);
         }
 
         public boolean putIfAbsent(RowCacheKey key, IRowCacheEntry value)
@@ -126,6 +122,7 @@ public class OHCProvider implements CacheProvider<RowCacheKey, IRowCacheEntry>
 
     private static class KeySerializer implements org.caffinitas.ohc.CacheSerializer<RowCacheKey>
     {
+        private static KeySerializer instance = new KeySerializer();
         public void serialize(RowCacheKey rowCacheKey, DataOutput dataOutput) throws IOException
         {
             dataOutput.writeLong(rowCacheKey.cfId.getMostSignificantBits());
@@ -151,6 +148,7 @@ public class OHCProvider implements CacheProvider<RowCacheKey, IRowCacheEntry>
 
     private static class ValueSerializer implements org.caffinitas.ohc.CacheSerializer<IRowCacheEntry>
     {
+        private static ValueSerializer instance = new ValueSerializer();
         public void serialize(IRowCacheEntry entry, DataOutput out) throws IOException
         {
             assert entry != null; // unlike CFS we don't support nulls, since there is no need for that in the cache
@@ -159,7 +157,7 @@ public class OHCProvider implements CacheProvider<RowCacheKey, IRowCacheEntry>
             if (isSentinel)
                 out.writeLong(((RowCacheSentinel) entry).sentinelId);
             else
-                CachedPartition.cacheSerializer.serialize((CachedPartition)entry, new DataOutputPlusAdapter(out));
+                CachedPartition.cacheSerializer.serialize((CachedPartition)entry, new DataOutputPlus.DataOutputPlusAdapter(out));
         }
 
         public IRowCacheEntry deserialize(DataInput in) throws IOException
@@ -167,116 +165,17 @@ public class OHCProvider implements CacheProvider<RowCacheKey, IRowCacheEntry>
             boolean isSentinel = in.readBoolean();
             if (isSentinel)
                 return new RowCacheSentinel(in.readLong());
-            return CachedPartition.cacheSerializer.deserialize(in);
+            return CachedPartition.cacheSerializer.deserialize(new DataInputPlusAdapter(in));
         }
 
         public int serializedSize(IRowCacheEntry entry)
         {
-            TypeSizes typeSizes = TypeSizes.NATIVE;
-            int size = typeSizes.sizeof(true);
+            int size = TypeSizes.sizeof(true);
             if (entry instanceof RowCacheSentinel)
-                size += typeSizes.sizeof(((RowCacheSentinel) entry).sentinelId);
+                size += TypeSizes.sizeof(((RowCacheSentinel) entry).sentinelId);
             else
-                size += CachedPartition.cacheSerializer.serializedSize((CachedPartition) entry, typeSizes);
+                size += CachedPartition.cacheSerializer.serializedSize((CachedPartition) entry);
             return size;
-        }
-    }
-
-    static class DataOutputPlusAdapter implements DataOutputPlus
-    {
-        private final DataOutput out;
-
-        public void write(byte[] b) throws IOException
-        {
-            out.write(b);
-        }
-
-        public void write(byte[] b, int off, int len) throws IOException
-        {
-            out.write(b, off, len);
-        }
-
-        public void write(int b) throws IOException
-        {
-            out.write(b);
-        }
-
-        public void writeBoolean(boolean v) throws IOException
-        {
-            out.writeBoolean(v);
-        }
-
-        public void writeByte(int v) throws IOException
-        {
-            out.writeByte(v);
-        }
-
-        public void writeBytes(String s) throws IOException
-        {
-            out.writeBytes(s);
-        }
-
-        public void writeChar(int v) throws IOException
-        {
-            out.writeChar(v);
-        }
-
-        public void writeChars(String s) throws IOException
-        {
-            out.writeChars(s);
-        }
-
-        public void writeDouble(double v) throws IOException
-        {
-            out.writeDouble(v);
-        }
-
-        public void writeFloat(float v) throws IOException
-        {
-            out.writeFloat(v);
-        }
-
-        public void writeInt(int v) throws IOException
-        {
-            out.writeInt(v);
-        }
-
-        public void writeLong(long v) throws IOException
-        {
-            out.writeLong(v);
-        }
-
-        public void writeShort(int v) throws IOException
-        {
-            out.writeShort(v);
-        }
-
-        public void writeUTF(String s) throws IOException
-        {
-            out.writeUTF(s);
-        }
-
-        public DataOutputPlusAdapter(DataOutput out)
-        {
-            this.out = out;
-        }
-
-        public void write(ByteBuffer buffer) throws IOException
-        {
-            if (buffer.hasArray())
-                out.write(buffer.array(), buffer.arrayOffset() + buffer.position(), buffer.remaining());
-            else
-                throw new UnsupportedOperationException("IMPLEMENT ME");
-        }
-
-        public void write(Memory memory, long offset, long length) throws IOException
-        {
-            throw new UnsupportedOperationException("IMPLEMENT ME");
-        }
-
-        public <R> R applyToChannel(Function<WritableByteChannel, R> c) throws IOException
-        {
-            throw new UnsupportedOperationException("IMPLEMENT ME");
         }
     }
 }

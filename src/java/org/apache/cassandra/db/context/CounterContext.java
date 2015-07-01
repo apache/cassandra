@@ -75,10 +75,10 @@ import org.apache.cassandra.utils.*;
  */
 public class CounterContext
 {
-    private static final int HEADER_SIZE_LENGTH = TypeSizes.NATIVE.sizeof(Short.MAX_VALUE);
-    private static final int HEADER_ELT_LENGTH = TypeSizes.NATIVE.sizeof(Short.MAX_VALUE);
-    private static final int CLOCK_LENGTH = TypeSizes.NATIVE.sizeof(Long.MAX_VALUE);
-    private static final int COUNT_LENGTH = TypeSizes.NATIVE.sizeof(Long.MAX_VALUE);
+    private static final int HEADER_SIZE_LENGTH = TypeSizes.sizeof(Short.MAX_VALUE);
+    private static final int HEADER_ELT_LENGTH = TypeSizes.sizeof(Short.MAX_VALUE);
+    private static final int CLOCK_LENGTH = TypeSizes.sizeof(Long.MAX_VALUE);
+    private static final int COUNT_LENGTH = TypeSizes.sizeof(Long.MAX_VALUE);
     private static final int STEP_LENGTH = CounterId.LENGTH + CLOCK_LENGTH + COUNT_LENGTH;
 
     private static final Logger logger = LoggerFactory.getLogger(CounterContext.class);

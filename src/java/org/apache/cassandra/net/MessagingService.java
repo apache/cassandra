@@ -37,10 +37,8 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
 import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.concurrent.StageManager;
@@ -57,6 +55,7 @@ import org.apache.cassandra.gms.GossipDigestAck;
 import org.apache.cassandra.gms.GossipDigestAck2;
 import org.apache.cassandra.gms.GossipDigestSyn;
 import org.apache.cassandra.io.IVersionedSerializer;
+import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.locator.ILatencySubscriber;
@@ -257,7 +256,7 @@ public final class MessagingService implements MessagingServiceMBean
     {
         public static final CallbackDeterminedSerializer instance = new CallbackDeterminedSerializer();
 
-        public Object deserialize(DataInput in, int version) throws IOException
+        public Object deserialize(DataInputPlus in, int version) throws IOException
         {
             throw new UnsupportedOperationException();
         }

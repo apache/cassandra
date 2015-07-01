@@ -163,9 +163,9 @@ public class ClusteringIndexSliceFilter extends AbstractClusteringIndexFilter
         Slices.serializer.serialize(slices, out, version);
     }
 
-    protected long serializedSizeInternal(int version, TypeSizes sizes)
+    protected long serializedSizeInternal(int version)
     {
-        return Slices.serializer.serializedSize(slices, version, sizes);
+        return Slices.serializer.serializedSize(slices, version);
     }
 
     private static class SliceDeserializer extends InternalDeserializer

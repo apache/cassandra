@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.streaming;
 
-import java.io.DataInput;
 import java.io.IOException;
 import java.io.Serializable;
 import java.util.UUID;
@@ -26,6 +25,7 @@ import com.google.common.base.Objects;
 
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.IVersionedSerializer;
+import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.utils.UUIDSerializer;
@@ -88,7 +88,7 @@ public class StreamSummary implements Serializable
             out.writeLong(summary.totalSize);
         }
 
-        public StreamSummary deserialize(DataInput in, int version) throws IOException
+        public StreamSummary deserialize(DataInputPlus in, int version) throws IOException
         {
             UUID cfId = UUIDSerializer.serializer.deserialize(in, MessagingService.current_version);
             int files = in.readInt();
@@ -99,8 +99,8 @@ public class StreamSummary implements Serializable
         public long serializedSize(StreamSummary summary, int version)
         {
             long size = UUIDSerializer.serializer.serializedSize(summary.cfId, MessagingService.current_version);
-            size += TypeSizes.NATIVE.sizeof(summary.files);
-            size += TypeSizes.NATIVE.sizeof(summary.totalSize);
+            size += TypeSizes.sizeof(summary.files);
+            size += TypeSizes.sizeof(summary.totalSize);
             return size;
         }
     }

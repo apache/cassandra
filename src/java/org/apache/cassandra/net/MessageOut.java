@@ -129,18 +129,18 @@ public class MessageOut<T>
     {
         int size = CompactEndpointSerializationHelper.serializedSize(from);
 
-        size += TypeSizes.NATIVE.sizeof(verb.ordinal());
-        size += TypeSizes.NATIVE.sizeof(parameters.size());
+        size += TypeSizes.sizeof(verb.ordinal());
+        size += TypeSizes.sizeof(parameters.size());
         for (Map.Entry<String, byte[]> entry : parameters.entrySet())
         {
-            size += TypeSizes.NATIVE.sizeof(entry.getKey());
-            size += TypeSizes.NATIVE.sizeof(entry.getValue().length);
+            size += TypeSizes.sizeof(entry.getKey());
+            size += TypeSizes.sizeof(entry.getValue().length);
             size += entry.getValue().length;
         }
 
         long longSize = payloadSize(version);
         assert longSize <= Integer.MAX_VALUE; // larger values are supported in sstables but not messages
-        size += TypeSizes.NATIVE.sizeof((int) longSize);
+        size += TypeSizes.sizeof((int) longSize);
         size += longSize;
         return size;
     }

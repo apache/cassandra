@@ -17,24 +17,25 @@
  */
 package org.apache.cassandra.db.partitions;
 
-import java.io.DataInput;
 import java.io.DataInputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.*;
 
 import com.google.common.collect.Iterables;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.db.index.SecondaryIndexManager;
+import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.io.util.NIODataInputStream;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
@@ -142,7 +143,7 @@ public class PartitionUpdate extends AbstractPartitionData implements Sorting.So
 
         try
         {
-            return serializer.deserialize(new DataInputStream(ByteBufferUtil.inputStream(bytes)),
+            return serializer.deserialize(new NIODataInputStream(bytes, true),
                                           version,
                                           SerializationHelper.Flag.LOCAL,
                                           version < MessagingService.VERSION_30 ? key : null);
@@ -644,7 +645,7 @@ public class PartitionUpdate extends AbstractPartitionData implements Sorting.So
             }
         }
 
-        public PartitionUpdate deserialize(DataInput in, int version, SerializationHelper.Flag flag, DecoratedKey key) throws IOException
+        public PartitionUpdate deserialize(DataInputPlus in, int version, SerializationHelper.Flag flag, DecoratedKey key) throws IOException
         {
             if (version < MessagingService.VERSION_30)
             {
@@ -691,7 +692,7 @@ public class PartitionUpdate extends AbstractPartitionData implements Sorting.So
             return upd;
         }
 
-        public long serializedSize(PartitionUpdate update, int version, TypeSizes sizes)
+        public long serializedSize(PartitionUpdate update, int version)
         {
             if (version < MessagingService.VERSION_30)
             {
@@ -699,11 +700,11 @@ public class PartitionUpdate extends AbstractPartitionData implements Sorting.So
                 throw new UnsupportedOperationException("Version is " + version);
                 //if (cf == null)
                 //{
-                //    return typeSizes.sizeof(false);
+                //    return TypeSizes.sizeof(false);
                 //}
                 //else
                 //{
-                //    return typeSizes.sizeof(true)  /* nullness bool */
+                //    return TypeSizes.sizeof(true)  /* nullness bool */
                 //        + cfIdSerializedSize(cf.id(), typeSizes, version)  /* id */
                 //        + contentSerializedSize(cf, typeSizes, version);
                 //}
@@ -711,7 +712,7 @@ public class PartitionUpdate extends AbstractPartitionData implements Sorting.So
 
             try (UnfilteredRowIterator iter = update.sliceableUnfilteredIterator())
             {
-                return UnfilteredRowIteratorSerializer.serializer.serializedSize(iter, version, update.rows, sizes);
+                return UnfilteredRowIteratorSerializer.serializer.serializedSize(iter, version, update.rows);
             }
         }
     }

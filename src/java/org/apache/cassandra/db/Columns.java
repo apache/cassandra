@@ -502,11 +502,11 @@ public class Columns implements Iterable<ColumnDefinition>
                 ByteBufferUtil.writeWithShortLength(column.name.bytes, out);
         }
 
-        public long serializedSize(Columns columns, TypeSizes sizes)
+        public long serializedSize(Columns columns)
         {
-            long size = sizes.sizeof((short)columns.columnCount());
+            long size = TypeSizes.sizeof((short)columns.columnCount());
             for (ColumnDefinition column : columns)
-                size += sizes.sizeofWithShortLength(column.name.bytes);
+                size += TypeSizes.sizeofWithShortLength(column.name.bytes);
             return size;
         }
 

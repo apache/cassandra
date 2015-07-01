@@ -23,9 +23,9 @@ import static org.junit.Assert.*;
 import java.io.*;
 
 import com.google.common.base.Predicate;
+
 import org.junit.BeforeClass;
 import org.junit.Test;
-
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.config.CFMetaData;
@@ -38,7 +38,9 @@ import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.db.partitions.FilteredPartition;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.IVersionedSerializer;
+import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputBuffer;
+import org.apache.cassandra.io.util.NIODataInputStream;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -140,12 +142,11 @@ public class ReadMessageTest
     {
         IVersionedSerializer<ReadCommand> rms = ReadCommand.serializer;
         DataOutputBuffer out = new DataOutputBuffer();
-        ByteArrayInputStream bis;
 
         rms.serialize(rm, out, MessagingService.current_version);
 
-        bis = new ByteArrayInputStream(out.getData(), 0, out.getLength());
-        return rms.deserialize(new DataInputStream(bis), MessagingService.current_version);
+        DataInputPlus dis = new NIODataInputStream(out.getData());
+        return rms.deserialize(dis, MessagingService.current_version);
     }
 
 

@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.io.sstable.metadata;
 
-import java.io.DataInput;
 import java.io.IOException;
 import java.util.HashSet;
 import java.util.Set;
@@ -27,6 +26,7 @@ import com.clearspring.analytics.stream.cardinality.ICardinality;
 
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.sstable.format.Version;
+import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
@@ -75,11 +75,11 @@ public class CompactionMetadata extends MetadataComponent
         public int serializedSize(CompactionMetadata component) throws IOException
         {
             int size = 0;
-            size += TypeSizes.NATIVE.sizeof(component.ancestors.size());
+            size += TypeSizes.sizeof(component.ancestors.size());
             for (int g : component.ancestors)
-                size += TypeSizes.NATIVE.sizeof(g);
+                size += TypeSizes.sizeof(g);
             byte[] serializedCardinality = component.cardinalityEstimator.getBytes();
-            size += TypeSizes.NATIVE.sizeof(serializedCardinality.length) + serializedCardinality.length;
+            size += TypeSizes.sizeof(serializedCardinality.length) + serializedCardinality.length;
             return size;
         }
 
@@ -91,7 +91,7 @@ public class CompactionMetadata extends MetadataComponent
             ByteBufferUtil.writeWithLength(component.cardinalityEstimator.getBytes(), out);
         }
 
-        public CompactionMetadata deserialize(Version version, DataInput in) throws IOException
+        public CompactionMetadata deserialize(Version version, DataInputPlus in) throws IOException
         {
             int nbAncestors = in.readInt();
             Set<Integer> ancestors = new HashSet<>(nbAncestors);
