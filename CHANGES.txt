@@ -19,7 +19,6 @@
  * Update and refactor ant test/test-compression to run the tests in parallel (CASSANDRA-9583)
 Merged from 2.1:
  * Update internal python driver for cqlsh (CASSANDRA-9064)
- * Avoids ballot clash in Paxos (CASSANDRA-9649)
  * Fix IndexOutOfBoundsException when inserting tuple with too many
    elements using the string literal notation (CASSANDRA-9559)
  * Enable describe on indices (CASSANDRA-7814)
@@ -28,7 +27,9 @@ Merged from 2.1:
  * Fix bug in cardinality check when compacting (CASSANDRA-9580)
  * Fix memory leak in Ref due to ConcurrentLinkedQueue.remove() behaviour (CASSANDRA-9549)
  * Make rebuild only run one at a time (CASSANDRA-9119)
-Merged from 2.0
+Merged from 2.0:
+ * Fix setting 'durable_writes' in ALTER KEYSPACE (CASSANDRA-9560)
+ * Avoids ballot clash in Paxos (CASSANDRA-9649)
  * Improve trace messages for RR (CASSANDRA-9479)
  * Fix suboptimal secondary index selection when restricted
    clustering column is also indexed (CASSANDRA-9631)

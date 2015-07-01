@@ -423,8 +423,8 @@ public class Schema
         KSMetaData newKsm = LegacySchemaTables.createKeyspaceFromName(ksName).cloneWith(oldKsm.cfMetaData().values(), oldKsm.userTypes);
 
         setKeyspaceDefinition(newKsm);
+        Keyspace.open(ksName).setMetadata(newKsm);
 
-        Keyspace.open(ksName).createReplicationStrategy(newKsm);
         MigrationManager.instance.notifyUpdateKeyspace(newKsm);
     }
 
