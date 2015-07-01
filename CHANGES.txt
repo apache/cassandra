@@ -1,13 +1,14 @@
 2.1.8
  * Update internal python driver for cqlsh (CASSANDRA-9064)
- * Avoids ballot clash in Paxos (CASSANDRA-9649)
  * Fix IndexOutOfBoundsException when inserting tuple with too many
    elements using the string literal notation (CASSANDRA-9559)
  * Allow JMX over SSL directly from nodetool (CASSANDRA-9090)
  * Fix incorrect result for IN queries where column not found (CASSANDRA-9540)
  * Enable describe on indices (CASSANDRA-7814)
  * ColumnFamilyStore.selectAndReference may block during compaction (CASSANDRA-9637)
-Merged from 2.0
+Merged from 2.0:
+ * Fix setting 'durable_writes' in ALTER KEYSPACE (CASSANDRA-9560)
+ * Avoid ballot clash in Paxos (CASSANDRA-9649)
  * Improve trace messages for RR (CASSANDRA-9479)
  * Fix suboptimal secondary index selection when restricted
    clustering column is also indexed (CASSANDRA-9631)
@@ -20,7 +21,7 @@ Merged from 2.0
 2.1.7
  * Fix bug in cardinality check when compacting (CASSANDRA-9580)
  * Fix memory leak in Ref due to ConcurrentLinkedQueue.remove() behaviour (CASSANDRA-9549)
-Merged from 2.0
+Merged from 2.0:
  * Expose some internals of SelectStatement for inspection (CASSANDRA-9532)
  * ArrivalWindow should use primitives (CASSANDRA-9496)
  * Periodically submit background compaction tasks (CASSANDRA-9592)

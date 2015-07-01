@@ -351,7 +351,7 @@ public class CommitLogTest extends SchemaLoader
         boolean prevAutoSnapshot = DatabaseDescriptor.isAutoSnapshot();
         DatabaseDescriptor.setAutoSnapshot(false);
         Keyspace notDurableKs = Keyspace.open("NoCommitlogSpace");
-        Assert.assertFalse(notDurableKs.metadata.durableWrites);
+        Assert.assertFalse(notDurableKs.getMetadata().durableWrites);
         ColumnFamilyStore cfs = notDurableKs.getColumnFamilyStore("Standard1");
         CellNameType type = notDurableKs.getColumnFamilyStore("Standard1").getComparator();
         Mutation rm;
