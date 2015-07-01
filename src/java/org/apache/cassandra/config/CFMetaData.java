@@ -209,7 +209,8 @@ public final class CFMetaData
                                                      + "schema_version uuid,"
                                                      + "truncated_at map<uuid, blob>,"
                                                      + "rpc_address inet,"
-                                                     + "broadcast_address inet"
+                                                     + "broadcast_address inet,"
+                                                     + "listen_address inet"
                                                      + ") WITH COMMENT='information about the local node'");
 
     public static final CFMetaData TraceSessionsCf = compile("CREATE TABLE " + Tracing.SESSIONS_CF + " ("

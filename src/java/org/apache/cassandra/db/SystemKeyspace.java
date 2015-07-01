@@ -152,7 +152,7 @@ public class SystemKeyspace
 
     private static void setupVersion()
     {
-        String req = "INSERT INTO system.%s (key, release_version, cql_version, thrift_version, native_protocol_version, data_center, rack, partitioner, rpc_address, broadcast_address) VALUES ('%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s')";
+        String req = "INSERT INTO system.%s (key, release_version, cql_version, thrift_version, native_protocol_version, data_center, rack, partitioner, rpc_address, broadcast_address, listen_address) VALUES ('%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s')";
         IEndpointSnitch snitch = DatabaseDescriptor.getEndpointSnitch();
         processInternal(String.format(req, LOCAL_CF,
                                          LOCAL_KEY,
@@ -164,7 +164,8 @@ public class SystemKeyspace
                                          snitch.getRack(FBUtilities.getBroadcastAddress()),
                                          DatabaseDescriptor.getPartitioner().getClass().getName(),
                                          DatabaseDescriptor.getRpcAddress().getHostAddress(),
-                                         FBUtilities.getBroadcastAddress().getHostAddress()));
+                                         FBUtilities.getBroadcastAddress().getHostAddress(),
+                                         FBUtilities.getLocalAddress().getHostAddress()));
     }
 
     /**
