@@ -36,6 +36,7 @@ import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.RequestValidationException;
 import org.apache.cassandra.io.sstable.format.SSTableFormat;
+import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.Tables;
 import org.apache.cassandra.service.ClientState;
@@ -348,7 +349,7 @@ public class CQLSSTableWriter implements Closeable
 
                     // We need to register the keyspace/table metadata through Schema, otherwise we won't be able to properly
                     // build the insert statement in using().
-                    KSMetaData ksm = Schema.instance.getKSMetaData(this.schema.ksName);
+                    KeyspaceMetadata ksm = Schema.instance.getKSMetaData(this.schema.ksName);
                     if (ksm == null)
                     {
                         createKeyspaceWithTable(this.schema);
@@ -373,7 +374,7 @@ public class CQLSSTableWriter implements Closeable
          */
         private static void createKeyspaceWithTable(CFMetaData table)
         {
-            Schema.instance.load(KSMetaData.create(table.ksName, KeyspaceParams.simple(1), Tables.of(table)));
+            Schema.instance.load(KeyspaceMetadata.create(table.ksName, KeyspaceParams.simple(1), Tables.of(table)));
         }
 
         /**
@@ -382,10 +383,10 @@ public class CQLSSTableWriter implements Closeable
          * @param keyspace the keyspace to add to
          * @param table the table to add
          */
-        private static void addTableToKeyspace(KSMetaData keyspace, CFMetaData table)
+        private static void addTableToKeyspace(KeyspaceMetadata keyspace, CFMetaData table)
         {
             Schema.instance.load(table);
-            Schema.instance.setKeyspaceDefinition(keyspace.withSwapped(keyspace.tables.with(table)));
+            Schema.instance.setKeyspaceMetadata(keyspace.withSwapped(keyspace.tables.with(table)));
         }
 
         /**

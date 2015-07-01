@@ -15,17 +15,18 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.config;
+package org.apache.cassandra.schema;
 
 import com.google.common.base.Objects;
 
+import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.exceptions.ConfigurationException;
-import org.apache.cassandra.schema.*;
 
 /**
  * An immutable representation of keyspace metadata (name, params, tables, types, and functions).
  */
-public final class KSMetaData
+public final class KeyspaceMetadata
 {
     public final String name;
     public final KeyspaceParams params;
@@ -33,7 +34,7 @@ public final class KSMetaData
     public final Types types;
     public final Functions functions;
 
-    private KSMetaData(String name, KeyspaceParams params, Tables tables, Types types, Functions functions)
+    private KeyspaceMetadata(String name, KeyspaceParams params, Tables tables, Types types, Functions functions)
     {
         this.name = name;
         this.params = params;
@@ -42,39 +43,39 @@ public final class KSMetaData
         this.functions = functions;
     }
 
-    public static KSMetaData create(String name, KeyspaceParams params)
+    public static KeyspaceMetadata create(String name, KeyspaceParams params)
     {
-        return new KSMetaData(name, params, Tables.none(), Types.none(), Functions.none());
+        return new KeyspaceMetadata(name, params, Tables.none(), Types.none(), Functions.none());
     }
 
-    public static KSMetaData create(String name, KeyspaceParams params, Tables tables)
+    public static KeyspaceMetadata create(String name, KeyspaceParams params, Tables tables)
     {
-        return new KSMetaData(name, params, tables, Types.none(), Functions.none());
+        return new KeyspaceMetadata(name, params, tables, Types.none(), Functions.none());
     }
 
-    public static KSMetaData create(String name, KeyspaceParams params, Tables tables, Types types, Functions functions)
+    public static KeyspaceMetadata create(String name, KeyspaceParams params, Tables tables, Types types, Functions functions)
     {
-        return new KSMetaData(name, params, tables, types, functions);
+        return new KeyspaceMetadata(name, params, tables, types, functions);
     }
 
-    public KSMetaData withSwapped(KeyspaceParams params)
+    public KeyspaceMetadata withSwapped(KeyspaceParams params)
     {
-        return new KSMetaData(name, params, tables, types, functions);
+        return new KeyspaceMetadata(name, params, tables, types, functions);
     }
 
-    public KSMetaData withSwapped(Tables tables)
+    public KeyspaceMetadata withSwapped(Tables tables)
     {
-        return new KSMetaData(name, params, tables, types, functions);
+        return new KeyspaceMetadata(name, params, tables, types, functions);
     }
 
-    public KSMetaData withSwapped(Types types)
+    public KeyspaceMetadata withSwapped(Types types)
     {
-        return new KSMetaData(name, params, tables, types, functions);
+        return new KeyspaceMetadata(name, params, tables, types, functions);
     }
 
-    public KSMetaData withSwapped(Functions functions)
+    public KeyspaceMetadata withSwapped(Functions functions)
     {
-        return new KSMetaData(name, params, tables, types, functions);
+        return new KeyspaceMetadata(name, params, tables, types, functions);
     }
 
     @Override
@@ -89,10 +90,10 @@ public final class KSMetaData
         if (this == o)
             return true;
 
-        if (!(o instanceof KSMetaData))
+        if (!(o instanceof KeyspaceMetadata))
             return false;
 
-        KSMetaData other = (KSMetaData) o;
+        KeyspaceMetadata other = (KeyspaceMetadata) o;
 
         return name.equals(other.name)
             && params.equals(other.params)

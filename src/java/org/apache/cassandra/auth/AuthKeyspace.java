@@ -20,7 +20,7 @@ package org.apache.cassandra.auth;
 import java.util.concurrent.TimeUnit;
 
 import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.config.KSMetaData;
+import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.Tables;
 
@@ -83,8 +83,8 @@ public final class AuthKeyspace
                          .gcGraceSeconds((int) TimeUnit.DAYS.toSeconds(90));
     }
 
-    public static KSMetaData definition()
+    public static KeyspaceMetadata metadata()
     {
-        return KSMetaData.create(NAME, KeyspaceParams.simple(1), Tables.of(Roles, RoleMembers, RolePermissions, ResourceRoleIndex));
+        return KeyspaceMetadata.create(NAME, KeyspaceParams.simple(1), Tables.of(Roles, RoleMembers, RolePermissions, ResourceRoleIndex));
     }
 }

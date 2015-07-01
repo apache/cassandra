@@ -28,12 +28,12 @@ import com.datastax.driver.core.DataType;
 import com.datastax.driver.core.ProtocolVersion;
 import com.datastax.driver.core.UserType;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.config.KSMetaData;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.exceptions.*;
 import org.apache.cassandra.schema.Functions;
+import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.service.MigrationManager;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
@@ -292,7 +292,7 @@ public abstract class UDFunction extends AbstractFunction implements ScalarFunct
                 UserType userType = (UserType) dataType;
                 if (userType.getKeyspace().equals(ksName) && userType.getTypeName().equals(typeName))
                 {
-                    KSMetaData ksm = Schema.instance.getKSMetaData(ksName);
+                    KeyspaceMetadata ksm = Schema.instance.getKSMetaData(ksName);
                     assert ksm != null;
 
                     org.apache.cassandra.db.marshal.UserType ut = ksm.types.get(ByteBufferUtil.bytes(typeName)).get();

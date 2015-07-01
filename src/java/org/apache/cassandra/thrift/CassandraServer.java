@@ -52,6 +52,7 @@ import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.locator.DynamicEndpointSnitch;
 import org.apache.cassandra.metrics.ClientMetrics;
 import org.apache.cassandra.scheduler.IRequestScheduler;
+import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.service.*;
 import org.apache.cassandra.service.pager.QueryPagers;
@@ -1429,7 +1430,7 @@ public class CassandraServer implements Cassandra.Iface
     {
         validateLogin();
 
-        KSMetaData ksm = Schema.instance.getKSMetaData(keyspaceName);
+        KeyspaceMetadata ksm = Schema.instance.getKSMetaData(keyspaceName);
         if (ksm == null)
             throw new NotFoundException();
 

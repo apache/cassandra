@@ -20,15 +20,16 @@ package org.apache.cassandra.cql3;
 import java.util.ArrayList;
 import java.util.List;
 
-import org.apache.cassandra.config.KSMetaData;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.SyntaxException;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.apache.cassandra.schema.KeyspaceMetadata;
 
 public interface CQL3Type
 {
@@ -525,7 +526,7 @@ public interface CQL3Type
                     name.setKeyspace(keyspace);
                 }
 
-                KSMetaData ksm = Schema.instance.getKSMetaData(name.getKeyspace());
+                KeyspaceMetadata ksm = Schema.instance.getKSMetaData(name.getKeyspace());
                 if (ksm == null)
                     throw new InvalidRequestException("Unknown keyspace " + name.getKeyspace());
                 UserType type = ksm.types.getNullable(name.getUserTypeName());

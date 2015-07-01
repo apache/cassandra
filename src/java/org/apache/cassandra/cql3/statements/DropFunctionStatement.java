@@ -25,7 +25,6 @@ import com.google.common.base.Joiner;
 
 import org.apache.cassandra.auth.FunctionResource;
 import org.apache.cassandra.auth.Permission;
-import org.apache.cassandra.config.KSMetaData;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.cql3.CQL3Type;
 import org.apache.cassandra.cql3.functions.*;
@@ -33,6 +32,7 @@ import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.RequestValidationException;
 import org.apache.cassandra.exceptions.UnauthorizedException;
+import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.MigrationManager;
 import org.apache.cassandra.thrift.ThriftValidation;
@@ -145,7 +145,7 @@ public final class DropFunctionStatement extends SchemaAlteringStatement
                 throw new InvalidRequestException(getMissingFunctionError());
         }
 
-        KSMetaData ksm = Schema.instance.getKSMetaData(old.name().keyspace);
+        KeyspaceMetadata ksm = Schema.instance.getKSMetaData(old.name().keyspace);
         Collection<UDAggregate> referrers = ksm.functions.aggregatesUsingFunction(old);
         if (!referrers.isEmpty())
             throw new InvalidRequestException(String.format("Function '%s' still referenced by %s", old, referrers));

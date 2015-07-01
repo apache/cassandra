@@ -111,6 +111,7 @@ import org.apache.cassandra.repair.RepairParallelism;
 import org.apache.cassandra.repair.RepairRunnable;
 import org.apache.cassandra.repair.SystemDistributedKeyspace;
 import org.apache.cassandra.repair.messages.RepairOption;
+import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.service.paxos.CommitVerbHandler;
 import org.apache.cassandra.service.paxos.PrepareVerbHandler;
 import org.apache.cassandra.service.paxos.ProposeVerbHandler;
@@ -644,7 +645,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                 List<Future<?>> flushes = new ArrayList<>();
                 for (Keyspace keyspace : Keyspace.all())
                 {
-                    KSMetaData ksm = Schema.instance.getKSMetaData(keyspace.getName());
+                    KeyspaceMetadata ksm = Schema.instance.getKSMetaData(keyspace.getName());
                     if (!ksm.params.durableWrites)
                         for (ColumnFamilyStore cfs : keyspace.getColumnFamilyStores())
                             flushes.add(cfs.forceFlush());
@@ -944,10 +945,10 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
         // if we don't have system_traces keyspace at this point, then create it manually
         if (Schema.instance.getKSMetaData(TraceKeyspace.NAME) == null)
-            maybeAddKeyspace(TraceKeyspace.definition());
+            maybeAddKeyspace(TraceKeyspace.metadata());
 
         if (Schema.instance.getKSMetaData(SystemDistributedKeyspace.NAME) == null)
-            MigrationManager.announceNewKeyspace(SystemDistributedKeyspace.definition(), 0, false);
+            MigrationManager.announceNewKeyspace(SystemDistributedKeyspace.metadata(), 0, false);
 
         if (!isSurveyMode)
         {
@@ -1017,7 +1018,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         {
             // if we don't have system_auth keyspace at this point, then create it
             if (Schema.instance.getKSMetaData(AuthKeyspace.NAME) == null)
-                maybeAddKeyspace(AuthKeyspace.definition());
+                maybeAddKeyspace(AuthKeyspace.metadata());
         }
         catch (Exception e)
         {
@@ -1028,7 +1029,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         // the ks exists with the only the legacy tables defined.
         // Also, the addKeyspace above can be racy if multiple nodes are started
         // concurrently - see CASSANDRA-9201
-        for (CFMetaData table : AuthKeyspace.definition().tables)
+        for (CFMetaData table : AuthKeyspace.metadata().tables)
             if (Schema.instance.getCFMetaData(table.ksName, table.cfName) == null)
                 maybeAddTable(table);
 
@@ -1050,7 +1051,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         }
     }
 
-    private void maybeAddKeyspace(KSMetaData ksm)
+    private void maybeAddKeyspace(KeyspaceMetadata ksm)
     {
         try
         {
@@ -3118,7 +3119,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
      */
     public List<InetAddress> getNaturalEndpoints(String keyspaceName, String cf, String key)
     {
-        KSMetaData ksMetaData = Schema.instance.getKSMetaData(keyspaceName);
+        KeyspaceMetadata ksMetaData = Schema.instance.getKSMetaData(keyspaceName);
         if (ksMetaData == null)
             throw new IllegalArgumentException("Unknown keyspace '" + keyspaceName + "'");
 

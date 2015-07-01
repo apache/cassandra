@@ -39,6 +39,7 @@ import org.apache.cassandra.db.index.SecondaryIndexManager;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
+import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.concurrent.OpOrder;
@@ -65,7 +66,7 @@ public class Keyspace
             DatabaseDescriptor.createAllDirectories();
     }
 
-    private volatile KSMetaData metadata;
+    private volatile KeyspaceMetadata metadata;
     public final OpOrder writeOrder = new OpOrder();
 
     /* ColumnFamilyStore per column family */
@@ -166,12 +167,12 @@ public class Keyspace
         }
     }
 
-    public void setMetadata(KSMetaData metadata)
+    public void setMetadata(KeyspaceMetadata metadata)
     {
         this.metadata = metadata;
     }
 
-    public KSMetaData getMetadata()
+    public KeyspaceMetadata getMetadata()
     {
         return metadata;
     }
@@ -290,19 +291,19 @@ public class Keyspace
         }
     }
 
-    private Keyspace(KSMetaData metadata)
+    private Keyspace(KeyspaceMetadata metadata)
     {
         this.metadata = metadata;
         createReplicationStrategy(metadata);
         this.metric = new KeyspaceMetrics(this);
     }
 
-    public static Keyspace mockKS(KSMetaData metadata)
+    public static Keyspace mockKS(KeyspaceMetadata metadata)
     {
         return new Keyspace(metadata);
     }
 
-    public void createReplicationStrategy(KSMetaData ksm)
+    public void createReplicationStrategy(KeyspaceMetadata ksm)
     {
         replicationStrategy = AbstractReplicationStrategy.createReplicationStrategy(ksm.name,
                                                                                     ksm.params.replication.klass,

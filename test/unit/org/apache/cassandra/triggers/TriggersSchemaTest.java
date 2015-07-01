@@ -22,10 +22,10 @@ import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.config.KSMetaData;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.config.TriggerDefinition;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.Tables;
 import org.apache.cassandra.service.MigrationManager;
@@ -51,7 +51,7 @@ public class TriggersSchemaTest
         TriggerDefinition td = TriggerDefinition.create(triggerName, triggerClass);
         CFMetaData cfm1 = CFMetaData.compile(String.format("CREATE TABLE %s (k int PRIMARY KEY, v int)", cfName), ksName);
         cfm1.addTriggerDefinition(td);
-        KSMetaData ksm = KSMetaData.create(ksName, KeyspaceParams.simple(1), Tables.of(cfm1));
+        KeyspaceMetadata ksm = KeyspaceMetadata.create(ksName, KeyspaceParams.simple(1), Tables.of(cfm1));
         MigrationManager.announceNewKeyspace(ksm);
 
         CFMetaData cfm2 = Schema.instance.getCFMetaData(ksName, cfName);
@@ -63,7 +63,7 @@ public class TriggersSchemaTest
     @Test
     public void addNewCfWithTriggerToKs() throws Exception
     {
-        KSMetaData ksm = KSMetaData.create(ksName, KeyspaceParams.simple(1));
+        KeyspaceMetadata ksm = KeyspaceMetadata.create(ksName, KeyspaceParams.simple(1));
         MigrationManager.announceNewKeyspace(ksm);
 
         CFMetaData cfm1 = CFMetaData.compile(String.format("CREATE TABLE %s (k int PRIMARY KEY, v int)", cfName), ksName);
@@ -82,7 +82,7 @@ public class TriggersSchemaTest
     public void addTriggerToCf() throws Exception
     {
         CFMetaData cfm1 = CFMetaData.compile(String.format("CREATE TABLE %s (k int PRIMARY KEY, v int)", cfName), ksName);
-        KSMetaData ksm = KSMetaData.create(ksName, KeyspaceParams.simple(1), Tables.of(cfm1));
+        KeyspaceMetadata ksm = KeyspaceMetadata.create(ksName, KeyspaceParams.simple(1), Tables.of(cfm1));
         MigrationManager.announceNewKeyspace(ksm);
 
         CFMetaData cfm2 = Schema.instance.getCFMetaData(ksName, cfName).copy();
@@ -102,7 +102,7 @@ public class TriggersSchemaTest
         TriggerDefinition td = TriggerDefinition.create(triggerName, triggerClass);
         CFMetaData cfm1 = CFMetaData.compile(String.format("CREATE TABLE %s (k int PRIMARY KEY, v int)", cfName), ksName);
         cfm1.addTriggerDefinition(td);
-        KSMetaData ksm = KSMetaData.create(ksName, KeyspaceParams.simple(1), Tables.of(cfm1));
+        KeyspaceMetadata ksm = KeyspaceMetadata.create(ksName, KeyspaceParams.simple(1), Tables.of(cfm1));
         MigrationManager.announceNewKeyspace(ksm);
 
         CFMetaData cfm2 = Schema.instance.getCFMetaData(ksName, cfName).copy();

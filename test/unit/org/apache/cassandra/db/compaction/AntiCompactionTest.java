@@ -25,13 +25,11 @@ import java.util.List;
 
 import com.google.common.collect.Iterables;
 import com.google.common.util.concurrent.RateLimiter;
-import junit.framework.Assert;
 import org.junit.BeforeClass;
 import org.junit.After;
 import org.junit.Test;
 
 import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.config.KSMetaData;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.db.rows.RowStats;
@@ -43,15 +41,11 @@ import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.sstable.*;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.SSTableWriter;
-import org.apache.cassandra.locator.SimpleStrategy;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.concurrent.Refs;
-import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.utils.concurrent.Refs;
-import org.apache.cassandra.Util;
 import org.apache.cassandra.UpdateBuilder;
 
 import static org.hamcrest.CoreMatchers.is;

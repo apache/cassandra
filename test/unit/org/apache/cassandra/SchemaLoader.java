@@ -41,6 +41,7 @@ import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.io.compress.CompressionParameters;
 import org.apache.cassandra.io.compress.SnappyCompressor;
 import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.Tables;
 import org.apache.cassandra.service.MigrationManager;
@@ -83,7 +84,7 @@ public class SchemaLoader
 
     public static void schemaDefinition(String testName) throws ConfigurationException
     {
-        List<KSMetaData> schema = new ArrayList<KSMetaData>();
+        List<KeyspaceMetadata> schema = new ArrayList<KeyspaceMetadata>();
 
         // A whole bucket of shorthand
         String ks1 = testName + "Keyspace1";
@@ -117,7 +118,7 @@ public class SchemaLoader
         leveledOptions.put("sstable_size_in_mb", "1");
 
         // Keyspace 1
-        schema.add(KSMetaData.create(ks1,
+        schema.add(KeyspaceMetadata.create(ks1,
                 KeyspaceParams.simple(1),
                 Tables.of(
                 // Column Families
@@ -166,7 +167,7 @@ public class SchemaLoader
         )));
 
         // Keyspace 2
-        schema.add(KSMetaData.create(ks2,
+        schema.add(KeyspaceMetadata.create(ks2,
                 KeyspaceParams.simple(1),
                 Tables.of(
                 // Column Families
@@ -179,14 +180,14 @@ public class SchemaLoader
                 compositeIndexCFMD(ks2, "Indexed3", true).gcGraceSeconds(0))));
 
         // Keyspace 3
-        schema.add(KSMetaData.create(ks3,
+        schema.add(KeyspaceMetadata.create(ks3,
                 KeyspaceParams.simple(5),
                 Tables.of(
                 standardCFMD(ks3, "Standard1"),
                 keysIndexCFMD(ks3, "Indexed1", true))));
 
         // Keyspace 4
-        schema.add(KSMetaData.create(ks4,
+        schema.add(KeyspaceMetadata.create(ks4,
                 KeyspaceParams.simple(3),
                 Tables.of(
                 standardCFMD(ks4, "Standard1"),
@@ -196,16 +197,16 @@ public class SchemaLoader
                 superCFMD(ks4, "Super5", TimeUUIDType.instance, BytesType.instance))));
 
         // Keyspace 5
-        schema.add(KSMetaData.create(ks5,
+        schema.add(KeyspaceMetadata.create(ks5,
                 KeyspaceParams.simple(2),
                 Tables.of(standardCFMD(ks5, "Standard1"))));
         // Keyspace 6
-        schema.add(KSMetaData.create(ks6,
+        schema.add(KeyspaceMetadata.create(ks6,
                 KeyspaceParams.simple(1),
                 Tables.of(keysIndexCFMD(ks6, "Indexed1", true))));
 
         // KeyCacheSpace
-        schema.add(KSMetaData.create(ks_kcs,
+        schema.add(KeyspaceMetadata.create(ks_kcs,
                 KeyspaceParams.simple(1),
                 Tables.of(
                 standardCFMD(ks_kcs, "Standard1"),
@@ -213,7 +214,7 @@ public class SchemaLoader
                 standardCFMD(ks_kcs, "Standard3"))));
 
         // RowCacheSpace
-        schema.add(KSMetaData.create(ks_rcs,
+        schema.add(KeyspaceMetadata.create(ks_rcs,
                 KeyspaceParams.simple(1),
                 Tables.of(
                 standardCFMD(ks_rcs, "CFWithoutCache").caching(CachingOptions.NONE),
@@ -223,21 +224,21 @@ public class SchemaLoader
                                 new CachingOptions.RowCache(CachingOptions.RowCache.Type.HEAD, 100))))));
 
         // CounterCacheSpace
-        /*schema.add(KSMetaData.testMetadata(ks_ccs,
+        /*schema.add(KeyspaceMetadata.testMetadata(ks_ccs,
                 simple,
                 opts_rf1,
                 CFMetaData.Builder.create(ks_ccs, "Counter1", false, false, true).build(),
                 CFMetaData.Builder.create(ks_ccs, "Counter1", false, false, true).build()));*/
 
-        schema.add(KSMetaData.create(ks_nocommit, KeyspaceParams.simpleTransient(1), Tables.of(
+        schema.add(KeyspaceMetadata.create(ks_nocommit, KeyspaceParams.simpleTransient(1), Tables.of(
                 standardCFMD(ks_nocommit, "Standard1"))));
 
         // PerRowSecondaryIndexTest
-        schema.add(KSMetaData.create(ks_prsi, KeyspaceParams.simple(1), Tables.of(
+        schema.add(KeyspaceMetadata.create(ks_prsi, KeyspaceParams.simple(1), Tables.of(
                 perRowIndexedCFMD(ks_prsi, "Indexed1"))));
 
         // CQLKeyspace
-        schema.add(KSMetaData.create(ks_cql, KeyspaceParams.simple(1), Tables.of(
+        schema.add(KeyspaceMetadata.create(ks_cql, KeyspaceParams.simple(1), Tables.of(
 
                 // Column Families
                 CFMetaData.compile("CREATE TABLE table1 ("
@@ -273,13 +274,13 @@ public class SchemaLoader
 
         // if you're messing with low-level sstable stuff, it can be useful to inject the schema directly
         // Schema.instance.load(schemaDefinition());
-        for (KSMetaData ksm : schema)
+        for (KeyspaceMetadata ksm : schema)
             MigrationManager.announceNewKeyspace(ksm, false);
     }
 
     public static void createKeyspace(String name, KeyspaceParams params, CFMetaData... tables)
     {
-        MigrationManager.announceNewKeyspace(KSMetaData.create(name, params, Tables.of(tables)), true);
+        MigrationManager.announceNewKeyspace(KeyspaceMetadata.create(name, params, Tables.of(tables)), true);
     }
 
     public static ColumnDefinition integerColumn(String ksName, String cfName)
@@ -322,9 +323,9 @@ public class SchemaLoader
                                                                 .setIndex("indexe1", IndexType.CUSTOM, indexOptions));
     }
 
-    private static void useCompression(List<KSMetaData> schema)
+    private static void useCompression(List<KeyspaceMetadata> schema)
     {
-        for (KSMetaData ksm : schema)
+        for (KeyspaceMetadata ksm : schema)
             for (CFMetaData cfm : ksm.tables)
                 cfm.compressionParameters(new CompressionParameters(SnappyCompressor.instance));
     }

@@ -33,7 +33,7 @@ import org.junit.runner.RunWith;
 import org.apache.cassandra.OrderedJUnit4ClassRunner;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.config.KSMetaData;
+import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.SystemKeyspace;
@@ -122,8 +122,8 @@ public class StorageServiceServerTest
         configOptions.put(KeyspaceParams.Replication.CLASS, "NetworkTopologyStrategy");
 
         Keyspace.clear("Keyspace1");
-        KSMetaData meta = KSMetaData.create("Keyspace1", KeyspaceParams.create(false, configOptions));
-        Schema.instance.setKeyspaceDefinition(meta);
+        KeyspaceMetadata meta = KeyspaceMetadata.create("Keyspace1", KeyspaceParams.create(false, configOptions));
+        Schema.instance.setKeyspaceMetadata(meta);
 
         Collection<Range<Token>> primaryRanges = StorageService.instance.getPrimaryRangeForEndpointWithinDC(meta.name,
                                                                                                             InetAddress.getByName("127.0.0.1"));
@@ -165,8 +165,8 @@ public class StorageServiceServerTest
         configOptions.put(KeyspaceParams.Replication.CLASS, "NetworkTopologyStrategy");
 
         Keyspace.clear("Keyspace1");
-        KSMetaData meta = KSMetaData.create("Keyspace1", KeyspaceParams.create(false, configOptions));
-        Schema.instance.setKeyspaceDefinition(meta);
+        KeyspaceMetadata meta = KeyspaceMetadata.create("Keyspace1", KeyspaceParams.create(false, configOptions));
+        Schema.instance.setKeyspaceMetadata(meta);
 
         Collection<Range<Token>> primaryRanges = StorageService.instance.getPrimaryRangesForEndpoint(meta.name, InetAddress.getByName("127.0.0.1"));
         assert primaryRanges.size() == 1;
@@ -202,8 +202,8 @@ public class StorageServiceServerTest
         configOptions.put(KeyspaceParams.Replication.CLASS, "NetworkTopologyStrategy");
 
         Keyspace.clear("Keyspace1");
-        KSMetaData meta = KSMetaData.create("Keyspace1", KeyspaceParams.create(false, configOptions));
-        Schema.instance.setKeyspaceDefinition(meta);
+        KeyspaceMetadata meta = KeyspaceMetadata.create("Keyspace1", KeyspaceParams.create(false, configOptions));
+        Schema.instance.setKeyspaceMetadata(meta);
 
         // endpoints in DC1 should not have primary range
         Collection<Range<Token>> primaryRanges = StorageService.instance.getPrimaryRangesForEndpoint(meta.name, InetAddress.getByName("127.0.0.1"));
@@ -241,8 +241,8 @@ public class StorageServiceServerTest
         configOptions.put(KeyspaceParams.Replication.CLASS, "NetworkTopologyStrategy");
 
         Keyspace.clear("Keyspace1");
-        KSMetaData meta = KSMetaData.create("Keyspace1", KeyspaceParams.create(false, configOptions));
-        Schema.instance.setKeyspaceDefinition(meta);
+        KeyspaceMetadata meta = KeyspaceMetadata.create("Keyspace1", KeyspaceParams.create(false, configOptions));
+        Schema.instance.setKeyspaceMetadata(meta);
 
         // endpoints in DC1 should not have primary range
         Collection<Range<Token>> primaryRanges = StorageService.instance.getPrimaryRangeForEndpointWithinDC(meta.name, InetAddress.getByName("127.0.0.1"));
@@ -293,8 +293,8 @@ public class StorageServiceServerTest
         configOptions.put(KeyspaceParams.Replication.CLASS, "NetworkTopologyStrategy");
 
         Keyspace.clear("Keyspace1");
-        KSMetaData meta = KSMetaData.create("Keyspace1", KeyspaceParams.create(false, configOptions));
-        Schema.instance.setKeyspaceDefinition(meta);
+        KeyspaceMetadata meta = KeyspaceMetadata.create("Keyspace1", KeyspaceParams.create(false, configOptions));
+        Schema.instance.setKeyspaceMetadata(meta);
 
         // endpoints in DC1 should not have primary range
         Collection<Range<Token>> primaryRanges = StorageService.instance.getPrimaryRangesForEndpoint(meta.name, InetAddress.getByName("127.0.0.1"));
@@ -360,8 +360,8 @@ public class StorageServiceServerTest
         configOptions.put(KeyspaceParams.Replication.CLASS, "NetworkTopologyStrategy");
 
         Keyspace.clear("Keyspace1");
-        KSMetaData meta = KSMetaData.create("Keyspace1", KeyspaceParams.create(false, configOptions));
-        Schema.instance.setKeyspaceDefinition(meta);
+        KeyspaceMetadata meta = KeyspaceMetadata.create("Keyspace1", KeyspaceParams.create(false, configOptions));
+        Schema.instance.setKeyspaceMetadata(meta);
 
         // endpoints in DC1 should have primary ranges which also cover DC2
         Collection<Range<Token>> primaryRanges = StorageService.instance.getPrimaryRangeForEndpointWithinDC(meta.name, InetAddress.getByName("127.0.0.1"));
@@ -419,8 +419,8 @@ public class StorageServiceServerTest
         metadata.updateNormalToken(new StringToken("C"), InetAddress.getByName("127.0.0.3"));
 
         Keyspace.clear("Keyspace1");
-        KSMetaData meta = KSMetaData.create("Keyspace1", KeyspaceParams.simpleTransient(2));
-        Schema.instance.setKeyspaceDefinition(meta);
+        KeyspaceMetadata meta = KeyspaceMetadata.create("Keyspace1", KeyspaceParams.simpleTransient(2));
+        Schema.instance.setKeyspaceMetadata(meta);
 
         Collection<Range<Token>> primaryRanges = StorageService.instance.getPrimaryRangesForEndpoint(meta.name, InetAddress.getByName("127.0.0.1"));
         assert primaryRanges.size() == 1;
@@ -450,8 +450,8 @@ public class StorageServiceServerTest
         configOptions.put("replication_factor", "2");
 
         Keyspace.clear("Keyspace1");
-        KSMetaData meta = KSMetaData.create("Keyspace1", KeyspaceParams.simpleTransient(2));
-        Schema.instance.setKeyspaceDefinition(meta);
+        KeyspaceMetadata meta = KeyspaceMetadata.create("Keyspace1", KeyspaceParams.simpleTransient(2));
+        Schema.instance.setKeyspaceMetadata(meta);
 
         Collection<Range<Token>> primaryRanges = StorageService.instance.getPrimaryRangeForEndpointWithinDC(meta.name, InetAddress.getByName("127.0.0.1"));
         assert primaryRanges.size() == 1;

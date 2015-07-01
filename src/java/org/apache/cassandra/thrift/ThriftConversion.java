@@ -38,6 +38,7 @@ import org.apache.cassandra.exceptions.*;
 import org.apache.cassandra.io.compress.CompressionParameters;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.locator.LocalStrategy;
+import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.Tables;
 import org.apache.cassandra.serializers.MarshalException;
@@ -153,7 +154,7 @@ public class ThriftConversion
         return converted;
     }
 
-    public static KSMetaData fromThrift(KsDef ksd, CFMetaData... cfDefs) throws ConfigurationException
+    public static KeyspaceMetadata fromThrift(KsDef ksd, CFMetaData... cfDefs) throws ConfigurationException
     {
         Class<? extends AbstractReplicationStrategy> cls = AbstractReplicationStrategy.getClass(ksd.strategy_class);
         if (cls.equals(LocalStrategy.class))
@@ -164,10 +165,10 @@ public class ThriftConversion
             replicationMap.putAll(ksd.strategy_options);
         replicationMap.put(KeyspaceParams.Replication.CLASS, cls.getName());
 
-        return KSMetaData.create(ksd.name, KeyspaceParams.create(ksd.durable_writes, replicationMap), Tables.of(cfDefs));
+        return KeyspaceMetadata.create(ksd.name, KeyspaceParams.create(ksd.durable_writes, replicationMap), Tables.of(cfDefs));
     }
 
-    public static KsDef toThrift(KSMetaData ksm)
+    public static KsDef toThrift(KeyspaceMetadata ksm)
     {
         List<CfDef> cfDefs = new ArrayList<>();
         for (CFMetaData cfm : ksm.tables)

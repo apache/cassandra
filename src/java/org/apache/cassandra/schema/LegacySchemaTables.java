@@ -193,7 +193,7 @@ public final class LegacySchemaTables
     /** add entries to system.schema_* for the hardcoded system definitions */
     public static void saveSystemKeyspaceSchema()
     {
-        KSMetaData keyspace = Schema.instance.getKSMetaData(SystemKeyspace.NAME);
+        KeyspaceMetadata keyspace = Schema.instance.getKSMetaData(SystemKeyspace.NAME);
         long timestamp = FBUtilities.timestampMicros();
         // delete old, possibly obsolete entries in schema tables
         for (String table : ALL)
@@ -206,12 +206,12 @@ public final class LegacySchemaTables
         makeCreateKeyspaceMutation(keyspace, timestamp + 1).apply();
     }
 
-    public static Collection<KSMetaData> readSchemaFromSystemTables()
+    public static Collection<KeyspaceMetadata> readSchemaFromSystemTables()
     {
         ReadCommand cmd = getReadCommandForTableSchema(KEYSPACES);
         try (ReadOrderGroup orderGroup = cmd.startOrderGroup(); PartitionIterator schema = cmd.executeInternal(orderGroup))
         {
-            List<KSMetaData> keyspaces = new ArrayList<>();
+            List<KeyspaceMetadata> keyspaces = new ArrayList<>();
 
             while (schema.hasNext())
             {
@@ -464,7 +464,7 @@ public final class LegacySchemaTables
 
             FilteredPartition oldPartition = before.remove(newPartition.partitionKey());
             if (oldPartition == null || oldPartition.isEmpty())
-                Schema.instance.addKeyspace(KSMetaData.create(name, params));
+                Schema.instance.addKeyspace(KeyspaceMetadata.create(name, params));
             else
                 Schema.instance.updateKeyspace(name, params);
         }
@@ -640,12 +640,12 @@ public final class LegacySchemaTables
      * Keyspace metadata serialization/deserialization.
      */
 
-    public static Mutation makeCreateKeyspaceMutation(KSMetaData keyspace, long timestamp)
+    public static Mutation makeCreateKeyspaceMutation(KeyspaceMetadata keyspace, long timestamp)
     {
         return makeCreateKeyspaceMutation(keyspace, timestamp, true);
     }
 
-    public static Mutation makeCreateKeyspaceMutation(KSMetaData keyspace, long timestamp, boolean withTablesAndTypesAndFunctions)
+    public static Mutation makeCreateKeyspaceMutation(KeyspaceMetadata keyspace, long timestamp, boolean withTablesAndTypesAndFunctions)
     {
         // Note that because Keyspaces is a COMPACT TABLE, we're really only setting static columns internally and shouldn't set any clustering.
         RowUpdateBuilder adder = new RowUpdateBuilder(Keyspaces, timestamp, keyspace.name);
@@ -667,7 +667,7 @@ public final class LegacySchemaTables
         return mutation;
     }
 
-    public static Mutation makeDropKeyspaceMutation(KSMetaData keyspace, long timestamp)
+    public static Mutation makeDropKeyspaceMutation(KeyspaceMetadata keyspace, long timestamp)
     {
         int nowInSec = FBUtilities.nowInSeconds();
         Mutation mutation = new Mutation(SystemKeyspace.NAME, getSchemaKSDecoratedKey(keyspace.name));
@@ -677,11 +677,11 @@ public final class LegacySchemaTables
         return mutation;
     }
 
-    private static KSMetaData createKeyspaceFromSchemaPartitions(RowIterator serializedParams,
-                                                                 RowIterator serializedTables,
-                                                                 RowIterator serializedTypes,
-                                                                 RowIterator serializedFunctions,
-                                                                 RowIterator serializedAggregates)
+    private static KeyspaceMetadata createKeyspaceFromSchemaPartitions(RowIterator serializedParams,
+                                                                       RowIterator serializedTables,
+                                                                       RowIterator serializedTypes,
+                                                                       RowIterator serializedFunctions,
+                                                                       RowIterator serializedAggregates)
     {
         String name = AsciiType.instance.compose(serializedParams.partitionKey().getKey());
 
@@ -693,7 +693,7 @@ public final class LegacySchemaTables
         Collection<UDAggregate> udas = createAggregatesFromAggregatesPartition(serializedAggregates);
         Functions functions = org.apache.cassandra.schema.Functions.builder().add(udfs).add(udas).build();
 
-        return KSMetaData.create(name, params, tables, types, functions);
+        return KeyspaceMetadata.create(name, params, tables, types, functions);
     }
 
     /**
@@ -718,7 +718,7 @@ public final class LegacySchemaTables
      * User type metadata serialization/deserialization.
      */
 
-    public static Mutation makeCreateTypeMutation(KSMetaData keyspace, UserType type, long timestamp)
+    public static Mutation makeCreateTypeMutation(KeyspaceMetadata keyspace, UserType type, long timestamp)
     {
         // Include the serialized keyspace in case the target node missed a CREATE KEYSPACE migration (see CASSANDRA-5631).
         Mutation mutation = makeCreateKeyspaceMutation(keyspace, timestamp, false);
@@ -743,7 +743,7 @@ public final class LegacySchemaTables
         adder.build();
     }
 
-    public static Mutation dropTypeFromSchemaMutation(KSMetaData keyspace, UserType type, long timestamp)
+    public static Mutation dropTypeFromSchemaMutation(KeyspaceMetadata keyspace, UserType type, long timestamp)
     {
         // Include the serialized keyspace in case the target node missed a CREATE KEYSPACE migration (see CASSANDRA-5631).
         Mutation mutation = makeCreateKeyspaceMutation(keyspace, timestamp, false);
@@ -780,7 +780,7 @@ public final class LegacySchemaTables
      * Table metadata serialization/deserialization.
      */
 
-    public static Mutation makeCreateTableMutation(KSMetaData keyspace, CFMetaData table, long timestamp)
+    public static Mutation makeCreateTableMutation(KeyspaceMetadata keyspace, CFMetaData table, long timestamp)
     {
         // Include the serialized keyspace in case the target node missed a CREATE KEYSPACE migration (see CASSANDRA-5631).
         Mutation mutation = makeCreateKeyspaceMutation(keyspace, timestamp, false);
@@ -854,7 +854,7 @@ public final class LegacySchemaTables
         adder.build();
     }
 
-    public static Mutation makeUpdateTableMutation(KSMetaData keyspace,
+    public static Mutation makeUpdateTableMutation(KeyspaceMetadata keyspace,
                                                    CFMetaData oldTable,
                                                    CFMetaData newTable,
                                                    long timestamp,
@@ -899,7 +899,7 @@ public final class LegacySchemaTables
         return mutation;
     }
 
-    public static Mutation makeDropTableMutation(KSMetaData keyspace, CFMetaData table, long timestamp)
+    public static Mutation makeDropTableMutation(KeyspaceMetadata keyspace, CFMetaData table, long timestamp)
     {
         // Include the serialized keyspace in case the target node missed a CREATE KEYSPACE migration (see CASSANDRA-5631).
         Mutation mutation = makeCreateKeyspaceMutation(keyspace, timestamp, false);
@@ -1280,7 +1280,7 @@ public final class LegacySchemaTables
      * UDF metadata serialization/deserialization.
      */
 
-    public static Mutation makeCreateFunctionMutation(KSMetaData keyspace, UDFunction function, long timestamp)
+    public static Mutation makeCreateFunctionMutation(KeyspaceMetadata keyspace, UDFunction function, long timestamp)
     {
         // Include the serialized keyspace in case the target node missed a CREATE KEYSPACE migration (see CASSANDRA-5631).
         Mutation mutation = makeCreateKeyspaceMutation(keyspace, timestamp, false);
@@ -1308,7 +1308,7 @@ public final class LegacySchemaTables
         adder.build();
     }
 
-    public static Mutation makeDropFunctionMutation(KSMetaData keyspace, UDFunction function, long timestamp)
+    public static Mutation makeDropFunctionMutation(KeyspaceMetadata keyspace, UDFunction function, long timestamp)
     {
         // Include the serialized keyspace in case the target node missed a CREATE KEYSPACE migration (see CASSANDRA-5631).
         Mutation mutation = makeCreateKeyspaceMutation(keyspace, timestamp, false);
@@ -1381,7 +1381,7 @@ public final class LegacySchemaTables
      * Aggregate UDF metadata serialization/deserialization.
      */
 
-    public static Mutation makeCreateAggregateMutation(KSMetaData keyspace, UDAggregate aggregate, long timestamp)
+    public static Mutation makeCreateAggregateMutation(KeyspaceMetadata keyspace, UDAggregate aggregate, long timestamp)
     {
         // Include the serialized keyspace in case the target node missed a CREATE KEYSPACE migration (see CASSANDRA-5631).
         Mutation mutation = makeCreateKeyspaceMutation(keyspace, timestamp, false);
@@ -1473,7 +1473,7 @@ public final class LegacySchemaTables
         return new FunctionName(ks, f);
     }
 
-    public static Mutation makeDropAggregateMutation(KSMetaData keyspace, UDAggregate aggregate, long timestamp)
+    public static Mutation makeDropAggregateMutation(KeyspaceMetadata keyspace, UDAggregate aggregate, long timestamp)
     {
         // Include the serialized keyspace in case the target node missed a CREATE KEYSPACE migration (see CASSANDRA-5631).
         Mutation mutation = makeCreateKeyspaceMutation(keyspace, timestamp, false);

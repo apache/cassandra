@@ -19,10 +19,10 @@ package org.apache.cassandra.cql3.statements;
 
 import org.apache.cassandra.auth.*;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.config.KSMetaData;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.exceptions.*;
 import org.apache.cassandra.locator.LocalStrategy;
+import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.service.*;
 import org.apache.cassandra.thrift.ThriftValidation;
@@ -94,7 +94,7 @@ public class CreateKeyspaceStatement extends SchemaAlteringStatement
 
     public boolean announceMigration(boolean isLocalOnly) throws RequestValidationException
     {
-        KSMetaData ksm = KSMetaData.create(name, attrs.asNewKeyspaceParams());
+        KeyspaceMetadata ksm = KeyspaceMetadata.create(name, attrs.asNewKeyspaceParams());
         try
         {
             MigrationManager.announceNewKeyspace(ksm, isLocalOnly);
