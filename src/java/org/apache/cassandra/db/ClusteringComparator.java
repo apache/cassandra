@@ -162,7 +162,7 @@ public class ClusteringComparator implements Comparator<Clusterable>
         if (s1 == s2)
             return ClusteringPrefix.Kind.compare(c1.kind(), c2.kind());
 
-        return s1 < s2 ? c1.kind().prefixComparisonResult : -c2.kind().prefixComparisonResult;
+        return s1 < s2 ? c1.kind().comparedToClustering : -c2.kind().comparedToClustering;
     }
 
     public int compare(Clustering c1, Clustering c2)

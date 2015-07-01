@@ -87,6 +87,16 @@ public class RangeTombstoneBoundaryMarker extends AbstractRangeTombstoneMarker
         return reversed ? endDeletion : startDeletion;
     }
 
+    public boolean openIsInclusive(boolean reversed)
+    {
+        return (bound.kind() == ClusteringPrefix.Kind.EXCL_END_INCL_START_BOUNDARY) ^ reversed;
+    }
+
+    public boolean closeIsInclusive(boolean reversed)
+    {
+        return (bound.kind() == ClusteringPrefix.Kind.INCL_END_EXCL_START_BOUNDARY) ^ reversed;
+    }
+
     public boolean isOpen(boolean reversed)
     {
         // A boundary always open one side
@@ -99,21 +109,9 @@ public class RangeTombstoneBoundaryMarker extends AbstractRangeTombstoneMarker
         return true;
     }
 
-    public static boolean isBoundary(ClusteringComparator comparator, Slice.Bound close, Slice.Bound open)
-    {
-        if (!comparator.isOnSameClustering(close, open))
-            return false;
-
-        // If both bound are exclusive, then it's not a boundary, otherwise it is one.
-        // Note that most code should never call this with 2 inclusive bound: this would mean we had
-        // 2 RTs that were overlapping and RangeTombstoneList don't create that. However, old
-        // code was generating that so supporting this case helps dealing with backward compatibility.
-        return close.isInclusive() || open.isInclusive();
-    }
-
-    // Please note that isBoundary *must* have been called (and returned true) before this is called.
     public static RangeTombstoneBoundaryMarker makeBoundary(boolean reversed, Slice.Bound close, Slice.Bound open, DeletionTime closeDeletion, DeletionTime openDeletion)
     {
+        assert RangeTombstone.Bound.Kind.compare(close.kind(), open.kind()) == 0 : "Both bound don't form a boundary";
         boolean isExclusiveClose = close.isExclusive() || (close.isInclusive() && open.isInclusive() && openDeletion.supersedes(closeDeletion));
         return isExclusiveClose
              ? exclusiveCloseInclusiveOpen(reversed, close.getRawValues(), closeDeletion, openDeletion)

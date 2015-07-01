@@ -41,6 +41,8 @@ public interface RangeTombstoneMarker extends Unfiltered
     public boolean isClose(boolean reversed);
     public DeletionTime openDeletionTime(boolean reversed);
     public DeletionTime closeDeletionTime(boolean reversed);
+    public boolean openIsInclusive(boolean reversed);
+    public boolean closeIsInclusive(boolean reversed);
 
     public interface Writer extends Slice.Bound.Writer
     {
@@ -121,33 +123,6 @@ public interface RangeTombstoneMarker extends Unfiltered
      */
     public static class Merger
     {
-        // Boundaries sorts like the bound that have their equivalent "inclusive" part and that's the main action we
-        // care about as far as merging goes. So MergedKind just group those as the same case, and tell us whether
-        // we're dealing with an open or a close (based on whether we're dealing with reversed iterators or not).
-        // Really this enum is just a convenience for merging.
-        private enum MergedKind
-        {
-            INCL_OPEN, EXCL_CLOSE, EXCL_OPEN, INCL_CLOSE;
-
-            public static MergedKind forBound(RangeTombstone.Bound bound, boolean reversed)
-            {
-                switch (bound.kind())
-                {
-                    case INCL_START_BOUND:
-                    case EXCL_END_INCL_START_BOUNDARY:
-                        return reversed ? INCL_CLOSE : INCL_OPEN;
-                    case EXCL_END_BOUND:
-                        return reversed ? EXCL_OPEN : EXCL_CLOSE;
-                    case EXCL_START_BOUND:
-                        return reversed ? EXCL_CLOSE : EXCL_OPEN;
-                    case INCL_END_EXCL_START_BOUNDARY:
-                    case INCL_END_BOUND:
-                        return reversed ? INCL_OPEN : INCL_CLOSE;
-                }
-                throw new AssertionError();
-            }
-        }
-
         private final CFMetaData metadata;
         private final UnfilteredRowIterators.MergeListener listener;
         private final DeletionTime partitionDeletion;
@@ -202,33 +177,29 @@ public interface RangeTombstoneMarker extends Unfiltered
             if (previousDeletionTimeInMerged.equals(newDeletionTimeInMerged))
                 return null;
 
-            ByteBuffer[] values = bound.getRawValues();
+            boolean isBeforeClustering = bound.kind().comparedToClustering < 0;
+            if (reversed)
+                isBeforeClustering = !isBeforeClustering;
 
+            ByteBuffer[] values = bound.getRawValues();
             RangeTombstoneMarker merged;
-            switch (MergedKind.forBound(bound, reversed))
+            if (previousDeletionTimeInMerged.isLive())
             {
-                case INCL_OPEN:
-                    merged = previousDeletionTimeInMerged.isLive()
-                           ? RangeTombstoneBoundMarker.inclusiveOpen(reversed, values, newDeletionTimeInMerged)
-                           : RangeTombstoneBoundaryMarker.exclusiveCloseInclusiveOpen(reversed, values, previousDeletionTimeInMerged, newDeletionTimeInMerged);
-                    break;
-                case EXCL_CLOSE:
-                    merged = newDeletionTimeInMerged.isLive()
-                           ? RangeTombstoneBoundMarker.exclusiveClose(reversed, values, previousDeletionTimeInMerged)
-                           : RangeTombstoneBoundaryMarker.exclusiveCloseInclusiveOpen(reversed, values, previousDeletionTimeInMerged, newDeletionTimeInMerged);
-                    break;
-                case EXCL_OPEN:
-                    merged = previousDeletionTimeInMerged.isLive()
-                           ? RangeTombstoneBoundMarker.exclusiveOpen(reversed, values, newDeletionTimeInMerged)
-                           : RangeTombstoneBoundaryMarker.inclusiveCloseExclusiveOpen(reversed, values, previousDeletionTimeInMerged, newDeletionTimeInMerged);
-                    break;
-                case INCL_CLOSE:
-                    merged = newDeletionTimeInMerged.isLive()
-                           ? RangeTombstoneBoundMarker.inclusiveClose(reversed, values, previousDeletionTimeInMerged)
-                           : RangeTombstoneBoundaryMarker.inclusiveCloseExclusiveOpen(reversed, values, previousDeletionTimeInMerged, newDeletionTimeInMerged);
-                    break;
-                default:
-                    throw new AssertionError();
+                merged = isBeforeClustering
+                       ? RangeTombstoneBoundMarker.inclusiveOpen(reversed, values, newDeletionTimeInMerged)
+                       : RangeTombstoneBoundMarker.exclusiveOpen(reversed, values, newDeletionTimeInMerged);
+            }
+            else if (newDeletionTimeInMerged.isLive())
+            {
+                merged = isBeforeClustering
+                       ? RangeTombstoneBoundMarker.exclusiveClose(reversed, values, previousDeletionTimeInMerged)
+                       : RangeTombstoneBoundMarker.inclusiveClose(reversed, values, previousDeletionTimeInMerged);
+            }
+            else
+            {
+                merged = isBeforeClustering
+                       ? RangeTombstoneBoundaryMarker.exclusiveCloseInclusiveOpen(reversed, values, previousDeletionTimeInMerged, newDeletionTimeInMerged)
+                       : RangeTombstoneBoundaryMarker.inclusiveCloseExclusiveOpen(reversed, values, previousDeletionTimeInMerged, newDeletionTimeInMerged);
             }
 
             if (listener != null)

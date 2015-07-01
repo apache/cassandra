@@ -114,6 +114,20 @@ public class RangeTombstoneBoundMarker extends AbstractRangeTombstoneMarker
         return deletion;
     }
 
+    public boolean openIsInclusive(boolean reversed)
+    {
+        if (!isOpen(reversed))
+            throw new IllegalStateException();
+        return bound.isInclusive();
+    }
+
+    public boolean closeIsInclusive(boolean reversed)
+    {
+        if (isOpen(reversed))
+            throw new IllegalStateException();
+        return bound.isInclusive();
+    }
+
     public void copyTo(RangeTombstoneMarker.Writer writer)
     {
         copyBoundTo(writer);

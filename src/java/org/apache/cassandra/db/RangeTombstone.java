@@ -71,6 +71,11 @@ public class RangeTombstone
         return deletion;
     }
 
+    public String toString(ClusteringComparator comparator)
+    {
+        return slice.toString(comparator) + "@" + deletion;
+    }
+
     @Override
     public boolean equals(Object other)
     {

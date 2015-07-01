@@ -26,12 +26,12 @@ import static org.junit.Assert.*;
 
 import org.apache.cassandra.Util;
 import org.apache.cassandra.db.*;
-import org.apache.cassandra.db.marshal.IntegerType;
+import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 public class RangeTombstoneListTest
 {
-    private static final ClusteringComparator cmp = new ClusteringComparator(IntegerType.instance);
+    private static final ClusteringComparator cmp = new ClusteringComparator(Int32Type.instance);
 
     @Test
     public void sortedAdditionTest()
@@ -263,19 +263,35 @@ public class RangeTombstoneListTest
 
         int prevStart = -1;
         int prevEnd = 0;
+        boolean prevStartInclusive = false;
+        boolean prevEndInclusive = false;
         for (int i = 0; i < size; i++)
         {
             int nextStart = prevEnd + rand.nextInt(maxItDistance);
             int nextEnd = nextStart + rand.nextInt(maxItSize);
 
-            // We can have an interval [x, x], but not 2 consecutives ones for the same x
-            if (nextEnd == nextStart && prevEnd == prevStart && prevEnd == nextStart)
-                nextEnd += 1 + rand.nextInt(maxItDistance);
+            boolean startInclusive = rand.nextBoolean();
+            boolean endInclusive = rand.nextBoolean();
 
-            l.add(rt(nextStart, nextEnd, rand.nextInt(maxMarkedAt)));
+            // Now make sure we create meaningful ranges
+
+            if (prevEnd == nextStart)
+                startInclusive = !prevEndInclusive;
+
+            if (nextStart == nextEnd)
+            {
+                if (startInclusive)
+                    endInclusive = true;
+                else
+                    nextEnd += 1;
+            }
+
+            l.add(rt(nextStart, startInclusive, nextEnd, endInclusive, rand.nextInt(maxMarkedAt)));
 
             prevStart = nextStart;
             prevEnd = nextEnd;
+            prevStartInclusive = startInclusive;
+            prevEndInclusive = endInclusive;
         }
         return l;
     }
@@ -339,7 +355,7 @@ public class RangeTombstoneListTest
             Slice curr = iter.next().deletedSlice();
 
             assertFalse("Invalid empty slice " + curr.toString(cmp), curr.isEmpty(cmp));
-            assertTrue("Slice not in order or overlapping : " + prev.toString(cmp) + curr.toString(cmp), cmp.compare(prev.end(), curr.start()) < 0);
+            assertTrue("Slice not in order or overlapping : " + prev.toString(cmp) + curr.toString(cmp), cmp.compare(prev.end(), curr.start()) <= 0);
         }
     }
 
@@ -375,6 +391,11 @@ public class RangeTombstoneListTest
     private static RangeTombstone rt(int start, int end, long tstamp)
     {
         return rt(start, end, tstamp, 0);
+    }
+
+    private static RangeTombstone rt(int start, boolean startInclusive, int end, boolean endInclusive, long tstamp)
+    {
+        return new RangeTombstone(Slice.make(Slice.Bound.create(cmp, true, startInclusive, start), Slice.Bound.create(cmp, false, endInclusive, end)), new SimpleDeletionTime(tstamp, 0));
     }
 
     private static RangeTombstone rt(int start, int end, long tstamp, int delTime)

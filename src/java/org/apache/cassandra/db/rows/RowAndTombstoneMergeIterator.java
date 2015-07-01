@@ -27,7 +27,6 @@ import org.apache.cassandra.db.*;
 
 public class RowAndTombstoneMergeIterator extends UnmodifiableIterator<Unfiltered> implements PeekingIterator<Unfiltered>
 {
-    private final ClusteringComparator clusteringComparator;
     private final Comparator<Clusterable> comparator;
     private final boolean reversed;
 
@@ -42,7 +41,6 @@ public class RowAndTombstoneMergeIterator extends UnmodifiableIterator<Unfiltere
 
     public RowAndTombstoneMergeIterator(ClusteringComparator comparator, boolean reversed)
     {
-        this.clusteringComparator = comparator;
         this.comparator = reversed ? comparator.reversed() : comparator;
         this.reversed = reversed;
     }
@@ -87,7 +85,8 @@ public class RowAndTombstoneMergeIterator extends UnmodifiableIterator<Unfiltere
             {
                 RangeTombstone rt = nextTombstone;
                 nextTombstone = tombstoneIter.hasNext() ? tombstoneIter.next() : null;
-                if (nextTombstone != null && RangeTombstoneBoundaryMarker.isBoundary(clusteringComparator, rt.deletedSlice().close(reversed), nextTombstone.deletedSlice().open(reversed)))
+                // An end and a start makes a boundary if they sort similarly
+                if (nextTombstone != null && RangeTombstone.Bound.Kind.compare(rt.deletedSlice().close(reversed).kind(), nextTombstone.deletedSlice().open(reversed).kind()) == 0)
                 {
                     next = RangeTombstoneBoundaryMarker.makeBoundary(reversed,
                                                                      rt.deletedSlice().close(reversed),
@@ -113,7 +112,7 @@ public class RowAndTombstoneMergeIterator extends UnmodifiableIterator<Unfiltere
             {
                 RangeTombstone rt = nextTombstone;
                 nextTombstone = tombstoneIter.hasNext() ? tombstoneIter.next() : null;
-                if (nextTombstone != null && RangeTombstoneBoundaryMarker.isBoundary(clusteringComparator, rt.deletedSlice().close(reversed), nextTombstone.deletedSlice().open(reversed)))
+                if (nextTombstone != null && RangeTombstone.Bound.Kind.compare(rt.deletedSlice().close(reversed).kind(), nextTombstone.deletedSlice().open(reversed).kind()) == 0)
                 {
                     next = RangeTombstoneBoundaryMarker.makeBoundary(reversed,
                                                                      rt.deletedSlice().close(reversed),
