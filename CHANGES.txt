@@ -767,6 +767,19 @@ Merged from 1.2:
  * Avoid exposing internal classes over JMX (CASSANDRA-7879)
  * Add null check for keys when freezing collection (CASSANDRA-7869)
  * Improve stress workload realism (CASSANDRA-7519)
+Merged from 2.0:
+ * Configure system.paxos with LeveledCompactionStrategy (CASSANDRA-7753)
+ * Fix ALTER clustering column type from DateType to TimestampType when
+   using DESC clustering order (CASSANRDA-7797)
+ * Throw EOFException if we run out of chunks in compressed datafile
+   (CASSANDRA-7664)
+ * Fix PRSI handling of CQL3 row markers for row cleanup (CASSANDRA-7787)
+ * Fix dropping collection when it's the last regular column (CASSANDRA-7744)
+ * Make StreamReceiveTask thread safe and gc friendly (CASSANDRA-7795)
+ * Validate empty cell names from counter updates (CASSANDRA-7798)
+Merged from 1.2:
+ * Don't allow compacted sstables to be marked as compacting (CASSANDRA-7145)
+ * Track expired tombstones (CASSANDRA-7810)
 
 
 2.1.0-rc7
@@ -788,25 +801,6 @@ Merged from 2.0:
  * Always send Paxos commit to all replicas (CASSANDRA-7479)
  * Make disruptor_thrift_server invocation pool configurable (CASSANDRA-7594)
  * Make repair no-op when RF=1 (CASSANDRA-7864)
-
-
-2.0.10
- * Don't send schema change responses and events for no-op DDL
-   statements (CASSANDRA-7600)
- * (Hadoop) fix cluster initialisation for a split fetching (CASSANDRA-7774)
- * Configure system.paxos with LeveledCompactionStrategy (CASSANDRA-7753)
- * Fix ALTER clustering column type from DateType to TimestampType when
-   using DESC clustering order (CASSANRDA-7797)
- * Throw EOFException if we run out of chunks in compressed datafile
-   (CASSANDRA-7664)
- * Fix PRSI handling of CQL3 row markers for row cleanup (CASSANDRA-7787)
- * Fix dropping collection when it's the last regular column (CASSANDRA-7744)
- * Properly reject operations on list index with conditions (CASSANDRA-7499)
- * Make StreamReceiveTask thread safe and gc friendly (CASSANDRA-7795)
- * Validate empty cell names from counter updates (CASSANDRA-7798)
-Merged from 1.2:
- * Don't allow compacted sstables to be marked as compacting (CASSANDRA-7145)
- * Track expired tombstones (CASSANDRA-7810)
 
 
 2.1.0-rc6
