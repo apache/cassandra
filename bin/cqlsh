@@ -1423,7 +1423,7 @@ class Shell(cmd.Cmd):
         what = parsed.matched[1][1].lower()
         if what == 'keyspaces':
             self.describe_keyspaces()
-        if what == 'keyspace':
+        elif what == 'keyspace':
             ksname = self.cql_unprotect_name(parsed.get_binding('ksname', ''))
             if not ksname:
                 ksname = self.current_keyspace
