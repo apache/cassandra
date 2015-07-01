@@ -395,6 +395,9 @@ public class FileUtils
 
     public static void handleCorruptSSTable(CorruptSSTableException e)
     {
+        if (!StorageService.instance.isSetupCompleted())
+            handleStartupFSError(e);
+
         JVMStabilityInspector.inspectThrowable(e);
         switch (DatabaseDescriptor.getDiskFailurePolicy())
         {
@@ -406,6 +409,9 @@ public class FileUtils
     
     public static void handleFSError(FSError e)
     {
+        if (!StorageService.instance.isSetupCompleted())
+            handleStartupFSError(e);
+
         JVMStabilityInspector.inspectThrowable(e);
         switch (DatabaseDescriptor.getDiskFailurePolicy())
         {
@@ -431,6 +437,22 @@ public class FileUtils
         }
     }
 
+    private static void handleStartupFSError(Throwable t)
+    {
+        switch (DatabaseDescriptor.getDiskFailurePolicy())
+        {
+            case stop_paranoid:
+            case stop:
+            case die:
+                logger.error("Exiting forcefully due to file system exception on startup, disk failure policy \"{}\"",
+                             DatabaseDescriptor.getDiskFailurePolicy(),
+                             t);
+                JVMStabilityInspector.killCurrentJVM(t, true);
+                break;
+            default:
+                break;
+        }
+    }
     /**
      * Get the size of a directory in bytes
      * @param directory The directory for which we need size.

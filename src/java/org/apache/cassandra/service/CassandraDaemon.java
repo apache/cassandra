@@ -134,7 +134,7 @@ public class CassandraDaemon
 
     public Server thriftServer;
     public Server nativeServer;
-
+    private boolean setupCompleted = false;
     /**
      * This is a hook for concrete daemons to initialize themselves suitably.
      *
@@ -425,6 +425,13 @@ public class CassandraDaemon
         InetAddress nativeAddr = DatabaseDescriptor.getRpcAddress();
         int nativePort = DatabaseDescriptor.getNativeTransportPort();
         nativeServer = new org.apache.cassandra.transport.Server(nativeAddr, nativePort);
+
+        setupCompleted = true;
+    }
+
+    public boolean setupCompleted()
+    {
+        return setupCompleted;
     }
 
     /**
