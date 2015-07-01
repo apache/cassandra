@@ -170,6 +170,7 @@ public class Keyspace
     public void setMetadata(KeyspaceMetadata metadata)
     {
         this.metadata = metadata;
+        createReplicationStrategy(metadata);
     }
 
     public KeyspaceMetadata getMetadata()
@@ -303,7 +304,7 @@ public class Keyspace
         return new Keyspace(metadata);
     }
 
-    public void createReplicationStrategy(KeyspaceMetadata ksm)
+    private void createReplicationStrategy(KeyspaceMetadata ksm)
     {
         replicationStrategy = AbstractReplicationStrategy.createReplicationStrategy(ksm.name,
                                                                                     ksm.params.replication.klass,

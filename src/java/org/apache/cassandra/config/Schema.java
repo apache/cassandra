@@ -450,7 +450,6 @@ public class Schema
     public void updateKeyspace(String ksName, KeyspaceParams newParams)
     {
         KeyspaceMetadata ksm = update(ksName, ks -> ks.withSwapped(newParams));
-        Keyspace.open(ksName).createReplicationStrategy(ksm);
         MigrationManager.instance.notifyUpdateKeyspace(ksm);
     }
 
