@@ -253,7 +253,8 @@ public class Memtable implements Comparable<Memtable>
     public String toString()
     {
         return String.format("Memtable-%s@%s(%s serialized bytes, %s ops, %.0f%%/%.0f%% of on/off-heap limit)",
-                             cfs.name, hashCode(), liveDataSize, currentOperations, 100 * allocator.onHeap().ownershipRatio(), 100 * allocator.offHeap().ownershipRatio());
+                             cfs.name, hashCode(), FBUtilities.prettyPrintMemory(liveDataSize.get()), currentOperations,
+                             100 * allocator.onHeap().ownershipRatio(), 100 * allocator.offHeap().ownershipRatio());
     }
 
     public UnfilteredPartitionIterator makePartitionIterator(final ColumnFilter columnFilter, final DataRange dataRange, final boolean isForThrift)
@@ -392,16 +393,20 @@ public class Memtable implements Comparable<Memtable>
 
                 if (writer.getFilePointer() > 0)
                 {
+                    logger.info(String.format("Completed flushing %s (%s) for commitlog position %s",
+                                              writer.getFilename(),
+                                              FBUtilities.prettyPrintMemory(writer.getOnDiskFilePointer()),
+                                              context));
+
                     // temp sstables should contain non-repaired data.
                     ssTable = writer.finish(true);
-                    logger.info(String.format("Completed flushing %s (%d bytes) for commitlog position %s",
-                                              ssTable.getFilename(), new File(ssTable.getFilename()).length(), context));
                 }
                 else
                 {
+                    logger.info("Completed flushing %s; nothing needed to be retained.  Commitlog position was {}",
+                                writer.getFilename(), context);
+                    writer.abort();
                     ssTable = null;
-                    logger.info("Completed flushing; nothing needed to be retained.  Commitlog position was {}",
-                                context);
                 }
 
                 if (heavilyContendedRowCount > 0)

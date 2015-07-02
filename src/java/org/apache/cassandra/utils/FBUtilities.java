@@ -26,6 +26,7 @@ import java.net.*;
 import java.nio.ByteBuffer;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.text.NumberFormat;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.zip.Adler32;
@@ -584,6 +585,15 @@ public class FBUtilities
         {
             throw new RuntimeException(e);
         }
+    }
+
+    public static String prettyPrintMemory(long size)
+    {
+        if (size >= 1 << 30)
+            return String.format("%.3fGiB", size / (double) (1 << 30));
+        if (size >= 1 << 20)
+            return String.format("%.3fMiB", size / (double) (1 << 20));
+        return String.format("%.3fKiB", size / (double) (1 << 10));
     }
 
     /**

@@ -812,7 +812,7 @@ public class AtomicBTreePartition implements Partition
 
         protected void finish()
         {
-            allocator.onHeap().allocate(heapSize, writeOp);
+            allocator.onHeap().adjust(heapSize, writeOp);
             reclaimer.commit();
         }
     }

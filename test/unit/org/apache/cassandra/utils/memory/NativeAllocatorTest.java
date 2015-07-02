@@ -55,7 +55,7 @@ public class NativeAllocatorTest
                     }
                     if (isClean.getCount() > 0)
                     {
-                        allocatorRef.get().offHeap().release(80);
+                        allocatorRef.get().offHeap().released(80);
                         isClean.countDown();
                     }
                 }
@@ -78,6 +78,22 @@ public class NativeAllocatorTest
                     // allocate normal, check accounted and not cleaned
                     allocator.allocate(10, group);
                     Assert.assertEquals(10, allocator.offHeap().owns());
+                    // confirm adjustment works
+                    allocator.offHeap().adjust(-10, group);
+                    Assert.assertEquals(0, allocator.offHeap().owns());
+                    allocator.offHeap().adjust(10, group);
+                    Assert.assertEquals(10, allocator.offHeap().owns());
+                    // confirm we cannot allocate negative
+                    boolean success = false;
+                    try
+                    {
+                        allocator.offHeap().allocate(-10, group);
+                    }
+                    catch (AssertionError e)
+                    {
+                        success = true;
+                    }
+                    Assert.assertTrue(success);
                     Uninterruptibles.sleepUninterruptibly(10L, TimeUnit.MILLISECONDS);
                     Assert.assertEquals(1, isClean.getCount());
 

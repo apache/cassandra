@@ -165,13 +165,24 @@ public abstract class MemtableAllocator
         // currently no corroboration/enforcement of this is performed.
         void releaseAll()
         {
-            parent.adjustAcquired(-ownsUpdater.getAndSet(this, 0), false);
-            parent.adjustReclaiming(-reclaimingUpdater.getAndSet(this, 0));
+            parent.released(ownsUpdater.getAndSet(this, 0));
+            parent.reclaimed(reclaimingUpdater.getAndSet(this, 0));
+        }
+
+        // like allocate, but permits allocations to be negative
+        public void adjust(long size, OpOrder.Group opGroup)
+        {
+            if (size <= 0)
+                released(-size);
+            else
+                allocate(size, opGroup);
         }
 
         // allocate memory in the tracker, and mark ourselves as owning it
         public void allocate(long size, OpOrder.Group opGroup)
         {
+            assert size >= 0;
+
             while (true)
             {
                 if (parent.tryAllocate(size))
@@ -195,23 +206,23 @@ public abstract class MemtableAllocator
             }
         }
 
-        // retroactively mark an amount allocated amd acquired in the tracker, and owned by us
-        void allocated(long size)
+        // retroactively mark an amount allocated and acquired in the tracker, and owned by us
+        private void allocated(long size)
         {
-            parent.adjustAcquired(size, true);
+            parent.allocated(size);
             ownsUpdater.addAndGet(this, size);
         }
 
         // retroactively mark an amount acquired in the tracker, and owned by us
-        void acquired(long size)
+        private void acquired(long size)
         {
-            parent.adjustAcquired(size, false);
+            parent.acquired(size);
             ownsUpdater.addAndGet(this, size);
         }
 
-        void release(long size)
+        void released(long size)
         {
-            parent.adjustAcquired(-size, false);
+            parent.released(size);
             ownsUpdater.addAndGet(this, -size);
         }
 
@@ -222,11 +233,11 @@ public abstract class MemtableAllocator
             {
                 long cur = owns;
                 long prev = reclaiming;
-                if (reclaimingUpdater.compareAndSet(this, prev, cur))
-                {
-                    parent.adjustReclaiming(cur - prev);
-                    return;
-                }
+                if (!reclaimingUpdater.compareAndSet(this, prev, cur))
+                    continue;
+
+                parent.reclaiming(cur - prev);
+                return;
             }
         }
 
