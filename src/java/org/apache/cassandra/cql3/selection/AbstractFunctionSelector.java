@@ -19,11 +19,13 @@ package org.apache.cassandra.cql3.selection;
 
 import java.nio.ByteBuffer;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 
 import com.google.common.collect.Iterables;
 import org.apache.commons.lang3.text.StrBuilder;
 
+import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.cql3.ColumnSpecification;
 import org.apache.cassandra.cql3.functions.Function;
 import org.apache.cassandra.db.marshal.AbstractType;
@@ -71,14 +73,17 @@ abstract class AbstractFunctionSelector<T extends Function> extends Selector
 
             protected void addColumnMapping(SelectionColumnMapping mapping, ColumnSpecification resultsColumn)
             {
+                SelectionColumnMapping tmpMapping = SelectionColumnMapping.newMapping();
                 for (Factory factory : factories)
-                   factory.addColumnMapping(mapping, resultsColumn);
+                   factory.addColumnMapping(tmpMapping, resultsColumn);
 
-                if (mapping.getMappings().get(resultsColumn).isEmpty())
+                if (tmpMapping.getMappings().get(resultsColumn).isEmpty())
                     // add a null mapping for cases where there are no
                     // further selectors, such as no-arg functions and count
-                    mapping.addMapping(resultsColumn, null);
-
+                    mapping.addMapping(resultsColumn, (ColumnDefinition)null);
+                else
+                    // collate the mapped columns from the child factories & add those
+                    mapping.addMapping(resultsColumn, tmpMapping.getMappings().values());
             }
 
             public Iterable<Function> getFunctions()

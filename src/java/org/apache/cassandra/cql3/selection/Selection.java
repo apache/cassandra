@@ -194,8 +194,9 @@ public abstract class Selection
                 SelectorFactories.createFactoriesAndCollectColumnDefinitions(RawSelector.toSelectables(rawSelectors, cfm), cfm, defs);
         SelectionColumnMapping mapping = collectColumnMappings(cfm, rawSelectors, factories);
 
-        return processesSelection(rawSelectors) ? new SelectionWithProcessing(cfm, defs, mapping, factories)
-                                                : new SimpleSelection(cfm, defs, mapping, false);
+        return (processesSelection(rawSelectors) || rawSelectors.size() != defs.size())
+               ? new SelectionWithProcessing(cfm, defs, mapping, factories)
+               : new SimpleSelection(cfm, defs, mapping, false);
     }
 
     private static SelectionColumnMapping collectColumnMappings(CFMetaData cfm,

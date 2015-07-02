@@ -1,7 +1,7 @@
 package org.apache.cassandra.cql3.selection;
 
-import java.util.LinkedHashSet;
-import java.util.List;
+import java.util.*;
+import java.util.stream.Collectors;
 
 import com.google.common.base.Function;
 import com.google.common.base.Joiner;
@@ -19,13 +19,12 @@ import org.apache.cassandra.cql3.ColumnSpecification;
  */
 public class SelectionColumnMapping implements SelectionColumns
 {
-    // Uses a LinkedHashSet as both order and uniqueness need to be preserved
-    private final LinkedHashSet<ColumnSpecification> columnSpecifications;
+    private final ArrayList<ColumnSpecification> columnSpecifications;
     private final HashMultimap<ColumnSpecification, ColumnDefinition> columnMappings;
 
     private SelectionColumnMapping()
     {
-        this.columnSpecifications = new LinkedHashSet<>();
+        this.columnSpecifications = new ArrayList<>();
         this.columnMappings = HashMultimap.create();
     }
 
@@ -34,7 +33,7 @@ public class SelectionColumnMapping implements SelectionColumns
         return new SelectionColumnMapping();
     }
 
-    protected static SelectionColumnMapping simpleMapping(List<ColumnDefinition> columnDefinitions)
+    protected static SelectionColumnMapping simpleMapping(Iterable<ColumnDefinition> columnDefinitions)
     {
         SelectionColumnMapping mapping = new SelectionColumnMapping();
         for (ColumnDefinition def: columnDefinitions)
@@ -45,10 +44,17 @@ public class SelectionColumnMapping implements SelectionColumns
     protected SelectionColumnMapping addMapping(ColumnSpecification colSpec, ColumnDefinition column)
     {
         columnSpecifications.add(colSpec);
-        // some AbstractFunctionSelector impls do not map directly to an underlying column
-        // so don't record a mapping in that case
-        if (null != column)
+        // functions without arguments do not map to any column, so don't
+        // record any mapping in that case
+        if (column != null)
             columnMappings.put(colSpec, column);
+        return this;
+    }
+
+    protected SelectionColumnMapping addMapping(ColumnSpecification colSpec, Iterable<ColumnDefinition> columns)
+    {
+        columnSpecifications.add(colSpec);
+        columnMappings.putAll(colSpec, columns);
         return this;
     }
 
@@ -72,7 +78,9 @@ public class SelectionColumnMapping implements SelectionColumns
         if (!(obj instanceof SelectionColumnMapping))
             return false;
 
-        return Objects.equal(this.columnMappings, ((SelectionColumnMapping)obj).columnMappings);
+        SelectionColumns other = (SelectionColumns)obj;
+        return Objects.equal(columnMappings, other.getMappings())
+            && Objects.equal(columnSpecifications, other.getColumnSpecifications());
     }
 
     public int hashCode()
@@ -82,37 +90,20 @@ public class SelectionColumnMapping implements SelectionColumns
 
     public String toString()
     {
-        final Function<ColumnDefinition, String> getDefName = new Function<ColumnDefinition, String>()
-        {
-            public String apply(ColumnDefinition def)
-            {
-                return def.name.toString();
-            }
-        };
-        final Function<ColumnSpecification, String> colSpecToMappingString = new Function<ColumnSpecification, String>()
-        {
-            public String apply(ColumnSpecification colSpec)
-            {
-                StringBuilder builder = new StringBuilder();
-                builder.append(colSpec.name.toString());
-                if (columnMappings.containsKey(colSpec))
-                {
-                    builder.append(":[");
-                    builder.append(Joiner.on(',').join(Iterables.transform(columnMappings.get(colSpec), getDefName)));
-                    builder.append("]");
-                }
-                else
-                {
-                    builder.append(":[]");
-                }
-                return builder.toString();
-            }
-        };
-
-        StringBuilder builder = new StringBuilder();
-        builder.append("{ ");
-        builder.append(Joiner.on(", ").join(Iterables.transform(columnSpecifications, colSpecToMappingString)));
-        builder.append(" }");
-        return builder.toString();
+        return columnMappings.asMap()
+                             .entrySet()
+                             .stream()
+                             .map(entry ->
+                                  entry.getValue()
+                                       .stream()
+                                       .map(colDef -> colDef.name.toString())
+                                       .collect(Collectors.joining(", ", entry.getKey().name.toString() + ":[", "]")))
+                             .collect(Collectors.joining(", ",
+                                                         columnSpecifications.stream()
+                                                                             .map(colSpec -> colSpec.name.toString())
+                                                                             .collect(Collectors.joining(", ",
+                                                                                                         "{ Columns:[",
+                                                                                                         "], Mappings:{")),
+                                                         "} }"));
     }
 }
