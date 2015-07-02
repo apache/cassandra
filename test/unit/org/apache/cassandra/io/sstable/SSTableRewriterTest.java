@@ -28,6 +28,7 @@ import java.util.concurrent.TimeUnit;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Sets;
 import org.junit.After;
+import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import com.google.common.util.concurrent.Uninterruptibles;
 import org.junit.Test;
@@ -35,6 +36,8 @@ import org.junit.Test;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.UpdateBuilder;
+import org.apache.cassandra.config.Config;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.Keyspace;
@@ -70,13 +73,32 @@ public class SSTableRewriterTest extends SchemaLoader
     private static final String KEYSPACE = "SSTableRewriterTest";
     private static final String CF = "Standard1";
 
+    private static Config.DiskAccessMode standardMode;
+    private static Config.DiskAccessMode indexMode;
+
     @BeforeClass
     public static void defineSchema() throws ConfigurationException
     {
+        if (FBUtilities.isWindows())
+        {
+            standardMode = DatabaseDescriptor.getDiskAccessMode();
+            indexMode = DatabaseDescriptor.getIndexAccessMode();
+
+            DatabaseDescriptor.setDiskAccessMode(Config.DiskAccessMode.standard);
+            DatabaseDescriptor.setIndexAccessMode(Config.DiskAccessMode.standard);
+        }
+
         SchemaLoader.prepareServer();
         SchemaLoader.createKeyspace(KEYSPACE,
                                     KeyspaceParams.simple(1),
                                     SchemaLoader.standardCFMD(KEYSPACE, CF));
+    }
+
+    @AfterClass
+    public static void revertDiskAccess()
+    {
+        DatabaseDescriptor.setDiskAccessMode(standardMode);
+        DatabaseDescriptor.setIndexAccessMode(indexMode);
     }
 
     @After

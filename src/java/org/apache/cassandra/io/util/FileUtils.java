@@ -412,6 +412,23 @@ public class FileUtils
         deleteWithConfirm(dir);
     }
 
+    /**
+     * Schedules deletion of all file and subdirectories under "dir" on JVM shutdown.
+     * @param dir Directory to be deleted
+     */
+    public static void deleteRecursiveOnExit(File dir)
+    {
+        if (dir.isDirectory())
+        {
+            String[] children = dir.list();
+            for (String child : children)
+                deleteRecursiveOnExit(new File(dir, child));
+        }
+
+        logger.debug("Scheduling deferred deletion of file: " + dir);
+        dir.deleteOnExit();
+    }
+
     public static void skipBytesFully(DataInput in, int bytes) throws IOException
     {
         int n = 0;
@@ -499,5 +516,20 @@ public class FileUtils
             in.readFully(buffer, 0, left);
             out.write(buffer, 0, left);
         }
+    }
+
+    public static boolean isSubDirectory(File parent, File child) throws IOException
+    {
+        parent = parent.getCanonicalFile();
+        child = child.getCanonicalFile();
+
+        File toCheck = child;
+        while (toCheck != null)
+        {
+            if (parent.equals(toCheck))
+                return true;
+            toCheck = toCheck.getParentFile();
+        }
+        return false;
     }
 }

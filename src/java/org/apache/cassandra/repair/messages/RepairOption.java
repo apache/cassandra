@@ -22,10 +22,14 @@ import java.util.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.config.Config;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.repair.RepairParallelism;
+import org.apache.cassandra.tools.nodetool.Repair;
+import org.apache.cassandra.utils.FBUtilities;
 
 /**
  * Repair options.
@@ -221,7 +225,16 @@ public class RepairOption
 
     public RepairOption(RepairParallelism parallelism, boolean primaryRange, boolean incremental, boolean trace, int jobThreads, Collection<Range<Token>> ranges)
     {
-        this.parallelism = parallelism;
+        if (FBUtilities.isWindows() &&
+            (DatabaseDescriptor.getDiskAccessMode() != Config.DiskAccessMode.standard || DatabaseDescriptor.getIndexAccessMode() != Config.DiskAccessMode.standard) &&
+            parallelism == RepairParallelism.SEQUENTIAL)
+        {
+            logger.warn("Sequential repair disabled when memory-mapped I/O is configured on Windows. Reverting to parallel.");
+            this.parallelism = RepairParallelism.PARALLEL;
+        }
+        else
+            this.parallelism = parallelism;
+
         this.primaryRange = primaryRange;
         this.incremental = incremental;
         this.trace = trace;
