@@ -52,13 +52,6 @@ public class ColumnFilter
 {
     public static final Serializer serializer = new Serializer();
 
-    private static final Comparator<ColumnIdentifier> keyComparator = new Comparator<ColumnIdentifier>()
-    {
-        public int compare(ColumnIdentifier id1, ColumnIdentifier id2)
-        {
-            return ByteBufferUtil.compareUnsigned(id1.bytes, id2.bytes);
-        }
-    };
     private static final Comparator<ColumnSubselection> valueComparator = new Comparator<ColumnSubselection>()
     {
         public int compare(ColumnSubselection s1, ColumnSubselection s2)
@@ -309,7 +302,7 @@ public class ColumnFilter
             SortedSetMultimap<ColumnIdentifier, ColumnSubselection> s = null;
             if (subSelections != null)
             {
-                s = TreeMultimap.create(keyComparator, valueComparator);
+                s = TreeMultimap.create(Comparator.<ColumnIdentifier>naturalOrder(), valueComparator);
                 for (ColumnSubselection subSelection : subSelections)
                     s.put(subSelection.column().name, subSelection);
             }
@@ -401,7 +394,7 @@ public class ColumnFilter
             SortedSetMultimap<ColumnIdentifier, ColumnSubselection> subSelections = null;
             if (hasSubSelections)
             {
-                subSelections = TreeMultimap.create(keyComparator, valueComparator);
+                subSelections = TreeMultimap.create(Comparator.<ColumnIdentifier>naturalOrder(), valueComparator);
                 int size = in.readUnsignedShort();
                 for (int i = 0; i < size; i++)
                 {

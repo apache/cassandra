@@ -18,6 +18,7 @@
 package org.apache.cassandra.cql3;
 
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.util.List;
 import java.util.Locale;
 import java.nio.ByteBuffer;
@@ -43,20 +44,44 @@ import org.apache.cassandra.utils.memory.AbstractAllocator;
  * Represents an identifer for a CQL column definition.
  * TODO : should support light-weight mode without text representation for when not interned
  */
-public class ColumnIdentifier extends org.apache.cassandra.cql3.selection.Selectable implements IMeasurableMemory
+public class ColumnIdentifier extends org.apache.cassandra.cql3.selection.Selectable implements IMeasurableMemory, Comparable<ColumnIdentifier>
 {
     public final ByteBuffer bytes;
     private final String text;
+    /**
+     * since these objects are compared frequently, we stash an efficiently compared prefix of the bytes, in the expectation
+     * that the majority of comparisons can be answered by this value only
+     */
+    private final long prefixComparison;
     private final boolean interned;
 
     private static final long EMPTY_SIZE = ObjectSizes.measure(new ColumnIdentifier(ByteBufferUtil.EMPTY_BYTE_BUFFER, "", false));
 
     private static final ConcurrentMap<ByteBuffer, ColumnIdentifier> internedInstances = new MapMaker().weakValues().makeMap();
 
+    private static long prefixComparison(ByteBuffer bytes)
+    {
+        long prefix = 0;
+        ByteBuffer read = bytes.duplicate();
+        int i = 0;
+        while (read.hasRemaining() && i < 8)
+        {
+            prefix <<= 8;
+            prefix |= read.get() & 0xFF;
+            i++;
+        }
+        prefix <<= (8 - i) * 8;
+        // by flipping the top bit (==Integer.MIN_VALUE), we ensure that signed comparison gives the same result
+        // as an unsigned without the bit flipped
+        prefix ^= Long.MIN_VALUE;
+        return prefix;
+    }
+
     public ColumnIdentifier(String rawText, boolean keepCase)
     {
         this.text = keepCase ? rawText : rawText.toLowerCase(Locale.US);
         this.bytes = ByteBufferUtil.bytes(this.text);
+        this.prefixComparison = prefixComparison(bytes);
         this.interned = false;
     }
 
@@ -70,6 +95,7 @@ public class ColumnIdentifier extends org.apache.cassandra.cql3.selection.Select
         this.bytes = bytes;
         this.text = text;
         this.interned = interned;
+        this.prefixComparison = prefixComparison(bytes);
     }
 
     public static ColumnIdentifier getInterned(ByteBuffer bytes, AbstractType<?> type)
@@ -150,6 +176,16 @@ public class ColumnIdentifier extends org.apache.cassandra.cql3.selection.Select
             throw new InvalidRequestException(String.format("Undefined name %s in selection clause", this));
 
         return SimpleSelector.newFactory(def, addAndGetIndex(def, defs));
+    }
+
+    public int compareTo(ColumnIdentifier that)
+    {
+        int c = Long.compare(this.prefixComparison, that.prefixComparison);
+        if (c != 0)
+            return c;
+        if (this == that)
+            return 0;
+        return ByteBufferUtil.compareUnsigned(this.bytes, that.bytes);
     }
 
     /**

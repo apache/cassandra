@@ -415,7 +415,7 @@ public class ColumnDefinition extends ColumnSpecification implements Comparable<
         if (comparisonOrder != other.comparisonOrder)
             return comparisonOrder - other.comparisonOrder;
 
-        return ByteBufferUtil.compareUnsigned(name.bytes, other.name.bytes);
+        return this.name.compareTo(other.name);
     }
 
     public Comparator<CellPath> cellPathComparator()

@@ -410,7 +410,7 @@ public class Columns implements Iterable<ColumnDefinition>
                 if (regular >= complexIdx)
                     return columns[complex++];
 
-                return ByteBufferUtil.compareUnsigned(columns[regular].name.bytes, columns[complex].name.bytes) < 0
+                return columns[regular].name.compareTo(columns[complex].name) < 0
                      ? columns[regular++]
                      : columns[complex++];
             }
