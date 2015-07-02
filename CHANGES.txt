@@ -47,6 +47,7 @@ Merged from 2.1:
  * Fix memory leak in Ref due to ConcurrentLinkedQueue.remove() behaviour (CASSANDRA-9549)
  * Make rebuild only run one at a time (CASSANDRA-9119)
 Merged from 2.0:
+ * Add listen_address to system.local (CASSANDRA-9603)
  * Bug fixes to resultset metadata construction (CASSANDRA-9636)
  * Fix setting 'durable_writes' in ALTER KEYSPACE (CASSANDRA-9560)
  * Avoids ballot clash in Paxos (CASSANDRA-9649)

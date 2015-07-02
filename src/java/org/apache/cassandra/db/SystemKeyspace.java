@@ -164,6 +164,7 @@ public final class SystemKeyspace
                 + "data_center text,"
                 + "gossip_generation int,"
                 + "host_id uuid,"
+                + "listen_address inet,"
                 + "native_protocol_version text,"
                 + "partitioner text,"
                 + "rack text,"
@@ -337,8 +338,9 @@ public final class SystemKeyspace
                      "rack," +
                      "partitioner," +
                      "rpc_address," +
-                     "broadcast_address" +
-                     ") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+                     "broadcast_address," +
+                     "listen_address" +
+                     ") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
         IEndpointSnitch snitch = DatabaseDescriptor.getEndpointSnitch();
         executeOnceInternal(String.format(req, LOCAL),
                             LOCAL,
@@ -351,7 +353,8 @@ public final class SystemKeyspace
                             snitch.getRack(FBUtilities.getBroadcastAddress()),
                             DatabaseDescriptor.getPartitioner().getClass().getName(),
                             DatabaseDescriptor.getRpcAddress(),
-                            FBUtilities.getBroadcastAddress());
+                            FBUtilities.getBroadcastAddress(),
+                            FBUtilities.getLocalAddress());
     }
 
     /**
