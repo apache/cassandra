@@ -321,18 +321,21 @@ public class StreamSession implements IEndpointStateChangeSubscriber
                 {
                     public List<SSTableReader> apply(View view)
                     {
-                        List<SSTableReader> filteredSSTables = ColumnFamilyStore.CANONICAL_SSTABLES.apply(view);
+                        Map<SSTableReader, SSTableReader> permittedInstances = new HashMap<>();
+                        for (SSTableReader reader : ColumnFamilyStore.CANONICAL_SSTABLES.apply(view))
+                            permittedInstances.put(reader, reader);
+
                         Set<SSTableReader> sstables = Sets.newHashSet();
-                        if (filteredSSTables != null)
+                        for (AbstractBounds<PartitionPosition> rowBounds : rowBoundsList)
                         {
-                            for (AbstractBounds<PartitionPosition> rowBounds : rowBoundsList)
+                            // sstableInBounds may contain early opened sstables
+                            for (SSTableReader sstable : view.sstablesInBounds(rowBounds))
                             {
-                                // sstableInBounds may contain early opened sstables
-                                for (SSTableReader sstable : view.sstablesInBounds(rowBounds))
-                                {
-                                    if (filteredSSTables.contains(sstable) && (!isIncremental || !sstable.isRepaired()))
-                                        sstables.add(sstable);
-                                }
+                                if (isIncremental && sstable.isRepaired())
+                                    continue;
+                                sstable = permittedInstances.get(sstable);
+                                if (sstable != null)
+                                    sstables.add(sstable);
                             }
                         }
 
