@@ -6,18 +6,23 @@ import com.google.common.base.Function;
 import com.google.common.base.Joiner;
 import com.google.common.collect.*;
 
+import org.apache.cassandra.cql3.ColumnIdentifier;
+
+import org.apache.cassandra.cql3.ResultSet;
+import org.apache.cassandra.db.marshal.LongType;
+
 import org.apache.cassandra.cql3.CFDefinition;
 import org.apache.cassandra.cql3.ColumnSpecification;
 
 public class SelectionColumnMapping implements SelectionColumns
 {
-
-    // Uses LinkedHashMultimap because ordering of keys must be maintained
-    private final LinkedHashMultimap<ColumnSpecification, CFDefinition.Name> columnMappings;
+    private final ArrayList<ColumnSpecification> columnSpecifications;
+    private final HashMultimap<ColumnSpecification, CFDefinition.Name> columnMappings;
 
     private SelectionColumnMapping()
     {
-        this.columnMappings = LinkedHashMultimap.create();
+        this.columnSpecifications = new ArrayList<>();
+        this.columnMappings = HashMultimap.create();
     }
 
     protected static SelectionColumnMapping newMapping()
@@ -25,7 +30,18 @@ public class SelectionColumnMapping implements SelectionColumns
         return new SelectionColumnMapping();
     }
 
-    protected static SelectionColumnMapping simpleMapping(List<CFDefinition.Name> columnDefinitions)
+    protected static SelectionColumnMapping countMapping(CFDefinition cfDef, ColumnIdentifier countAlias)
+    {
+        ColumnSpecification spec = new ColumnSpecification(cfDef.cfm.ksName,
+                                                           cfDef.cfm.cfName,
+                                                           countAlias == null ? ResultSet.COUNT_COLUMN
+                                                                              : countAlias,
+                                                           LongType.instance);
+
+        return new SelectionColumnMapping().addMapping(spec, Collections.<CFDefinition.Name>emptyList());
+    }
+
+    protected static SelectionColumnMapping simpleMapping(Iterable<CFDefinition.Name> columnDefinitions)
     {
         SelectionColumnMapping mapping = new SelectionColumnMapping();
         for (CFDefinition.Name def: columnDefinitions)
@@ -35,12 +51,17 @@ public class SelectionColumnMapping implements SelectionColumns
 
     protected SelectionColumnMapping addMapping(ColumnSpecification colSpec, CFDefinition.Name column)
     {
-        columnMappings.put(colSpec, column);
+        columnSpecifications.add(colSpec);
+        // functions without arguments do not map to any column, so don't
+        // record any mapping in that case
+        if (column != null)
+            columnMappings.put(colSpec, column);
         return this;
     }
 
     protected SelectionColumnMapping addMapping(ColumnSpecification colSpec, Iterable<CFDefinition.Name> columns)
     {
+        columnSpecifications.add(colSpec);
         columnMappings.putAll(colSpec, columns);
         return this;
     }
@@ -49,7 +70,7 @@ public class SelectionColumnMapping implements SelectionColumns
     {
         // return a mutable copy as we may add extra columns
         // for ordering (CASSANDRA-4911 & CASSANDRA-8286)
-        return new ArrayList(columnMappings.keySet());
+        return Lists.newArrayList(columnSpecifications);
     }
 
     public Multimap<ColumnSpecification, CFDefinition.Name> getMappings()
@@ -65,7 +86,9 @@ public class SelectionColumnMapping implements SelectionColumns
         if (!(obj instanceof SelectionColumns))
             return false;
 
-        return Objects.equals(columnMappings, ((SelectionColumns) obj).getMappings());
+        SelectionColumns other = (SelectionColumns)obj;
+        return Objects.equals(columnMappings, other.getMappings())
+            && Objects.equals(columnSpecifications, other.getColumnSpecifications());
     }
 
     public int hashCode()
@@ -82,6 +105,7 @@ public class SelectionColumnMapping implements SelectionColumns
                 return name.toString();
             }
         };
+
         Function<Map.Entry<ColumnSpecification, Collection<CFDefinition.Name>>, String> mappingEntryToString =
         new Function<Map.Entry<ColumnSpecification, Collection<CFDefinition.Name>>, String>(){
             public String apply(Map.Entry<ColumnSpecification, Collection<CFDefinition.Name>> entry)
@@ -95,12 +119,23 @@ public class SelectionColumnMapping implements SelectionColumns
             }
         };
 
+        Function<ColumnSpecification, String> colSpecToString = new Function<ColumnSpecification, String>()
+        {
+            public String apply(ColumnSpecification columnSpecification)
+            {
+                return columnSpecification.name.toString();
+            }
+        };
+
         StringBuilder builder = new StringBuilder();
-        builder.append("{ ");
+        builder.append("{ Columns:[");
+        builder.append(Joiner.on(",")
+                             .join(Iterables.transform(columnSpecifications, colSpecToString )));
+        builder.append("], Mappings:[");
         builder.append(Joiner.on(", ")
                              .join(Iterables.transform(columnMappings.asMap().entrySet(),
                                                        mappingEntryToString)));
-        builder.append(" }");
+        builder.append("] }");
         return builder.toString();
     }
 }

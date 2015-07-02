@@ -20,7 +20,9 @@ package org.apache.cassandra.cql3.statements;
 import java.nio.ByteBuffer;
 import java.util.*;
 
-import com.google.common.collect.*;
+import com.google.common.collect.Lists;
+
+import org.apache.cassandra.cql3.ColumnSpecification;
 
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.cql3.functions.Function;
@@ -61,17 +63,17 @@ public abstract class Selection
         return new ResultSet.Metadata(columnMapping.getColumnSpecifications());
     }
 
-    public static Selection wildcard(CFDefinition cfDef)
+    public static Selection wildcard(CFDefinition cfDef, boolean isCount, ColumnIdentifier countAlias)
     {
-        List<CFDefinition.Name> all = new ArrayList<CFDefinition.Name>();
-        for (CFDefinition.Name name : cfDef)
-            all.add(name);
-        return new SimpleSelection(all, true);
+        SelectionColumnMapping columnMapping = isCount ? SelectionColumnMapping.countMapping(cfDef, countAlias)
+                                                       : SelectionColumnMapping.simpleMapping(cfDef);
+
+        return new SimpleSelection(Lists.newArrayList(cfDef), columnMapping, true, isCount);
     }
 
     public static Selection forColumns(List<CFDefinition.Name> columns)
     {
-        return new SimpleSelection(columns, false);
+        return new SimpleSelection(columns);
     }
 
     private static boolean selectionsNeedProcessing(List<RawSelector> rawSelectors)
@@ -217,7 +219,7 @@ public abstract class Selection
                                                                                           rawSelector.alias),
                                          name);
             }
-            return new SimpleSelection(names, columnMapping, false);
+            return new SimpleSelection(names, columnMapping);
         }
     }
 
@@ -258,6 +260,11 @@ public abstract class Selection
         return new ResultSetBuilder(now);
     }
 
+    protected List<ColumnSpecification> getColumnSpecifications()
+    {
+        return columnMapping.getColumnSpecifications();
+    }
+
     private static ByteBuffer value(Column c)
     {
         return (c instanceof CounterColumn)
@@ -284,7 +291,7 @@ public abstract class Selection
 
         private ResultSetBuilder(long now)
         {
-            this.resultSet = new ResultSet(columnMapping.getColumnSpecifications());
+            this.resultSet = new ResultSet(getColumnSpecifications());
             this.timestamps = collectTimestamps ? new long[columns.size()] : null;
             this.ttls = collectTTLs ? new int[columns.size()] : null;
             this.now = now;
@@ -338,13 +345,19 @@ public abstract class Selection
     private static class SimpleSelection extends Selection
     {
         private final boolean isWildcard;
+        private final boolean isCount;
 
-        public SimpleSelection(List<CFDefinition.Name> columns, boolean isWildcard)
+        public SimpleSelection(List<CFDefinition.Name> columns)
         {
-            this(columns, SelectionColumnMapping.simpleMapping(columns), isWildcard);
+            this(columns, SelectionColumnMapping.simpleMapping(columns), false, false);
         }
 
-        public SimpleSelection(List<CFDefinition.Name> columns, SelectionColumnMapping columnMapping, boolean isWildcard)
+        public SimpleSelection(List<CFDefinition.Name> columns, SelectionColumnMapping columnMapping)
+        {
+            this(columns, columnMapping, false, false);
+        }
+
+        public SimpleSelection(List<CFDefinition.Name> columns, SelectionColumnMapping columnMapping, boolean wildcard, boolean isCount)
         {
             /*
              * In theory, even a simple selection could have multiple time the same column, so we
@@ -352,12 +365,24 @@ public abstract class Selection
              * get much duplicate in practice, it's more efficient not to bother.
              */
             super(columns, columnMapping, false, false);
-            this.isWildcard = isWildcard;
+            this.isWildcard = wildcard;
+            this.isCount = isCount;
         }
 
         protected List<ByteBuffer> handleRow(ResultSetBuilder rs)
         {
             return rs.current;
+        }
+
+        /**
+         * This method is overridden to make sure that the ResultSet is build properly in the case of a count
+         * query.
+          */
+        @Override
+        protected List<ColumnSpecification> getColumnSpecifications()
+        {
+            return isCount ? new ArrayList<ColumnSpecification>(this.getColumns())
+                           : super.getColumnSpecifications();
         }
 
         @Override

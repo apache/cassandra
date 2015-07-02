@@ -11,8 +11,10 @@ import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.marshal.*;
+import org.apache.cassandra.exceptions.RequestExecutionException;
 import org.apache.cassandra.exceptions.RequestValidationException;
 import org.apache.cassandra.service.ClientState;
+import org.apache.cassandra.service.QueryState;
 
 import static org.apache.cassandra.cql3.QueryProcessor.process;
 import static org.junit.Assert.assertEquals;
@@ -20,6 +22,7 @@ import static org.junit.Assert.assertTrue;
 
 public class SelectionColumnMappingTest
 {
+    private static final CFDefinition.Name NULL_DEF = null;
     static String KEYSPACE = "selection_column_mapping_test_ks";
     String tableName = "test_table";
 
@@ -43,6 +46,8 @@ public class SelectionColumnMappingTest
                     " k int PRIMARY KEY," +
                     " v1 int," +
                     " v2 ascii)");
+        insert("INSERT INTO %s (k, v1 ,v2) VALUES (1, 1, 'foo')");
+
         testSimpleTypes();
         testWildcard();
         testSimpleTypesWithAliases();
@@ -50,8 +55,16 @@ public class SelectionColumnMappingTest
         testWritetimeAndTTLWithAliases();
         testFunction();
         testFunctionWithAlias();
+        testNoArgumentFunction();
+        testNestedFunctions();
+        testNestedFunctionsWithArguments();
+        testCount();
+        testDuplicateFunctionsWithoutAliases();
+        testDuplicateFunctionsWithAliases();
+        testSelectDistinct();
         testMultipleAliasesOnSameColumn();
         testMixedColumnTypes();
+        testMultipleUnaliasedSelectionOfSameColumn();
     }
 
     @Test
@@ -64,7 +77,10 @@ public class SelectionColumnMappingTest
         SelectionColumns expected = SelectionColumnMapping.newMapping()
                                                           .addMapping(tokenSpec, columnDefinitions("a", "b"));
 
-        assertEquals(expected, extractColumnMappingFromSelect("SELECT token(a,b) FROM %s"));
+        // we don't use verify like with the other tests because this query will produce no results
+        SelectStatement statement = getSelect("SELECT token(a,b) FROM %s");
+        verifyColumnMapping(expected, statement);
+        statement.executeInternal(QueryState.forInternalCalls(), QueryOptions.DEFAULT);
     }
 
     private void testSimpleTypes() throws Throwable
@@ -79,7 +95,7 @@ public class SelectionColumnMappingTest
                                                           .addMapping(v1Def, columnDefinition("v1"))
                                                           .addMapping(v2Def, columnDefinition("v2"));
 
-        assertEquals(expected, extractColumnMappingFromSelect("SELECT k, v1, v2 FROM %s"));
+        verify(expected, "SELECT k, v1, v2 FROM %s");
     }
 
     private void testWildcard() throws Throwable
@@ -94,7 +110,7 @@ public class SelectionColumnMappingTest
                                                           .addMapping(v1Def, columnDefinition("v1"))
                                                           .addMapping(v2Def, columnDefinition("v2"));
 
-        assertEquals(expected, extractColumnMappingFromSelect("SELECT * FROM %s"));
+        verify(expected, "SELECT * FROM %s");
     }
 
     private void testSimpleTypesWithAliases() throws Throwable
@@ -109,8 +125,7 @@ public class SelectionColumnMappingTest
                                                           .addMapping(v1Spec, columnDefinition("v1"))
                                                           .addMapping(v2Spec, columnDefinition("v2"));
 
-        assertEquals(expected, extractColumnMappingFromSelect(
-                                                             "SELECT k AS k_alias, v1 AS v1_alias, v2 AS v2_alias FROM %s"));
+        verify(expected, "SELECT k AS k_alias, v1 AS v1_alias, v2 AS v2_alias FROM %s");
     }
 
     private void testWritetimeAndTTL() throws Throwable
@@ -123,7 +138,7 @@ public class SelectionColumnMappingTest
                                                           .addMapping(wtSpec, columnDefinition("v1"))
                                                           .addMapping(ttlSpec, columnDefinition("v2"));
 
-        assertEquals(expected, extractColumnMappingFromSelect("SELECT writetime(v1), ttl(v2) FROM %s"));
+        verify(expected, "SELECT writetime(v1), ttl(v2) FROM %s");
     }
 
     private void testWritetimeAndTTLWithAliases() throws Throwable
@@ -136,7 +151,7 @@ public class SelectionColumnMappingTest
                                                           .addMapping(wtSpec, columnDefinition("v1"))
                                                           .addMapping(ttlSpec, columnDefinition("v2"));
 
-        assertEquals(expected, extractColumnMappingFromSelect("SELECT writetime(v1) AS wt_alias, ttl(v2) AS ttl_alias FROM %s"));
+        verify(expected, "SELECT writetime(v1) AS wt_alias, ttl(v2) AS ttl_alias FROM %s");
     }
 
     private void testFunction() throws Throwable
@@ -148,7 +163,7 @@ public class SelectionColumnMappingTest
         SelectionColumns expected = SelectionColumnMapping.newMapping()
                                                           .addMapping(fnSpec, columnDefinition("v1"));
 
-        assertEquals(expected, extractColumnMappingFromSelect("SELECT intasblob(v1) FROM %s"));
+        verify(expected, "SELECT intasblob(v1) FROM %s");
     }
 
     private void testFunctionWithAlias() throws Throwable
@@ -160,7 +175,81 @@ public class SelectionColumnMappingTest
         SelectionColumns expected = SelectionColumnMapping.newMapping()
                                                           .addMapping(fnSpec, columnDefinition("v1"));
 
-        assertEquals(expected, extractColumnMappingFromSelect("SELECT intasblob(v1) AS fn_alias FROM %s"));
+        verify(expected, "SELECT intasblob(v1) AS fn_alias FROM %s");
+    }
+
+    public void testNoArgumentFunction() throws Throwable
+    {
+        SelectionColumns expected = SelectionColumnMapping.newMapping()
+                                                          .addMapping(columnSpecification("now()",
+                                                                                          TimeUUIDType.instance),
+                                                                      NULL_DEF);
+        verify(expected, "SELECT now() FROM %s");
+    }
+
+    public void testNestedFunctionsWithArguments() throws Throwable
+    {
+        SelectionColumns expected = SelectionColumnMapping.newMapping()
+                                                          .addMapping(columnSpecification("blobasint(intasblob(v1))",
+                                                                                          Int32Type.instance),
+                                                                      columnDefinition("v1"));
+        verify(expected, "SELECT blobasint(intasblob(v1)) FROM %s");
+    }
+
+    public void testNestedFunctions() throws Throwable
+    {
+        SelectionColumns expected = SelectionColumnMapping.newMapping()
+                                                          .addMapping(columnSpecification("unixtimestampof(now())",
+                                                                                          LongType.instance),
+                                                                      NULL_DEF);
+        verify(expected, "SELECT unixtimestampof(now()) FROM %s");
+    }
+
+    public void testCount() throws Throwable
+    {
+        SelectionColumns expected = SelectionColumnMapping.newMapping()
+                                                          .addMapping(columnSpecification("count", LongType.instance),
+                                                                      NULL_DEF);
+        verify(expected, "SELECT count(*) FROM %s");
+        verify(expected, "SELECT count(1) FROM %s");
+
+        expected = SelectionColumnMapping.newMapping()
+                                         .addMapping(columnSpecification("other_count", LongType.instance), NULL_DEF);
+        verify(expected, "SELECT count(*) AS other_count FROM %s");
+        verify(expected, "SELECT count(1) AS other_count FROM %s");
+    }
+
+    public void testDuplicateFunctionsWithoutAliases() throws Throwable
+    {
+        // where duplicate functions are present, the ColumnSpecification list will
+        // contain an entry per-duplicate but the mappings will be deduplicated (i.e.
+        // a single mapping k/v pair regardless of the number of duplicates)
+        ColumnSpecification spec = columnSpecification("intasblob(v1)", BytesType.instance);
+        SelectionColumns expected = SelectionColumnMapping.newMapping()
+                                                          .addMapping(spec, columnDefinition("v1"))
+                                                          .addMapping(spec, columnDefinition("v1"));
+        verify(expected, "SELECT intasblob(v1), intasblob(v1) FROM %s");
+    }
+
+    public void testDuplicateFunctionsWithAliases() throws Throwable
+    {
+        // where duplicate functions are present with distinct aliases, they are
+        // represented as any other set of distinct columns would be - an entry
+        // in theColumnSpecification list and a separate k/v mapping for each
+        SelectionColumns expected = SelectionColumnMapping.newMapping()
+                                                          .addMapping(columnSpecification("blob_1", BytesType.instance),
+                                                                      columnDefinition("v1"))
+                                                          .addMapping(columnSpecification("blob_2", BytesType.instance),
+                                                                      columnDefinition("v1"));
+        verify(expected, "SELECT intasblob(v1) AS blob_1, intasblob(v1) AS blob_2 FROM %s");
+    }
+
+    public void testSelectDistinct() throws Throwable
+    {
+        SelectionColumns expected = SelectionColumnMapping.newMapping().addMapping(columnDefinition("k"),
+                                                                                   columnDefinition("k"));
+        verify(expected, "SELECT DISTINCT k FROM %s");
+
     }
 
     private void testMultipleAliasesOnSameColumn() throws Throwable
@@ -172,8 +261,19 @@ public class SelectionColumnMappingTest
         SelectionColumns expected = SelectionColumnMapping.newMapping()
                                                           .addMapping(alias1, columnDefinition("v1"))
                                                           .addMapping(alias2, columnDefinition("v1"));
+        verify(expected, "SELECT v1 AS alias_1, v1 AS alias_2 FROM %s");
+    }
 
-        assertEquals(expected, extractColumnMappingFromSelect("SELECT v1 AS alias_1, v1 AS alias_2 FROM %s"));
+    private void testMultipleUnaliasedSelectionOfSameColumn() throws Throwable
+    {
+        // simple column identifiers without aliases are represented in
+        // ResultSet.Metadata by the underlying ColumnDefinition
+        CFDefinition.Name v1 = columnDefinition("v1");
+        SelectionColumns expected = SelectionColumnMapping.newMapping()
+                                                          .addMapping(v1, v1)
+                                                          .addMapping(v1, v1);
+
+        verify(expected, "SELECT v1, v1 FROM %s");
     }
 
     private void testMixedColumnTypes() throws Throwable
@@ -187,18 +287,39 @@ public class SelectionColumnMappingTest
                                                           .addMapping(v1Spec, columnDefinition("v1"))
                                                           .addMapping(v2Spec, columnDefinition("v2"));
 
-        assertEquals(expected, extractColumnMappingFromSelect("SELECT k AS k_alias," +
-                                                              "       writetime(v1)," +
-                                                              "       ttl(v2) as ttl_alias" +
-                                                              " FROM %s"));
+        verify(expected, "SELECT k AS k_alias," +
+                         "       writetime(v1)," +
+                         "       ttl(v2) as ttl_alias" +
+                         " FROM %s");
     }
 
-    private SelectionColumns extractColumnMappingFromSelect(String query) throws RequestValidationException
+    private void verify(SelectionColumns expected, String query) throws Throwable
+    {
+        SelectStatement statement = getSelect(query);
+        verifyColumnMapping(expected, statement);
+        checkExecution(statement, expected.getColumnSpecifications());
+    }
+
+    private void checkExecution(SelectStatement statement, List<ColumnSpecification> expectedResultColumns)
+    throws RequestExecutionException, RequestValidationException
+    {
+        UntypedResultSet rs = new UntypedResultSet(statement.executeInternal(QueryState.forInternalCalls(),
+                                                                             QueryOptions.DEFAULT).result);
+
+        assertEquals(expectedResultColumns, rs.one().getColumns());
+    }
+
+    private SelectStatement getSelect(String query) throws RequestValidationException
     {
         CQLStatement statement = QueryProcessor.getStatement(String.format(query, KEYSPACE + "." + tableName),
                                                              ClientState.forInternalCalls()).statement;
         assertTrue(statement instanceof SelectStatement);
-        return ((SelectStatement)statement).getSelection().getColumnMapping();
+        return (SelectStatement)statement;
+    }
+
+    private void verifyColumnMapping(SelectionColumns expected, SelectStatement select)
+    {
+        assertEquals(expected, select.getSelection().getColumnMapping());
     }
 
     private CFDefinition.Name columnDefinition(String name)
@@ -223,6 +344,11 @@ public class SelectionColumnMappingTest
                                        tableName,
                                        new ColumnIdentifier(name, true),
                                        type);
+    }
+
+    private void insert(String cql)
+    {
+        QueryProcessor.processInternal(String.format(cql, KEYSPACE + "." + tableName));
     }
 
     private void createTable(String query) throws Throwable

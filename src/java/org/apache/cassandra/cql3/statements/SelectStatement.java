@@ -1537,7 +1537,7 @@ public class SelectStatement implements CQLStatement, MeasurableForPreparedCache
                 throw new InvalidRequestException("Only COUNT(*) and COUNT(1) operations are currently supported.");
 
             Selection selection = selectClause.isEmpty()
-                                ? Selection.wildcard(cfDef)
+                                ? Selection.wildcard(cfDef, parameters.isCount, parameters.countAlias)
                                 : Selection.fromSelectors(cfDef, selectClause);
 
             SelectStatement stmt = new SelectStatement(cfm, boundNames.size(), parameters, selection, prepareLimit(boundNames));

@@ -37,7 +37,7 @@ import org.apache.cassandra.service.pager.PagingState;
 public class ResultSet
 {
     public static final Codec codec = new Codec();
-    private static final ColumnIdentifier COUNT_COLUMN = new ColumnIdentifier("count", false);
+    public static final ColumnIdentifier COUNT_COLUMN = new ColumnIdentifier("count", false);
 
     public final Metadata metadata;
     public final List<List<ByteBuffer>> rows;

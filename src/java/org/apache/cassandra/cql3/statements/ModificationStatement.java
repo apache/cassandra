@@ -674,7 +674,7 @@ public abstract class ModificationStatement implements CQLStatement, MeasurableF
         Selection selection;
         if (columnsWithConditions == null)
         {
-            selection = Selection.wildcard(cfDef);
+            selection = Selection.wildcard(cfDef, false, null);
         }
         else
         {
