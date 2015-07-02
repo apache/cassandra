@@ -87,7 +87,7 @@ public class OptionRatioDistribution extends Option
             return new DelegateFactory(delegate.get(), divisor);
         if (defaultSpec == null)
             return null;
-        OptionRatioDistribution sub = new OptionRatioDistribution(delegate.prefix, null, null, true);
+        OptionRatioDistribution sub = new OptionRatioDistribution("", null, null, true);
         if (!sub.accept(defaultSpec))
             throw new IllegalStateException("Invalid default spec: " + defaultSpec);
         return sub.get();
