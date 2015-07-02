@@ -54,6 +54,7 @@ public class ColumnDefinition extends ColumnSpecification implements Comparable<
         {
             return this == PARTITION_KEY || this == CLUSTERING_COLUMN;
         }
+
     }
 
     public final Kind kind;
@@ -71,6 +72,17 @@ public class ColumnDefinition extends ColumnSpecification implements Comparable<
 
     private final Comparator<CellPath> cellPathComparator;
     private final Comparator<Cell> cellComparator;
+
+    /**
+     * These objects are compared frequently, so we encode several of their comparison components
+     * into a single int value so that this can be done efficiently
+     */
+    private final int comparisonOrder;
+
+    private static int comparisonOrder(Kind kind, boolean isComplex, int position)
+    {
+        return (kind.ordinal() << 28) | (isComplex ? 1 << 27 : 0) | position;
+    }
 
     public static ColumnDefinition partitionKeyDef(CFMetaData cfm, ByteBuffer name, AbstractType<?> validator, Integer componentIndex)
     {
@@ -145,6 +157,7 @@ public class ColumnDefinition extends ColumnSpecification implements Comparable<
         this.setIndexType(indexType, indexOptions);
         this.cellPathComparator = makeCellPathComparator(kind, validator);
         this.cellComparator = makeCellComparator(cellPathComparator);
+        this.comparisonOrder = comparisonOrder(kind, isComplex(), position());
     }
 
     private static Comparator<CellPath> makeCellPathComparator(Kind kind, AbstractType<?> validator)
@@ -399,15 +412,8 @@ public class ColumnDefinition extends ColumnSpecification implements Comparable<
         if (this == other)
             return 0;
 
-        if (kind != other.kind)
-            return kind.ordinal() < other.kind.ordinal() ? -1 : 1;
-        if (position() != other.position())
-            return position() < other.position() ? -1 : 1;
-
-        if (isStatic() != other.isStatic())
-            return isStatic() ? -1 : 1;
-        if (isComplex() != other.isComplex())
-            return isComplex() ? 1 : -1;
+        if (comparisonOrder != other.comparisonOrder)
+            return comparisonOrder - other.comparisonOrder;
 
         return ByteBufferUtil.compareUnsigned(name.bytes, other.name.bytes);
     }
