@@ -11,6 +11,7 @@
  * Enable describe on indices (CASSANDRA-7814)
  * ColumnFamilyStore.selectAndReference may block during compaction (CASSANDRA-9637)
 Merged from 2.0:
+ * Add listen_address to system.local (CASSANDRA-9603)
  * Bug fixes to resultset metadata construction (CASSANDRA-9636)
  * Fix setting 'durable_writes' in ALTER KEYSPACE (CASSANDRA-9560)
  * Avoid ballot clash in Paxos (CASSANDRA-9649)

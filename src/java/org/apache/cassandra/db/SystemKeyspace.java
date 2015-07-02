@@ -137,7 +137,7 @@ public class SystemKeyspace
 
     private static void setupVersion()
     {
-        String req = "INSERT INTO system.%s (key, release_version, cql_version, thrift_version, native_protocol_version, data_center, rack, partitioner, rpc_address, broadcast_address) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+        String req = "INSERT INTO system.%s (key, release_version, cql_version, thrift_version, native_protocol_version, data_center, rack, partitioner, rpc_address, broadcast_address, listen_address) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
         IEndpointSnitch snitch = DatabaseDescriptor.getEndpointSnitch();
         executeOnceInternal(String.format(req, LOCAL_CF),
                             LOCAL_KEY,
@@ -149,7 +149,8 @@ public class SystemKeyspace
                             snitch.getRack(FBUtilities.getBroadcastAddress()),
                             DatabaseDescriptor.getPartitioner().getClass().getName(),
                             DatabaseDescriptor.getRpcAddress(),
-                            FBUtilities.getBroadcastAddress());
+                            FBUtilities.getBroadcastAddress(),
+                            FBUtilities.getLocalAddress());
     }
 
     // TODO: In 3.0, remove this and the index_interval column from system.schema_columnfamilies
