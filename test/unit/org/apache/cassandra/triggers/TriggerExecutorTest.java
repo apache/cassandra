@@ -23,7 +23,6 @@ import org.junit.Test;
 
 import org.apache.cassandra.Util;
 import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.config.TriggerDefinition;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.rows.UnfilteredRowIterators;
 import org.apache.cassandra.db.rows.Cell;
@@ -34,6 +33,7 @@ import org.apache.cassandra.db.partitions.Partition;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.schema.TriggerMetadata;
 import org.apache.cassandra.utils.FBUtilities;
 
 import static org.apache.cassandra.utils.ByteBufferUtil.bytes;
@@ -46,7 +46,7 @@ public class TriggerExecutorTest
     @Test
     public void sameKeySameCfColumnFamilies() throws ConfigurationException, InvalidRequestException
     {
-        CFMetaData metadata = makeCfMetaData("ks1", "cf1", TriggerDefinition.create("test", SameKeySameCfTrigger.class.getName()));
+        CFMetaData metadata = makeCfMetaData("ks1", "cf1", TriggerMetadata.create("test", SameKeySameCfTrigger.class.getName()));
         PartitionUpdate mutated = TriggerExecutor.instance.execute(makeCf(metadata, "k1", "v1", null));
 
         RowIterator rowIterator = UnfilteredRowIterators.filter(mutated.unfilteredIterator(), FBUtilities.nowInSeconds());
@@ -60,21 +60,21 @@ public class TriggerExecutorTest
     @Test(expected = InvalidRequestException.class)
     public void sameKeyDifferentCfColumnFamilies() throws ConfigurationException, InvalidRequestException
     {
-        CFMetaData metadata = makeCfMetaData("ks1", "cf1", TriggerDefinition.create("test", SameKeyDifferentCfTrigger.class.getName()));
+        CFMetaData metadata = makeCfMetaData("ks1", "cf1", TriggerMetadata.create("test", SameKeyDifferentCfTrigger.class.getName()));
         TriggerExecutor.instance.execute(makeCf(metadata, "k1", "v1", null));
     }
 
     @Test(expected = InvalidRequestException.class)
     public void differentKeyColumnFamilies() throws ConfigurationException, InvalidRequestException
     {
-        CFMetaData metadata = makeCfMetaData("ks1", "cf1", TriggerDefinition.create("test", DifferentKeyTrigger.class.getName()));
+        CFMetaData metadata = makeCfMetaData("ks1", "cf1", TriggerMetadata.create("test", DifferentKeyTrigger.class.getName()));
         TriggerExecutor.instance.execute(makeCf(metadata, "k1", "v1", null));
     }
 
     @Test
     public void noTriggerMutations() throws ConfigurationException, InvalidRequestException
     {
-        CFMetaData metadata = makeCfMetaData("ks1", "cf1", TriggerDefinition.create("test", NoOpTrigger.class.getName()));
+        CFMetaData metadata = makeCfMetaData("ks1", "cf1", TriggerMetadata.create("test", NoOpTrigger.class.getName()));
         Mutation rm = new Mutation(makeCf(metadata, "k1", "v1", null));
         assertNull(TriggerExecutor.instance.execute(Collections.singletonList(rm)));
     }
@@ -82,7 +82,7 @@ public class TriggerExecutorTest
     @Test
     public void sameKeySameCfRowMutations() throws ConfigurationException, InvalidRequestException
     {
-        CFMetaData metadata = makeCfMetaData("ks1", "cf1", TriggerDefinition.create("test", SameKeySameCfTrigger.class.getName()));
+        CFMetaData metadata = makeCfMetaData("ks1", "cf1", TriggerMetadata.create("test", SameKeySameCfTrigger.class.getName()));
         PartitionUpdate cf1 = makeCf(metadata, "k1", "k1v1", null);
         PartitionUpdate cf2 = makeCf(metadata, "k2", "k2v1", null);
         Mutation rm1 = new Mutation("ks1", cf1.partitionKey()).add(cf1);
@@ -108,7 +108,7 @@ public class TriggerExecutorTest
     @Test
     public void sameKeySameCfPartialRowMutations() throws ConfigurationException, InvalidRequestException
     {
-        CFMetaData metadata = makeCfMetaData("ks1", "cf1", TriggerDefinition.create("test", SameKeySameCfPartialTrigger.class.getName()));
+        CFMetaData metadata = makeCfMetaData("ks1", "cf1", TriggerMetadata.create("test", SameKeySameCfPartialTrigger.class.getName()));
         PartitionUpdate cf1 = makeCf(metadata, "k1", "k1v1", null);
         PartitionUpdate cf2 = makeCf(metadata, "k2", "k2v1", null);
         Mutation rm1 = new Mutation("ks1", cf1.partitionKey()).add(cf1);
@@ -134,7 +134,7 @@ public class TriggerExecutorTest
     @Test
     public void sameKeyDifferentCfRowMutations() throws ConfigurationException, InvalidRequestException
     {
-        CFMetaData metadata = makeCfMetaData("ks1", "cf1", TriggerDefinition.create("test", SameKeyDifferentCfTrigger.class.getName()));
+        CFMetaData metadata = makeCfMetaData("ks1", "cf1", TriggerMetadata.create("test", SameKeyDifferentCfTrigger.class.getName()));
         PartitionUpdate cf1 = makeCf(metadata, "k1", "k1v1", null);
         PartitionUpdate cf2 = makeCf(metadata, "k2", "k2v1", null);
         Mutation rm1 = new Mutation("ks1", cf1.partitionKey()).add(cf1);
@@ -185,7 +185,7 @@ public class TriggerExecutorTest
     @Test
     public void sameKeyDifferentKsRowMutations() throws ConfigurationException, InvalidRequestException
     {
-        CFMetaData metadata = makeCfMetaData("ks1", "cf1", TriggerDefinition.create("test", SameKeyDifferentKsTrigger.class.getName()));
+        CFMetaData metadata = makeCfMetaData("ks1", "cf1", TriggerMetadata.create("test", SameKeyDifferentKsTrigger.class.getName()));
         PartitionUpdate cf1 = makeCf(metadata, "k1", "k1v1", null);
         PartitionUpdate cf2 = makeCf(metadata, "k2", "k2v1", null);
         Mutation rm1 = new Mutation("ks1", cf1.partitionKey()).add(cf1);
@@ -224,7 +224,7 @@ public class TriggerExecutorTest
     public void differentKeyRowMutations() throws ConfigurationException, InvalidRequestException
     {
 
-        CFMetaData metadata = makeCfMetaData("ks1", "cf1", TriggerDefinition.create("test", DifferentKeyTrigger.class.getName()));
+        CFMetaData metadata = makeCfMetaData("ks1", "cf1", TriggerMetadata.create("test", DifferentKeyTrigger.class.getName()));
         PartitionUpdate cf1 = makeCf(metadata, "k1", "v1", null);
         Mutation rm = new Mutation("ks1", cf1.partitionKey()).add(cf1);
 
@@ -248,7 +248,7 @@ public class TriggerExecutorTest
         assertNull(row.getCell(metadata.getColumnDefinition(bytes("c1"))));
     }
 
-    private static CFMetaData makeCfMetaData(String ks, String cf, TriggerDefinition trigger)
+    private static CFMetaData makeCfMetaData(String ks, String cf, TriggerMetadata trigger)
     {
         CFMetaData metadata = CFMetaData.Builder.create(ks, cf)
                 .addPartitionKey("pkey", UTF8Type.instance)
@@ -259,7 +259,7 @@ public class TriggerExecutorTest
         try
         {
             if (trigger != null)
-                metadata.addTriggerDefinition(trigger);
+                metadata.triggers(metadata.getTriggers().with(trigger));
         }
         catch (InvalidRequestException e)
         {

@@ -764,7 +764,7 @@ public final class SchemaKeyspace
 
     private static Types createTypesFromPartition(RowIterator partition)
     {
-        String query = String.format("SELECT * FROM %s.%s", SchemaKeyspace.NAME, TYPES);
+        String query = String.format("SELECT * FROM %s.%s", NAME, TYPES);
         Types.Builder types = org.apache.cassandra.schema.Types.builder();
         QueryProcessor.resultify(query, partition).forEach(row -> types.add(createTypeFromRow(row)));
         return types.build();
@@ -859,7 +859,7 @@ public final class SchemaKeyspace
             for (ColumnDefinition column : table.allColumns())
                 addColumnToSchemaMutation(table, column, timestamp, mutation);
 
-            for (TriggerDefinition trigger : table.getTriggers().values())
+            for (TriggerMetadata trigger : table.getTriggers())
                 addTriggerToSchemaMutation(table, trigger, timestamp, mutation);
         }
 
@@ -898,17 +898,28 @@ public final class SchemaKeyspace
         for (ByteBuffer name : columnDiff.entriesDiffering().keySet())
             addColumnToSchemaMutation(newTable, newTable.getColumnDefinition(name), timestamp, mutation);
 
-        MapDifference<String, TriggerDefinition> triggerDiff = Maps.difference(oldTable.getTriggers(), newTable.getTriggers());
+        MapDifference<String, TriggerMetadata> triggerDiff = triggersDiff(oldTable.getTriggers(), newTable.getTriggers());
 
         // dropped triggers
-        for (TriggerDefinition trigger : triggerDiff.entriesOnlyOnLeft().values())
+        for (TriggerMetadata trigger : triggerDiff.entriesOnlyOnLeft().values())
             dropTriggerFromSchemaMutation(oldTable, trigger, timestamp, mutation);
 
         // newly created triggers
-        for (TriggerDefinition trigger : triggerDiff.entriesOnlyOnRight().values())
+        for (TriggerMetadata trigger : triggerDiff.entriesOnlyOnRight().values())
             addTriggerToSchemaMutation(newTable, trigger, timestamp, mutation);
 
         return mutation;
+    }
+
+    private static MapDifference<String, TriggerMetadata> triggersDiff(Triggers before, Triggers after)
+    {
+        Map<String, TriggerMetadata> beforeMap = new HashMap<>();
+        before.forEach(t -> beforeMap.put(t.name, t));
+
+        Map<String, TriggerMetadata> afterMap = new HashMap<>();
+        after.forEach(t -> afterMap.put(t.name, t));
+
+        return Maps.difference(beforeMap, afterMap);
     }
 
     public static Mutation makeDropTableMutation(KeyspaceMetadata keyspace, CFMetaData table, long timestamp)
@@ -921,7 +932,7 @@ public final class SchemaKeyspace
         for (ColumnDefinition column : table.allColumns())
             dropColumnFromSchemaMutation(table, column, timestamp, mutation);
 
-        for (TriggerDefinition trigger : table.getTriggers().values())
+        for (TriggerMetadata trigger : table.getTriggers())
             dropTriggerFromSchemaMutation(table, trigger, timestamp, mutation);
 
         return mutation;
@@ -979,9 +990,7 @@ public final class SchemaKeyspace
 
         CFMetaData cfm = readSchemaPartitionForTableAndApply(COLUMNS, ksName, cfName, partition -> createTableFromTableRowAndColumnsPartition(result, partition));
 
-        readSchemaPartitionForTableAndApply(TRIGGERS, ksName, cfName,
-            partition -> { createTriggersFromTriggersPartition(partition).forEach(cfm::addTriggerDefinition); return null; }
-        );
+        readSchemaPartitionForTableAndApply(TRIGGERS, ksName, cfName, partition -> cfm.triggers(createTriggersFromTriggersPartition(partition)));
 
         return cfm;
     }
@@ -1248,7 +1257,7 @@ public final class SchemaKeyspace
      * Trigger metadata serialization/deserialization.
      */
 
-    private static void addTriggerToSchemaMutation(CFMetaData table, TriggerDefinition trigger, long timestamp, Mutation mutation)
+    private static void addTriggerToSchemaMutation(CFMetaData table, TriggerMetadata trigger, long timestamp, Mutation mutation)
     {
         new RowUpdateBuilder(Triggers, timestamp, mutation)
             .clustering(table.cfName, trigger.name)
@@ -1256,7 +1265,7 @@ public final class SchemaKeyspace
             .build();
     }
 
-    private static void dropTriggerFromSchemaMutation(CFMetaData table, TriggerDefinition trigger, long timestamp, Mutation mutation)
+    private static void dropTriggerFromSchemaMutation(CFMetaData table, TriggerMetadata trigger, long timestamp, Mutation mutation)
     {
         RowUpdateBuilder.deleteRow(Triggers, timestamp, mutation, table.cfName, trigger.name);
     }
@@ -1267,17 +1276,19 @@ public final class SchemaKeyspace
      * @param partition storage-level partition containing the trigger definitions
      * @return the list of processed TriggerDefinitions
      */
-    private static List<TriggerDefinition> createTriggersFromTriggersPartition(RowIterator partition)
+    private static Triggers createTriggersFromTriggersPartition(RowIterator partition)
     {
-        List<TriggerDefinition> triggers = new ArrayList<>();
+        Triggers.Builder triggers = org.apache.cassandra.schema.Triggers.builder();
         String query = String.format("SELECT * FROM %s.%s", NAME, TRIGGERS);
-        for (UntypedResultSet.Row row : QueryProcessor.resultify(query, partition))
-        {
-            String name = row.getString("trigger_name");
-            String classOption = row.getMap("trigger_options", UTF8Type.instance, UTF8Type.instance).get("class");
-            triggers.add(new TriggerDefinition(name, classOption));
-        }
-        return triggers;
+        QueryProcessor.resultify(query, partition).forEach(row -> triggers.add(createTriggerFromTriggerRow(row)));
+        return triggers.build();
+    }
+
+    private static TriggerMetadata createTriggerFromTriggerRow(UntypedResultSet.Row row)
+    {
+        String name = row.getString("trigger_name");
+        String classOption = row.getMap("trigger_options", UTF8Type.instance, UTF8Type.instance).get("class");
+        return new TriggerMetadata(name, classOption);
     }
 
     /*

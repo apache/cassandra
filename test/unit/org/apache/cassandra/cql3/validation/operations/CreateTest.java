@@ -18,17 +18,14 @@
 
 package org.apache.cassandra.cql3.validation.operations;
 
-import java.nio.ByteBuffer;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.UUID;
 
-import org.junit.Assert;
 import org.junit.Test;
 
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.Schema;
-import org.apache.cassandra.config.TriggerDefinition;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.partitions.Partition;
@@ -403,12 +400,12 @@ public class CreateTest extends CQLTester
     {
         createTable("CREATE TABLE %s (a int, b int, c int, PRIMARY KEY (a))");
         execute("CREATE TRIGGER trigger_1 ON %s USING '" + TestTrigger.class.getName() + "'");
-        assertTriggerExists("trigger_1", TestTrigger.class);
+        assertTriggerExists("trigger_1");
         execute("CREATE TRIGGER trigger_2 ON %s USING '" + TestTrigger.class.getName() + "'");
-        assertTriggerExists("trigger_2", TestTrigger.class);
+        assertTriggerExists("trigger_2");
         assertInvalid("CREATE TRIGGER trigger_1 ON %s USING '" + TestTrigger.class.getName() + "'");
         execute("CREATE TRIGGER \"Trigger 3\" ON %s USING '" + TestTrigger.class.getName() + "'");
-        assertTriggerExists("Trigger 3", TestTrigger.class);
+        assertTriggerExists("Trigger 3");
     }
 
     @Test
@@ -417,10 +414,10 @@ public class CreateTest extends CQLTester
         createTable("CREATE TABLE %s (a int, b int, c int, PRIMARY KEY (a, b))");
 
         execute("CREATE TRIGGER IF NOT EXISTS trigger_1 ON %s USING '" + TestTrigger.class.getName() + "'");
-        assertTriggerExists("trigger_1", TestTrigger.class);
+        assertTriggerExists("trigger_1");
 
         execute("CREATE TRIGGER IF NOT EXISTS trigger_1 ON %s USING '" + TestTrigger.class.getName() + "'");
-        assertTriggerExists("trigger_1", TestTrigger.class);
+        assertTriggerExists("trigger_1");
     }
 
     @Test
@@ -429,21 +426,21 @@ public class CreateTest extends CQLTester
         createTable("CREATE TABLE %s (a int, b int, c int, PRIMARY KEY (a))");
 
         execute("CREATE TRIGGER trigger_1 ON %s USING '" + TestTrigger.class.getName() + "'");
-        assertTriggerExists("trigger_1", TestTrigger.class);
+        assertTriggerExists("trigger_1");
 
         execute("DROP TRIGGER trigger_1 ON %s");
-        assertTriggerDoesNotExists("trigger_1", TestTrigger.class);
+        assertTriggerDoesNotExists("trigger_1");
 
         execute("CREATE TRIGGER trigger_1 ON %s USING '" + TestTrigger.class.getName() + "'");
-        assertTriggerExists("trigger_1", TestTrigger.class);
+        assertTriggerExists("trigger_1");
 
         assertInvalid("DROP TRIGGER trigger_2 ON %s");
 
         execute("CREATE TRIGGER \"Trigger 3\" ON %s USING '" + TestTrigger.class.getName() + "'");
-        assertTriggerExists("Trigger 3", TestTrigger.class);
+        assertTriggerExists("Trigger 3");
 
         execute("DROP TRIGGER \"Trigger 3\" ON %s");
-        assertTriggerDoesNotExists("Trigger 3", TestTrigger.class);
+        assertTriggerDoesNotExists("Trigger 3");
     }
 
     @Test
@@ -452,13 +449,13 @@ public class CreateTest extends CQLTester
         createTable("CREATE TABLE %s (a int, b int, c int, PRIMARY KEY (a))");
 
         execute("DROP TRIGGER IF EXISTS trigger_1 ON %s");
-        assertTriggerDoesNotExists("trigger_1", TestTrigger.class);
+        assertTriggerDoesNotExists("trigger_1");
 
         execute("CREATE TRIGGER trigger_1 ON %s USING '" + TestTrigger.class.getName() + "'");
-        assertTriggerExists("trigger_1", TestTrigger.class);
+        assertTriggerExists("trigger_1");
 
         execute("DROP TRIGGER IF EXISTS trigger_1 ON %s");
-        assertTriggerDoesNotExists("trigger_1", TestTrigger.class);
+        assertTriggerDoesNotExists("trigger_1");
     }
 
     @Test
@@ -497,26 +494,23 @@ public class CreateTest extends CQLTester
     // tests CASSANDRA-9565
     public void testDoubleWith() throws Throwable
     {
-        String[] stmts = new String[] { "CREATE KEYSPACE WITH WITH DURABLE_WRITES = true",
-                                        "CREATE KEYSPACE ks WITH WITH DURABLE_WRITES = true" };
+        String[] stmts = { "CREATE KEYSPACE WITH WITH DURABLE_WRITES = true",
+                           "CREATE KEYSPACE ks WITH WITH DURABLE_WRITES = true" };
 
-        for (String stmt : stmts) {
+        for (String stmt : stmts)
             assertInvalidSyntaxMessage("no viable alternative at input 'WITH'", stmt);
-        }
     }
 
-    private void assertTriggerExists(String name, Class<?> clazz)
+    private void assertTriggerExists(String name)
     {
         CFMetaData cfm = Schema.instance.getCFMetaData(keyspace(), currentTable()).copy();
-        assertTrue("the trigger does not exist", cfm.containsTriggerDefinition(TriggerDefinition.create(name,
-                                                                                                        clazz.getName())));
+        assertTrue("the trigger does not exist", cfm.getTriggers().get(name).isPresent());
     }
 
-    private void assertTriggerDoesNotExists(String name, Class<?> clazz)
+    private void assertTriggerDoesNotExists(String name)
     {
         CFMetaData cfm = Schema.instance.getCFMetaData(keyspace(), currentTable()).copy();
-        Assert.assertFalse("the trigger exists", cfm.containsTriggerDefinition(TriggerDefinition.create(name,
-                                                                                                        clazz.getName())));
+        assertFalse("the trigger exists", cfm.getTriggers().get(name).isPresent());
     }
 
     public static class TestTrigger implements ITrigger

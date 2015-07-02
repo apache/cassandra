@@ -248,9 +248,11 @@ public class LegacySchemaMigratorTest
     {
         String keyspace = KEYSPACE_PREFIX + "Triggers";
 
+        Triggers.Builder triggers = Triggers.builder();
         CFMetaData table = SchemaLoader.standardCFMD(keyspace, "WithTriggers");
         for (int i = 0; i < 10; i++)
-            table.addTriggerDefinition(new TriggerDefinition("trigger" + i, "DummyTrigger" + i));
+            triggers.add(new TriggerMetadata("trigger" + i, "DummyTrigger" + i));
+        table.triggers(triggers.build());
 
         return KeyspaceMetadata.create(keyspace, KeyspaceParams.simple(1), Tables.of(table));
     }
@@ -418,7 +420,7 @@ public class LegacySchemaMigratorTest
             for (ColumnDefinition column : table.allColumns())
                 addColumnToSchemaMutation(table, column, timestamp, mutation);
 
-            for (TriggerDefinition trigger : table.getTriggers().values())
+            for (TriggerMetadata trigger : table.getTriggers())
                 addTriggerToSchemaMutation(table, trigger, timestamp, mutation);
         }
 
@@ -451,7 +453,7 @@ public class LegacySchemaMigratorTest
         return kind.toString().toLowerCase();
     }
 
-    private static void addTriggerToSchemaMutation(CFMetaData table, TriggerDefinition trigger, long timestamp, Mutation mutation)
+    private static void addTriggerToSchemaMutation(CFMetaData table, TriggerMetadata trigger, long timestamp, Mutation mutation)
     {
         new RowUpdateBuilder(SystemKeyspace.LegacyTriggers, timestamp, mutation)
             .clustering(table.cfName, trigger.name)

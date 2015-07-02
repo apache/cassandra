@@ -28,12 +28,12 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.ListMultimap;
 import com.google.common.collect.Maps;
 
-import org.apache.cassandra.config.TriggerDefinition;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
-import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.schema.TriggerMetadata;
+import org.apache.cassandra.schema.Triggers;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
 
@@ -72,7 +72,6 @@ public class TriggerExecutor
      * key as the primary update; if not, InvalidRequestException is thrown. If no
      * additional mutations are generated, the original updates are returned unmodified.
      *
-     * @param key partition key for the update
      * @param updates partition update to be applied, contains the merge of the original
      *                update and any generated mutations
      * @return the final update to be applied, the original update merged with any
@@ -211,14 +210,14 @@ public class TriggerExecutor
      */
     private List<Mutation> executeInternal(PartitionUpdate update)
     {
-        Map<String, TriggerDefinition> triggers = update.metadata().getTriggers();
+        Triggers triggers = update.metadata().getTriggers();
         if (triggers.isEmpty())
             return null;
         List<Mutation> tmutations = Lists.newLinkedList();
         Thread.currentThread().setContextClassLoader(customClassLoader);
         try
         {
-            for (TriggerDefinition td : triggers.values())
+            for (TriggerMetadata td : triggers)
             {
                 ITrigger trigger = cachedTriggers.get(td.classOption);
                 if (trigger == null)

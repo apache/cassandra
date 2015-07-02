@@ -16,11 +16,11 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.cassandra.config;
+package org.apache.cassandra.schema;
 
 import com.google.common.base.Objects;
 
-public class TriggerDefinition
+public final class TriggerMetadata
 {
     public static final String CLASS = "class";
 
@@ -30,15 +30,15 @@ public class TriggerDefinition
     // Proper trigger parametrization will be added later.
     public final String classOption;
 
-    public TriggerDefinition(String name, String classOption)
+    public TriggerMetadata(String name, String classOption)
     {
         this.name = name;
         this.classOption = classOption;
     }
 
-    public static TriggerDefinition create(String name, String classOption)
+    public static TriggerMetadata create(String name, String classOption)
     {
-        return new TriggerDefinition(name, classOption);
+        return new TriggerMetadata(name, classOption);
     }
 
     @Override
@@ -47,12 +47,12 @@ public class TriggerDefinition
         if (this == o)
             return true;
 
-        if (!(o instanceof TriggerDefinition))
+        if (!(o instanceof TriggerMetadata))
             return false;
 
-        TriggerDefinition td = (TriggerDefinition) o;
+        TriggerMetadata td = (TriggerMetadata) o;
 
-        return Objects.equal(name, td.name) && Objects.equal(classOption, td.classOption);
+        return name.equals(td.name) && classOption.equals(td.classOption);
     }
 
     @Override
@@ -64,6 +64,9 @@ public class TriggerDefinition
     @Override
     public String toString()
     {
-        return Objects.toStringHelper(this).add("name", name).add("classOption", classOption).toString();
+        return Objects.toStringHelper(this)
+                      .add("name", name)
+                      .add("class", classOption)
+                      .toString();
     }
 }

@@ -27,6 +27,7 @@ import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.RequestValidationException;
 import org.apache.cassandra.exceptions.UnauthorizedException;
+import org.apache.cassandra.schema.Triggers;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.MigrationManager;
 import org.apache.cassandra.thrift.ThriftValidation;
@@ -60,15 +61,20 @@ public class DropTriggerStatement extends SchemaAlteringStatement
     public boolean announceMigration(boolean isLocalOnly) throws ConfigurationException, InvalidRequestException
     {
         CFMetaData cfm = Schema.instance.getCFMetaData(keyspace(), columnFamily()).copy();
-        if (cfm.removeTrigger(triggerName))
+        Triggers triggers = cfm.getTriggers();
+
+        if (!triggers.get(triggerName).isPresent())
         {
-            logger.info("Dropping trigger with name {}", triggerName);
-            MigrationManager.announceColumnFamilyUpdate(cfm, false, isLocalOnly);
-            return true;
+            if (ifExists)
+                return false;
+            else
+                throw new InvalidRequestException(String.format("Trigger %s was not found", triggerName));
         }
-        if (!ifExists)
-            throw new InvalidRequestException(String.format("Trigger %s was not found", triggerName));
-        return false;
+
+        logger.info("Dropping trigger with name {}", triggerName);
+        cfm.triggers(triggers.without(triggerName));
+        MigrationManager.announceColumnFamilyUpdate(cfm, false, isLocalOnly);
+        return true;
     }
 
     public Event.SchemaChange changeEvent()

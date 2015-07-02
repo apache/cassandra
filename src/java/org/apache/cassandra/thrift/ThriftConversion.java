@@ -42,6 +42,8 @@ import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.SchemaKeyspace;
 import org.apache.cassandra.schema.Tables;
+import org.apache.cassandra.schema.TriggerMetadata;
+import org.apache.cassandra.schema.Triggers;
 import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.UUIDGen;
@@ -463,7 +465,7 @@ public class ThriftConversion
         def.setCells_per_row_to_cache(cfm.getCaching().toThriftCellsPerRow());
         def.setDefault_time_to_live(cfm.getDefaultTimeToLive());
         def.setSpeculative_retry(cfm.getSpeculativeRetry().toString());
-        def.setTriggers(triggerDefinitionsToThrift(cfm.getTriggers().values()));
+        def.setTriggers(triggerDefinitionsToThrift(cfm.getTriggers()));
 
         return def;
     }
@@ -542,23 +544,22 @@ public class ThriftConversion
         return thriftDefs;
     }
 
-    private static Map<String, TriggerDefinition> triggerDefinitionsFromThrift(List<TriggerDef> thriftDefs)
+    private static Triggers triggerDefinitionsFromThrift(List<TriggerDef> thriftDefs)
     {
-        Map<String, TriggerDefinition> triggerDefinitions = new HashMap<>();
+        Triggers.Builder triggers = Triggers.builder();
         for (TriggerDef thriftDef : thriftDefs)
-            triggerDefinitions.put(thriftDef.getName(),
-                                   new TriggerDefinition(thriftDef.getName(), thriftDef.getOptions().get(TriggerDefinition.CLASS)));
-        return triggerDefinitions;
+            triggers.add(new TriggerMetadata(thriftDef.getName(), thriftDef.getOptions().get(TriggerMetadata.CLASS)));
+        return triggers.build();
     }
 
-    private static List<TriggerDef> triggerDefinitionsToThrift(Collection<TriggerDefinition> triggers)
+    private static List<TriggerDef> triggerDefinitionsToThrift(Triggers triggers)
     {
-        List<TriggerDef> thriftDefs = new ArrayList<>(triggers.size());
-        for (TriggerDefinition def : triggers)
+        List<TriggerDef> thriftDefs = new ArrayList<>();
+        for (TriggerMetadata def : triggers)
         {
             TriggerDef td = new TriggerDef();
             td.setName(def.name);
-            td.setOptions(Collections.singletonMap(TriggerDefinition.CLASS, def.classOption));
+            td.setOptions(Collections.singletonMap(TriggerMetadata.CLASS, def.classOption));
             thriftDefs.add(td);
         }
         return thriftDefs;

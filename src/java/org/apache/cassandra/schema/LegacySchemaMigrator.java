@@ -337,7 +337,7 @@ public final class LegacySchemaMigrator
             addDroppedColumns(cfm, tableRow.getMap("dropped_columns", UTF8Type.instance, LongType.instance), types);
         }
 
-        triggerRows.forEach(row -> cfm.addTriggerDefinition(readTrigger(row)));
+        cfm.triggers(createTriggersFromTriggerRows(triggerRows));
 
         return cfm;
     }
@@ -479,11 +479,18 @@ public final class LegacySchemaMigrator
         return Enum.valueOf(ColumnDefinition.Kind.class, kind.toUpperCase());
     }
 
-    private static TriggerDefinition readTrigger(UntypedResultSet.Row row)
+    private static Triggers createTriggersFromTriggerRows(UntypedResultSet rows)
+    {
+        Triggers.Builder triggers = org.apache.cassandra.schema.Triggers.builder();
+        rows.forEach(row -> triggers.add(createTriggerFromTriggerRow(row)));
+        return triggers.build();
+    }
+
+    private static TriggerMetadata createTriggerFromTriggerRow(UntypedResultSet.Row row)
     {
         String name = row.getString("trigger_name");
         String classOption = row.getMap("trigger_options", UTF8Type.instance, UTF8Type.instance).get("class");
-        return new TriggerDefinition(name, classOption);
+        return new TriggerMetadata(name, classOption);
     }
 
     /*
