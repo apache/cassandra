@@ -519,7 +519,7 @@ public class AtomicBTreeColumns extends ColumnFamily
 
         protected void finish()
         {
-            allocator.onHeap().allocate(heapSize, writeOp);
+            allocator.onHeap().adjust(heapSize, writeOp);
             reclaimer.commit();
         }
     }

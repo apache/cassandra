@@ -75,13 +75,13 @@ public class HeapPool extends MemtablePool
 
             public Reclaimer reclaimImmediately(Cell cell)
             {
-                onHeap().release(cell.name().dataSize() + cell.value().remaining());
+                onHeap().released(cell.name().dataSize() + cell.value().remaining());
                 return this;
             }
 
             public Reclaimer reclaimImmediately(DecoratedKey key)
             {
-                onHeap().release(key.getKey().remaining());
+                onHeap().released(key.getKey().remaining());
                 return this;
             }
 

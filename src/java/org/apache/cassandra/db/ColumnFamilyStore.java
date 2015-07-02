@@ -39,6 +39,7 @@ import org.apache.cassandra.db.lifecycle.View;
 import org.apache.cassandra.db.lifecycle.Tracker;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.io.FSWriteError;
+import org.apache.cassandra.utils.memory.MemtablePool;
 import org.json.simple.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -1176,6 +1177,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         {
             float largestRatio = 0f;
             Memtable largest = null;
+            float liveOnHeap = 0, liveOffHeap = 0;
             for (ColumnFamilyStore cfs : ColumnFamilyStore.all())
             {
                 // we take a reference to the current main memtable for the CF prior to snapping its ownership ratios
@@ -1200,17 +1202,35 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                 }
 
                 float ratio = Math.max(onHeap, offHeap);
-
                 if (ratio > largestRatio)
                 {
                     largest = current;
                     largestRatio = ratio;
                 }
+
+                liveOnHeap += onHeap;
+                liveOffHeap += offHeap;
             }
 
             if (largest != null)
+            {
+                float usedOnHeap = Memtable.MEMORY_POOL.onHeap.usedRatio();
+                float usedOffHeap = Memtable.MEMORY_POOL.offHeap.usedRatio();
+                float flushingOnHeap = Memtable.MEMORY_POOL.onHeap.reclaimingRatio();
+                float flushingOffHeap = Memtable.MEMORY_POOL.offHeap.reclaimingRatio();
+                float thisOnHeap = largest.getAllocator().onHeap().ownershipRatio();
+                float thisOffHeap = largest.getAllocator().onHeap().ownershipRatio();
+                logger.info("Flushing largest {} to free up room. Used total: {}, live: {}, flushing: {}, this: {}",
+                            largest.cfs, ratio(usedOnHeap, usedOffHeap), ratio(liveOnHeap, liveOffHeap),
+                            ratio(flushingOnHeap, flushingOffHeap), ratio(thisOnHeap, thisOffHeap));
                 largest.cfs.switchMemtableIfCurrent(largest);
+            }
         }
+    }
+
+    private static String ratio(float onHeap, float offHeap)
+    {
+        return String.format("%.0f/%.0f", onHeap, offHeap);
     }
 
     public void maybeUpdateRowCache(DecoratedKey key)
