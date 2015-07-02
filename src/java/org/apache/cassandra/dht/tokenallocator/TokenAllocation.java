@@ -252,8 +252,8 @@ public class TokenAllocation
         }
         else
             throw new ConfigurationException(
-                                            String.format("Token allocation failed: the number of racks %d in datacentre %s is lower than its replication factor %d.",
-                                                          replicas, dc, racks));
+                    String.format("Token allocation failed: the number of racks %d in datacenter %s is lower than its replication factor %d.",
+                                  racks, dc, replicas));
     }
 }
 
