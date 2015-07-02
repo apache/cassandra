@@ -57,12 +57,6 @@ import org.apache.cassandra.utils.UUIDGen;
 
 public class UFTest extends CQLTester
 {
-    @BeforeClass
-    public static void setUp()
-    {
-        StorageService.instance.setPartitionerUnsafe(ByteOrderedPartitioner.instance);
-    }
-
     @Test
     public void testSchemaChange() throws Throwable
     {
@@ -2257,11 +2251,10 @@ public class UFTest extends CQLTester
                                              "LANGUAGE java\n" +
                                              "AS 'int sum = 0; for (Object value : values) {sum += ((Integer) value);} return sum;';");
 
-        assertRows(execute("SELECT a, " + functionName + "(b) FROM %s"),
-                   row(0, 0),
-                   row(1, 6),
-                   row(2, 15),
-                   row(3, 24));
+        assertRows(execute("SELECT a, " + functionName + "(b) FROM %s WHERE a = 0"), row(0, 0));
+        assertRows(execute("SELECT a, " + functionName + "(b) FROM %s WHERE a = 1"), row(1, 6));
+        assertRows(execute("SELECT a, " + functionName + "(b) FROM %s WHERE a = 2"), row(2, 15));
+        assertRows(execute("SELECT a, " + functionName + "(b) FROM %s WHERE a = 3"), row(3, 24));
 
         functionName = createFunction(KEYSPACE,
                                       "set<int>",
@@ -2311,11 +2304,10 @@ public class UFTest extends CQLTester
                                              "LANGUAGE java\n" +
                                              "AS 'int sum = 0; for (Object value : values) {sum += ((Integer) value);} return sum;';");
 
-        assertRows(execute("SELECT a, " + functionName + "(b) FROM %s"),
-                   row(0, 0),
-                   row(1, 6),
-                   row(2, 15),
-                   row(3, 24));
+        assertRows(execute("SELECT a, " + functionName + "(b) FROM %s WHERE a = 0"), row(0, 0));
+        assertRows(execute("SELECT a, " + functionName + "(b) FROM %s WHERE a = 1"), row(1, 6));
+        assertRows(execute("SELECT a, " + functionName + "(b) FROM %s WHERE a = 2"), row(2, 15));
+        assertRows(execute("SELECT a, " + functionName + "(b) FROM %s WHERE a = 3"), row(3, 24));
 
         functionName = createFunction(KEYSPACE,
                                       "list<int>",
@@ -2365,11 +2357,10 @@ public class UFTest extends CQLTester
                                              "LANGUAGE java\n" +
                                              "AS 'int sum = 0; for (Object value : values.values()) {sum += ((Integer) value);} return sum;';");
 
-        assertRows(execute("SELECT a, " + functionName + "(b) FROM %s"),
-                   row(0, 0),
-                   row(1, 6),
-                   row(2, 15),
-                   row(3, 24));
+        assertRows(execute("SELECT a, " + functionName + "(b) FROM %s WHERE a = 0"), row(0, 0));
+        assertRows(execute("SELECT a, " + functionName + "(b) FROM %s WHERE a = 1"), row(1, 6));
+        assertRows(execute("SELECT a, " + functionName + "(b) FROM %s WHERE a = 2"), row(2, 15));
+        assertRows(execute("SELECT a, " + functionName + "(b) FROM %s WHERE a = 3"), row(3, 24));
 
         functionName = createFunction(KEYSPACE,
                                       "map<int, int>",
@@ -2419,11 +2410,10 @@ public class UFTest extends CQLTester
                                              "LANGUAGE java\n" +
                                              "AS 'return values.toString();';");
 
-        assertRows(execute("SELECT a, " + functionName + "(b) FROM %s"),
-                   row(0, "(null, null)"),
-                   row(1, "(1, 2)"),
-                   row(2, "(4, 5)"),
-                   row(3, "(7, 8)"));
+        assertRows(execute("SELECT a, " + functionName + "(b) FROM %s WHERE a = 0"), row(0, "(null, null)"));
+        assertRows(execute("SELECT a, " + functionName + "(b) FROM %s WHERE a = 1"), row(1, "(1, 2)"));
+        assertRows(execute("SELECT a, " + functionName + "(b) FROM %s WHERE a = 2"), row(2, "(4, 5)"));
+        assertRows(execute("SELECT a, " + functionName + "(b) FROM %s WHERE a = 3"), row(3, "(7, 8)"));
 
         functionName = createFunction(KEYSPACE,
                                       "tuple<int, int>",
@@ -2474,11 +2464,10 @@ public class UFTest extends CQLTester
                                              "LANGUAGE java\n" +
                                              "AS 'return values.toString();';");
 
-        assertRows(execute("SELECT a, " + functionName + "(b) FROM %s"),
-                   row(0, "{f:0}"),
-                   row(1, "{f:1}"),
-                   row(2, "{f:4}"),
-                   row(3, "{f:7}"));
+        assertRows(execute("SELECT a, " + functionName + "(b) FROM %s WHERE a = 0"), row(0, "{f:0}"));
+        assertRows(execute("SELECT a, " + functionName + "(b) FROM %s WHERE a = 1"), row(1, "{f:1}"));
+        assertRows(execute("SELECT a, " + functionName + "(b) FROM %s WHERE a = 2"), row(2, "{f:4}"));
+        assertRows(execute("SELECT a, " + functionName + "(b) FROM %s WHERE a = 3"), row(3, "{f:7}"));
 
         functionName = createFunction(KEYSPACE,
                                       myType,
