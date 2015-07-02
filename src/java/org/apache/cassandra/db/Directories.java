@@ -49,6 +49,7 @@ import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.io.sstable.*;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
 
 /**
@@ -697,7 +698,22 @@ public class Directories
             if (snapshotDir.exists())
             {
                 logger.debug("Removing snapshot directory {}", snapshotDir);
-                FileUtils.deleteRecursive(snapshotDir);
+                try
+                {
+                    FileUtils.deleteRecursive(snapshotDir);
+                }
+                catch (FSWriteError e)
+                {
+                    if (FBUtilities.isWindows())
+                    {
+                        logger.warn("Failed to delete snapshot directory [{}]. Folder will be deleted on JVM shutdown or next node restart on crash. You can safely attempt to delete this folder but it will fail so long as readers are open on the files.", snapshotDir);
+                        WindowsFailedSnapshotTracker.handleFailedSnapshot(snapshotDir);
+                    }
+                    else
+                    {
+                        throw e;
+                    }
+                }
             }
         }
     }

@@ -24,11 +24,14 @@ import java.util.Set;
 
 import org.junit.Test;
 
+import org.apache.cassandra.config.Config;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.repair.RepairParallelism;
+import org.apache.cassandra.utils.FBUtilities;
 
 import static org.junit.Assert.*;
 
@@ -42,7 +45,12 @@ public class RepairOptionTest
 
         // parse with empty options
         RepairOption option = RepairOption.parse(new HashMap<String, String>(), partitioner);
-        assertTrue(option.getParallelism() == RepairParallelism.SEQUENTIAL);
+
+        if (FBUtilities.isWindows() && (DatabaseDescriptor.getDiskAccessMode() != Config.DiskAccessMode.standard || DatabaseDescriptor.getIndexAccessMode() != Config.DiskAccessMode.standard))
+            assertTrue(option.getParallelism() == RepairParallelism.PARALLEL);
+        else
+            assertTrue(option.getParallelism() == RepairParallelism.SEQUENTIAL);
+
         assertFalse(option.isPrimaryRange());
         assertFalse(option.isIncremental());
 

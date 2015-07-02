@@ -144,6 +144,10 @@ public class CassandraDaemon
      */
     protected void setup()
     {
+        // Delete any failed snapshot deletions on Windows - see CASSANDRA-9658
+        if (FBUtilities.isWindows())
+            WindowsFailedSnapshotTracker.deleteOldSnapshots();
+
         logSystemInfo();
 
         CLibrary.tryMlockall();
