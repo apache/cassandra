@@ -26,10 +26,10 @@ import java.util.concurrent.TimeUnit;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Sets;
-import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.codahale.metrics.Counter;
 import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.db.lifecycle.Tracker;
 import org.apache.cassandra.utils.FBUtilities;
@@ -46,24 +46,25 @@ public class SSTableDeletingTask implements Runnable
     private static final Queue<SSTableDeletingTask> failedTasks = new ConcurrentLinkedQueue<>();
     private static final Blocker blocker = new Blocker();
 
-    private final SSTableReader referent;
     private final Descriptor desc;
     private final Set<Component> components;
-    private Tracker tracker;
+    private final long bytesOnDisk;
+    private final Counter totalDiskSpaceUsed;
 
     /**
      * realDescriptor is the actual descriptor for the sstable, the descriptor inside
      * referent can be 'faked' as FINAL for early opened files. We need the real one
      * to be able to remove the files.
      */
-    public SSTableDeletingTask(Descriptor realDescriptor, SSTableReader referent)
+    public SSTableDeletingTask(Descriptor realDescriptor, Set<Component> components, Counter totalDiskSpaceUsed, long bytesOnDisk)
     {
-        this.referent = referent;
         this.desc = realDescriptor;
+        this.bytesOnDisk = bytesOnDisk;
+        this.totalDiskSpaceUsed = totalDiskSpaceUsed;
         switch (desc.type)
         {
             case FINAL:
-                this.components = referent.components;
+                this.components = components;
                 break;
             case TEMPLINK:
                 this.components = Sets.newHashSet(Component.DATA, Component.PRIMARY_INDEX);
@@ -71,20 +72,6 @@ public class SSTableDeletingTask implements Runnable
             default:
                 throw new IllegalStateException();
         }
-    }
-
-    public void setTracker(Tracker tracker)
-    {
-        // the tracker is used only to notify listeners of deletion of the sstable;
-        // since deletion of a non-final file is not really deletion of the sstable,
-        // we don't want to notify the listeners in this event
-        assert desc.type == Descriptor.Type.FINAL;
-        this.tracker = tracker;
-    }
-
-    public Tracker getTracker()
-    {
-        return tracker;
     }
 
     public void schedule()
@@ -95,11 +82,6 @@ public class SSTableDeletingTask implements Runnable
     public void run()
     {
         blocker.ask();
-        long size = referent.bytesOnDisk();
-
-        if (tracker != null)
-            tracker.notifyDeleting(referent);
-
         // If we can't successfully delete the DATA component, set the task to be retried later: see above
         File datafile = new File(desc.filenameFor(Component.DATA));
         if (!datafile.delete())
@@ -110,8 +92,8 @@ public class SSTableDeletingTask implements Runnable
         }
         // let the remainder be cleaned up by delete
         SSTable.delete(desc, Sets.difference(components, Collections.singleton(Component.DATA)));
-        if (tracker != null)
-            tracker.spaceReclaimed(size);
+        if (totalDiskSpaceUsed != null)
+            totalDiskSpaceUsed.dec(bytesOnDisk);
     }
 
     /**

@@ -152,9 +152,6 @@ public class TrackerTest
 
         Assert.assertEquals(3, tracker.view.get().sstables.size());
 
-        for (SSTableReader reader : readers)
-            Assert.assertTrue(reader.isDeleteNotificationSetup());
-
         Assert.assertEquals(17 + 121 + 9, cfs.metric.liveDiskSpaceUsed.getCount());
     }
 
@@ -173,9 +170,6 @@ public class TrackerTest
         tracker.addSSTables(copyOf(readers));
 
         Assert.assertEquals(3, tracker.view.get().sstables.size());
-
-        for (SSTableReader reader : readers)
-            Assert.assertTrue(reader.isDeleteNotificationSetup());
 
         Assert.assertEquals(17 + 121 + 9, cfs.metric.liveDiskSpaceUsed.getCount());
         Assert.assertEquals(3, listener.senders.size());
@@ -237,7 +231,7 @@ public class TrackerTest
                                                        OperationType.UNKNOWN,
                                                        null));
                 Assert.assertEquals(1, tracker.getView().sstables.size());
-                Assert.assertEquals(1, listener.received.size());
+                Assert.assertEquals(3, listener.received.size());
                 Assert.assertEquals(tracker, listener.senders.get(0));
                 Assert.assertEquals(2, ((SSTableListChangedNotification) listener.received.get(0)).removed.size());
                 Assert.assertEquals(0, ((SSTableListChangedNotification) listener.received.get(0)).added.size());
@@ -305,7 +299,6 @@ public class TrackerTest
         Assert.assertEquals(1, listener.received.size());
         Assert.assertEquals(reader, ((SSTableAddedNotification) listener.received.get(0)).added);
         listener.received.clear();
-        Assert.assertTrue(reader.isDeleteNotificationSetup());
         Assert.assertEquals(10, cfs.metric.liveDiskSpaceUsed.getCount());
 
         // test invalidated CFS

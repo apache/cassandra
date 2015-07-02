@@ -266,7 +266,7 @@ public class SSTableRewriterTest extends SchemaLoader
             SSTableReader s2 = writer.setMaxDataAge(1000).openEarly();
             assertTrue(s.last.compareTo(s2.last) < 0);
             assertFileCounts(dir.list(), 2, 2);
-            s.markObsolete();
+            s.markObsolete(cfs.getTracker());
             s.selfRef().release();
             s2.selfRef().release();
             // These checks don't work on Windows because the writer has the channel still

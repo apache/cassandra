@@ -173,7 +173,6 @@ public class Tracker
 
     public void addInitialSSTables(Iterable<SSTableReader> sstables)
     {
-        maybeFail(setupDeleteNotification(sstables, this, null));
         apply(updateLiveSet(emptySet(), sstables));
         maybeFail(updateSizeTracking(emptySet(), sstables, null));
         // no notifications or backup necessary
@@ -240,7 +239,7 @@ public class Tracker
             // notifySSTablesChanged -> LeveledManifest.promote doesn't like a no-op "promotion"
             accumulate = notifySSTablesChanged(removed, Collections.<SSTableReader>emptySet(), operationType, accumulate);
             accumulate = updateSizeTracking(removed, emptySet(), accumulate);
-            accumulate = markObsolete(removed, accumulate);
+            accumulate = markObsolete(this, removed, accumulate);
             accumulate = release(selfRefs(removed), accumulate);
         }
         return accumulate;
@@ -318,7 +317,6 @@ public class Tracker
             return;
         }
 
-        sstable.setupDeleteNotification(this);
         sstable.setupKeyCache();
         // back up before creating a new Snapshot (which makes the new one eligible for compaction)
         maybeIncrementallyBackup(sstable);
@@ -368,13 +366,6 @@ public class Tracker
         File backupsDir = Directories.getBackupsDirectory(sstable.descriptor);
         sstable.createLinks(FileUtils.getCanonicalPath(backupsDir));
     }
-
-    public void spaceReclaimed(long size)
-    {
-        if (cfstore != null)
-            cfstore.metric.totalDiskSpaceUsed.dec(size);
-    }
-
 
 
     // NOTIFICATION
