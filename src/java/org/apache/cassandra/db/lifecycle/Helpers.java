@@ -70,25 +70,6 @@ class Helpers
      * A convenience method for encapsulating this action over multiple SSTableReader with exception-safety
      * @return accumulate if not null (with any thrown exception attached), or any thrown exception otherwise
      */
-    static Throwable setupDeleteNotification(Iterable<SSTableReader> readers, Tracker tracker, Throwable accumulate)
-    {
-        try
-        {
-            for (SSTableReader reader : readers)
-                reader.setupDeleteNotification(tracker);
-        }
-        catch (Throwable t)
-        {
-            // shouldn't be possible, but in case the contract changes in future and we miss it...
-            accumulate = merge(accumulate, t);
-        }
-        return accumulate;
-    }
-
-    /**
-     * A convenience method for encapsulating this action over multiple SSTableReader with exception-safety
-     * @return accumulate if not null (with any thrown exception attached), or any thrown exception otherwise
-     */
     static Throwable setReplaced(Iterable<SSTableReader> readers, Throwable accumulate)
     {
         for (SSTableReader reader : readers)
@@ -118,13 +99,13 @@ class Helpers
      * A convenience method for encapsulating this action over multiple SSTableReader with exception-safety
      * @return accumulate if not null (with any thrown exception attached), or any thrown exception otherwise
      */
-    static Throwable markObsolete(Iterable<SSTableReader> readers, Throwable accumulate)
+    static Throwable markObsolete(Tracker tracker, Iterable<SSTableReader> readers, Throwable accumulate)
     {
         for (SSTableReader reader : readers)
         {
             try
             {
-                boolean firstToCompact = reader.markObsolete();
+                boolean firstToCompact = reader.markObsolete(tracker);
                 assert firstToCompact : reader + " was already marked compacted";
             }
             catch (Throwable t)

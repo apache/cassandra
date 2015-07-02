@@ -155,8 +155,7 @@ public class LifecycleTransaction extends Transactional.AbstractTransactional
         // this is now the point of no return; we cannot safely rollback, so we ignore exceptions until we're done
         // we restore state by obsoleting our obsolete files, releasing our references to them, and updating our size
         // and notification status for the obsolete and new files
-        accumulate = setupDeleteNotification(logged.update, tracker, accumulate);
-        accumulate = markObsolete(logged.obsolete, accumulate);
+        accumulate = markObsolete(tracker, logged.obsolete, accumulate);
         accumulate = tracker.updateSizeTracking(logged.obsolete, logged.update, accumulate);
         accumulate = release(selfRefs(logged.obsolete), accumulate);
         accumulate = tracker.notifySSTablesChanged(originals, logged.update, operationType, accumulate);
@@ -177,7 +176,9 @@ public class LifecycleTransaction extends Transactional.AbstractTransactional
         // mark obsolete all readers that are not versions of those present in the original set
         Iterable<SSTableReader> obsolete = filterOut(concatUniq(staged.update, logged.update), originals);
         logger.debug("Obsoleting {}", obsolete);
-        accumulate = markObsolete(obsolete, accumulate);
+        // we don't pass the tracker in for the obsoletion, since these readers have never been notified externally
+        // nor had their size accounting affected
+        accumulate = markObsolete(null, obsolete, accumulate);
 
         // replace all updated readers with a version restored to its original state
         accumulate = tracker.apply(updateLiveSet(logged.update, restoreUpdatedOriginals()), accumulate);

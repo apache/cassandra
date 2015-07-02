@@ -158,11 +158,11 @@ public class HelpersTest
     {
         ColumnFamilyStore cfs = MockSchema.newCFS();
         Iterable<SSTableReader> readers = Lists.newArrayList(MockSchema.sstable(1, cfs), MockSchema.sstable(2, cfs));
-        Throwable accumulate = Helpers.markObsolete(readers, null);
+        Throwable accumulate = Helpers.markObsolete(null, readers, null);
         Assert.assertNull(accumulate);
         for (SSTableReader reader : readers)
             Assert.assertTrue(reader.isMarkedCompacted());
-        accumulate = Helpers.markObsolete(readers, null);
+        accumulate = Helpers.markObsolete(null, readers, null);
         Assert.assertNotNull(accumulate);
     }
 }
