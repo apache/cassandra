@@ -21,6 +21,9 @@ import java.nio.ByteBuffer;
 import java.util.*;
 
 import com.google.common.collect.Iterators;
+import com.google.common.collect.Lists;
+
+import org.apache.cassandra.cql3.ColumnSpecification;
 
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.cql3.functions.Function;
@@ -47,11 +50,25 @@ public abstract class Selection
     private final boolean collectTimestamps;
     private final boolean collectTTLs;
 
-    protected Selection(List<ColumnDefinition> columns, SelectionColumnMapping columnMapping, boolean collectTimestamps, boolean collectTTLs)
+    protected Selection(List<ColumnDefinition> columns,
+                        SelectionColumnMapping columnMapping,
+                        boolean collectTimestamps,
+                        boolean collectTTLs)
+    {
+        this(columns, columnMapping, columnMapping.getColumnSpecifications(), collectTimestamps, collectTTLs);
+    }
+
+    // Alternative ctor for when we need to pass the List<ColumnSpecification> directly,
+    // rather than getting it from columnMapping. This is to handle COUNT correctly.
+    protected Selection(List<ColumnDefinition> columns,
+                        SelectionColumnMapping columnMapping,
+                        List<ColumnSpecification> columnSpecifications,
+                        boolean collectTimestamps,
+                        boolean collectTTLs)
     {
         this.columns = columns;
         this.columnMapping = columnMapping;
-        this.metadata = new ResultSet.Metadata(columnMapping.getColumnSpecifications());
+        this.metadata = new ResultSet.Metadata(columnSpecifications);
         this.collectTimestamps = collectTimestamps;
         this.collectTTLs = collectTTLs;
     }
@@ -67,16 +84,18 @@ public abstract class Selection
         return metadata;
     }
 
-    public static Selection wildcard(CFMetaData cfm)
+    public static Selection wildcard(CFMetaData cfm, boolean isCount, ColumnIdentifier countAlias)
     {
-        List<ColumnDefinition> all = new ArrayList<ColumnDefinition>(cfm.allColumns().size());
-        Iterators.addAll(all, cfm.allColumnsInSelectOrder());
-        return new SimpleSelection(all, true);
+        List<ColumnDefinition> allColumns = Lists.newArrayList(cfm.allColumnsInSelectOrder());
+        SelectionColumnMapping columnMapping = isCount ? SelectionColumnMapping.countMapping(cfm, countAlias)
+                                                       : SelectionColumnMapping.simpleMapping(allColumns);
+
+        return new SimpleSelection(allColumns, columnMapping, true, isCount);
     }
 
     public static Selection forColumns(List<ColumnDefinition> columns)
     {
-        return new SimpleSelection(columns, false);
+        return new SimpleSelection(columns);
     }
 
     public int addColumnForOrdering(ColumnDefinition c)
@@ -117,7 +136,7 @@ public abstract class Selection
     {
         if (selectable instanceof ColumnIdentifier)
         {
-            ColumnDefinition def = cfm.getColumnDefinition((ColumnIdentifier)selectable);
+            ColumnDefinition def = cfm.getColumnDefinition((ColumnIdentifier) selectable);
             if (def == null)
                 throw new InvalidRequestException(String.format("Undefined name %s in selection clause", selectable));
 
@@ -256,7 +275,7 @@ public abstract class Selection
                                                                                          rawSelector.alias),
                                          def);
             }
-            return new SimpleSelection(defs, columnMapping, false);
+            return new SimpleSelection(defs, columnMapping);
         }
     }
 
@@ -281,6 +300,11 @@ public abstract class Selection
     public ResultSetBuilder resultSetBuilder(long now)
     {
         return new ResultSetBuilder(now);
+    }
+
+    protected List<ColumnSpecification> getColumnSpecifications()
+    {
+        return columnMapping.getColumnSpecifications();
     }
 
     private static ByteBuffer value(Cell c)
@@ -363,21 +387,36 @@ public abstract class Selection
     private static class SimpleSelection extends Selection
     {
         private final boolean isWildcard;
+        private final boolean isCount;
 
-        public SimpleSelection(List<ColumnDefinition> columns, boolean isWildcard)
+        public SimpleSelection(List<ColumnDefinition> columns)
         {
-            this(columns, SelectionColumnMapping.simpleMapping(columns), isWildcard);
+            this(columns, SelectionColumnMapping.simpleMapping(columns), false, false);
         }
 
-        public SimpleSelection(List<ColumnDefinition> columns, SelectionColumnMapping columnMapping, boolean isWildcard)
+        public SimpleSelection(List<ColumnDefinition> columns, SelectionColumnMapping columnMapping)
+        {
+            this(columns, columnMapping, false, false);
+        }
+
+        public SimpleSelection(List<ColumnDefinition> columns,
+                               SelectionColumnMapping columnMapping,
+                               boolean wildcard,
+                               boolean isCount)
         {
             /*
              * In theory, even a simple selection could have multiple time the same column, so we
              * could filter those duplicate out of columns. But since we're very unlikely to
              * get much duplicate in practice, it's more efficient not to bother.
              */
-            super(columns, columnMapping, false, false);
-            this.isWildcard = isWildcard;
+            // the List<ColumnSpecification> we pass depends on whether this is a COUNT or not
+            super(columns,
+                  columnMapping,
+                  isCount ? new ArrayList<ColumnSpecification>(columns) : columnMapping.getColumnSpecifications(),
+                  false,
+                  false);
+            this.isWildcard = wildcard;
+            this.isCount = isCount;
         }
 
         protected List<ByteBuffer> handleRow(ResultSetBuilder rs)

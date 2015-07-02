@@ -1506,7 +1506,7 @@ public class SelectStatement implements CQLStatement
                 throw new InvalidRequestException("Only COUNT(*) and COUNT(1) operations are currently supported.");
 
             Selection selection = selectClause.isEmpty()
-                                ? Selection.wildcard(cfm)
+                                ? Selection.wildcard(cfm, parameters.isCount, parameters.countAlias)
                                 : Selection.fromSelectors(cfm, selectClause);
 
             SelectStatement stmt = new SelectStatement(cfm, boundNames.size(), parameters, selection, prepareLimit(boundNames));

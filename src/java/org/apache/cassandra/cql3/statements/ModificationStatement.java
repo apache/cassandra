@@ -598,7 +598,7 @@ public abstract class ModificationStatement implements CQLStatement
         Selection selection;
         if (columnsWithConditions == null)
         {
-            selection = Selection.wildcard(cfm);
+            selection = Selection.wildcard(cfm, false, null);
         }
         else
         {
