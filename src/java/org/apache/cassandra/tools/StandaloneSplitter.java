@@ -153,7 +153,7 @@ public class StandaloneSplitter
                     new SSTableSplitter(cfs, sstable, options.sizeInMB).split();
 
                     // Remove the sstable (it's been copied by split and snapshotted)
-                    sstable.markObsolete();
+                    sstable.markObsolete(null);
                     sstable.selfRef().release();
                 }
                 catch (Exception e)

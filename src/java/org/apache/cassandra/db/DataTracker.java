@@ -32,10 +32,13 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.dht.AbstractBounds;
+import org.apache.cassandra.io.sstable.IndexSummary;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.io.util.SegmentedFile;
 import org.apache.cassandra.metrics.StorageMetrics;
 import org.apache.cassandra.notifications.*;
+import org.apache.cassandra.utils.IFilter;
 import org.apache.cassandra.utils.Interval;
 import org.apache.cassandra.utils.IntervalTree;
 import org.apache.cassandra.utils.concurrent.OpOrder;
@@ -399,7 +402,7 @@ public class DataTracker
             notifySSTablesChanged(oldSSTables, newSSTables, OperationType.UNKNOWN);
 
         for (SSTableReader sstable : newSSTables)
-            sstable.setTrackedBy(this);
+            sstable.setupKeyCache();
 
         Refs.release(Refs.selfRefs(oldSSTables));
     }
@@ -439,7 +442,7 @@ public class DataTracker
             StorageMetrics.load.inc(size);
             cfstore.metric.liveDiskSpaceUsed.inc(size);
             cfstore.metric.totalDiskSpaceUsed.inc(size);
-            sstable.setTrackedBy(this);
+            sstable.setupKeyCache();
         }
     }
 
@@ -460,15 +463,10 @@ public class DataTracker
     {
         for (SSTableReader sstable : oldSSTables)
         {
-            boolean firstToCompact = sstable.markObsolete();
+            boolean firstToCompact = sstable.markObsolete(this);
             assert tolerateCompacted || firstToCompact : sstable + " was already marked compacted";
             sstable.selfRef().release();
         }
-    }
-
-    public void spaceReclaimed(long size)
-    {
-        cfstore.metric.totalDiskSpaceUsed.dec(size);
     }
 
     public long estimatedKeys()
@@ -570,6 +568,11 @@ public class DataTracker
     public Set<SSTableReader> getCompacting()
     {
         return getView().compacting;
+    }
+
+    public SSTableReader getCurrentVersion(SSTableReader sstable)
+    {
+        return view.get().sstablesMap.get(sstable);
     }
 
     public static class SSTableIntervalTree extends IntervalTree<RowPosition, SSTableReader, Interval<RowPosition, SSTableReader>>

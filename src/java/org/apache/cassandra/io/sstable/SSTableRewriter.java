@@ -23,6 +23,8 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Throwables;
 import com.google.common.collect.ImmutableList;
 
+import org.apache.cassandra.cache.InstrumentingCache;
+import org.apache.cassandra.cache.KeyCacheKey;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DataTracker;
@@ -214,7 +216,7 @@ public class SSTableRewriter
         {
             try
             {
-                sstable.markObsolete();
+                sstable.markObsolete(dataTracker);
                 sstable.selfRef().release();
             }
             catch (Throwable t)
@@ -243,7 +245,7 @@ public class SSTableRewriter
                 {
                     // if we've already been opened, add ourselves to the discard pile
                     discard.add(finished.reader);
-                    finished.reader.markObsolete();
+                    finished.reader.markObsolete(dataTracker);
                 }
             }
             catch (Throwable t)
@@ -298,7 +300,7 @@ public class SSTableRewriter
         {
             // we call getCurrentReplacement() to support multiple rewriters operating over the same source readers at once.
             // note: only one such writer should be written to at any moment
-            final SSTableReader latest = sstable.getCurrentReplacement();
+            final SSTableReader latest = dataTracker.getCurrentVersion(sstable);
             SSTableReader replacement;
             if (reset)
             {
@@ -313,17 +315,7 @@ public class SSTableRewriter
                 if (latest.first.compareTo(lowerbound) > 0)
                     continue;
 
-                final Runnable runOnClose = new Runnable()
-                {
-                    public void run()
-                    {
-                        // this is somewhat racey, in that we could theoretically be closing this old reader
-                        // when an even older reader is still in use, but it's not likely to have any major impact
-                        for (DecoratedKey key : invalidateKeys)
-                            latest.invalidateCacheKey(key);
-                    }
-                };
-
+                final Runnable runOnClose = new InvalidateKeys(latest, invalidateKeys);
                 if (lowerbound.compareTo(latest.last) >= 0)
                 {
                     replacement = latest.cloneAsShadowed(runOnClose);
@@ -342,6 +334,25 @@ public class SSTableRewriter
             rewriting.add(replacement);
         }
         cfs.getDataTracker().replaceWithNewInstances(toReplace, replaceWith);
+    }
+
+    private static final class InvalidateKeys implements Runnable
+    {
+        final List<KeyCacheKey> cacheKeys = new ArrayList<>();
+        final InstrumentingCache<KeyCacheKey, ?> cache;
+
+        private InvalidateKeys(SSTableReader reader, Collection<DecoratedKey> invalidate)
+        {
+            this.cache = reader.getKeyCache();
+            for (DecoratedKey key : invalidate)
+                cacheKeys.add(reader.getCacheKey(key));
+        }
+
+        public void run()
+        {
+            for (KeyCacheKey key : cacheKeys)
+                cache.remove(key);
+        }
     }
 
     private void replaceEarlyOpenedFile(SSTableReader toReplace, SSTableReader replaceWith)
@@ -489,8 +500,8 @@ public class SSTableRewriter
         {
             for (SSTableReader reader : discard)
             {
-                if (reader.getCurrentReplacement() == reader)
-                    reader.markObsolete();
+                if (dataTracker.getCurrentVersion(reader) == reader)
+                    reader.markObsolete(dataTracker);
                 reader.selfRef().release();
             }
         }

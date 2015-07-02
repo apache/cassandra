@@ -1,4 +1,6 @@
 2.1.8
+ * Eliminate strong self-reference chains in sstable ref tidiers (CASSANDRA-9656)
+ * Ensure StreamSession uses canonical sstable reader instances (CASSANDRA-9700) 
  * Ensure memtable book keeping is not corrupted in the event we shrink usage (CASSANDRA-9681)
  * Update internal python driver for cqlsh (CASSANDRA-9064)
  * Fix IndexOutOfBoundsException when inserting tuple with too many

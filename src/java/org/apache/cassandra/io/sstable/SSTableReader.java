@@ -24,7 +24,6 @@ import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
-import java.io.RandomAccessFile;
 import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.concurrent.*;
@@ -33,6 +32,7 @@ import java.util.concurrent.atomic.AtomicLong;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Predicate;
+import com.google.common.collect.Iterables;
 import com.google.common.collect.Iterators;
 import com.google.common.collect.Ordering;
 import com.google.common.primitives.Longs;
@@ -43,6 +43,7 @@ import org.slf4j.LoggerFactory;
 import com.clearspring.analytics.stream.cardinality.CardinalityMergeException;
 import com.clearspring.analytics.stream.cardinality.HyperLogLogPlus;
 import com.clearspring.analytics.stream.cardinality.ICardinality;
+import com.yammer.metrics.core.Counter;
 import org.apache.cassandra.cache.CachingOptions;
 import org.apache.cassandra.cache.InstrumentingCache;
 import org.apache.cassandra.cache.KeyCacheKey;
@@ -97,7 +98,6 @@ import org.apache.cassandra.utils.IFilter;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.concurrent.OpOrder;
 import org.apache.cassandra.utils.concurrent.Ref;
-import org.apache.cassandra.utils.concurrent.RefCounted;
 import org.apache.cassandra.utils.concurrent.SelfRefCounted;
 
 import static org.apache.cassandra.db.Directories.SECONDARY_INDEX_NAME_SEPARATOR;
@@ -643,9 +643,8 @@ public class SSTableReader extends SSTable implements SelfRefCounted<SSTableRead
         return ifile.path;
     }
 
-    public void setTrackedBy(DataTracker tracker)
+    public void setupKeyCache()
     {
-        tidy.type.deletingTask.setTracker(tracker);
         // under normal operation we can do this at any time, but SSTR is also used outside C* proper,
         // e.g. by BulkLoader, which does not initialize the cache.  As a kludge, we set up the cache
         // here when we know we're being wired into the rest of the server infrastructure.
@@ -953,9 +952,7 @@ public class SSTableReader extends SSTable implements SelfRefCounted<SSTableRead
         {
             assert replacement != null;
             assert !tidy.isReplaced;
-            assert tidy.global.live == this;
             tidy.isReplaced = true;
-            tidy.global.live = replacement;
         }
     }
 
@@ -1003,49 +1000,57 @@ public class SSTableReader extends SSTable implements SelfRefCounted<SSTableRead
         return replacement;
     }
 
+    // runOnClose must NOT be an anonymous or non-static inner class, nor must it retain a reference chain to this reader
     public SSTableReader cloneWithNewStart(DecoratedKey newStart, final Runnable runOnClose)
     {
         synchronized (tidy.global)
         {
             assert openReason != OpenReason.EARLY;
-            // TODO: make data/index start accurate for compressed files
             // TODO: merge with caller's firstKeyBeyond() work,to save time
             if (newStart.compareTo(first) > 0)
             {
                 final long dataStart = getPosition(newStart, Operator.EQ).position;
                 final long indexStart = getIndexScanPosition(newStart);
-                this.tidy.runOnClose = new Runnable()
-                {
-                    public void run()
-                    {
-                        dfile.dropPageCache(dataStart);
-                        ifile.dropPageCache(indexStart);
-                        if (runOnClose != null)
-                            runOnClose.run();
-                    }
-                };
+                this.tidy.runOnClose = new DropPageCache(dfile, dataStart, ifile, indexStart, runOnClose);
             }
 
             return cloneAndReplace(newStart, OpenReason.MOVED_START);
         }
     }
 
+    // runOnClose must NOT be an anonymous or non-static inner class, nor must it retain a reference chain to this reader
     public SSTableReader cloneAsShadowed(final Runnable runOnClose)
     {
         synchronized (tidy.global)
         {
             assert openReason != OpenReason.EARLY;
-            this.tidy.runOnClose = new Runnable()
-            {
-                public void run()
-                {
-                    dfile.dropPageCache(0);
-                    ifile.dropPageCache(0);
-                    runOnClose.run();
-                }
-            };
-
+            this.tidy.runOnClose = new DropPageCache(dfile, 0, ifile, 0, runOnClose);
             return cloneAndReplace(first, OpenReason.SHADOWED);
+        }
+    }
+
+    private static class DropPageCache implements Runnable
+    {
+        final SegmentedFile dfile;
+        final long dfilePosition;
+        final SegmentedFile ifile;
+        final long ifilePosition;
+        final Runnable andThen;
+
+        private DropPageCache(SegmentedFile dfile, long dfilePosition, SegmentedFile ifile, long ifilePosition, Runnable andThen)
+        {
+            this.dfile = dfile;
+            this.dfilePosition = dfilePosition;
+            this.ifile = ifile;
+            this.ifilePosition = ifilePosition;
+            this.andThen = andThen;
+        }
+
+        public void run()
+        {
+            dfile.dropPageCache(dfilePosition);
+            ifile.dropPageCache(ifilePosition);
+            andThen.run();
         }
     }
 
@@ -1439,10 +1444,9 @@ public class SSTableReader extends SSTable implements SelfRefCounted<SSTableRead
         return positions;
     }
 
-    public void invalidateCacheKey(DecoratedKey key)
+    public KeyCacheKey getCacheKey(DecoratedKey key)
     {
-        KeyCacheKey cacheKey = new KeyCacheKey(metadata.cfId, descriptor, key.getKey());
-        keyCache.remove(cacheKey);
+        return new KeyCacheKey(metadata.cfId, descriptor, key.getKey());
     }
 
     public void cacheKey(DecoratedKey key, RowIndexEntry info)
@@ -1725,7 +1729,7 @@ public class SSTableReader extends SSTable implements SelfRefCounted<SSTableRead
      * @return true if the this is the first time the file was marked obsolete.  Calling this
      * multiple times is usually buggy (see exceptions in DataTracker.unmarkCompacting and removeOldSSTablesSize).
      */
-    public boolean markObsolete()
+    public boolean markObsolete(DataTracker tracker)
     {
         if (logger.isDebugEnabled())
             logger.debug("Marking {} compacted", getFilename());
@@ -1734,7 +1738,12 @@ public class SSTableReader extends SSTable implements SelfRefCounted<SSTableRead
         {
             assert !tidy.isReplaced;
         }
-        return !tidy.global.isCompacted.getAndSet(true);
+        if (!tidy.global.isCompacted.getAndSet(true))
+        {
+            tidy.type.markObsolete(this, tracker);
+            return true;
+        }
+        return false;
     }
 
     public boolean isMarkedCompacted()
@@ -1832,11 +1841,6 @@ public class SSTableReader extends SSTable implements SelfRefCounted<SSTableRead
     public boolean isRepaired()
     {
         return sstableMetadata.repairedAt != ActiveRepairService.UNREPAIRED_SSTABLE;
-    }
-
-    public SSTableReader getCurrentReplacement()
-    {
-        return tidy.global.live;
     }
 
     /**
@@ -2180,14 +2184,29 @@ public class SSTableReader extends SSTable implements SelfRefCounted<SSTableRead
 
         private final Descriptor desc;
         private final Ref<GlobalTidy> globalRef;
-        private final SSTableDeletingTask deletingTask;
+        private final Set<Component> components;
+        private long sizeOnDelete;
+        private Counter totalDiskSpaceUsed;
 
         DescriptorTypeTidy(Descriptor desc, SSTableReader sstable)
         {
             this.desc = desc;
-            this.deletingTask = new SSTableDeletingTask(desc, sstable);
             // get a new reference to the shared global tidy
             this.globalRef = GlobalTidy.get(sstable);
+            this.components = sstable.components;
+        }
+
+        void markObsolete(SSTableReader instance, DataTracker tracker)
+        {
+            // the tracker is used only to notify listeners of deletion of the sstable;
+            // since deletion of a non-final file is not really deletion of the sstable,
+            // we don't want to notify the listeners in this event
+            if (tracker != null && desc.type == Descriptor.Type.FINAL)
+            {
+                sizeOnDelete = instance.bytesOnDisk();
+                totalDiskSpaceUsed = tracker.cfstore.metric.totalDiskSpaceUsed;
+                tracker.notifyDeleting(instance);
+            }
         }
 
         public void tidy()
@@ -2199,10 +2218,10 @@ public class SSTableReader extends SSTable implements SelfRefCounted<SSTableRead
             {
                 case FINAL:
                     if (isCompacted)
-                        deletingTask.run();
+                        new SSTableDeletingTask(desc, components, totalDiskSpaceUsed, sizeOnDelete).run();
                     break;
                 case TEMPLINK:
-                    deletingTask.run();
+                    new SSTableDeletingTask(desc, components, null, 0).run();
                     break;
                 default:
                     throw new IllegalStateException();
@@ -2244,8 +2263,6 @@ public class SSTableReader extends SSTable implements SelfRefCounted<SSTableRead
         static final ConcurrentMap<Descriptor, Ref<GlobalTidy>> lookup = new ConcurrentHashMap<>();
 
         private final Descriptor desc;
-        // a single convenience property for getting the most recent version of an sstable, not related to tidying
-        private SSTableReader live;
         // the readMeter that is shared between all instances of the sstable, and can be overridden in all of them
         // at once also, for testing purposes
         private RestorableMeter readMeter;
@@ -2260,7 +2277,6 @@ public class SSTableReader extends SSTable implements SelfRefCounted<SSTableRead
         {
             this.desc = reader.descriptor;
             this.isCompacted = new AtomicBoolean();
-            this.live = reader;
         }
 
         void ensureReadMeter()

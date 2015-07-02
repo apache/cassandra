@@ -203,7 +203,7 @@ public class SSTableRewriterTest extends SchemaLoader
             SSTableReader s2 = writer.openEarly(1000);
             assertTrue(s.last.compareTo(s2.last) < 0);
             assertFileCounts(dir.list(), 2, 2);
-            s.markObsolete();
+            s.markObsolete(cfs.getDataTracker());
             s.selfRef().release();
             s2.selfRef().release();
             Thread.sleep(1000);

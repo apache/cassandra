@@ -107,7 +107,7 @@ public class StandaloneUpgrader
                     {
                         // Remove the sstable (it's been copied by upgrade)
                         System.out.format("Deleting table %s.%n", sstable.descriptor.baseFilename());
-                        sstable.markObsolete();
+                        sstable.markObsolete(null);
                         sstable.selfRef().release();
                     }
                 }
