@@ -69,7 +69,6 @@ public class StorageProxy implements StorageProxyMBean
 {
     public static final String MBEAN_NAME = "org.apache.cassandra.db:type=StorageProxy";
     private static final Logger logger = LoggerFactory.getLogger(StorageProxy.class);
-    static final boolean OPTIMIZE_LOCAL_REQUESTS = true; // set to false to test messagingservice path on single node
 
     public static final String UNREACHABLE = "UNREACHABLE";
 
@@ -705,7 +704,7 @@ public class StorageProxy implements StorageProxyMBean
 
     public static boolean canDoLocalRequest(InetAddress replica)
     {
-        return replica.equals(FBUtilities.getBroadcastAddress()) && OPTIMIZE_LOCAL_REQUESTS;
+        return replica.equals(FBUtilities.getBroadcastAddress());
     }
 
 
@@ -1849,9 +1848,6 @@ public class StorageProxy implements StorageProxyMBean
     throws UnavailableException, ReadFailureException, ReadTimeoutException
     {
         Tracing.trace("Computing ranges to query");
-        long startTime = System.nanoTime();
-
-        List<FilteredPartition> partitions = new ArrayList<>();
 
         Keyspace keyspace = Keyspace.open(command.metadata().ksName);
         RangeIterator ranges = new RangeIterator(command, keyspace, consistencyLevel);
