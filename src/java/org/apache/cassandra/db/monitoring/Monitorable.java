@@ -15,15 +15,19 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.net;
 
-import java.net.InetAddress;
+package org.apache.cassandra.db.monitoring;
 
-public interface IAsyncCallbackWithFailure<T> extends IAsyncCallback<T>
+public interface Monitorable
 {
+    String name();
+    ConstructionTime constructionTime();
+    long timeout();
 
-    /**
-     * Called when there is an exception on the remote node or timeout happens
-     */
-    void onFailure(InetAddress from);
+    boolean isInProgress();
+    boolean isAborted();
+    boolean isCompleted();
+
+    boolean abort();
+    boolean complete();
 }

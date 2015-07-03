@@ -222,8 +222,8 @@ public class HintTest
     {
         ReadCommand cmd = cmd(key, table);
 
-        try (ReadOrderGroup orderGroup = cmd.startOrderGroup();
-             PartitionIterator iterator = cmd.executeInternal(orderGroup))
+        try (ReadExecutionController executionController = cmd.executionController();
+             PartitionIterator iterator = cmd.executeInternal(executionController))
         {
             assertFalse(iterator.hasNext());
         }

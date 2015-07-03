@@ -360,7 +360,8 @@ public abstract class ModificationStatement implements CQLStatement
 
         if (local)
         {
-            try (ReadOrderGroup orderGroup = group.startOrderGroup(); PartitionIterator iter = group.executeInternal(orderGroup))
+            try (ReadExecutionController executionController = group.executionController();
+                 PartitionIterator iter = group.executeInternal(executionController))
             {
                 return asMaterializedMap(iter);
             }
@@ -575,7 +576,8 @@ public abstract class ModificationStatement implements CQLStatement
 
         SinglePartitionReadCommand<?> readCommand = request.readCommand(FBUtilities.nowInSeconds());
         FilteredPartition current;
-        try (ReadOrderGroup orderGroup = readCommand.startOrderGroup(); PartitionIterator iter = readCommand.executeInternal(orderGroup))
+        try (ReadExecutionController executionController = readCommand.executionController();
+             PartitionIterator iter = readCommand.executeInternal(executionController))
         {
             current = FilteredPartition.create(PartitionIterators.getOnlyElement(iter, readCommand));
         }

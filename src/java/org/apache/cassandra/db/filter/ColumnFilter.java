@@ -317,9 +317,12 @@ public class ColumnFilter
             return "<none>";
 
         StringBuilder sb = new StringBuilder();
-        appendColumnDef(sb, defs.next());
         while (defs.hasNext())
-            appendColumnDef(sb.append(", "), defs.next());
+        {
+            appendColumnDef(sb, defs.next());
+            if (defs.hasNext())
+                sb.append(", ");
+        }
         return sb.toString();
     }
 

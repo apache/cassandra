@@ -272,7 +272,8 @@ public class Util
 
     public static void assertEmptyUnfiltered(ReadCommand command)
     {
-        try (ReadOrderGroup orderGroup = command.startOrderGroup(); UnfilteredPartitionIterator iterator = command.executeLocally(orderGroup))
+        try (ReadExecutionController executionController = command.executionController();
+             UnfilteredPartitionIterator iterator = command.executeLocally(executionController))
         {
             if (iterator.hasNext())
             {
@@ -286,7 +287,8 @@ public class Util
 
     public static void assertEmpty(ReadCommand command)
     {
-        try (ReadOrderGroup orderGroup = command.startOrderGroup(); PartitionIterator iterator = command.executeInternal(orderGroup))
+        try (ReadExecutionController executionController = command.executionController();
+             PartitionIterator iterator = command.executeInternal(executionController))
         {
             if (iterator.hasNext())
             {
@@ -301,7 +303,8 @@ public class Util
     public static List<ImmutableBTreePartition> getAllUnfiltered(ReadCommand command)
     {
         List<ImmutableBTreePartition> results = new ArrayList<>();
-        try (ReadOrderGroup orderGroup = command.startOrderGroup(); UnfilteredPartitionIterator iterator = command.executeLocally(orderGroup))
+        try (ReadExecutionController executionController = command.executionController();
+             UnfilteredPartitionIterator iterator = command.executeLocally(executionController))
         {
             while (iterator.hasNext())
             {
@@ -317,7 +320,8 @@ public class Util
     public static List<FilteredPartition> getAll(ReadCommand command)
     {
         List<FilteredPartition> results = new ArrayList<>();
-        try (ReadOrderGroup orderGroup = command.startOrderGroup(); PartitionIterator iterator = command.executeInternal(orderGroup))
+        try (ReadExecutionController executionController = command.executionController();
+             PartitionIterator iterator = command.executeInternal(executionController))
         {
             while (iterator.hasNext())
             {
@@ -332,7 +336,8 @@ public class Util
 
     public static Row getOnlyRowUnfiltered(ReadCommand cmd)
     {
-        try (ReadOrderGroup orderGroup = cmd.startOrderGroup(); UnfilteredPartitionIterator iterator = cmd.executeLocally(orderGroup))
+        try (ReadExecutionController executionController = cmd.executionController();
+             UnfilteredPartitionIterator iterator = cmd.executeLocally(executionController))
         {
             assert iterator.hasNext() : "Expecting one row in one partition but got nothing";
             try (UnfilteredRowIterator partition = iterator.next())
@@ -349,7 +354,8 @@ public class Util
 
     public static Row getOnlyRow(ReadCommand cmd)
     {
-        try (ReadOrderGroup orderGroup = cmd.startOrderGroup(); PartitionIterator iterator = cmd.executeInternal(orderGroup))
+        try (ReadExecutionController executionController = cmd.executionController();
+             PartitionIterator iterator = cmd.executeInternal(executionController))
         {
             assert iterator.hasNext() : "Expecting one row in one partition but got nothing";
             try (RowIterator partition = iterator.next())
@@ -365,7 +371,8 @@ public class Util
 
     public static ImmutableBTreePartition getOnlyPartitionUnfiltered(ReadCommand cmd)
     {
-        try (ReadOrderGroup orderGroup = cmd.startOrderGroup(); UnfilteredPartitionIterator iterator = cmd.executeLocally(orderGroup))
+        try (ReadExecutionController executionController = cmd.executionController();
+             UnfilteredPartitionIterator iterator = cmd.executeLocally(executionController))
         {
             assert iterator.hasNext() : "Expecting a single partition but got nothing";
             try (UnfilteredRowIterator partition = iterator.next())
@@ -378,7 +385,8 @@ public class Util
 
     public static FilteredPartition getOnlyPartition(ReadCommand cmd)
     {
-        try (ReadOrderGroup orderGroup = cmd.startOrderGroup(); PartitionIterator iterator = cmd.executeInternal(orderGroup))
+        try (ReadExecutionController executionController = cmd.executionController();
+             PartitionIterator iterator = cmd.executeInternal(executionController))
         {
             assert iterator.hasNext() : "Expecting a single partition but got nothing";
             try (RowIterator partition = iterator.next())

@@ -15,15 +15,27 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.net;
 
-import java.net.InetAddress;
+package org.apache.cassandra.db.monitoring;
 
-public interface IAsyncCallbackWithFailure<T> extends IAsyncCallback<T>
+public final class ConstructionTime
 {
+    public final long timestamp;
+    public final boolean isCrossNode;
 
-    /**
-     * Called when there is an exception on the remote node or timeout happens
-     */
-    void onFailure(InetAddress from);
+    public ConstructionTime()
+    {
+        this(ApproximateTime.currentTimeMillis());
+    }
+
+    public ConstructionTime(long timestamp)
+    {
+        this(timestamp, false);
+    }
+
+    public ConstructionTime(long timestamp, boolean isCrossNode)
+    {
+        this.timestamp = timestamp;
+        this.isCrossNode = isCrossNode;
+    }
 }

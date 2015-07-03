@@ -19,6 +19,8 @@ package org.apache.cassandra.net;
 
 import java.io.IOException;
 
+import org.apache.cassandra.db.ReadCommand;
+
 /**
  * IVerbHandler provides the method that all verb handlers need to implement.
  * The concrete implementation of this interface would provide the functionality
@@ -36,5 +38,5 @@ public interface IVerbHandler<T>
      * @param message - incoming message that needs handling.
      * @param id
      */
-    public void doVerb(MessageIn<T> message, int id) throws IOException;
+    void doVerb(MessageIn<T> message, int id) throws IOException;
 }

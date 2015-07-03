@@ -121,7 +121,8 @@ public class QueryPagerTest
         StringBuilder sb = new StringBuilder();
         List<FilteredPartition> partitionList = new ArrayList<>();
         int rows = 0;
-        try (ReadOrderGroup orderGroup = pager.startOrderGroup(); PartitionIterator iterator = pager.fetchPageInternal(toQuery, orderGroup))
+        try (ReadExecutionController executionController = pager.executionController();
+             PartitionIterator iterator = pager.fetchPageInternal(toQuery, executionController))
         {
             while (iterator.hasNext())
             {

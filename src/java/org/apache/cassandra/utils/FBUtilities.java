@@ -816,4 +816,16 @@ public class FBUtilities
             throw new RuntimeException(e);
         }
     }
+	
+	public static void sleepQuietly(long millis)
+    {
+        try
+        {
+            Thread.sleep(millis);
+        }
+        catch (InterruptedException e)
+        {
+            throw new RuntimeException(e);
+        }
+    }
 }

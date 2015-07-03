@@ -36,14 +36,14 @@ public abstract class CassandraIndexSearcher implements Index.Searcher
 
     @SuppressWarnings("resource") // Both the OpOrder and 'indexIter' are closed on exception, or through the closing of the result
     // of this method.
-    public UnfilteredPartitionIterator search(ReadOrderGroup orderGroup)
+    public UnfilteredPartitionIterator search(ReadExecutionController executionController)
     {
         // the value of the index expression is the partition key in the index table
         DecoratedKey indexKey = index.getBackingTable().get().decorateKey(expression.getIndexValue());
-        UnfilteredRowIterator indexIter = queryIndex(indexKey, command, orderGroup);
+        UnfilteredRowIterator indexIter = queryIndex(indexKey, command, executionController);
         try
         {
-            return queryDataFromIndex(indexKey, UnfilteredRowIterators.filter(indexIter, command.nowInSec()), command, orderGroup);
+            return queryDataFromIndex(indexKey, UnfilteredRowIterators.filter(indexIter, command.nowInSec()), command, executionController);
         }
         catch (RuntimeException | Error e)
         {
@@ -52,13 +52,13 @@ public abstract class CassandraIndexSearcher implements Index.Searcher
         }
     }
 
-    private UnfilteredRowIterator queryIndex(DecoratedKey indexKey, ReadCommand command, ReadOrderGroup orderGroup)
+    private UnfilteredRowIterator queryIndex(DecoratedKey indexKey, ReadCommand command, ReadExecutionController executionController)
     {
         ClusteringIndexFilter filter = makeIndexFilter(command);
         ColumnFamilyStore indexCfs = index.getBackingTable().get();
         CFMetaData indexCfm = indexCfs.metadata;
         return SinglePartitionReadCommand.create(indexCfm, command.nowInSec(), indexKey, ColumnFilter.all(indexCfm), filter)
-                                         .queryMemtableAndDisk(indexCfs, orderGroup.indexReadOpOrderGroup());
+                                         .queryMemtableAndDisk(indexCfs, executionController.indexReadOpOrderGroup());
     }
 
     private ClusteringIndexFilter makeIndexFilter(ReadCommand command)
@@ -168,5 +168,5 @@ public abstract class CassandraIndexSearcher implements Index.Searcher
     protected abstract UnfilteredPartitionIterator queryDataFromIndex(DecoratedKey indexKey,
                                                                       RowIterator indexHits,
                                                                       ReadCommand command,
-                                                                      ReadOrderGroup orderGroup);
+                                                                      ReadExecutionController executionController);
 }

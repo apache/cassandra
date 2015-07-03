@@ -789,7 +789,7 @@ public final class MessagingService implements MessagingServiceMBean
         }
     }
 
-    public void receive(MessageIn message, int id, long timestamp, boolean isCrossNodeTimestamp)
+    public void receive(MessageIn message, int id)
     {
         TraceState state = Tracing.instance.initializeFromMessage(message);
         if (state != null)
@@ -800,7 +800,7 @@ public final class MessagingService implements MessagingServiceMBean
             if (!ms.allowIncomingMessage(message, id))
                 return;
 
-        Runnable runnable = new MessageDeliveryTask(message, id, timestamp, isCrossNodeTimestamp);
+        Runnable runnable = new MessageDeliveryTask(message, id);
         TracingAwareExecutorService stage = StageManager.getStage(message.getMessageType());
         assert stage != null : "No stage for message type " + message.verb;
 
@@ -935,6 +935,11 @@ public final class MessagingService implements MessagingServiceMBean
     public void incrementDroppedMessages(Verb verb)
     {
         incrementDroppedMessages(verb, false);
+    }
+
+    public void incrementDroppedMessages(MessageIn message)
+    {
+        incrementDroppedMessages(message.verb, message.constructionTime.isCrossNode);
     }
 
     public void incrementDroppedMessages(Verb verb, boolean isCrossNodeTimeout)

@@ -427,6 +427,6 @@ public interface Index
          * @param orderGroup the collection of OpOrder.Groups which the ReadCommand is being performed under.
          * @return partitions from the base table matching the criteria of the search.
          */
-        public UnfilteredPartitionIterator search(ReadOrderGroup orderGroup);
+        public UnfilteredPartitionIterator search(ReadExecutionController executionController);
     }
 }

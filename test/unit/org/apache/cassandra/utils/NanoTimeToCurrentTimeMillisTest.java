@@ -34,10 +34,7 @@ public class NanoTimeToCurrentTimeMillisTest
             now = Math.max(now, System.currentTimeMillis());
             if (ii % 10000 == 0)
             {
-                synchronized (NanoTimeToCurrentTimeMillis.TIMESTAMP_UPDATE)
-                {
-                    NanoTimeToCurrentTimeMillis.TIMESTAMP_UPDATE.notify();
-                }
+                NanoTimeToCurrentTimeMillis.updateNow();
                 Thread.sleep(1);
             }
 

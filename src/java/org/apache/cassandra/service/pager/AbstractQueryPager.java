@@ -54,9 +54,9 @@ abstract class AbstractQueryPager implements QueryPager
         this.remainingInPartition = limits.perPartitionCount();
     }
 
-    public ReadOrderGroup startOrderGroup()
+    public ReadExecutionController executionController()
     {
-        return command.startOrderGroup();
+        return command.executionController();
     }
 
     public PartitionIterator fetchPage(int pageSize, ConsistencyLevel consistency, ClientState clientState) throws RequestValidationException, RequestExecutionException
@@ -68,13 +68,13 @@ abstract class AbstractQueryPager implements QueryPager
         return new PagerIterator(nextPageReadCommand(pageSize).execute(consistency, clientState), limits.forPaging(pageSize), command.nowInSec());
     }
 
-    public PartitionIterator fetchPageInternal(int pageSize, ReadOrderGroup orderGroup) throws RequestValidationException, RequestExecutionException
+    public PartitionIterator fetchPageInternal(int pageSize, ReadExecutionController executionController) throws RequestValidationException, RequestExecutionException
     {
         if (isExhausted())
             return PartitionIterators.EMPTY;
 
         pageSize = Math.min(pageSize, remaining);
-        return new PagerIterator(nextPageReadCommand(pageSize).executeInternal(orderGroup), limits.forPaging(pageSize), command.nowInSec());
+        return new PagerIterator(nextPageReadCommand(pageSize).executeInternal(executionController), limits.forPaging(pageSize), command.nowInSec());
     }
 
     private class PagerIterator extends CountingPartitionIterator

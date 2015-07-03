@@ -42,13 +42,13 @@
       <immediateFlush>false</immediateFlush>
     </encoder>
   </appender>
-  
+
   <appender name="STDOUT" target="System.out" class="org.apache.cassandra.ConsoleAppender">
     <encoder>
       <pattern>%-5level %date{HH:mm:ss,SSS} %msg%n</pattern>
     </encoder>
     <filter class="ch.qos.logback.classic.filter.ThresholdFilter">
-      <level>INFO</level>
+      <level>DEBUG</level>
     </filter>
   </appender>
 
@@ -58,6 +58,8 @@
   </appender>
 
   <logger name="org.apache.hadoop" level="WARN"/>
+
+  <logger name="org.apache.cassandra.db.monitoring" level="DEBUG"/>
 
   <!-- Do not change the name of this appender. LogbackStatusListener uses the thread name
        tied to the appender name to know when to write to real stdout/stderr vs forwarding to logback -->

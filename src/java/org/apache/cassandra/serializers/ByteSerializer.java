@@ -28,7 +28,7 @@ public class ByteSerializer implements TypeSerializer<Byte>
 
     public Byte deserialize(ByteBuffer bytes)
     {
-        return bytes.remaining() == 0 ? null : bytes.get(bytes.position());
+        return bytes == null || bytes.remaining() == 0 ? null : bytes.get(bytes.position());
     }
 
     public ByteBuffer serialize(Byte value)

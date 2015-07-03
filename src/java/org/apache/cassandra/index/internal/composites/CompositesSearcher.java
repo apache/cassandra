@@ -57,7 +57,7 @@ public class CompositesSearcher extends CassandraIndexSearcher
     protected UnfilteredPartitionIterator queryDataFromIndex(final DecoratedKey indexKey,
                                                              final RowIterator indexHits,
                                                              final ReadCommand command,
-                                                             final ReadOrderGroup orderGroup)
+                                                             final ReadExecutionController executionController)
     {
         assert indexHits.staticRow() == Rows.EMPTY_STATIC_ROW;
 
@@ -143,10 +143,10 @@ public class CompositesSearcher extends CassandraIndexSearcher
                 @SuppressWarnings("resource") // We close right away if empty, and if it's assign to next it will be called either
                                               // by the next caller of next, or through closing this iterator is this come before.
                 UnfilteredRowIterator dataIter = filterStaleEntries(dataCmd.queryMemtableAndDisk(index.baseCfs,
-                                                                                                 orderGroup.baseReadOpOrderGroup()),
+                                                                                                 executionController.baseReadOpOrderGroup()),
                                                                     indexKey.getKey(),
                                                                     entries,
-                                                                    orderGroup.writeOpOrderGroup(),
+                                                                    executionController.writeOpOrderGroup(),
                                                                     command.nowInSec());
 
 

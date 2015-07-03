@@ -135,7 +135,8 @@ public class KeyspaceTest extends CQLTester
         ClusteringIndexSliceFilter filter = new ClusteringIndexSliceFilter(slices, reversed);
         SinglePartitionSliceCommand command = singlePartitionSlice(cfs, key, filter, limit);
 
-        try (ReadOrderGroup orderGroup = command.startOrderGroup(); PartitionIterator iterator = command.executeInternal(orderGroup))
+        try (ReadExecutionController executionController = command.executionController();
+             PartitionIterator iterator = command.executeInternal(executionController))
         {
             try (RowIterator rowIterator = iterator.next())
             {
@@ -208,7 +209,8 @@ public class KeyspaceTest extends CQLTester
             PartitionColumns columns = PartitionColumns.of(cfs.metadata.getColumnDefinition(new ColumnIdentifier("c", false)));
             ClusteringIndexSliceFilter filter = new ClusteringIndexSliceFilter(Slices.ALL, false);
             SinglePartitionSliceCommand command = singlePartitionSlice(cfs, "0", filter, null);
-            try (ReadOrderGroup orderGroup = command.startOrderGroup(); PartitionIterator iterator = command.executeInternal(orderGroup))
+            try (ReadExecutionController executionController = command.executionController();
+                 PartitionIterator iterator = command.executeInternal(executionController))
             {
                 try (RowIterator rowIterator = iterator.next())
                 {
@@ -222,7 +224,8 @@ public class KeyspaceTest extends CQLTester
 
     private static void assertRowsInResult(ColumnFamilyStore cfs, SinglePartitionReadCommand command, int ... columnValues)
     {
-        try (ReadOrderGroup orderGroup = command.startOrderGroup(); PartitionIterator iterator = command.executeInternal(orderGroup))
+        try (ReadExecutionController executionController = command.executionController();
+             PartitionIterator iterator = command.executeInternal(executionController))
         {
             if (columnValues.length == 0)
             {

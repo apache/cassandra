@@ -47,6 +47,7 @@ import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.DataLimits;
 import org.apache.cassandra.db.filter.TombstoneOverwhelmingException;
+import org.apache.cassandra.db.monitoring.ConstructionTime;
 import org.apache.cassandra.db.partitions.*;
 import org.apache.cassandra.db.rows.RowIterator;
 import org.apache.cassandra.db.view.ViewUtils;
@@ -1678,10 +1679,25 @@ public class StorageProxy implements StorageProxyMBean
         {
             try
             {
-                try (ReadOrderGroup orderGroup = command.startOrderGroup(); UnfilteredPartitionIterator iterator = command.executeLocally(orderGroup))
+                command.setMonitoringTime(new ConstructionTime(constructionTime), timeout);
+
+                ReadResponse response;
+                try (ReadExecutionController executionController = command.executionController();
+                     UnfilteredPartitionIterator iterator = command.executeLocally(executionController))
                 {
-                    handler.response(command.createResponse(iterator, command.columnFilter()));
+                    response = command.createResponse(iterator, command.columnFilter());
                 }
+
+                if (command.complete())
+                {
+                    handler.response(response);
+                }
+                else
+                {
+                    MessagingService.instance().incrementDroppedMessages(verb);
+                    handler.onFailure(FBUtilities.getBroadcastAddress());
+                }
+
                 MessagingService.instance().addLatency(FBUtilities.getBroadcastAddress(), TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start));
             }
             catch (Throwable t)
@@ -2314,18 +2330,20 @@ public class StorageProxy implements StorageProxyMBean
      */
     private static abstract class DroppableRunnable implements Runnable
     {
-        private final long constructionTime = System.nanoTime();
-        private final MessagingService.Verb verb;
+        final long constructionTime;
+        final MessagingService.Verb verb;
+        final long timeout;
 
         public DroppableRunnable(MessagingService.Verb verb)
         {
+            this.constructionTime = System.currentTimeMillis();
             this.verb = verb;
+            this.timeout = DatabaseDescriptor.getTimeout(verb);
         }
 
         public final void run()
         {
-
-            if (TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - constructionTime) > DatabaseDescriptor.getTimeout(verb))
+            if (System.currentTimeMillis() > constructionTime + timeout)
             {
                 MessagingService.instance().incrementDroppedMessages(verb);
                 return;

@@ -35,9 +35,9 @@ public interface ReadQuery
 {
     ReadQuery EMPTY = new ReadQuery()
     {
-        public ReadOrderGroup startOrderGroup()
+        public ReadExecutionController executionController()
         {
-            return ReadOrderGroup.emptyGroup();
+            return ReadExecutionController.empty();
         }
 
         public PartitionIterator execute(ConsistencyLevel consistency, ClientState clientState) throws RequestExecutionException
@@ -45,7 +45,7 @@ public interface ReadQuery
             return PartitionIterators.EMPTY;
         }
 
-        public PartitionIterator executeInternal(ReadOrderGroup orderGroup)
+        public PartitionIterator executeInternal(ReadExecutionController controller)
         {
             return PartitionIterators.EMPTY;
         }
@@ -86,9 +86,9 @@ public interface ReadQuery
      * The returned object <b>must</b> be closed on all path and it is thus strongly advised to
      * use it in a try-with-ressource construction.
      *
-     * @return a newly started order group for this {@code ReadQuery}.
+     * @return a newly started execution controller for this {@code ReadQuery}.
      */
-    public ReadOrderGroup startOrderGroup();
+    public ReadExecutionController executionController();
 
     /**
      * Executes the query at the provided consistency level.
@@ -104,10 +104,10 @@ public interface ReadQuery
     /**
      * Execute the query for internal queries (that is, it basically executes the query locally).
      *
-     * @param orderGroup the {@code ReadOrderGroup} protecting the read.
+     * @param controller the {@code ReadExecutionController} protecting the read.
      * @return the result of the query.
      */
-    public PartitionIterator executeInternal(ReadOrderGroup orderGroup);
+    public PartitionIterator executeInternal(ReadExecutionController controller);
 
     /**
      * Returns a pager for the query.

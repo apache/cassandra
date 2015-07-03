@@ -217,7 +217,7 @@ public class ClusteringIndexNamesFilter extends AbstractClusteringIndexFilter
 
     public String toCQLString(CFMetaData metadata)
     {
-        if (clusterings.isEmpty())
+        if (metadata.clusteringColumns().isEmpty() || clusterings.size() <= 1)
             return "";
 
         StringBuilder sb = new StringBuilder();

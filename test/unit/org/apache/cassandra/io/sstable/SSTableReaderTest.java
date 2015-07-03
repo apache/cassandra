@@ -47,7 +47,6 @@ import org.apache.cassandra.index.Index;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.FileDataInput;
 import org.apache.cassandra.io.util.MmappedRegions;
-import org.apache.cassandra.io.util.MmappedSegmentedFile;
 import org.apache.cassandra.io.util.SegmentedFile;
 import org.apache.cassandra.schema.CachingParams;
 import org.apache.cassandra.schema.KeyspaceParams;
@@ -549,9 +548,9 @@ public class SSTableReaderTest
                                              .build();
         Index.Searcher searcher = indexedCFS.indexManager.getBestIndexFor(rc).searcherFor(rc);
         assertNotNull(searcher);
-        try (ReadOrderGroup orderGroup = ReadOrderGroup.forCommand(rc))
+        try (ReadExecutionController executionController = ReadExecutionController.forCommand(rc))
         {
-            assertEquals(1, Util.size(UnfilteredPartitionIterators.filter(searcher.search(orderGroup), rc.nowInSec())));
+            assertEquals(1, Util.size(UnfilteredPartitionIterators.filter(searcher.search(executionController), rc.nowInSec())));
         }
     }
 

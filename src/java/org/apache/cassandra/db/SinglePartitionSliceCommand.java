@@ -247,7 +247,7 @@ public class SinglePartitionSliceCommand extends SinglePartitionReadCommand<Clus
                 cfs.metric.samplers.get(TableMetrics.Sampler.READS).addSample(key.getKey(), key.hashCode(), 1);
             }
 
-            return merged;
+            return withStateTracking(merged);
         }
         catch (RuntimeException | Error e)
         {

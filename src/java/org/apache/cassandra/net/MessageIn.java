@@ -24,39 +24,54 @@ import java.util.Map;
 
 import com.google.common.collect.ImmutableMap;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.monitoring.ConstructionTime;
+import org.apache.cassandra.db.monitoring.MonitorableImpl;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.FileUtils;
 
 public class MessageIn<T>
 {
-    private static final Logger logger = LoggerFactory.getLogger(MessageIn.class);
-
     public final InetAddress from;
     public final T payload;
     public final Map<String, byte[]> parameters;
     public final MessagingService.Verb verb;
     public final int version;
+    public final ConstructionTime constructionTime;
 
-    private MessageIn(InetAddress from, T payload, Map<String, byte[]> parameters, MessagingService.Verb verb, int version)
+    private MessageIn(InetAddress from,
+                      T payload,
+                      Map<String, byte[]> parameters,
+                      MessagingService.Verb verb,
+                      int version,
+                      ConstructionTime constructionTime)
     {
         this.from = from;
         this.payload = payload;
         this.parameters = parameters;
         this.verb = verb;
         this.version = version;
+        this.constructionTime = constructionTime;
     }
 
-    public static <T> MessageIn<T> create(InetAddress from, T payload, Map<String, byte[]> parameters, MessagingService.Verb verb, int version)
+    public static <T> MessageIn<T> create(InetAddress from,
+                                          T payload,
+                                          Map<String, byte[]> parameters,
+                                          MessagingService.Verb verb,
+                                          int version,
+                                          ConstructionTime constructionTime)
     {
-        return new MessageIn<T>(from, payload, parameters, verb, version);
+        return new MessageIn<>(from, payload, parameters, verb, version, constructionTime);
     }
 
     public static <T2> MessageIn<T2> read(DataInputPlus in, int version, int id) throws IOException
+    {
+        return read(in, version, id, new ConstructionTime());
+    }
+
+    public static <T2> MessageIn<T2> read(DataInputPlus in, int version, int id, ConstructionTime constructionTime) throws IOException
     {
         InetAddress from = CompactEndpointSerializationHelper.deserialize(in);
 
@@ -94,9 +109,31 @@ public class MessageIn<T>
             serializer = (IVersionedSerializer<T2>) callback.serializer;
         }
         if (payloadSize == 0 || serializer == null)
-            return create(from, null, parameters, verb, version);
+            return create(from, null, parameters, verb, version, constructionTime);
+
         T2 payload = serializer.deserialize(in, version);
-        return MessageIn.create(from, payload, parameters, verb, version);
+        return MessageIn.create(from, payload, parameters, verb, version, constructionTime);
+    }
+
+    public static ConstructionTime createTimestamp()
+    {
+        return new ConstructionTime();
+    }
+
+    public static ConstructionTime readTimestamp(DataInputPlus input) throws IOException
+    {
+        // make sure to readInt, even if cross_node_to is not enabled
+        int partial = input.readInt();
+        if(DatabaseDescriptor.hasCrossNodeTimeout())
+        {
+            long timestamp = System.currentTimeMillis();
+            long crossNodeTimestamp = (timestamp & 0xFFFFFFFF00000000L) | (((partial & 0xFFFFFFFFL) << 2) >> 2);
+            return new ConstructionTime(crossNodeTimestamp, timestamp != crossNodeTimestamp);
+        }
+        else
+        {
+            return new ConstructionTime();
+        }
     }
 
     public Stage getMessageType()

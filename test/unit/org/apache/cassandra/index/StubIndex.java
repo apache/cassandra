@@ -227,9 +227,9 @@ public class StubIndex implements Index
                   Optional.empty());
         }
 
-        private UnfilteredPartitionIterator queryStorageInternal(ColumnFamilyStore cfs, ReadOrderGroup orderGroup)
+        private UnfilteredPartitionIterator queryStorageInternal(ColumnFamilyStore cfs, ReadExecutionController executionController)
         {
-            return queryStorage(cfs, orderGroup);
+            return queryStorage(cfs, executionController);
         }
     }
 }

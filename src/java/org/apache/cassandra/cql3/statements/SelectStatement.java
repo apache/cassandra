@@ -253,9 +253,9 @@ public class SelectStatement implements CQLStatement
             this.pager = pager;
         }
 
-        public static Pager forInternalQuery(QueryPager pager, ReadOrderGroup orderGroup)
+        public static Pager forInternalQuery(QueryPager pager, ReadExecutionController executionController)
         {
-            return new InternalPager(pager, orderGroup);
+            return new InternalPager(pager, executionController);
         }
 
         public static Pager forDistributedQuery(QueryPager pager, ConsistencyLevel consistency, ClientState clientState)
@@ -295,17 +295,17 @@ public class SelectStatement implements CQLStatement
 
         public static class InternalPager extends Pager
         {
-            private final ReadOrderGroup orderGroup;
+            private final ReadExecutionController executionController;
 
-            private InternalPager(QueryPager pager, ReadOrderGroup orderGroup)
+            private InternalPager(QueryPager pager, ReadExecutionController executionController)
             {
                 super(pager);
-                this.orderGroup = orderGroup;
+                this.executionController = executionController;
             }
 
             public PartitionIterator fetchPage(int pageSize)
             {
-                return pager.fetchPageInternal(pageSize, orderGroup);
+                return pager.fetchPageInternal(pageSize, executionController);
             }
         }
     }
@@ -378,11 +378,11 @@ public class SelectStatement implements CQLStatement
         ReadQuery query = getQuery(options, nowInSec);
         int pageSize = getPageSize(options);
 
-        try (ReadOrderGroup orderGroup = query.startOrderGroup())
+        try (ReadExecutionController executionController = query.executionController())
         {
             if (pageSize <= 0 || query.limits().count() <= pageSize)
             {
-                try (PartitionIterator data = query.executeInternal(orderGroup))
+                try (PartitionIterator data = query.executeInternal(executionController))
                 {
                     return processResults(data, options, nowInSec);
                 }
@@ -390,7 +390,7 @@ public class SelectStatement implements CQLStatement
             else
             {
                 QueryPager pager = query.getPager(options.getPagingState(), options.getProtocolVersion());
-                return execute(Pager.forInternalQuery(pager, orderGroup), options, pageSize, nowInSec);
+                return execute(Pager.forInternalQuery(pager, executionController), options, pageSize, nowInSec);
             }
         }
     }

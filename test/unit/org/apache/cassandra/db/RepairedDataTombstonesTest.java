@@ -177,7 +177,8 @@ public class RepairedDataTombstonesTest extends CQLTester
         Thread.sleep(1000);
         ReadCommand cmd = Util.cmd(getCurrentColumnFamilyStore()).build();
         int partitionsFound = 0;
-        try (ReadOrderGroup orderGroup = cmd.startOrderGroup(); UnfilteredPartitionIterator iterator = cmd.executeLocally(orderGroup))
+        try (ReadExecutionController executionController = cmd.executionController();
+             UnfilteredPartitionIterator iterator = cmd.executeLocally(executionController))
         {
             while (iterator.hasNext())
             {
@@ -232,7 +233,8 @@ public class RepairedDataTombstonesTest extends CQLTester
     {
         ReadCommand cmd = Util.cmd(getCurrentColumnFamilyStore()).build();
         int foundRows = 0;
-        try (ReadOrderGroup orderGroup = cmd.startOrderGroup(); UnfilteredPartitionIterator iterator = cmd.executeLocally(orderGroup))
+        try (ReadExecutionController executionController = cmd.executionController();
+             UnfilteredPartitionIterator iterator = cmd.executeLocally(executionController))
         {
             while (iterator.hasNext())
             {
@@ -263,7 +265,8 @@ public class RepairedDataTombstonesTest extends CQLTester
     {
         ReadCommand cmd = Util.cmd(getCurrentColumnFamilyStore(), Util.dk(ByteBufferUtil.bytes(key))).build();
         int foundRows = 0;
-        try (ReadOrderGroup orderGroup = cmd.startOrderGroup(); UnfilteredPartitionIterator iterator = cmd.executeLocally(orderGroup))
+        try (ReadExecutionController executionController = cmd.executionController();
+             UnfilteredPartitionIterator iterator = cmd.executeLocally(executionController))
         {
             while (iterator.hasNext())
             {

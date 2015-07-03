@@ -31,7 +31,7 @@ import org.apache.cassandra.gms.FailureDetector;
  */
 public interface IAsyncCallback<T>
 {
-    public static Predicate<InetAddress> isAlive = new Predicate<InetAddress>()
+    Predicate<InetAddress> isAlive = new Predicate<InetAddress>()
     {
         public boolean apply(InetAddress endpoint)
         {
@@ -42,7 +42,7 @@ public interface IAsyncCallback<T>
     /**
      * @param msg response received.
      */
-    public void response(MessageIn<T> msg);
+    void response(MessageIn<T> msg);
 
     /**
      * @return true if this callback is on the read path and its latency should be

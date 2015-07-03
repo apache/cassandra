@@ -80,8 +80,8 @@ public class ViewBuilder extends CompactionInfo.Holder
 
         while (!pager.isExhausted())
         {
-           try (ReadOrderGroup orderGroup = pager.startOrderGroup();
-                PartitionIterator partitionIterator = pager.fetchPageInternal(128, orderGroup))
+           try (ReadExecutionController executionController = pager.executionController();
+                PartitionIterator partitionIterator = pager.fetchPageInternal(128, executionController))
            {
                if (!partitionIterator.hasNext())
                    return;

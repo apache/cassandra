@@ -184,18 +184,7 @@ public class IncomingTcpConnection extends Thread implements Closeable
         else
             id = input.readInt();
 
-        long timestamp = System.currentTimeMillis();
-        boolean isCrossNodeTimestamp = false;
-        // make sure to readInt, even if cross_node_to is not enabled
-        int partial = input.readInt();
-        if (DatabaseDescriptor.hasCrossNodeTimeout())
-        {
-            long crossNodeTimestamp = (timestamp & 0xFFFFFFFF00000000L) | (((partial & 0xFFFFFFFFL) << 2) >> 2);
-            isCrossNodeTimestamp = (timestamp != crossNodeTimestamp);
-            timestamp = crossNodeTimestamp;
-        }
-
-        MessageIn message = MessageIn.read(input, version, id);
+        MessageIn message = MessageIn.read(input, version, id, MessageIn.readTimestamp(input));
         if (message == null)
         {
             // callback expired; nothing to do
@@ -203,7 +192,7 @@ public class IncomingTcpConnection extends Thread implements Closeable
         }
         if (version <= MessagingService.current_version)
         {
-            MessagingService.instance().receive(message, id, timestamp, isCrossNodeTimestamp);
+            MessagingService.instance().receive(message, id);
         }
         else
         {

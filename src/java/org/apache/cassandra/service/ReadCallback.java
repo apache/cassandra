@@ -192,7 +192,8 @@ public class ReadCallback implements IAsyncCallbackWithFailure<ReadResponse>
                                                            result,
                                                            Collections.<String, byte[]>emptyMap(),
                                                            MessagingService.Verb.INTERNAL_RESPONSE,
-                                                           MessagingService.current_version);
+                                                           MessagingService.current_version,
+                                                           MessageIn.createTimestamp());
         response(message);
     }
 

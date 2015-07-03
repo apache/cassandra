@@ -103,7 +103,7 @@ public class SinglePartitionSliceCommandTest
         cmd = ReadCommand.legacyReadCommandSerializer.deserialize(in, MessagingService.VERSION_21);
 
         logger.debug("ReadCommand: {}", cmd);
-        UnfilteredPartitionIterator partitionIterator = cmd.executeLocally(ReadOrderGroup.emptyGroup());
+        UnfilteredPartitionIterator partitionIterator = cmd.executeLocally(ReadExecutionController.empty());
         ReadResponse response = ReadResponse.createDataResponse(partitionIterator, cmd.columnFilter());
 
         logger.debug("creating response: {}", response);
@@ -148,7 +148,7 @@ public class SinglePartitionSliceCommandTest
                                                           sliceFilter);
 
         // check raw iterator for static cell
-        try (ReadOrderGroup orderGroup = cmd.startOrderGroup(); UnfilteredPartitionIterator pi = cmd.executeLocally(orderGroup))
+        try (ReadExecutionController executionController = cmd.executionController(); UnfilteredPartitionIterator pi = cmd.executeLocally(executionController))
         {
             checkForS(pi);
         }
@@ -159,7 +159,7 @@ public class SinglePartitionSliceCommandTest
         ReadResponse dst;
 
         // check (de)serialized iterator for memtable static cell
-        try (ReadOrderGroup orderGroup = cmd.startOrderGroup(); UnfilteredPartitionIterator pi = cmd.executeLocally(orderGroup))
+        try (ReadExecutionController executionController = cmd.executionController(); UnfilteredPartitionIterator pi = cmd.executeLocally(executionController))
         {
             response = ReadResponse.createDataResponse(pi, cmd.columnFilter());
         }
@@ -175,7 +175,7 @@ public class SinglePartitionSliceCommandTest
 
         // check (de)serialized iterator for sstable static cell
         Schema.instance.getColumnFamilyStoreInstance(cfm.cfId).forceBlockingFlush();
-        try (ReadOrderGroup orderGroup = cmd.startOrderGroup(); UnfilteredPartitionIterator pi = cmd.executeLocally(orderGroup))
+        try (ReadExecutionController executionController = cmd.executionController(); UnfilteredPartitionIterator pi = cmd.executeLocally(executionController))
         {
             response = ReadResponse.createDataResponse(pi, cmd.columnFilter());
         }

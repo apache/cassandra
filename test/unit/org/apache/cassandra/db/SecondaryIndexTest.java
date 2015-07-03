@@ -117,7 +117,8 @@ public class SecondaryIndexTest
                                       .build();
 
         Index.Searcher searcher = cfs.indexManager.getBestIndexFor(rc).searcherFor(rc);
-        try (ReadOrderGroup orderGroup = rc.startOrderGroup(); UnfilteredPartitionIterator pi = searcher.search(orderGroup))
+        try (ReadExecutionController executionController = rc.executionController(); 
+             UnfilteredPartitionIterator pi = searcher.search(executionController))
         {
             assertTrue(pi.hasNext());
             pi.next().close();
@@ -501,8 +502,8 @@ public class SecondaryIndexTest
         if (count != 0)
             assertNotNull(searcher);
 
-        try (ReadOrderGroup orderGroup = rc.startOrderGroup();
-             PartitionIterator iter = UnfilteredPartitionIterators.filter(searcher.search(orderGroup),
+        try (ReadExecutionController executionController = rc.executionController();
+             PartitionIterator iter = UnfilteredPartitionIterators.filter(searcher.search(executionController),
                                                                           FBUtilities.nowInSeconds()))
         {
             assertEquals(count, Util.size(iter));

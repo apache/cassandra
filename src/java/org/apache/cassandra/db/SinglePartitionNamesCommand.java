@@ -181,7 +181,7 @@ public class SinglePartitionNamesCommand extends SinglePartitionReadCommand<Clus
             }
         }
 
-        return result.unfilteredIterator(columnFilter(), Slices.ALL, clusteringIndexFilter().isReversed());
+        return withStateTracking(result.unfilteredIterator(columnFilter(), Slices.ALL, clusteringIndexFilter().isReversed()));
     }
 
     private ImmutableBTreePartition add(UnfilteredRowIterator iter, ImmutableBTreePartition result, boolean isRepaired)

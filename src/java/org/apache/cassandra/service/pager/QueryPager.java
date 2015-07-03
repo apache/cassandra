@@ -18,7 +18,7 @@
 package org.apache.cassandra.service.pager;
 
 import org.apache.cassandra.db.ConsistencyLevel;
-import org.apache.cassandra.db.ReadOrderGroup;
+import org.apache.cassandra.db.ReadExecutionController;
 import org.apache.cassandra.db.partitions.PartitionIterator;
 import org.apache.cassandra.db.partitions.PartitionIterators;
 import org.apache.cassandra.exceptions.RequestExecutionException;
@@ -46,11 +46,11 @@ import org.apache.cassandra.service.ClientState;
  */
 public interface QueryPager
 {
-    public static final QueryPager EMPTY = new QueryPager()
+    QueryPager EMPTY = new QueryPager()
     {
-        public ReadOrderGroup startOrderGroup()
+        public ReadExecutionController executionController()
         {
-            return ReadOrderGroup.emptyGroup();
+            return ReadExecutionController.empty();
         }
 
         public PartitionIterator fetchPage(int pageSize, ConsistencyLevel consistency, ClientState clientState) throws RequestValidationException, RequestExecutionException
@@ -58,7 +58,7 @@ public interface QueryPager
             return PartitionIterators.EMPTY;
         }
 
-        public PartitionIterator fetchPageInternal(int pageSize, ReadOrderGroup orderGroup) throws RequestValidationException, RequestExecutionException
+        public PartitionIterator fetchPageInternal(int pageSize, ReadExecutionController executionController) throws RequestValidationException, RequestExecutionException
         {
             return PartitionIterators.EMPTY;
         }
@@ -99,16 +99,16 @@ public interface QueryPager
      *
      * @return a newly started order group for this {@code QueryPager}.
      */
-    public ReadOrderGroup startOrderGroup();
+    public ReadExecutionController executionController();
 
     /**
      * Fetches the next page internally (in other, this does a local query).
      *
      * @param pageSize the maximum number of elements to return in the next page.
-     * @param orderGroup the {@code ReadOrderGroup} protecting the read.
+     * @param executionController the {@code ReadExecutionController} protecting the read.
      * @return the page of result.
      */
-    public PartitionIterator fetchPageInternal(int pageSize, ReadOrderGroup orderGroup) throws RequestValidationException, RequestExecutionException;
+    public PartitionIterator fetchPageInternal(int pageSize, ReadExecutionController executionController) throws RequestValidationException, RequestExecutionException;
 
     /**
      * Whether or not this pager is exhausted, i.e. whether or not a call to
