@@ -1,4 +1,6 @@
 2.1.8
+ * (cqlsh) Fix bad check for CQL compatibility when DESCRIBE'ing
+   COMPACT STORAGE tables with no clustering columns
  * Warn when an extra-large partition is compacted (CASSANDRA-9643)
  * Eliminate strong self-reference chains in sstable ref tidiers (CASSANDRA-9656)
  * Ensure StreamSession uses canonical sstable reader instances (CASSANDRA-9700) 
