@@ -80,7 +80,7 @@ public class LeveledManifest
         for (int i = 0; i < generations.length; i++)
         {
             generations[i] = new ArrayList<>();
-            lastCompactedKeys[i] = cfs.partitioner.getMinimumToken().minKeyBound();
+            lastCompactedKeys[i] = cfs.getPartitioner().getMinimumToken().minKeyBound();
         }
         compactionCounter = new int[MAX_LEVEL_COUNT];
     }

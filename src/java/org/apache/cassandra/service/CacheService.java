@@ -372,7 +372,7 @@ public class CacheService implements CacheServiceMBean
             {
                 public Pair<CounterCacheKey, ClockAndCount> call() throws Exception
                 {
-                    DecoratedKey key = cfs.partitioner.decorateKey(partitionKey);
+                    DecoratedKey key = cfs.decorateKey(partitionKey);
                     LegacyLayout.LegacyCellName name = LegacyLayout.decodeCellName(cfs.metadata, cellName);
                     ColumnDefinition column = name.column;
                     CellPath path = name.collectionElement == null ? null : CellPath.create(name.collectionElement);
@@ -427,7 +427,7 @@ public class CacheService implements CacheServiceMBean
             {
                 public Pair<RowCacheKey, IRowCacheEntry> call() throws Exception
                 {
-                    DecoratedKey key = cfs.partitioner.decorateKey(buffer);
+                    DecoratedKey key = cfs.decorateKey(buffer);
                     int nowInSec = FBUtilities.nowInSeconds();
                     try (OpOrder.Group op = cfs.readOrdering.start(); UnfilteredRowIterator iter = SinglePartitionReadCommand.fullPartitionRead(cfs.metadata, nowInSec, key).queryMemtableAndDisk(cfs, op))
                     {

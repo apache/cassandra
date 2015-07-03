@@ -377,7 +377,7 @@ public class TemporalRow
             this.baseCfs = baseCfs;
             this.viewPrimaryKey = viewPrimaryKey;
             this.key = key;
-            this.dk = baseCfs.partitioner.decorateKey(key);
+            this.dk = baseCfs.decorateKey(key);
             this.clusteringToRow = new HashMap<>();
         }
 

@@ -84,7 +84,7 @@ public interface PartitionPosition extends RingPosition<PartitionPosition>
             if (kind == Kind.ROW_KEY)
             {
                 ByteBuffer k = ByteBufferUtil.readWithShortLength(in);
-                return StorageService.getPartitioner().decorateKey(k);
+                return p.decorateKey(k);
             }
             else
             {

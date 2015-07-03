@@ -18,6 +18,7 @@
 package org.apache.cassandra.db;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.*;
 
 import org.apache.cassandra.cache.*;
@@ -57,6 +58,7 @@ public abstract class SinglePartitionReadCommand<F extends ClusteringIndexFilter
                                          F clusteringIndexFilter)
     {
         super(Kind.SINGLE_PARTITION, isDigest, isForThrift, metadata, nowInSec, columnFilter, rowFilter, limits);
+        assert partitionKey.getPartitioner() == metadata.partitioner;
         this.partitionKey = partitionKey;
         this.clusteringIndexFilter = clusteringIndexFilter;
     }
@@ -143,6 +145,20 @@ public abstract class SinglePartitionReadCommand<F extends ClusteringIndexFilter
     public static SinglePartitionReadCommand fullPartitionRead(CFMetaData metadata, int nowInSec, DecoratedKey key)
     {
         return SinglePartitionSliceCommand.create(metadata, nowInSec, key, Slices.ALL);
+    }
+
+    /**
+     * Creates a new read command that queries a single partition in its entirety.
+     *
+     * @param metadata the table to query.
+     * @param nowInSec the time in seconds to use are "now" for this query.
+     * @param key the partition key for the partition to query.
+     *
+     * @return a newly created read command that queries all the rows of {@code key}.
+     */
+    public static SinglePartitionReadCommand fullPartitionRead(CFMetaData metadata, int nowInSec, ByteBuffer key)
+    {
+        return SinglePartitionSliceCommand.create(metadata, nowInSec, metadata.decorateKey(key), Slices.ALL);
     }
 
     public DecoratedKey partitionKey()
@@ -486,7 +502,7 @@ public abstract class SinglePartitionReadCommand<F extends ClusteringIndexFilter
         public ReadCommand deserialize(DataInputPlus in, int version, boolean isDigest, boolean isForThrift, CFMetaData metadata, int nowInSec, ColumnFilter columnFilter, RowFilter rowFilter, DataLimits limits)
         throws IOException
         {
-            DecoratedKey key = StorageService.getPartitioner().decorateKey(metadata.getKeyValidator().readValue(in));
+            DecoratedKey key = metadata.decorateKey(metadata.getKeyValidator().readValue(in));
             ClusteringIndexFilter filter = ClusteringIndexFilter.serializer.deserialize(in, version, metadata);
             if (filter instanceof ClusteringIndexNamesFilter)
                 return new SinglePartitionNamesCommand(isDigest, isForThrift, metadata, nowInSec, columnFilter, rowFilter, limits, key, (ClusteringIndexNamesFilter)filter);

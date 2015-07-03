@@ -145,7 +145,6 @@ public class RealTransactionsTest extends SchemaLoader
         String query = "INSERT INTO %s.%s (key, name, val) VALUES (?, ?, ?)";
 
         try (CQLSSTableWriter writer = CQLSSTableWriter.builder()
-                                                       .withPartitioner(StorageService.getPartitioner())
                                                        .inDirectory(cfs.directories.getDirectoryForNewSSTables())
                                                        .forTable(String.format(schema, cfs.keyspace.getName(), cfs.name))
                                                        .using(String.format(query, cfs.keyspace.getName(), cfs.name))
@@ -178,7 +177,6 @@ public class RealTransactionsTest extends SchemaLoader
                                                            0,
                                                            0,
                                                            0,
-                                                           DatabaseDescriptor.getPartitioner(),
                                                            SerializationHeader.make(cfs.metadata, txn.originals()),
                                                            txn));
                 while (ci.hasNext())

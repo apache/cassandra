@@ -111,7 +111,7 @@ public class CompositesSearcher extends SecondaryIndexSearcher
                 // *data* for a given partition.
                 BTreeSet.Builder<Clustering> clusterings = BTreeSet.builder(baseCfs.getComparator());
                 List<CompositesIndex.IndexedEntry> entries = new ArrayList<>();
-                DecoratedKey partitionKey = baseCfs.partitioner.decorateKey(nextEntry.indexedKey);
+                DecoratedKey partitionKey = baseCfs.decorateKey(nextEntry.indexedKey);
 
                 while (nextEntry != null && partitionKey.getKey().equals(nextEntry.indexedKey))
                 {

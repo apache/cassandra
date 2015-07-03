@@ -24,14 +24,9 @@ import java.util.*;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.cql3.*;
-import org.apache.cassandra.db.*;
-import org.apache.cassandra.db.rows.Row;
-import org.apache.cassandra.db.rows.RowIterator;
 import org.apache.cassandra.db.filter.*;
-import org.apache.cassandra.db.partitions.*;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.dht.*;
-import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
 
 public abstract class AbstractReadCommandBuilder
@@ -312,13 +307,13 @@ public abstract class AbstractReadCommandBuilder
             PartitionPosition start = startKey;
             if (start == null)
             {
-                start = StorageService.getPartitioner().getMinimumToken().maxKeyBound();
+                start = cfs.getPartitioner().getMinimumToken().maxKeyBound();
                 startInclusive = false;
             }
             PartitionPosition end = endKey;
             if (end == null)
             {
-                end = StorageService.getPartitioner().getMinimumToken().maxKeyBound();
+                end = cfs.getPartitioner().getMinimumToken().maxKeyBound();
                 endInclusive = true;
             }
 
@@ -341,7 +336,7 @@ public abstract class AbstractReadCommandBuilder
                 return (DecoratedKey)partitionKey[0];
 
             ByteBuffer key = CFMetaData.serializePartitionKey(metadata.getKeyValidatorAsClusteringComparator().make(partitionKey));
-            return StorageService.getPartitioner().decorateKey(key);
+            return metadata.decorateKey(key);
         }
     }
 }

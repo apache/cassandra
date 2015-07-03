@@ -17,13 +17,13 @@
  */
 package org.apache.cassandra.cql3.validation.entities;
 
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.dht.ByteOrderedPartitioner;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.SyntaxException;
+import org.apache.cassandra.service.StorageService;
 import org.apache.commons.lang3.StringUtils;
 import org.junit.Assert;
 import org.junit.BeforeClass;
@@ -40,7 +40,8 @@ public class FrozenCollectionsTest extends CQLTester
     @BeforeClass
     public static void setUpClass()
     {
-        DatabaseDescriptor.setPartitioner(new ByteOrderedPartitioner());
+        // Selecting partitioner for a table is not exposed on CREATE TABLE.
+        StorageService.instance.setPartitionerUnsafe(ByteOrderedPartitioner.instance);
     }
 
     @Test

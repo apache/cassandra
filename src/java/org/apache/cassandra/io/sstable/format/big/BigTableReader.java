@@ -52,9 +52,9 @@ public class BigTableReader extends SSTableReader
 {
     private static final Logger logger = LoggerFactory.getLogger(BigTableReader.class);
 
-    BigTableReader(Descriptor desc, Set<Component> components, CFMetaData metadata, IPartitioner partitioner, Long maxDataAge, StatsMetadata sstableMetadata, OpenReason openReason, SerializationHeader header)
+    BigTableReader(Descriptor desc, Set<Component> components, CFMetaData metadata, Long maxDataAge, StatsMetadata sstableMetadata, OpenReason openReason, SerializationHeader header)
     {
-        super(desc, components, metadata, partitioner, maxDataAge, sstableMetadata, openReason, header);
+        super(desc, components, metadata, maxDataAge, sstableMetadata, openReason, header);
     }
 
     public SliceableUnfilteredRowIterator iterator(DecoratedKey key, ColumnFilter selectedColumns, boolean reversed, boolean isForThrift)
@@ -201,7 +201,7 @@ public class BigTableReader extends SSTableReader
                     }
                     else
                     {
-                        DecoratedKey indexDecoratedKey = partitioner.decorateKey(indexKey);
+                        DecoratedKey indexDecoratedKey = decorateKey(indexKey);
                         int comparison = indexDecoratedKey.compareTo(key);
                         int v = op.apply(comparison);
                         opSatisfied = (v == 0);
@@ -227,7 +227,7 @@ public class BigTableReader extends SSTableReader
                                 // expensive sanity check!  see CASSANDRA-4687
                                 try (FileDataInput fdi = dfile.getSegment(indexEntry.position))
                                 {
-                                    DecoratedKey keyInDisk = partitioner.decorateKey(ByteBufferUtil.readWithShortLength(fdi));
+                                    DecoratedKey keyInDisk = decorateKey(ByteBufferUtil.readWithShortLength(fdi));
                                     if (!keyInDisk.equals(key))
                                         throw new AssertionError(String.format("%s != %s in %s", keyInDisk, key, fdi.getPath()));
                                 }

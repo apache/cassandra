@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.db;
 
+import java.nio.ByteBuffer;
 import java.util.*;
 
 import com.google.common.collect.Iterables;
@@ -95,6 +96,22 @@ public class SinglePartitionSliceCommand extends SinglePartitionReadCommand<Clus
     {
         ClusteringIndexSliceFilter filter = new ClusteringIndexSliceFilter(slices, false);
         return new SinglePartitionSliceCommand(metadata, nowInSec, ColumnFilter.all(metadata), RowFilter.NONE, DataLimits.NONE, key, filter);
+    }
+
+    /**
+     * Creates a new single partition slice command for the provided slices.
+     *
+     * @param metadata the table to query.
+     * @param nowInSec the time in seconds to use are "now" for this query.
+     * @param key the partition key for the partition to query.
+     * @param slices the slices of rows to query.
+     *
+     * @return a newly created read command that queries the {@code slices} in {@code key}. The returned query will
+     * query every columns for the table (without limit or row filtering) and be in forward order.
+     */
+    public static SinglePartitionReadCommand create(CFMetaData metadata, int nowInSec, ByteBuffer key, Slices slices)
+    {
+        return create(metadata, nowInSec, metadata.decorateKey(key), slices);
     }
 
     public SinglePartitionSliceCommand copy()

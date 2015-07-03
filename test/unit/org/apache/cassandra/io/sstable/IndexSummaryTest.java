@@ -26,7 +26,7 @@ import java.util.*;
 import com.google.common.collect.Lists;
 import org.junit.Test;
 
-import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.Util;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.RandomPartitioner;
@@ -39,11 +39,12 @@ import org.apache.cassandra.utils.Pair;
 import static org.apache.cassandra.io.sstable.IndexSummaryBuilder.downsample;
 import static org.apache.cassandra.io.sstable.IndexSummaryBuilder.entriesAtSamplingLevel;
 import static org.apache.cassandra.io.sstable.Downsampling.BASE_SAMPLING_LEVEL;
-
 import static org.junit.Assert.*;
 
 public class IndexSummaryTest
 {
+    IPartitioner partitioner = Util.testPartitioner();
+
     @Test
     public void testGetKey()
     {
@@ -82,7 +83,7 @@ public class IndexSummaryTest
         dos.writeUTF("JUNK");
         FileUtils.closeQuietly(dos);
         DataInputStream dis = new DataInputStream(new ByteArrayInputStream(dos.toByteArray()));
-        IndexSummary is = IndexSummary.serializer.deserialize(dis, DatabaseDescriptor.getPartitioner(), false, 1, 1);
+        IndexSummary is = IndexSummary.serializer.deserialize(dis, partitioner, false, 1, 1);
         for (int i = 0; i < 100; i++)
             assertEquals(i, is.binarySearch(random.left.get(i)));
         // read the junk
@@ -126,13 +127,13 @@ public class IndexSummaryTest
             for (int i = 0; i < size; i++)
             {
                 UUID uuid = UUID.randomUUID();
-                DecoratedKey key = DatabaseDescriptor.getPartitioner().decorateKey(ByteBufferUtil.bytes(uuid));
+                DecoratedKey key = partitioner.decorateKey(ByteBufferUtil.bytes(uuid));
                 list.add(key);
             }
             Collections.sort(list);
             for (int i = 0; i < size; i++)
                 builder.maybeAddEntry(list.get(i), i);
-            IndexSummary summary = builder.build(DatabaseDescriptor.getPartitioner());
+            IndexSummary summary = builder.build(partitioner);
             return Pair.create(list, summary);
         }
         catch (IOException e)
@@ -185,7 +186,7 @@ public class IndexSummaryTest
         int downsamplingRound = 1;
         for (int samplingLevel = BASE_SAMPLING_LEVEL - 1; samplingLevel >= 1; samplingLevel--)
         {
-            try (IndexSummary downsampled = downsample(original, samplingLevel, 128, DatabaseDescriptor.getPartitioner());)
+            try (IndexSummary downsampled = downsample(original, samplingLevel, 128, partitioner);)
             {
                 assertEquals(entriesAtSamplingLevel(samplingLevel, original.getMaxNumberOfEntries()), downsampled.size());
 
@@ -210,7 +211,7 @@ public class IndexSummaryTest
         downsamplingRound = 1;
         for (int downsampleLevel = BASE_SAMPLING_LEVEL - 1; downsampleLevel >= 1; downsampleLevel--)
         {
-            IndexSummary downsampled = downsample(previous, downsampleLevel, 128, DatabaseDescriptor.getPartitioner());
+            IndexSummary downsampled = downsample(previous, downsampleLevel, 128, partitioner);
             if (previous != original)
                 previous.close();
             assertEquals(entriesAtSamplingLevel(downsampleLevel, original.getMaxNumberOfEntries()), downsampled.size());

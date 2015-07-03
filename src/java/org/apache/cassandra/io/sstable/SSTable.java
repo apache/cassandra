@@ -18,6 +18,7 @@
 package org.apache.cassandra.io.sstable;
 
 import java.io.*;
+import java.nio.ByteBuffer;
 import java.nio.charset.Charset;
 import java.util.*;
 import java.util.concurrent.CopyOnWriteArraySet;
@@ -63,31 +64,29 @@ public abstract class SSTable
     public final Descriptor descriptor;
     protected final Set<Component> components;
     public final CFMetaData metadata;
-    public final IPartitioner partitioner;
     public final boolean compression;
 
     public DecoratedKey first;
     public DecoratedKey last;
 
-    protected SSTable(Descriptor descriptor, CFMetaData metadata, IPartitioner partitioner)
+    protected SSTable(Descriptor descriptor, CFMetaData metadata)
     {
-        this(descriptor, new HashSet<>(), metadata, partitioner);
+        this(descriptor, new HashSet<>(), metadata);
     }
 
-    protected SSTable(Descriptor descriptor, Set<Component> components, CFMetaData metadata, IPartitioner partitioner)
+    protected SSTable(Descriptor descriptor, Set<Component> components, CFMetaData metadata)
     {
         // In almost all cases, metadata shouldn't be null, but allowing null allows to create a mostly functional SSTable without
         // full schema definition. SSTableLoader use that ability
         assert descriptor != null;
         assert components != null;
-        assert partitioner != null;
+        assert metadata != null;
 
         this.descriptor = descriptor;
         Set<Component> dataComponents = new HashSet<>(components);
         this.compression = dataComponents.contains(Component.COMPRESSION_INFO);
         this.components = new CopyOnWriteArraySet<>(dataComponents);
         this.metadata = metadata;
-        this.partitioner = partitioner;
     }
 
     /**
@@ -119,6 +118,16 @@ public abstract class SSTable
 
         logger.debug("Deleted {}", desc);
         return true;
+    }
+
+    public IPartitioner getPartitioner()
+    {
+        return metadata.partitioner;
+    }
+
+    public DecoratedKey decorateKey(ByteBuffer key)
+    {
+        return getPartitioner().decorateKey(key);
     }
 
     /**

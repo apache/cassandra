@@ -133,7 +133,7 @@ public class SSTableLoader implements StreamEventHandler
                     // To conserve memory, open SSTableReaders without bloom filters and discard
                     // the index summary after calculating the file sections to stream and the estimated
                     // number of keys for each endpoint. See CASSANDRA-5555 for details.
-                    SSTableReader sstable = SSTableReader.openForBatch(desc, components, metadata, client.getPartitioner());
+                    SSTableReader sstable = SSTableReader.openForBatch(desc, components, metadata);
                     sstables.add(sstable);
 
                     // calculate the sstable sections to stream as well as the estimated number of
@@ -252,7 +252,6 @@ public class SSTableLoader implements StreamEventHandler
     public static abstract class Client
     {
         private final Map<InetAddress, Collection<Range<Token>>> endpointToRanges = new HashMap<>();
-        private IPartitioner partitioner;
 
         /**
          * Initialize the client.
@@ -297,23 +296,6 @@ public class SSTableLoader implements StreamEventHandler
         public Map<InetAddress, Collection<Range<Token>>> getEndpointToRangesMap()
         {
             return endpointToRanges;
-        }
-
-        protected void setPartitioner(String partclass) throws ConfigurationException
-        {
-            setPartitioner(FBUtilities.newPartitioner(partclass));
-        }
-
-        protected void setPartitioner(IPartitioner partitioner)
-        {
-            this.partitioner = partitioner;
-            // the following is still necessary since Range/Token reference partitioner through StorageService.getPartitioner
-            DatabaseDescriptor.setPartitioner(partitioner);
-        }
-
-        public IPartitioner getPartitioner()
-        {
-            return partitioner;
         }
 
         protected void addRangeForEndpoint(Range<Token> range, InetAddress endpoint)

@@ -22,8 +22,6 @@ import java.io.File;
 import java.io.IOError;
 import java.io.IOException;
 import java.io.RandomAccessFile;
-import java.lang.reflect.Field;
-import java.lang.reflect.Modifier;
 import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.concurrent.ExecutionException;
@@ -44,9 +42,9 @@ import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.db.compaction.Scrubber;
-import org.apache.cassandra.db.index.SecondaryIndex;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.db.marshal.*;
+import org.apache.cassandra.db.marshal.UUIDType;
 import org.apache.cassandra.db.partitions.Partition;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.dht.ByteOrderedPartitioner;
@@ -55,14 +53,10 @@ import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.RequestExecutionException;
 import org.apache.cassandra.exceptions.WriteTimeoutException;
 import org.apache.cassandra.io.compress.CompressionMetadata;
-import org.apache.cassandra.io.sstable.Component;
-import org.apache.cassandra.io.sstable.Descriptor;
-import org.apache.cassandra.io.sstable.SSTableRewriter;
-import org.apache.cassandra.io.sstable.SSTableTxnWriter;
+import org.apache.cassandra.io.sstable.*;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.schema.KeyspaceParams;
-import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 import static org.junit.Assert.*;
@@ -79,6 +73,8 @@ public class ScrubTest
     public static final String CF_UUID = "UUIDKeys";
     public static final String CF_INDEX1 = "Indexed1";
     public static final String CF_INDEX2 = "Indexed2";
+    public static final String CF_INDEX1_BYTEORDERED = "Indexed1_ordered";
+    public static final String CF_INDEX2_BYTEORDERED = "Indexed2_ordered";
 
     public static final String COL_INDEX = "birthdate";
     public static final String COL_NON_INDEX = "notbirthdate";
@@ -98,7 +94,9 @@ public class ScrubTest
                                                 .compressionParameters(SchemaLoader.getCompressionParameters(COMPRESSION_CHUNK_LENGTH)),
                                     SchemaLoader.standardCFMD(KEYSPACE, CF_UUID, 0, UUIDType.instance),
                                     SchemaLoader.keysIndexCFMD(KEYSPACE, CF_INDEX1, true),
-                                    SchemaLoader.compositeIndexCFMD(KEYSPACE, CF_INDEX2, true));
+                                    SchemaLoader.compositeIndexCFMD(KEYSPACE, CF_INDEX2, true),
+                                    SchemaLoader.keysIndexCFMD(KEYSPACE, CF_INDEX1_BYTEORDERED, true).copy(ByteOrderedPartitioner.instance),
+                                    SchemaLoader.compositeIndexCFMD(KEYSPACE, CF_INDEX2_BYTEORDERED, true).copy(ByteOrderedPartitioner.instance));
     }
 
     @Test
@@ -306,7 +304,7 @@ public class ScrubTest
     {
         // This test assumes ByteOrderPartitioner to create out-of-order SSTable
         IPartitioner oldPartitioner = DatabaseDescriptor.getPartitioner();
-        DatabaseDescriptor.setPartitioner(new ByteOrderedPartitioner());
+        DatabaseDescriptor.setPartitionerUnsafe(new ByteOrderedPartitioner());
 
         // Create out-of-order SSTable
         File tempDir = File.createTempFile("ScrubTest.testScrubOutOfOrder", "").getParentFile();
@@ -380,7 +378,7 @@ public class ScrubTest
         {
             FileUtils.deleteRecursive(tempDataDir);
             // reset partitioner
-            DatabaseDescriptor.setPartitioner(oldPartitioner);
+            DatabaseDescriptor.setPartitionerUnsafe(oldPartitioner);
         }
     }
 
@@ -394,9 +392,9 @@ public class ScrubTest
             CompressionMetadata compData = CompressionMetadata.create(sstable.getFilename());
 
             CompressionMetadata.Chunk chunk1 = compData.chunkFor(
-                    sstable.getPosition(PartitionPosition.ForKey.get(key1, sstable.partitioner), SSTableReader.Operator.EQ).position);
+                    sstable.getPosition(PartitionPosition.ForKey.get(key1, sstable.getPartitioner()), SSTableReader.Operator.EQ).position);
             CompressionMetadata.Chunk chunk2 = compData.chunkFor(
-                    sstable.getPosition(PartitionPosition.ForKey.get(key2, sstable.partitioner), SSTableReader.Operator.EQ).position);
+                    sstable.getPosition(PartitionPosition.ForKey.get(key2, sstable.getPartitioner()), SSTableReader.Operator.EQ).position);
 
             startPosition = Math.min(chunk1.offset, chunk2.offset);
             endPosition = Math.max(chunk1.offset + chunk1.length, chunk2.offset + chunk2.length);
@@ -405,8 +403,8 @@ public class ScrubTest
         }
         else
         { // overwrite with garbage from key1 to key2
-            long row0Start = sstable.getPosition(PartitionPosition.ForKey.get(key1, sstable.partitioner), SSTableReader.Operator.EQ).position;
-            long row1Start = sstable.getPosition(PartitionPosition.ForKey.get(key2, sstable.partitioner), SSTableReader.Operator.EQ).position;
+            long row0Start = sstable.getPosition(PartitionPosition.ForKey.get(key1, sstable.getPartitioner()), SSTableReader.Operator.EQ).position;
+            long row1Start = sstable.getPosition(PartitionPosition.ForKey.get(key2, sstable.getPartitioner()), SSTableReader.Operator.EQ).position;
             startPosition = Math.min(row0Start, row1Start);
             endPosition = Math.max(row0Start, row1Start);
         }
@@ -547,28 +545,24 @@ public class ScrubTest
     {
         //If the partitioner preserves the order then SecondaryIndex uses BytesType comparator,
         // otherwise it uses LocalByPartitionerType
-        setKeyComparator(BytesType.instance);
-        testScrubIndex(CF_INDEX1, COL_INDEX, false, true);
+        testScrubIndex(CF_INDEX1_BYTEORDERED, COL_INDEX, false, true);
     }
 
     @Test /* CASSANDRA-5174 */
     public void testScrubCompositeIndex_preserveOrder() throws IOException, ExecutionException, InterruptedException
     {
-        setKeyComparator(BytesType.instance);
-        testScrubIndex(CF_INDEX2, COL_INDEX, true, true);
+        testScrubIndex(CF_INDEX2_BYTEORDERED, COL_INDEX, true, true);
     }
 
     @Test /* CASSANDRA-5174 */
     public void testScrubKeysIndex() throws IOException, ExecutionException, InterruptedException
     {
-        setKeyComparator(new LocalByPartionerType(StorageService.getPartitioner()));
         testScrubIndex(CF_INDEX1, COL_INDEX, false, true);
     }
 
     @Test /* CASSANDRA-5174 */
     public void testScrubCompositeIndex() throws IOException, ExecutionException, InterruptedException
     {
-        setKeyComparator(new LocalByPartionerType(StorageService.getPartitioner()));
         testScrubIndex(CF_INDEX2, COL_INDEX, true, true);
     }
 
@@ -588,33 +582,6 @@ public class ScrubTest
     public void testScrubTwice() throws IOException, ExecutionException, InterruptedException
     {
         testScrubIndex(CF_INDEX1, COL_INDEX, false, true, true);
-    }
-
-    /** The SecondaryIndex class is used for custom indexes so to avoid
-     * making a public final field into a private field with getters
-     * and setters, we resort to this hack in order to test it properly
-     * since it can have two values which influence the scrubbing behavior.
-     * @param comparator - the key comparator we want to test
-     */
-    private void setKeyComparator(AbstractType<?> comparator)
-    {
-        try
-        {
-            Field keyComparator = SecondaryIndex.class.getDeclaredField("keyComparator");
-            keyComparator.setAccessible(true);
-            int modifiers = keyComparator.getModifiers();
-            Field modifierField = keyComparator.getClass().getDeclaredField("modifiers");
-            modifiers = modifiers & ~Modifier.FINAL;
-            modifierField.setAccessible(true);
-            modifierField.setInt(keyComparator, modifiers);
-
-            keyComparator.set(null, comparator);
-        }
-        catch (Exception ex)
-        {
-            fail("Failed to change key comparator in secondary index : " + ex.getMessage());
-            ex.printStackTrace();
-        }
     }
 
     private void testScrubIndex(String cfName, String colName, boolean composite, boolean ... scrubs)

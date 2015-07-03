@@ -90,7 +90,7 @@ public class PartitionRangeReadCommand extends ReadCommand
                                              ColumnFilter.all(metadata),
                                              RowFilter.NONE,
                                              DataLimits.NONE,
-                                             DataRange.allData(StorageService.getPartitioner()));
+                                             DataRange.allData(metadata.partitioner));
     }
 
     public DataRange dataRange()

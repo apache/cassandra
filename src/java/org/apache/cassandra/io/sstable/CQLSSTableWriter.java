@@ -77,6 +77,9 @@ public class CQLSSTableWriter implements Closeable
     static
     {
         Config.setClientMode(true);
+        // Partitioner is not set in client mode.
+        if (DatabaseDescriptor.getPartitioner() == null)
+            DatabaseDescriptor.setPartitionerUnsafe(Murmur3Partitioner.instance);
     }
 
     private final AbstractSSTableSimpleWriter writer;
@@ -219,10 +222,7 @@ public class CQLSSTableWriter implements Closeable
         try
         {
             for (ByteBuffer key : keys)
-            {
-                DecoratedKey dk = DatabaseDescriptor.getPartitioner().decorateKey(key);
-                insert.addUpdateForKey(writer.getUpdateFor(dk), clustering, params);
-            }
+                insert.addUpdateForKey(writer.getUpdateFor(key), clustering, params);
             return this;
         }
         catch (SSTableSimpleUnsortedWriter.SyncException e)
@@ -277,7 +277,6 @@ public class CQLSSTableWriter implements Closeable
     public static class Builder
     {
         private File directory;
-        private IPartitioner partitioner = Murmur3Partitioner.instance;
 
         protected SSTableFormat.Type formatType = null;
 
@@ -402,7 +401,7 @@ public class CQLSSTableWriter implements Closeable
          */
         public Builder withPartitioner(IPartitioner partitioner)
         {
-            this.partitioner = partitioner;
+            this.schema = schema.copy(partitioner);
             return this;
         }
 
@@ -511,8 +510,8 @@ public class CQLSSTableWriter implements Closeable
                 throw new IllegalStateException("No insert statement specified, you should provide an insert statement through using()");
 
             AbstractSSTableSimpleWriter writer = sorted
-                                               ? new SSTableSimpleWriter(directory, schema, partitioner, insert.updatedColumns())
-                                               : new SSTableSimpleUnsortedWriter(directory, schema, partitioner, insert.updatedColumns(), bufferSizeInMB);
+                                               ? new SSTableSimpleWriter(directory, schema, insert.updatedColumns())
+                                               : new SSTableSimpleUnsortedWriter(directory, schema, insert.updatedColumns(), bufferSizeInMB);
 
             if (formatType != null)
                 writer.setSSTableFormatType(formatType);

@@ -30,7 +30,6 @@ import org.apache.cassandra.cql3.restrictions.Restriction;
 import org.apache.cassandra.cql3.restrictions.TokenRestriction;
 import org.apache.cassandra.cql3.statements.Bound;
 import org.apache.cassandra.exceptions.InvalidRequestException;
-import org.apache.cassandra.service.StorageService;
 
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkContainsNoDuplicates;
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkContainsOnly;
@@ -69,7 +68,7 @@ public final class TokenRelation extends Relation
     {
         List<ColumnDefinition> columnDefs = getColumnDefinitions(cfm);
         Term term = toTerm(toReceivers(cfm, columnDefs), value, cfm.ksName, boundNames);
-        return new TokenRestriction.EQRestriction(cfm.getKeyValidatorAsClusteringComparator(), columnDefs, term);
+        return new TokenRestriction.EQRestriction(cfm, columnDefs, term);
     }
 
     @Override
@@ -86,7 +85,7 @@ public final class TokenRelation extends Relation
     {
         List<ColumnDefinition> columnDefs = getColumnDefinitions(cfm);
         Term term = toTerm(toReceivers(cfm, columnDefs), value, cfm.ksName, boundNames);
-        return new TokenRestriction.SliceRestriction(cfm.getKeyValidatorAsClusteringComparator(), columnDefs, bound, inclusive, term);
+        return new TokenRestriction.SliceRestriction(cfm, columnDefs, bound, inclusive, term);
     }
 
     @Override
@@ -159,6 +158,6 @@ public final class TokenRelation extends Relation
         return Collections.singletonList(new ColumnSpecification(firstColumn.ksName,
                                                                  firstColumn.cfName,
                                                                  new ColumnIdentifier("partition key token", true),
-                                                                 StorageService.getPartitioner().getTokenValidator()));
+                                                                 cfm.partitioner.getTokenValidator()));
     }
 }

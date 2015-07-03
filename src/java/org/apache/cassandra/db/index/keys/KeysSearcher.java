@@ -84,7 +84,7 @@ public class KeysSearcher extends SecondaryIndexSearcher
                 while (next == null && indexHits.hasNext())
                 {
                     Row hit = indexHits.next();
-                    DecoratedKey key = baseCfs.partitioner.decorateKey(hit.clustering().get(0));
+                    DecoratedKey key = baseCfs.decorateKey(hit.clustering().get(0));
 
                     SinglePartitionReadCommand dataCmd = SinglePartitionReadCommand.create(isForThrift(),
                                                                                            baseCfs.metadata,

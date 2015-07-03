@@ -129,7 +129,7 @@ public abstract class PartitionerTestCase
     {
         // This call initializes StorageService, needed to populate the keyspaces.
         // TODO: This points to potential problems in the initialization sequence. Should be solved by CASSANDRA-7837.
-        StorageService.getPartitioner();
+        StorageService.instance.getKeyspaces();
 
         try
         {

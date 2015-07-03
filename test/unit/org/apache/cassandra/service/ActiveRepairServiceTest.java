@@ -77,8 +77,8 @@ public class ActiveRepairServiceTest
 
         TokenMetadata tmd = StorageService.instance.getTokenMetadata();
         tmd.clearUnsafe();
-        StorageService.instance.setTokens(Collections.singleton(StorageService.getPartitioner().getRandomToken()));
-        tmd.updateNormalToken(StorageService.getPartitioner().getMinimumToken(), REMOTE);
+        StorageService.instance.setTokens(Collections.singleton(tmd.partitioner.getRandomToken()));
+        tmd.updateNormalToken(tmd.partitioner.getMinimumToken(), REMOTE);
         assert tmd.isMember(REMOTE);
     }
 
@@ -208,7 +208,7 @@ public class ActiveRepairServiceTest
         for (int i = 1; i <= max; i++)
         {
             InetAddress endpoint = InetAddress.getByName("127.0.0." + i);
-            tmd.updateNormalToken(StorageService.getPartitioner().getRandomToken(), endpoint);
+            tmd.updateNormalToken(tmd.partitioner.getRandomToken(), endpoint);
             endpoints.add(endpoint);
         }
         return endpoints;

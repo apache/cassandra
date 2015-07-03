@@ -101,7 +101,7 @@ public abstract class CompositesIndex extends AbstractSimplePerColumnSecondaryIn
 
     protected static void addGenericClusteringColumns(CFMetaData.Builder indexMetadata, CFMetaData baseMetadata, ColumnDefinition columnDef)
     {
-        indexMetadata.addClusteringColumn("partition_key", SecondaryIndex.keyComparator);
+        indexMetadata.addClusteringColumn("partition_key", baseMetadata.partitioner.partitionOrdering());
         for (ColumnDefinition def : baseMetadata.clusteringColumns())
             indexMetadata.addClusteringColumn(def.name, def.type);
     }

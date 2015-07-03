@@ -172,7 +172,7 @@ public class BigTableScanner implements ISSTableScanner
             while (!ifile.isEOF())
             {
                 indexPosition = ifile.getFilePointer();
-                DecoratedKey indexDecoratedKey = sstable.partitioner.decorateKey(ByteBufferUtil.readWithShortLength(ifile));
+                DecoratedKey indexDecoratedKey = sstable.decorateKey(ByteBufferUtil.readWithShortLength(ifile));
                 if (indexDecoratedKey.compareTo(currentRange.left) > 0 || currentRange.contains(indexDecoratedKey))
                 {
                     // Found, just read the dataPosition and seek into index and data files
@@ -282,7 +282,7 @@ public class BigTableScanner implements ISSTableScanner
                         if (ifile.isEOF())
                             return endOfData();
 
-                        currentKey = sstable.partitioner.decorateKey(ByteBufferUtil.readWithShortLength(ifile));
+                        currentKey = sstable.decorateKey(ByteBufferUtil.readWithShortLength(ifile));
                         currentEntry = rowIndexEntrySerializer.deserialize(ifile);
                     } while (!currentRange.contains(currentKey));
                 }
@@ -301,7 +301,7 @@ public class BigTableScanner implements ISSTableScanner
                 else
                 {
                     // we need the position of the start of the next key, regardless of whether it falls in the current range
-                    nextKey = sstable.partitioner.decorateKey(ByteBufferUtil.readWithShortLength(ifile));
+                    nextKey = sstable.decorateKey(ByteBufferUtil.readWithShortLength(ifile));
                     nextEntry = rowIndexEntrySerializer.deserialize(ifile);
 
                     if (!currentRange.contains(nextKey))

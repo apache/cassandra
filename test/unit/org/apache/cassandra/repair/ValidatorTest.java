@@ -26,6 +26,7 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
+import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.BufferDecoratedKey;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
@@ -40,7 +41,6 @@ import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.repair.messages.RepairMessage;
 import org.apache.cassandra.repair.messages.ValidationComplete;
 import org.apache.cassandra.schema.KeyspaceParams;
-import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.MerkleTree;
 import org.apache.cassandra.utils.concurrent.SimpleCondition;
@@ -55,7 +55,7 @@ public class ValidatorTest
 {
     private static final String keyspace = "ValidatorTest";
     private static final String columnFamily = "Standard1";
-    private final IPartitioner partitioner = StorageService.getPartitioner();
+    private static IPartitioner partitioner;
 
     @BeforeClass
     public static void defineSchema() throws Exception
@@ -64,6 +64,7 @@ public class ValidatorTest
         SchemaLoader.createKeyspace(keyspace,
                                     KeyspaceParams.simple(1),
                                     SchemaLoader.standardCFMD(keyspace, columnFamily));
+        partitioner = Schema.instance.getCFMetaData(keyspace, columnFamily).partitioner;
     }
 
     @After
@@ -81,7 +82,6 @@ public class ValidatorTest
         final SimpleCondition lock = new SimpleCondition();
         MessagingService.instance().addMessageSink(new IMessageSink()
         {
-            @SuppressWarnings("unchecked")
             public boolean allowOutgoingMessage(MessageOut message, int id, InetAddress to)
             {
                 try
@@ -113,7 +113,7 @@ public class ValidatorTest
         ColumnFamilyStore cfs = Keyspace.open(keyspace).getColumnFamilyStore(columnFamily);
 
         Validator validator = new Validator(desc, remote, 0);
-        MerkleTree tree = new MerkleTree(cfs.partitioner, validator.desc.range, MerkleTree.RECOMMENDED_DEPTH, (int) Math.pow(2, 15));
+        MerkleTree tree = new MerkleTree(partitioner, validator.desc.range, MerkleTree.RECOMMENDED_DEPTH, (int) Math.pow(2, 15));
         validator.prepare(cfs, tree);
 
         // and confirm that the tree was split
@@ -142,7 +142,6 @@ public class ValidatorTest
         final SimpleCondition lock = new SimpleCondition();
         MessagingService.instance().addMessageSink(new IMessageSink()
         {
-            @SuppressWarnings("unchecked")
             public boolean allowOutgoingMessage(MessageOut message, int id, InetAddress to)
             {
                 try

@@ -164,7 +164,7 @@ public class BootStrapper extends ProgressEventNotifierSupport
         // if user specified tokens, use those
         if (initialTokens.size() > 0)
             return getSpecifiedTokens(metadata, initialTokens);
-        
+
         int numTokens = DatabaseDescriptor.getNumTokens();
         if (numTokens < 1)
             throw new ConfigurationException("num_tokens must be >= 1");
@@ -179,13 +179,13 @@ public class BootStrapper extends ProgressEventNotifierSupport
     }
 
     private static Collection<Token> getSpecifiedTokens(final TokenMetadata metadata,
-                                                                Collection<String> initialTokens)
+                                                        Collection<String> initialTokens)
     {
         logger.debug("tokens manually specified as {}",  initialTokens);
         List<Token> tokens = new ArrayList<>(initialTokens.size());
         for (String tokenString : initialTokens)
         {
-            Token token = StorageService.getPartitioner().getTokenFactory().fromString(tokenString);
+            Token token = metadata.partitioner.getTokenFactory().fromString(tokenString);
             if (metadata.getEndpoint(token) != null)
                 throw new ConfigurationException("Bootstrapping to existing token " + tokenString + " is not allowed (decommission/removenode the old node first).");
             tokens.add(token);
@@ -202,8 +202,8 @@ public class BootStrapper extends ProgressEventNotifierSupport
         if (ks == null)
             throw new ConfigurationException("Problem opening token allocation keyspace " + allocationKeyspace);
         AbstractReplicationStrategy rs = ks.getReplicationStrategy();
-        
-        return TokenAllocation.allocateTokens(metadata, rs, StorageService.getPartitioner(), address, numTokens);
+
+        return TokenAllocation.allocateTokens(metadata, rs, address, numTokens);
     }
 
     public static Collection<Token> getRandomTokens(TokenMetadata metadata, int numTokens)
@@ -211,7 +211,7 @@ public class BootStrapper extends ProgressEventNotifierSupport
         Set<Token> tokens = new HashSet<>(numTokens);
         while (tokens.size() < numTokens)
         {
-            Token token = StorageService.getPartitioner().getRandomToken();
+            Token token = metadata.partitioner.getRandomToken();
             if (metadata.getEndpoint(token) == null)
                 tokens.add(token);
         }
