@@ -657,7 +657,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
         {
             // bf is enabled and fp chance matches the currently configured value.
             load(false, true);
-            loadBloomFilter();
+            loadBloomFilter(descriptor.version.hasOldBfHashOrder());
         }
     }
 
@@ -666,11 +666,11 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
      *
      * @throws IOException
      */
-    private void loadBloomFilter() throws IOException
+    private void loadBloomFilter(boolean oldBfHashOrder) throws IOException
     {
         try (DataInputStream stream = new DataInputStream(new BufferedInputStream(new FileInputStream(descriptor.filenameFor(Component.FILTER)))))
         {
-            bf = FilterFactory.deserialize(stream, true);
+            bf = FilterFactory.deserialize(stream, true, oldBfHashOrder);
         }
     }
 
@@ -743,7 +743,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
                     : estimateRowsFromIndex(primaryIndex); // statistics is supposed to be optional
 
             if (recreateBloomFilter)
-                bf = FilterFactory.getFilter(estimatedKeys, metadata.getBloomFilterFpChance(), true);
+                bf = FilterFactory.getFilter(estimatedKeys, metadata.getBloomFilterFpChance(), true, descriptor.version.hasOldBfHashOrder());
 
             try (IndexSummaryBuilder summaryBuilder = summaryLoaded ? null : new IndexSummaryBuilder(estimatedKeys, metadata.getMinIndexInterval(), samplingLevel))
             {

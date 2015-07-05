@@ -21,7 +21,7 @@ import org.apache.cassandra.utils.concurrent.SharedCloseable;
 
 public interface IFilter extends SharedCloseable
 {
-    public interface FilterKey
+    interface FilterKey
     {
         /** Places the murmur3 hash of the key in the given long array of size at least two. */
         void filterHash(long[] dest);

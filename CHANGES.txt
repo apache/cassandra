@@ -1,4 +1,5 @@
 3.0
+ * Bloom filter false positive ratio is not honoured (CASSANDRA-8413)
  * New option for cassandra-stress to leave a ratio of columns null (CASSANDRA-9522)
  * Change hinted_handoff_enabled yaml setting, JMX (CASSANDRA-9035)
  * Add algorithmic token allocation (CASSANDRA-7032)

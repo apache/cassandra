@@ -44,8 +44,13 @@ public class BitSetTest
     @Test
     public void compareBitSets()
     {
-        BloomFilter bf2 = (BloomFilter) FilterFactory.getFilter(FilterTestHelper.ELEMENTS / 2, FilterTestHelper.MAX_FAILURE_RATE, false);
-        BloomFilter bf3 = (BloomFilter) FilterFactory.getFilter(FilterTestHelper.ELEMENTS / 2, FilterTestHelper.MAX_FAILURE_RATE, true);
+        compareBitSets(false);
+        compareBitSets(true);
+    }
+    private static void compareBitSets(boolean oldBfHashOrder)
+    {
+        BloomFilter bf2 = (BloomFilter) FilterFactory.getFilter(FilterTestHelper.ELEMENTS / 2, FilterTestHelper.MAX_FAILURE_RATE, false, oldBfHashOrder);
+        BloomFilter bf3 = (BloomFilter) FilterFactory.getFilter(FilterTestHelper.ELEMENTS / 2, FilterTestHelper.MAX_FAILURE_RATE, true, oldBfHashOrder);
 
         RandomStringGenerator gen1 = new KeyGenerator.RandomStringGenerator(new Random().nextInt(), FilterTestHelper.ELEMENTS);
 
@@ -85,7 +90,7 @@ public class BitSetTest
         }
     }
 
-    private void populateAndReserialize(IBitSet bs) throws IOException
+    private static void populateAndReserialize(IBitSet bs) throws IOException
     {
         for (long i = 0; i < bs.capacity(); i++)
             if (random.nextBoolean())

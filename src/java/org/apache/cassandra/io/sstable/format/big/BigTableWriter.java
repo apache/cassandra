@@ -428,7 +428,7 @@ public class BigTableWriter extends SSTableWriter
             indexFile = SequentialWriter.open(new File(descriptor.filenameFor(Component.PRIMARY_INDEX)));
             builder = SegmentedFile.getBuilder(DatabaseDescriptor.getIndexAccessMode(), false);
             summary = new IndexSummaryBuilder(keyCount, metadata.getMinIndexInterval(), Downsampling.BASE_SAMPLING_LEVEL);
-            bf = FilterFactory.getFilter(keyCount, metadata.getBloomFilterFpChance(), true);
+            bf = FilterFactory.getFilter(keyCount, metadata.getBloomFilterFpChance(), true, descriptor.version.hasOldBfHashOrder());
             // register listeners to be alerted when the data files are flushed
             indexFile.setPostFlushListener(new Runnable()
             {

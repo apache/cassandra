@@ -45,6 +45,7 @@ public class AbstractSerializationsTester
         put("1.2", MessagingService.VERSION_12);
         put("2.0", MessagingService.VERSION_20);
         put("2.1", MessagingService.VERSION_21);
+        put("2.2", MessagingService.VERSION_22);
     }};
 
     protected static final boolean EXECUTE_WRITES = Boolean.getBoolean("cassandra.test-serialization-writes");
@@ -63,7 +64,12 @@ public class AbstractSerializationsTester
 
     protected static DataInputStreamPlus getInput(String name) throws IOException
     {
-        File f = new File("test/data/serialization/" + CUR_VER + "/" + name);
+        return getInput(CUR_VER, name);
+    }
+
+    protected static DataInputStreamPlus getInput(String version, String name) throws IOException
+    {
+        File f = new File("test/data/serialization/" + version + '/' + name);
         assert f.exists() : f.getPath();
         return new DataInputPlus.DataInputStreamPlus(new FileInputStream(f));
     }
@@ -71,7 +77,13 @@ public class AbstractSerializationsTester
     @SuppressWarnings("resource")
     protected static DataOutputStreamPlus getOutput(String name) throws IOException
     {
-        File f = new File("test/data/serialization/" + CUR_VER + "/" + name);
+        return getOutput(CUR_VER, name);
+    }
+
+    @SuppressWarnings("resource")
+    protected static DataOutputStreamPlus getOutput(String version, String name) throws IOException
+    {
+        File f = new File("test/data/serialization/" + version + '/' + name);
         f.getParentFile().mkdirs();
         return new BufferedDataOutputStreamPlus(new FileOutputStream(f).getChannel());
     }

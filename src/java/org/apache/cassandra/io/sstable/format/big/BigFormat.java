@@ -17,25 +17,20 @@
  */
 package org.apache.cassandra.io.sstable.format.big;
 
-import java.util.Iterator;
 import java.util.Set;
 
-import com.google.common.collect.ImmutableList;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.RowIndexEntry;
 import org.apache.cassandra.db.SerializationHeader;
-import org.apache.cassandra.db.compaction.CompactionController;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
-import org.apache.cassandra.io.sstable.IndexHelper;
 import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.SSTableWriter;
 import org.apache.cassandra.io.sstable.format.Version;
 import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
 import org.apache.cassandra.io.sstable.metadata.StatsMetadata;
-import org.apache.cassandra.io.util.FileDataInput;
 import org.apache.cassandra.net.MessagingService;
 
 /**
@@ -129,8 +124,13 @@ public class BigFormat implements SSTableFormat
         private final boolean newFileName;
         public final boolean storeRows;
         public final int correspondingMessagingVersion; // Only use by storage that 'storeRows' so far
+        /**
+         * CASSANDRA-8413: 3.0 bloom filter representation changed (two longs just swapped)
+         * have no 'static' bits caused by using the same upper bits for both bloom filter and token distribution.
+         */
+        private final boolean hasOldBfHashOrder;
 
-        public BigVersion(String version)
+        BigVersion(String version)
         {
             super(instance,version);
 
@@ -143,6 +143,7 @@ public class BigFormat implements SSTableFormat
             newFileName = version.compareTo("la") >= 0;
             storeRows = version.compareTo("la") >= 0;
             correspondingMessagingVersion = storeRows ? MessagingService.VERSION_30 : MessagingService.VERSION_21;
+            hasOldBfHashOrder = version.compareTo("la") < 0;
         }
 
         @Override
@@ -179,6 +180,12 @@ public class BigFormat implements SSTableFormat
         public boolean tracksLegacyCounterShards()
         {
             return tracksLegacyCounterShards;
+        }
+
+        @Override
+        public boolean hasOldBfHashOrder()
+        {
+            return hasOldBfHashOrder;
         }
 
         @Override

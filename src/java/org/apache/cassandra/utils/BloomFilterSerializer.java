@@ -21,37 +21,35 @@ import java.io.DataInput;
 import java.io.IOException;
 
 import org.apache.cassandra.db.TypeSizes;
-import org.apache.cassandra.io.ISerializer;
-import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.utils.obs.IBitSet;
 import org.apache.cassandra.utils.obs.OffHeapBitSet;
 import org.apache.cassandra.utils.obs.OpenBitSet;
 
-class BloomFilterSerializer implements ISerializer<BloomFilter>
+final class BloomFilterSerializer
 {
-    public void serialize(BloomFilter bf, DataOutputPlus out) throws IOException
+    private BloomFilterSerializer()
+    {
+    }
+
+    public static void serialize(BloomFilter bf, DataOutputPlus out) throws IOException
     {
         out.writeInt(bf.hashCount);
         bf.bitset.serialize(out);
     }
 
-    public BloomFilter deserialize(DataInputPlus in) throws IOException
+    public static BloomFilter deserialize(DataInput in, boolean oldBfHashOrder) throws IOException
     {
-        return deserialize(in, false);
+        return deserialize(in, false, oldBfHashOrder);
     }
 
     @SuppressWarnings("resource")
-    public BloomFilter deserialize(DataInput in, boolean offheap) throws IOException
+    public static BloomFilter deserialize(DataInput in, boolean offheap, boolean oldBfHashOrder) throws IOException
     {
         int hashes = in.readInt();
         IBitSet bs = offheap ? OffHeapBitSet.deserialize(in) : OpenBitSet.deserialize(in);
-        return createFilter(hashes, bs);
-    }
 
-    BloomFilter createFilter(int hashes, IBitSet bs)
-    {
-        return new BloomFilter(hashes, bs);
+        return new BloomFilter(hashes, bs, oldBfHashOrder);
     }
 
     /**
@@ -61,7 +59,7 @@ class BloomFilterSerializer implements ISerializer<BloomFilter>
      *
      * @return serialized size of the given bloom filter
      */
-    public long serializedSize(BloomFilter bf)
+    public static long serializedSize(BloomFilter bf)
     {
         int size = TypeSizes.sizeof(bf.hashCount); // hash count
         size += bf.bitset.serializedSize();

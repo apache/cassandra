@@ -19,10 +19,14 @@
 package org.apache.cassandra.utils;
 
 import java.util.Random;
+import java.util.concurrent.ThreadLocalRandom;
 
 import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import static org.apache.cassandra.utils.FilterFactory.getFilter;
+import static org.apache.cassandra.utils.FilterTestHelper.testFalsePositives;
 
 public class LongBloomFilterTest
 {
@@ -34,39 +38,164 @@ public class LongBloomFilterTest
     @Test
     public void testBigInt()
     {
+        testBigInt(false);
+        testBigInt(true);
+    }
+    private static void testBigInt(boolean oldBfHashOrder)
+    {
         int size = 10 * 1000 * 1000;
-        IFilter bf = FilterFactory.getFilter(size, FilterTestHelper.spec.bucketsPerElement, false);
-        double fp = FilterTestHelper.testFalsePositives(bf,
-                                                        new KeyGenerator.IntGenerator(size),
-                                                        new KeyGenerator.IntGenerator(size, size * 2));
-        logger.info("Bloom filter false positive: {}", fp);
+        IFilter bf = getFilter(size, FilterTestHelper.spec.bucketsPerElement, false, oldBfHashOrder);
+        double fp = testFalsePositives(bf,
+                                       new KeyGenerator.IntGenerator(size),
+                                       new KeyGenerator.IntGenerator(size, size * 2));
+        logger.info("Bloom filter false positive for oldBfHashOrder={}: {}", oldBfHashOrder, fp);
     }
 
     @Test
     public void testBigRandom()
     {
+        testBigRandom(false);
+        testBigRandom(true);
+    }
+    private static void testBigRandom(boolean oldBfHashOrder)
+    {
         int size = 10 * 1000 * 1000;
-        IFilter bf = FilterFactory.getFilter(size, FilterTestHelper.spec.bucketsPerElement, false);
-        double fp = FilterTestHelper.testFalsePositives(bf,
-                                                        new KeyGenerator.RandomStringGenerator(new Random().nextInt(), size),
-                                                        new KeyGenerator.RandomStringGenerator(new Random().nextInt(), size));
-        logger.info("Bloom filter false positive: {}", fp);
+        IFilter bf = getFilter(size, FilterTestHelper.spec.bucketsPerElement, false, oldBfHashOrder);
+        double fp = testFalsePositives(bf,
+                                       new KeyGenerator.RandomStringGenerator(new Random().nextInt(), size),
+                                       new KeyGenerator.RandomStringGenerator(new Random().nextInt(), size));
+        logger.info("Bloom filter false positive for oldBfHashOrder={}: {}", oldBfHashOrder, fp);
+    }
+
+    /**
+     * NB: needs to run with -mx1G
+     */
+    @Test
+    public void testConstrained()
+    {
+        testConstrained(false);
+        testConstrained(true);
+    }
+    private static void testConstrained(boolean oldBfHashOrder)
+    {
+        int size = 10 * 1000 * 1000;
+        try (IFilter bf = getFilter(size, 0.01, false, oldBfHashOrder))
+        {
+            double fp = testFalsePositives(bf,
+                                           new KeyGenerator.IntGenerator(size),
+                                           new KeyGenerator.IntGenerator(size, size * 2));
+            logger.info("Bloom filter false positive for oldBfHashOrder={}: {}", oldBfHashOrder, fp);
+        }
+    }
+
+    private static void testConstrained(double targetFp, int elements, boolean oldBfHashOrder, int staticBitCount, long ... staticBits)
+    {
+        for (long bits : staticBits)
+        {
+            try (IFilter bf = getFilter(elements, targetFp, false, oldBfHashOrder);)
+            {
+                SequentialHashGenerator gen = new SequentialHashGenerator(staticBitCount, bits);
+                long[] hash = new long[2];
+                for (int i = 0 ; i < elements ; i++)
+                {
+                    gen.nextHash(hash);
+                    bf.add(filterKey(hash[0], hash[1]));
+                }
+                int falsePositiveCount = 0;
+                for (int i = 0 ; i < elements ; i++)
+                {
+                    gen.nextHash(hash);
+                    if (bf.isPresent(filterKey(hash[0], hash[1])))
+                        falsePositiveCount++;
+                }
+                double fp = falsePositiveCount / (double) elements;
+                double ratio = fp/targetFp;
+                System.out.printf("%.2f, ", ratio);
+            }
+        }
+        System.out.printf("%d elements, %d static bits, %.2f target\n", elements, staticBitCount, targetFp);
+    }
+
+    private static IFilter.FilterKey filterKey(final long hash1, final long hash2)
+    {
+        return new IFilter.FilterKey()
+        {
+            public void filterHash(long[] dest)
+            {
+                dest[0] = hash1;
+                dest[1] = hash2;
+            }
+        };
+    }
+
+    @Test
+    public void testBffp()
+    {
+        bffp(false);
+        bffp(true);
+    }
+
+    private static void bffp(boolean flipInputs)
+    {
+        System.out.println("Bloom filter false posiitive with flipInputs=" + flipInputs);
+        long[] staticBits = staticBits(4, 0);
+        testConstrained(0.01d, 10 << 20, flipInputs, 0, staticBits);
+        testConstrained(0.01d, 1 << 20, flipInputs, 6, staticBits);
+        testConstrained(0.01d, 10 << 20, flipInputs, 6, staticBits);
+        testConstrained(0.01d, 1 << 19, flipInputs, 10, staticBits);
+        testConstrained(0.01d, 1 << 20, flipInputs, 10, staticBits);
+        testConstrained(0.01d, 10 << 20, flipInputs, 10, staticBits);
+        testConstrained(0.1d, 10 << 20, flipInputs, 0, staticBits);
+        testConstrained(0.1d, 10 << 20, flipInputs, 8, staticBits);
+        testConstrained(0.1d, 10 << 20, flipInputs, 10, staticBits);
+    }
+
+    static long[] staticBits(int random, long ... fixed)
+    {
+        long[] result = new long[random + fixed.length];
+        System.arraycopy(fixed, 0, result, 0, fixed.length);
+        for (int i = 0 ; i < random ; i++)
+            result[fixed.length + i] = ThreadLocalRandom.current().nextLong();
+        return result;
+    }
+
+    private static class SequentialHashGenerator
+    {
+        final long mask;
+        final long staticBits;
+        int next;
+        private SequentialHashGenerator(int staticBitCount, long staticBits) {
+            this.mask = -1 >>> staticBitCount;
+            this.staticBits = staticBits & ~mask;
+        }
+        void nextHash(long[] fill)
+        {
+            MurmurHash.hash3_x64_128(ByteBufferUtil.bytes(next), 0, 4, 0, fill);
+            fill[0] &= mask;
+            fill[0] |= staticBits;
+            next++;
+        }
     }
 
     @Test
     public void timeit()
     {
+        timeit(false);
+        timeit(true);
+    }
+    private static void timeit(boolean oldBfHashOrder)
+    {
         int size = 300 * FilterTestHelper.ELEMENTS;
-        IFilter bf = FilterFactory.getFilter(size, FilterTestHelper.spec.bucketsPerElement, false);
+        IFilter bf = getFilter(size, FilterTestHelper.spec.bucketsPerElement, false, oldBfHashOrder);
         double sumfp = 0;
         for (int i = 0; i < 10; i++)
         {
-            FilterTestHelper.testFalsePositives(bf,
-                                                new KeyGenerator.RandomStringGenerator(new Random().nextInt(), size),
-                                                new KeyGenerator.RandomStringGenerator(new Random().nextInt(), size));
+            testFalsePositives(bf,
+                               new KeyGenerator.RandomStringGenerator(new Random().nextInt(), size),
+                               new KeyGenerator.RandomStringGenerator(new Random().nextInt(), size));
 
             bf.clear();
         }
-        logger.info("Bloom filter mean false positive: {}", sumfp / 10);
+        logger.info("Bloom filter mean false positive for oldBfHashOrder={}: {}", oldBfHashOrder, sumfp / 10);
     }
 }
