@@ -30,7 +30,7 @@ import java.util.Set;
 
 import com.google.common.collect.Lists;
 
-import org.apache.commons.math.stat.descriptive.SummaryStatistics;
+import org.apache.commons.math3.stat.descriptive.SummaryStatistics;
 
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
