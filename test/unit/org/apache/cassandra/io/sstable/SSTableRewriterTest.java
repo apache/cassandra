@@ -109,7 +109,6 @@ public class SSTableRewriterTest extends SchemaLoader
         Keyspace keyspace = Keyspace.open(KEYSPACE);
         ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(CF);
         truncate(cfs);
-        assertEquals(0, cfs.metric.liveDiskSpaceUsed.getCount());
 
         for (int j = 0; j < 100; j ++)
         {
@@ -180,8 +179,6 @@ public class SSTableRewriterTest extends SchemaLoader
         Keyspace keyspace = Keyspace.open(KEYSPACE);
         ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(CF);
         truncate(cfs);
-        assertEquals(0, cfs.metric.liveDiskSpaceUsed.getCount());
-        assertEquals(0, cfs.metric.totalDiskSpaceUsed.getCount());
 
         SSTableReader s = writeFile(cfs, 1000);
         cfs.addSSTable(s);
@@ -229,8 +226,6 @@ public class SSTableRewriterTest extends SchemaLoader
         int filecounts = assertFileCounts(sstables.iterator().next().descriptor.directory.list(), 0, 0);
         assertEquals(1, filecounts);
         truncate(cfs);
-        SSTableDeletingTask.waitForDeletions();
-        validateCFS(cfs);
     }
 
     @Test
@@ -239,7 +234,7 @@ public class SSTableRewriterTest extends SchemaLoader
         Keyspace keyspace = Keyspace.open(KEYSPACE);
         ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(CF);
         truncate(cfs);
-        assertEquals(0, cfs.metric.liveDiskSpaceUsed.getCount());
+
         ArrayBackedSortedColumns cf = ArrayBackedSortedColumns.factory.create(cfs.metadata);
         for (int i = 0; i < 100; i++)
             cf.addColumn(Util.cellname(i), ByteBuffer.allocate(1000), 1);
@@ -560,8 +555,6 @@ public class SSTableRewriterTest extends SchemaLoader
 
         SSTableDeletingTask.waitForDeletions();
         assertFileCounts(s.descriptor.directory.list(), 0, 0);
-        cfs.truncateBlocking();
-        SSTableDeletingTask.waitForDeletions();
         validateCFS(cfs);
     }
 
@@ -631,6 +624,7 @@ public class SSTableRewriterTest extends SchemaLoader
                 FileUtils.deleteRecursive(f);
             }
         }
+        truncate(cfs);
     }
 
     @Test
@@ -707,7 +701,6 @@ public class SSTableRewriterTest extends SchemaLoader
             validateCFS(cfs);
         }
         truncate(cfs);
-        SSTableDeletingTask.waitForDeletions();
         filecount = assertFileCounts(s.descriptor.directory.list(), 0, 0);
         if (offline)
         {
@@ -721,6 +714,7 @@ public class SSTableRewriterTest extends SchemaLoader
         }
 
         assertEquals(0, filecount);
+        truncate(cfs);
     }
 
     @Test
@@ -769,6 +763,7 @@ public class SSTableRewriterTest extends SchemaLoader
         validateKeys(keyspace);
         SSTableDeletingTask.waitForDeletions();
         validateCFS(cfs);
+        truncate(cfs);
     }
 
     @Test
@@ -776,7 +771,7 @@ public class SSTableRewriterTest extends SchemaLoader
     {
         Keyspace keyspace = Keyspace.open(KEYSPACE);
         ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(CF);
-        cfs.truncateBlocking();
+        truncate(cfs);
 
         SSTableReader s = writeFile(cfs, 1000);
         cfs.addSSTable(s);
@@ -820,7 +815,7 @@ public class SSTableRewriterTest extends SchemaLoader
     {
         Keyspace keyspace = Keyspace.open(KEYSPACE);
         ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(CF);
-        cfs.truncateBlocking();
+        truncate(cfs);
 
         SSTableReader s = writeFile(cfs, 1000);
         cfs.addSSTable(s);
@@ -869,9 +864,11 @@ public class SSTableRewriterTest extends SchemaLoader
     public static void truncate(ColumnFamilyStore cfs)
     {
         cfs.truncateBlocking();
+        SSTableDeletingTask.waitForDeletions();
         Uninterruptibles.sleepUninterruptibly(10L,TimeUnit.MILLISECONDS);
         assertEquals(0, cfs.metric.liveDiskSpaceUsed.getCount());
         assertEquals(0, cfs.metric.totalDiskSpaceUsed.getCount());
+        validateCFS(cfs);
     }
 
     public static SSTableReader writeFile(ColumnFamilyStore cfs, int count)
@@ -928,7 +925,6 @@ public class SSTableRewriterTest extends SchemaLoader
         assertEquals(spaceUsed, cfs.metric.totalDiskSpaceUsed.getCount());
         assertTrue(cfs.getTracker().getCompacting().isEmpty());
     }
-
 
     public static int assertFileCounts(String [] files, int expectedtmplinkCount, int expectedtmpCount)
     {

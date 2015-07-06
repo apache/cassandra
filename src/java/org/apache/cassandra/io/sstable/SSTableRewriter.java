@@ -20,6 +20,7 @@ package org.apache.cassandra.io.sstable;
 import java.util.*;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.util.concurrent.Runnables;
 
 import org.apache.cassandra.cache.InstrumentingCache;
 import org.apache.cassandra.cache.KeyCacheKey;
@@ -219,6 +220,7 @@ public class SSTableRewriter extends Transactional.AbstractTransactional impleme
 
         final List<DecoratedKey> invalidateKeys = new ArrayList<>();
         invalidateKeys.addAll(cachedKeys.keySet());
+        newReader.setupKeyCache();
         for (Map.Entry<DecoratedKey, RowIndexEntry> cacheKey : cachedKeys.entrySet())
             newReader.cacheKey(cacheKey.getKey(), cacheKey.getValue());
 
@@ -259,8 +261,11 @@ public class SSTableRewriter extends Transactional.AbstractTransactional impleme
         private InvalidateKeys(SSTableReader reader, Collection<DecoratedKey> invalidate)
         {
             this.cache = reader.getKeyCache();
-            for (DecoratedKey key : invalidate)
-                cacheKeys.add(reader.getCacheKey(key));
+            if (cache != null)
+            {
+                for (DecoratedKey key : invalidate)
+                    cacheKeys.add(reader.getCacheKey(key));
+            }
         }
 
         public void run()
