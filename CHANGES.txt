@@ -21,6 +21,8 @@
  * Update and refactor ant test/test-compression to run the tests in parallel (CASSANDRA-9583)
  * Fix upgrading to new directory for secondary index (CASSANDRA-9687)
 Merged from 2.1:
+ * (cqlsh) Fix bad check for CQL compatibility when DESCRIBE'ing
+   COMPACT STORAGE tables with no clustering columns
  * Eliminate strong self-reference chains in sstable ref tidiers (CASSANDRA-9656)
  * Ensure StreamSession uses canonical sstable reader instances (CASSANDRA-9700) 
  * Ensure memtable book keeping is not corrupted in the event we shrink usage (CASSANDRA-9681)
