@@ -222,10 +222,7 @@ public class CompactionTask extends AbstractCompactionTask
             logger.debug("Actual #keys: {}, Estimated #keys:{}, Err%: {}", totalKeysWritten, estimatedKeys, ((double)(totalKeysWritten - estimatedKeys)/totalKeysWritten));
 
             if (offline)
-            {
-                for (SSTableReader reader : newSStables)
-                    reader.selfRef().release();
-            }
+                Refs.release(Refs.selfRefs(newSStables));
         }
     }
 

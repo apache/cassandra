@@ -200,6 +200,11 @@ public class LifecycleTransaction extends Transactional.AbstractTransactional
         return unmarkCompacting(marked, accumulate);
     }
 
+    public boolean isOffline()
+    {
+        return tracker.isDummy();
+    }
+
     public void permitRedundantTransitions()
     {
         super.permitRedundantTransitions();
@@ -260,7 +265,8 @@ public class LifecycleTransaction extends Transactional.AbstractTransactional
         assert original == originals.contains(reader) : String.format("the 'original' indicator was incorrect (%s provided): %s", original, reader);
         staged.update.add(reader);
         identities.add(reader.instanceId);
-        reader.setupKeyCache();
+        if (!isOffline())
+            reader.setupKeyCache();
     }
 
     /**

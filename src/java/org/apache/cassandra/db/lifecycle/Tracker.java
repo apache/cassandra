@@ -131,7 +131,7 @@ public class Tracker
 
     Throwable updateSizeTracking(Iterable<SSTableReader> oldSSTables, Iterable<SSTableReader> newSSTables, Throwable accumulate)
     {
-        if (cfstore == null)
+        if (isDummy())
             return accumulate;
 
         long add = 0;
@@ -173,6 +173,8 @@ public class Tracker
 
     public void addInitialSSTables(Iterable<SSTableReader> sstables)
     {
+        if (!isDummy())
+            setupKeycache(sstables);
         apply(updateLiveSet(emptySet(), sstables));
         maybeFail(updateSizeTracking(emptySet(), sstables, null));
         // no notifications or backup necessary
@@ -193,7 +195,7 @@ public class Tracker
     public void reset()
     {
         view.set(new View(
-                         cfstore != null ? ImmutableList.of(new Memtable(cfstore)) : Collections.<Memtable>emptyList(),
+                         !isDummy() ? ImmutableList.of(new Memtable(cfstore)) : Collections.<Memtable>emptyList(),
                          ImmutableList.<Memtable>of(),
                          Collections.<SSTableReader, SSTableReader>emptyMap(),
                          Collections.<SSTableReader>emptySet(),
@@ -202,7 +204,7 @@ public class Tracker
 
     public Throwable dropSSTablesIfInvalid(Throwable accumulate)
     {
-        if (cfstore != null && !cfstore.isValid())
+        if (!isDummy() && !cfstore.isValid())
             accumulate = dropSSTables(accumulate);
         return accumulate;
     }
@@ -309,6 +311,7 @@ public class Tracker
 
     public void replaceFlushed(Memtable memtable, SSTableReader sstable)
     {
+        assert !isDummy();
         if (sstable == null)
         {
             // sstable may be null if we flushed batchlog and nothing needed to be retained
@@ -328,7 +331,7 @@ public class Tracker
         // TODO: if we're invalidated, should we notifyadded AND removed, or just skip both?
         fail = notifyAdded(sstable, fail);
 
-        if (cfstore != null && !cfstore.isValid())
+        if (!isDummy() && !cfstore.isValid())
             dropSSTables();
 
         maybeFail(fail);
@@ -435,6 +438,11 @@ public class Tracker
         INotification notification = new TruncationNotification(truncatedAt);
         for (INotificationConsumer subscriber : subscribers)
             subscriber.handleNotification(notification, this);
+    }
+
+    public boolean isDummy()
+    {
+        return cfstore == null;
     }
 
     public void subscribe(INotificationConsumer consumer)
