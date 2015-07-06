@@ -23,9 +23,6 @@ import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.concurrent.ThreadLocalRandom;
 
-import javax.annotation.Nullable;
-
-import com.google.common.base.Function;
 import com.google.common.collect.Sets;
 import org.junit.Test;
 
@@ -41,14 +38,10 @@ import org.apache.cassandra.db.compaction.SSTableSplitter;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
-import org.apache.cassandra.io.util.DataIntegrityMetadata;
-import org.apache.cassandra.io.util.RandomAccessReader;
 import org.apache.cassandra.metrics.StorageMetrics;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.Pair;
-import org.apache.cassandra.utils.concurrent.Ref;
-import org.apache.cassandra.utils.concurrent.Refs;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -63,7 +56,8 @@ public class SSTableRewriterTest extends SchemaLoader
     {
         Keyspace keyspace = Keyspace.open(KEYSPACE);
         ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(CF);
-        cfs.truncateBlocking();
+        truncate(cfs);
+
         for (int j = 0; j < 100; j ++)
         {
             ByteBuffer key = ByteBufferUtil.bytes(String.valueOf(j));
@@ -99,7 +93,7 @@ public class SSTableRewriterTest extends SchemaLoader
     {
         Keyspace keyspace = Keyspace.open(KEYSPACE);
         ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(CF);
-        cfs.truncateBlocking();
+        truncate(cfs);
 
         SSTableReader s = writeFile(cfs, 1000);
         cfs.addSSTable(s);
@@ -130,7 +124,7 @@ public class SSTableRewriterTest extends SchemaLoader
     {
         Keyspace keyspace = Keyspace.open(KEYSPACE);
         ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(CF);
-        cfs.truncateBlocking();
+        truncate(cfs);
 
         SSTableReader s = writeFile(cfs, 1000);
         cfs.addSSTable(s);
@@ -176,9 +170,7 @@ public class SSTableRewriterTest extends SchemaLoader
         validateCFS(cfs);
         int filecounts = assertFileCounts(sstables.iterator().next().descriptor.directory.list(), 0, 0);
         assertEquals(1, filecounts);
-        cfs.truncateBlocking();
-        Thread.sleep(1000); // make sure the deletion tasks have run etc
-        validateCFS(cfs);
+        truncate(cfs);
     }
 
     @Test
@@ -186,7 +178,8 @@ public class SSTableRewriterTest extends SchemaLoader
     {
         Keyspace keyspace = Keyspace.open(KEYSPACE);
         ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(CF);
-        cfs.truncateBlocking();
+        truncate(cfs);
+
         ArrayBackedSortedColumns cf = ArrayBackedSortedColumns.factory.create(cfs.metadata);
         for (int i = 0; i < 1000; i++)
             cf.addColumn(Util.column(String.valueOf(i), "a", 1));
@@ -226,7 +219,7 @@ public class SSTableRewriterTest extends SchemaLoader
     {
         Keyspace keyspace = Keyspace.open(KEYSPACE);
         ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(CF);
-        cfs.truncateBlocking();
+        truncate(cfs);
 
         SSTableReader s = writeFile(cfs, 1000);
         cfs.addSSTable(s);
@@ -274,7 +267,7 @@ public class SSTableRewriterTest extends SchemaLoader
     {
         Keyspace keyspace = Keyspace.open(KEYSPACE);
         ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(CF);
-        cfs.truncateBlocking();
+        truncate(cfs);
 
         SSTableReader s = writeFile(cfs, 1000);
         cfs.addSSTable(s);
@@ -400,7 +393,7 @@ public class SSTableRewriterTest extends SchemaLoader
     {
         Keyspace keyspace = Keyspace.open(KEYSPACE);
         ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(CF);
-        cfs.truncateBlocking();
+        truncate(cfs);
 
         SSTableReader s = writeFile(cfs, 1000);
         cfs.addSSTable(s);
@@ -437,7 +430,7 @@ public class SSTableRewriterTest extends SchemaLoader
     {
         Keyspace keyspace = Keyspace.open(KEYSPACE);
         ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(CF);
-        cfs.truncateBlocking();
+        truncate(cfs);
 
         SSTableReader s = writeFile(cfs, 1000);
         cfs.addSSTable(s);
@@ -485,7 +478,7 @@ public class SSTableRewriterTest extends SchemaLoader
     {
         Keyspace keyspace = Keyspace.open(KEYSPACE);
         ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(CF);
-        cfs.truncateBlocking();
+        truncate(cfs);
         cfs.disableAutoCompaction();
 
         SSTableReader s = writeFile(cfs, 1000);
@@ -513,9 +506,7 @@ public class SSTableRewriterTest extends SchemaLoader
             cfs.getDataTracker().markCompactedSSTablesReplaced(compacting, sstables, OperationType.COMPACTION);
             Thread.sleep(1000);
             assertFileCounts(s.descriptor.directory.list(), 0, 0);
-            cfs.truncateBlocking();
-            Thread.sleep(1000); // make sure the deletion tasks have run etc
-            validateCFS(cfs);
+            truncate(cfs);
         }
         catch (Throwable t)
         {
@@ -529,7 +520,7 @@ public class SSTableRewriterTest extends SchemaLoader
     {
         Keyspace keyspace = Keyspace.open(KEYSPACE);
         ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(CF);
-        cfs.truncateBlocking();
+        truncate(cfs);
         cfs.disableAutoCompaction();
 
         SSTableReader s = writeFile(cfs, 400);
@@ -572,7 +563,7 @@ public class SSTableRewriterTest extends SchemaLoader
     {
         Keyspace keyspace = Keyspace.open(KEYSPACE);
         ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(CF);
-        cfs.truncateBlocking();
+        truncate(cfs);
         cfs.disableAutoCompaction();
         SSTableReader s = writeFile(cfs, 1000);
         cfs.getDataTracker().markCompacting(Arrays.asList(s), true, false);
@@ -580,11 +571,13 @@ public class SSTableRewriterTest extends SchemaLoader
         splitter.split();
         Thread.sleep(1000);
         assertFileCounts(s.descriptor.directory.list(), 0, 0);
+        s.selfRef().release();
         for (File f : s.descriptor.directory.listFiles())
         {
             // we need to clear out the data dir, otherwise tests running after this breaks
             f.delete();
         }
+        truncate(cfs);
     }
 
     @Test
@@ -614,7 +607,7 @@ public class SSTableRewriterTest extends SchemaLoader
     {
         Keyspace keyspace = Keyspace.open(KEYSPACE);
         ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(CF);
-        cfs.truncateBlocking();
+        truncate(cfs);
         SSTableReader s = writeFile(cfs, 1000);
         if (!offline)
             cfs.addSSTable(s);
@@ -655,11 +648,11 @@ public class SSTableRewriterTest extends SchemaLoader
             assertEquals(1, cfs.getSSTables().size());
             validateCFS(cfs);
         }
-        cfs.truncateBlocking();
-        Thread.sleep(1000);
+        truncate(cfs);
         filecount = assertFileCounts(s.descriptor.directory.list(), 0, 0);
         if (offline)
         {
+            s.selfRef().release();
             // the file is not added to the CFS, therefor not truncated away above
             assertEquals(1, filecount);
             for (File f : s.descriptor.directory.listFiles())
@@ -670,7 +663,7 @@ public class SSTableRewriterTest extends SchemaLoader
         }
 
         assertEquals(0, filecount);
-
+        truncate(cfs);
     }
 
     @Test
@@ -678,7 +671,7 @@ public class SSTableRewriterTest extends SchemaLoader
     {
         Keyspace keyspace = Keyspace.open(KEYSPACE);
         ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(CF);
-        cfs.truncateBlocking();
+        truncate(cfs);
         for (int i = 0; i < 100; i++)
         {
             DecoratedKey key = Util.dk(Integer.toString(i));
@@ -727,6 +720,7 @@ public class SSTableRewriterTest extends SchemaLoader
         validateKeys(keyspace);
         Thread.sleep(1000);
         validateCFS(cfs);
+        truncate(cfs);
     }
 
     @Test
@@ -734,7 +728,7 @@ public class SSTableRewriterTest extends SchemaLoader
     {
         Keyspace keyspace = Keyspace.open(KEYSPACE);
         ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(CF);
-        cfs.truncateBlocking();
+        truncate(cfs);
 
         SSTableReader s = writeFile(cfs, 1000);
         cfs.addSSTable(s);
@@ -765,9 +759,7 @@ public class SSTableRewriterTest extends SchemaLoader
         }
         writer.abort();
         cfs.getDataTracker().unmarkCompacting(sstables);
-        cfs.truncateBlocking();
-        SSTableDeletingTask.waitForDeletions();
-        validateCFS(cfs);
+        truncate(cfs);
     }
 
     /**
@@ -780,7 +772,7 @@ public class SSTableRewriterTest extends SchemaLoader
     {
         Keyspace keyspace = Keyspace.open(KEYSPACE);
         ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(CF);
-        cfs.truncateBlocking();
+        truncate(cfs);
 
         SSTableReader s = writeFile(cfs, 1000);
         cfs.addSSTable(s);
@@ -813,9 +805,7 @@ public class SSTableRewriterTest extends SchemaLoader
         writer.abort();
         writer2.abort();
         cfs.getDataTracker().unmarkCompacting(sstables);
-        cfs.truncateBlocking();
-        SSTableDeletingTask.waitForDeletions();
-        validateCFS(cfs);
+        truncate(cfs);
     }
 
 
@@ -870,8 +860,16 @@ public class SSTableRewriterTest extends SchemaLoader
             }
         }
         assertTrue(cfs.getDataTracker().getCompacting().isEmpty());
+        assertTrue("" + cfs.getTotalDiskSpaceUsed(), cfs.getTotalDiskSpaceUsed() >= 0);
     }
 
+    private void truncate(ColumnFamilyStore cfs)
+    {
+        cfs.truncateBlocking();
+        SSTableDeletingTask.waitForDeletions();
+        validateCFS(cfs);
+        assertTrue(cfs.getTotalDiskSpaceUsed() == 0);
+    }
 
     private int assertFileCounts(String [] files, int expectedtmplinkCount, int expectedtmpCount)
     {

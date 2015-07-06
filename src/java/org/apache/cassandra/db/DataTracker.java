@@ -572,7 +572,13 @@ public class DataTracker
 
     public SSTableReader getCurrentVersion(SSTableReader sstable)
     {
-        return view.get().sstablesMap.get(sstable);
+        if (!sstable.isReplaced())
+            return sstable;
+        SSTableReader current = view.get().sstablesMap.get(sstable);
+        if (current == null)
+            current = Iterables.find(view.get().shadowed, Predicates.equalTo(sstable), null);
+        assert current != null : sstable + " not in live set";
+        return current;
     }
 
     public static class SSTableIntervalTree extends IntervalTree<RowPosition, SSTableReader, Interval<RowPosition, SSTableReader>>

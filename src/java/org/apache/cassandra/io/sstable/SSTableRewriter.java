@@ -216,7 +216,7 @@ public class SSTableRewriter
         {
             try
             {
-                sstable.markObsolete(dataTracker);
+                sstable.markObsolete(null);
                 sstable.selfRef().release();
             }
             catch (Throwable t)
@@ -245,7 +245,7 @@ public class SSTableRewriter
                 {
                     // if we've already been opened, add ourselves to the discard pile
                     discard.add(finished.reader);
-                    finished.reader.markObsolete(dataTracker);
+                    finished.reader.markObsolete(null);
                 }
             }
             catch (Throwable t)
@@ -290,6 +290,7 @@ public class SSTableRewriter
         final List<DecoratedKey> invalidateKeys = new ArrayList<>();
         if (!reset)
         {
+            newReader.setupKeyCache();
             invalidateKeys.addAll(cachedKeys.keySet());
             for (Map.Entry<DecoratedKey, RowIndexEntry> cacheKey : cachedKeys.entrySet())
                 newReader.cacheKey(cacheKey.getKey(), cacheKey.getValue());
@@ -344,8 +345,11 @@ public class SSTableRewriter
         private InvalidateKeys(SSTableReader reader, Collection<DecoratedKey> invalidate)
         {
             this.cache = reader.getKeyCache();
-            for (DecoratedKey key : invalidate)
-                cacheKeys.add(reader.getCacheKey(key));
+            if (cache != null)
+            {
+                for (DecoratedKey key : invalidate)
+                    cacheKeys.add(reader.getCacheKey(key));
+            }
         }
 
         public void run()
@@ -500,8 +504,8 @@ public class SSTableRewriter
         {
             for (SSTableReader reader : discard)
             {
-                if (dataTracker.getCurrentVersion(reader) == reader)
-                    reader.markObsolete(dataTracker);
+                if (!reader.isReplaced())
+                    reader.markObsolete(null);
                 reader.selfRef().release();
             }
         }

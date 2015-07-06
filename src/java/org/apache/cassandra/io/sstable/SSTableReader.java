@@ -956,6 +956,11 @@ public class SSTableReader extends SSTable implements SelfRefCounted<SSTableRead
         }
     }
 
+    public boolean isReplaced()
+    {
+        return tidy.isReplaced;
+    }
+
     /**
      * Clone this reader with the provided start and open reason, and set the clone as replacement.
      *
