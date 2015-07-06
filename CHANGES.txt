@@ -1,4 +1,5 @@
 2.0.17
+ * Avoid NPE in AuthSuccess#decode (CASSANDRA-9727)
  * Add listen_address to system.local (CASSANDRA-9603)
  * Bug fixes to resultset metadata construction (CASSANDRA-9636)
  * Fix setting 'durable_writes' in ALTER KEYSPACE (CASSANDRA-9560)
