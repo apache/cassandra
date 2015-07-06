@@ -647,8 +647,13 @@ public class SSTableRewriterTest extends SchemaLoader
         {
             assertEquals(1, cfs.getSSTables().size());
             validateCFS(cfs);
+            truncate(cfs);
         }
-        truncate(cfs);
+        else
+        {
+            assertEquals(0, cfs.getSSTables().size());
+            cfs.truncateBlocking();
+        }
         filecount = assertFileCounts(s.descriptor.directory.list(), 0, 0);
         if (offline)
         {
