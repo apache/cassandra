@@ -23,6 +23,12 @@ New features
      for non-primary key queries, and perform much better for indexing high
      cardinality columns.
      See http://www.datastax.com/dev/blog/new-in-cassandra-3-0-materialized-views
+   - Option to not purge unrepaired tombstones. To avoid users having data resurrected
+     if repair has not been run within gc_grace_seconds, an option has been added to
+     only allow tombstones from repaired sstables to be purged. To enable, set the
+     compaction option 'only_purge_repaired_tombstones':true but keep in mind that if
+     you do not run repair for a long time, you will keep all tombstones around which
+     can cause other problems.
 
 
 Upgrading

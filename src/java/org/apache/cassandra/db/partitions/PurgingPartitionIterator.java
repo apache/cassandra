@@ -27,7 +27,7 @@ public abstract class PurgingPartitionIterator extends WrappingUnfilteredPartiti
 
     private UnfilteredRowIterator next;
 
-    public PurgingPartitionIterator(UnfilteredPartitionIterator iterator, int gcBefore)
+    public PurgingPartitionIterator(UnfilteredPartitionIterator iterator, int gcBefore, int oldestUnrepairedTombstone, boolean onlyPurgeRepairedTombstones)
     {
         super(iterator);
         this.gcBefore = gcBefore;
@@ -35,6 +35,9 @@ public abstract class PurgingPartitionIterator extends WrappingUnfilteredPartiti
         {
             public boolean shouldPurge(long timestamp, int localDeletionTime)
             {
+                if (onlyPurgeRepairedTombstones && localDeletionTime >= oldestUnrepairedTombstone)
+                    return false;
+
                 return timestamp < getMaxPurgeableTimestamp() && localDeletionTime < gcBefore;
             }
         };

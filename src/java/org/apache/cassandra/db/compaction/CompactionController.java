@@ -20,14 +20,13 @@ package org.apache.cassandra.db.compaction;
 import java.util.*;
 
 import org.apache.cassandra.db.lifecycle.SSTableSet;
-import org.apache.cassandra.db.lifecycle.View;
+import com.google.common.collect.Iterables;
+
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.db.lifecycle.SSTableIntervalTree;
-import org.apache.cassandra.db.lifecycle.Tracker;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.utils.AlwaysPresentFilter;
@@ -45,6 +44,7 @@ public class CompactionController implements AutoCloseable
     private static final Logger logger = LoggerFactory.getLogger(CompactionController.class);
 
     public final ColumnFamilyStore cfs;
+    private final boolean compactingRepaired;
     private Refs<SSTableReader> overlappingSSTables;
     private OverlapIterator<PartitionPosition, SSTableReader> overlapIterator;
     private final Iterable<SSTableReader> compacting;
@@ -56,12 +56,13 @@ public class CompactionController implements AutoCloseable
         this(cfs, null, maxValue);
     }
 
-    public CompactionController(ColumnFamilyStore cfs, Set<SSTableReader> compacting,  int gcBefore)
+    public CompactionController(ColumnFamilyStore cfs, Set<SSTableReader> compacting, int gcBefore)
     {
         assert cfs != null;
         this.cfs = cfs;
         this.gcBefore = gcBefore;
         this.compacting = compacting;
+        compactingRepaired = compacting != null && compacting.stream().allMatch(SSTableReader::isRepaired);
         refreshOverlaps();
     }
 
@@ -116,6 +117,9 @@ public class CompactionController implements AutoCloseable
 
         if (compacting == null)
             return Collections.<SSTableReader>emptySet();
+
+        if (cfStore.getCompactionStrategyManager().onlyPurgeRepairedTombstones() && !Iterables.all(compacting, SSTableReader::isRepaired))
+            return Collections.emptySet();
 
         List<SSTableReader> candidates = new ArrayList<>();
 
@@ -177,6 +181,9 @@ public class CompactionController implements AutoCloseable
      */
     public long maxPurgeableTimestamp(DecoratedKey key)
     {
+        if (!compactingRepaired())
+            return Long.MIN_VALUE;
+
         long min = Long.MAX_VALUE;
         overlapIterator.update(key);
         for (SSTableReader sstable : overlapIterator.overlaps())
@@ -199,6 +206,11 @@ public class CompactionController implements AutoCloseable
     public void close()
     {
         overlappingSSTables.release();
+    }
+
+    public boolean compactingRepaired()
+    {
+        return !cfs.getCompactionStrategyManager().onlyPurgeRepairedTombstones() || compactingRepaired;
     }
 
 }

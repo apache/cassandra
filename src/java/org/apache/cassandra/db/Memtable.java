@@ -260,7 +260,7 @@ public class Memtable implements Comparable<Memtable>
                              100 * allocator.onHeap().ownershipRatio(), 100 * allocator.offHeap().ownershipRatio());
     }
 
-    public UnfilteredPartitionIterator makePartitionIterator(final ColumnFilter columnFilter, final DataRange dataRange, final boolean isForThrift)
+    public MemtableUnfilteredPartitionIterator makePartitionIterator(final ColumnFilter columnFilter, final DataRange dataRange, final boolean isForThrift)
     {
         AbstractBounds<PartitionPosition> keyRange = dataRange.keyRange();
 
@@ -278,35 +278,26 @@ public class Memtable implements Comparable<Memtable>
                    ? partitions.tailMap(keyRange.left, includeStart)
                    : partitions.subMap(keyRange.left, includeStart, keyRange.right, includeStop);
 
+        int minLocalDeletionTime = Integer.MAX_VALUE;
+
+        // avoid iterating over the memtable if we purge all tombstones
+        if (cfs.getCompactionStrategyManager().onlyPurgeRepairedTombstones())
+            minLocalDeletionTime = findMinLocalDeletionTime(subMap.entrySet().iterator());
+
         final Iterator<Map.Entry<PartitionPosition, AtomicBTreePartition>> iter = subMap.entrySet().iterator();
 
-        return new AbstractUnfilteredPartitionIterator()
+        return new MemtableUnfilteredPartitionIterator(cfs, iter, isForThrift, minLocalDeletionTime, columnFilter, dataRange);
+    }
+
+    private int findMinLocalDeletionTime(Iterator<Map.Entry<PartitionPosition, AtomicBTreePartition>> iterator)
+    {
+        int minLocalDeletionTime = Integer.MAX_VALUE;
+        while (iterator.hasNext())
         {
-            public boolean isForThrift()
-            {
-                return isForThrift;
-            }
-
-            public CFMetaData metadata()
-            {
-                return cfs.metadata;
-            }
-
-            public boolean hasNext()
-            {
-                return iter.hasNext();
-            }
-
-            public UnfilteredRowIterator next()
-            {
-                Map.Entry<PartitionPosition, AtomicBTreePartition> entry = iter.next();
-                // Actual stored key should be true DecoratedKey
-                assert entry.getKey() instanceof DecoratedKey;
-                DecoratedKey key = (DecoratedKey)entry.getKey();
-                ClusteringIndexFilter filter = dataRange.clusteringIndexFilter(key);
-                return filter.getUnfilteredRowIterator(columnFilter, entry.getValue());
-            }
-        };
+            Map.Entry<PartitionPosition, AtomicBTreePartition> entry = iterator.next();
+            minLocalDeletionTime = Math.min(minLocalDeletionTime, entry.getValue().stats().minLocalDeletionTime);
+        }
+        return minLocalDeletionTime;
     }
 
     public Partition getPartition(DecoratedKey key)
@@ -460,6 +451,56 @@ public class Memtable implements Comparable<Memtable>
             allocator.setDiscarding();
             allocator.setDiscarded();
             return rowOverhead;
+        }
+    }
+
+    public static class MemtableUnfilteredPartitionIterator extends AbstractUnfilteredPartitionIterator
+    {
+        private final ColumnFamilyStore cfs;
+        private final Iterator<Map.Entry<PartitionPosition, AtomicBTreePartition>> iter;
+        private final boolean isForThrift;
+        private final int minLocalDeletionTime;
+        private final ColumnFilter columnFilter;
+        private final DataRange dataRange;
+
+        public MemtableUnfilteredPartitionIterator(ColumnFamilyStore cfs, Iterator<Map.Entry<PartitionPosition, AtomicBTreePartition>> iter, boolean isForThrift, int minLocalDeletionTime, ColumnFilter columnFilter, DataRange dataRange)
+        {
+            this.cfs = cfs;
+            this.iter = iter;
+            this.isForThrift = isForThrift;
+            this.minLocalDeletionTime = minLocalDeletionTime;
+            this.columnFilter = columnFilter;
+            this.dataRange = dataRange;
+        }
+
+        public boolean isForThrift()
+        {
+            return isForThrift;
+        }
+
+        public int getMinLocalDeletionTime()
+        {
+            return minLocalDeletionTime;
+        }
+
+        public CFMetaData metadata()
+        {
+            return cfs.metadata;
+        }
+
+        public boolean hasNext()
+        {
+            return iter.hasNext();
+        }
+
+        public UnfilteredRowIterator next()
+        {
+            Map.Entry<PartitionPosition, AtomicBTreePartition> entry = iter.next();
+            // Actual stored key should be true DecoratedKey
+            assert entry.getKey() instanceof DecoratedKey;
+            DecoratedKey key = (DecoratedKey)entry.getKey();
+            ClusteringIndexFilter filter = dataRange.clusteringIndexFilter(key);
+            return filter.getUnfilteredRowIterator(columnFilter, entry.getValue());
         }
     }
 
