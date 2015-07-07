@@ -227,6 +227,25 @@ public abstract class AbstractPartitionData implements Partition, Iterable<Row>
         data.swap(i, j);
     }
 
+    protected void merge(int i, int j, int nowInSec)
+    {
+        data.merge(i, j, nowInSec);
+        if (livenessInfos.timestamp(i) > livenessInfos.timestamp(j))
+            livenessInfos.move(i, j);
+        if (deletions.supersedes(i, j))
+            deletions.move(i, j);
+    }
+
+    protected void move(int i, int j)
+    {
+        int cs = metadata.clusteringColumns().size();
+        for (int k = 0; k < cs; k++)
+            clusterings[j * cs + k] = clusterings[i * cs + k];
+        data.move(i, j);
+        livenessInfos.move(i, j);
+        deletions.move(i, j);
+    }
+
     public int rowCount()
     {
         return rows;

@@ -488,14 +488,14 @@ public class PartitionUpdate extends AbstractPartitionData implements Sorting.So
             {
                 // current and previous are the same row. Merge current into previous
                 // (and so previous + 1 will be "free").
-                data.merge(current, previous, nowInSec);
+                merge(current, previous, nowInSec);
             }
             else
             {
                 // data[current] != [previous], so move current just after previous if needs be
                 ++previous;
                 if (previous != current)
-                    data.move(current, previous);
+                    move(current, previous);
             }
         }
 
