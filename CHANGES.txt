@@ -14,6 +14,9 @@
  * Populate TokenMetadata early during startup (CASSANDRA-9317)
  * undeprecate cache recentHitRate (CASSANDRA-6591)
  * Add support for selectively varint encoding fields (CASSANDRA-9499)
+Merged from 2.0:
+ * Scrub (recover) sstables even when -Index.db is missing (CASSANDRA-9591)
+
 
 2.2.0-rc2
  * Re-enable memory-mapped I/O on Windows (CASSANDRA-9658)

@@ -91,7 +91,7 @@ public class StandaloneScrubber
             for (Map.Entry<Descriptor, Set<Component>> entry : lister.list().entrySet())
             {
                 Set<Component> components = entry.getValue();
-                if (!components.contains(Component.DATA) || !components.contains(Component.PRIMARY_INDEX))
+                if (!components.contains(Component.DATA))
                     continue;
 
                 try
@@ -119,6 +119,7 @@ public class StandaloneScrubber
                 {
                     try (LifecycleTransaction txn = LifecycleTransaction.offline(OperationType.SCRUB, sstable))
                     {
+                        txn.obsoleteOriginals(); // make sure originals are deleted and avoid NPE if index is missing, CASSANDRA-9591
                         try (Scrubber scrubber = new Scrubber(cfs, txn, options.skipCorrupted, handler, true, !options.noValidate))
                         {
                             scrubber.scrub();
@@ -131,10 +132,6 @@ public class StandaloneScrubber
                                 throw t;
                             }
                         }
-
-                        // Remove the sstable (it's been copied by scrub and snapshotted)
-                        sstable.markObsolete(null);
-                        sstable.selfRef().release();
                     }
                     catch (Exception e)
                     {

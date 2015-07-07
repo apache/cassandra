@@ -37,6 +37,7 @@ import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.db.marshal.UUIDType;
 import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
+import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.RequestExecutionException;
 import org.apache.cassandra.io.compress.CompressionMetadata;
@@ -274,6 +275,27 @@ public class ScrubTest
         assertOrderedAll(cfs, 10);
 
         CompactionManager.instance.performScrub(cfs, false, true);
+
+        // check data is still there
+        assertOrderedAll(cfs, 10);
+    }
+
+    @Test
+    public void testScrubNoIndex() throws IOException, ExecutionException, InterruptedException, ConfigurationException
+    {
+        CompactionManager.instance.disableAutoCompaction();
+        Keyspace keyspace = Keyspace.open(KEYSPACE);
+        ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(CF);
+        cfs.clearUnsafe();
+
+        // insert data and verify we get it back w/ range query
+        fillCF(cfs, 10);
+        assertOrderedAll(cfs, 10);
+
+        for (SSTableReader sstable : cfs.getSSTables())
+            new File(sstable.descriptor.filenameFor(Component.PRIMARY_INDEX)).delete();
+
+        CompactionManager.instance.performScrub(cfs, false, true, true);
 
         // check data is still there
         assertOrderedAll(cfs, 10);
