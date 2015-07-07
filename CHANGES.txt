@@ -1,3 +1,8 @@
+2.2.0-rc3
+Merged from 2.0:
+ * Scrub (recover) sstables even when -Index.db is missing (CASSANDRA-9591)
+
+
 2.2.0-rc2
  * Re-enable memory-mapped I/O on Windows (CASSANDRA-9658)
  * Warn when an extra-large partition is compacted (CASSANDRA-9643)
