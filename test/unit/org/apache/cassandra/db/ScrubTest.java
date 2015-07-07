@@ -274,6 +274,31 @@ public class ScrubTest extends SchemaLoader
     }
 
     @Test
+    public void testScrubNoIndex() throws IOException, ExecutionException, InterruptedException, ConfigurationException
+    {
+        CompactionManager.instance.disableAutoCompaction();
+        Keyspace keyspace = Keyspace.open(KEYSPACE);
+        ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(CF);
+        cfs.clearUnsafe();
+
+        List<Row> rows;
+
+        // insert data and verify we get it back w/ range query
+        fillCF(cfs, 10);
+        rows = cfs.getRangeSlice(Util.range("", ""), null, new IdentityQueryFilter(), 1000);
+        assertEquals(10, rows.size());
+
+        for (SSTableReader sstable : cfs.getSSTables())
+            new File(sstable.descriptor.filenameFor(Component.PRIMARY_INDEX)).delete();
+
+        CompactionManager.instance.performScrub(cfs, false, true);
+
+        // check data is still there
+        rows = cfs.getRangeSlice(Util.range("", ""), null, new IdentityQueryFilter(), 1000);
+        assertEquals(10, rows.size());
+    }
+
+    @Test
     public void testScrubOutOfOrder() throws Exception
     {
         CompactionManager.instance.disableAutoCompaction();

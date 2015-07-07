@@ -1,3 +1,8 @@
+2.1.9
+Merged from 2.0:
+ * Scrub (recover) sstables even when -Index.db is missing, (CASSANDRA-9591)
+
+
 2.1.8
  * (cqlsh) Fix bad check for CQL compatibility when DESCRIBE'ing
    COMPACT STORAGE tables with no clustering columns
