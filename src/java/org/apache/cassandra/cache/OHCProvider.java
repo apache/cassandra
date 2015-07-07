@@ -17,18 +17,16 @@
  */
 package org.apache.cassandra.cache;
 
-import java.io.DataInput;
-import java.io.DataOutput;
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.Iterator;
 import java.util.UUID;
-
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.partitions.CachedPartition;
-import org.apache.cassandra.io.util.DataInputPlus.DataInputPlusAdapter;
-import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.io.util.DataOutputBufferFixed;
+import org.apache.cassandra.io.util.NIODataInputStream;
 import org.caffinitas.ohc.OHCache;
 import org.caffinitas.ohc.OHCacheBuilder;
 
@@ -123,20 +121,20 @@ public class OHCProvider implements CacheProvider<RowCacheKey, IRowCacheEntry>
     private static class KeySerializer implements org.caffinitas.ohc.CacheSerializer<RowCacheKey>
     {
         private static KeySerializer instance = new KeySerializer();
-        public void serialize(RowCacheKey rowCacheKey, DataOutput dataOutput) throws IOException
+        public void serialize(RowCacheKey rowCacheKey, ByteBuffer buf)
         {
-            dataOutput.writeLong(rowCacheKey.cfId.getMostSignificantBits());
-            dataOutput.writeLong(rowCacheKey.cfId.getLeastSignificantBits());
-            dataOutput.writeInt(rowCacheKey.key.length);
-            dataOutput.write(rowCacheKey.key);
+            buf.putLong(rowCacheKey.cfId.getMostSignificantBits());
+            buf.putLong(rowCacheKey.cfId.getLeastSignificantBits());
+            buf.putInt(rowCacheKey.key.length);
+            buf.put(rowCacheKey.key);
         }
 
-        public RowCacheKey deserialize(DataInput dataInput) throws IOException
+        public RowCacheKey deserialize(ByteBuffer buf)
         {
-            long msb = dataInput.readLong();
-            long lsb = dataInput.readLong();
-            byte[] key = new byte[dataInput.readInt()];
-            dataInput.readFully(key);
+            long msb = buf.getLong();
+            long lsb = buf.getLong();
+            byte[] key = new byte[buf.getInt()];
+            buf.get(key);
             return new RowCacheKey(new UUID(msb, lsb), key);
         }
 
@@ -149,23 +147,40 @@ public class OHCProvider implements CacheProvider<RowCacheKey, IRowCacheEntry>
     private static class ValueSerializer implements org.caffinitas.ohc.CacheSerializer<IRowCacheEntry>
     {
         private static ValueSerializer instance = new ValueSerializer();
-        public void serialize(IRowCacheEntry entry, DataOutput out) throws IOException
+        public void serialize(IRowCacheEntry entry, ByteBuffer buf)
         {
             assert entry != null; // unlike CFS we don't support nulls, since there is no need for that in the cache
-            boolean isSentinel = entry instanceof RowCacheSentinel;
-            out.writeBoolean(isSentinel);
-            if (isSentinel)
-                out.writeLong(((RowCacheSentinel) entry).sentinelId);
-            else
-                CachedPartition.cacheSerializer.serialize((CachedPartition)entry, new DataOutputPlus.DataOutputPlusAdapter(out));
+            DataOutputBufferFixed out = new DataOutputBufferFixed(buf);
+            try
+            {
+                boolean isSentinel = entry instanceof RowCacheSentinel;
+                out.writeBoolean(isSentinel);
+                if (isSentinel)
+                    out.writeLong(((RowCacheSentinel) entry).sentinelId);
+                else
+                    CachedPartition.cacheSerializer.serialize((CachedPartition)entry, out);
+            }
+            catch (IOException e)
+            {
+                throw new RuntimeException(e);
+            }
         }
 
-        public IRowCacheEntry deserialize(DataInput in) throws IOException
+        @SuppressWarnings("resource")
+        public IRowCacheEntry deserialize(ByteBuffer buf)
         {
-            boolean isSentinel = in.readBoolean();
-            if (isSentinel)
-                return new RowCacheSentinel(in.readLong());
-            return CachedPartition.cacheSerializer.deserialize(new DataInputPlusAdapter(in));
+            try
+            {
+                NIODataInputStream in = new NIODataInputStream(buf, false);
+                boolean isSentinel = in.readBoolean();
+                if (isSentinel)
+                    return new RowCacheSentinel(in.readLong());
+                return CachedPartition.cacheSerializer.deserialize(in);
+            }
+            catch (IOException e)
+            {
+                throw new RuntimeException(e);
+            }
         }
 
         public int serializedSize(IRowCacheEntry entry)
