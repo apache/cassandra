@@ -832,6 +832,7 @@
           <include name="org/apache/cassandra/utils/FBUtilities*.class" />
           <include name="org/apache/cassandra/exceptions/*.class" />
           <include name="org/apache/cassandra/utils/CloseableIterator.class" />
+          <include name="org/apache/cassandra/io/util/DataOutputPlus.class" />
         </fileset>
         <manifest>
           <attribute name="Implementation-Title" value="Cassandra"/>
@@ -1161,7 +1162,7 @@
     classpath which only contains what we expect users to need.
   -->
   <target name="test-clientutil-jar" depends="build-test,jar" description="Test clientutil jar">
-    <junit>
+    <junit fork="on" forkmode="perTest" failureproperty="testfailed" maxmemory="1024m" timeout="${test.timeout}">
       <test name="org.apache.cassandra.serializers.ClientUtilsTest" />
       <formatter type="brief" usefile="false" />
       <classpath>
@@ -1179,6 +1180,16 @@
         </fileset>
       </classpath>
     </junit>
+      <fail message="Clientutil test(s) failed.">
+          <condition>
+              <and>
+                  <isset property="testfailed"/>
+                  <not>
+                      <isset property="ant.test.failure.ignore"/>
+                  </not>
+              </and>
+          </condition>
+      </fail>
   </target>
 
   <target name="testold" depends="build-test" description="Execute unit tests">

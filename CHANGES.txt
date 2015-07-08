@@ -1,4 +1,5 @@
 2.1.9
+ * Fix clientutil jar and tests (CASSANDRA-9760)
  * (cqlsh) Allow the SSL protocol version to be specified through the
    config file or environment variables (CASSANDRA-9544)
 Merged from 2.0:
