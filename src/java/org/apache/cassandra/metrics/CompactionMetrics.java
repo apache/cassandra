@@ -58,14 +58,14 @@ public class CompactionMetrics implements CompactionManager.CompactionExecutorSt
             public Integer getValue()
             {
                 int n = 0;
+                // add estimate number of compactions need to be done
                 for (String keyspaceName : Schema.instance.getKeyspaces())
                 {
                     for (ColumnFamilyStore cfs : Keyspace.open(keyspaceName).getColumnFamilyStores())
                         n += cfs.getCompactionStrategyManager().getEstimatedRemainingTasks();
                 }
-                for (ThreadPoolExecutor collector : collectors)
-                    n += collector.getTaskCount() - collector.getCompletedTaskCount();
-                return n;
+                // add number of currently running compactions
+                return n + compactions.size();
             }
         });
         completedTasks = Metrics.register(factory.createMetricName("CompletedTasks"), new Gauge<Long>()

@@ -158,11 +158,6 @@ public class CompactionManager implements CompactionManagerMBean
      */
     public List<Future<?>> submitBackground(final ColumnFamilyStore cfs)
     {
-        return submitBackground(cfs, true);
-    }
-
-    public List<Future<?>> submitBackground(final ColumnFamilyStore cfs, boolean autoFill)
-    {
         if (cfs.isAutoCompactionDisabled())
         {
             logger.debug("Autocompaction is disabled");
@@ -181,18 +176,15 @@ public class CompactionManager implements CompactionManagerMBean
                      cfs.keyspace.getName(),
                      cfs.name,
                      cfs.getCompactionStrategyManager().getName());
-        List<Future<?>> futures = new ArrayList<Future<?>>();
+        List<Future<?>> futures = new ArrayList<>();
         // we must schedule it at least once, otherwise compaction will stop for a CF until next flush
-        do {
-            if (executor.isShutdown())
-            {
-                logger.info("Executor has shut down, not submitting background task");
-                return Collections.emptyList();
-            }
-            compactingCF.add(cfs);
-            futures.add(executor.submit(new BackgroundCompactionTask(cfs)));
-            // if we have room for more compactions, then fill up executor
-        } while (autoFill && executor.getActiveCount() + futures.size() < executor.getMaximumPoolSize());
+        if (executor.isShutdown())
+        {
+            logger.info("Executor has shut down, not submitting background task");
+            return Collections.emptyList();
+        }
+        compactingCF.add(cfs);
+        futures.add(executor.submit(new BackgroundCompactionCandidate(cfs)));
 
         return futures;
     }
@@ -213,11 +205,11 @@ public class CompactionManager implements CompactionManagerMBean
 
     // the actual sstables to compact are not determined until we run the BCT; that way, if new sstables
     // are created between task submission and execution, we execute against the most up-to-date information
-    class BackgroundCompactionTask implements Runnable
+    class BackgroundCompactionCandidate implements Runnable
     {
         private final ColumnFamilyStore cfs;
 
-        BackgroundCompactionTask(ColumnFamilyStore cfs)
+        BackgroundCompactionCandidate(ColumnFamilyStore cfs)
         {
             this.cfs = cfs;
         }

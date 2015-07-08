@@ -18,6 +18,7 @@ Merged from 2.0:
  * (cqlsh) Allow the SSL protocol version to be specified through the
    config file or environment variables (CASSANDRA-9544)
  * Scrub (recover) sstables even when -Index.db is missing (CASSANDRA-9591)
+ * Fix growing pending background compaction (CASSANDRA-9662)
 
 
 2.2.0-rc2
