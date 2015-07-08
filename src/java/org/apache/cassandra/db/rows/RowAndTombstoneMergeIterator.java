@@ -86,7 +86,8 @@ public class RowAndTombstoneMergeIterator extends UnmodifiableIterator<Unfiltere
                 RangeTombstone rt = nextTombstone;
                 nextTombstone = tombstoneIter.hasNext() ? tombstoneIter.next() : null;
                 // An end and a start makes a boundary if they sort similarly
-                if (nextTombstone != null && RangeTombstone.Bound.Kind.compare(rt.deletedSlice().close(reversed).kind(), nextTombstone.deletedSlice().open(reversed).kind()) == 0)
+                if (nextTombstone != null
+                        && comparator.compare(rt.deletedSlice().close(reversed), nextTombstone.deletedSlice().open(reversed)) == 0)
                 {
                     next = RangeTombstoneBoundaryMarker.makeBoundary(reversed,
                                                                      rt.deletedSlice().close(reversed),
@@ -112,7 +113,8 @@ public class RowAndTombstoneMergeIterator extends UnmodifiableIterator<Unfiltere
             {
                 RangeTombstone rt = nextTombstone;
                 nextTombstone = tombstoneIter.hasNext() ? tombstoneIter.next() : null;
-                if (nextTombstone != null && RangeTombstone.Bound.Kind.compare(rt.deletedSlice().close(reversed).kind(), nextTombstone.deletedSlice().open(reversed).kind()) == 0)
+                if (nextTombstone != null
+                        && comparator.compare(rt.deletedSlice().close(reversed), nextTombstone.deletedSlice().open(reversed)) == 0)
                 {
                     next = RangeTombstoneBoundaryMarker.makeBoundary(reversed,
                                                                      rt.deletedSlice().close(reversed),
