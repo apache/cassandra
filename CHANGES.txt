@@ -14,9 +14,11 @@
  * Populate TokenMetadata early during startup (CASSANDRA-9317)
  * undeprecate cache recentHitRate (CASSANDRA-6591)
  * Add support for selectively varint encoding fields (CASSANDRA-9499)
-Merged from 2.0:
+Merged from 2.1:
+ * Fix clientutil jar and tests (CASSANDRA-9760)
  * (cqlsh) Allow the SSL protocol version to be specified through the
    config file or environment variables (CASSANDRA-9544)
+Merged from 2.0:
  * Scrub (recover) sstables even when -Index.db is missing (CASSANDRA-9591)
  * Fix growing pending background compaction (CASSANDRA-9662)
 
