@@ -123,9 +123,17 @@ public class DataResolver extends ResponseResolver
 
         private boolean isReversed(List<UnfilteredRowIterator> versions)
         {
-            assert !versions.isEmpty();
-            // Everything will be in the same order
-            return versions.get(0).isReverseOrder();
+            for (UnfilteredRowIterator iter : versions)
+            {
+                if (iter == null)
+                    continue;
+
+                // Everything will be in the same order
+                return iter.isReverseOrder();
+            }
+
+            assert false : "Expected at least one iterator";
+            return false;
         }
 
         public void close()

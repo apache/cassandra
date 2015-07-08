@@ -30,6 +30,12 @@ public class TombstoneFilteringRow extends FilteringRow
     }
 
     @Override
+    protected boolean include (LivenessInfo info)
+    {
+        return info.isLive(nowInSec);
+    }
+
+    @Override
     protected boolean include(DeletionTime dt)
     {
         return false;

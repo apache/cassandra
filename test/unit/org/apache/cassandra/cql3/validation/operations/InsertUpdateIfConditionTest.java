@@ -166,6 +166,13 @@ public class InsertUpdateIfConditionTest extends CQLTester
         assertRows(execute("DELETE v1 FROM %s WHERE k=3 IF EXISTS"), row(true));
         assertRows(execute("DELETE FROM %s WHERE k=3 IF EXISTS"), row(true));
 
+        execute("INSERT INTO %s (k, v1) VALUES (4, 2)");
+        execute("UPDATE %s USING TTL 1 SET v1=2 WHERE k=4");
+        Thread.sleep(1001);
+        assertRows(execute("SELECT * FROM %s WHERE k=4"), row(4, null));
+        assertRows(execute("DELETE FROM %s WHERE k=4 IF EXISTS"), row(true));
+        assertEmpty(execute("SELECT * FROM %s WHERE k=4"));
+
         // static columns
         createTable("CREATE TABLE %s (k text, s text static, i int, v text, PRIMARY KEY (k, i) )");
 
