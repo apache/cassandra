@@ -21,6 +21,7 @@ import java.io.*;
 import java.lang.management.ManagementFactory;
 import java.nio.ByteBuffer;
 import java.util.*;
+import java.util.zip.CRC32;
 
 import javax.management.MBeanServer;
 import javax.management.ObjectName;
@@ -31,8 +32,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.commons.lang3.StringUtils;
-
-import com.github.tjake.ICRC32;
 
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -46,7 +45,6 @@ import org.apache.cassandra.io.util.DataOutputBufferFixed;
 import org.apache.cassandra.metrics.CommitLogMetrics;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.utils.CRC32Factory;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 
 import static org.apache.cassandra.db.commitlog.CommitLogSegment.*;
@@ -258,20 +256,25 @@ public class CommitLog implements CommitLogMBean
         }
 
         Allocation alloc = allocator.allocate(mutation, (int) totalSize);
-        ICRC32 checksum = CRC32Factory.instance.create();
+        CRC32 checksum = new CRC32();
         final ByteBuffer buffer = alloc.getBuffer();
         try (BufferedDataOutputStreamPlus dos = new DataOutputBufferFixed(buffer))
         {
             // checksummed length
             dos.writeInt((int) size);
-            checksum.update(buffer, buffer.position() - 4, 4);
-            buffer.putInt(checksum.getCrc());
 
-            int start = buffer.position();
+            ByteBuffer copy = buffer.duplicate();
+            copy.position(buffer.position() - 4);
+            copy.limit(buffer.position());
+            checksum.update(copy);
+            buffer.putInt((int) checksum.getValue());
+
             // checksummed mutation
             Mutation.serializer.serialize(mutation, dos, MessagingService.current_version);
-            checksum.update(buffer, start, (int) size);
-            buffer.putInt(checksum.getCrc());
+            copy = buffer.duplicate();
+            copy.limit((int) size);
+            checksum.update(copy);
+            buffer.putInt((int) checksum.getValue());
         }
         catch (IOException e)
         {

@@ -32,11 +32,10 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.zip.CRC32;
 
 import com.codahale.metrics.Timer;
-import com.github.tjake.ICRC32;
 
-import org.apache.cassandra.utils.CRC32Factory;
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
 
 import org.slf4j.Logger;
@@ -50,8 +49,11 @@ import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.utils.CLibrary;
+import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.concurrent.OpOrder;
 import org.apache.cassandra.utils.concurrent.WaitQueue;
+
+import static org.apache.cassandra.utils.FBUtilities.updateChecksumInt;
 
 /*
  * A single commit log file on disk. Manages creation of the file and writing mutations to disk,
@@ -289,12 +291,12 @@ public abstract class CommitLogSegment
 
     protected void writeSyncMarker(ByteBuffer buffer, int offset, int filePos, int nextMarker)
     {
-        ICRC32 crc = CRC32Factory.instance.create();
-        crc.updateInt((int) (id & 0xFFFFFFFFL));
-        crc.updateInt((int) (id >>> 32));
-        crc.updateInt(filePos);
+        CRC32 crc = new CRC32();
+        updateChecksumInt(crc, (int) (id & 0xFFFFFFFFL));
+        updateChecksumInt(crc, (int) (id >>> 32));
+        updateChecksumInt(crc, filePos);
         buffer.putInt(offset, nextMarker);
-        buffer.putInt(offset + 4, crc.getCrc());
+        buffer.putInt(offset + 4, (int) crc.getValue());
     }
 
     abstract void write(int lastSyncedOffset, int nextMarker);

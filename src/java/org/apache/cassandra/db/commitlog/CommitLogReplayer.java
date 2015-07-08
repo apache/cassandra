@@ -27,6 +27,7 @@ import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.zip.CRC32;
 
 import com.google.common.base.Predicate;
 import com.google.common.collect.HashMultimap;
@@ -37,8 +38,6 @@ import com.google.common.collect.Ordering;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import com.github.tjake.ICRC32;
 
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.concurrent.StageManager;
@@ -55,11 +54,12 @@ import org.apache.cassandra.io.util.FileDataInput;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.io.util.NIODataInputStream;
 import org.apache.cassandra.io.util.RandomAccessReader;
-import org.apache.cassandra.utils.CRC32Factory;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.WrappedRunnable;
 import org.cliffc.high_scale_lib.NonBlockingHashSet;
+
+import static org.apache.cassandra.utils.FBUtilities.updateChecksumInt;
 
 public class CommitLogReplayer
 {
@@ -73,7 +73,7 @@ public class CommitLogReplayer
     private final AtomicInteger replayedCount;
     private final Map<UUID, ReplayPosition> cfPositions;
     private final ReplayPosition globalPosition;
-    private final ICRC32 checksum;
+    private final CRC32 checksum;
     private byte[] buffer;
     private byte[] uncompressedBuffer;
 
@@ -88,7 +88,7 @@ public class CommitLogReplayer
         this.invalidMutations = new HashMap<UUID, AtomicInteger>();
         // count the number of replayed mutation. We don't really care about atomicity, but we need it to be a reference.
         this.replayedCount = new AtomicInteger();
-        this.checksum = CRC32Factory.instance.create();
+        this.checksum = new CRC32();
         this.cfPositions = cfPositions;
         this.globalPosition = globalPosition;
         this.replayFilter = replayFilter;
@@ -170,10 +170,10 @@ public class CommitLogReplayer
             return -1;
         }
         reader.seek(offset);
-        ICRC32 crc = CRC32Factory.instance.create();
-        crc.updateInt((int) (descriptor.id & 0xFFFFFFFFL));
-        crc.updateInt((int) (descriptor.id >>> 32));
-        crc.updateInt((int) reader.getPosition());
+        CRC32 crc = new CRC32();
+        updateChecksumInt(crc, (int) (descriptor.id & 0xFFFFFFFFL));
+        updateChecksumInt(crc, (int) (descriptor.id >>> 32));
+        updateChecksumInt(crc, (int) reader.getPosition());
         int end = reader.readInt();
         long filecrc = reader.readInt() & 0xffffffffL;
         if (crc.getValue() != filecrc)
@@ -435,7 +435,7 @@ public class CommitLogReplayer
                 if (desc.version < CommitLogDescriptor.VERSION_20)
                     checksum.update(serializedSize);
                 else
-                    checksum.updateInt(serializedSize);
+                    updateChecksumInt(checksum, serializedSize);
 
                 if (checksum.getValue() != claimedSizeChecksum)
                     return false;

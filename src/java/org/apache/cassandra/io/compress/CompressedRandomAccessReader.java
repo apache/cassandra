@@ -131,7 +131,7 @@ public class CompressedRandomAccessReader extends RandomAccessReader
             if (metadata.parameters.getCrcCheckChance() > ThreadLocalRandom.current().nextDouble())
             {
                 compressed.rewind();
-                FBUtilities.directCheckSum(checksum, compressed);
+                checksum.update(compressed);
 
                 if (checksum(chunk) != (int) checksum.getValue())
                     throw new CorruptBlockException(getPath(), chunk);
@@ -193,7 +193,7 @@ public class CompressedRandomAccessReader extends RandomAccessReader
             {
                 compressedChunk.position(chunkOffset).limit(chunkOffset + chunk.length);
 
-                FBUtilities.directCheckSum(checksum, compressedChunk);
+                checksum.update(compressedChunk);
 
                 compressedChunk.limit(compressedChunk.capacity());
                 if (compressedChunk.getInt() != (int) checksum.getValue())

@@ -362,7 +362,7 @@
           <dependency groupId="com.googlecode.json-simple" artifactId="json-simple" version="1.1"/>
           <dependency groupId="com.boundary" artifactId="high-scale-lib" version="1.0.6"/>
           <dependency groupId="com.github.jbellis" artifactId="jamm" version="0.3.0"/>
-	  	  <dependency groupId="com.github.tjake" artifactId="crc32ex" version="0.1.1"/>
+	
           <dependency groupId="com.thinkaurelius.thrift" artifactId="thrift-server" version="0.3.7">
             <exclusion groupId="org.slf4j" artifactId="slf4j-log4j12"/>
           </dependency>
@@ -540,7 +540,7 @@
         
         <!-- don't need jamm unless running a server in which case it needs to be a -javagent to be used anyway -->
         <dependency groupId="com.github.jbellis" artifactId="jamm"/>
-		<dependency groupId="com.github.tjake" artifactId="crc32ex"/>
+
         <dependency groupId="io.netty" artifactId="netty-all"/>
       	
       	<dependency groupId="joda-time" artifactId="joda-time" version="2.4" />

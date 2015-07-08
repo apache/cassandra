@@ -26,6 +26,7 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.file.Files;
 import java.util.zip.Adler32;
+import java.util.zip.CRC32;
 import java.util.zip.CheckedInputStream;
 import java.util.zip.Checksum;
 
@@ -34,7 +35,6 @@ import com.google.common.base.Charsets;
 import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
-import org.apache.cassandra.utils.CRC32Factory;
 import org.apache.cassandra.utils.FBUtilities;
 
 public class DataIntegrityMetadata
@@ -54,7 +54,7 @@ public class DataIntegrityMetadata
         public ChecksumValidator(Descriptor descriptor) throws IOException
         {
             this.descriptor = descriptor;
-            checksum = descriptor.version.hasAllAdlerChecksums() ? new Adler32() : CRC32Factory.instance.create();
+            checksum = descriptor.version.hasAllAdlerChecksums() ? new Adler32() : new CRC32();
             reader = RandomAccessReader.open(new File(descriptor.filenameFor(Component.CRC)));
             chunkSize = reader.readInt();
         }
@@ -103,7 +103,7 @@ public class DataIntegrityMetadata
         public FileDigestValidator(Descriptor descriptor) throws IOException
         {
             this.descriptor = descriptor;
-            checksum = descriptor.version.hasAllAdlerChecksums() ? new Adler32() : CRC32Factory.instance.create();
+            checksum = descriptor.version.hasAllAdlerChecksums() ? new Adler32() : new CRC32();
             digestReader = RandomAccessReader.open(new File(descriptor.filenameFor(Component.DIGEST)));
             dataReader = RandomAccessReader.open(new File(descriptor.filenameFor(Component.DATA)));
             try
@@ -182,13 +182,13 @@ public class DataIntegrityMetadata
 
                 ByteBuffer toAppend = bb.duplicate();
                 toAppend.mark();
-                FBUtilities.directCheckSum(incrementalChecksum, toAppend);
+                incrementalChecksum.update(toAppend);
                 toAppend.reset();
 
                 int incrementalChecksumValue = (int) incrementalChecksum.getValue();
                 incrementalOut.writeInt(incrementalChecksumValue);
 
-                FBUtilities.directCheckSum(fullChecksum, toAppend);
+                fullChecksum.update(toAppend);
                 if (checksumIncrementalResult)
                 {
                     ByteBuffer byteBuffer = ByteBuffer.allocate(4);

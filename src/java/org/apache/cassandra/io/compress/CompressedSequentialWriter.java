@@ -206,7 +206,7 @@ public class CompressedSequentialWriter extends SequentialWriter
 
             Adler32 checksum = new Adler32();
             compressed.rewind();
-            FBUtilities.directCheckSum(checksum, compressed);
+            checksum.update(compressed);
 
             crcCheckBuffer.clear();
             channel.read(crcCheckBuffer);

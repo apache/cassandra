@@ -31,17 +31,19 @@ import java.util.Map;
 import java.util.TreeMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.zip.CRC32;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Objects;
-import com.github.tjake.ICRC32;
 
 import org.apache.cassandra.config.ParameterizedClass;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.FSReadError;
 import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.utils.CRC32Factory;
+import org.apache.cassandra.utils.FBUtilities;
 import org.json.simple.JSONValue;
+
+import static org.apache.cassandra.utils.FBUtilities.updateChecksumInt;
 
 public class CommitLogDescriptor
 {
@@ -83,12 +85,12 @@ public class CommitLogDescriptor
 
     public static void writeHeader(ByteBuffer out, CommitLogDescriptor descriptor)
     {
-        ICRC32 crc = CRC32Factory.instance.create();
+        CRC32 crc = new CRC32();
         out.putInt(descriptor.version);
-        crc.updateInt(descriptor.version);
+        updateChecksumInt(crc, descriptor.version);
         out.putLong(descriptor.id);
-        crc.updateInt((int) (descriptor.id & 0xFFFFFFFFL));
-        crc.updateInt((int) (descriptor.id >>> 32));
+        updateChecksumInt(crc, (int) (descriptor.id & 0xFFFFFFFFL));
+        updateChecksumInt(crc, (int) (descriptor.id >>> 32));
         if (descriptor.version >= VERSION_22) {
             String parametersString = constructParametersString(descriptor);
             byte[] parametersBytes = parametersString.getBytes(StandardCharsets.UTF_8);
@@ -96,12 +98,12 @@ public class CommitLogDescriptor
                 throw new ConfigurationException(String.format("Compression parameters too long, length %d cannot be above 65535.",
                                                                parametersBytes.length));
             out.putShort((short) parametersBytes.length);
-            crc.updateInt(parametersBytes.length);
+            updateChecksumInt(crc, parametersBytes.length);
             out.put(parametersBytes);
             crc.update(parametersBytes, 0, parametersBytes.length);
         } else
             assert descriptor.compression == null;
-        out.putInt(crc.getCrc());
+        out.putInt((int) crc.getValue());
     }
 
     private static String constructParametersString(CommitLogDescriptor descriptor)
@@ -135,16 +137,16 @@ public class CommitLogDescriptor
 
     public static CommitLogDescriptor readHeader(DataInput input) throws IOException
     {
-        ICRC32 checkcrc = CRC32Factory.instance.create();
+        CRC32 checkcrc = new CRC32();
         int version = input.readInt();
-        checkcrc.updateInt(version);
+        updateChecksumInt(checkcrc, version);
         long id = input.readLong();
-        checkcrc.updateInt((int) (id & 0xFFFFFFFFL));
-        checkcrc.updateInt((int) (id >>> 32));
+        updateChecksumInt(checkcrc, (int) (id & 0xFFFFFFFFL));
+        updateChecksumInt(checkcrc, (int) (id >>> 32));
         int parametersLength = 0;
         if (version >= VERSION_22) {
             parametersLength = input.readShort() & 0xFFFF;
-            checkcrc.updateInt(parametersLength);
+            updateChecksumInt(checkcrc, parametersLength);
         }
         // This should always succeed as parametersLength cannot be too long even for a
         // corrupt segment file.
@@ -152,7 +154,7 @@ public class CommitLogDescriptor
         input.readFully(parametersBytes);
         checkcrc.update(parametersBytes, 0, parametersBytes.length);
         int crc = input.readInt();
-        if (crc == checkcrc.getCrc())
+        if (crc == (int) checkcrc.getValue())
             return new CommitLogDescriptor(version, id,
                     parseCompression((Map<?, ?>) JSONValue.parse(new String(parametersBytes, StandardCharsets.UTF_8))));
         return null;
