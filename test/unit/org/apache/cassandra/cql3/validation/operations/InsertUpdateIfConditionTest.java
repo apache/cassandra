@@ -28,7 +28,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
-public class InsertUpdateIfCondition extends CQLTester
+public class InsertUpdateIfConditionTest extends CQLTester
 {
     /**
      * Migrated from cql_tests.py:TestCQL.cas_simple_test()
