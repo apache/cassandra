@@ -3,6 +3,7 @@
    config file or environment variables (CASSANDRA-9544)
 Merged from 2.0:
  * Scrub (recover) sstables even when -Index.db is missing, (CASSANDRA-9591)
+ * Fix growing pending background compaction (CASSANDRA-9662)
 
 
 2.1.8
