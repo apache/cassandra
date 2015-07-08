@@ -131,10 +131,11 @@ public class OutboundTcpConnectionPool
         }
         else
         {
-            Socket socket = SocketChannel.open(new InetSocketAddress(endpoint, DatabaseDescriptor.getStoragePort())).socket();
-            if (Config.getOutboundBindAny() && !socket.isBound())
-                socket.bind(new InetSocketAddress(FBUtilities.getLocalAddress(), 0));
-            return socket;
+            SocketChannel channel = SocketChannel.open();
+            if (!Config.getOutboundBindAny())
+                channel.bind(new InetSocketAddress(FBUtilities.getLocalAddress(), 0));
+            channel.connect(new InetSocketAddress(endpoint, DatabaseDescriptor.getStoragePort()));
+            return channel.socket();
         }
     }
 
