@@ -277,7 +277,7 @@ public abstract class UDFunction extends AbstractFunction implements ScalarFunct
     @Override
     public int hashCode()
     {
-        return Objects.hashCode(name, argNames, argTypes, returnType, language, body);
+        return Objects.hashCode(name, Functions.typeHashCode(argTypes), Functions.typeHashCode(returnType), returnType, language, body);
     }
 
     public void userTypeUpdated(String ksName, String typeName)

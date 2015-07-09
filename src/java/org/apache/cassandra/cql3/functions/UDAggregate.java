@@ -217,6 +217,6 @@ public class UDAggregate extends AbstractFunction implements AggregateFunction
     @Override
     public int hashCode()
     {
-        return Objects.hashCode(name, argTypes, returnType, stateFunction, finalFunction, stateType, initcond);
+        return Objects.hashCode(name, Functions.typeHashCode(argTypes), Functions.typeHashCode(returnType), stateFunction, finalFunction, stateType, initcond);
     }
 }

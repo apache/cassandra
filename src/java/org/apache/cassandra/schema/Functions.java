@@ -141,6 +141,19 @@ public final class Functions implements Iterable<Function>
         return true;
     }
 
+    public static int typeHashCode(AbstractType<?> t)
+    {
+        return t.asCQL3Type().toString().hashCode();
+    }
+
+    public static int typeHashCode(List<AbstractType<?>> types)
+    {
+        int h = 0;
+        for (AbstractType<?> type : types)
+            h = h * 31 + typeHashCode(type);
+        return h;
+    }
+
     /**
      * Create a Functions instance with the provided function added
      */
