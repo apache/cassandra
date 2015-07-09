@@ -21,6 +21,10 @@ Upgrading
    _ New SSTable version 'la' with improved bloom-filter false-positive handling
      compared to previous version 'ka' used in 2.2 and 2.1. Running sstableupgrade
      is not necessary but recommended.
+   - Before upgrading to 3.0, make sure that your cluster is in complete agreement
+     (schema versions outputted by `nodetool describecluster` are all the same).
+   - Schema metadata is now stored in the new `system_schema` keyspace, and
+     legacy `system.schema_*` tables are now gone; see CASSANDRA-6717 for details.
    - Pig's CassandraStorage has been removed. Use CqlNativeStorage instead.
    - Hadoop BulkOutputFormat and BulkRecordWriter have been removed; use
      CqlBulkOutputFormat and CqlBulkRecordWriter instead.

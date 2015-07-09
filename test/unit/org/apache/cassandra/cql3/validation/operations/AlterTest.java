@@ -17,6 +17,8 @@
  */
 package org.apache.cassandra.cql3.validation.operations;
 
+import com.google.common.collect.ImmutableMap;
+
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
@@ -129,7 +131,7 @@ public class AlterTest extends CQLTester
         execute("CREATE KEYSPACE ks1 WITH replication={ 'class' : 'SimpleStrategy', 'replication_factor' : 1 }");
         execute("CREATE KEYSPACE ks2 WITH replication={ 'class' : 'SimpleStrategy', 'replication_factor' : 1 } AND durable_writes=false");
 
-        assertRows(execute("SELECT keyspace_name, durable_writes FROM system.schema_keyspaces"),
+        assertRows(execute("SELECT keyspace_name, durable_writes FROM system_schema.keyspaces"),
                    row("ks1", true),
                    row(KEYSPACE, true),
                    row(KEYSPACE_PER_TEST, true),
@@ -138,18 +140,22 @@ public class AlterTest extends CQLTester
         execute("ALTER KEYSPACE ks1 WITH replication = { 'class' : 'NetworkTopologyStrategy', 'dc1' : 1 } AND durable_writes=False");
         execute("ALTER KEYSPACE ks2 WITH durable_writes=true");
 
-        assertRows(execute("SELECT keyspace_name, durable_writes, strategy_class FROM system.schema_keyspaces"),
-                   row("ks1", false, "org.apache.cassandra.locator.NetworkTopologyStrategy"),
-                   row(KEYSPACE, true, "org.apache.cassandra.locator.SimpleStrategy"),
-                   row(KEYSPACE_PER_TEST, true, "org.apache.cassandra.locator.SimpleStrategy"),
-                   row("ks2", true, "org.apache.cassandra.locator.SimpleStrategy"));
+        assertRows(execute("SELECT keyspace_name, durable_writes, replication FROM system_schema.keyspaces"),
+                   row("ks1", false, ImmutableMap.of("class", "org.apache.cassandra.locator.NetworkTopologyStrategy",
+                                                     "dc1", "1")),
+                   row(KEYSPACE, true, ImmutableMap.of("class", "org.apache.cassandra.locator.SimpleStrategy",
+                                                       "replication_factor", "1")),
+                   row(KEYSPACE_PER_TEST, true, ImmutableMap.of("class", "org.apache.cassandra.locator.SimpleStrategy",
+                                                                "replication_factor", "1")),
+                   row("ks2", true, ImmutableMap.of("class", "org.apache.cassandra.locator.SimpleStrategy",
+                                                    "replication_factor", "1")));
 
         execute("USE ks1");
 
         assertInvalidThrow(ConfigurationException.class, "CREATE TABLE cf1 (a int PRIMARY KEY, b int) WITH compaction = { 'min_threshold' : 4 }");
 
         execute("CREATE TABLE cf1 (a int PRIMARY KEY, b int) WITH compaction = { 'class' : 'SizeTieredCompactionStrategy', 'min_threshold' : 7 }");
-        assertRows(execute("SELECT columnfamily_name, min_compaction_threshold FROM system.schema_columnfamilies WHERE keyspace_name='ks1'"),
+        assertRows(execute("SELECT table_name, min_compaction_threshold FROM system_schema.tables WHERE keyspace_name='ks1'"),
                    row("cf1", 7));
 
         // clean-up
@@ -195,8 +201,8 @@ public class AlterTest extends CQLTester
     // tests CASSANDRA-9565
     public void testDoubleWith() throws Throwable
     {
-        String[] stmts = new String[] { "ALTER KEYSPACE WITH WITH DURABLE_WRITES = true",
-                                        "ALTER KEYSPACE ks WITH WITH DURABLE_WRITES = true" };
+        String[] stmts = { "ALTER KEYSPACE WITH WITH DURABLE_WRITES = true",
+                           "ALTER KEYSPACE ks WITH WITH DURABLE_WRITES = true" };
 
         for (String stmt : stmts) {
             assertInvalidSyntaxMessage("no viable alternative at input 'WITH'", stmt);

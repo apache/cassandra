@@ -33,7 +33,7 @@ import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.compress.*;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
-import org.apache.cassandra.schema.LegacySchemaTables;
+import org.apache.cassandra.schema.SchemaKeyspace;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.thrift.CfDef;
 import org.apache.cassandra.thrift.ColumnDef;
@@ -143,10 +143,10 @@ public class CFMetaDataTest
         assert before.equals(after) : String.format("%n%s%n!=%n%s", before, after);
 
         // Test schema conversion
-        Mutation rm = LegacySchemaTables.makeCreateTableMutation(keyspace, cfm, FBUtilities.timestampMicros());
-        PartitionUpdate cfU = rm.getPartitionUpdate(Schema.instance.getId(SystemKeyspace.NAME, LegacySchemaTables.COLUMNFAMILIES));
-        PartitionUpdate cdU = rm.getPartitionUpdate(Schema.instance.getId(SystemKeyspace.NAME, LegacySchemaTables.COLUMNS));
-        CFMetaData newCfm = LegacySchemaTables.createTableFromTablePartitionAndColumnsPartition(
+        Mutation rm = SchemaKeyspace.makeCreateTableMutation(keyspace, cfm, FBUtilities.timestampMicros());
+        PartitionUpdate cfU = rm.getPartitionUpdate(Schema.instance.getId(SchemaKeyspace.NAME, SchemaKeyspace.TABLES));
+        PartitionUpdate cdU = rm.getPartitionUpdate(Schema.instance.getId(SchemaKeyspace.NAME, SchemaKeyspace.COLUMNS));
+        CFMetaData newCfm = SchemaKeyspace.createTableFromTablePartitionAndColumnsPartition(
                 UnfilteredRowIterators.filter(cfU.unfilteredIterator(), FBUtilities.nowInSeconds()),
                 UnfilteredRowIterators.filter(cdU.unfilteredIterator(), FBUtilities.nowInSeconds())
         );

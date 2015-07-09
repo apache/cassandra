@@ -26,12 +26,12 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.exceptions.ConfigurationException;
-import org.apache.cassandra.schema.LegacySchemaTables;
 import org.apache.cassandra.gms.FailureDetector;
 import org.apache.cassandra.net.IAsyncCallback;
 import org.apache.cassandra.net.MessageIn;
 import org.apache.cassandra.net.MessageOut;
 import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.schema.SchemaKeyspace;
 import org.apache.cassandra.utils.WrappedRunnable;
 
 
@@ -72,7 +72,7 @@ class MigrationTask extends WrappedRunnable
             {
                 try
                 {
-                    LegacySchemaTables.mergeSchema(message.payload);
+                    SchemaKeyspace.mergeSchema(message.payload);
                 }
                 catch (IOException e)
                 {

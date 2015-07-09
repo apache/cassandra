@@ -59,6 +59,7 @@ import org.apache.cassandra.io.sstable.CorruptSSTableException;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.metrics.CassandraMetricsRegistry;
 import org.apache.cassandra.metrics.StorageMetrics;
+import org.apache.cassandra.schema.LegacySchemaMigrator;
 import org.apache.cassandra.thrift.ThriftServer;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.*;
@@ -199,7 +200,15 @@ public class CassandraDaemon
             }
         });
 
+        /*
+         * Migrate pre-3.0 keyspaces, tables, types, functions, and aggregates, to their new 3.0 storage.
+         * We don't (and can't) wait for commit log replay here, but we don't need to - all schema changes force
+         * explicit memtable flushes.
+         */
+        LegacySchemaMigrator.migrate();
+
         StorageService.instance.populateTokenMetadata();
+
         // load schema from disk
         Schema.instance.loadFromDisk();
 

@@ -115,12 +115,12 @@ public class UFTest extends CQLTester
 
         Assert.assertEquals(1, Schema.instance.getFunctions(parseFunctionName(fSin)).size());
 
-        assertRows(execute("SELECT function_name, language FROM system.schema_functions WHERE keyspace_name=?", KEYSPACE_PER_TEST),
+        assertRows(execute("SELECT function_name, language FROM system_schema.functions WHERE keyspace_name=?", KEYSPACE_PER_TEST),
                    row(fSinName.name, "java"));
 
         dropPerTestKeyspace();
 
-        assertRows(execute("SELECT function_name, language FROM system.schema_functions WHERE keyspace_name=?", KEYSPACE_PER_TEST));
+        assertRows(execute("SELECT function_name, language FROM system_schema.functions WHERE keyspace_name=?", KEYSPACE_PER_TEST));
 
         Assert.assertEquals(0, Schema.instance.getFunctions(fSinName).size());
     }
@@ -558,7 +558,7 @@ public class UFTest extends CQLTester
                                       "LANGUAGE JAVA\n" +
                                       "AS '" +functionBody + "';");
 
-        assertRows(execute("SELECT language, body FROM system.schema_functions WHERE keyspace_name=? AND function_name=?",
+        assertRows(execute("SELECT language, body FROM system_schema.functions WHERE keyspace_name=? AND function_name=?",
                            KEYSPACE, parseFunctionName(fName).name),
                    row("java", functionBody));
 
@@ -662,7 +662,7 @@ public class UFTest extends CQLTester
 
         FunctionName fNameName = parseFunctionName(fName);
 
-        assertRows(execute("SELECT language, body FROM system.schema_functions WHERE keyspace_name=? AND function_name=?",
+        assertRows(execute("SELECT language, body FROM system_schema.functions WHERE keyspace_name=? AND function_name=?",
                            fNameName.keyspace, fNameName.name),
                    row("java", functionBody));
 
@@ -825,7 +825,7 @@ public class UFTest extends CQLTester
 
         FunctionName fNameName = parseFunctionName(fName);
 
-        assertRows(execute("SELECT language, body FROM system.schema_functions WHERE keyspace_name=? AND function_name=?",
+        assertRows(execute("SELECT language, body FROM system_schema.functions WHERE keyspace_name=? AND function_name=?",
                            fNameName.keyspace, fNameName.name),
                    row("java", functionBody));
 
@@ -856,7 +856,7 @@ public class UFTest extends CQLTester
 
         FunctionName fNameName = parseFunctionName(fName);
 
-        assertRows(execute("SELECT language, body FROM system.schema_functions WHERE keyspace_name=? AND function_name=?",
+        assertRows(execute("SELECT language, body FROM system_schema.functions WHERE keyspace_name=? AND function_name=?",
                            fNameName.keyspace, fNameName.name),
                    row("java", functionBody));
 
@@ -889,7 +889,7 @@ public class UFTest extends CQLTester
 
         FunctionName fNameName = parseFunctionName(fName);
 
-        assertRows(execute("SELECT language, body FROM system.schema_functions WHERE keyspace_name=? AND function_name=?",
+        assertRows(execute("SELECT language, body FROM system_schema.functions WHERE keyspace_name=? AND function_name=?",
                            fNameName.keyspace, fNameName.name),
                    row("java", functionBody));
     }
@@ -1792,7 +1792,7 @@ public class UFTest extends CQLTester
 
         FunctionName fNameName = parseFunctionName(fName);
 
-        assertRows(execute("SELECT language, body FROM system.schema_functions WHERE keyspace_name=? AND function_name=?",
+        assertRows(execute("SELECT language, body FROM system_schema.functions WHERE keyspace_name=? AND function_name=?",
                            fNameName.keyspace, fNameName.name),
                    row("javascript", functionBody));
 

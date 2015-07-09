@@ -798,19 +798,19 @@ public class InsertUpdateIfConditionTest extends CQLTester
         // create and confirm
         schemaChange("CREATE TABLE IF NOT EXISTS " + fullTableName + " (id text PRIMARY KEY, value1 blob) with comment = 'foo'");
 
-        assertRows(execute("select comment from system.schema_columnfamilies where keyspace_name = ? and columnfamily_name = ?", KEYSPACE, tableName),
+        assertRows(execute("select comment from system_schema.tables where keyspace_name = ? and table_name = ?", KEYSPACE, tableName),
                    row("foo"));
 
         // unsuccessful create since it's already there, confirm settings don't change
         schemaChange("CREATE TABLE IF NOT EXISTS " + fullTableName + " (id text PRIMARY KEY, value2 blob)with comment = 'bar'");
 
-        assertRows(execute("select comment from system.schema_columnfamilies where keyspace_name = ? and columnfamily_name = ?", KEYSPACE, tableName),
+        assertRows(execute("select comment from system_schema.tables where keyspace_name = ? and table_name = ?", KEYSPACE, tableName),
                    row("foo"));
 
         // drop and confirm
         schemaChange("DROP TABLE IF EXISTS " + fullTableName);
 
-        assertEmpty(execute("select * from system.schema_columnfamilies where keyspace_name = ? and columnfamily_name = ?", KEYSPACE, tableName));
+        assertEmpty(execute("select * from system_schema.tables where keyspace_name = ? and table_name = ?", KEYSPACE, tableName));
     }
 
     /**

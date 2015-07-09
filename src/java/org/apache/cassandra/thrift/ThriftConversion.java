@@ -40,9 +40,9 @@ import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.locator.LocalStrategy;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
+import org.apache.cassandra.schema.SchemaKeyspace;
 import org.apache.cassandra.schema.Tables;
 import org.apache.cassandra.serializers.MarshalException;
-import org.apache.cassandra.schema.LegacySchemaTables;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.UUIDGen;
 
@@ -414,7 +414,7 @@ public class ThriftConversion
             cols.add(convertThriftCqlRow(row));
         UntypedResultSet colsRows = UntypedResultSet.create(cols);
 
-        return LegacySchemaTables.createTableFromTableRowAndColumnRows(cfRow, colsRows);
+        return SchemaKeyspace.createTableFromTableRowAndColumnRows(cfRow, colsRows);
     }
 
     private static Map<String, ByteBuffer> convertThriftCqlRow(CqlRow row)

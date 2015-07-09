@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.cassandra.config;
+package org.apache.cassandra.schema;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -24,6 +24,8 @@ import java.util.HashMap;
 import java.util.HashSet;
 
 import org.apache.cassandra.SchemaLoader;
+import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.rows.UnfilteredRowIterators;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
@@ -33,8 +35,7 @@ import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.compress.*;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
-import org.apache.cassandra.schema.LegacySchemaTables;
-import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.schema.SchemaKeyspace;
 import org.apache.cassandra.thrift.CfDef;
 import org.apache.cassandra.thrift.ColumnDef;
 import org.apache.cassandra.thrift.IndexType;
@@ -47,12 +48,12 @@ import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
 
-public class LegacySchemaTablesTest
+public class SchemaKeyspaceTest
 {
     private static final String KEYSPACE1 = "CFMetaDataTest1";
     private static final String CF_STANDARD1 = "Standard1";
 
-    private static List<ColumnDef> columnDefs = new ArrayList<ColumnDef>();
+    private static final List<ColumnDef> columnDefs = new ArrayList<>();
 
     static
     {
@@ -126,15 +127,14 @@ public class LegacySchemaTablesTest
 
                 // Testing with compression to catch #3558
                 CFMetaData withCompression = cfm.copy();
-                withCompression.compressionParameters(new CompressionParameters(SnappyCompressor.instance, 32768, new HashMap<String, String>()));
+                withCompression.compressionParameters(new CompressionParameters(SnappyCompressor.instance, 32768, new HashMap<>()));
                 checkInverses(withCompression);
             }
         }
     }
 
-    private void checkInverses(CFMetaData cfm) throws Exception
+    private static void checkInverses(CFMetaData cfm) throws Exception
     {
-        DecoratedKey k = StorageService.getPartitioner().decorateKey(ByteBufferUtil.bytes(cfm.ksName));
         KeyspaceMetadata keyspace = Schema.instance.getKSMetaData(cfm.ksName);
 
         // Test thrift conversion
@@ -143,11 +143,11 @@ public class LegacySchemaTablesTest
         assert before.equals(after) : String.format("%n%s%n!=%n%s", before, after);
 
         // Test schema conversion
-        Mutation rm = LegacySchemaTables.makeCreateTableMutation(keyspace, cfm, FBUtilities.timestampMicros());
-        PartitionUpdate serializedCf = rm.getPartitionUpdate(Schema.instance.getId(SystemKeyspace.NAME, LegacySchemaTables.COLUMNFAMILIES));
-        PartitionUpdate serializedCD = rm.getPartitionUpdate(Schema.instance.getId(SystemKeyspace.NAME, LegacySchemaTables.COLUMNS));
-        CFMetaData newCfm = LegacySchemaTables.createTableFromTablePartitionAndColumnsPartition(UnfilteredRowIterators.filter(serializedCf.unfilteredIterator(), FBUtilities.nowInSeconds()),
-                                                                                                UnfilteredRowIterators.filter(serializedCD.unfilteredIterator(), FBUtilities.nowInSeconds()));
+        Mutation rm = SchemaKeyspace.makeCreateTableMutation(keyspace, cfm, FBUtilities.timestampMicros());
+        PartitionUpdate serializedCf = rm.getPartitionUpdate(Schema.instance.getId(SystemKeyspace.NAME, SchemaKeyspace.TABLES));
+        PartitionUpdate serializedCD = rm.getPartitionUpdate(Schema.instance.getId(SystemKeyspace.NAME, SchemaKeyspace.COLUMNS));
+        CFMetaData newCfm = SchemaKeyspace.createTableFromTablePartitionAndColumnsPartition(UnfilteredRowIterators.filter(serializedCf.unfilteredIterator(), FBUtilities.nowInSeconds()),
+                                                                                            UnfilteredRowIterators.filter(serializedCD.unfilteredIterator(), FBUtilities.nowInSeconds()));
         assert cfm.equals(newCfm) : String.format("%n%s%n!=%n%s", cfm, newCfm);
     }
 }

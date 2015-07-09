@@ -44,7 +44,7 @@ import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.net.MessageOut;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.schema.KeyspaceMetadata;
-import org.apache.cassandra.schema.LegacySchemaTables;
+import org.apache.cassandra.schema.SchemaKeyspace;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.WrappedRunnable;
 
@@ -72,7 +72,7 @@ public class MigrationManager
         listeners.remove(listener);
     }
 
-    public void scheduleSchemaPull(InetAddress endpoint, EndpointState state)
+    public static void scheduleSchemaPull(InetAddress endpoint, EndpointState state)
     {
         VersionedValue value = state.getApplicationState(ApplicationState.SCHEMA);
 
@@ -102,27 +102,24 @@ public class MigrationManager
         {
             // Include a delay to make sure we have a chance to apply any changes being
             // pushed out simultaneously. See CASSANDRA-5025
-            Runnable runnable = new Runnable()
+            Runnable runnable = () ->
             {
-                public void run()
+                // grab the latest version of the schema since it may have changed again since the initial scheduling
+                EndpointState epState = Gossiper.instance.getEndpointStateForEndpoint(endpoint);
+                if (epState == null)
                 {
-                    // grab the latest version of the schema since it may have changed again since the initial scheduling
-                    EndpointState epState = Gossiper.instance.getEndpointStateForEndpoint(endpoint);
-                    if (epState == null)
-                    {
-                        logger.debug("epState vanished for {}, not submitting migration task", endpoint);
-                        return;
-                    }
-                    VersionedValue value = epState.getApplicationState(ApplicationState.SCHEMA);
-                    UUID currentVersion = UUID.fromString(value.value);
-                    if (Schema.instance.getVersion().equals(currentVersion))
-                    {
-                        logger.debug("not submitting migration task for {} because our versions match", endpoint);
-                        return;
-                    }
-                    logger.debug("submitting migration task for {}", endpoint);
-                    submitMigrationTask(endpoint);
+                    logger.debug("epState vanished for {}, not submitting migration task", endpoint);
+                    return;
                 }
+                VersionedValue value = epState.getApplicationState(ApplicationState.SCHEMA);
+                UUID currentVersion = UUID.fromString(value.value);
+                if (Schema.instance.getVersion().equals(currentVersion))
+                {
+                    logger.debug("not submitting migration task for {} because our versions match", endpoint);
+                    return;
+                }
+                logger.debug("submitting migration task for {}", endpoint);
+                submitMigrationTask(endpoint);
             };
             ScheduledExecutors.optionalTasks.schedule(runnable, MIGRATION_DELAY_IN_MS, TimeUnit.MILLISECONDS);
         }
@@ -264,7 +261,7 @@ public class MigrationManager
             throw new AlreadyExistsException(ksm.name);
 
         logger.info(String.format("Create new Keyspace: %s", ksm));
-        announce(LegacySchemaTables.makeCreateKeyspaceMutation(ksm, timestamp), announceLocally);
+        announce(SchemaKeyspace.makeCreateKeyspaceMutation(ksm, timestamp), announceLocally);
     }
 
     public static void announceNewColumnFamily(CFMetaData cfm) throws ConfigurationException
@@ -283,27 +280,27 @@ public class MigrationManager
             throw new AlreadyExistsException(cfm.ksName, cfm.cfName);
 
         logger.info(String.format("Create new table: %s", cfm));
-        announce(LegacySchemaTables.makeCreateTableMutation(ksm, cfm, FBUtilities.timestampMicros()), announceLocally);
+        announce(SchemaKeyspace.makeCreateTableMutation(ksm, cfm, FBUtilities.timestampMicros()), announceLocally);
     }
 
     public static void announceNewType(UserType newType, boolean announceLocally)
     {
         KeyspaceMetadata ksm = Schema.instance.getKSMetaData(newType.keyspace);
-        announce(LegacySchemaTables.makeCreateTypeMutation(ksm, newType, FBUtilities.timestampMicros()), announceLocally);
+        announce(SchemaKeyspace.makeCreateTypeMutation(ksm, newType, FBUtilities.timestampMicros()), announceLocally);
     }
 
     public static void announceNewFunction(UDFunction udf, boolean announceLocally)
     {
         logger.info(String.format("Create scalar function '%s'", udf.name()));
         KeyspaceMetadata ksm = Schema.instance.getKSMetaData(udf.name().keyspace);
-        announce(LegacySchemaTables.makeCreateFunctionMutation(ksm, udf, FBUtilities.timestampMicros()), announceLocally);
+        announce(SchemaKeyspace.makeCreateFunctionMutation(ksm, udf, FBUtilities.timestampMicros()), announceLocally);
     }
 
     public static void announceNewAggregate(UDAggregate udf, boolean announceLocally)
     {
         logger.info(String.format("Create aggregate function '%s'", udf.name()));
         KeyspaceMetadata ksm = Schema.instance.getKSMetaData(udf.name().keyspace);
-        announce(LegacySchemaTables.makeCreateAggregateMutation(ksm, udf, FBUtilities.timestampMicros()), announceLocally);
+        announce(SchemaKeyspace.makeCreateAggregateMutation(ksm, udf, FBUtilities.timestampMicros()), announceLocally);
     }
 
     public static void announceKeyspaceUpdate(KeyspaceMetadata ksm) throws ConfigurationException
@@ -320,7 +317,7 @@ public class MigrationManager
             throw new ConfigurationException(String.format("Cannot update non existing keyspace '%s'.", ksm.name));
 
         logger.info(String.format("Update Keyspace '%s' From %s To %s", ksm.name, oldKsm, ksm));
-        announce(LegacySchemaTables.makeCreateKeyspaceMutation(ksm, FBUtilities.timestampMicros(), false), announceLocally);
+        announce(SchemaKeyspace.makeCreateKeyspaceMutation(ksm.name, ksm.params, FBUtilities.timestampMicros()), announceLocally);
     }
 
     public static void announceColumnFamilyUpdate(CFMetaData cfm, boolean fromThrift) throws ConfigurationException
@@ -340,7 +337,7 @@ public class MigrationManager
         oldCfm.validateCompatility(cfm);
 
         logger.info(String.format("Update table '%s/%s' From %s To %s", cfm.ksName, cfm.cfName, oldCfm, cfm));
-        announce(LegacySchemaTables.makeUpdateTableMutation(ksm, oldCfm, cfm, FBUtilities.timestampMicros(), fromThrift), announceLocally);
+        announce(SchemaKeyspace.makeUpdateTableMutation(ksm, oldCfm, cfm, FBUtilities.timestampMicros(), fromThrift), announceLocally);
     }
 
     public static void announceTypeUpdate(UserType updatedType, boolean announceLocally)
@@ -360,7 +357,7 @@ public class MigrationManager
             throw new ConfigurationException(String.format("Cannot drop non existing keyspace '%s'.", ksName));
 
         logger.info(String.format("Drop Keyspace '%s'", oldKsm.name));
-        announce(LegacySchemaTables.makeDropKeyspaceMutation(oldKsm, FBUtilities.timestampMicros()), announceLocally);
+        announce(SchemaKeyspace.makeDropKeyspaceMutation(oldKsm, FBUtilities.timestampMicros()), announceLocally);
     }
 
     public static void announceColumnFamilyDrop(String ksName, String cfName) throws ConfigurationException
@@ -376,7 +373,7 @@ public class MigrationManager
         KeyspaceMetadata ksm = Schema.instance.getKSMetaData(ksName);
 
         logger.info(String.format("Drop table '%s/%s'", oldCfm.ksName, oldCfm.cfName));
-        announce(LegacySchemaTables.makeDropTableMutation(ksm, oldCfm, FBUtilities.timestampMicros()), announceLocally);
+        announce(SchemaKeyspace.makeDropTableMutation(ksm, oldCfm, FBUtilities.timestampMicros()), announceLocally);
     }
 
     public static void announceTypeDrop(UserType droppedType)
@@ -387,21 +384,21 @@ public class MigrationManager
     public static void announceTypeDrop(UserType droppedType, boolean announceLocally)
     {
         KeyspaceMetadata ksm = Schema.instance.getKSMetaData(droppedType.keyspace);
-        announce(LegacySchemaTables.dropTypeFromSchemaMutation(ksm, droppedType, FBUtilities.timestampMicros()), announceLocally);
+        announce(SchemaKeyspace.dropTypeFromSchemaMutation(ksm, droppedType, FBUtilities.timestampMicros()), announceLocally);
     }
 
     public static void announceFunctionDrop(UDFunction udf, boolean announceLocally)
     {
         logger.info(String.format("Drop scalar function overload '%s' args '%s'", udf.name(), udf.argTypes()));
         KeyspaceMetadata ksm = Schema.instance.getKSMetaData(udf.name().keyspace);
-        announce(LegacySchemaTables.makeDropFunctionMutation(ksm, udf, FBUtilities.timestampMicros()), announceLocally);
+        announce(SchemaKeyspace.makeDropFunctionMutation(ksm, udf, FBUtilities.timestampMicros()), announceLocally);
     }
 
     public static void announceAggregateDrop(UDAggregate udf, boolean announceLocally)
     {
         logger.info(String.format("Drop aggregate function overload '%s' args '%s'", udf.name(), udf.argTypes()));
         KeyspaceMetadata ksm = Schema.instance.getKSMetaData(udf.name().keyspace);
-        announce(LegacySchemaTables.makeDropAggregateMutation(ksm, udf, FBUtilities.timestampMicros()), announceLocally);
+        announce(SchemaKeyspace.makeDropAggregateMutation(ksm, udf, FBUtilities.timestampMicros()), announceLocally);
     }
 
     /**
@@ -414,7 +411,7 @@ public class MigrationManager
         {
             try
             {
-                LegacySchemaTables.mergeSchema(Collections.singletonList(schema), false);
+                SchemaKeyspace.mergeSchema(Collections.singletonList(schema), false);
             }
             catch (IOException e)
             {
@@ -442,7 +439,7 @@ public class MigrationManager
         {
             protected void runMayThrow() throws IOException, ConfigurationException
             {
-                LegacySchemaTables.mergeSchema(schema);
+                SchemaKeyspace.mergeSchema(schema);
             }
         });
 
@@ -473,16 +470,14 @@ public class MigrationManager
     /**
      * Clear all locally stored schema information and reset schema to initial state.
      * Called by user (via JMX) who wants to get rid of schema disagreement.
-     *
-     * @throws IOException if schema tables truncation fails
      */
-    public static void resetLocalSchema() throws IOException
+    public static void resetLocalSchema()
     {
         logger.info("Starting local schema reset...");
 
         logger.debug("Truncating schema tables...");
 
-        LegacySchemaTables.truncateSchemaTables();
+        SchemaKeyspace.truncate();
 
         logger.debug("Clearing local schema keyspace definitions...");
 

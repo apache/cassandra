@@ -38,7 +38,6 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.Keyspace;
-import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.db.WindowsFailedSnapshotTracker;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.dht.Murmur3Partitioner.LongToken;
@@ -50,7 +49,7 @@ import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.locator.PropertyFileSnitch;
 import org.apache.cassandra.locator.TokenMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
-import org.apache.cassandra.schema.LegacySchemaTables;
+import org.apache.cassandra.schema.SchemaKeyspace;
 import org.apache.cassandra.utils.FBUtilities;
 
 import static org.junit.Assert.assertEquals;
@@ -173,7 +172,7 @@ public class StorageServiceServerTest
     public void testColumnFamilySnapshot() throws IOException
     {
         // no need to insert extra data, even an "empty" database will have a little information in the system keyspace
-        StorageService.instance.takeColumnFamilySnapshot(SystemKeyspace.NAME, LegacySchemaTables.KEYSPACES, "cf_snapshot");
+        StorageService.instance.takeColumnFamilySnapshot(SchemaKeyspace.NAME, SchemaKeyspace.KEYSPACES, "cf_snapshot");
     }
 
     @Test

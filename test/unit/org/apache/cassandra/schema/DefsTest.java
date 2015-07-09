@@ -515,7 +515,7 @@ public class DefsTest
     public void testDropIndex() throws ConfigurationException
     {
         // persist keyspace definition in the system keyspace
-        LegacySchemaTables.makeCreateKeyspaceMutation(Schema.instance.getKSMetaData(KEYSPACE6), FBUtilities.timestampMicros()).applyUnsafe();
+        SchemaKeyspace.makeCreateKeyspaceMutation(Schema.instance.getKSMetaData(KEYSPACE6), FBUtilities.timestampMicros()).applyUnsafe();
         ColumnFamilyStore cfs = Keyspace.open(KEYSPACE6).getColumnFamilyStore(TABLE1i);
 
         // insert some data.  save the sstable descriptor so we can make sure it's marked for delete after the drop

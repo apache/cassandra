@@ -26,12 +26,11 @@ import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.db.CompactTables;
-import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.dht.*;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.SSTableLoader;
-import org.apache.cassandra.schema.LegacySchemaTables;
+import org.apache.cassandra.schema.SchemaKeyspace;
 
 public class NativeSSTableLoaderClient extends SSTableLoader.Client
 {
@@ -100,9 +99,9 @@ public class NativeSSTableLoaderClient extends SSTableLoader.Client
     {
         Map<String, CFMetaData> tables = new HashMap<>();
 
-        String query = String.format("SELECT columnfamily_name, cf_id, type, comparator, subcomparator, is_dense, default_validator FROM %s.%s WHERE keyspace_name = '%s'",
-                                     SystemKeyspace.NAME,
-                                     LegacySchemaTables.COLUMNFAMILIES,
+        String query = String.format("SELECT table_name, cf_id, type, comparator, subcomparator, is_dense, default_validator FROM %s.%s WHERE keyspace_name = '%s'",
+                                     SchemaKeyspace.NAME,
+                                     SchemaKeyspace.TABLES,
                                      keyspace);
 
 
@@ -110,7 +109,7 @@ public class NativeSSTableLoaderClient extends SSTableLoader.Client
         // be safer to have a simple wrapper of the driver ResultSet/Row implementing UntypedResultSet/UntypedResultSet.Row and reuse the original method.
         for (Row row : session.execute(query))
         {
-            String name = row.getString("columnfamily_name");
+            String name = row.getString("table_name");
             UUID id = row.getUUID("cf_id");
             boolean isSuper = row.getString("type").toLowerCase().equals("super");
             AbstractType rawComparator = TypeParser.parse(row.getString("comparator"));
@@ -124,9 +123,9 @@ public class NativeSSTableLoaderClient extends SSTableLoader.Client
             boolean isCounter =  defaultValidator instanceof CounterColumnType;
             boolean isCQLTable = !isSuper && !isDense && isCompound;
 
-            String columnsQuery = String.format("SELECT column_name, component_index, type, validator FROM %s.%s WHERE keyspace_name='%s' AND columnfamily_name='%s'",
-                                                SystemKeyspace.NAME,
-                                                LegacySchemaTables.COLUMNS,
+            String columnsQuery = String.format("SELECT column_name, component_index, type, validator FROM %s.%s WHERE keyspace_name='%s' AND table_name='%s'",
+                                                SchemaKeyspace.NAME,
+                                                SchemaKeyspace.COLUMNS,
                                                 keyspace,
                                                 name);
 
@@ -149,7 +148,7 @@ public class NativeSSTableLoaderClient extends SSTableLoader.Client
                                                             boolean isSuper,
                                                             boolean isCQLTable)
     {
-        ColumnDefinition.Kind kind = LegacySchemaTables.deserializeKind(row.getString("type"));
+        ColumnDefinition.Kind kind = SchemaKeyspace.deserializeKind(row.getString("type"));
 
         Integer componentIndex = null;
         if (!row.isNull("component_index"))

@@ -34,6 +34,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.cql3.functions.*;
@@ -55,7 +56,7 @@ import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.schema.Functions;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
-import org.apache.cassandra.schema.LegacySchemaTables;
+import org.apache.cassandra.schema.SchemaKeyspace;
 import org.apache.cassandra.schema.Tables;
 import org.apache.cassandra.schema.Types;
 import org.apache.cassandra.service.StorageService;
@@ -101,6 +102,14 @@ public final class SystemKeyspace
     public static final String SIZE_ESTIMATES = "size_estimates";
     public static final String AVAILABLE_RANGES = "available_ranges";
 
+    @Deprecated public static final String LEGACY_KEYSPACES = "schema_keyspaces";
+    @Deprecated public static final String LEGACY_COLUMNFAMILIES = "schema_columnfamilies";
+    @Deprecated public static final String LEGACY_COLUMNS = "schema_columns";
+    @Deprecated public static final String LEGACY_TRIGGERS = "schema_triggers";
+    @Deprecated public static final String LEGACY_USERTYPES = "schema_usertypes";
+    @Deprecated public static final String LEGACY_FUNCTIONS = "schema_functions";
+    @Deprecated public static final String LEGACY_AGGREGATES = "schema_aggregates";
+
     public static final CFMetaData Hints =
         compile(HINTS,
                 "hints awaiting delivery",
@@ -142,12 +151,11 @@ public final class SystemKeyspace
                 + "PRIMARY KEY ((row_key), cf_id))")
                 .compactionStrategyClass(LeveledCompactionStrategy.class);
 
-    // TODO: make private
-    public static final CFMetaData BuiltIndexes =
+    private static final CFMetaData BuiltIndexes =
         compile(BUILT_INDEXES,
                 "built column indexes",
                 "CREATE TABLE \"%s\" ("
-                + "table_name text,"
+                + "table_name text," // table_name here is the name of the keyspace - don't be fooled
                 + "index_name text,"
                 + "PRIMARY KEY ((table_name), index_name)) "
                 + "WITH COMPACT STORAGE");
@@ -263,6 +271,122 @@ public final class SystemKeyspace
                 + "ranges set<blob>,"
                 + "PRIMARY KEY ((keyspace_name)))");
 
+    @Deprecated
+    public static final CFMetaData LegacyKeyspaces =
+        compile(LEGACY_KEYSPACES,
+                "*DEPRECATED* keyspace definitions",
+                "CREATE TABLE %s ("
+                + "keyspace_name text,"
+                + "durable_writes boolean,"
+                + "strategy_class text,"
+                + "strategy_options text,"
+                + "PRIMARY KEY ((keyspace_name))) "
+                + "WITH COMPACT STORAGE");
+
+    @Deprecated
+    public static final CFMetaData LegacyColumnfamilies =
+        compile(LEGACY_COLUMNFAMILIES,
+                "*DEPRECATED* table definitions",
+                "CREATE TABLE %s ("
+                + "keyspace_name text,"
+                + "columnfamily_name text,"
+                + "bloom_filter_fp_chance double,"
+                + "caching text,"
+                + "cf_id uuid," // post-2.1 UUID cfid
+                + "comment text,"
+                + "compaction_strategy_class text,"
+                + "compaction_strategy_options text,"
+                + "comparator text,"
+                + "compression_parameters text,"
+                + "default_time_to_live int,"
+                + "default_validator text,"
+                + "dropped_columns map<text, bigint>,"
+                + "dropped_columns_types map<text, text>,"
+                + "gc_grace_seconds int,"
+                + "is_dense boolean,"
+                + "key_validator text,"
+                + "local_read_repair_chance double,"
+                + "max_compaction_threshold int,"
+                + "max_index_interval int,"
+                + "memtable_flush_period_in_ms int,"
+                + "min_compaction_threshold int,"
+                + "min_index_interval int,"
+                + "read_repair_chance double,"
+                + "speculative_retry text,"
+                + "subcomparator text,"
+                + "type text,"
+                + "PRIMARY KEY ((keyspace_name), columnfamily_name))");
+
+    @Deprecated
+    public static final CFMetaData LegacyColumns =
+        compile(LEGACY_COLUMNS,
+                "*DEPRECATED* column definitions",
+                "CREATE TABLE %s ("
+                + "keyspace_name text,"
+                + "columnfamily_name text,"
+                + "column_name text,"
+                + "component_index int,"
+                + "index_name text,"
+                + "index_options text,"
+                + "index_type text,"
+                + "type text,"
+                + "validator text,"
+                + "PRIMARY KEY ((keyspace_name), columnfamily_name, column_name))");
+
+    @Deprecated
+    public static final CFMetaData LegacyTriggers =
+        compile(LEGACY_TRIGGERS,
+                "*DEPRECATED* trigger definitions",
+                "CREATE TABLE %s ("
+                + "keyspace_name text,"
+                + "columnfamily_name text,"
+                + "trigger_name text,"
+                + "trigger_options map<text, text>,"
+                + "PRIMARY KEY ((keyspace_name), columnfamily_name, trigger_name))");
+
+    @Deprecated
+    public static final CFMetaData LegacyUsertypes =
+        compile(LEGACY_USERTYPES,
+                "*DEPRECATED* user defined type definitions",
+                "CREATE TABLE %s ("
+                + "keyspace_name text,"
+                + "type_name text,"
+                + "field_names list<text>,"
+                + "field_types list<text>,"
+                + "PRIMARY KEY ((keyspace_name), type_name))");
+
+    @Deprecated
+    public static final CFMetaData LegacyFunctions =
+        compile(LEGACY_FUNCTIONS,
+                "*DEPRECATED* user defined function definitions",
+                "CREATE TABLE %s ("
+                + "keyspace_name text,"
+                + "function_name text,"
+                + "signature frozen<list<text>>,"
+                + "argument_names list<text>,"
+                + "argument_types list<text>,"
+                + "body text,"
+                + "language text,"
+                + "return_type text,"
+                + "called_on_null_input boolean,"
+                + "PRIMARY KEY ((keyspace_name), function_name, signature))");
+
+    @Deprecated
+    public static final CFMetaData LegacyAggregates =
+        compile(LEGACY_AGGREGATES,
+                "*DEPRECATED* user defined aggregate definitions",
+                "CREATE TABLE %s ("
+                + "keyspace_name text,"
+                + "aggregate_name text,"
+                + "signature frozen<list<text>>,"
+                + "argument_types list<text>,"
+                + "final_func text,"
+                + "initcond blob,"
+                + "return_type text,"
+                + "state_func text,"
+                + "state_type text,"
+                + "PRIMARY KEY ((keyspace_name), aggregate_name, signature))");
+
     private static CFMetaData compile(String name, String description, String schema)
     {
         return CFMetaData.compile(String.format(schema, name), NAME)
@@ -276,22 +400,26 @@ public final class SystemKeyspace
 
     private static Tables tables()
     {
-        return Tables.builder()
-                     .add(LegacySchemaTables.All)
-                     .add(BuiltIndexes,
-                          Hints,
-                          Batchlog,
-                          Paxos,
-                          Local,
-                          Peers,
-                          PeerEvents,
-                          RangeXfers,
-                          CompactionsInProgress,
-                          CompactionHistory,
-                          SSTableActivity,
-                          SizeEstimates,
-                          AvailableRanges)
-                     .build();
+        return Tables.of(BuiltIndexes,
+                         Hints,
+                         Batchlog,
+                         Paxos,
+                         Local,
+                         Peers,
+                         PeerEvents,
+                         RangeXfers,
+                         CompactionsInProgress,
+                         CompactionHistory,
+                         SSTableActivity,
+                         SizeEstimates,
+                         AvailableRanges,
+                         LegacyKeyspaces,
+                         LegacyColumnfamilies,
+                         LegacyColumns,
+                         LegacyTriggers,
+                         LegacyUsertypes,
+                         LegacyFunctions,
+                         LegacyAggregates);
     }
 
     private static Functions functions()
@@ -322,7 +450,7 @@ public final class SystemKeyspace
     public static void finishStartup()
     {
         persistLocalMetadata();
-        LegacySchemaTables.saveSystemKeyspaceSchema();
+        SchemaKeyspace.saveSystemKeyspacesSchema();
     }
 
     private static void persistLocalMetadata()
@@ -366,7 +494,7 @@ public final class SystemKeyspace
      */
     public static UUID startCompaction(ColumnFamilyStore cfs, Iterable<SSTableReader> toCompact)
     {
-        if (NAME.equals(cfs.keyspace.getName()))
+        if (Schema.isSystemKeyspace(cfs.keyspace.getName()))
             return null;
 
         UUID compactionId = UUIDGen.getTimeUUID();

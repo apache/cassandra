@@ -51,6 +51,11 @@ public final class Types implements Iterable<UserType>
         return builder().build();
     }
 
+    public static Types of(UserType... types)
+    {
+        return builder().add(types).build();
+    }
+
     public Iterator<UserType> iterator()
     {
         return types.values().iterator();
@@ -135,6 +140,13 @@ public final class Types implements Iterable<UserType>
         public Builder add(UserType type)
         {
             types.put(type.name, type);
+            return this;
+        }
+
+        public Builder add(UserType... types)
+        {
+            for (UserType type : types)
+                add(type);
             return this;
         }
 

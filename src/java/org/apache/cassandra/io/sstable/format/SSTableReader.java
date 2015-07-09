@@ -2245,7 +2245,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
 
             // Don't track read rates for tables in the system keyspace and don't bother trying to load or persist
             // the read meter when in client mode.
-            if (SystemKeyspace.NAME.equals(desc.ksname))
+            if (Schema.isSystemKeyspace(desc.ksname))
             {
                 readMeter = null;
                 readMeterSyncFuture = null;

@@ -24,7 +24,6 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 
-import com.google.common.collect.Iterables;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -38,7 +37,7 @@ import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.exceptions.AuthenticationException;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.UnauthorizedException;
-import org.apache.cassandra.schema.LegacySchemaTables;
+import org.apache.cassandra.schema.SchemaKeyspace;
 import org.apache.cassandra.thrift.ThriftValidation;
 import org.apache.cassandra.tracing.TraceKeyspace;
 import org.apache.cassandra.utils.FBUtilities;
@@ -61,8 +60,10 @@ public class ClientState
     {
         // We want these system cfs to be always readable to authenticated users since many tools rely on them
         // (nodetool, cqlsh, bulkloader, etc.)
-        for (String cf : Iterables.concat(Arrays.asList(SystemKeyspace.LOCAL, SystemKeyspace.PEERS), LegacySchemaTables.ALL))
+        for (String cf : Arrays.asList(SystemKeyspace.LOCAL, SystemKeyspace.PEERS))
             READABLE_SYSTEM_RESOURCES.add(DataResource.table(SystemKeyspace.NAME, cf));
+
+        SchemaKeyspace.ALL.forEach(table -> READABLE_SYSTEM_RESOURCES.add(DataResource.table(SchemaKeyspace.NAME, table)));
 
         PROTECTED_AUTH_RESOURCES.addAll(DatabaseDescriptor.getAuthenticator().protectedResources());
         PROTECTED_AUTH_RESOURCES.addAll(DatabaseDescriptor.getAuthorizer().protectedResources());
@@ -309,7 +310,7 @@ public class ClientState
             return;
 
         // prevent system keyspace modification
-        if (SystemKeyspace.NAME.equalsIgnoreCase(keyspace))
+        if (Schema.isSystemKeyspace(keyspace))
             throw new UnauthorizedException(keyspace + " keyspace is not user-modifiable.");
 
         // allow users with sufficient privileges to alter KS level options on AUTH_KS and
