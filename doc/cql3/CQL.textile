@@ -2000,7 +2000,9 @@ Any columns which are ommitted from the @JSON@ map will be defaulted to a @NULL@
 
 h3(#jsonEncoding). JSON Encoding of Cassandra Data Types
 
-Where possible, Cassandra will represent and accept data types in their native @JSON@ representation.  Cassandra will also accept string representations matching the CQL literal format for all data types.  The following table describes the encodings that Cassandra will accept in @INSERT JSON@ values (and @fromJson()@ arguments) as well as the format Cassandra will use when returning data for @SELECT JSON@ statements (and @fromJson()@):
+Where possible, Cassandra will represent and accept data types in their native @JSON@ representation.  Cassandra will also accept string representations matching the CQL literal format for all single-field types.  For example, floats, ints, UUIDs, and dates can be represented by CQL literal strings.  However, compound types, such as collections, tuples, and user-defined types must be represented by native @JSON@ collections (maps and lists) or a JSON-encoded string representation of the collection.
+
+The following table describes the encodings that Cassandra will accept in @INSERT JSON@ values (and @fromJson()@ arguments) as well as the format Cassandra will use when returning data for @SELECT JSON@ statements (and @fromJson()@):
 
 |_. type    |_. formats accepted   |_. return format |_. notes|
 |@ascii@    |string                |string           |Uses JSON's @\u@ character escape|
