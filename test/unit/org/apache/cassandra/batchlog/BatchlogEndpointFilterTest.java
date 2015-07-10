@@ -15,7 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.service;
+package org.apache.cassandra.batchlog;
 
 import java.net.InetAddress;
 import java.net.UnknownHostException;
@@ -26,8 +26,6 @@ import com.google.common.collect.ImmutableMultimap;
 import com.google.common.collect.Multimap;
 import org.junit.Test;
 import org.junit.matchers.JUnitMatchers;
-
-import org.apache.cassandra.db.BatchlogManager;
 
 import static org.hamcrest.CoreMatchers.is;
 import static org.junit.Assert.assertThat;
@@ -95,7 +93,7 @@ public class BatchlogEndpointFilterTest
 
     private static class TestEndpointFilter extends BatchlogManager.EndpointFilter
     {
-        public TestEndpointFilter(String localRack, Multimap<String, InetAddress> endpoints)
+        TestEndpointFilter(String localRack, Multimap<String, InetAddress> endpoints)
         {
             super(localRack, endpoints);
         }

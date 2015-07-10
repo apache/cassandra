@@ -113,7 +113,7 @@ public final class SystemKeyspace
                 "batches awaiting replay",
                 "CREATE TABLE %s ("
                 + "id timeuuid,"
-                + "data blob,"
+                + "mutations list<blob>,"
                 + "version int,"
                 + "PRIMARY KEY ((id)))")
                 .copy(new LocalPartitioner(TimeUUIDType.instance))

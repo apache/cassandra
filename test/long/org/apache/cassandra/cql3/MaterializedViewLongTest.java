@@ -35,7 +35,7 @@ import com.datastax.driver.core.exceptions.WriteTimeoutException;
 import org.apache.cassandra.concurrent.SEPExecutor;
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.concurrent.StageManager;
-import org.apache.cassandra.db.BatchlogManager;
+import org.apache.cassandra.batchlog.BatchlogManager;
 import org.apache.cassandra.utils.WrappedRunnable;
 
 public class MaterializedViewLongTest extends CQLTester

@@ -1,4 +1,3 @@
-package org.apache.cassandra.service.paxos;
 /*
  * 
  * Licensed to the Apache Software Foundation (ASF) under one
@@ -19,7 +18,7 @@ package org.apache.cassandra.service.paxos;
  * under the License.
  * 
  */
-
+package org.apache.cassandra.service.paxos;
 
 import org.apache.cassandra.db.WriteResponse;
 import org.apache.cassandra.net.IVerbHandler;
@@ -33,8 +32,7 @@ public class CommitVerbHandler implements IVerbHandler<Commit>
     {
         PaxosState.commit(message.payload);
 
-        WriteResponse response = new WriteResponse();
         Tracing.trace("Enqueuing acknowledge to {}", message.from);
-        MessagingService.instance().sendReply(response.createMessage(), id, message.from);
+        MessagingService.instance().sendReply(WriteResponse.createMessage(), id, message.from);
     }
 }

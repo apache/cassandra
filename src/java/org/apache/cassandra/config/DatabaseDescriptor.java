@@ -1080,8 +1080,9 @@ public class DatabaseDescriptor
             case PAXOS_COMMIT:
             case PAXOS_PREPARE:
             case PAXOS_PROPOSE:
-            case BATCHLOG_MUTATION:
             case HINT:
+            case BATCH_STORE:
+            case BATCH_REMOVE:
                 return getWriteRpcTimeout();
             case COUNTER_MUTATION:
                 return getCounterWriteRpcTimeout();
@@ -1128,10 +1129,6 @@ public class DatabaseDescriptor
         return conf.concurrent_counter_writes;
     }
 
-    public static int getConcurrentBatchlogWriters()
-    {
-        return conf.concurrent_batchlog_writes;
-    }
     public static int getConcurrentMaterializedViewWriters()
     {
         return conf.concurrent_materialized_view_writes;

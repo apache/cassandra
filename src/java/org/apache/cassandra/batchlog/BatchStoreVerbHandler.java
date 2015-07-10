@@ -15,17 +15,18 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.db;
+package org.apache.cassandra.batchlog;
 
+import org.apache.cassandra.db.WriteResponse;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.MessageIn;
 import org.apache.cassandra.net.MessagingService;
 
-public class ReadRepairVerbHandler implements IVerbHandler<Mutation>
+public final class BatchStoreVerbHandler implements IVerbHandler<Batch>
 {
-    public void doVerb(MessageIn<Mutation> message, int id)
+    public void doVerb(MessageIn<Batch> message, int id)
     {
-        message.payload.apply();
+        BatchlogManager.store(message.payload);
         MessagingService.instance().sendReply(WriteResponse.createMessage(), id, message.from);
     }
 }
