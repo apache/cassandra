@@ -678,6 +678,16 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         }
     }
 
+    /**
+     * A fat client is a node that has not joined the ring, therefore acting as a coordinator only.
+     * It possesses no data. This method attempts to determine this property, except that for dead nodes
+     * we cannot tell. (??) We should also check that the node is not shutdown (and possibly other states)
+     * but due to fear of breaking things I added a new method to do this, isLiveFatClient(), see
+     * CASSANDRA-9765 for more information.
+     *
+     * @param endpoint - the endpoint we need to check
+     * @return true if it is a fat client
+     */
     public boolean isFatClient(InetAddress endpoint)
     {
         EndpointState epState = endpointStateMap.get(endpoint);
@@ -686,6 +696,11 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
             return false;
         }
         return !isDeadState(epState) && !StorageService.instance.getTokenMetadata().isMember(endpoint);
+    }
+
+    public boolean isLiveFatClient(InetAddress endpoint)
+    {
+        return isFatClient(endpoint) && !isShutdownState(endpointStateMap.get(endpoint));
     }
 
     private void doStatusCheck()
@@ -1008,12 +1023,9 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
 
     public boolean isDeadState(EndpointState epState)
     {
-        if (epState.getApplicationState(ApplicationState.STATUS) == null)
+        String state = getApplicationState(epState);
+        if (state.isEmpty())
             return false;
-        String value = epState.getApplicationState(ApplicationState.STATUS).value;
-        String[] pieces = value.split(VersionedValue.DELIMITER_STR, -1);
-        assert (pieces.length > 0);
-        String state = pieces[0];
         for (String deadstate : DEAD_STATES)
         {
             if (state.equals(deadstate))
@@ -1024,18 +1036,31 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
 
     public boolean isSilentShutdownState(EndpointState epState)
     {
-        if (epState.getApplicationState(ApplicationState.STATUS) == null)
+        String state = getApplicationState(epState);
+        if (state.isEmpty())
             return false;
-        String value = epState.getApplicationState(ApplicationState.STATUS).value;
-        String[] pieces = value.split(VersionedValue.DELIMITER_STR, -1);
-        assert (pieces.length > 0);
-        String state = pieces[0];
         for (String deadstate : SILENT_SHUTDOWN_STATES)
         {
             if (state.equals(deadstate))
                 return true;
         }
         return false;
+    }
+
+    public boolean isShutdownState(EndpointState epState)
+    {
+        return getApplicationState(epState).equals(VersionedValue.SHUTDOWN);
+    }
+
+    private static String getApplicationState(EndpointState epState)
+    {
+        if (epState == null || epState.getApplicationState(ApplicationState.STATUS) == null)
+            return "";
+
+        String value = epState.getApplicationState(ApplicationState.STATUS).value;
+        String[] pieces = value.split(VersionedValue.DELIMITER_STR, -1);
+        assert (pieces.length > 0);
+        return pieces[0];
     }
 
     void applyStateLocally(Map<InetAddress, EndpointState> epStateMap)
