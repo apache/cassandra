@@ -1010,18 +1010,11 @@ public final class SchemaKeyspace
 
         // We don't really use the default validator but as we have it for backward compatibility, we use it to know if it's a counter table
         AbstractType<?> defaultValidator = TypeParser.parse(result.getString("default_validator"));
-        boolean isCounter =  defaultValidator instanceof CounterColumnType;
+        boolean isCounter = defaultValidator instanceof CounterColumnType;
 
         UUID cfId = result.getUUID("cf_id");
 
         boolean isCQLTable = !isSuper && !isDense && isCompound;
-        boolean isStaticCompactTable = !isDense && !isCompound;
-
-        // Internally, compact tables have a specific layout, see CompactTables. But when upgrading from
-        // previous versions, they may not have the expected schema, so detect if we need to upgrade and do
-        // it in createColumnsFromColumnRows.
-        // We can remove this once we don't support upgrade from versions < 3.0.
-        boolean needsUpgrade = !isCQLTable && checkNeedsUpgrade(serializedColumnDefinitions, isSuper, isStaticCompactTable);
 
         List<ColumnDefinition> columnDefs = createColumnsFromColumnRows(serializedColumnDefinitions,
                                                                         ksName,
@@ -1029,12 +1022,7 @@ public final class SchemaKeyspace
                                                                         rawComparator,
                                                                         subComparator,
                                                                         isSuper,
-                                                                        isCQLTable,
-                                                                        isStaticCompactTable,
-                                                                        needsUpgrade);
-
-        if (needsUpgrade)
-            addDefinitionForUpgrade(columnDefs, ksName, cfName, isStaticCompactTable, isSuper, rawComparator, subComparator, defaultValidator);
+                                                                        isCQLTable);
 
         CFMetaData cfm = CFMetaData.create(ksName, cfName, cfId, isDense, isCompound, isSuper, isCounter, columnDefs);
 
@@ -1076,67 +1064,6 @@ public final class SchemaKeyspace
         }
 
         return cfm;
-    }
-
-    // Should only be called on compact tables
-    private static boolean checkNeedsUpgrade(UntypedResultSet defs, boolean isSuper, boolean isStaticCompactTable)
-    {
-        if (isSuper)
-        {
-            // Check if we've added the "supercolumn map" column yet or not
-            for (UntypedResultSet.Row row : defs)
-            {
-                if (row.getString("column_name").isEmpty())
-                    return false;
-            }
-            return true;
-        }
-
-        // For static compact tables, we need to upgrade if the regular definitions haven't been converted to static yet,
-        // i.e. if we don't have a static definition yet.
-        if (isStaticCompactTable)
-            return !hasKind(defs, ColumnDefinition.Kind.STATIC);
-
-        // For dense compact tables, we need to upgrade if we don't have a compact value definition
-        return !hasKind(defs, ColumnDefinition.Kind.REGULAR);
-    }
-
-    private static void addDefinitionForUpgrade(List<ColumnDefinition> defs,
-                                                String ksName,
-                                                String cfName,
-                                                boolean isStaticCompactTable,
-                                                boolean isSuper,
-                                                AbstractType<?> rawComparator,
-                                                AbstractType<?> subComparator,
-                                                AbstractType<?> defaultValidator)
-    {
-        CompactTables.DefaultNames names = CompactTables.defaultNameGenerator(defs);
-
-        if (isSuper)
-        {
-            defs.add(ColumnDefinition.regularDef(ksName, cfName, CompactTables.SUPER_COLUMN_MAP_COLUMN_STR, MapType.getInstance(subComparator, defaultValidator, true), null));
-        }
-        else if (isStaticCompactTable)
-        {
-            defs.add(ColumnDefinition.clusteringKeyDef(ksName, cfName, names.defaultClusteringName(), rawComparator, null));
-            defs.add(ColumnDefinition.regularDef(ksName, cfName, names.defaultCompactValueName(), defaultValidator, null));
-        }
-        else
-        {
-            // For dense compact tables, we get here if we don't have a compact value column, in which case we should add it
-            // (we use EmptyType to recognize that the compact value was not declared by the use (see CreateTableStatement too))
-            defs.add(ColumnDefinition.regularDef(ksName, cfName, names.defaultCompactValueName(), EmptyType.instance, null));
-        }
-    }
-
-    private static boolean hasKind(UntypedResultSet defs, ColumnDefinition.Kind kind)
-    {
-        for (UntypedResultSet.Row row : defs)
-        {
-            if (deserializeKind(row.getString("type")) == kind)
-                return true;
-        }
-        return false;
     }
 
     private static void addDroppedColumns(CFMetaData cfm, Map<String, Long> droppedTimes, Map<String, String> types)
@@ -1201,13 +1128,11 @@ public final class SchemaKeyspace
                                                                       AbstractType<?> rawComparator,
                                                                       AbstractType<?> rawSubComparator,
                                                                       boolean isSuper,
-                                                                      boolean isCQLTable,
-                                                                      boolean isStaticCompactTable,
-                                                                      boolean needsUpgrade)
+                                                                      boolean isCQLTable)
     {
         List<ColumnDefinition> columns = new ArrayList<>();
         for (UntypedResultSet.Row row : rows)
-            columns.add(createColumnFromColumnRow(row, keyspace, table, rawComparator, rawSubComparator, isSuper, isCQLTable, isStaticCompactTable, needsUpgrade));
+            columns.add(createColumnFromColumnRow(row, keyspace, table, rawComparator, rawSubComparator, isSuper, isCQLTable));
         return columns;
     }
 
@@ -1217,13 +1142,9 @@ public final class SchemaKeyspace
                                                               AbstractType<?> rawComparator,
                                                               AbstractType<?> rawSubComparator,
                                                               boolean isSuper,
-                                                              boolean isCQLTable,
-                                                              boolean isStaticCompactTable,
-                                                              boolean needsUpgrade)
+                                                              boolean isCQLTable)
     {
         ColumnDefinition.Kind kind = deserializeKind(row.getString("type"));
-        if (needsUpgrade && isStaticCompactTable && kind == ColumnDefinition.Kind.REGULAR)
-            kind = ColumnDefinition.Kind.STATIC;
 
         Integer componentIndex = null;
         if (row.has("component_index"))

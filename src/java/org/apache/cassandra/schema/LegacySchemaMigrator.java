@@ -330,12 +330,7 @@ public final class LegacySchemaMigrator
             cfm.bloomFilterFpChance(cfm.getBloomFilterFpChance());
 
         if (tableRow.has("dropped_columns"))
-        {
-            Map<String, String> types = tableRow.has("dropped_columns_types")
-                                      ? tableRow.getMap("dropped_columns_types", UTF8Type.instance, UTF8Type.instance)
-                                      : Collections.<String, String>emptyMap();
-            addDroppedColumns(cfm, tableRow.getMap("dropped_columns", UTF8Type.instance, LongType.instance), types);
-        }
+            addDroppedColumns(cfm, tableRow.getMap("dropped_columns", UTF8Type.instance, LongType.instance), Collections.emptyMap());
 
         cfm.triggers(createTriggersFromTriggerRows(triggerRows));
 

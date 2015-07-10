@@ -407,8 +407,6 @@ public class LegacySchemaMigratorTest
             String name = entry.getKey().toString();
             CFMetaData.DroppedColumn column = entry.getValue();
             adder.addMapEntry("dropped_columns", name, column.droppedTime);
-            if (column.type != null)
-                adder.addMapEntry("dropped_columns_types", name, column.type.toString());
         }
 
         adder.add("is_dense", table.isDense());

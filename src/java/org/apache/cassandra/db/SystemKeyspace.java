@@ -301,7 +301,6 @@ public final class SystemKeyspace
                 + "default_time_to_live int,"
                 + "default_validator text,"
                 + "dropped_columns map<text, bigint>,"
-                + "dropped_columns_types map<text, text>,"
                 + "gc_grace_seconds int,"
                 + "is_dense boolean,"
                 + "key_validator text,"
