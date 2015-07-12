@@ -83,12 +83,16 @@ public abstract class Functions
                 declare(AggregateFcts.makeMinFunction(type.getType()));
             }
         }
+        declare(AggregateFcts.sumFunctionForByte);
+        declare(AggregateFcts.sumFunctionForShort);
         declare(AggregateFcts.sumFunctionForInt32);
         declare(AggregateFcts.sumFunctionForLong);
         declare(AggregateFcts.sumFunctionForFloat);
         declare(AggregateFcts.sumFunctionForDouble);
         declare(AggregateFcts.sumFunctionForDecimal);
         declare(AggregateFcts.sumFunctionForVarint);
+        declare(AggregateFcts.avgFunctionForByte);
+        declare(AggregateFcts.avgFunctionForShort);
         declare(AggregateFcts.avgFunctionForInt32);
         declare(AggregateFcts.avgFunctionForLong);
         declare(AggregateFcts.avgFunctionForFloat);

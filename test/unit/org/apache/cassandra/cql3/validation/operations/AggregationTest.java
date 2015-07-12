@@ -42,27 +42,46 @@ public class AggregationTest extends CQLTester
     @Test
     public void testFunctions() throws Throwable
     {
-        createTable("CREATE TABLE %s (a int, b int, c double, d decimal, primary key (a, b))");
+        createTable("CREATE TABLE %s (a int, b int, c double, d decimal, e smallint, f tinyint, primary key (a, b))");
 
         // Test with empty table
         assertColumnNames(execute("SELECT COUNT(*) FROM %s"), "count");
         assertRows(execute("SELECT COUNT(*) FROM %s"), row(0L));
-        assertColumnNames(execute("SELECT max(b), min(b), sum(b), avg(b) , max(c), sum(c), avg(c), sum(d), avg(d) FROM %s"),
-                          "system.max(b)", "system.min(b)", "system.sum(b)", "system.avg(b)", "system.max(c)", "system.sum(c)", "system.avg(c)", "system.sum(d)", "system.avg(d)");
-        assertRows(execute("SELECT max(b), min(b), sum(b), avg(b) , max(c), sum(c), avg(c), sum(d), avg(d) FROM %s"),
-                   row(null, null, 0, 0, null, 0.0, 0.0, new BigDecimal("0"), new BigDecimal("0")));
+        assertColumnNames(execute("SELECT max(b), min(b), sum(b), avg(b)," +
+                                  "max(c), sum(c), avg(c)," +
+                                  "sum(d), avg(d)," +
+                                  "max(e), min(e), sum(e), avg(e)," +
+                                  "max(f), min(f), sum(f), avg(f) FROM %s"),
+                          "system.max(b)", "system.min(b)", "system.sum(b)", "system.avg(b)",
+                          "system.max(c)", "system.sum(c)", "system.avg(c)",
+                          "system.sum(d)", "system.avg(d)",
+                          "system.max(e)", "system.min(e)", "system.sum(e)", "system.avg(e)",
+                          "system.max(f)", "system.min(f)", "system.sum(f)", "system.avg(f)");
+        assertRows(execute("SELECT max(b), min(b), sum(b), avg(b)," +
+                           "max(c), sum(c), avg(c)," +
+                           "sum(d), avg(d)," +
+                           "max(e), min(e), sum(e), avg(e)," +
+                           "max(f), min(f), sum(f), avg(f) FROM %s"),
+                   row(null, null, 0, 0, null, 0.0, 0.0, new BigDecimal("0"), new BigDecimal("0"),
+                       null, null, (short)0, (short)0,
+                       null, null, (byte)0, (byte)0));
 
-        execute("INSERT INTO %s (a, b, c, d) VALUES (1, 1, 11.5, 11.5)");
-        execute("INSERT INTO %s (a, b, c, d) VALUES (1, 2, 9.5, 1.5)");
-        execute("INSERT INTO %s (a, b, c, d) VALUES (1, 3, 9.0, 2.0)");
+        execute("INSERT INTO %s (a, b, c, d, e, f) VALUES (1, 1, 11.5, 11.5, 1, 1)");
+        execute("INSERT INTO %s (a, b, c, d, e, f) VALUES (1, 2, 9.5, 1.5, 2, 2)");
+        execute("INSERT INTO %s (a, b, c, d, e, f) VALUES (1, 3, 9.0, 2.0, 3, 3)");
 
-        assertRows(execute("SELECT max(b), min(b), sum(b), avg(b) , max(c), sum(c), avg(c), sum(d), avg(d) FROM %s"),
-                   row(3, 1, 6, 2, 11.5, 30.0, 10.0, new BigDecimal("15.0"), new BigDecimal("5.0")));
+        assertRows(execute("SELECT max(b), min(b), sum(b), avg(b) , max(c), sum(c), avg(c), sum(d), avg(d)," +
+                           "max(e), min(e), sum(e), avg(e)," +
+                           "max(f), min(f), sum(f), avg(f)" +
+                           " FROM %s"),
+                   row(3, 1, 6, 2, 11.5, 30.0, 10.0, new BigDecimal("15.0"), new BigDecimal("5.0"),
+                       (short)3, (short)1, (short)6, (short)2,
+                       (byte)3, (byte)1, (byte)6, (byte)2));
 
         execute("INSERT INTO %s (a, b, d) VALUES (1, 5, 1.0)");
         assertRows(execute("SELECT COUNT(*) FROM %s"), row(4L));
         assertRows(execute("SELECT COUNT(1) FROM %s"), row(4L));
-        assertRows(execute("SELECT COUNT(b), count(c) FROM %s"), row(4L, 3L));
+        assertRows(execute("SELECT COUNT(b), count(c), count(e), count(f) FROM %s"), row(4L, 3L, 3L, 3L));
     }
 
     @Test
