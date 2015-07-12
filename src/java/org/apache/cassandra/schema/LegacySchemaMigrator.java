@@ -686,8 +686,8 @@ public final class LegacySchemaMigrator
 
         AbstractType<?> returnType = parseType(row.getString("return_type"));
 
-        FunctionName stateFunc = parseAggregateFunctionName(keyspaceName, row.getString("state_func"));
-        FunctionName finalFunc = row.has("final_func") ? parseAggregateFunctionName(keyspaceName, row.getString("final_func")) : null;
+        FunctionName stateFunc = new FunctionName(keyspaceName, row.getString("state_func"));
+        FunctionName finalFunc = row.has("final_func") ? new FunctionName(keyspaceName, row.getString("final_func")) : null;
         AbstractType<?> stateType = row.has("state_type") ? parseType(row.getString("state_type")) : null;
         ByteBuffer initcond = row.has("initcond") ? row.getBytes("initcond") : null;
 
@@ -699,23 +699,6 @@ public final class LegacySchemaMigrator
         {
             return UDAggregate.createBroken(name, argTypes, returnType, initcond, reason);
         }
-    }
-
-    private static FunctionName parseAggregateFunctionName(String ksName, String func)
-    {
-        int i = func.indexOf('.');
-
-        // function name can be abbreviated (pre 2.2rc2) - it is in the same keyspace as the aggregate
-        if (i == -1)
-            return new FunctionName(ksName, func);
-
-        String ks = func.substring(0, i);
-        String f = func.substring(i + 1);
-
-        // only aggregate's function keyspace and system keyspace are allowed
-        assert ks.equals(ksName) || ks.equals(SystemKeyspace.NAME);
-
-        return new FunctionName(ks, f);
     }
 
     private static UntypedResultSet query(String query, Object... values)

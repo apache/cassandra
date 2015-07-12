@@ -518,12 +518,12 @@ public class LegacySchemaMigratorTest
         adder.resetCollection("argument_types");
 
         adder.add("return_type", aggregate.returnType().toString())
-             .add("state_func", aggregate.stateFunction().name().toString());
+             .add("state_func", aggregate.stateFunction().name().name);
 
         if (aggregate.stateType() != null)
             adder.add("state_type", aggregate.stateType().toString());
         if (aggregate.finalFunction() != null)
-            adder.add("final_func", aggregate.finalFunction().name().toString());
+            adder.add("final_func", aggregate.finalFunction().name().name);
         if (aggregate.initialCondition() != null)
             adder.add("initcond", aggregate.initialCondition());
 

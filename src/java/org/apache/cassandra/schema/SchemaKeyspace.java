@@ -1335,12 +1335,12 @@ public final class SchemaKeyspace
         adder.resetCollection("argument_types");
 
         adder.add("return_type", aggregate.returnType().toString())
-             .add("state_func", aggregate.stateFunction().name().toString());
+             .add("state_func", aggregate.stateFunction().name().name);
 
         if (aggregate.stateType() != null)
             adder.add("state_type", aggregate.stateType().toString());
         if (aggregate.finalFunction() != null)
-            adder.add("final_func", aggregate.finalFunction().name().toString());
+            adder.add("final_func", aggregate.finalFunction().name().name);
         if (aggregate.initialCondition() != null)
             adder.add("initcond", aggregate.initialCondition());
 
@@ -1381,8 +1381,8 @@ public final class SchemaKeyspace
 
         AbstractType<?> returnType = parseType(row.getString("return_type"));
 
-        FunctionName stateFunc = aggregateParseFunctionName(row.getString("state_func"));
-        FunctionName finalFunc = row.has("final_func") ? aggregateParseFunctionName(row.getString("final_func")) : null;
+        FunctionName stateFunc = new FunctionName(ksName, (row.getString("state_func")));
+        FunctionName finalFunc = row.has("final_func") ? new FunctionName(ksName, row.getString("final_func")) : null;
         AbstractType<?> stateType = row.has("state_type") ? parseType(row.getString("state_type")) : null;
         ByteBuffer initcond = row.has("initcond") ? row.getBytes("initcond") : null;
 
@@ -1394,14 +1394,6 @@ public final class SchemaKeyspace
         {
             return UDAggregate.createBroken(name, argTypes, returnType, initcond, reason);
         }
-    }
-
-    private static FunctionName aggregateParseFunctionName(String fqn)
-    {
-        int i = fqn.indexOf('.');
-        String keyspace = fqn.substring(0, i);
-        String function = fqn.substring(i + 1);
-        return new FunctionName(keyspace, function);
     }
 
     public static Mutation makeDropAggregateMutation(KeyspaceMetadata keyspace, UDAggregate aggregate, long timestamp)

@@ -88,7 +88,7 @@ public final class CreateAggregateStatement extends SchemaAlteringStatement
         AbstractType<?> stateType = prepareType("state type", stateTypeRaw);
 
         List<AbstractType<?>> stateArgs = stateArguments(stateType, argTypes);
-        stateFunc = validateFunctionKeyspace(stateFunc, stateArgs);
+        stateFunc = validateFunctionKeyspace(stateFunc);
 
         Function f = Schema.instance.findFunction(stateFunc, stateArgs).orElse(null);
         if (!(f instanceof ScalarFunction))
@@ -102,7 +102,7 @@ public final class CreateAggregateStatement extends SchemaAlteringStatement
         if (finalFunc != null)
         {
             List<AbstractType<?>> finalArgs = Collections.<AbstractType<?>>singletonList(stateType);
-            finalFunc = validateFunctionKeyspace(finalFunc, finalArgs);
+            finalFunc = validateFunctionKeyspace(finalFunc);
             f = Schema.instance.findFunction(finalFunc, finalArgs).orElse(null);
             if (!(f instanceof ScalarFunction))
                 throw new InvalidRequestException("Final function " + finalFunc + '(' + stateTypeRaw + ") does not exist or is not a scalar function");
@@ -150,17 +150,10 @@ public final class CreateAggregateStatement extends SchemaAlteringStatement
         ThriftValidation.validateKeyspaceNotSystem(functionName.keyspace);
     }
 
-    private FunctionName validateFunctionKeyspace(FunctionName func, List<AbstractType<?>> argTypes)
+    private FunctionName validateFunctionKeyspace(FunctionName func)
     {
         if (!func.hasKeyspace())
-        {
-            // If state/final function has no keyspace, check SYSTEM keyspace before logged keyspace.
-            FunctionName nativeName = FunctionName.nativeFunction(func.name);
-            if (Schema.instance.findFunction(nativeName, argTypes).isPresent())
-                return nativeName;
-
             return new FunctionName(functionName.keyspace, func.name);
-        }
         else if (!SystemKeyspace.NAME.equals(func.keyspace) && !functionName.keyspace.equals(func.keyspace))
             throw new InvalidRequestException(String.format("Statement on keyspace %s cannot refer to a user function in keyspace %s; "
                                                             + "user functions can only be used in the keyspace they are defined in",

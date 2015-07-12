@@ -33,7 +33,6 @@ import org.apache.cassandra.cql3.functions.UDAggregate;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.exceptions.FunctionExecutionException;
 import org.apache.cassandra.exceptions.InvalidRequestException;
-import org.apache.cassandra.serializers.Int32Serializer;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.transport.Event;
@@ -1124,26 +1123,6 @@ public class AggregationTest extends CQLTester
     }
 
     @Test
-    public void testSystemKeyspace() throws Throwable
-    {
-        String fState = createFunction(KEYSPACE,
-                                       "text, text",
-                                       "CREATE FUNCTION %s(a text, b text) " +
-                                       "CALLED ON NULL INPUT " +
-                                       "RETURNS text " +
-                                       "LANGUAGE java " +
-                                       "AS 'return \"foobar\";'");
-
-        createAggregate(KEYSPACE,
-                        "text",
-                        "CREATE AGGREGATE %s(text) " +
-                        "SFUNC " + shortFunctionName(fState) + ' ' +
-                        "STYPE text " +
-                        "FINALFUNC system.varcharasblob " +
-                        "INITCOND 'foobar'");
-    }
-
-    @Test
     public void testFunctionWithFrozenSetType() throws Throwable
     {
         createTable("CREATE TABLE %s (a int PRIMARY KEY, b frozen<set<int>>)");
@@ -1455,34 +1434,6 @@ public class AggregationTest extends CQLTester
 
         assertRows(execute("SELECT " + aCON + "(b) FROM %s"), row("finxnullyxnullyxnully"));
         assertRows(execute("SELECT " + aRNON + "(b) FROM %s"), row("fin"));
-
-    }
-
-    @Test
-    public void testSystemKsFuncs() throws Throwable
-    {
-
-        String fAdder = createFunction(KEYSPACE,
-                                      "int, int",
-                                      "CREATE FUNCTION %s(a int, b int) " +
-                                      "CALLED ON NULL INPUT " +
-                                      "RETURNS int " +
-                                      "LANGUAGE java " +
-                                      "AS 'return (a != null ? a : 0) + (b != null ? b : 0);'");
-
-        String aAggr = createAggregate(KEYSPACE,
-                                      "int",
-                                      "CREATE AGGREGATE %s(int) " +
-                                      "SFUNC " + shortFunctionName(fAdder) + ' ' +
-                                      "STYPE int " +
-                                      "FINALFUNC intasblob");
-
-        createTable("CREATE TABLE %s (a int primary key, b int)");
-        execute("INSERT INTO %s (a, b) VALUES (1, 1)");
-        execute("INSERT INTO %s (a, b) VALUES (2, 2)");
-        execute("INSERT INTO %s (a, b) VALUES (3, 3)");
-
-        assertRows(execute("SELECT " + aAggr + "(b) FROM %s"), row(Int32Serializer.instance.serialize(6)));
 
     }
 }
