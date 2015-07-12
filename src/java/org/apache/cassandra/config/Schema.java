@@ -357,20 +357,14 @@ public class Schema
         cfIdMap.put(key, cfm.cfId);
     }
 
-    public void unload(CFMetaData cfm)
-    {
-        cfIdMap.remove(Pair.create(cfm.ksName, cfm.cfName));
-    }
-
     /**
      * Used for ColumnFamily data eviction out from the schema
      *
      * @param cfm The ColumnFamily Definition to evict
      */
-    public void purge(CFMetaData cfm)
+    public void unload(CFMetaData cfm)
     {
-        unload(cfm);
-        cfm.markPurged();
+        cfIdMap.remove(Pair.create(cfm.ksName, cfm.cfName));
     }
 
     /* Function helpers */
@@ -449,7 +443,7 @@ public class Schema
         for (String keyspaceName : getNonSystemKeyspaces())
         {
             KeyspaceMetadata ksm = getKSMetaData(keyspaceName);
-            ksm.tables.forEach(this::purge);
+            ksm.tables.forEach(this::unload);
             clearKeyspaceMetadata(ksm);
         }
 
@@ -486,7 +480,7 @@ public class Schema
         {
             ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(cfm.cfName);
 
-            purge(cfm);
+            unload(cfm);
 
             if (DatabaseDescriptor.isAutoSnapshot())
                 cfs.snapshot(snapshotName);
@@ -551,7 +545,7 @@ public class Schema
         CFMetaData cfm = oldKsm.tables.get(tableName).get();
         KeyspaceMetadata newKsm = oldKsm.withSwapped(oldKsm.tables.without(tableName));
 
-        purge(cfm);
+        unload(cfm);
         setKeyspaceMetadata(newKsm);
 
         CompactionManager.instance.interruptCompactionFor(Collections.singleton(cfm), true);

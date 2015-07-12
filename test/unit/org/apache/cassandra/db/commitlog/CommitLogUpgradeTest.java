@@ -87,7 +87,7 @@ public class CommitLogUpgradeTest
             if (Schema.instance.getCF(cfid) == null)
             {
                 CFMetaData cfm = Schema.instance.getCFMetaData(KEYSPACE, TABLE);
-                Schema.instance.purge(cfm);
+                Schema.instance.unload(cfm);
                 Schema.instance.load(cfm.copy(cfid));
             }
         }

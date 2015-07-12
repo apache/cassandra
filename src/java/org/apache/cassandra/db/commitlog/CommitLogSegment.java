@@ -401,14 +401,7 @@ public abstract class CommitLogSegment
     void markDirty(Mutation mutation, int allocatedPosition)
     {
         for (PartitionUpdate update : mutation.getPartitionUpdates())
-        {
-            // check for deleted CFS
-            CFMetaData cfm = update.metadata();
-            if (cfm.isPurged())
-                logger.error("Attempted to write commit log entry for unrecognized table: {}", cfm.cfId);
-            else
-                ensureAtleast(cfDirty, cfm.cfId, allocatedPosition);
-        }
+            ensureAtleast(cfDirty, update.metadata().cfId, allocatedPosition);
     }
 
     /**

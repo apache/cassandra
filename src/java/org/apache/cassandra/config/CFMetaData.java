@@ -193,7 +193,7 @@ public final class CFMetaData
     private volatile SpeculativeRetry speculativeRetry = DEFAULT_SPECULATIVE_RETRY;
     private volatile Map<ColumnIdentifier, DroppedColumn> droppedColumns = new HashMap<>();
     private volatile Triggers triggers = Triggers.none();
-    private volatile boolean isPurged = false;
+
     /*
      * All CQL3 columns definition are stored in the columnMetadata map.
      * On top of that, we keep separated collection of each kind of definition, to
@@ -201,7 +201,6 @@ public final class CFMetaData
      * clustering key ones, those list are ordered by the "component index" of the
      * elements.
      */
-
     private volatile Map<ByteBuffer, ColumnDefinition> columnMetadata = new HashMap<>();
     private volatile List<ColumnDefinition> partitionKeyColumns;  // Always of size keyValidator.componentsCount, null padded if necessary
     private volatile List<ColumnDefinition> clusteringColumns;    // Of size comparator.componentsCount or comparator.componentsCount -1, null padded if necessary
@@ -1116,16 +1115,6 @@ public final class CFMetaData
         if (maxIndexInterval < minIndexInterval)
             throw new ConfigurationException(String.format("Max index interval (%d) must be greater than the min index " +
                                                            "interval (%d).", maxIndexInterval, minIndexInterval));
-    }
-
-    public boolean isPurged()
-    {
-        return isPurged;
-    }
-
-    void markPurged()
-    {
-        isPurged = true;
     }
 
     // The comparator to validate the definition name.
