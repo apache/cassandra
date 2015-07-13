@@ -154,11 +154,12 @@ partitioner: org.apache.cassandra.dht.Murmur3Partitioner
 # commitlog_directory: /var/lib/cassandra/commitlog
 
 # policy for data disk failures:
-# die: shut down gossip and Thrift and kill the JVM for any fs errors or
+# die: shut down gossip and client transports and kill the JVM for any fs errors or
 #      single-sstable errors, so the node can be replaced.
-# stop_paranoid: shut down gossip and Thrift even for single-sstable errors.
-# stop: shut down gossip and Thrift, leaving the node effectively dead, but
-#       can still be inspected via JMX.
+# stop_paranoid: shut down gossip and client transports even for single-sstable errors,
+#                kill the JVM for errors during startup.
+# stop: shut down gossip and client transports, leaving the node effectively dead, but
+#       can still be inspected via JMX, kill the JVM for errors during startup.
 # best_effort: stop using the failed disk and respond to requests based on
 #              remaining available sstables.  This means you WILL see obsolete
 #              data at CL.ONE!
