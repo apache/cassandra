@@ -125,7 +125,10 @@ Function KillProcess
 
                     // Must wait here. If we don't and re-enable Ctrl-C
                     // handling below too fast, we might terminate ourselves.
-                    proc.WaitForExit(2000);
+                    bool exited = proc.WaitForExit(30000);
+                    if(!exited)
+                        proc.Kill();
+
                     FreeConsole();
 
                     // Re-attach to current console to write output
@@ -137,7 +140,12 @@ Function KillProcess
                     SetConsoleCtrlHandler(null, false);
 
                     if (!silent)
-                        System.Console.WriteLine("Successfully sent ctrl+c to process with id: " + pidToKill + ".");
+                    {
+                        if(exited)
+                            System.Console.WriteLine("Successfully sent ctrl+c to process with id: " + pidToKill + ".");
+                        else
+                            System.Console.WriteLine("Process with id: " + pidToKill + " did not exit after 30 seconds, killed.");
+                    }
                 }
                 else
                 {
