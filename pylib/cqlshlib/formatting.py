@@ -18,6 +18,7 @@ import calendar
 import math
 import re
 import sys
+import platform
 import time
 from collections import defaultdict
 from . import wcwidth
@@ -90,6 +91,9 @@ def color_text(bval, colormap, displaywidth=None):
 DEFAULT_NANOTIME_FORMAT = '%H:%M:%S.%N'
 DEFAULT_DATE_FORMAT = '%Y-%m-%d'
 DEFAULT_TIMESTAMP_FORMAT = '%Y-%m-%d %H:%M:%S%z'
+
+if platform.system() == 'Windows':
+    DEFAULT_TIME_FORMAT = '%Y-%m-%d %H:%M:%S %Z'
 
 class DateTimeFormat():
     def __init__(self, timestamp_format=DEFAULT_TIMESTAMP_FORMAT, date_format=DEFAULT_DATE_FORMAT, nanotime_format=DEFAULT_NANOTIME_FORMAT):
