@@ -127,6 +127,7 @@ public class CassandraDaemon
 
     private final boolean runManaged;
     protected final StartupChecks startupChecks;
+    private boolean setupCompleted;
 
     public CassandraDaemon() {
         this(false);
@@ -135,6 +136,7 @@ public class CassandraDaemon
     public CassandraDaemon(boolean runManaged) {
         this.runManaged = runManaged;
         this.startupChecks = new StartupChecks().withDefaultTests();
+        this.setupCompleted = false;
     }
 
     /**
@@ -335,6 +337,13 @@ public class CassandraDaemon
         InetAddress nativeAddr = DatabaseDescriptor.getRpcAddress();
         int nativePort = DatabaseDescriptor.getNativeTransportPort();
         nativeServer = new org.apache.cassandra.transport.Server(nativeAddr, nativePort);
+
+        setupCompleted = true;
+    }
+
+    public boolean setupCompleted()
+    {
+        return setupCompleted;
     }
 
     private void logSystemInfo()

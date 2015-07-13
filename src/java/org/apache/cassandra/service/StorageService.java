@@ -491,6 +491,13 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         return initialized;
     }
 
+    public boolean isSetupCompleted()
+    {
+        return daemon == null
+               ? false
+               : daemon.setupCompleted();
+    }
+
     public void stopDaemon()
     {
         if (daemon == null)

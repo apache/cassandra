@@ -50,6 +50,7 @@ import org.apache.cassandra.db.filter.ColumnSlice;
 import org.apache.cassandra.db.index.SecondaryIndex;
 import org.apache.cassandra.db.lifecycle.Tracker;
 import org.apache.cassandra.dht.*;
+import org.apache.cassandra.io.FSError;
 import org.apache.cassandra.io.compress.CompressionMetadata;
 import org.apache.cassandra.io.sstable.*;
 import org.apache.cassandra.io.sstable.metadata.*;
@@ -441,21 +442,28 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
 
         logger.info("Opening {} ({} bytes)", descriptor, new File(descriptor.filenameFor(Component.DATA)).length());
         SSTableReader sstable = internalOpen(descriptor, components, metadata, partitioner, System.currentTimeMillis(),
-                statsMetadata, OpenReason.NORMAL);
+                                             statsMetadata, OpenReason.NORMAL);
+        try
+        {
+            // load index and filter
+            long start = System.nanoTime();
+            sstable.load(validationMetadata);
+            logger.debug("INDEX LOAD TIME for {}: {} ms.", descriptor, TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start));
 
-        // load index and filter
-        long start = System.nanoTime();
-        sstable.load(validationMetadata);
-        logger.debug("INDEX LOAD TIME for {}: {} ms.", descriptor, TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start));
+            sstable.setup(!validate);
+            if (validate)
+                sstable.validate();
 
-        sstable.setup(!validate);
-        if (validate)
-            sstable.validate();
+            if (sstable.getKeyCache() != null)
+                logger.debug("key cache contains {}/{} keys", sstable.getKeyCache().size(), sstable.getKeyCache().getCapacity());
 
-        if (sstable.getKeyCache() != null)
-            logger.debug("key cache contains {}/{} keys", sstable.getKeyCache().size(), sstable.getKeyCache().getCapacity());
-
-        return sstable;
+            return sstable;
+        }
+        catch (Throwable t)
+        {
+            sstable.selfRef().release();
+            throw t;
+        }
     }
 
     public static void logOpenException(Descriptor descriptor, IOException e)
@@ -484,9 +492,21 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
                     {
                         sstable = open(entry.getKey(), entry.getValue(), metadata, partitioner);
                     }
+                    catch (CorruptSSTableException ex)
+                    {
+                        FileUtils.handleCorruptSSTable(ex);
+                        logger.error("Corrupt sstable {}; skipping table", entry, ex);
+                        return;
+                    }
+                    catch (FSError ex)
+                    {
+                        FileUtils.handleFSError(ex);
+                        logger.error("Cannot read sstable {}; file system error, skipping table", entry, ex);
+                        return;
+                    }
                     catch (IOException ex)
                     {
-                        logger.error("Corrupt sstable {}; skipped", entry, ex);
+                        logger.error("Cannot read sstable {}; other IO error, skipping table", entry, ex);
                         return;
                     }
                     sstables.add(sstable);
@@ -698,6 +718,28 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
             {
                 saveSummary(ibuilder, dbuilder);
             }
+        }
+        catch (Throwable t)
+        { // Because the tidier has not been set-up yet in SSTableReader.open(), we must release the files in case of error
+            if (ifile != null)
+            {
+                ifile.close();
+                ifile = null;
+            }
+
+            if (dfile != null)
+            {
+                dfile.close();
+                dfile = null;
+            }
+
+            if (indexSummary != null)
+            {
+                indexSummary.close();
+                indexSummary = null;
+            }
+
+            throw t;
         }
     }
 
@@ -2014,7 +2056,8 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
                         summary.close();
                     if (runOnClose != null)
                         runOnClose.run();
-                    dfile.close();
+                    if (dfile != null)
+                        dfile.close();
                     if (ifile != null)
                         ifile.close();
                     typeRef.release();

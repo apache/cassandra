@@ -2,6 +2,7 @@
  * sum() and avg() functions missing for smallint and tinyint types (CASSANDRA-9671)
  * Revert CASSANDRA-9542 (allow native functions in UDA) (CASSANDRA-9771)
 Merged from 2.1:
+ * Handle corrupt files on startup (CASSANDRA-9686)
  * Fix clientutil jar and tests (CASSANDRA-9760)
  * (cqlsh) Allow the SSL protocol version to be specified through the
    config file or environment variables (CASSANDRA-9544)

@@ -175,12 +175,21 @@ public abstract class SegmentedFile extends SharedCloseableImpl
 
         public SegmentedFile complete(String path)
         {
-            return complete(getChannel(path), -1);
+            return complete(path, -1L);
         }
 
         public SegmentedFile complete(String path, long overrideLength)
         {
-            return complete(getChannel(path), overrideLength);
+            ChannelProxy channelCopy = getChannel(path);
+            try
+            {
+                return complete(channelCopy, overrideLength);
+            }
+            catch (Throwable t)
+            {
+                channelCopy.close();
+                throw t;
+            }
         }
 
         public void serializeBounds(DataOutput out) throws IOException

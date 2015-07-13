@@ -72,6 +72,11 @@ public final class JVMStabilityInspector
             inspectThrowable(t);
     }
 
+    public static void killCurrentJVM(Throwable t, boolean quiet)
+    {
+        killer.killCurrentJVM(t, quiet);
+    }
+
     @VisibleForTesting
     public static Killer replaceKiller(Killer newKiller) {
         Killer oldKiller = JVMStabilityInspector.killer;
@@ -90,8 +95,16 @@ public final class JVMStabilityInspector
         */
         protected void killCurrentJVM(Throwable t)
         {
-            t.printStackTrace(System.err);
-            logger.error("JVM state determined to be unstable.  Exiting forcefully due to:", t);
+            killCurrentJVM(t, false);
+        }
+
+        protected void killCurrentJVM(Throwable t, boolean quiet)
+        {
+            if (!quiet)
+            {
+                t.printStackTrace(System.err);
+                logger.error("JVM state determined to be unstable.  Exiting forcefully due to:", t);
+            }
             StorageService.instance.removeShutdownHook();
             System.exit(100);
         }
