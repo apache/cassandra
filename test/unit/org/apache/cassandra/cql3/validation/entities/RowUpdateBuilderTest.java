@@ -19,18 +19,28 @@ package org.apache.cassandra.cql3.validation.entities;
 
 import org.junit.Test;
 
+import org.apache.cassandra.Util;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.RowUpdateBuilder;
-import org.apache.cassandra.db.partitions.PartitionUpdate;
-import org.apache.cassandra.db.marshal.AsciiType;
-import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
 
-public class RowBuilderTest extends CQLTester
+// see CASSANDRA-9743, CASSANDRA-9746
+public class RowUpdateBuilderTest extends CQLTester
 {
     @Test
-    public void testAddListEntry() throws Throwable
+    public void testAddListEntryDurable() throws Throwable
+    {
+        testAddListEntry(false);
+    }
+
+    @Test
+    public void testAddListEntryTransient() throws Throwable
+    {
+        testAddListEntry(true);
+    }
+
+    public void testAddListEntry(boolean skipCommitLog) throws Throwable
     {
         createTable("CREATE TABLE %s ("
                     + "pk text,"
@@ -41,14 +51,14 @@ public class RowBuilderTest extends CQLTester
 
         long timestamp = FBUtilities.timestampMicros();
 
-        Mutation mutation = new Mutation(keyspace(), StorageService.getPartitioner().decorateKey(AsciiType.instance.fromString("test")));
+        Mutation mutation = new Mutation(keyspace(), Util.dk("test"));
         addToMutation("row1", timestamp, mutation);
         addToMutation("row2", timestamp, mutation);
 
-        for (PartitionUpdate update : mutation.getPartitionUpdates())
-            update.iterator();
-
-        mutation.apply();
+        if (skipCommitLog)
+            mutation.applyUnsafe();
+        else
+            mutation.apply();
 
         assertRowCount(execute("SELECT ck FROM %s"), 2);
     }

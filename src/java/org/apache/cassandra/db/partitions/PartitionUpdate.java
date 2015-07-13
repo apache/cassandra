@@ -331,6 +331,13 @@ public class PartitionUpdate extends AbstractPartitionData implements Sorting.So
         isSorted = false;
     }
 
+    @Override
+    public int rowCount()
+    {
+        maybeSort();
+        return super.rowCount();
+    }
+
     /**
      * Returns an iterator that iterators over the rows of this update in clustering order.
      * <p>
