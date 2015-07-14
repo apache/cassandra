@@ -231,7 +231,7 @@ public class StreamReader
             return staticRow;
         }
 
-        public RowStats stats()
+        public EncodingStats stats()
         {
             return header.stats();
         }

@@ -126,9 +126,9 @@ public abstract class UnfilteredRowIterators
                 return Rows.EMPTY_STATIC_ROW;
             }
 
-            public RowStats stats()
+            public EncodingStats stats()
             {
-                return RowStats.NO_STATS;
+                return EncodingStats.NO_STATS;
             }
 
             public boolean hasNext()
@@ -475,9 +475,9 @@ public abstract class UnfilteredRowIterators
                  : new PartitionColumns(statics, regulars);
         }
 
-        private static RowStats mergeStats(List<UnfilteredRowIterator> iterators)
+        private static EncodingStats mergeStats(List<UnfilteredRowIterator> iterators)
         {
-            RowStats stats = RowStats.NO_STATS;
+            EncodingStats stats = EncodingStats.NO_STATS;
             for (UnfilteredRowIterator iter : iterators)
                 stats = stats.mergeWith(iter.stats());
             return stats;

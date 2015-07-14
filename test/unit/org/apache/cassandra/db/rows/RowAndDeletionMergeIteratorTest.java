@@ -356,7 +356,7 @@ public class RowAndDeletionMergeIteratorTest
                                                ColumnFilter.all(cfm),
                                                Rows.EMPTY_STATIC_ROW,
                                                reversed,
-                                               RowStats.NO_STATS,
+                                               EncodingStats.NO_STATS,
                                                rows,
                                                tombstones,
                                                true);

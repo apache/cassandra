@@ -86,7 +86,7 @@ public interface UnfilteredRowIterator extends Iterator<Unfiltered>, AutoCloseab
      * performance reasons (for delta-encoding for instance) and code should not
      * expect those to be exact.
      */
-    public RowStats stats();
+    public EncodingStats stats();
 
     public void close();
 

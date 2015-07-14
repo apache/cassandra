@@ -125,14 +125,14 @@ public class UnfilteredSerializer
             Clustering.serializer.serialize(row.clustering(), out, version, header.clusteringTypes());
 
         if ((flags & HAS_TIMESTAMP) != 0)
-            out.writeLong(header.encodeTimestamp(pkLiveness.timestamp()));
+            header.writeTimestamp(pkLiveness.timestamp(), out);
         if ((flags & HAS_TTL) != 0)
         {
-            out.writeInt(header.encodeTTL(pkLiveness.ttl()));
-            out.writeInt(header.encodeDeletionTime(pkLiveness.localExpirationTime()));
+            header.writeTTL(pkLiveness.ttl(), out);
+            header.writeLocalDeletionTime(pkLiveness.localExpirationTime(), out);
         }
         if ((flags & HAS_DELETION) != 0)
-            UnfilteredRowIteratorSerializer.writeDelTime(deletion, header, out);
+            header.writeDeletionTime(deletion, out);
 
         Columns columns = header.columns(isStatic);
         int simpleCount = columns.simpleColumnCount();
@@ -174,7 +174,7 @@ public class UnfilteredSerializer
         }
 
         if (hasComplexDeletion)
-            UnfilteredRowIteratorSerializer.writeDelTime(data == null ? DeletionTime.LIVE : data.complexDeletion(), header, out);
+            header.writeDeletionTime(data == null ? DeletionTime.LIVE : data.complexDeletion(), out);
 
         if (data != null)
         {
@@ -194,12 +194,12 @@ public class UnfilteredSerializer
         if (marker.isBoundary())
         {
             RangeTombstoneBoundaryMarker bm = (RangeTombstoneBoundaryMarker)marker;
-            UnfilteredRowIteratorSerializer.writeDelTime(bm.endDeletionTime(), header, out);
-            UnfilteredRowIteratorSerializer.writeDelTime(bm.startDeletionTime(), header, out);
+            header.writeDeletionTime(bm.endDeletionTime(), out);
+            header.writeDeletionTime(bm.startDeletionTime(), out);
         }
         else
         {
-            UnfilteredRowIteratorSerializer.writeDelTime(((RangeTombstoneBoundMarker)marker).deletionTime(), header, out);
+            header.writeDeletionTime(((RangeTombstoneBoundMarker)marker).deletionTime(), out);
         }
     }
 
@@ -223,14 +223,14 @@ public class UnfilteredSerializer
             size += Clustering.serializer.serializedSize(row.clustering(), version, header.clusteringTypes());
 
         if (!pkLiveness.isEmpty())
-            size += TypeSizes.sizeof(header.encodeTimestamp(pkLiveness.timestamp()));
+            size += header.timestampSerializedSize(pkLiveness.timestamp());
         if (pkLiveness.isExpiring())
         {
-            size += TypeSizes.sizeof(header.encodeTTL(pkLiveness.ttl()));
-            size += TypeSizes.sizeof(header.encodeDeletionTime(pkLiveness.localExpirationTime()));
+            size += header.ttlSerializedSize(pkLiveness.ttl());
+            size += header.localDeletionTimeSerializedSize(pkLiveness.localExpirationTime());
         }
         if (!deletion.isLive())
-            size += UnfilteredRowIteratorSerializer.delTimeSerializedSize(deletion, header);
+            size += header.deletionTimeSerializedSize(deletion);
 
         Columns columns = header.columns(isStatic);
         int simpleCount = columns.simpleColumnCount();
@@ -274,7 +274,7 @@ public class UnfilteredSerializer
         }
 
         if (hasComplexDeletion)
-            size += UnfilteredRowIteratorSerializer.delTimeSerializedSize(data == null ? DeletionTime.LIVE : data.complexDeletion(), header);
+            size += header.deletionTimeSerializedSize(data == null ? DeletionTime.LIVE : data.complexDeletion());
 
         if (data != null)
         {
@@ -293,12 +293,12 @@ public class UnfilteredSerializer
         if (marker.isBoundary())
         {
             RangeTombstoneBoundaryMarker bm = (RangeTombstoneBoundaryMarker)marker;
-            size += UnfilteredRowIteratorSerializer.delTimeSerializedSize(bm.endDeletionTime(), header);
-            size += UnfilteredRowIteratorSerializer.delTimeSerializedSize(bm.startDeletionTime(), header);
+            size += header.deletionTimeSerializedSize(bm.endDeletionTime());
+            size += header.deletionTimeSerializedSize(bm.startDeletionTime());
         }
         else
         {
-           size += UnfilteredRowIteratorSerializer.delTimeSerializedSize(((RangeTombstoneBoundMarker)marker).deletionTime(), header);
+           size += header.deletionTimeSerializedSize(((RangeTombstoneBoundMarker)marker).deletionTime());
         }
         return size;
     }
@@ -350,9 +350,9 @@ public class UnfilteredSerializer
     throws IOException
     {
         if (bound.isBoundary())
-            return new RangeTombstoneBoundaryMarker(bound, UnfilteredRowIteratorSerializer.readDelTime(in, header), UnfilteredRowIteratorSerializer.readDelTime(in, header));
+            return new RangeTombstoneBoundaryMarker(bound, header.readDeletionTime(in), header.readDeletionTime(in));
         else
-            return new RangeTombstoneBoundMarker(bound, UnfilteredRowIteratorSerializer.readDelTime(in, header));
+            return new RangeTombstoneBoundMarker(bound, header.readDeletionTime(in));
     }
 
     public Row deserializeRowBody(DataInputPlus in,
@@ -373,14 +373,14 @@ public class UnfilteredSerializer
             LivenessInfo rowLiveness = LivenessInfo.EMPTY;
             if (hasTimestamp)
             {
-                long timestamp = header.decodeTimestamp(in.readLong());
-                int ttl = hasTTL ? header.decodeTTL(in.readInt()) : LivenessInfo.NO_TTL;
-                int localDeletionTime = hasTTL ? header.decodeDeletionTime(in.readInt()) : LivenessInfo.NO_EXPIRATION_TIME;
+                long timestamp = header.readTimestamp(in);
+                int ttl = hasTTL ? header.readTTL(in) : LivenessInfo.NO_TTL;
+                int localDeletionTime = hasTTL ? header.readLocalDeletionTime(in) : LivenessInfo.NO_EXPIRATION_TIME;
                 rowLiveness = LivenessInfo.create(timestamp, ttl, localDeletionTime);
             }
 
             builder.addPrimaryKeyLivenessInfo(rowLiveness);
-            builder.addRowDeletion(hasDeletion ? UnfilteredRowIteratorSerializer.readDelTime(in, header) : DeletionTime.LIVE);
+            builder.addRowDeletion(hasDeletion ? header.readDeletionTime(in) : DeletionTime.LIVE);
 
             Columns columns = header.columns(isStatic);
             if (header.useSparseColumnLayout(isStatic))
@@ -443,7 +443,7 @@ public class UnfilteredSerializer
             helper.startOfComplexColumn(column);
             if (hasComplexDeletion)
             {
-                DeletionTime complexDeletion = UnfilteredRowIteratorSerializer.readDelTime(in, header);
+                DeletionTime complexDeletion = header.readDeletionTime(in);
                 if (!helper.isDroppedComplexDeletion(complexDeletion))
                     builder.addComplexDeletion(column, complexDeletion);
             }
@@ -474,15 +474,14 @@ public class UnfilteredSerializer
         // Note that we don't want want to use FileUtils.skipBytesFully for anything that may not have
         // the size we think due to VINT encoding
         if (hasTimestamp)
-            in.readLong();
+            header.skipTimestamp(in);
         if (hasTTL)
         {
-            // ttl and localDeletionTime
-            in.readInt();
-            in.readInt();
+            header.skipLocalDeletionTime(in);
+            header.skipTTL(in);
         }
         if (hasDeletion)
-            UnfilteredRowIteratorSerializer.skipDelTime(in, header);
+            header.skipDeletionTime(in);
 
         Columns columns = header.columns(isStatic);
         if (header.useSparseColumnLayout(isStatic))
@@ -522,12 +521,12 @@ public class UnfilteredSerializer
     {
         if (isBoundary)
         {
-            UnfilteredRowIteratorSerializer.skipDelTime(in, header);
-            UnfilteredRowIteratorSerializer.skipDelTime(in, header);
+            header.skipDeletionTime(in);
+            header.skipDeletionTime(in);
         }
         else
         {
-            UnfilteredRowIteratorSerializer.skipDelTime(in, header);
+            header.skipDeletionTime(in);
         }
     }
 
@@ -535,7 +534,7 @@ public class UnfilteredSerializer
     throws IOException
     {
         if (hasComplexDeletion)
-            UnfilteredRowIteratorSerializer.skipDelTime(in, header);
+            header.skipDeletionTime(in);
 
         while (Cell.serializer.skip(in, column, header));
     }

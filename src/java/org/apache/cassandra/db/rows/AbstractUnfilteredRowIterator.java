@@ -17,10 +17,7 @@
  */
 package org.apache.cassandra.db.rows;
 
-import java.util.Objects;
-
 import com.google.common.collect.AbstractIterator;
-import com.google.common.collect.Iterators;
 
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.*;
@@ -33,7 +30,7 @@ public abstract class AbstractUnfilteredRowIterator extends AbstractIterator<Unf
     protected final PartitionColumns columns;
     protected final Row staticRow;
     protected final boolean isReverseOrder;
-    protected final RowStats stats;
+    protected final EncodingStats stats;
 
     protected AbstractUnfilteredRowIterator(CFMetaData metadata,
                                             DecoratedKey partitionKey,
@@ -41,7 +38,7 @@ public abstract class AbstractUnfilteredRowIterator extends AbstractIterator<Unf
                                             PartitionColumns columns,
                                             Row staticRow,
                                             boolean isReverseOrder,
-                                            RowStats stats)
+                                            EncodingStats stats)
     {
         this.metadata = metadata;
         this.partitionKey = partitionKey;
@@ -82,7 +79,7 @@ public abstract class AbstractUnfilteredRowIterator extends AbstractIterator<Unf
         return staticRow;
     }
 
-    public RowStats stats()
+    public EncodingStats stats()
     {
         return stats;
     }

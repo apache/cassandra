@@ -57,7 +57,7 @@ public class RowAndDeletionMergeIterator extends AbstractUnfilteredRowIterator
                                        ColumnFilter selection,
                                        Row staticRow,
                                        boolean isReversed,
-                                       RowStats stats,
+                                       EncodingStats stats,
                                        Iterator<Row> rows,
                                        Iterator<RangeTombstone> ranges,
                                        boolean removeShadowedData)

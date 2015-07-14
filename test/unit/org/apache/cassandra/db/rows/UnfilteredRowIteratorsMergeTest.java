@@ -32,15 +32,12 @@ import org.junit.Test;
 
 import org.apache.cassandra.Util;
 import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.config.ColumnDefinition;
-import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.Slice.Bound;
 import org.apache.cassandra.db.marshal.AsciiType;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.rows.Unfiltered.Kind;
 import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.utils.SearchIterator;
 
 public class UnfilteredRowIteratorsMergeTest
 {
@@ -412,7 +409,7 @@ public class UnfilteredRowIteratorsMergeTest
                   UnfilteredRowIteratorsMergeTest.metadata.partitionColumns(),
                   null,
                   reversed,
-                  RowStats.NO_STATS);
+                  EncodingStats.NO_STATS);
             this.content = content;
         }
 

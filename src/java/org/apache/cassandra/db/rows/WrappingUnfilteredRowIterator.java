@@ -17,8 +17,6 @@
  */
 package org.apache.cassandra.db.rows;
 
-import java.util.NoSuchElementException;
-
 import com.google.common.collect.UnmodifiableIterator;
 
 import org.apache.cassandra.config.CFMetaData;
@@ -72,7 +70,7 @@ public abstract class WrappingUnfilteredRowIterator extends UnmodifiableIterator
         return wrapped.staticRow();
     }
 
-    public RowStats stats()
+    public EncodingStats stats()
     {
         return wrapped.stats();
     }

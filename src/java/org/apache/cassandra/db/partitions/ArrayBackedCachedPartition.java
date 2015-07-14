@@ -45,7 +45,7 @@ public class ArrayBackedCachedPartition extends ArrayBackedPartition implements 
                                        Row staticRow,
                                        List<Row> rows,
                                        DeletionInfo deletionInfo,
-                                       RowStats stats,
+                                       EncodingStats stats,
                                        int createdAtInSec,
                                        int cachedLiveRows,
                                        int rowsWithNonExpiringCells,

@@ -331,9 +331,9 @@ public class SSTableReversedIterator extends AbstractSSTableIterator
             return Rows.EMPTY_STATIC_ROW; // we don't actually use that
         }
 
-        public RowStats stats()
+        public EncodingStats stats()
         {
-            return RowStats.NO_STATS; // we don't actually use that
+            return EncodingStats.NO_STATS; // we don't actually use that
         }
 
         public void add(Unfiltered unfiltered)

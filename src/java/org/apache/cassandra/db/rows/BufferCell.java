@@ -263,12 +263,12 @@ public class BufferCell extends AbstractCell
             out.writeByte((byte)flags);
 
             if (!useRowTimestamp)
-                out.writeVInt(header.encodeTimestamp(cell.timestamp()));
+                header.writeTimestamp(cell.timestamp(), out);
 
             if ((isDeleted || isExpiring) && !useRowTTL)
-                out.writeVInt(header.encodeDeletionTime(cell.localDeletionTime()));
+                header.writeLocalDeletionTime(cell.localDeletionTime(), out);
             if (isExpiring && !useRowTTL)
-                out.writeVInt(header.encodeTTL(cell.ttl()));
+                header.writeTTL(cell.ttl(), out);
 
             if (cell.column().isComplex())
                 cell.column().cellPathSerializer().serialize(cell.path(), out);
@@ -289,15 +289,13 @@ public class BufferCell extends AbstractCell
             boolean useRowTimestamp = (flags & USE_ROW_TIMESTAMP_MASK) != 0;
             boolean useRowTTL = (flags & USE_ROW_TTL_MASK) != 0;
 
-            long timestamp = useRowTimestamp ? rowLiveness.timestamp() : header.decodeTimestamp(in.readVInt());
+            long timestamp = useRowTimestamp ? rowLiveness.timestamp() : header.readTimestamp(in);
 
             int localDeletionTime = useRowTTL
                                   ? rowLiveness.localExpirationTime()
-                                  : (isDeleted || isExpiring ? header.decodeDeletionTime((int)in.readVInt()) : NO_DELETION_TIME);
+                                  : (isDeleted || isExpiring ? header.readLocalDeletionTime(in) : NO_DELETION_TIME);
 
-            int ttl = useRowTTL
-                    ? rowLiveness.ttl()
-                    : (isExpiring ? header.decodeTTL((int)in.readVInt()) : NO_TTL);
+            int ttl = useRowTTL ? rowLiveness.ttl() : (isExpiring ? header.readTTL(in) : NO_TTL);
 
             CellPath path = column.isComplex()
                           ? column.cellPathSerializer().deserialize(in)
@@ -337,12 +335,12 @@ public class BufferCell extends AbstractCell
             boolean useRowTTL = isExpiring && rowLiveness.isExpiring() && cell.ttl() == rowLiveness.ttl() && cell.localDeletionTime() == rowLiveness.localExpirationTime();
 
             if (!useRowTimestamp)
-                size += TypeSizes.sizeofVInt(header.encodeTimestamp(cell.timestamp()));
+                size += header.timestampSerializedSize(cell.timestamp());
 
             if ((isDeleted || isExpiring) && !useRowTTL)
-                size += TypeSizes.sizeofVInt(header.encodeDeletionTime(cell.localDeletionTime()));
+                size += header.localDeletionTimeSerializedSize(cell.localDeletionTime());
             if (isExpiring && !useRowTTL)
-                size += TypeSizes.sizeofVInt(header.encodeTTL(cell.ttl()));
+                size += header.ttlSerializedSize(cell.ttl());
 
             if (cell.column().isComplex())
                 size += cell.column().cellPathSerializer().serializedSize(cell.path());
@@ -367,13 +365,13 @@ public class BufferCell extends AbstractCell
             boolean useRowTTL = (flags & USE_ROW_TTL_MASK) != 0;
 
             if (!useRowTimestamp)
-                in.readVInt();
+                header.skipTimestamp(in);
 
             if (!useRowTTL && (isDeleted || isExpiring))
-                in.readVInt();
+                header.skipLocalDeletionTime(in);
 
             if (!useRowTTL && isExpiring)
-                in.readVInt();
+                header.skipTTL(in);
 
             if (column.isComplex())
                 column.cellPathSerializer().skip(in);

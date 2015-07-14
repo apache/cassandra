@@ -43,21 +43,15 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 
 public class SerializationHeader
 {
-    private static final int DEFAULT_BASE_DELETION = computeDefaultBaseDeletion();
-
     public static final Serializer serializer = new Serializer();
 
     private final AbstractType<?> keyType;
     private final List<AbstractType<?>> clusteringTypes;
 
     private final PartitionColumns columns;
-    private final RowStats stats;
+    private final EncodingStats stats;
 
     private final Map<ByteBuffer, AbstractType<?>> typeMap;
-
-    private final long baseTimestamp;
-    public final int baseDeletionTime;
-    private final int baseTTL;
 
     // Whether or not to store cell in a sparse or dense way. See UnfilteredSerializer for details.
     private final boolean useSparseColumnLayout;
@@ -65,7 +59,7 @@ public class SerializationHeader
     private SerializationHeader(AbstractType<?> keyType,
                                 List<AbstractType<?>> clusteringTypes,
                                 PartitionColumns columns,
-                                RowStats stats,
+                                EncodingStats stats,
                                 Map<ByteBuffer, AbstractType<?>> typeMap)
     {
         this.keyType = keyType;
@@ -73,15 +67,6 @@ public class SerializationHeader
         this.columns = columns;
         this.stats = stats;
         this.typeMap = typeMap;
-
-        // Not that if a given stats is unset, it means that either it's unused (there is
-        // no tombstone whatsoever for instance) or that we have no information on it. In
-        // that former case, it doesn't matter which base we use but in the former, we use
-        // bases that are more likely to provide small encoded values than the default
-        // "unset" value.
-        this.baseTimestamp = stats.hasMinTimestamp() ? stats.minTimestamp : 0;
-        this.baseDeletionTime = stats.hasMinLocalDeletionTime() ? stats.minLocalDeletionTime : DEFAULT_BASE_DELETION;
-        this.baseTTL = stats.minTTL;
 
         // For the dense layout, we have a 1 byte overhead for absent columns. For the sparse layout, it's a 1
         // overhead for present columns (in fact we use a 2 byte id, but assuming vint encoding, we'll pay 2 bytes
@@ -113,7 +98,7 @@ public class SerializationHeader
         return new SerializationHeader(BytesType.instance,
                                        clusteringTypes,
                                        PartitionColumns.NONE,
-                                       RowStats.NO_STATS,
+                                       EncodingStats.NO_STATS,
                                        Collections.<ByteBuffer, AbstractType<?>>emptyMap());
     }
 
@@ -121,7 +106,7 @@ public class SerializationHeader
     {
         // The serialization header has to be computed before the start of compaction (since it's used to write)
         // the result. This means that when compacting multiple sources, we won't have perfectly accurate stats
-        // (for RowStats) since compaction may delete, purge and generally merge rows in unknown ways. This is
+        // (for EncodingStats) since compaction may delete, purge and generally merge rows in unknown ways. This is
         // kind of ok because those stats are only used for optimizing the underlying storage format and so we
         // just have to strive for as good as possible. Currently, we stick to a relatively naive merge of existing
         // global stats because it's simple and probably good enough in most situation but we could probably
@@ -129,7 +114,7 @@ public class SerializationHeader
         // Note however that to avoid seeing our accuracy degrade through successive compactions, we don't base
         // our stats merging on the compacted files headers, which as we just said can be somewhat inaccurate,
         // but rather on their stats stored in StatsMetadata that are fully accurate.
-        RowStats.Collector stats = new RowStats.Collector();
+        EncodingStats.Collector stats = new EncodingStats.Collector();
         PartitionColumns.Builder columns = PartitionColumns.builder();
         for (SSTableReader sstable : sstables)
         {
@@ -147,7 +132,7 @@ public class SerializationHeader
 
     public SerializationHeader(CFMetaData metadata,
                                PartitionColumns columns,
-                               RowStats stats)
+                               EncodingStats stats)
     {
         this(metadata.getKeyValidator(),
              typesOf(metadata.clusteringColumns()),
@@ -171,23 +156,7 @@ public class SerializationHeader
         return !columns.statics.isEmpty();
     }
 
-    private static int computeDefaultBaseDeletion()
-    {
-        // We need a fixed default, but one that is likely to provide small values (close to 0) when
-        // substracted to deletion times. Since deletion times are 'the current time in seconds', we
-        // use as base Jan 1, 2015 (in seconds).
-        Calendar c = Calendar.getInstance(TimeZone.getTimeZone("GMT-0"), Locale.US);
-        c.set(Calendar.YEAR, 2015);
-        c.set(Calendar.MONTH, Calendar.JANUARY);
-        c.set(Calendar.DAY_OF_MONTH, 1);
-        c.set(Calendar.HOUR_OF_DAY, 0);
-        c.set(Calendar.MINUTE, 0);
-        c.set(Calendar.SECOND, 0);
-        c.set(Calendar.MILLISECOND, 0);
-        return (int)(c.getTimeInMillis() / 1000);
-    }
-
-    public RowStats stats()
+    public EncodingStats stats()
     {
         return stats;
     }
@@ -212,34 +181,89 @@ public class SerializationHeader
         return typeMap == null ? column.type : typeMap.get(column.name.bytes);
     }
 
-    public long encodeTimestamp(long timestamp)
+    public void writeTimestamp(long timestamp, DataOutputPlus out) throws IOException
     {
-        return timestamp - baseTimestamp;
+        out.writeVInt(timestamp - stats.minTimestamp);
     }
 
-    public long decodeTimestamp(long timestamp)
+    public void writeLocalDeletionTime(int localDeletionTime, DataOutputPlus out) throws IOException
     {
-        return baseTimestamp + timestamp;
+        out.writeVInt(localDeletionTime - stats.minLocalDeletionTime);
     }
 
-    public int encodeDeletionTime(int deletionTime)
+    public void writeTTL(int ttl, DataOutputPlus out) throws IOException
     {
-        return deletionTime - baseDeletionTime;
+        out.writeVInt(ttl - stats.minTTL);
     }
 
-    public int decodeDeletionTime(int deletionTime)
+    public void writeDeletionTime(DeletionTime dt, DataOutputPlus out) throws IOException
     {
-        return baseDeletionTime + deletionTime;
+        writeTimestamp(dt.markedForDeleteAt(), out);
+        writeLocalDeletionTime(dt.localDeletionTime(), out);
     }
 
-    public int encodeTTL(int ttl)
+    public long readTimestamp(DataInputPlus in) throws IOException
     {
-        return ttl - baseTTL;
+        return in.readVInt() + stats.minTimestamp;
     }
 
-    public int decodeTTL(int ttl)
+    public int readLocalDeletionTime(DataInputPlus in) throws IOException
     {
-        return baseTTL + ttl;
+        return (int)in.readVInt() + stats.minLocalDeletionTime;
+    }
+
+    public int readTTL(DataInputPlus in) throws IOException
+    {
+        return (int)in.readVInt() + stats.minTTL;
+    }
+
+    public DeletionTime readDeletionTime(DataInputPlus in) throws IOException
+    {
+        long markedAt = readTimestamp(in);
+        int localDeletionTime = readLocalDeletionTime(in);
+        return new DeletionTime(markedAt, localDeletionTime);
+    }
+
+    public long timestampSerializedSize(long timestamp)
+    {
+        return TypeSizes.sizeofVInt(timestamp - stats.minTimestamp);
+    }
+
+    public long localDeletionTimeSerializedSize(int localDeletionTime)
+    {
+        return TypeSizes.sizeofVInt(localDeletionTime - stats.minLocalDeletionTime);
+    }
+
+    public long ttlSerializedSize(int ttl)
+    {
+        return TypeSizes.sizeofVInt(ttl - stats.minTTL);
+    }
+
+    public long deletionTimeSerializedSize(DeletionTime dt)
+    {
+        return timestampSerializedSize(dt.markedForDeleteAt())
+             + localDeletionTimeSerializedSize(dt.localDeletionTime());
+    }
+
+    public void skipTimestamp(DataInputPlus in) throws IOException
+    {
+        in.readVInt();
+    }
+
+    public void skipLocalDeletionTime(DataInputPlus in) throws IOException
+    {
+        in.readVInt();
+    }
+
+    public void skipTTL(DataInputPlus in) throws IOException
+    {
+        in.readVInt();
+    }
+
+    public void skipDeletionTime(DataInputPlus in) throws IOException
+    {
+        skipTimestamp(in);
+        skipLocalDeletionTime(in);
     }
 
     public Component toComponent()
@@ -256,8 +280,7 @@ public class SerializationHeader
     @Override
     public String toString()
     {
-        return String.format("SerializationHeader[key=%s, cks=%s, columns=%s, stats=%s, typeMap=%s, baseTs=%d, baseDt=%s, baseTTL=%s]",
-                             keyType, clusteringTypes, columns, stats, typeMap, baseTimestamp, baseDeletionTime, baseTTL);
+        return String.format("SerializationHeader[key=%s, cks=%s, columns=%s, stats=%s, typeMap=%s]", keyType, clusteringTypes, columns, stats, typeMap);
     }
 
     /**
@@ -270,13 +293,13 @@ public class SerializationHeader
         private final List<AbstractType<?>> clusteringTypes;
         private final Map<ByteBuffer, AbstractType<?>> staticColumns;
         private final Map<ByteBuffer, AbstractType<?>> regularColumns;
-        private final RowStats stats;
+        private final EncodingStats stats;
 
         private Component(AbstractType<?> keyType,
                           List<AbstractType<?>> clusteringTypes,
                           Map<ByteBuffer, AbstractType<?>> staticColumns,
                           Map<ByteBuffer, AbstractType<?>> regularColumns,
-                          RowStats stats)
+                          EncodingStats stats)
         {
             this.keyType = keyType;
             this.clusteringTypes = clusteringTypes;
@@ -351,7 +374,7 @@ public class SerializationHeader
     {
         public void serializeForMessaging(SerializationHeader header, DataOutputPlus out, boolean hasStatic) throws IOException
         {
-            RowStats.serializer.serialize(header.stats, out);
+            EncodingStats.serializer.serialize(header.stats, out);
 
             if (hasStatic)
                 Columns.serializer.serialize(header.columns.statics, out);
@@ -360,7 +383,7 @@ public class SerializationHeader
 
         public SerializationHeader deserializeForMessaging(DataInputPlus in, CFMetaData metadata, boolean hasStatic) throws IOException
         {
-            RowStats stats = RowStats.serializer.deserialize(in);
+            EncodingStats stats = EncodingStats.serializer.deserialize(in);
 
             AbstractType<?> keyType = metadata.getKeyValidator();
             List<AbstractType<?>> clusteringTypes = typesOf(metadata.clusteringColumns());
@@ -373,7 +396,7 @@ public class SerializationHeader
 
         public long serializedSizeForMessaging(SerializationHeader header, boolean hasStatic)
         {
-            long size = RowStats.serializer.serializedSize(header.stats);
+            long size = EncodingStats.serializer.serializedSize(header.stats);
 
             if (hasStatic)
                 size += Columns.serializer.serializedSize(header.columns.statics);
@@ -384,7 +407,7 @@ public class SerializationHeader
         // For SSTables
         public void serialize(Component header, DataOutputPlus out) throws IOException
         {
-            RowStats.serializer.serialize(header.stats, out);
+            EncodingStats.serializer.serialize(header.stats, out);
 
             writeType(header.keyType, out);
             out.writeShort(header.clusteringTypes.size());
@@ -398,7 +421,7 @@ public class SerializationHeader
         // For SSTables
         public Component deserialize(Version version, DataInputPlus in) throws IOException
         {
-            RowStats stats = RowStats.serializer.deserialize(in);
+            EncodingStats stats = EncodingStats.serializer.deserialize(in);
 
             AbstractType<?> keyType = readType(in);
             int size = in.readUnsignedShort();
@@ -418,7 +441,7 @@ public class SerializationHeader
         // For SSTables
         public int serializedSize(Component header)
         {
-            int size = RowStats.serializer.serializedSize(header.stats);
+            int size = EncodingStats.serializer.serializedSize(header.stats);
 
             size += sizeofType(header.keyType);
             size += TypeSizes.sizeof((short)header.clusteringTypes.size());

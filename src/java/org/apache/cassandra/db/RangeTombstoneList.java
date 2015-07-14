@@ -34,7 +34,6 @@ import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.memory.AbstractAllocator;
-import org.apache.cassandra.utils.ByteBufferUtil;
 
 /**
  * Data structure holding the range tombstones of a ColumnFamily.
@@ -308,7 +307,7 @@ public class RangeTombstoneList implements Iterable<RangeTombstone>, IMeasurable
         return max;
     }
 
-    public void collectStats(RowStats.Collector collector)
+    public void collectStats(EncodingStats.Collector collector)
     {
         for (int i = 0; i < size; i++)
         {

@@ -20,7 +20,7 @@ package org.apache.cassandra.db;
 import java.util.Iterator;
 
 import org.apache.cassandra.cache.IMeasurableMemory;
-import org.apache.cassandra.db.rows.RowStats;
+import org.apache.cassandra.db.rows.EncodingStats;
 import org.apache.cassandra.utils.memory.AbstractAllocator;
 
 /**
@@ -54,7 +54,7 @@ public interface DeletionInfo extends IMeasurableMemory
 
     public RangeTombstone rangeCovering(Clustering name);
 
-    public void collectStats(RowStats.Collector collector);
+    public void collectStats(EncodingStats.Collector collector);
 
     public int dataSize();
 

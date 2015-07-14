@@ -423,7 +423,7 @@ public class Memtable implements Comparable<Memtable>
 
         public SSTableWriter createFlushWriter(String filename,
                                                PartitionColumns columns,
-                                               RowStats stats)
+                                               EncodingStats stats)
         {
             MetadataCollector sstableMetadataCollector = new MetadataCollector(cfs.metadata.comparator).replayPosition(context);
             return SSTableWriter.create(Descriptor.fromFilename(filename),
@@ -503,20 +503,20 @@ public class Memtable implements Comparable<Memtable>
 
     private static class StatsCollector
     {
-        private final AtomicReference<RowStats> stats = new AtomicReference<>(RowStats.NO_STATS);
+        private final AtomicReference<EncodingStats> stats = new AtomicReference<>(EncodingStats.NO_STATS);
 
-        public void update(RowStats newStats)
+        public void update(EncodingStats newStats)
         {
             while (true)
             {
-                RowStats current = stats.get();
-                RowStats updated = current.mergeWith(newStats);
+                EncodingStats current = stats.get();
+                EncodingStats updated = current.mergeWith(newStats);
                 if (stats.compareAndSet(current, updated))
                     return;
             }
         }
 
-        public RowStats get()
+        public EncodingStats get()
         {
             return stats.get();
         }

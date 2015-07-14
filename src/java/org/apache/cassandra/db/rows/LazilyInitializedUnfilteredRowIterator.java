@@ -83,7 +83,7 @@ public abstract class LazilyInitializedUnfilteredRowIterator extends AbstractIte
         return iterator.staticRow();
     }
 
-    public RowStats stats()
+    public EncodingStats stats()
     {
         maybeInit();
         return iterator.stats();

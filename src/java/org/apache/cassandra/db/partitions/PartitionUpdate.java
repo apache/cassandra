@@ -70,7 +70,7 @@ public class PartitionUpdate extends AbstractThreadUnsafePartition
     private boolean canReOpen = true;
 
     private final MutableDeletionInfo deletionInfo;
-    private RowStats stats; // will be null if isn't built
+    private EncodingStats stats; // will be null if isn't built
 
     private Row staticRow = Rows.EMPTY_STATIC_ROW;
 
@@ -82,7 +82,7 @@ public class PartitionUpdate extends AbstractThreadUnsafePartition
                             Row staticRow,
                             List<Row> rows,
                             MutableDeletionInfo deletionInfo,
-                            RowStats stats,
+                            EncodingStats stats,
                             boolean isBuilt,
                             boolean canHaveShadowedData)
     {
@@ -112,7 +112,7 @@ public class PartitionUpdate extends AbstractThreadUnsafePartition
      */
     public static PartitionUpdate emptyUpdate(CFMetaData metadata, DecoratedKey key)
     {
-        return new PartitionUpdate(metadata, key, PartitionColumns.NONE, Rows.EMPTY_STATIC_ROW, Collections.<Row>emptyList(), MutableDeletionInfo.live(), RowStats.NO_STATS, true, false);
+        return new PartitionUpdate(metadata, key, PartitionColumns.NONE, Rows.EMPTY_STATIC_ROW, Collections.<Row>emptyList(), MutableDeletionInfo.live(), EncodingStats.NO_STATS, true, false);
     }
 
     /**
@@ -127,7 +127,7 @@ public class PartitionUpdate extends AbstractThreadUnsafePartition
      */
     public static PartitionUpdate fullPartitionDelete(CFMetaData metadata, DecoratedKey key, long timestamp, int nowInSec)
     {
-        return new PartitionUpdate(metadata, key, PartitionColumns.NONE, Rows.EMPTY_STATIC_ROW, Collections.<Row>emptyList(), new MutableDeletionInfo(timestamp, nowInSec), RowStats.NO_STATS, true, false);
+        return new PartitionUpdate(metadata, key, PartitionColumns.NONE, Rows.EMPTY_STATIC_ROW, Collections.<Row>emptyList(), new MutableDeletionInfo(timestamp, nowInSec), EncodingStats.NO_STATS, true, false);
     }
 
     /**
@@ -142,8 +142,8 @@ public class PartitionUpdate extends AbstractThreadUnsafePartition
     public static PartitionUpdate singleRowUpdate(CFMetaData metadata, DecoratedKey key, Row row)
     {
         return row.isStatic()
-             ? new PartitionUpdate(metadata, key, new PartitionColumns(row.columns(), Columns.NONE), row, Collections.<Row>emptyList(), MutableDeletionInfo.live(), RowStats.NO_STATS, true, false)
-             : new PartitionUpdate(metadata, key, new PartitionColumns(Columns.NONE, row.columns()), Rows.EMPTY_STATIC_ROW, Collections.singletonList(row), MutableDeletionInfo.live(), RowStats.NO_STATS, true, false);
+             ? new PartitionUpdate(metadata, key, new PartitionColumns(row.columns(), Columns.NONE), row, Collections.<Row>emptyList(), MutableDeletionInfo.live(), EncodingStats.NO_STATS, true, false)
+             : new PartitionUpdate(metadata, key, new PartitionColumns(Columns.NONE, row.columns()), Rows.EMPTY_STATIC_ROW, Collections.singletonList(row), MutableDeletionInfo.live(), EncodingStats.NO_STATS, true, false);
     }
 
     /**
@@ -182,7 +182,7 @@ public class PartitionUpdate extends AbstractThreadUnsafePartition
 
         List<Row> rows = new ArrayList<>();
 
-        RowStats.Collector collector = new RowStats.Collector();
+        EncodingStats.Collector collector = new EncodingStats.Collector();
 
         while (iterator.hasNext())
         {
@@ -285,7 +285,7 @@ public class PartitionUpdate extends AbstractThreadUnsafePartition
         MutableDeletionInfo deletion = MutableDeletionInfo.live();
         Row staticRow = Rows.EMPTY_STATIC_ROW;
         List<Iterator<Row>> updateRowIterators = new ArrayList<>(size);
-        RowStats stats = RowStats.NO_STATS;
+        EncodingStats stats = EncodingStats.NO_STATS;
 
         for (PartitionUpdate update : updates)
         {
@@ -412,7 +412,7 @@ public class PartitionUpdate extends AbstractThreadUnsafePartition
         return super.rowCount();
     }
 
-    public RowStats stats()
+    public EncodingStats stats()
     {
         maybeBuild();
         return stats;
@@ -649,7 +649,7 @@ public class PartitionUpdate extends AbstractThreadUnsafePartition
 
     private void finishBuild()
     {
-        RowStats.Collector collector = new RowStats.Collector();
+        EncodingStats.Collector collector = new EncodingStats.Collector();
         deletionInfo.collectStats(collector);
         for (Row row : rows)
             Rows.collectStats(row, collector);

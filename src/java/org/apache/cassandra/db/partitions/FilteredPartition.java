@@ -79,9 +79,9 @@ public class FilteredPartition extends AbstractThreadUnsafePartition
         return DeletionInfo.LIVE;
     }
 
-    public RowStats stats()
+    public EncodingStats stats()
     {
-        return RowStats.NO_STATS;
+        return EncodingStats.NO_STATS;
     }
 
     public RowIterator rowIterator()

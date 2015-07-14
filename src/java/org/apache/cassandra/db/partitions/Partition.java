@@ -40,7 +40,7 @@ public interface Partition
 
     public PartitionColumns columns();
 
-    public RowStats stats();
+    public EncodingStats stats();
 
     /**
      * Whether the partition object has no informations at all, including any deletion informations.
