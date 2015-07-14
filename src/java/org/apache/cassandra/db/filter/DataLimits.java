@@ -17,13 +17,13 @@
  */
 package org.apache.cassandra.db.filter;
 
-import java.io.DataInput;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.db.partitions.*;
+import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
@@ -644,45 +644,45 @@ public abstract class DataLimits
                 case CQL_LIMIT:
                 case CQL_PAGING_LIMIT:
                     CQLLimits cqlLimits = (CQLLimits)limits;
-                    out.writeInt(cqlLimits.rowLimit);
-                    out.writeInt(cqlLimits.perPartitionLimit);
+                    out.writeVInt(cqlLimits.rowLimit);
+                    out.writeVInt(cqlLimits.perPartitionLimit);
                     out.writeBoolean(cqlLimits.isDistinct);
                     if (limits.kind() == Kind.CQL_PAGING_LIMIT)
                     {
                         CQLPagingLimits pagingLimits = (CQLPagingLimits)cqlLimits;
-                        ByteBufferUtil.writeWithShortLength(pagingLimits.lastReturnedKey, out);
-                        out.writeInt(pagingLimits.lastReturnedKeyRemaining);
+                        ByteBufferUtil.writeWithVIntLength(pagingLimits.lastReturnedKey, out);
+                        out.writeVInt(pagingLimits.lastReturnedKeyRemaining);
                     }
                     break;
                 case THRIFT_LIMIT:
                 case SUPER_COLUMN_COUNTING_LIMIT:
                     ThriftLimits thriftLimits = (ThriftLimits)limits;
-                    out.writeInt(thriftLimits.partitionLimit);
-                    out.writeInt(thriftLimits.cellPerPartitionLimit);
+                    out.writeVInt(thriftLimits.partitionLimit);
+                    out.writeVInt(thriftLimits.cellPerPartitionLimit);
                     break;
             }
         }
 
-        public DataLimits deserialize(DataInput in, int version) throws IOException
+        public DataLimits deserialize(DataInputPlus in, int version) throws IOException
         {
             Kind kind = Kind.values()[in.readUnsignedByte()];
             switch (kind)
             {
                 case CQL_LIMIT:
                 case CQL_PAGING_LIMIT:
-                    int rowLimit = in.readInt();
-                    int perPartitionLimit = in.readInt();
+                    int rowLimit = (int)in.readVInt();
+                    int perPartitionLimit = (int)in.readVInt();
                     boolean isDistinct = in.readBoolean();
                     if (kind == Kind.CQL_LIMIT)
                         return new CQLLimits(rowLimit, perPartitionLimit, isDistinct);
 
-                    ByteBuffer lastKey = ByteBufferUtil.readWithShortLength(in);
-                    int lastRemaining = in.readInt();
+                    ByteBuffer lastKey = ByteBufferUtil.readWithVIntLength(in);
+                    int lastRemaining = (int)in.readVInt();
                     return new CQLPagingLimits(rowLimit, perPartitionLimit, isDistinct, lastKey, lastRemaining);
                 case THRIFT_LIMIT:
                 case SUPER_COLUMN_COUNTING_LIMIT:
-                    int partitionLimit = in.readInt();
-                    int cellPerPartitionLimit = in.readInt();
+                    int partitionLimit = (int)in.readVInt();
+                    int cellPerPartitionLimit = (int)in.readVInt();
                     return kind == Kind.THRIFT_LIMIT
                          ? new ThriftLimits(partitionLimit, cellPerPartitionLimit)
                          : new SuperColumnCountingLimits(partitionLimit, cellPerPartitionLimit);
@@ -698,21 +698,21 @@ public abstract class DataLimits
                 case CQL_LIMIT:
                 case CQL_PAGING_LIMIT:
                     CQLLimits cqlLimits = (CQLLimits)limits;
-                    size += TypeSizes.sizeof(cqlLimits.rowLimit);
-                    size += TypeSizes.sizeof(cqlLimits.perPartitionLimit);
+                    size += TypeSizes.sizeofVInt(cqlLimits.rowLimit);
+                    size += TypeSizes.sizeofVInt(cqlLimits.perPartitionLimit);
                     size += TypeSizes.sizeof(cqlLimits.isDistinct);
                     if (limits.kind() == Kind.CQL_PAGING_LIMIT)
                     {
                         CQLPagingLimits pagingLimits = (CQLPagingLimits)cqlLimits;
-                        size += ByteBufferUtil.serializedSizeWithShortLength(pagingLimits.lastReturnedKey);
-                        size += TypeSizes.sizeof(pagingLimits.lastReturnedKeyRemaining);
+                        size += ByteBufferUtil.serializedSizeWithVIntLength(pagingLimits.lastReturnedKey);
+                        size += TypeSizes.sizeofVInt(pagingLimits.lastReturnedKeyRemaining);
                     }
                     break;
                 case THRIFT_LIMIT:
                 case SUPER_COLUMN_COUNTING_LIMIT:
                     ThriftLimits thriftLimits = (ThriftLimits)limits;
-                    size += TypeSizes.sizeof(thriftLimits.partitionLimit);
-                    size += TypeSizes.sizeof(thriftLimits.cellPerPartitionLimit);
+                    size += TypeSizes.sizeofVInt(thriftLimits.partitionLimit);
+                    size += TypeSizes.sizeofVInt(thriftLimits.cellPerPartitionLimit);
                     break;
                 default:
                     throw new AssertionError();

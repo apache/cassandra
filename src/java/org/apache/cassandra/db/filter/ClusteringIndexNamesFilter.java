@@ -245,15 +245,15 @@ public class ClusteringIndexNamesFilter extends AbstractClusteringIndexFilter
     protected void serializeInternal(DataOutputPlus out, int version) throws IOException
     {
         ClusteringComparator comparator = (ClusteringComparator)clusterings.comparator();
-        out.writeInt(clusterings.size());
+        out.writeVInt(clusterings.size());
         for (Clustering clustering : clusterings)
             Clustering.serializer.serialize(clustering, out, version, comparator.subtypes());
     }
 
     protected long serializedSizeInternal(int version)
     {
-        long size = 0;
         ClusteringComparator comparator = (ClusteringComparator)clusterings.comparator();
+        long size = TypeSizes.sizeofVInt(clusterings.size());
         for (Clustering clustering : clusterings)
             size += Clustering.serializer.serializedSize(clustering, version, comparator.subtypes());
         return size;
@@ -265,7 +265,7 @@ public class ClusteringIndexNamesFilter extends AbstractClusteringIndexFilter
         {
             ClusteringComparator comparator = metadata.comparator;
             BTreeSet.Builder<Clustering> clusterings = BTreeSet.builder(comparator);
-            int size = in.readInt();
+            int size = (int)in.readVInt();
             for (int i = 0; i < size; i++)
                 clusterings.add(Clustering.serializer.deserialize(in, version, comparator.subtypes()));
 

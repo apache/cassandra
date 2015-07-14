@@ -365,7 +365,7 @@ public class ColumnFilter
 
             if (selection.subSelections != null)
             {
-                out.writeShort(selection.subSelections.size());
+                out.writeVInt(selection.subSelections.size());
                 for (ColumnSubselection subSel : selection.subSelections.values())
                     ColumnSubselection.serializer.serialize(subSel, out, version);
             }
@@ -390,7 +390,7 @@ public class ColumnFilter
             if (hasSubSelections)
             {
                 subSelections = TreeMultimap.create(Comparator.<ColumnIdentifier>naturalOrder(), Comparator.<ColumnSubselection>naturalOrder());
-                int size = in.readUnsignedShort();
+                int size = (int)in.readVInt();
                 for (int i = 0; i < size; i++)
                 {
                     ColumnSubselection subSel = ColumnSubselection.serializer.deserialize(in, version, metadata);
@@ -414,7 +414,7 @@ public class ColumnFilter
             if (selection.subSelections != null)
             {
 
-                size += TypeSizes.sizeof((short)selection.subSelections.size());
+                size += TypeSizes.sizeofVInt(selection.subSelections.size());
                 for (ColumnSubselection subSel : selection.subSelections.values())
                     size += ColumnSubselection.serializer.serializedSize(subSel, version);
             }

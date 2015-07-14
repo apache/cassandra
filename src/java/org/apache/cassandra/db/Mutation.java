@@ -248,12 +248,19 @@ public class Mutation implements IMutation
             if (version < MessagingService.VERSION_20)
                 out.writeUTF(mutation.getKeyspaceName());
 
-            if (version < MessagingService.VERSION_30)
-                ByteBufferUtil.writeWithShortLength(mutation.key().getKey(), out);
-
             /* serialize the modifications in the mutation */
             int size = mutation.modifications.size();
-            out.writeInt(size);
+
+            if (version < MessagingService.VERSION_30)
+            {
+                ByteBufferUtil.writeWithShortLength(mutation.key().getKey(), out);
+                out.writeInt(size);
+            }
+            else
+            {
+                out.writeVInt(size);
+            }
+
             assert size > 0;
             for (Map.Entry<UUID, PartitionUpdate> entry : mutation.modifications.entrySet())
                 PartitionUpdate.serializer.serialize(entry.getValue(), out, version);
@@ -266,10 +273,17 @@ public class Mutation implements IMutation
                 keyspaceName = in.readUTF();
 
             DecoratedKey key = null;
+            int size;
             if (version < MessagingService.VERSION_30)
+            {
                 key = StorageService.getPartitioner().decorateKey(ByteBufferUtil.readWithShortLength(in));
+                size = in.readInt();
+            }
+            else
+            {
+                size = (int)in.readVInt();
+            }
 
-            int size = in.readInt();
             assert size > 0;
 
             if (size == 1)
@@ -307,9 +321,13 @@ public class Mutation implements IMutation
             {
                 int keySize = mutation.key().getKey().remaining();
                 size += TypeSizes.sizeof((short) keySize) + keySize;
+                size += TypeSizes.sizeof(mutation.modifications.size());
+            }
+            else
+            {
+                size += TypeSizes.sizeofVInt(mutation.modifications.size());
             }
 
-            size += TypeSizes.sizeof(mutation.modifications.size());
             for (Map.Entry<UUID, PartitionUpdate> entry : mutation.modifications.entrySet())
                 size += PartitionUpdate.serializer.serializedSize(entry.getValue(), version);
 

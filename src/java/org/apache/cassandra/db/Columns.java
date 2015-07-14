@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.db;
 
-import java.io.DataInput;
 import java.io.IOException;
 import java.util.*;
 import java.util.function.Predicate;
@@ -31,6 +30,7 @@ import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.db.marshal.MapType;
+import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
@@ -526,26 +526,26 @@ public class Columns implements Iterable<ColumnDefinition>
     {
         public void serialize(Columns columns, DataOutputPlus out) throws IOException
         {
-            out.writeShort(columns.columnCount());
+            out.writeVInt(columns.columnCount());
             for (ColumnDefinition column : columns)
-                ByteBufferUtil.writeWithShortLength(column.name.bytes, out);
+                ByteBufferUtil.writeWithVIntLength(column.name.bytes, out);
         }
 
         public long serializedSize(Columns columns)
         {
-            long size = TypeSizes.sizeof((short)columns.columnCount());
+            long size = TypeSizes.sizeofVInt(columns.columnCount());
             for (ColumnDefinition column : columns)
-                size += TypeSizes.sizeofWithShortLength(column.name.bytes);
+                size += ByteBufferUtil.serializedSizeWithVIntLength(column.name.bytes);
             return size;
         }
 
-        public Columns deserialize(DataInput in, CFMetaData metadata) throws IOException
+        public Columns deserialize(DataInputPlus in, CFMetaData metadata) throws IOException
         {
-            int length = in.readUnsignedShort();
+            int length = (int)in.readVInt();
             ColumnDefinition[] columns = new ColumnDefinition[length];
             for (int i = 0; i < length; i++)
             {
-                ByteBuffer name = ByteBufferUtil.readWithShortLength(in);
+                ByteBuffer name = ByteBufferUtil.readWithVIntLength(in);
                 ColumnDefinition column = metadata.getColumnDefinition(name);
                 if (column == null)
                 {
