@@ -2006,7 +2006,7 @@
             <arg value="-properties" />
             <arg value="${ecj.properties}" />
             <arg value="-cp" />
-            <arg value="${toString:cassandra.build.classpath}" />
+            <arg value="${toString:cassandra.classpath}" />
             <arg value="${build.src.java}" />
         </java>
   </target>
