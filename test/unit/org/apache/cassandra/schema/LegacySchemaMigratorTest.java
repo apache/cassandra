@@ -403,9 +403,9 @@ public class LegacySchemaMigratorTest
              .add("read_repair_chance", table.getReadRepairChance())
              .add("speculative_retry", table.getSpeculativeRetry().toString());
 
-        for (Map.Entry<ColumnIdentifier, CFMetaData.DroppedColumn> entry : table.getDroppedColumns().entrySet())
+        for (Map.Entry<ByteBuffer, CFMetaData.DroppedColumn> entry : table.getDroppedColumns().entrySet())
         {
-            String name = entry.getKey().toString();
+            String name = UTF8Type.instance.getString(entry.getKey());
             CFMetaData.DroppedColumn column = entry.getValue();
             adder.addMapEntry("dropped_columns", name, column.droppedTime);
         }

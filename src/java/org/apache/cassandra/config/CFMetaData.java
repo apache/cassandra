@@ -191,7 +191,7 @@ public final class CFMetaData
     private volatile int memtableFlushPeriod = 0;
     private volatile int defaultTimeToLive = DEFAULT_DEFAULT_TIME_TO_LIVE;
     private volatile SpeculativeRetry speculativeRetry = DEFAULT_SPECULATIVE_RETRY;
-    private volatile Map<ColumnIdentifier, DroppedColumn> droppedColumns = new HashMap<>();
+    private volatile Map<ByteBuffer, DroppedColumn> droppedColumns = new HashMap<>();
     private volatile Triggers triggers = Triggers.none();
 
     /*
@@ -236,7 +236,7 @@ public final class CFMetaData
     public CFMetaData memtableFlushPeriod(int prop) {memtableFlushPeriod = prop; return this;}
     public CFMetaData defaultTimeToLive(int prop) {defaultTimeToLive = prop; return this;}
     public CFMetaData speculativeRetry(SpeculativeRetry prop) {speculativeRetry = prop; return this;}
-    public CFMetaData droppedColumns(Map<ColumnIdentifier, DroppedColumn> cols) {droppedColumns = cols; return this;}
+    public CFMetaData droppedColumns(Map<ByteBuffer, DroppedColumn> cols) {droppedColumns = cols; return this;}
     public CFMetaData triggers(Triggers prop) {triggers = prop; return this;}
 
     private CFMetaData(String keyspace,
@@ -687,7 +687,7 @@ public final class CFMetaData
         return defaultTimeToLive;
     }
 
-    public Map<ColumnIdentifier, DroppedColumn> getDroppedColumns()
+    public Map<ByteBuffer, DroppedColumn> getDroppedColumns()
     {
         return droppedColumns;
     }
@@ -1190,7 +1190,7 @@ public final class CFMetaData
 
     public void recordColumnDrop(ColumnDefinition def)
     {
-        droppedColumns.put(def.name, new DroppedColumn(def.type, FBUtilities.timestampMicros()));
+        droppedColumns.put(def.name.bytes, new DroppedColumn(def.type, FBUtilities.timestampMicros()));
     }
 
     public void renameColumn(ColumnIdentifier from, ColumnIdentifier to) throws InvalidRequestException

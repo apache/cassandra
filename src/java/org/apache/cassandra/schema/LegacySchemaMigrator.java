@@ -403,7 +403,7 @@ public final class LegacySchemaMigrator
             String name = entry.getKey();
             long time = entry.getValue();
             AbstractType<?> type = types.containsKey(name) ? TypeParser.parse(types.get(name)) : null;
-            cfm.getDroppedColumns().put(ColumnIdentifier.getInterned(name, true), new CFMetaData.DroppedColumn(type, time));
+            cfm.getDroppedColumns().put(UTF8Type.instance.decompose(name), new CFMetaData.DroppedColumn(type, time));
         }
     }
 

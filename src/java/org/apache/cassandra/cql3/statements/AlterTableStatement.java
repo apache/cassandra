@@ -116,7 +116,7 @@ public class AlterTableStatement extends SchemaAlteringStatement
                 }
 
                 // Cannot re-add a dropped counter column. See #7831.
-                if (meta.isCounter() && meta.getDroppedColumns().containsKey(columnName))
+                if (meta.isCounter() && meta.getDroppedColumns().containsKey(columnName.bytes))
                     throw new InvalidRequestException(String.format("Cannot re-add previously dropped counter column %s", columnName));
 
                 AbstractType<?> type = validator.getType();
@@ -130,7 +130,7 @@ public class AlterTableStatement extends SchemaAlteringStatement
                     // If there used to be a collection column with the same name (that has been dropped), we could still have
                     // some data using the old type, and so we can't allow adding a collection with the same name unless
                     // the types are compatible (see #6276).
-                    CFMetaData.DroppedColumn dropped = cfm.getDroppedColumns().get(columnName);
+                    CFMetaData.DroppedColumn dropped = cfm.getDroppedColumns().get(columnName.bytes);
                     // We could have type == null for old dropped columns, in which case we play it safe and refuse
                     if (dropped != null && (dropped.type == null || (dropped.type instanceof CollectionType && !type.isCompatibleWith(dropped.type))))
                         throw new InvalidRequestException(String.format("Cannot add a collection with the name %s " +

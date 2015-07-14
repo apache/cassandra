@@ -841,9 +841,9 @@ public final class SchemaKeyspace
              .add("read_repair_chance", table.getReadRepairChance())
              .add("speculative_retry", table.getSpeculativeRetry().toString());
 
-        for (Map.Entry<ColumnIdentifier, CFMetaData.DroppedColumn> entry : table.getDroppedColumns().entrySet())
+        for (Map.Entry<ByteBuffer, CFMetaData.DroppedColumn> entry : table.getDroppedColumns().entrySet())
         {
-            String name = entry.getKey().toString();
+            String name = UTF8Type.instance.getString(entry.getKey());
             CFMetaData.DroppedColumn column = entry.getValue();
             adder.addMapEntry("dropped_columns", name, column.droppedTime);
             if (column.type != null)
@@ -1073,7 +1073,7 @@ public final class SchemaKeyspace
             String name = entry.getKey();
             long time = entry.getValue();
             AbstractType<?> type = types.containsKey(name) ? TypeParser.parse(types.get(name)) : null;
-            cfm.getDroppedColumns().put(ColumnIdentifier.getInterned(name, true), new CFMetaData.DroppedColumn(type, time));
+            cfm.getDroppedColumns().put(UTF8Type.instance.decompose(name), new CFMetaData.DroppedColumn(type, time));
         }
     }
 

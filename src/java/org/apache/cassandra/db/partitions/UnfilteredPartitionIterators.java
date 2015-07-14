@@ -20,6 +20,7 @@ package org.apache.cassandra.db.partitions;
 import java.io.DataInput;
 import java.io.IOError;
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.security.MessageDigest;
 import java.util.*;
 
@@ -329,7 +330,7 @@ public abstract class UnfilteredPartitionIterators
         };
     }
 
-    public static UnfilteredPartitionIterator removeDroppedColumns(UnfilteredPartitionIterator iterator, final Map<ColumnIdentifier, CFMetaData.DroppedColumn> droppedColumns)
+    public static UnfilteredPartitionIterator removeDroppedColumns(UnfilteredPartitionIterator iterator, final Map<ByteBuffer, CFMetaData.DroppedColumn> droppedColumns)
     {
         return new FilteringPartitionIterator(iterator)
         {
@@ -352,7 +353,7 @@ public abstract class UnfilteredPartitionIterators
 
                     private boolean include(ColumnDefinition column, long timestamp)
                     {
-                        CFMetaData.DroppedColumn dropped = droppedColumns.get(column.name);
+                        CFMetaData.DroppedColumn dropped = droppedColumns.get(column.name.bytes);
                         return dropped == null || timestamp > dropped.droppedTime;
                     }
                 };
@@ -367,7 +368,7 @@ public abstract class UnfilteredPartitionIterators
 
                 // If none of the dropped columns is part of the columns that the iterator actually returns, there is nothing to do;
                 for (ColumnDefinition c : iterator.columns())
-                    if (droppedColumns.containsKey(c.name))
+                    if (droppedColumns.containsKey(c.name.bytes))
                         return true;
 
                 return false;
