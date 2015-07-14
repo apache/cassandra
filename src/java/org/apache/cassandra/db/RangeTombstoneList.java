@@ -576,21 +576,15 @@ public class RangeTombstoneList implements Iterable<RangeTombstone>, IMeasurable
                 if (cmp <= 0)
                 {
                     // We do overwrite fully:
-                    // update the current element until it's end and continue
-                    // on with the next element (with the new inserted start == current end).
+                    // update the current element until it's end and continue on with the next element (with the new inserted start == current end).
 
-                    // If we're on the last element, we can optimize
-                    if (i == size-1)
+                    // If we're on the last element, or if we stop before the next start, we set the current element and are done
+                    // Note that the comparison below is inclusive: if a end equals a start, this means they form a boundary, or
+                    // in other words that they are for the same element but one is inclusive while the other exclusive. In which case we know
+                    // we're good with the next element
+                    if (i == size-1 || comparator.compare(end, starts[i+1]) <= 0)
                     {
                         setInternal(i, start, end, markedAt, delTime);
-                        return;
-                    }
-
-                    // Otherwise, the new element overwite until the min(end, next start)
-                    if (comparator.compare(end, starts[i+1]) < 0)
-                    {
-                        setInternal(i, start, end, markedAt, delTime);
-                        // We have fully handled the new element so we're done
                         return;
                     }
 
@@ -619,10 +613,9 @@ public class RangeTombstoneList implements Iterable<RangeTombstone>, IMeasurable
                 // If the new interval starts before the current one, insert that new interval
                 if (comparator.compare(start, starts[i]) < 0)
                 {
-                    // If we stop before the start of the current element, just insert the new
-                    // interval and we're done; otherwise insert until the beginning of the
-                    // current element
-                    if (comparator.compare(end, starts[i]) < 0)
+                    // If we stop before the start of the current element, just insert the new interval and we're done;
+                    // otherwise insert until the beginning of the current element
+                    if (comparator.compare(end, starts[i]) <= 0)
                     {
                         addInternal(i, start, end, markedAt, delTime);
                         return;
@@ -782,93 +775,5 @@ public class RangeTombstoneList implements Iterable<RangeTombstone>, IMeasurable
                 + ObjectSizes.sizeOfArray(ends)
                 + ObjectSizes.sizeOfArray(markedAts)
                 + ObjectSizes.sizeOfArray(delTimes);
-    }
-
-    // TODO: This should be moved someplace else as it shouldn't be used directly: some ranges might become
-    // complex deletion times. We'll also only need this for backward compatibility, this isn't used otherwise.
-    public static class Serializer implements IVersionedSerializer<RangeTombstoneList>
-    {
-        private final LegacyLayout layout;
-
-        public Serializer(LegacyLayout layout)
-        {
-            this.layout = layout;
-        }
-
-        public void serialize(RangeTombstoneList tombstones, DataOutputPlus out, int version) throws IOException
-        {
-            // TODO
-            throw new UnsupportedOperationException();
-            //if (tombstones == null)
-            //{
-            //    out.writeInt(0);
-            //    return;
-            //}
-
-            //out.writeInt(tombstones.size);
-            //for (int i = 0; i < tombstones.size; i++)
-            //{
-            //    layout.serializer().serialize(tombstones.starts[i], out);
-            //    layout.serializer().serialize(tombstones.ends[i], out);
-            //    out.writeInt(tombstones.delTimes[i]);
-            //    out.writeLong(tombstones.markedAts[i]);
-            //}
-        }
-
-        public RangeTombstoneList deserialize(DataInputPlus in, int version) throws IOException
-        {
-            // TODO
-            throw new UnsupportedOperationException();
-
-            //int size = in.readInt();
-            //if (size == 0)
-            //    return null;
-
-            //RangeTombstoneList tombstones = new RangeTombstoneList(layout, size);
-
-            //for (int i = 0; i < size; i++)
-            //{
-            //    Slice.Bound start = layout.serializer().deserialize(in);
-            //    Slice.Bound end = layout.serializer().deserialize(in);
-            //    int delTime =  in.readInt();
-            //    long markedAt = in.readLong();
-
-            //    if (version >= MessagingService.VERSION_20)
-            //    {
-            //        tombstones.setInternal(i, start, end, markedAt, delTime);
-            //    }
-            //    else
-            //    {
-            //        /*
-            //         * The old implementation used to have range sorted by left value, but with potentially
-            //         * overlapping range. So we need to use the "slow" path.
-            //         */
-            //        tombstones.add(start, end, markedAt, delTime);
-            //    }
-            //}
-
-            //// The "slow" path take care of updating the size, but not the fast one
-            //if (version >= MessagingService.VERSION_20)
-            //    tombstones.size = size;
-            //return tombstones;
-        }
-
-        public long serializedSize(RangeTombstoneList tombstones, int version)
-        {
-            // TODO
-            throw new UnsupportedOperationException();
-            //if (tombstones == null)
-            //    return TypeSizes.sizeof(0);
-
-            //long size = TypeSizes.sizeof(tombstones.size);
-            //for (int i = 0; i < tombstones.size; i++)
-            //{
-            //    size += type.serializer().serializedSize(tombstones.starts[i], typeSizes);
-            //    size += type.serializer().serializedSize(tombstones.ends[i], typeSizes);
-            //    size += TypeSizes.sizeof(tombstones.delTimes[i]);
-            //    size += TypeSizes.sizeof(tombstones.markedAts[i]);
-            //}
-            //return size;
-        }
     }
 }

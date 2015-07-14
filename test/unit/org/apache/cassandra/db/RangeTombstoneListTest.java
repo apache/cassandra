@@ -20,6 +20,10 @@ package org.apache.cassandra.db;
 
 import java.nio.ByteBuffer;
 import java.util.*;
+import java.util.regex.Pattern;
+import java.util.regex.Matcher;
+
+import com.google.common.base.Joiner;
 
 import org.junit.Test;
 import static org.junit.Assert.*;
@@ -257,6 +261,15 @@ public class RangeTombstoneListTest
         assert !iter.hasNext();
     }
 
+    @Test
+    public void addAllBugFrom9799()
+    {
+        RangeTombstoneList l1 = fromString("{ (6, 7]@4 - (7, 8)@1 - [12, 12]@0 - [13, 13]@0 - (20, 21)@3 - [27, 27]@2 - (33, 34)@2 - (35, 36]@4 - (40, 41]@0 - (42, 43)@2 - (44, 45)@3 - [47, 47]@1 - (47, 48)@0 - [55, 55]@4 - [61, 61]@4 - [67, 67]@0 - [70, 70]@4 - [77, 77]@1 - (83, 84)@1 - [90, 90]@0 - (91, 92]@4 - [93, 93]@0 - (94, 95)@2 - (100, 101]@3 - (103, 104]@0 - (108, 109]@2 - (115, 116]@3 - (116, 117]@3 - (118, 119)@4 - (125, 126)@2 - [131, 131]@1 - [132, 132]@3 - [139, 139]@0 - [145, 145]@1 - (145, 146]@3 - (147, 148]@4 - (150, 151]@1 - (156, 157)@2 - (158, 159)@2 - [164, 164]@4 - (168, 169)@0 - (171, 172)@4 - (173, 174]@0 - [179, 179]@1 - (186, 187]@4 - [191, 191]@1 }");
+        RangeTombstoneList l2 = fromString("{ (1, 12)@8 - [12, 13)@8 - [13, 18]@7 }");
+        l1.addAll(l2);
+        assertValid(l1);
+    }
+
     private RangeTombstoneList makeRandom(Random rand, int size, int maxItSize, int maxItDistance, int maxMarkedAt)
     {
         RangeTombstoneList l = new RangeTombstoneList(cmp, size);
@@ -366,12 +379,36 @@ public class RangeTombstoneListTest
 
     private static String toString(RangeTombstoneList l)
     {
-        StringBuilder sb = new StringBuilder();
-        sb.append("{");
+        String[] ranges = new String[l.size()];
+        int i = 0;
         for (RangeTombstone rt : l)
-            sb.append(" ").append(toString(rt));
-        return sb.append(" }").toString();
+            ranges[i++] = toString(rt);
+
+        return "{ " + Joiner.on(" - ").join(ranges) + " }";
     }
+
+    private static RangeTombstone rangeFromString(String range)
+    {
+        Matcher matcher = Pattern.compile("([\\[(])(\\d+), (\\d+)([)\\]])@(\\d+)").matcher(range.trim());
+        matcher.matches();
+        boolean isOpenInclusive = matcher.group(1).equals("[");
+        int start = Integer.valueOf(matcher.group(2));
+        int end = Integer.valueOf(matcher.group(3));
+        boolean isCloseInclusive = matcher.group(4).equals("]");
+        long timestamp = Long.valueOf(matcher.group(5));
+        return rt(start, isOpenInclusive, end, isCloseInclusive, timestamp);
+    }
+
+    private static RangeTombstoneList fromString(String str)
+    {
+        str = str.trim();
+        String[] ranges = str.substring(1, str.length() - 1).split("-", 0);
+        RangeTombstoneList l = new RangeTombstoneList(cmp, ranges.length);
+        for (String range : ranges)
+            l.add(rangeFromString(range));
+        return l;
+    }
+
 
     private static Clustering clustering(int i)
     {
