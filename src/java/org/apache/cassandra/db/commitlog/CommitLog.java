@@ -270,9 +270,9 @@ public class CommitLog implements CommitLogMBean
             buffer.putInt((int) checksum.getValue());
 
             // checksummed mutation
-            Mutation.serializer.serialize(mutation, dos, MessagingService.current_version);
             copy = buffer.duplicate();
-            copy.limit((int) size);
+            Mutation.serializer.serialize(mutation, dos, MessagingService.current_version);
+            copy.limit(copy.position() + (int) size);
             checksum.update(copy);
             buffer.putInt((int) checksum.getValue());
         }
