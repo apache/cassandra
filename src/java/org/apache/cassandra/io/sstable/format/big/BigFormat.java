@@ -104,7 +104,7 @@ public class BigFormat implements SSTableFormat
     // we always incremented the major version.
     static class BigVersion extends Version
     {
-        public static final String current_version = "la";
+        public static final String current_version = "ma";
         public static final String earliest_supported_version = "jb";
 
         // jb (2.0.1): switch from crc32 to adler32 for compression checksums
@@ -114,6 +114,8 @@ public class BigFormat implements SSTableFormat
         //             switch uncompressed checksums to adler32
         //             tracks presense of legacy (local and remote) counter shards
         // la (2.2.0): new file name format
+        // ma (3.0.0): swap bf hash order
+        //             store rows natively
 
         private final boolean isLatestVersion;
         private final boolean hasSamplingLevel;
@@ -132,7 +134,7 @@ public class BigFormat implements SSTableFormat
 
         BigVersion(String version)
         {
-            super(instance,version);
+            super(instance, version);
 
             isLatestVersion = version.compareTo(current_version) == 0;
             hasSamplingLevel = version.compareTo("ka") >= 0;
@@ -140,10 +142,14 @@ public class BigFormat implements SSTableFormat
             hasAllAdlerChecksums = version.compareTo("ka") >= 0;
             hasRepairedAt = version.compareTo("ka") >= 0;
             tracksLegacyCounterShards = version.compareTo("ka") >= 0;
+
             newFileName = version.compareTo("la") >= 0;
-            storeRows = version.compareTo("la") >= 0;
-            correspondingMessagingVersion = storeRows ? MessagingService.VERSION_30 : MessagingService.VERSION_21;
-            hasOldBfHashOrder = version.compareTo("la") < 0;
+
+            hasOldBfHashOrder = version.compareTo("ma") < 0;
+            storeRows = version.compareTo("ma") >= 0;
+            correspondingMessagingVersion = storeRows
+                                          ? MessagingService.VERSION_30
+                                          : MessagingService.VERSION_21;
         }
 
         @Override
