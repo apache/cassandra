@@ -1516,29 +1516,16 @@ public final class CFMetaData
     // we could make UUIDSerializer work as the serializer below, but I'll keep that to later.
     public static class Serializer
     {
-        private static void writeLongAsSeparateBytes(long value, DataOutputPlus out) throws IOException
-        {
-            for (int i = 7; i >= 0; i--)
-                out.writeByte((int)((value >> (8 * i)) & 0xFF));
-        }
-
-        private static long readLongAsSeparateBytes(DataInput in) throws IOException
-        {
-            long val = 0;
-            for (int i = 7; i >= 0; i--)
-                val |= ((long)in.readUnsignedByte()) << (8 * i);
-            return val;
-        }
-
         public void serialize(CFMetaData metadata, DataOutputPlus out, int version) throws IOException
         {
-            writeLongAsSeparateBytes(metadata.cfId.getMostSignificantBits(), out);
-            writeLongAsSeparateBytes(metadata.cfId.getLeastSignificantBits(), out);
+            // for some reason these are stored is LITTLE_ENDIAN; so just reverse them
+            out.writeLong(Long.reverseBytes(metadata.cfId.getMostSignificantBits()));
+            out.writeLong(Long.reverseBytes(metadata.cfId.getLeastSignificantBits()));
         }
 
         public CFMetaData deserialize(DataInput in, int version) throws IOException
         {
-            UUID cfId = new UUID(readLongAsSeparateBytes(in), readLongAsSeparateBytes(in));
+            UUID cfId = new UUID(Long.reverseBytes(in.readLong()), Long.reverseBytes(in.readLong()));
             CFMetaData metadata = Schema.instance.getCFMetaData(cfId);
             if (metadata == null)
             {
