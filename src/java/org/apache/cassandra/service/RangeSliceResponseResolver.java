@@ -50,8 +50,8 @@ public class RangeSliceResponseResolver implements IResponseResolver<RangeSliceR
     private final String keyspaceName;
     private final long timestamp;
     private List<InetAddress> sources;
-    protected final Collection<MessageIn<RangeSliceReply>> responses = new ConcurrentLinkedQueue<MessageIn<RangeSliceReply>>();
-    public final List<AsyncOneResponse> repairResults = new ArrayList<AsyncOneResponse>();
+    protected final Queue<MessageIn<RangeSliceReply>> responses = new ConcurrentLinkedQueue<>();
+    public final List<AsyncOneResponse> repairResults = new ArrayList<>();
 
     public RangeSliceResponseResolver(String keyspaceName, long timestamp)
     {
@@ -66,15 +66,15 @@ public class RangeSliceResponseResolver implements IResponseResolver<RangeSliceR
 
     public List<Row> getData()
     {
-        MessageIn<RangeSliceReply> response = responses.iterator().next();
-        return response.payload.rows;
+        assert !responses.isEmpty();
+        return responses.peek().payload.rows;
     }
 
     // Note: this would deserialize the response a 2nd time if getData was called first.
     // (this is not currently an issue since we don't do read repair for range queries.)
     public Iterable<Row> resolve()
     {
-        ArrayList<RowIterator> iters = new ArrayList<RowIterator>(responses.size());
+        ArrayList<RowIterator> iters = new ArrayList<>(responses.size());
         int n = 0;
         for (MessageIn<RangeSliceReply> response : responses)
         {
@@ -86,7 +86,7 @@ public class RangeSliceResponseResolver implements IResponseResolver<RangeSliceR
         // TODO do we need to call close?
         CloseableIterator<Row> iter = MergeIterator.get(iters, pairComparator, new Reducer());
 
-        List<Row> resolvedRows = new ArrayList<Row>(n);
+        List<Row> resolvedRows = new ArrayList<>(n);
         while (iter.hasNext())
             resolvedRows.add(iter.next());
 
@@ -129,7 +129,7 @@ public class RangeSliceResponseResolver implements IResponseResolver<RangeSliceR
 
     private class Reducer extends MergeIterator.Reducer<Pair<Row,InetAddress>, Row>
     {
-        List<ColumnFamily> versions = new ArrayList<ColumnFamily>(sources.size());
+        List<ColumnFamily> versions = new ArrayList<>(sources.size());
         List<InetAddress> versionSources = new ArrayList<InetAddress>(sources.size());
         DecoratedKey key;
 
