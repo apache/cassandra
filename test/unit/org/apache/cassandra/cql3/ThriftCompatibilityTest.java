@@ -17,15 +17,24 @@
  */
 package org.apache.cassandra.cql3;
 
+import java.util.Collections;
+
 import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
+import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.db.marshal.Int32Type;
+import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.schema.KeyspaceParams;
+import org.apache.cassandra.thrift.CfDef;
+import org.apache.cassandra.thrift.ColumnDef;
+import org.apache.cassandra.thrift.ThriftConversion;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 import static org.junit.Assert.assertEquals;
+import static org.apache.cassandra.utils.ByteBufferUtil.bytes;
 
 public class ThriftCompatibilityTest extends SchemaLoader
 {
@@ -33,10 +42,23 @@ public class ThriftCompatibilityTest extends SchemaLoader
     public static void defineSchema() throws Exception
     {
         // The before class annotation of SchemaLoader will prepare the service so no need to do it here
-        SchemaLoader.createKeyspace("thriftcompat",
-                                    KeyspaceParams.simple(1),
-                                    SchemaLoader.jdbcCFMD("thriftcompat", "JdbcInteger", Int32Type.instance)
-                                                .addColumnDefinition(integerColumn("thriftcompat", "JdbcInteger")));
+        SchemaLoader.createKeyspace("thriftcompat", KeyspaceParams.simple(1), thriftCFM("thriftcompat", "JdbcInteger"));
+    }
+
+    public static CFMetaData thriftCFM(String keyspace, String table)
+    {
+        ColumnDef column = new ColumnDef();
+        column.setName(bytes(42))
+              .setValidation_class(UTF8Type.instance.toString());
+
+        CfDef cf = new CfDef(keyspace, table);
+        cf.setColumn_type("Standard")
+          .setComparator_type(Int32Type.instance.toString())
+          .setDefault_validation_class(UTF8Type.instance.toString())
+          .setKey_validation_class(BytesType.instance.toString())
+          .setColumn_metadata(Collections.singletonList(column));
+
+        return ThriftConversion.fromThrift(cf);
     }
 
     private static UntypedResultSet execute(String query)
