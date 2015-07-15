@@ -470,12 +470,6 @@ public class PartitionUpdate extends AbstractPartitionData implements Sorting.So
         sort();
     }
 
-    public int rowCount()
-    {
-        maybeSort();
-        return super.rowCount();
-    }
-
     private synchronized void sort()
     {
         if (isSorted)
