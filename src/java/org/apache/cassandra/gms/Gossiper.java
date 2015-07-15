@@ -680,12 +680,8 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
 
     /**
      * A fat client is a node that has not joined the ring, therefore acting as a coordinator only.
-     * It possesses no data. This method attempts to determine this property, except that for dead nodes
-     * we cannot tell. (??) We should also check that the node is not shutdown (and possibly other states)
-     * but due to fear of breaking things I added a new method to do this, isLiveFatClient(), see
-     * CASSANDRA-9765 for more information.
      *
-     * @param endpoint - the endpoint we need to check
+     * @param endpoint - the endpoint to check
      * @return true if it is a fat client
      */
     public boolean isFatClient(InetAddress endpoint)
@@ -698,9 +694,29 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         return !isDeadState(epState) && !StorageService.instance.getTokenMetadata().isMember(endpoint);
     }
 
-    public boolean isLiveFatClient(InetAddress endpoint)
+    /**
+     * Check if this endpoint can safely bootstrap into the cluster.
+     *
+     * @param endpoint - the endpoint to check
+     * @return true if the endpoint can join the cluster
+     */
+    public boolean isSafeForBootstrap(InetAddress endpoint)
     {
-        return isFatClient(endpoint) && !isShutdownState(endpointStateMap.get(endpoint));
+        EndpointState epState = endpointStateMap.get(endpoint);
+        String state = getApplicationState(epState);
+        logger.info("{} state : {}", endpoint, state);
+
+        // if there's no previous state, or the node was previously removed from the cluster, we're good
+        if (epState == null || isDeadState(epState))
+            return true;
+
+        // these states are not allowed to join the cluster
+        List<String> states = new ArrayList<String>() {{
+            add(""); // failed bootstrap but we did start gossiping
+            add(VersionedValue.STATUS_NORMAL); // node is legit in the cluster or was stopped kill -9
+            //add(VersionedValue.STATUS_BOOTSTRAPPING); // failed bootstrap
+            add(VersionedValue.SHUTDOWN); }}; // node was shutdown
+        return !states.contains(state);
     }
 
     private void doStatusCheck()
@@ -1045,11 +1061,6 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
                 return true;
         }
         return false;
-    }
-
-    public boolean isShutdownState(EndpointState epState)
-    {
-        return getApplicationState(epState).equals(VersionedValue.SHUTDOWN);
     }
 
     private static String getApplicationState(EndpointState epState)
