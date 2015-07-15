@@ -17,18 +17,17 @@
  */
 package org.apache.cassandra.utils;
 
-public interface SearchIterator<K, V>
+public interface IndexedSearchIterator<K, V> extends SearchIterator<K, V>
 {
-    public boolean hasNext();
+    /**
+     * @return the value just recently returned by next()
+     * @throws java.util.NoSuchElementException if next() returned null
+     */
+    public V current();
 
     /**
-     * Searches "forwards" (in direction of travel) in the iterator for the required key;
-     * if this or any key greater has already been returned by the iterator, null will be returned.
-     *
-     * it is permitted to search past the end of the iterator, i.e. !hasNext() => next(?) == null
-     *
-     * @param key to search for
-     * @return value associated with key, if present in direction of travel
+     * @return the index of the value returned by current(), and just returned by next()
+     * @throws java.util.NoSuchElementException if next() returned null
      */
-    public V next(K key);
+    public int indexOfCurrent();
 }

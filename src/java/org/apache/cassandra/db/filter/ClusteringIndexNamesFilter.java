@@ -29,6 +29,7 @@ import org.apache.cassandra.db.partitions.*;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.utils.SearchIterator;
+import org.apache.cassandra.utils.btree.BTreeSet;
 
 /**
  * A filter selecting rows given their clustering value.
@@ -260,12 +261,12 @@ public class ClusteringIndexNamesFilter extends AbstractClusteringIndexFilter
         public ClusteringIndexFilter deserialize(DataInput in, int version, CFMetaData metadata, boolean reversed) throws IOException
         {
             ClusteringComparator comparator = metadata.comparator;
-            NavigableSet<Clustering> clusterings = new TreeSet<>(comparator);
+            BTreeSet.Builder<Clustering> clusterings = BTreeSet.builder(comparator);
             int size = in.readInt();
             for (int i = 0; i < size; i++)
                 clusterings.add(Clustering.serializer.deserialize(in, version, comparator.subtypes()).takeAlias());
 
-            return new ClusteringIndexNamesFilter(clusterings, reversed);
+            return new ClusteringIndexNamesFilter(clusterings.build(), reversed);
         }
     }
 }

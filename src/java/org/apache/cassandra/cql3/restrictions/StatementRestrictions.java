@@ -484,7 +484,7 @@ public final class StatementRestrictions
      * @return the bounds (start or end) of the clustering columns
      * @throws InvalidRequestException if the request is not valid
      */
-    public SortedSet<Slice.Bound> getClusteringColumnsBounds(Bound b, QueryOptions options) throws InvalidRequestException
+    public NavigableSet<Slice.Bound> getClusteringColumnsBounds(Bound b, QueryOptions options) throws InvalidRequestException
     {
         return clusteringColumnsRestrictions.boundsAsClustering(b, options);
     }

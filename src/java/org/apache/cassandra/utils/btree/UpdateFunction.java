@@ -42,4 +42,30 @@ public interface UpdateFunction<K, V> extends Function<K, V>
      */
     void allocated(long heapSize);
 
+    static final UpdateFunction<Object, Object> noOp = new UpdateFunction<Object, Object>()
+    {
+        public Object apply(Object replacing, Object updating)
+        {
+            return updating;
+        }
+
+        public boolean abortEarly()
+        {
+            return false;
+        }
+
+        public void allocated(long heapSize)
+        {
+        }
+
+        public Object apply(Object k)
+        {
+            return k;
+        }
+    };
+
+    public static <K> UpdateFunction<K, K> noOp()
+    {
+        return (UpdateFunction<K, K>) noOp;
+    }
 }

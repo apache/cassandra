@@ -29,6 +29,7 @@ import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.db.filter.*;
 import org.apache.cassandra.db.index.*;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
+import org.apache.cassandra.utils.btree.BTreeSet;
 import org.apache.cassandra.utils.concurrent.OpOrder;
 
 
@@ -102,7 +103,7 @@ public class CompositesSearcher extends SecondaryIndexSearcher
                 // in memory so we should consider adding some paging mechanism. However, index hits should
                 // be relatively small so it's much better than the previous code that was materializing all
                 // *data* for a given partition.
-                NavigableSet<Clustering> clusterings = new TreeSet<>(baseCfs.getComparator());
+                BTreeSet.Builder<Clustering> clusterings = BTreeSet.builder(baseCfs.getComparator());
                 List<CompositesIndex.IndexedEntry> entries = new ArrayList<>();
                 DecoratedKey partitionKey = baseCfs.partitioner.decorateKey(nextEntry.indexedKey);
 
@@ -123,7 +124,7 @@ public class CompositesSearcher extends SecondaryIndexSearcher
                     return prepareNext();
 
                 // Query the gathered index hits. We still need to filter stale hits from the resulting query.
-                ClusteringIndexNamesFilter filter = new ClusteringIndexNamesFilter(clusterings, false);
+                ClusteringIndexNamesFilter filter = new ClusteringIndexNamesFilter(clusterings.build(), false);
                 SinglePartitionReadCommand dataCmd = new SinglePartitionNamesCommand(baseCfs.metadata,
                                                                                      command.nowInSec(),
                                                                                      command.columnFilter(),
@@ -197,7 +198,7 @@ public class CompositesSearcher extends SecondaryIndexSearcher
                 if (next != null)
                     return true;
 
-                while (next == null && super.hasNext())
+                while (super.hasNext())
                 {
                     next = super.next();
                     if (next.kind() != Unfiltered.Kind.ROW)

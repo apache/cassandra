@@ -50,6 +50,7 @@ import org.apache.cassandra.triggers.TriggerExecutor;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.UUIDGen;
+import org.apache.cassandra.utils.btree.BTreeSet;
 
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkFalse;
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkNotNull;
@@ -508,7 +509,7 @@ public abstract class ModificationStatement implements CQLStatement
 
         PartitionColumns toRead = builder.build();
 
-        NavigableSet<Clustering> clusterings = FBUtilities.singleton(cbuilder.build(), cfm.comparator);
+        NavigableSet<Clustering> clusterings = BTreeSet.of(cfm.comparator, cbuilder.build());
         List<SinglePartitionReadCommand<?>> commands = new ArrayList<>(partitionKeys.size());
         int nowInSec = FBUtilities.nowInSeconds();
         for (ByteBuffer key : partitionKeys)

@@ -44,6 +44,7 @@ import org.apache.cassandra.service.CacheService;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.*;
 import org.apache.cassandra.utils.concurrent.OpOrder;
+import org.apache.cassandra.utils.btree.BTreeSet;
 
 public class CounterMutation implements IMutation
 {
@@ -234,7 +235,7 @@ public class CounterMutation implements IMutation
     private void updateWithCurrentValuesFromCFS(List<PartitionUpdate.CounterMark> marks, ColumnFamilyStore cfs)
     {
         ColumnFilter.Builder builder = ColumnFilter.selectionBuilder();
-        NavigableSet<Clustering> names = new TreeSet<>(cfs.metadata.comparator);
+        BTreeSet.Builder<Clustering> names = BTreeSet.builder(cfs.metadata.comparator);
         for (PartitionUpdate.CounterMark mark : marks)
         {
             names.add(mark.clustering().takeAlias());
@@ -245,7 +246,7 @@ public class CounterMutation implements IMutation
         }
 
         int nowInSec = FBUtilities.nowInSeconds();
-        ClusteringIndexNamesFilter filter = new ClusteringIndexNamesFilter(names, false);
+        ClusteringIndexNamesFilter filter = new ClusteringIndexNamesFilter(names.build(), false);
         SinglePartitionReadCommand cmd = SinglePartitionReadCommand.create(cfs.metadata, nowInSec, key(), builder.build(), filter);
         PeekingIterator<PartitionUpdate.CounterMark> markIter = Iterators.peekingIterator(marks.iterator());
         try (OpOrder.Group op = cfs.readOrdering.start(); RowIterator partition = UnfilteredRowIterators.filter(cmd.queryMemtableAndDisk(cfs, op), nowInSec))

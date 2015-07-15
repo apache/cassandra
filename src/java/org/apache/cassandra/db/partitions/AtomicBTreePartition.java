@@ -577,7 +577,7 @@ public class AtomicBTreePartition implements Partition
                 MemtableRowData staticRow = newStatic == Rows.EMPTY_STATIC_ROW
                                           ? current.staticRow
                                           : (current.staticRow == null ? updater.apply(newStatic) : updater.apply(current.staticRow, newStatic));
-                Object[] tree = BTree.<Clusterable, Row, MemtableRowData>update(current.tree, update.metadata().comparator, update, update.rowCount(), updater);
+                Object[] tree = BTree.update(current.tree, update.metadata().comparator, update, update.rowCount(), updater);
                 RowStats newStats = current.stats.mergeWith(update.stats());
 
                 if (tree != null && refUpdater.compareAndSet(this, current, new Holder(tree, deletionInfo, staticRow, newStats)))

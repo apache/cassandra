@@ -20,7 +20,6 @@ package org.apache.cassandra.cql3.restrictions;
 import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.NavigableSet;
-import java.util.SortedSet;
 
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.statements.Bound;
@@ -43,5 +42,5 @@ interface PrimaryKeyRestrictions extends Restriction, Restrictions
 
     public List<ByteBuffer> bounds(Bound b, QueryOptions options) throws InvalidRequestException;
 
-    public SortedSet<Slice.Bound> boundsAsClustering(Bound bound, QueryOptions options) throws InvalidRequestException;
+    public NavigableSet<Slice.Bound> boundsAsClustering(Bound bound, QueryOptions options) throws InvalidRequestException;
 }

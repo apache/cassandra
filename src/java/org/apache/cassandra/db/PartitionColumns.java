@@ -23,6 +23,9 @@ import java.security.MessageDigest;
 import com.google.common.collect.Iterators;
 
 import org.apache.cassandra.config.ColumnDefinition;
+import org.apache.cassandra.utils.btree.BTreeSet;
+
+import static java.util.Comparator.naturalOrder;
 
 /**
  * Columns (or a subset of the columns) that a partition contains.
@@ -124,31 +127,25 @@ public class PartitionColumns implements Iterable<ColumnDefinition>
         // Note that we do want to use sorted sets because we want the column definitions to be compared
         // through compareTo, not equals. The former basically check it's the same column name, while the latter
         // check it's the same object, including the same type.
-        private SortedSet<ColumnDefinition> regularColumns;
-        private SortedSet<ColumnDefinition> staticColumns;
+        private BTreeSet.Builder<ColumnDefinition> regularColumns;
+        private BTreeSet.Builder<ColumnDefinition> staticColumns;
 
         public Builder add(ColumnDefinition c)
         {
             if (c.isStatic())
             {
                 if (staticColumns == null)
-                    staticColumns = new TreeSet<>();
+                    staticColumns = BTreeSet.builder(naturalOrder());
                 staticColumns.add(c);
             }
             else
             {
                 assert c.isRegular();
                 if (regularColumns == null)
-                    regularColumns = new TreeSet<>();
+                    regularColumns = BTreeSet.builder(naturalOrder());
                 regularColumns.add(c);
             }
             return this;
-        }
-
-        public int added()
-        {
-            return (regularColumns == null ? 0 : regularColumns.size())
-                 + (staticColumns == null ? 0 : staticColumns.size());
         }
 
         public Builder addAll(Iterable<ColumnDefinition> columns)
@@ -161,13 +158,13 @@ public class PartitionColumns implements Iterable<ColumnDefinition>
         public Builder addAll(PartitionColumns columns)
         {
             if (regularColumns == null && !columns.regulars.isEmpty())
-                regularColumns = new TreeSet<>();
+                regularColumns = BTreeSet.builder(naturalOrder());
 
             for (ColumnDefinition c : columns.regulars)
                 regularColumns.add(c);
 
             if (staticColumns == null && !columns.statics.isEmpty())
-                staticColumns = new TreeSet<>();
+                staticColumns = BTreeSet.builder(naturalOrder());
 
             for (ColumnDefinition c : columns.statics)
                 staticColumns.add(c);
@@ -177,8 +174,8 @@ public class PartitionColumns implements Iterable<ColumnDefinition>
 
         public PartitionColumns build()
         {
-            return new PartitionColumns(staticColumns == null ? Columns.NONE : Columns.from(staticColumns),
-                                        regularColumns == null ? Columns.NONE : Columns.from(regularColumns));
+            return new PartitionColumns(staticColumns == null ? Columns.NONE : Columns.from(staticColumns.build()),
+                                        regularColumns == null ? Columns.NONE : Columns.from(regularColumns.build()));
         }
     }
 }

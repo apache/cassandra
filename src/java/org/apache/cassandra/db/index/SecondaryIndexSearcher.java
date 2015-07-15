@@ -32,6 +32,7 @@ import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
 import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.tracing.Tracing;
+import org.apache.cassandra.utils.btree.BTreeSet;
 import org.apache.cassandra.utils.FBUtilities;
 
 public abstract class SecondaryIndexSearcher
@@ -109,10 +110,10 @@ public abstract class SecondaryIndexSearcher
             if (filter instanceof ClusteringIndexNamesFilter)
             {
                 NavigableSet<Clustering> requested = ((ClusteringIndexNamesFilter)filter).requestedRows();
-                NavigableSet<Clustering> clusterings = new TreeSet<>(index.getIndexComparator());
+                BTreeSet.Builder<Clustering> clusterings = BTreeSet.builder(index.getIndexComparator());
                 for (Clustering c : requested)
                     clusterings.add(index.makeIndexClustering(pk, c, (Cell)null).takeAlias());
-                return new ClusteringIndexNamesFilter(clusterings, filter.isReversed());
+                return new ClusteringIndexNamesFilter(clusterings.build(), filter.isReversed());
             }
             else
             {

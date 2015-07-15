@@ -33,6 +33,7 @@ import org.apache.cassandra.metrics.ColumnFamilyMetrics.Sampler;
 import org.apache.cassandra.thrift.ThriftResultsMerger;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.SearchIterator;
+import org.apache.cassandra.utils.btree.BTreeSet;
 import org.apache.cassandra.utils.memory.HeapAllocator;
 
 /**
@@ -217,13 +218,13 @@ public class SinglePartitionNamesCommand extends SinglePartitionReadCommand<Clus
         if (hasNoMoreStatic && hasNoMoreClusterings)
             return null;
 
-        NavigableSet<Clustering> newClusterings = clusterings;
         if (toRemove != null)
         {
-            newClusterings = new TreeSet<>(result.metadata().comparator);
+            BTreeSet.Builder<Clustering> newClusterings = BTreeSet.builder(result.metadata().comparator);
             newClusterings.addAll(Sets.difference(clusterings, toRemove));
+            clusterings = newClusterings.build();
         }
-        return new ClusteringIndexNamesFilter(newClusterings, filter.isReversed());
+        return new ClusteringIndexNamesFilter(clusterings, filter.isReversed());
     }
 
     private boolean canRemoveRow(Row row, Columns requestedColumns, long sstableTimestamp)

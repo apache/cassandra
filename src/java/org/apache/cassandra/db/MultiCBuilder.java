@@ -20,9 +20,8 @@ package org.apache.cassandra.db;
 import java.nio.ByteBuffer;
 import java.util.*;
 
-import static java.util.Collections.singletonList;
 import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.btree.BTreeSet;
 
 /**
  * Builder that allow to build multiple Clustering/Slice.Bound at the same time.
@@ -114,12 +113,12 @@ public abstract class MultiCBuilder
 
             public NavigableSet<Clustering> build()
             {
-                return FBUtilities.singleton(builder.build(), builder.comparator());
+                return BTreeSet.of(builder.comparator(), builder.build());
             }
 
-            public SortedSet<Slice.Bound> buildBound(boolean isStart, boolean isInclusive)
+            public NavigableSet<Slice.Bound> buildBound(boolean isStart, boolean isInclusive)
             {
-                return FBUtilities.singleton(builder.buildBound(isStart, isInclusive), builder.comparator());
+                return BTreeSet.of(builder.comparator(), builder.buildBound(isStart, isInclusive));
             }
         };
     }
@@ -199,7 +198,7 @@ public abstract class MultiCBuilder
      *
      * @return the clusterings
      */
-    public abstract SortedSet<Slice.Bound> buildBound(boolean isStart, boolean isInclusive);
+    public abstract NavigableSet<Slice.Bound> buildBound(boolean isStart, boolean isInclusive);
 
     /**
      * Checks if some elements can still be added to the clusterings.
@@ -386,45 +385,43 @@ public abstract class MultiCBuilder
             built = true;
 
             if (hasMissingElements)
-                return FBUtilities.emptySortedSet(comparator);
+                return BTreeSet.empty(comparator);
 
             CBuilder builder = CBuilder.create(comparator);
 
             if (elementsList.isEmpty())
-                return FBUtilities.singleton(builder.build(), builder.comparator());
+                return BTreeSet.of(builder.comparator(), builder.build());
 
-            // Use a TreeSet to sort and eliminate duplicates
-            NavigableSet<Clustering> set = new TreeSet<>(builder.comparator());
-
+            BTreeSet.Builder<Clustering> set = BTreeSet.builder(builder.comparator());
             for (int i = 0, m = elementsList.size(); i < m; i++)
             {
                 List<ByteBuffer> elements = elementsList.get(i);
                 set.add(builder.buildWith(elements));
             }
-            return set;
+            return set.build();
         }
 
-        public SortedSet<Slice.Bound> buildBound(boolean isStart, boolean isInclusive)
+        public NavigableSet<Slice.Bound> buildBound(boolean isStart, boolean isInclusive)
         {
             built = true;
 
             if (hasMissingElements)
-                return FBUtilities.emptySortedSet(comparator);
+                return BTreeSet.empty(comparator);
 
             CBuilder builder = CBuilder.create(comparator);
 
             if (elementsList.isEmpty())
-                return FBUtilities.singleton(builder.buildBound(isStart, isInclusive), comparator);
+                return BTreeSet.of(comparator, builder.buildBound(isStart, isInclusive));
 
             // Use a TreeSet to sort and eliminate duplicates
-            SortedSet<Slice.Bound> set = new TreeSet<>(comparator);
+            BTreeSet.Builder<Slice.Bound> set = BTreeSet.builder(comparator);
 
             for (int i = 0, m = elementsList.size(); i < m; i++)
             {
                 List<ByteBuffer> elements = elementsList.get(i);
                 set.add(builder.buildBoundWith(elements, isStart, isInclusive));
             }
-            return set;
+            return set.build();
         }
 
         private void checkUpdateable()

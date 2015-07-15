@@ -1,100 +1,164 @@
 /*
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
+* Licensed to the Apache Software Foundation (ASF) under one
+* or more contributor license agreements.  See the NOTICE file
+* distributed with this work for additional information
+* regarding copyright ownership.  The ASF licenses this file
+* to you under the Apache License, Version 2.0 (the
+* "License"); you may not use this file except in compliance
+* with the License.  You may obtain a copy of the License at
+*
+*    http://www.apache.org/licenses/LICENSE-2.0
+*
+* Unless required by applicable law or agreed to in writing,
+* software distributed under the License is distributed on an
+* "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+* KIND, either express or implied.  See the License for the
+* specific language governing permissions and limitations
+* under the License.
+*/
 package org.apache.cassandra.utils.btree;
 
 import java.util.Comparator;
+import java.util.Iterator;
+import java.util.NoSuchElementException;
 
-import org.apache.cassandra.utils.SearchIterator;
+import org.apache.cassandra.utils.IndexedSearchIterator;
 
-import static org.apache.cassandra.utils.btree.BTree.getKeyEnd;
+import static org.apache.cassandra.utils.btree.BTree.size;
 
-public class BTreeSearchIterator<CK, K extends CK, V> extends Path implements SearchIterator<K, V>
+public class BTreeSearchIterator<K, V> extends TreeCursor<K> implements IndexedSearchIterator<K, V>, Iterator<V>
 {
-    final Comparator<CK> comparator;
-    final boolean forwards;
+    private final boolean forwards;
 
-    public BTreeSearchIterator(Object[] btree, Comparator<CK> comparator, boolean forwards)
+    // for simplicity, we just always use the index feature of the btree to maintain our bounds within the tree,
+    // whether or not they are constrained
+    private int index;
+    private byte state;
+    private final int lowerBound, upperBound; // inclusive
+
+    private static final int MIDDLE = 0; // only "exists" as an absence of other states
+    private static final int ON_ITEM = 1; // may only co-exist with LAST (or MIDDLE, which is 0)
+    private static final int BEFORE_FIRST = 2; // may not coexist with any other state
+    private static final int LAST = 4; // may co-exist with ON_ITEM, in which case we are also at END
+    private static final int END = 5; // equal to LAST | ON_ITEM
+
+    public BTreeSearchIterator(Object[] btree, Comparator<? super K> comparator, boolean forwards)
     {
-        init(btree);
-        if (!forwards)
-            this.indexes[0] = (byte)(getKeyEnd(path[0]) - 1);
-        this.comparator = comparator;
-        this.forwards = forwards;
+        this(btree, comparator, forwards, 0, size(btree)-1);
     }
 
-    public V next(K target)
+    BTreeSearchIterator(Object[] btree, Comparator<? super K> comparator, boolean forwards, int lowerBound, int upperBound)
     {
-        // We could probably avoid some of the repetition but leaving that for later.
-        if (forwards)
-        {
-            while (depth > 0)
-            {
-                byte successorParentDepth = findSuccessorParentDepth();
-                if (successorParentDepth < 0)
-                    break; // we're in last section of tree, so can only search down
-                int successorParentIndex = indexes[successorParentDepth] + 1;
-                Object[] successParentNode = path[successorParentDepth];
-                Object successorParentKey = successParentNode[successorParentIndex];
-                int c = BTree.compare(comparator, target, successorParentKey);
-                if (c < 0)
-                    break;
-                if (c == 0)
-                {
-                    depth = successorParentDepth;
-                    indexes[successorParentDepth]++;
-                    return (V) successorParentKey;
-                }
-                depth = successorParentDepth;
-                indexes[successorParentDepth]++;
-            }
-            if (find(comparator, target, Op.CEIL, true))
-                return (V) currentKey();
-        }
-        else
-        {
-            while (depth > 0)
-            {
-                byte predecessorParentDepth = findPredecessorParentDepth();
-                if (predecessorParentDepth < 0)
-                    break; // we're in last section of tree, so can only search down
-                int predecessorParentIndex = indexes[predecessorParentDepth] - 1;
-                Object[] predecessParentNode = path[predecessorParentDepth];
-                Object predecessorParentKey = predecessParentNode[predecessorParentIndex];
-                int c = BTree.compare(comparator, target, predecessorParentKey);
-                if (c > 0)
-                    break;
-                if (c == 0)
-                {
-                    depth = predecessorParentDepth;
-                    indexes[predecessorParentDepth]--;
-                    return (V) predecessorParentKey;
-                }
-                depth = predecessorParentDepth;
-                indexes[predecessorParentDepth]--;
-            }
-            if (find(comparator, target, Op.FLOOR, false))
-                return (V) currentKey();
-        }
-        return null;
+        super(comparator, btree);
+        this.forwards = forwards;
+        this.lowerBound = lowerBound;
+        this.upperBound = upperBound;
+        rewind();
+    }
+
+    /**
+     * @return 0 if we are on the last item, 1 if we are past the last item, and -1 if we are before it
+     */
+    private int compareToLast(int idx)
+    {
+        return forwards ? idx - upperBound : lowerBound - idx;
+    }
+
+    private int compareToFirst(int idx)
+    {
+        return forwards ? idx - lowerBound : upperBound - idx;
     }
 
     public boolean hasNext()
     {
-        return depth != 0 || indexes[0] != (forwards ? getKeyEnd(path[0]) : -1);
+        return state != END;
+    }
+
+    public V next()
+    {
+        switch (state)
+        {
+            case ON_ITEM:
+                if (compareToLast(index = moveOne(forwards)) >= 0)
+                    state = END;
+                break;
+            case BEFORE_FIRST:
+                seekTo(index = forwards ? lowerBound : upperBound);
+                state = (byte) (upperBound == lowerBound ? LAST : MIDDLE);
+            case LAST:
+            case MIDDLE:
+                state |= ON_ITEM;
+                break;
+            default:
+                throw new NoSuchElementException();
+        }
+
+        return current();
+    }
+
+    public V next(K target)
+    {
+        if (!hasNext())
+            return null;
+
+        int state = this.state;
+        int index = seekTo(target, forwards, (state & (ON_ITEM | BEFORE_FIRST)) != 0);
+        boolean found = index >= 0;
+        if (!found) index = -1 -index;
+
+        V next = null;
+        if (state == BEFORE_FIRST && compareToFirst(index) < 0)
+            return null;
+
+        int compareToLast = compareToLast(index);
+        if ((compareToLast <= 0))
+        {
+            state = compareToLast < 0 ? MIDDLE : LAST;
+            if (found)
+            {
+                state |= ON_ITEM;
+                next = (V) currentValue();
+            }
+        }
+        else state = END;
+
+        this.state = (byte) state;
+        this.index = index;
+        return next;
+    }
+
+    /**
+     * Reset this Iterator to its starting position
+     */
+    public void rewind()
+    {
+        if (upperBound < lowerBound)
+        {
+            state = (byte) END;
+        }
+        else
+        {
+            // we don't move into the tree until the first request is made, so we know where to go
+            reset(forwards);
+            state = (byte) BEFORE_FIRST;
+        }
+    }
+
+    private void checkOnItem()
+    {
+        if ((state & ON_ITEM) != ON_ITEM)
+            throw new NoSuchElementException();
+    }
+
+    public V current()
+    {
+        checkOnItem();
+        return (V) currentValue();
+    }
+
+    public int indexOfCurrent()
+    {
+        checkOnItem();
+        return compareToFirst(index);
     }
 }

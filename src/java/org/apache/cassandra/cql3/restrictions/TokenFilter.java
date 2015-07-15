@@ -116,7 +116,7 @@ final class TokenFilter extends ForwardingPrimaryKeyRestrictions
     }
 
     @Override
-    public SortedSet<Slice.Bound> boundsAsClustering(Bound bound, QueryOptions options) throws InvalidRequestException
+    public NavigableSet<Slice.Bound> boundsAsClustering(Bound bound, QueryOptions options) throws InvalidRequestException
     {
         return tokenRestriction.boundsAsClustering(bound, options);
     }

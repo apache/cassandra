@@ -30,7 +30,7 @@ import static org.apache.cassandra.utils.btree.BTree.POSITIVE_INFINITY;
  * <p/>
  * This is a fairly heavy-weight object, so a ThreadLocal instance is created for making modifications to a tree
  */
-final class Builder
+final class TreeBuilder
 {
     private final NodeBuilder rootBuilder = new NodeBuilder();
 

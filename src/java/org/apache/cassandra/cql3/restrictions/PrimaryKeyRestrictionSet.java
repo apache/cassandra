@@ -29,7 +29,7 @@ import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.RowFilter;
 import org.apache.cassandra.db.index.SecondaryIndexManager;
 import org.apache.cassandra.exceptions.InvalidRequestException;
-import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.btree.BTreeSet;
 
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkFalse;
 import static org.apache.cassandra.cql3.statements.RequestValidations.invalidRequest;
@@ -200,7 +200,7 @@ final class PrimaryKeyRestrictionSet extends AbstractPrimaryKeyRestrictions
     }
 
     @Override
-    public SortedSet<Slice.Bound> boundsAsClustering(Bound bound, QueryOptions options) throws InvalidRequestException
+    public NavigableSet<Slice.Bound> boundsAsClustering(Bound bound, QueryOptions options) throws InvalidRequestException
     {
         MultiCBuilder builder = MultiCBuilder.create(comparator);
         int keyPosition = 0;
@@ -231,7 +231,7 @@ final class PrimaryKeyRestrictionSet extends AbstractPrimaryKeyRestrictions
             r.appendBoundTo(builder, b, options);
 
             if (builder.hasMissingElements())
-                return FBUtilities.<Slice.Bound>emptySortedSet(comparator);
+                return BTreeSet.empty(comparator);
 
             keyPosition = r.getLastColumn().position() + 1;
         }
