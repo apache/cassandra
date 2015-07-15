@@ -121,6 +121,7 @@ public class ReadCallback<TMessage, TResolved> implements IAsyncCallback<TMessag
         if (n >= blockfor && resolver.isDataPresent())
         {
             condition.signalAll();
+
             // kick off a background digest comparison if this is a result that (may have) arrived after
             // the original resolve that get() kicks off as soon as the condition is signaled
             if (blockfor < endpoints.size() && n == endpoints.size())

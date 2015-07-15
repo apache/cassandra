@@ -19,6 +19,7 @@ package org.apache.cassandra.db;
 
 import java.io.*;
 import java.nio.ByteBuffer;
+import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
 
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataOutputPlus;
@@ -32,22 +33,27 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 public class ReadResponse
 {
     public static final IVersionedSerializer<ReadResponse> serializer = new ReadResponseSerializer();
+    private static final AtomicReferenceFieldUpdater<ReadResponse, ByteBuffer> digestUpdater = AtomicReferenceFieldUpdater.newUpdater(ReadResponse.class, ByteBuffer.class, "digest");
 
     private final Row row;
-    private final ByteBuffer digest;
+    private volatile ByteBuffer digest;
 
     public ReadResponse(ByteBuffer digest)
     {
+        this(null, digest);
         assert digest != null;
-        this.digest= digest;
-        this.row = null;
     }
 
     public ReadResponse(Row row)
     {
+        this(row, null);
         assert row != null;
+    }
+
+    public ReadResponse(Row row, ByteBuffer digest)
+    {
         this.row = row;
-        this.digest = null;
+        this.digest = digest;
     }
 
     public Row row()
@@ -60,9 +66,19 @@ public class ReadResponse
         return digest;
     }
 
+    public void setDigest(ByteBuffer digest)
+    {
+        ByteBuffer curr = this.digest;
+        if (!digestUpdater.compareAndSet(this, curr, digest))
+        {
+            assert digest.equals(this.digest) :
+                String.format("Digest mismatch : %s vs %s", digest.array(), this.digest.array());
+        }
+    }
+
     public boolean isDigestQuery()
     {
-        return digest != null;
+        return digest != null && row == null;
     }
 }
 
