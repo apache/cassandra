@@ -89,6 +89,6 @@ public class CredentialsMessage extends Message.Request
     @Override
     public String toString()
     {
-        return "CREDENTIALS " + credentials;
+        return "CREDENTIALS";
     }
 }
