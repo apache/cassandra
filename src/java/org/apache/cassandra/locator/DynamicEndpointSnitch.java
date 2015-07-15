@@ -44,9 +44,9 @@ public class DynamicEndpointSnitch extends AbstractEndpointSnitch implements ILa
     private static final double ALPHA = 0.75; // set to 0.75 to make EDS more biased to towards the newer values
     private static final int WINDOW_SIZE = 100;
 
-    private int UPDATE_INTERVAL_IN_MS = DatabaseDescriptor.getDynamicUpdateInterval();
-    private int RESET_INTERVAL_IN_MS = DatabaseDescriptor.getDynamicResetInterval();
-    private double BADNESS_THRESHOLD = DatabaseDescriptor.getDynamicBadnessThreshold();
+    private final int UPDATE_INTERVAL_IN_MS = DatabaseDescriptor.getDynamicUpdateInterval();
+    private final int RESET_INTERVAL_IN_MS = DatabaseDescriptor.getDynamicResetInterval();
+    private final double BADNESS_THRESHOLD = DatabaseDescriptor.getDynamicBadnessThreshold();
 
     // the score for a merged set of endpoints must be this much worse than the score for separate endpoints to
     // warrant not merging two ranges into a single range
@@ -156,7 +156,18 @@ public class DynamicEndpointSnitch extends AbstractEndpointSnitch implements ILa
 
     private void sortByProximityWithScore(final InetAddress address, List<InetAddress> addresses)
     {
-        super.sortByProximity(address, addresses);
+        // Scores can change concurrently from a call to this method. But Collections.sort() expects
+        // its comparator to be "stable", that is 2 endpoint should compare the same way for the duration
+        // of the sort() call. As we copy the scores map on write, it is thus enough to alias the current
+        // version of it during this call.
+        final HashMap<InetAddress, Double> scores = this.scores;
+        Collections.sort(addresses, new Comparator<InetAddress>()
+        {
+            public int compare(InetAddress a1, InetAddress a2)
+            {
+                return compareEndpoints(address, a1, a2, scores);
+            }
+        });
     }
 
     private void sortByProximityWithBadness(final InetAddress address, List<InetAddress> addresses)
@@ -165,6 +176,8 @@ public class DynamicEndpointSnitch extends AbstractEndpointSnitch implements ILa
             return;
 
         subsnitch.sortByProximity(address, addresses);
+        HashMap<InetAddress, Double> scores = this.scores; // Make sure the score don't change in the middle of the loop below
+                                                           // (which wouldn't really matter here but its cleaner that way).
         ArrayList<Double> subsnitchOrderedScores = new ArrayList<>(addresses.size());
         for (InetAddress inet : addresses)
         {
@@ -191,7 +204,8 @@ public class DynamicEndpointSnitch extends AbstractEndpointSnitch implements ILa
         }
     }
 
-    public int compareEndpoints(InetAddress target, InetAddress a1, InetAddress a2)
+    // Compare endpoints given an immutable snapshot of the scores
+    private int compareEndpoints(InetAddress target, InetAddress a1, InetAddress a2, Map<InetAddress, Double> scores)
     {
         Double scored1 = scores.get(a1);
         Double scored2 = scores.get(a2);
@@ -214,6 +228,14 @@ public class DynamicEndpointSnitch extends AbstractEndpointSnitch implements ILa
             return -1;
         else
             return 1;
+    }
+
+    public int compareEndpoints(InetAddress target, InetAddress a1, InetAddress a2)
+    {
+        // That function is fundamentally unsafe because the scores can change at any time and so the result of that
+        // method is not stable for identical arguments. This is why we don't rely on super.sortByProximity() in
+        // sortByProximityWithScore().
+        throw new UnsupportedOperationException("You shouldn't wrap the DynamicEndpointSnitch (within itself or otherwise)");
     }
 
     public void receiveTiming(InetAddress host, long latency) // this is cheap
@@ -265,7 +287,6 @@ public class DynamicEndpointSnitch extends AbstractEndpointSnitch implements ILa
         scores = newScores;
     }
 
-
     private void reset()
     {
        samples.clear();
@@ -288,6 +309,7 @@ public class DynamicEndpointSnitch extends AbstractEndpointSnitch implements ILa
     {
         return BADNESS_THRESHOLD;
     }
+
     public String getSubsnitchClassName()
     {
         return subsnitch.getClass().getName();

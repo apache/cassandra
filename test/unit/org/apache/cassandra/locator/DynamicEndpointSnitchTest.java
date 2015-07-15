@@ -21,9 +21,9 @@ package org.apache.cassandra.locator;
 
 import java.io.IOException;
 import java.net.InetAddress;
-import java.util.Arrays;
-import java.util.List;
+import java.util.*;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.service.StorageService;
 import org.junit.Test;
@@ -89,5 +89,68 @@ public class DynamicEndpointSnitchTest
         setScores(dsnitch, 20, hosts, 10, 70, 20);
         order = Arrays.asList(host1, host3, host2);
         assertEquals(order, dsnitch.getSortedListByProximity(self, Arrays.asList(host1, host2, host3)));
+    }
+
+    @Test
+    public void testConcurrency() throws InterruptedException, IOException, ConfigurationException
+    {
+        // The goal of this test is to check for CASSANDRA-8448/CASSANDRA-9519
+        double badness = DatabaseDescriptor.getDynamicBadnessThreshold();
+        DatabaseDescriptor.setDynamicBadnessThreshold(0.0);
+
+        final int ITERATIONS = 10;
+
+        // do this because SS needs to be initialized before DES can work properly.
+        StorageService.instance.unsafeInitialize();
+        SimpleSnitch ss = new SimpleSnitch();
+        DynamicEndpointSnitch dsnitch = new DynamicEndpointSnitch(ss, String.valueOf(ss.hashCode()));
+        InetAddress self = FBUtilities.getBroadcastAddress();
+
+        List<InetAddress> hosts = new ArrayList<>();
+        // We want a giant list of hosts so that sorting it takes time, making it much more likely to reproduce the
+        // problem we're looking for.
+        for (int i = 0; i < 10; i++)
+            for (int j = 0; j < 256; j++)
+                for (int k = 0; k < 256; k++)
+                    hosts.add(InetAddress.getByAddress(new byte[]{127, (byte)i, (byte)j, (byte)k}));
+
+        ScoreUpdater updater = new ScoreUpdater(dsnitch, hosts);
+        updater.start();
+
+        List<InetAddress> result = null;
+        for (int i = 0; i < ITERATIONS; i++)
+            result = dsnitch.getSortedListByProximity(self, hosts);
+
+        updater.stopped = true;
+        updater.join();
+
+        DatabaseDescriptor.setDynamicBadnessThreshold(badness);
+    }
+
+    public static class ScoreUpdater extends Thread
+    {
+        private static final int SCORE_RANGE = 100;
+
+        public volatile boolean stopped;
+
+        private final DynamicEndpointSnitch dsnitch;
+        private final List<InetAddress> hosts;
+        private final Random random = new Random();
+
+        public ScoreUpdater(DynamicEndpointSnitch dsnitch, List<InetAddress> hosts)
+        {
+            this.dsnitch = dsnitch;
+            this.hosts = hosts;
+        }
+
+        public void run()
+        {
+            while (!stopped)
+            {
+                InetAddress host = hosts.get(random.nextInt(hosts.size()));
+                int score = random.nextInt(SCORE_RANGE);
+                dsnitch.receiveTiming(host, score);
+            }
+        }
     }
 }
