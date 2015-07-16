@@ -19,6 +19,7 @@ package org.apache.cassandra.db;
 
 import java.io.*;
 import java.nio.ByteBuffer;
+import java.util.Arrays;
 import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
 
 import org.apache.cassandra.io.IVersionedSerializer;
@@ -72,7 +73,9 @@ public class ReadResponse
         if (!digestUpdater.compareAndSet(this, curr, digest))
         {
             assert digest.equals(this.digest) :
-                String.format("Digest mismatch : %s vs %s", digest.array(), this.digest.array());
+                String.format("Digest mismatch : %s vs %s",
+                              Arrays.toString(digest.array()),
+                              Arrays.toString(this.digest.array()));
         }
     }
 
