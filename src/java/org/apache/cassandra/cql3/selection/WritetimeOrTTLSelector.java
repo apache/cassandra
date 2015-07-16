@@ -18,7 +18,6 @@
 package org.apache.cassandra.cql3.selection;
 
 import java.nio.ByteBuffer;
-import java.util.Collections;
 
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.cql3.ColumnSpecification;
@@ -34,6 +33,7 @@ final class WritetimeOrTTLSelector extends Selector
     private final int idx;
     private final boolean isWritetime;
     private ByteBuffer current;
+    private boolean isSet;
 
     public static Factory newFactory(final ColumnDefinition def, final int idx, final boolean isWritetime)
     {
@@ -73,6 +73,11 @@ final class WritetimeOrTTLSelector extends Selector
 
     public void addInput(int protocolVersion, ResultSetBuilder rs)
     {
+        if (isSet)
+            return;
+
+        isSet = true;
+
         if (isWritetime)
         {
             long ts = rs.timestamps[idx];
@@ -92,6 +97,7 @@ final class WritetimeOrTTLSelector extends Selector
 
     public void reset()
     {
+        isSet = false;
         current = null;
     }
 

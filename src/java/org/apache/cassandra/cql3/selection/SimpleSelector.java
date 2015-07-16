@@ -31,6 +31,7 @@ public final class SimpleSelector extends Selector
     private final int idx;
     private final AbstractType<?> type;
     private ByteBuffer current;
+    private boolean isSet;
 
     public static Factory newFactory(final ColumnDefinition def, final int idx)
     {
@@ -64,7 +65,11 @@ public final class SimpleSelector extends Selector
     @Override
     public void addInput(int protocolVersion, ResultSetBuilder rs) throws InvalidRequestException
     {
-        current = rs.current.get(idx);
+        if (!isSet)
+        {
+            isSet = true;
+            current = rs.current.get(idx);
+        }
     }
 
     @Override
@@ -76,6 +81,7 @@ public final class SimpleSelector extends Selector
     @Override
     public void reset()
     {
+        isSet = false;
         current = null;
     }
 

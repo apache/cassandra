@@ -109,18 +109,6 @@ final class SelectorFactories implements Iterable<Selector.Factory>
     }
 
     /**
-     * Checks if this <code>SelectorFactories</code> contains only factories for aggregates.
-     *
-     * @return <code>true</code> if this <code>SelectorFactories</code> contains only factories for aggregates,
-     * <code>false</code> otherwise.
-     */
-    public boolean containsOnlyAggregateFunctions()
-    {
-        int size = factories.size();
-        return  size != 0 && numberOfAggregateFactories == size;
-    }
-
-    /**
      * Whether the selector built by this factory does aggregation or not (either directly or in a sub-selector).
      *
      * @return <code>true</code> if the selector built by this factor does aggregation, <code>false</code> otherwise.
