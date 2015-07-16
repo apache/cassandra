@@ -21,9 +21,10 @@ import java.nio.ByteBuffer;
 import java.util.Collections;
 import java.util.List;
 
+import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.composites.CellName;
-import org.apache.cassandra.db.composites.Composite;
 import org.apache.cassandra.db.filter.SliceQueryFilter;
 import org.apache.cassandra.exceptions.RequestValidationException;
 import org.apache.cassandra.exceptions.RequestExecutionException;
@@ -42,7 +43,7 @@ public class SliceQueryPager extends AbstractQueryPager implements SinglePartiti
     private final SliceFromReadCommand command;
     private final ClientState cstate;
 
-    private volatile Composite lastReturned;
+    private volatile CellName lastReturned;
 
     // Don't use directly, use QueryPagers method instead
     SliceQueryPager(SliceFromReadCommand command, ConsistencyLevel consistencyLevel, ClientState cstate, boolean localQuery)
@@ -58,7 +59,9 @@ public class SliceQueryPager extends AbstractQueryPager implements SinglePartiti
 
         if (state != null)
         {
-            lastReturned = cfm.comparator.fromByteBuffer(state.cellName);
+            // The only case where this could be a non-CellName Composite is if it's Composites.EMPTY, but that's not
+            // valid for PagingState.cellName, so we can safely cast to CellName.
+            lastReturned = (CellName) cfm.comparator.fromByteBuffer(state.cellName);
             restoreState(state.remaining, true);
         }
     }
@@ -98,11 +101,12 @@ public class SliceQueryPager extends AbstractQueryPager implements SinglePartiti
             return false;
 
         Cell firstCell = isReversed() ? lastCell(first.cf) : firstNonStaticCell(first.cf);
+        CFMetaData metadata = Schema.instance.getCFMetaData(command.getKeyspace(), command.getColumnFamilyName());
         // Note: we only return true if the column is the lastReturned *and* it is live. If it is deleted, it is ignored by the
         // rest of the paging code (it hasn't been counted as live in particular) and we want to act as if it wasn't there.
         return !first.cf.deletionInfo().isDeleted(firstCell)
             && firstCell.isLive(timestamp())
-            && lastReturned.equals(firstCell.name());
+            && firstCell.name().isSameCQL3RowAs(metadata.comparator, lastReturned);
     }
 
     protected boolean recordLast(Row last)
