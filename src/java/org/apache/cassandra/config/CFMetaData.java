@@ -1117,7 +1117,7 @@ public final class CFMetaData
                                                            "interval (%d).", maxIndexInterval, minIndexInterval));
     }
 
-    // The comparator to validate the definition name.
+    // The comparator to validate the definition name with thrift.
     public AbstractType<?> thriftColumnNameType()
     {
         if (isSuper())
@@ -1127,7 +1127,8 @@ public final class CFMetaData
             return ((MapType)def.type).nameComparator();
         }
 
-        return UTF8Type.instance;
+        assert isStaticCompactTable();
+        return clusteringColumns.get(0).type;
     }
 
     public CFMetaData addAllColumnDefinitions(Collection<ColumnDefinition> defs)
