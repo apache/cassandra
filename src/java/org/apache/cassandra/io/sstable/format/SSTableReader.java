@@ -786,8 +786,8 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
         try (RandomAccessReader primaryIndex = RandomAccessReader.open(new File(descriptor.filenameFor(Component.PRIMARY_INDEX))))
         {
             long indexSize = primaryIndex.length();
-            long histogramCount = sstableMetadata.estimatedRowSize.count();
-            long estimatedKeys = histogramCount > 0 && !sstableMetadata.estimatedRowSize.isOverflowed()
+            long histogramCount = sstableMetadata.estimatedPartitionSize.count();
+            long estimatedKeys = histogramCount > 0 && !sstableMetadata.estimatedPartitionSize.isOverflowed()
                     ? histogramCount
                     : estimateRowsFromIndex(primaryIndex); // statistics is supposed to be optional
 
@@ -1825,9 +1825,9 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
         return keyCache;
     }
 
-    public EstimatedHistogram getEstimatedRowSize()
+    public EstimatedHistogram getEstimatedPartitionSize()
     {
-        return sstableMetadata.estimatedRowSize;
+        return sstableMetadata.estimatedPartitionSize;
     }
 
     public EstimatedHistogram getEstimatedColumnCount()

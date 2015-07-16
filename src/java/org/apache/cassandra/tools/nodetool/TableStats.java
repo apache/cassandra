@@ -185,7 +185,7 @@ public class TableStats extends NodeToolCmd
                 if (offHeapSize != null)
                     System.out.println("\t\tOff heap memory used (total): " + format(offHeapSize, humanReadable));
                 System.out.println("\t\tSSTable Compression Ratio: " + probe.getColumnFamilyMetric(keyspaceName, tableName, "CompressionRatio"));
-                System.out.println("\t\tNumber of keys (estimate): " + probe.getColumnFamilyMetric(keyspaceName, tableName, "EstimatedRowCount"));
+                System.out.println("\t\tNumber of keys (estimate): " + probe.getColumnFamilyMetric(keyspaceName, tableName, "EstimatedPartitionCount"));
                 System.out.println("\t\tMemtable cell count: " + probe.getColumnFamilyMetric(keyspaceName, tableName, "MemtableColumnsCount"));
                 System.out.println("\t\tMemtable data size: " + format((Long) probe.getColumnFamilyMetric(keyspaceName, tableName, "MemtableLiveDataSize"), humanReadable));
                 if (memtableOffHeapSize != null)
@@ -210,9 +210,9 @@ public class TableStats extends NodeToolCmd
                 if (compressionMetadataOffHeapSize != null)
                     System.out.println("\t\tCompression metadata off heap memory used: " + format(compressionMetadataOffHeapSize, humanReadable));
 
-                System.out.println("\t\tCompacted partition minimum bytes: " + format((Long) probe.getColumnFamilyMetric(keyspaceName, tableName, "MinRowSize"), humanReadable));
-                System.out.println("\t\tCompacted partition maximum bytes: " + format((Long) probe.getColumnFamilyMetric(keyspaceName, tableName, "MaxRowSize"), humanReadable));
-                System.out.println("\t\tCompacted partition mean bytes: " + format((Long) probe.getColumnFamilyMetric(keyspaceName, tableName, "MeanRowSize"), humanReadable));
+                System.out.println("\t\tCompacted partition minimum bytes: " + format((Long) probe.getColumnFamilyMetric(keyspaceName, tableName, "MinPartitionSize"), humanReadable));
+                System.out.println("\t\tCompacted partition maximum bytes: " + format((Long) probe.getColumnFamilyMetric(keyspaceName, tableName, "MaxPartitionSize"), humanReadable));
+                System.out.println("\t\tCompacted partition mean bytes: " + format((Long) probe.getColumnFamilyMetric(keyspaceName, tableName, "MeanPartitionSize"), humanReadable));
                 CassandraMetricsRegistry.JmxHistogramMBean histogram = (CassandraMetricsRegistry.JmxHistogramMBean) probe.getColumnFamilyMetric(keyspaceName, tableName, "LiveScannedHistogram");
                 System.out.println("\t\tAverage live cells per slice (last five minutes): " + histogram.getMean());
                 System.out.println("\t\tMaximum live cells per slice (last five minutes): " + histogram.getMax());

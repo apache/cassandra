@@ -40,13 +40,13 @@ public class UpgradeSSTable extends NodeToolCmd
     public void execute(NodeProbe probe)
     {
         List<String> keyspaces = parseOptionalKeyspace(args, probe);
-        String[] cfnames = parseOptionalColumnFamilies(args);
+        String[] tableNames = parseOptionalTables(args);
 
         for (String keyspace : keyspaces)
         {
             try
             {
-                probe.upgradeSSTables(System.out, keyspace, !includeAll, cfnames);
+                probe.upgradeSSTables(System.out, keyspace, !includeAll, tableNames);
             } catch (Exception e)
             {
                 throw new RuntimeException("Error occurred during enabling auto-compaction", e);

@@ -40,7 +40,7 @@ public class StatsMetadata extends MetadataComponent
 {
     public static final IMetadataComponentSerializer serializer = new StatsMetadataSerializer();
 
-    public final EstimatedHistogram estimatedRowSize;
+    public final EstimatedHistogram estimatedPartitionSize;
     public final EstimatedHistogram estimatedColumnCount;
     public final ReplayPosition replayPosition;
     public final long minTimestamp;
@@ -59,7 +59,7 @@ public class StatsMetadata extends MetadataComponent
     public final long totalColumnsSet;
     public final long totalRows;
 
-    public StatsMetadata(EstimatedHistogram estimatedRowSize,
+    public StatsMetadata(EstimatedHistogram estimatedPartitionSize,
                          EstimatedHistogram estimatedColumnCount,
                          ReplayPosition replayPosition,
                          long minTimestamp,
@@ -78,7 +78,7 @@ public class StatsMetadata extends MetadataComponent
                          long totalColumnsSet,
                          long totalRows)
     {
-        this.estimatedRowSize = estimatedRowSize;
+        this.estimatedPartitionSize = estimatedPartitionSize;
         this.estimatedColumnCount = estimatedColumnCount;
         this.replayPosition = replayPosition;
         this.minTimestamp = minTimestamp;
@@ -129,7 +129,7 @@ public class StatsMetadata extends MetadataComponent
 
     public StatsMetadata mutateLevel(int newLevel)
     {
-        return new StatsMetadata(estimatedRowSize,
+        return new StatsMetadata(estimatedPartitionSize,
                                  estimatedColumnCount,
                                  replayPosition,
                                  minTimestamp,
@@ -151,7 +151,7 @@ public class StatsMetadata extends MetadataComponent
 
     public StatsMetadata mutateRepairedAt(long newRepairedAt)
     {
-        return new StatsMetadata(estimatedRowSize,
+        return new StatsMetadata(estimatedPartitionSize,
                                  estimatedColumnCount,
                                  replayPosition,
                                  minTimestamp,
@@ -179,7 +179,7 @@ public class StatsMetadata extends MetadataComponent
 
         StatsMetadata that = (StatsMetadata) o;
         return new EqualsBuilder()
-                       .append(estimatedRowSize, that.estimatedRowSize)
+                       .append(estimatedPartitionSize, that.estimatedPartitionSize)
                        .append(estimatedColumnCount, that.estimatedColumnCount)
                        .append(replayPosition, that.replayPosition)
                        .append(minTimestamp, that.minTimestamp)
@@ -204,7 +204,7 @@ public class StatsMetadata extends MetadataComponent
     public int hashCode()
     {
         return new HashCodeBuilder()
-                       .append(estimatedRowSize)
+                       .append(estimatedPartitionSize)
                        .append(estimatedColumnCount)
                        .append(replayPosition)
                        .append(minTimestamp)
@@ -230,7 +230,7 @@ public class StatsMetadata extends MetadataComponent
         public int serializedSize(StatsMetadata component) throws IOException
         {
             int size = 0;
-            size += EstimatedHistogram.serializer.serializedSize(component.estimatedRowSize);
+            size += EstimatedHistogram.serializer.serializedSize(component.estimatedPartitionSize);
             size += EstimatedHistogram.serializer.serializedSize(component.estimatedColumnCount);
             size += ReplayPosition.serializer.serializedSize(component.replayPosition);
             size += 8 + 8 + 4 + 4 + 4 + 4 + 8 + 8; // mix/max timestamp(long), min/maxLocalDeletionTime(int), min/max TTL, compressionRatio(double), repairedAt (long)
@@ -251,7 +251,7 @@ public class StatsMetadata extends MetadataComponent
 
         public void serialize(StatsMetadata component, DataOutputPlus out) throws IOException
         {
-            EstimatedHistogram.serializer.serialize(component.estimatedRowSize, out);
+            EstimatedHistogram.serializer.serialize(component.estimatedPartitionSize, out);
             EstimatedHistogram.serializer.serialize(component.estimatedColumnCount, out);
             ReplayPosition.serializer.serialize(component.replayPosition, out);
             out.writeLong(component.minTimestamp);
@@ -278,7 +278,7 @@ public class StatsMetadata extends MetadataComponent
 
         public StatsMetadata deserialize(Version version, DataInputPlus in) throws IOException
         {
-            EstimatedHistogram rowSizes = EstimatedHistogram.serializer.deserialize(in);
+            EstimatedHistogram partitionSizes = EstimatedHistogram.serializer.deserialize(in);
             EstimatedHistogram columnCounts = EstimatedHistogram.serializer.deserialize(in);
             ReplayPosition replayPosition = ReplayPosition.serializer.deserialize(in);
             long minTimestamp = in.readLong();
@@ -312,7 +312,7 @@ public class StatsMetadata extends MetadataComponent
             long totalColumnsSet = version.storeRows() ? in.readLong() : -1L;
             long totalRows = version.storeRows() ? in.readLong() : -1L;
 
-            return new StatsMetadata(rowSizes,
+            return new StatsMetadata(partitionSizes,
                                      columnCounts,
                                      replayPosition,
                                      minTimestamp,

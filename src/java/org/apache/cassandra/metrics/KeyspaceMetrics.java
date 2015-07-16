@@ -21,7 +21,6 @@ import java.util.Set;
 
 import com.codahale.metrics.Gauge;
 import com.codahale.metrics.Histogram;
-import com.codahale.metrics.MetricRegistry;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 
@@ -38,9 +37,9 @@ public class KeyspaceMetrics
 {
     /** Total amount of live data stored in the memtable, excluding any data structure overhead */
     public final Gauge<Long> memtableLiveDataSize;
-    /** Total amount of data stored in the memtable that resides on-heap, including column related overhead and overwritten rows. */
+    /** Total amount of data stored in the memtable that resides on-heap, including column related overhead and partitions overwritten. */
     public final Gauge<Long> memtableOnHeapDataSize;
-    /** Total amount of data stored in the memtable that resides off-heap, including column related overhead and overwritten rows. */
+    /** Total amount of data stored in the memtable that resides off-heap, including column related overhead and partitions overwritten. */
     public final Gauge<Long> memtableOffHeapDataSize;
     /** Total amount of live data stored in the memtables (2i and pending flush memtables included) that resides off-heap, excluding any data structure overhead */
     public final Gauge<Long> allMemtablesLiveDataSize;
@@ -106,121 +105,121 @@ public class KeyspaceMetrics
         keyspace = ks;
         memtableColumnsCount = createKeyspaceGauge("MemtableColumnsCount", new MetricValue()
         {
-            public Long getValue(ColumnFamilyMetrics metric)
+            public Long getValue(TableMetrics metric)
             {
                 return metric.memtableColumnsCount.getValue();
             }
         });
         memtableLiveDataSize = createKeyspaceGauge("MemtableLiveDataSize", new MetricValue()
         {
-            public Long getValue(ColumnFamilyMetrics metric)
+            public Long getValue(TableMetrics metric)
             {
                 return metric.memtableLiveDataSize.getValue();
             }
         }); 
         memtableOnHeapDataSize = createKeyspaceGauge("MemtableOnHeapDataSize", new MetricValue()
         {
-            public Long getValue(ColumnFamilyMetrics metric)
+            public Long getValue(TableMetrics metric)
             {
                 return metric.memtableOnHeapSize.getValue();
             }
         });
         memtableOffHeapDataSize = createKeyspaceGauge("MemtableOffHeapDataSize", new MetricValue()
         {
-            public Long getValue(ColumnFamilyMetrics metric)
+            public Long getValue(TableMetrics metric)
             {
                 return metric.memtableOffHeapSize.getValue();
             }
         });
         allMemtablesLiveDataSize = createKeyspaceGauge("AllMemtablesLiveDataSize", new MetricValue()
         {
-            public Long getValue(ColumnFamilyMetrics metric)
+            public Long getValue(TableMetrics metric)
             {
                 return metric.allMemtablesLiveDataSize.getValue();
             }
         });
         allMemtablesOnHeapDataSize = createKeyspaceGauge("AllMemtablesOnHeapDataSize", new MetricValue()
         {
-            public Long getValue(ColumnFamilyMetrics metric)
+            public Long getValue(TableMetrics metric)
             {
                 return metric.allMemtablesOnHeapSize.getValue();
             }
         });
         allMemtablesOffHeapDataSize = createKeyspaceGauge("AllMemtablesOffHeapDataSize", new MetricValue()
         {
-            public Long getValue(ColumnFamilyMetrics metric)
+            public Long getValue(TableMetrics metric)
             {
                 return metric.allMemtablesOffHeapSize.getValue();
             }
         });
         memtableSwitchCount = createKeyspaceGauge("MemtableSwitchCount", new MetricValue()
         {
-            public Long getValue(ColumnFamilyMetrics metric)
+            public Long getValue(TableMetrics metric)
             {
                 return metric.memtableSwitchCount.getCount();
             }
         });
         pendingCompactions = createKeyspaceGauge("PendingCompactions", new MetricValue()
         {
-            public Long getValue(ColumnFamilyMetrics metric)
+            public Long getValue(TableMetrics metric)
             {
                 return (long) metric.pendingCompactions.getValue();
             }
         });
         pendingFlushes = createKeyspaceGauge("PendingFlushes", new MetricValue()
         {
-            public Long getValue(ColumnFamilyMetrics metric)
+            public Long getValue(TableMetrics metric)
             {
                 return (long) metric.pendingFlushes.getCount();
             }
         });
         liveDiskSpaceUsed = createKeyspaceGauge("LiveDiskSpaceUsed", new MetricValue()
         {
-            public Long getValue(ColumnFamilyMetrics metric)
+            public Long getValue(TableMetrics metric)
             {
                 return metric.liveDiskSpaceUsed.getCount();
             }
         });
         totalDiskSpaceUsed = createKeyspaceGauge("TotalDiskSpaceUsed", new MetricValue()
         {
-            public Long getValue(ColumnFamilyMetrics metric)
+            public Long getValue(TableMetrics metric)
             {
                 return metric.totalDiskSpaceUsed.getCount();
             }
         });
         bloomFilterDiskSpaceUsed = createKeyspaceGauge("BloomFilterDiskSpaceUsed", new MetricValue()
         {
-            public Long getValue(ColumnFamilyMetrics metric)
+            public Long getValue(TableMetrics metric)
             {
                 return metric.bloomFilterDiskSpaceUsed.getValue();
             }
         });
         bloomFilterOffHeapMemoryUsed = createKeyspaceGauge("BloomFilterOffHeapMemoryUsed", new MetricValue()
         {
-            public Long getValue(ColumnFamilyMetrics metric)
+            public Long getValue(TableMetrics metric)
             {
                 return metric.bloomFilterOffHeapMemoryUsed.getValue();
             }
         });
         indexSummaryOffHeapMemoryUsed = createKeyspaceGauge("IndexSummaryOffHeapMemoryUsed", new MetricValue()
         {
-            public Long getValue(ColumnFamilyMetrics metric)
+            public Long getValue(TableMetrics metric)
             {
                 return metric.indexSummaryOffHeapMemoryUsed.getValue();
             }
         });
         compressionMetadataOffHeapMemoryUsed = createKeyspaceGauge("CompressionMetadataOffHeapMemoryUsed", new MetricValue()
         {
-            public Long getValue(ColumnFamilyMetrics metric)
+            public Long getValue(TableMetrics metric)
             {
                 return metric.compressionMetadataOffHeapMemoryUsed.getValue();
             }
         });
-        // latency metrics for ColumnFamilyMetrics to update
+        // latency metrics for TableMetrics to update
         readLatency = new LatencyMetrics(factory, "Read");
         writeLatency = new LatencyMetrics(factory, "Write");
         rangeLatency = new LatencyMetrics(factory, "Range");
-        // create histograms for ColumnFamilyMetrics to replicate updates to
+        // create histograms for TableMetrics to replicate updates to
         sstablesPerReadHistogram = Metrics.histogram(factory.createMetricName("SSTablesPerReadHistogram"));
         tombstoneScannedHistogram = Metrics.histogram(factory.createMetricName("TombstoneScannedHistogram"));
         liveScannedHistogram = Metrics.histogram(factory.createMetricName("LiveScannedHistogram"));
@@ -258,7 +257,7 @@ public class KeyspaceMetrics
          * @param metric of a column family in this keyspace
          * @return current value of a metric
          */
-        public Long getValue(ColumnFamilyMetrics metric);
+        public Long getValue(TableMetrics metric);
     }
 
     /**
@@ -295,7 +294,7 @@ public class KeyspaceMetrics
 
         public CassandraMetricsRegistry.MetricName createMetricName(String metricName)
         {
-            String groupName = ColumnFamilyMetrics.class.getPackage().getName();
+            String groupName = TableMetrics.class.getPackage().getName();
 
             StringBuilder mbeanName = new StringBuilder();
             mbeanName.append(groupName).append(":");

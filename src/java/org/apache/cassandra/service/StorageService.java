@@ -2476,13 +2476,13 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         return Gossiper.instance.getCurrentGenerationNumber(FBUtilities.getBroadcastAddress());
     }
 
-    public int forceKeyspaceCleanup(String keyspaceName, String... columnFamilies) throws IOException, ExecutionException, InterruptedException
+    public int forceKeyspaceCleanup(String keyspaceName, String... tables) throws IOException, ExecutionException, InterruptedException
     {
         if (Schema.isSystemKeyspace(keyspaceName))
             throw new RuntimeException("Cleanup of the system keyspace is neither necessary nor wise");
 
         CompactionManager.AllSSTableOpStatus status = CompactionManager.AllSSTableOpStatus.SUCCESSFUL;
-        for (ColumnFamilyStore cfStore : getValidColumnFamilies(false, false, keyspaceName, columnFamilies))
+        for (ColumnFamilyStore cfStore : getValidColumnFamilies(false, false, keyspaceName, tables))
         {
             CompactionManager.AllSSTableOpStatus oneStatus = cfStore.forceCleanup();
             if (oneStatus != CompactionManager.AllSSTableOpStatus.SUCCESSFUL)
@@ -2491,15 +2491,15 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         return status.statusCode;
     }
 
-    public int scrub(boolean disableSnapshot, boolean skipCorrupted, String keyspaceName, String... columnFamilies) throws IOException, ExecutionException, InterruptedException
+    public int scrub(boolean disableSnapshot, boolean skipCorrupted, String keyspaceName, String... tables) throws IOException, ExecutionException, InterruptedException
     {
-        return scrub(disableSnapshot, skipCorrupted, true, keyspaceName, columnFamilies);
+        return scrub(disableSnapshot, skipCorrupted, true, keyspaceName, tables);
     }
 
-    public int scrub(boolean disableSnapshot, boolean skipCorrupted, boolean checkData, String keyspaceName, String... columnFamilies) throws IOException, ExecutionException, InterruptedException
+    public int scrub(boolean disableSnapshot, boolean skipCorrupted, boolean checkData, String keyspaceName, String... tables) throws IOException, ExecutionException, InterruptedException
     {
         CompactionManager.AllSSTableOpStatus status = CompactionManager.AllSSTableOpStatus.SUCCESSFUL;
-        for (ColumnFamilyStore cfStore : getValidColumnFamilies(true, false, keyspaceName, columnFamilies))
+        for (ColumnFamilyStore cfStore : getValidColumnFamilies(true, false, keyspaceName, tables))
         {
             CompactionManager.AllSSTableOpStatus oneStatus = cfStore.scrub(disableSnapshot, skipCorrupted, checkData);
             if (oneStatus != CompactionManager.AllSSTableOpStatus.SUCCESSFUL)
@@ -2508,10 +2508,10 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         return status.statusCode;
     }
 
-    public int verify(boolean extendedVerify, String keyspaceName, String... columnFamilies) throws IOException, ExecutionException, InterruptedException
+    public int verify(boolean extendedVerify, String keyspaceName, String... tableNames) throws IOException, ExecutionException, InterruptedException
     {
         CompactionManager.AllSSTableOpStatus status = CompactionManager.AllSSTableOpStatus.SUCCESSFUL;
-        for (ColumnFamilyStore cfStore : getValidColumnFamilies(false, false, keyspaceName, columnFamilies))
+        for (ColumnFamilyStore cfStore : getValidColumnFamilies(false, false, keyspaceName, tableNames))
         {
             CompactionManager.AllSSTableOpStatus oneStatus = cfStore.verify(extendedVerify);
             if (oneStatus != CompactionManager.AllSSTableOpStatus.SUCCESSFUL)
@@ -2520,10 +2520,10 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         return status.statusCode;
     }
 
-    public int upgradeSSTables(String keyspaceName, boolean excludeCurrentVersion, String... columnFamilies) throws IOException, ExecutionException, InterruptedException
+    public int upgradeSSTables(String keyspaceName, boolean excludeCurrentVersion, String... tableNames) throws IOException, ExecutionException, InterruptedException
     {
         CompactionManager.AllSSTableOpStatus status = CompactionManager.AllSSTableOpStatus.SUCCESSFUL;
-        for (ColumnFamilyStore cfStore : getValidColumnFamilies(true, true, keyspaceName, columnFamilies))
+        for (ColumnFamilyStore cfStore : getValidColumnFamilies(true, true, keyspaceName, tableNames))
         {
             CompactionManager.AllSSTableOpStatus oneStatus = cfStore.sstablesRewrite(excludeCurrentVersion);
             if (oneStatus != CompactionManager.AllSSTableOpStatus.SUCCESSFUL)
@@ -2532,9 +2532,9 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         return status.statusCode;
     }
 
-    public void forceKeyspaceCompaction(boolean splitOutput, String keyspaceName, String... columnFamilies) throws IOException, ExecutionException, InterruptedException
+    public void forceKeyspaceCompaction(boolean splitOutput, String keyspaceName, String... tableNames) throws IOException, ExecutionException, InterruptedException
     {
-        for (ColumnFamilyStore cfStore : getValidColumnFamilies(true, false, keyspaceName, columnFamilies))
+        for (ColumnFamilyStore cfStore : getValidColumnFamilies(true, false, keyspaceName, tableNames))
         {
             cfStore.forceMajorCompaction(splitOutput);
         }
@@ -2577,29 +2577,29 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     }
 
     /**
-     * Takes the snapshot of a specific column family. A snapshot name must be specified.
+     * Takes the snapshot of a specific table. A snapshot name must be specified.
      *
-     * @param keyspaceName the keyspace which holds the specified column family
-     * @param columnFamilyName the column family to snapshot
+     * @param keyspaceName the keyspace which holds the specified table
+     * @param tableName the table to snapshot
      * @param tag the tag given to the snapshot; may not be null or empty
      */
-    public void takeColumnFamilySnapshot(String keyspaceName, String columnFamilyName, String tag) throws IOException
+    public void takeTableSnapshot(String keyspaceName, String tableName, String tag) throws IOException
     {
         if (keyspaceName == null)
             throw new IOException("You must supply a keyspace name");
         if (operationMode == Mode.JOINING)
             throw new IOException("Cannot snapshot until bootstrap completes");
 
-        if (columnFamilyName == null)
+        if (tableName == null)
             throw new IOException("You must supply a table name");
-        if (columnFamilyName.contains("."))
+        if (tableName.contains("."))
             throw new IllegalArgumentException("Cannot take a snapshot of a secondary index by itself. Run snapshot on the table that owns the index.");
 
         if (tag == null || tag.equals(""))
             throw new IOException("You must supply a snapshot name.");
 
         Keyspace keyspace = getValidKeyspace(keyspaceName);
-        ColumnFamilyStore columnFamilyStore = keyspace.getColumnFamilyStore(columnFamilyName);
+        ColumnFamilyStore columnFamilyStore = keyspace.getColumnFamilyStore(tableName);
         if (columnFamilyStore.snapshotExists(tag))
             throw new IOException("Snapshot " + tag + " already exists.");
 
@@ -2612,34 +2612,34 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
      * 
      * @param tag
      *            the tag given to the snapshot; may not be null or empty
-     * @param columnFamilyList
-     *            list of columnfamily from different keyspace in the form of ks1.cf1 ks2.cf2
+     * @param tableList
+     *            list of tables from different keyspace in the form of ks1.cf1 ks2.cf2
      */
     @Override
-    public void takeMultipleColumnFamilySnapshot(String tag, String... columnFamilyList)
+    public void takeMultipleTableSnapshot(String tag, String... tableList)
             throws IOException
     {
         Map<Keyspace, List<String>> keyspaceColumnfamily = new HashMap<Keyspace, List<String>>();
-        for (String columnFamily : columnFamilyList)
+        for (String table : tableList)
         {
-            String splittedString[] = columnFamily.split("\\.");
+            String splittedString[] = table.split("\\.");
             if (splittedString.length == 2)
             {
                 String keyspaceName = splittedString[0];
-                String columnFamilyName = splittedString[1];
+                String tableName = splittedString[1];
 
                 if (keyspaceName == null)
                     throw new IOException("You must supply a keyspace name");
                 if (operationMode.equals(Mode.JOINING))
                     throw new IOException("Cannot snapshot until bootstrap completes");
 
-                if (columnFamilyName == null)
-                    throw new IOException("You must supply a column family name");
+                if (tableName == null)
+                    throw new IOException("You must supply a table name");
                 if (tag == null || tag.equals(""))
                     throw new IOException("You must supply a snapshot name.");
 
                 Keyspace keyspace = getValidKeyspace(keyspaceName);
-                ColumnFamilyStore columnFamilyStore = keyspace.getColumnFamilyStore(columnFamilyName);
+                ColumnFamilyStore columnFamilyStore = keyspace.getColumnFamilyStore(tableName);
                 // As there can be multiple column family from same keyspace check if snapshot exist for that specific
                 // columnfamily and not for whole keyspace
 
@@ -2652,7 +2652,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
                 // Add Keyspace columnfamily to map in order to support atomicity for snapshot process.
                 // So no snapshot should happen if any one of the above conditions fail for any keyspace or columnfamily
-                keyspaceColumnfamily.get(keyspace).add(columnFamilyName);
+                keyspaceColumnfamily.get(keyspace).add(tableName);
 
             }
             else
@@ -2664,8 +2664,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
         for (Entry<Keyspace, List<String>> entry : keyspaceColumnfamily.entrySet())
         {
-            for (String columnFamily : entry.getValue())
-                entry.getKey().snapshot(tag, columnFamily);
+            for (String table : entry.getValue())
+                entry.getKey().snapshot(tag, table);
         }
 
     }
@@ -2766,12 +2766,12 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     /**
      * Flush all memtables for a keyspace and column families.
      * @param keyspaceName
-     * @param columnFamilies
+     * @param tableNames
      * @throws IOException
      */
-    public void forceKeyspaceFlush(String keyspaceName, String... columnFamilies) throws IOException
+    public void forceKeyspaceFlush(String keyspaceName, String... tableNames) throws IOException
     {
-        for (ColumnFamilyStore cfStore : getValidColumnFamilies(true, false, keyspaceName, columnFamilies))
+        for (ColumnFamilyStore cfStore : getValidColumnFamilies(true, false, keyspaceName, tableNames))
         {
             logger.debug("Forcing flush on keyspace {}, CF {}", keyspaceName, cfStore.name);
             cfStore.forceBlockingFlush();
@@ -2810,9 +2810,9 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                                 Collection<String> hosts,
                                 boolean primaryRange,
                                 boolean fullRepair,
-                                String... columnFamilies)
+                                String... tableNames)
     {
-        return forceRepairAsync(keyspace, isSequential ? RepairParallelism.SEQUENTIAL.ordinal() : RepairParallelism.PARALLEL.ordinal(), dataCenters, hosts, primaryRange, fullRepair, columnFamilies);
+        return forceRepairAsync(keyspace, isSequential ? RepairParallelism.SEQUENTIAL.ordinal() : RepairParallelism.PARALLEL.ordinal(), dataCenters, hosts, primaryRange, fullRepair, tableNames);
     }
 
     @Deprecated
@@ -2822,7 +2822,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                                 Collection<String> hosts,
                                 boolean primaryRange,
                                 boolean fullRepair,
-                                String... columnFamilies)
+                                String... tableNames)
     {
         if (parallelismDegree < 0 || parallelismDegree > RepairParallelism.values().length - 1)
         {
@@ -2859,11 +2859,11 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         {
             options.getRanges().addAll(getLocalRanges(keyspace));
         }
-        if (columnFamilies != null)
+        if (tableNames != null)
         {
-            for (String columnFamily : columnFamilies)
+            for (String table : tableNames)
             {
-                options.getColumnFamilies().add(columnFamily);
+                options.getColumnFamilies().add(table);
             }
         }
         return forceRepairAsync(keyspace, options);
@@ -2874,14 +2874,14 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                                 boolean isLocal,
                                 boolean primaryRange,
                                 boolean fullRepair,
-                                String... columnFamilies)
+                                String... tableNames)
     {
         Set<String> dataCenters = null;
         if (isLocal)
         {
             dataCenters = Sets.newHashSet(DatabaseDescriptor.getLocalDataCenter());
         }
-        return forceRepairAsync(keyspace, isSequential, dataCenters, null, primaryRange, fullRepair, columnFamilies);
+        return forceRepairAsync(keyspace, isSequential, dataCenters, null, primaryRange, fullRepair, tableNames);
     }
 
     public int forceRepairRangeAsync(String beginToken,
@@ -2891,11 +2891,11 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                                      Collection<String> dataCenters,
                                      Collection<String> hosts,
                                      boolean fullRepair,
-                                     String... columnFamilies)
+                                     String... tableNames)
     {
         return forceRepairRangeAsync(beginToken, endToken, keyspaceName,
                                      isSequential ? RepairParallelism.SEQUENTIAL.ordinal() : RepairParallelism.PARALLEL.ordinal(),
-                                     dataCenters, hosts, fullRepair, columnFamilies);
+                                     dataCenters, hosts, fullRepair, tableNames);
     }
 
     public int forceRepairRangeAsync(String beginToken,
@@ -2905,7 +2905,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                                      Collection<String> dataCenters,
                                      Collection<String> hosts,
                                      boolean fullRepair,
-                                     String... columnFamilies)
+                                     String... tableNames)
     {
         if (parallelismDegree < 0 || parallelismDegree > RepairParallelism.values().length - 1)
         {
@@ -2925,16 +2925,16 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         {
             options.getHosts().addAll(hosts);
         }
-        if (columnFamilies != null)
+        if (tableNames != null)
         {
-            for (String columnFamily : columnFamilies)
+            for (String table : tableNames)
             {
-                options.getColumnFamilies().add(columnFamily);
+                options.getColumnFamilies().add(table);
             }
         }
 
         logger.info("starting user-requested repair of range {} for keyspace {} and column families {}",
-                    repairingRange, keyspaceName, columnFamilies);
+                    repairingRange, keyspaceName, tableNames);
         return forceRepairAsync(keyspaceName, options);
     }
 
@@ -2944,14 +2944,14 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                                      boolean isSequential,
                                      boolean isLocal,
                                      boolean fullRepair,
-                                     String... columnFamilies)
+                                     String... tableNames)
     {
         Set<String> dataCenters = null;
         if (isLocal)
         {
             dataCenters = Sets.newHashSet(DatabaseDescriptor.getLocalDataCenter());
         }
-        return forceRepairRangeAsync(beginToken, endToken, keyspaceName, isSequential, dataCenters, null, fullRepair, columnFamilies);
+        return forceRepairRangeAsync(beginToken, endToken, keyspaceName, isSequential, dataCenters, null, fullRepair, tableNames);
     }
 
     /**
@@ -3909,11 +3909,11 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         return old;
     }
 
-    public void truncate(String keyspace, String columnFamily) throws TimeoutException, IOException
+    public void truncate(String keyspace, String table) throws TimeoutException, IOException
     {
         try
         {
-            StorageProxy.truncateBlocking(keyspace, columnFamily);
+            StorageProxy.truncateBlocking(keyspace, table);
         }
         catch (UnavailableException e)
         {
@@ -4266,17 +4266,17 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         return traceProbability;
     }
 
-    public void disableAutoCompaction(String ks, String... columnFamilies) throws IOException
+    public void disableAutoCompaction(String ks, String... tables) throws IOException
     {
-        for (ColumnFamilyStore cfs : getValidColumnFamilies(true, true, ks, columnFamilies))
+        for (ColumnFamilyStore cfs : getValidColumnFamilies(true, true, ks, tables))
         {
             cfs.disableAutoCompaction();
         }
     }
 
-    public void enableAutoCompaction(String ks, String... columnFamilies) throws IOException
+    public void enableAutoCompaction(String ks, String... tables) throws IOException
     {
-        for (ColumnFamilyStore cfs : getValidColumnFamilies(true, true, ks, columnFamilies))
+        for (ColumnFamilyStore cfs : getValidColumnFamilies(true, true, ks, tables))
         {
             cfs.enableAutoCompaction();
         }

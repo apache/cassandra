@@ -37,13 +37,13 @@ public class EnableAutoCompaction extends NodeToolCmd
     public void execute(NodeProbe probe)
     {
         List<String> keyspaces = parseOptionalKeyspace(args, probe);
-        String[] cfnames = parseOptionalColumnFamilies(args);
+        String[] tableNames = parseOptionalTables(args);
 
         for (String keyspace : keyspaces)
         {
             try
             {
-                probe.enableAutoCompaction(keyspace, cfnames);
+                probe.enableAutoCompaction(keyspace, tableNames);
             } catch (IOException e)
             {
                 throw new RuntimeException("Error occurred during enabling auto-compaction", e);

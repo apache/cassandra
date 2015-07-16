@@ -40,13 +40,13 @@ public class Compact extends NodeToolCmd
     public void execute(NodeProbe probe)
     {
         List<String> keyspaces = parseOptionalKeyspace(args, probe);
-        String[] cfnames = parseOptionalColumnFamilies(args);
+        String[] tableNames = parseOptionalTables(args);
 
         for (String keyspace : keyspaces)
         {
             try
             {
-                probe.forceKeyspaceCompaction(splitOutput, keyspace, cfnames);
+                probe.forceKeyspaceCompaction(splitOutput, keyspace, tableNames);
             } catch (Exception e)
             {
                 throw new RuntimeException("Error occurred during compaction", e);

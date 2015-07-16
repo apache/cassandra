@@ -33,8 +33,8 @@ import javax.management.openmbean.CompositeData;
 import javax.management.openmbean.OpenDataException;
 import javax.management.openmbean.TabularDataSupport;
 
-import org.apache.cassandra.metrics.ColumnFamilyMetrics;
-import org.apache.cassandra.metrics.ColumnFamilyMetrics.Sampler;
+import org.apache.cassandra.metrics.TableMetrics;
+import org.apache.cassandra.metrics.TableMetrics.Sampler;
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
 
@@ -51,7 +51,7 @@ public class TopPartitions extends NodeToolCmd
     @Option(name = "-k", description = "Number of the top partitions to list (Default: 10)")
     private int topCount = 10;
     @Option(name = "-a", description = "Comma separated list of samplers to use (Default: all)")
-    private String samplers = join(ColumnFamilyMetrics.Sampler.values(), ',');
+    private String samplers = join(TableMetrics.Sampler.values(), ',');
     @Override
     public void execute(NodeProbe probe)
     {

@@ -92,8 +92,8 @@ public class SSTableMetadataViewer
 
     private static void printHistograms(StatsMetadata metadata, PrintStream out)
     {
-        long[] offsets = metadata.estimatedRowSize.getBucketOffsets();
-        long[] ersh = metadata.estimatedRowSize.getBuckets(false);
+        long[] offsets = metadata.estimatedPartitionSize.getBucketOffsets();
+        long[] ersh = metadata.estimatedPartitionSize.getBuckets(false);
         long[] ecch = metadata.estimatedColumnCount.getBuckets(false);
 
         out.println(String.format("%-10s%18s%18s",

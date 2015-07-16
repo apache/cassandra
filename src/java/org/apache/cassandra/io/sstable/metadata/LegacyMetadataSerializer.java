@@ -51,7 +51,7 @@ public class LegacyMetadataSerializer extends MetadataSerializer
 
         assert validation != null && stats != null && compaction != null && validation.partitioner != null;
 
-        EstimatedHistogram.serializer.serialize(stats.estimatedRowSize, out);
+        EstimatedHistogram.serializer.serialize(stats.estimatedPartitionSize, out);
         EstimatedHistogram.serializer.serialize(stats.estimatedColumnCount, out);
         ReplayPosition.serializer.serialize(stats.replayPosition, out);
         out.writeLong(stats.minTimestamp);
@@ -90,7 +90,7 @@ public class LegacyMetadataSerializer extends MetadataSerializer
         {
             try (DataInputStreamPlus in = new DataInputStreamPlus(new BufferedInputStream(new FileInputStream(statsFile))))
             {
-                EstimatedHistogram rowSizes = EstimatedHistogram.serializer.deserialize(in);
+                EstimatedHistogram partitionSizes = EstimatedHistogram.serializer.deserialize(in);
                 EstimatedHistogram columnCounts = EstimatedHistogram.serializer.deserialize(in);
                 ReplayPosition replayPosition = ReplayPosition.serializer.deserialize(in);
                 long minTimestamp = in.readLong();
@@ -123,7 +123,7 @@ public class LegacyMetadataSerializer extends MetadataSerializer
                                    new ValidationMetadata(partitioner, bloomFilterFPChance));
                 if (types.contains(MetadataType.STATS))
                     components.put(MetadataType.STATS,
-                                   new StatsMetadata(rowSizes,
+                                   new StatsMetadata(partitionSizes,
                                                      columnCounts,
                                                      replayPosition,
                                                      minTimestamp,

@@ -85,7 +85,7 @@ public class Repair extends NodeToolCmd
     public void execute(NodeProbe probe)
     {
         List<String> keyspaces = parseOptionalKeyspace(args, probe);
-        String[] cfnames = parseOptionalColumnFamilies(args);
+        String[] cfnames = parseOptionalTables(args);
 
         if (primaryRange && (!specificDataCenters.isEmpty() || !specificHosts.isEmpty()))
             throw new RuntimeException("Primary range repair should be performed on all nodes in the cluster.");

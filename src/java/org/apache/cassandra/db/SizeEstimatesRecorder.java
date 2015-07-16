@@ -131,8 +131,8 @@ public class SizeEstimatesRecorder extends MigrationListener implements Runnable
         long sum = 0, count = 0;
         for (SSTableReader sstable : sstables)
         {
-            long n = sstable.getEstimatedRowSize().count();
-            sum += sstable.getEstimatedRowSize().mean() * n;
+            long n = sstable.getEstimatedPartitionSize().count();
+            sum += sstable.getEstimatedPartitionSize().mean() * n;
             count += n;
         }
         return count > 0 ? sum / count : 0;

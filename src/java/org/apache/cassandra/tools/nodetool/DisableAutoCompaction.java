@@ -37,13 +37,13 @@ public class DisableAutoCompaction extends NodeToolCmd
     public void execute(NodeProbe probe)
     {
         List<String> keyspaces = parseOptionalKeyspace(args, probe);
-        String[] cfnames = parseOptionalColumnFamilies(args);
+        String[] tablenames = parseOptionalTables(args);
 
         for (String keyspace : keyspaces)
         {
             try
             {
-                probe.disableAutoCompaction(keyspace, cfnames);
+                probe.disableAutoCompaction(keyspace, tablenames);
             } catch (IOException e)
             {
                 throw new RuntimeException("Error occurred during disabling auto-compaction", e);

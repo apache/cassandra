@@ -198,20 +198,20 @@ public interface StorageServiceMBean extends NotificationEmitter
      * Takes the snapshot of a specific column family. A snapshot name must be specified.
      *
      * @param keyspaceName the keyspace which holds the specified column family
-     * @param columnFamilyName the column family to snapshot
+     * @param tableName the table to snapshot
      * @param tag the tag given to the snapshot; may not be null or empty
      */
-    public void takeColumnFamilySnapshot(String keyspaceName, String columnFamilyName, String tag) throws IOException;
+    public void takeTableSnapshot(String keyspaceName, String tableName, String tag) throws IOException;
 
     /**
      * Takes the snapshot of a multiple column family from different keyspaces. A snapshot name must be specified.
      * 
      * @param tag
      *            the tag given to the snapshot; may not be null or empty
-     * @param columnFamilyList
-     *            list of columnfamily from different keyspace in the form of ks1.cf1 ks2.cf2
+     * @param tableList
+     *            list of tables from different keyspace in the form of ks1.cf1 ks2.cf2
      */
-    public void takeMultipleColumnFamilySnapshot(String tag, String... columnFamilyList) throws IOException;
+    public void takeMultipleTableSnapshot(String tag, String... tableList) throws IOException;
 
     /**
      * Remove the snapshot with the given name from the given keyspaces.
@@ -234,45 +234,45 @@ public interface StorageServiceMBean extends NotificationEmitter
     /**
      * Forces major compaction of a single keyspace
      */
-    public void forceKeyspaceCompaction(boolean splitOutput, String keyspaceName, String... columnFamilies) throws IOException, ExecutionException, InterruptedException;
+    public void forceKeyspaceCompaction(boolean splitOutput, String keyspaceName, String... tableNames) throws IOException, ExecutionException, InterruptedException;
 
     /**
      * Trigger a cleanup of keys on a single keyspace
      */
-    public int forceKeyspaceCleanup(String keyspaceName, String... columnFamilies) throws IOException, ExecutionException, InterruptedException;
+    public int forceKeyspaceCleanup(String keyspaceName, String... tables) throws IOException, ExecutionException, InterruptedException;
 
     /**
      * Scrub (deserialize + reserialize at the latest version, skipping bad rows if any) the given keyspace.
-     * If columnFamilies array is empty, all CFs are scrubbed.
+     * If tableNames array is empty, all CFs are scrubbed.
      *
      * Scrubbed CFs will be snapshotted first, if disableSnapshot is false
      */
     @Deprecated
-    public int scrub(boolean disableSnapshot, boolean skipCorrupted, String keyspaceName, String... columnFamilies) throws IOException, ExecutionException, InterruptedException;
-    public int scrub(boolean disableSnapshot, boolean skipCorrupted, boolean checkData, String keyspaceName, String... columnFamilies) throws IOException, ExecutionException, InterruptedException;
+    public int scrub(boolean disableSnapshot, boolean skipCorrupted, String keyspaceName, String... tableNames) throws IOException, ExecutionException, InterruptedException;
+    public int scrub(boolean disableSnapshot, boolean skipCorrupted, boolean checkData, String keyspaceName, String... tableNames) throws IOException, ExecutionException, InterruptedException;
 
     /**
      * Verify (checksums of) the given keyspace.
-     * If columnFamilies array is empty, all CFs are verified.
+     * If tableNames array is empty, all CFs are verified.
      *
      * The entire sstable will be read to ensure each cell validates if extendedVerify is true
      */
-    public int verify(boolean extendedVerify, String keyspaceName, String... columnFamilies) throws IOException, ExecutionException, InterruptedException;
+    public int verify(boolean extendedVerify, String keyspaceName, String... tableNames) throws IOException, ExecutionException, InterruptedException;
 
     /**
      * Rewrite all sstables to the latest version.
      * Unlike scrub, it doesn't skip bad rows and do not snapshot sstables first.
      */
-    public int upgradeSSTables(String keyspaceName, boolean excludeCurrentVersion, String... columnFamilies) throws IOException, ExecutionException, InterruptedException;
+    public int upgradeSSTables(String keyspaceName, boolean excludeCurrentVersion, String... tableNames) throws IOException, ExecutionException, InterruptedException;
 
     /**
      * Flush all memtables for the given column families, or all columnfamilies for the given keyspace
      * if none are explicitly listed.
      * @param keyspaceName
-     * @param columnFamilies
+     * @param tableNames
      * @throws IOException
      */
-    public void forceKeyspaceFlush(String keyspaceName, String... columnFamilies) throws IOException, ExecutionException, InterruptedException;
+    public void forceKeyspaceFlush(String keyspaceName, String... tableNames) throws IOException, ExecutionException, InterruptedException;
 
     /**
      * Invoke repair asynchronously.
@@ -288,7 +288,7 @@ public interface StorageServiceMBean extends NotificationEmitter
     public int repairAsync(String keyspace, Map<String, String> options);
 
     @Deprecated
-    public int forceRepairAsync(String keyspace, boolean isSequential, Collection<String> dataCenters, Collection<String> hosts,  boolean primaryRange, boolean repairedAt, String... columnFamilies) throws IOException;
+    public int forceRepairAsync(String keyspace, boolean isSequential, Collection<String> dataCenters, Collection<String> hosts,  boolean primaryRange, boolean repairedAt, String... tableNames) throws IOException;
 
     /**
      * Invoke repair asynchronously.
@@ -301,10 +301,10 @@ public interface StorageServiceMBean extends NotificationEmitter
      * @return Repair command number, or 0 if nothing to repair
      */
     @Deprecated
-    public int forceRepairAsync(String keyspace, int parallelismDegree, Collection<String> dataCenters, Collection<String> hosts, boolean primaryRange, boolean fullRepair, String... columnFamilies);
+    public int forceRepairAsync(String keyspace, int parallelismDegree, Collection<String> dataCenters, Collection<String> hosts, boolean primaryRange, boolean fullRepair, String... tableNames);
 
     @Deprecated
-    public int forceRepairRangeAsync(String beginToken, String endToken, String keyspaceName, boolean isSequential, Collection<String> dataCenters, Collection<String> hosts, boolean repairedAt, String... columnFamilies) throws IOException;
+    public int forceRepairRangeAsync(String beginToken, String endToken, String keyspaceName, boolean isSequential, Collection<String> dataCenters, Collection<String> hosts, boolean repairedAt, String... tableNames) throws IOException;
 
     /**
      * Same as forceRepairAsync, but handles a specified range
@@ -312,13 +312,13 @@ public interface StorageServiceMBean extends NotificationEmitter
      * @param parallelismDegree 0: sequential, 1: parallel, 2: DC parallel
      */
     @Deprecated
-    public int forceRepairRangeAsync(String beginToken, String endToken, String keyspaceName, int parallelismDegree, Collection<String> dataCenters, Collection<String> hosts, boolean fullRepair, String... columnFamilies);
+    public int forceRepairRangeAsync(String beginToken, String endToken, String keyspaceName, int parallelismDegree, Collection<String> dataCenters, Collection<String> hosts, boolean fullRepair, String... tableNames);
 
     @Deprecated
-    public int forceRepairAsync(String keyspace, boolean isSequential, boolean isLocal, boolean primaryRange, boolean fullRepair, String... columnFamilies);
+    public int forceRepairAsync(String keyspace, boolean isSequential, boolean isLocal, boolean primaryRange, boolean fullRepair, String... tableNames);
 
     @Deprecated
-    public int forceRepairRangeAsync(String beginToken, String endToken, String keyspaceName, boolean isSequential, boolean isLocal, boolean repairedAt, String... columnFamilies);
+    public int forceRepairRangeAsync(String beginToken, String endToken, String keyspaceName, boolean isSequential, boolean isLocal, boolean repairedAt, String... tableNames);
 
     public void forceTerminateAllRepairSessions();
 
@@ -382,16 +382,16 @@ public interface StorageServiceMBean extends NotificationEmitter
     public void drain() throws IOException, InterruptedException, ExecutionException;
 
     /**
-     * Truncates (deletes) the given columnFamily from the provided keyspace.
+     * Truncates (deletes) the given table from the provided keyspace.
      * Calling truncate results in actual deletion of all data in the cluster
-     * under the given columnFamily and it will fail unless all hosts are up.
+     * under the given table and it will fail unless all hosts are up.
      * All data in the given column family will be deleted, but its definition
      * will not be affected.
      *
      * @param keyspace The keyspace to delete from
-     * @param columnFamily The column family to delete data from.
+     * @param table The column family to delete data from.
      */
-    public void truncate(String keyspace, String columnFamily)throws TimeoutException, IOException;
+    public void truncate(String keyspace, String table)throws TimeoutException, IOException;
 
     /**
      * given a list of tokens (representing the nodes in the cluster), returns
@@ -484,12 +484,12 @@ public interface StorageServiceMBean extends NotificationEmitter
     public void rescheduleFailedDeletions();
 
     /**
-     * Load new SSTables to the given keyspace/columnFamily
+     * Load new SSTables to the given keyspace/table
      *
      * @param ksName The parent keyspace name
      * @param cfName The ColumnFamily name where SSTables belong
      */
-    public void loadNewSSTables(String ksName, String cfName);
+    public void loadNewSSTables(String ksName, String tableName);
 
     /**
      * Return a List of Tokens representing a sample of keys across all ColumnFamilyStores.
@@ -522,8 +522,8 @@ public interface StorageServiceMBean extends NotificationEmitter
      */
     public double getTraceProbability();
 
-    void disableAutoCompaction(String ks, String ... columnFamilies) throws IOException;
-    void enableAutoCompaction(String ks, String ... columnFamilies) throws IOException;
+    void disableAutoCompaction(String ks, String ... tables) throws IOException;
+    void enableAutoCompaction(String ks, String ... tables) throws IOException;
 
     public void deliverHints(String host) throws UnknownHostException;
 

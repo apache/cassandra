@@ -40,7 +40,7 @@ import org.apache.cassandra.service.ClientState;
  *
  * For now, we keep it simple (somewhat) and just do one command at a time. Provided that we make sure to not
  * create a pager unless we need to, this is probably fine. Though if we later want to get fancy, we could use the
- * cfs meanRowSize to decide if parallelizing some of the command might be worth it while being confident we don't
+ * cfs meanPartitionSize to decide if parallelizing some of the command might be worth it while being confident we don't
  * blow out memory.
  */
 public class MultiPartitionPager implements QueryPager

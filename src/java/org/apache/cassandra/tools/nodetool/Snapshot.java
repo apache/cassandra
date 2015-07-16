@@ -68,7 +68,7 @@ public class Snapshot extends NodeToolCmd
                 if (!snapshotName.isEmpty())
                     sb.append(" with snapshot name [").append(snapshotName).append("]");
                 System.out.println(sb.toString());
-                probe.takeMultipleColumnFamilySnapshot(snapshotName, ktList.split(","));
+                probe.takeMultipleTableSnapshot(snapshotName, ktList.split(","));
                 System.out.println("Snapshot directory: " + snapshotName);
             }
             else

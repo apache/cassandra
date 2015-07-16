@@ -32,7 +32,10 @@ public interface ColumnFamilyStoreMBean
     /**
      * @return the name of the column family
      */
+    @Deprecated
     public String getColumnFamilyName();
+
+    public String getTableName();
 
     /**
      * force a major compaction of this column family

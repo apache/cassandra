@@ -29,7 +29,7 @@ import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.db.partitions.*;
 import org.apache.cassandra.db.filter.*;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
-import org.apache.cassandra.metrics.ColumnFamilyMetrics.Sampler;
+import org.apache.cassandra.metrics.TableMetrics;
 import org.apache.cassandra.thrift.ThriftResultsMerger;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.SearchIterator;
@@ -133,7 +133,7 @@ public class SinglePartitionNamesCommand extends SinglePartitionReadCommand<Clus
             return UnfilteredRowIterators.emptyIterator(metadata(), partitionKey(), false);
 
         DecoratedKey key = result.partitionKey();
-        cfs.metric.samplers.get(Sampler.READS).addSample(key.getKey(), key.hashCode(), 1);
+        cfs.metric.samplers.get(TableMetrics.Sampler.READS).addSample(key.getKey(), key.hashCode(), 1);
 
         // "hoist up" the requested data into a more recent sstable
         if (sstablesIterated > cfs.getMinimumCompactionThreshold()

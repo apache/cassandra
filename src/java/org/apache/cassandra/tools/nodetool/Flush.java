@@ -36,13 +36,13 @@ public class Flush extends NodeToolCmd
     public void execute(NodeProbe probe)
     {
         List<String> keyspaces = parseOptionalKeyspace(args, probe);
-        String[] cfnames = parseOptionalColumnFamilies(args);
+        String[] tableNames = parseOptionalTables(args);
 
         for (String keyspace : keyspaces)
         {
             try
             {
-                probe.forceKeyspaceFlush(keyspace, cfnames);
+                probe.forceKeyspaceFlush(keyspace, tableNames);
             } catch (Exception e)
             {
                 throw new RuntimeException("Error occurred during flushing", e);

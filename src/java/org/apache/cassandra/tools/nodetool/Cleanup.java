@@ -38,7 +38,7 @@ public class Cleanup extends NodeToolCmd
     public void execute(NodeProbe probe)
     {
         List<String> keyspaces = parseOptionalKeyspace(args, probe);
-        String[] cfnames = parseOptionalColumnFamilies(args);
+        String[] tableNames = parseOptionalTables(args);
 
         for (String keyspace : keyspaces)
         {
@@ -47,7 +47,7 @@ public class Cleanup extends NodeToolCmd
 
             try
             {
-                probe.forceKeyspaceCleanup(System.out, keyspace, cfnames);
+                probe.forceKeyspaceCleanup(System.out, keyspace, tableNames);
             }
             catch (Exception e)
             {

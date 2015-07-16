@@ -39,6 +39,7 @@ import org.apache.cassandra.db.lifecycle.View;
 import org.apache.cassandra.db.lifecycle.Tracker;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.io.FSWriteError;
+import org.apache.cassandra.metrics.TableMetrics;
 import org.apache.cassandra.utils.memory.MemtablePool;
 import org.json.simple.*;
 import org.slf4j.Logger;
@@ -67,8 +68,7 @@ import org.apache.cassandra.io.sstable.format.*;
 import org.apache.cassandra.io.sstable.metadata.CompactionMetadata;
 import org.apache.cassandra.io.sstable.metadata.MetadataType;
 import org.apache.cassandra.io.util.FileUtils;
-import org.apache.cassandra.metrics.ColumnFamilyMetrics;
-import org.apache.cassandra.metrics.ColumnFamilyMetrics.Sampler;
+import org.apache.cassandra.metrics.TableMetrics.Sampler;
 import org.apache.cassandra.service.CacheService;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.streaming.StreamLockfile;
@@ -145,6 +145,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     public final CFMetaData metadata;
     public final IPartitioner partitioner;
     private final String mbeanName;
+    @Deprecated
+    private final String oldMBeanName;
     private volatile boolean valid = true;
 
     /**
@@ -172,7 +174,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     public final Directories directories;
 
-    public final ColumnFamilyMetrics metric;
+    public final TableMetrics metric;
     public volatile long sampleLatencyNanos;
     private final ScheduledFuture<?> latencyCalculator;
 
@@ -335,7 +337,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         this.partitioner = partitioner;
         this.directories = directories;
         this.indexManager = new SecondaryIndexManager(this);
-        this.metric = new ColumnFamilyMetrics(this);
+        this.metric = new TableMetrics(this);
         fileIndexGenerator.set(generation);
         sampleLatencyNanos = DatabaseDescriptor.getReadRpcTimeout() / 2;
 
@@ -375,13 +377,20 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         if (registerBookkeeping)
         {
             // register the mbean
-            String type = this.partitioner instanceof LocalPartitioner ? "IndexColumnFamilies" : "ColumnFamilies";
-            mbeanName = "org.apache.cassandra.db:type=" + type + ",keyspace=" + this.keyspace.getName() + ",columnfamily=" + name;
+            mbeanName = String.format("org.apache.cassandra.db:type=%s,keyspace=%s,table=%s",
+                                         isIndex() ? "IndexTables" : "Tables",
+                                         keyspace.getName(), name);
+            oldMBeanName = String.format("org.apache.cassandra.db:type=%s,keyspace=%s,columnfamily=%s",
+                                         isIndex() ? "IndexColumnFamilies" : "ColumnFamilies",
+                                         keyspace.getName(), name);
             try
             {
                 MBeanServer mbs = ManagementFactory.getPlatformMBeanServer();
-                ObjectName nameObj = new ObjectName(mbeanName);
-                mbs.registerMBean(this, nameObj);
+                ObjectName[] objectNames = {new ObjectName(mbeanName), new ObjectName(oldMBeanName)};
+                for (ObjectName objectName : objectNames)
+                {
+                    mbs.registerMBean(this, objectName);
+                }
             }
             catch (Exception e)
             {
@@ -414,6 +423,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         {
             latencyCalculator = ScheduledExecutors.optionalTasks.schedule(Runnables.doNothing(), 0, TimeUnit.NANOSECONDS);
             mbeanName = null;
+            oldMBeanName= null;
         }
     }
 
@@ -463,9 +473,12 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     void unregisterMBean() throws MalformedObjectNameException, InstanceNotFoundException, MBeanRegistrationException
     {
         MBeanServer mbs = ManagementFactory.getPlatformMBeanServer();
-        ObjectName nameObj = new ObjectName(mbeanName);
-        if (mbs.isRegistered(nameObj))
-            mbs.unregisterMBean(nameObj);
+        ObjectName[] objectNames = {new ObjectName(mbeanName), new ObjectName(oldMBeanName)};
+        for (ObjectName objectName : objectNames)
+        {
+            if (mbs.isRegistered(objectName))
+                mbs.unregisterMBean(objectName);
+        }
 
         // unregister metrics
         metric.release();
@@ -824,7 +837,13 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         }
     }
 
+    @Deprecated
     public String getColumnFamilyName()
+    {
+        return getTableName();
+    }
+
+    public String getTableName()
     {
         return name;
     }

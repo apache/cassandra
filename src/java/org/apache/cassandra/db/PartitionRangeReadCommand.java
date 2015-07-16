@@ -34,7 +34,7 @@ import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.exceptions.RequestExecutionException;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
-import org.apache.cassandra.metrics.ColumnFamilyMetrics;
+import org.apache.cassandra.metrics.TableMetrics;
 import org.apache.cassandra.service.*;
 import org.apache.cassandra.service.pager.*;
 import org.apache.cassandra.thrift.ThriftResultsMerger;
@@ -150,7 +150,7 @@ public class PartitionRangeReadCommand extends ReadCommand
             return new RangeSliceQueryPager(this, pagingState);
     }
 
-    protected void recordLatency(ColumnFamilyMetrics metric, long latencyNanos)
+    protected void recordLatency(TableMetrics metric, long latencyNanos)
     {
         metric.rangeLatency.addNano(latencyNanos);
     }

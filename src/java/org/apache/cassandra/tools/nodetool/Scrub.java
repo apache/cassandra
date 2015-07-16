@@ -52,13 +52,13 @@ public class Scrub extends NodeToolCmd
     public void execute(NodeProbe probe)
     {
         List<String> keyspaces = parseOptionalKeyspace(args, probe);
-        String[] cfnames = parseOptionalColumnFamilies(args);
+        String[] tableNames = parseOptionalTables(args);
 
         for (String keyspace : keyspaces)
         {
             try
             {
-                probe.scrub(System.out, disableSnapshot, skipCorrupted, !noValidation, keyspace, cfnames);
+                probe.scrub(System.out, disableSnapshot, skipCorrupted, !noValidation, keyspace, tableNames);
             } catch (IllegalArgumentException e)
             {
                 throw e;

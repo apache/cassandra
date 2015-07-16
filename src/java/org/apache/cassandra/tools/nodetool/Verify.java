@@ -42,13 +42,13 @@ public class Verify extends NodeToolCmd
     public void execute(NodeProbe probe)
     {
         List<String> keyspaces = parseOptionalKeyspace(args, probe);
-        String[] cfnames = parseOptionalColumnFamilies(args);
+        String[] tableNames = parseOptionalTables(args);
 
         for (String keyspace : keyspaces)
         {
             try
             {
-                probe.verify(System.out, extendedVerify, keyspace, cfnames);
+                probe.verify(System.out, extendedVerify, keyspace, tableNames);
             } catch (Exception e)
             {
                 throw new RuntimeException("Error occurred during verifying", e);

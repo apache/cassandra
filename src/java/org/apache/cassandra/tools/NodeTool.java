@@ -333,7 +333,7 @@ public class NodeTool
             return Collections.unmodifiableList(keyspaces);
         }
 
-        protected String[] parseOptionalColumnFamilies(List<String> cmdArgs)
+        protected String[] parseOptionalTables(List<String> cmdArgs)
         {
             return cmdArgs.size() <= 1 ? EMPTY_STRING_ARRAY : toArray(cmdArgs.subList(1, cmdArgs.size()), String.class);
         }

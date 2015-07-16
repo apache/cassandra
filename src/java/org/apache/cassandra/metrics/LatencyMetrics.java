@@ -43,6 +43,7 @@ public class LatencyMetrics
     private List<LatencyMetrics> parents = Lists.newArrayList();
     
     protected final MetricNameFactory factory;
+    protected final MetricNameFactory aliasFactory;
     protected final String namePrefix;
 
     /**
@@ -76,11 +77,25 @@ public class LatencyMetrics
      */
     public LatencyMetrics(MetricNameFactory factory, String namePrefix)
     {
+        this(factory, null, namePrefix);
+    }
+
+    public LatencyMetrics(MetricNameFactory factory, MetricNameFactory aliasFactory, String namePrefix)
+    {
         this.factory = factory;
+        this.aliasFactory = aliasFactory;
         this.namePrefix = namePrefix;
 
-        latency = Metrics.timer(factory.createMetricName(namePrefix + "Latency"));
-        totalLatency = Metrics.counter(factory.createMetricName(namePrefix + "TotalLatency"));
+        if (aliasFactory == null)
+        {
+            latency = Metrics.timer(factory.createMetricName(namePrefix + "Latency"));
+            totalLatency = Metrics.counter(factory.createMetricName(namePrefix + "TotalLatency"));
+        }
+        else
+        {
+            latency = Metrics.timer(factory.createMetricName(namePrefix + "Latency"), aliasFactory.createMetricName(namePrefix + "Latency"));
+            totalLatency = Metrics.counter(factory.createMetricName(namePrefix + "TotalLatency"), aliasFactory.createMetricName(namePrefix + "TotalLatency"));
+        }
     }
     
     /**
@@ -93,7 +108,7 @@ public class LatencyMetrics
      */
     public LatencyMetrics(MetricNameFactory factory, String namePrefix, LatencyMetrics ... parents)
     {
-        this(factory, namePrefix);
+        this(factory, null, namePrefix);
         this.parents.addAll(ImmutableList.copyOf(parents));
     }
 
@@ -111,7 +126,15 @@ public class LatencyMetrics
 
     public void release()
     {
-        Metrics.remove(factory.createMetricName(namePrefix + "Latency"));
-        Metrics.remove(factory.createMetricName(namePrefix + "TotalLatency"));
+        if (aliasFactory == null)
+        {
+            Metrics.remove(factory.createMetricName(namePrefix + "Latency"));
+            Metrics.remove(factory.createMetricName(namePrefix + "TotalLatency"));
+        }
+        else
+        {
+            Metrics.remove(factory.createMetricName(namePrefix + "Latency"), aliasFactory.createMetricName(namePrefix + "Latency"));
+            Metrics.remove(factory.createMetricName(namePrefix + "TotalLatency"), aliasFactory.createMetricName(namePrefix + "TotalLatency"));
+        }
     }
 }

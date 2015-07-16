@@ -27,7 +27,7 @@ import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.db.filter.*;
 import org.apache.cassandra.db.partitions.Partition;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
-import org.apache.cassandra.metrics.ColumnFamilyMetrics.Sampler;
+import org.apache.cassandra.metrics.TableMetrics;
 import org.apache.cassandra.thrift.ThriftResultsMerger;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.FBUtilities;
@@ -211,7 +211,7 @@ public class SinglePartitionSliceCommand extends SinglePartitionReadCommand<Clus
             if (!merged.isEmpty())
             {
                 DecoratedKey key = merged.partitionKey();
-                cfs.metric.samplers.get(Sampler.READS).addSample(key.getKey(), key.hashCode(), 1);
+                cfs.metric.samplers.get(TableMetrics.Sampler.READS).addSample(key.getKey(), key.hashCode(), 1);
             }
 
             return merged;
