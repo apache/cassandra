@@ -175,7 +175,7 @@ public class BTreeSet<V> implements NavigableSet<V>, List<V>
     @Override
     public BTreeSet<V> descendingSet()
     {
-        return new BTreeRange<>(this.tree, this.comparator).descendingSet();
+        return new BTreeRange<V>(this.tree, this.comparator).descendingSet();
     }
 
     @Override
