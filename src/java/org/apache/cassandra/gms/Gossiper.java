@@ -703,20 +703,19 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
     public boolean isSafeForBootstrap(InetAddress endpoint)
     {
         EndpointState epState = endpointStateMap.get(endpoint);
-        String state = getApplicationState(epState);
-        logger.info("{} state : {}", endpoint, state);
 
         // if there's no previous state, or the node was previously removed from the cluster, we're good
         if (epState == null || isDeadState(epState))
             return true;
 
-        // these states are not allowed to join the cluster
-        List<String> states = new ArrayList<String>() {{
+        String status = getGossipStatus(epState);
+
+        // these states are not allowed to join the cluster as it would not be safe
+        final List<String> unsafeStatuses = new ArrayList<String>() {{
             add(""); // failed bootstrap but we did start gossiping
-            add(VersionedValue.STATUS_NORMAL); // node is legit in the cluster or was stopped kill -9
-            //add(VersionedValue.STATUS_BOOTSTRAPPING); // failed bootstrap
+            add(VersionedValue.STATUS_NORMAL); // node is legit in the cluster or it was stopped with kill -9
             add(VersionedValue.SHUTDOWN); }}; // node was shutdown
-        return !states.contains(state);
+        return !unsafeStatuses.contains(status);
     }
 
     private void doStatusCheck()
@@ -1039,31 +1038,23 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
 
     public boolean isDeadState(EndpointState epState)
     {
-        String state = getApplicationState(epState);
-        if (state.isEmpty())
+        String status = getGossipStatus(epState);
+        if (status.isEmpty())
             return false;
-        for (String deadstate : DEAD_STATES)
-        {
-            if (state.equals(deadstate))
-                return true;
-        }
-        return false;
+
+        return DEAD_STATES.contains(status);
     }
 
     public boolean isSilentShutdownState(EndpointState epState)
     {
-        String state = getApplicationState(epState);
-        if (state.isEmpty())
+        String status = getGossipStatus(epState);
+        if (status.isEmpty())
             return false;
-        for (String deadstate : SILENT_SHUTDOWN_STATES)
-        {
-            if (state.equals(deadstate))
-                return true;
-        }
-        return false;
+
+        return SILENT_SHUTDOWN_STATES.contains(status);
     }
 
-    private static String getApplicationState(EndpointState epState)
+    private static String getGossipStatus(EndpointState epState)
     {
         if (epState == null || epState.getApplicationState(ApplicationState.STATUS) == null)
             return "";
