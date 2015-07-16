@@ -1844,7 +1844,10 @@ A number of functions are provided to "convert" the native types into binary dat
 
 h2(#aggregates). Aggregates
 
-CQL3 distinguishes between built-in aggregates (so called 'native aggregates') and "user-defined aggregates":#udas.  CQL3 includes several native aggregates, described below:
+Aggregate functions work on a set of rows. They receive values for each row and returns one value for the whole set.
+If @normal@ columns, @scalar functions@, @UDT@ fields, @writetime@ or @ttl@ are selected together with aggregate functions, the values returned for them will be the ones of the first row matching the query.
+
+CQL3 distinguishes between built-in aggregates (so called 'native aggregates') and "user-defined aggregates":#udas. CQL3 includes several native aggregates, described below:
 
 h3(#countFct). Count
 

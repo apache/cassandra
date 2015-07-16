@@ -480,9 +480,6 @@ public abstract class Selection
                   factories.containsTTLSelectorFactory());
 
             this.factories = factories;
-
-            if (factories.doesAggregation() && !factories.containsOnlyAggregateFunctions())
-                throw new InvalidRequestException("the select clause must either contain only aggregates or no aggregate");
         }
 
         @Override
@@ -501,7 +498,7 @@ public abstract class Selection
 
         public boolean isAggregate()
         {
-            return factories.containsOnlyAggregateFunctions();
+            return factories.doesAggregation();
         }
 
         protected Selectors newSelectors() throws InvalidRequestException
@@ -518,7 +515,7 @@ public abstract class Selection
 
                 public boolean isAggregate()
                 {
-                    return factories.containsOnlyAggregateFunctions();
+                    return factories.doesAggregation();
                 }
 
                 public List<ByteBuffer> getOutputRow(int protocolVersion) throws InvalidRequestException

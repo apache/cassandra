@@ -45,6 +45,10 @@ Upgrading
 
 New features
 ------------
+   - Selecting columns,scalar functions, UDT fields, writetime or ttl together
+     with aggregated is now possible. The value returned for the columns,
+     scalar functions, UDT fields, writetime and ttl will be the ones for
+     the first row matching the query.
    - Windows is now a supported platform. Powershell execution for startup scripts
      is highly recommended and can be enabled via an administrator command-prompt
      with: 'powershell set-executionpolicy unrestricted'

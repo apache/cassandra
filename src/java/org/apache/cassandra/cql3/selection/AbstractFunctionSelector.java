@@ -19,7 +19,6 @@ package org.apache.cassandra.cql3.selection;
 
 import java.nio.ByteBuffer;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 
 import com.google.common.collect.Iterables;
@@ -48,12 +47,6 @@ abstract class AbstractFunctionSelector<T extends Function> extends Selector
         {
             if (factories.doesAggregation())
                 throw new InvalidRequestException("aggregate functions cannot be used as arguments of aggregate functions");
-        }
-        else
-        {
-            if (factories.doesAggregation() && !factories.containsOnlyAggregateFunctions())
-                throw new InvalidRequestException(String.format("arguments of function %s must be either all aggregates or no aggregates",
-                                                                fun.name()));
         }
 
         return new Factory()
@@ -109,7 +102,7 @@ abstract class AbstractFunctionSelector<T extends Function> extends Selector
 
             public boolean isAggregateSelectorFactory()
             {
-                return fun.isAggregate() || factories.containsOnlyAggregateFunctions();
+                return fun.isAggregate() || factories.doesAggregation();
             }
         };
     }
