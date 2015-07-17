@@ -1097,8 +1097,8 @@ public final class SchemaKeyspace
 
     private static String serializeKind(ColumnDefinition.Kind kind, boolean isDense)
     {
-        // For backward compatibility, we special case CLUSTERING_COLUMN and the case where the table is dense.
-        if (kind == ColumnDefinition.Kind.CLUSTERING_COLUMN)
+        // For backward compatibility, we special case CLUSTERING and the case where the table is dense.
+        if (kind == ColumnDefinition.Kind.CLUSTERING)
             return "clustering_key";
 
         if (kind == ColumnDefinition.Kind.REGULAR && isDense)
@@ -1110,7 +1110,7 @@ public final class SchemaKeyspace
     public static ColumnDefinition.Kind deserializeKind(String kind)
     {
         if ("clustering_key".equalsIgnoreCase(kind))
-            return ColumnDefinition.Kind.CLUSTERING_COLUMN;
+            return ColumnDefinition.Kind.CLUSTERING;
         if ("compact_value".equalsIgnoreCase(kind))
             return ColumnDefinition.Kind.REGULAR;
         return Enum.valueOf(ColumnDefinition.Kind.class, kind.toUpperCase());

@@ -30,14 +30,13 @@ import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.exceptions.*;
-import org.apache.cassandra.utils.ByteBufferUtil;
 
 public class ColumnDefinition extends ColumnSpecification implements Comparable<ColumnDefinition>
 {
     /*
      * The type of CQL3 column this definition represents.
      * There is 4 main type of CQL3 columns: those parts of the partition key,
-     * those parts of the clustering key and amongst the others, regular and
+     * those parts of the clustering columns and amongst the others, regular and
      * static ones.
      *
      * Note that thrift only knows about definitions of type REGULAR (and
@@ -46,13 +45,13 @@ public class ColumnDefinition extends ColumnSpecification implements Comparable<
     public enum Kind
     {
         PARTITION_KEY,
-        CLUSTERING_COLUMN,
+        CLUSTERING,
         REGULAR,
         STATIC;
 
         public boolean isPrimaryKeyKind()
         {
-            return this == PARTITION_KEY || this == CLUSTERING_COLUMN;
+            return this == PARTITION_KEY || this == CLUSTERING;
         }
 
     }
@@ -96,12 +95,12 @@ public class ColumnDefinition extends ColumnSpecification implements Comparable<
 
     public static ColumnDefinition clusteringKeyDef(CFMetaData cfm, ByteBuffer name, AbstractType<?> validator, Integer componentIndex)
     {
-        return new ColumnDefinition(cfm, name, validator, componentIndex, Kind.CLUSTERING_COLUMN);
+        return new ColumnDefinition(cfm, name, validator, componentIndex, Kind.CLUSTERING);
     }
 
     public static ColumnDefinition clusteringKeyDef(String ksName, String cfName, String name, AbstractType<?> validator, Integer componentIndex)
     {
-        return new ColumnDefinition(ksName, cfName, ColumnIdentifier.getInterned(name, true),  validator, null, null, null, componentIndex, Kind.CLUSTERING_COLUMN);
+        return new ColumnDefinition(ksName, cfName, ColumnIdentifier.getInterned(name, true),  validator, null, null, null, componentIndex, Kind.CLUSTERING);
     }
 
     public static ColumnDefinition regularDef(CFMetaData cfm, ByteBuffer name, AbstractType<?> validator, Integer componentIndex)
@@ -228,7 +227,7 @@ public class ColumnDefinition extends ColumnSpecification implements Comparable<
 
     public boolean isClusteringColumn()
     {
-        return kind == Kind.CLUSTERING_COLUMN;
+        return kind == Kind.CLUSTERING;
     }
 
     public boolean isStatic()

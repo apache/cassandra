@@ -28,7 +28,7 @@ import org.apache.cassandra.db.index.SecondaryIndex;
 import org.apache.cassandra.utils.concurrent.OpOrder;
 
 /**
- * Index on a CLUSTERING_COLUMN column definition.
+ * Index on a CLUSTERING column definition.
  *
  * A cell indexed by this index will have the general form:
  *   ck_0 ... ck_n c_name : v

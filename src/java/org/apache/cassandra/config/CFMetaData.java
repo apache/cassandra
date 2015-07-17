@@ -310,7 +310,7 @@ public final class CFMetaData
                 case PARTITION_KEY:
                     partitions.add(column);
                     break;
-                case CLUSTERING_COLUMN:
+                case CLUSTERING:
                     clusterings.add(column);
                     break;
                 default:
@@ -1159,7 +1159,7 @@ public final class CFMetaData
                 List<AbstractType<?>> keyTypes = extractTypes(partitionKeyColumns);
                 keyValidator = keyTypes.size() == 1 ? keyTypes.get(0) : CompositeType.getInstance(keyTypes);
                 break;
-            case CLUSTERING_COLUMN:
+            case CLUSTERING:
                 clusteringColumns.set(def.position(), def);
                 comparator = new ClusteringComparator(extractTypes(clusteringColumns));
                 break;
@@ -1482,7 +1482,7 @@ public final class CFMetaData
             for (int i = 0; i < clusteringColumns.size(); i++)
             {
                 Pair<ColumnIdentifier, AbstractType> p = clusteringColumns.get(i);
-                clusterings.add(new ColumnDefinition(keyspace, table, p.left, p.right, i, ColumnDefinition.Kind.CLUSTERING_COLUMN));
+                clusterings.add(new ColumnDefinition(keyspace, table, p.left, p.right, i, ColumnDefinition.Kind.CLUSTERING));
             }
 
             for (int i = 0; i < regularColumns.size(); i++)

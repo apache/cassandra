@@ -338,7 +338,7 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
                     return column.isOnAllComponents()
                          ? partitionKey.getKey()
                          : CompositeType.extractComponent(partitionKey.getKey(), column.position());
-                case CLUSTERING_COLUMN:
+                case CLUSTERING:
                     return row.clustering().get(column.position());
                 default:
                     Cell cell = row.getCell(column);

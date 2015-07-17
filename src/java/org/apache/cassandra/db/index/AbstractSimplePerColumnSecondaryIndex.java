@@ -219,7 +219,7 @@ public abstract class AbstractSimplePerColumnSecondaryIndex extends PerColumnSec
 
     public void validate(Clustering clustering) throws InvalidRequestException
     {
-        if (columnDef.kind == ColumnDefinition.Kind.CLUSTERING_COLUMN)
+        if (columnDef.kind == ColumnDefinition.Kind.CLUSTERING)
             validateIndexedValue(getIndexedValue(null, clustering, null, null));
     }
 

@@ -468,7 +468,7 @@ public final class LegacySchemaMigrator
     private static ColumnDefinition.Kind deserializeKind(String kind)
     {
         if ("clustering_key".equalsIgnoreCase(kind))
-            return ColumnDefinition.Kind.CLUSTERING_COLUMN;
+            return ColumnDefinition.Kind.CLUSTERING;
         if ("compact_value".equalsIgnoreCase(kind))
             return ColumnDefinition.Kind.REGULAR;
         return Enum.valueOf(ColumnDefinition.Kind.class, kind.toUpperCase());

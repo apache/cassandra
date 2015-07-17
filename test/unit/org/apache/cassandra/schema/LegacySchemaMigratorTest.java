@@ -442,8 +442,8 @@ public class LegacySchemaMigratorTest
 
     private static String serializeKind(ColumnDefinition.Kind kind, boolean isDense)
     {
-        // For backward compatibility, we special case CLUSTERING_COLUMN and the case where the table is dense.
-        if (kind == ColumnDefinition.Kind.CLUSTERING_COLUMN)
+        // For backward compatibility, we special case CLUSTERING and the case where the table is dense.
+        if (kind == ColumnDefinition.Kind.CLUSTERING)
             return "clustering_key";
 
         if (kind == ColumnDefinition.Kind.REGULAR && isDense)

@@ -248,7 +248,7 @@ public class UpdateStatement extends ModificationStatement
                 switch (def.kind)
                 {
                     case PARTITION_KEY:
-                    case CLUSTERING_COLUMN:
+                    case CLUSTERING:
                         throw new InvalidRequestException(String.format("PRIMARY KEY part %s found in SET part", entry.left));
                     default:
                         stmt.addOperation(operation);

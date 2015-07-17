@@ -108,7 +108,7 @@ public class AlterTableStatement extends SchemaAlteringStatement
                     switch (def.kind)
                     {
                         case PARTITION_KEY:
-                        case CLUSTERING_COLUMN:
+                        case CLUSTERING:
                             throw new InvalidRequestException(String.format("Invalid column name %s because it conflicts with a PRIMARY KEY part", columnName));
                         default:
                             throw new InvalidRequestException(String.format("Invalid column name %s because it conflicts with an existing column", columnName));
@@ -163,7 +163,7 @@ public class AlterTableStatement extends SchemaAlteringStatement
                                                                            currentType.asCQL3Type(),
                                                                            validator));
                         break;
-                    case CLUSTERING_COLUMN:
+                    case CLUSTERING:
                         AbstractType<?> oldType = cfm.comparator.subtype(def.position());
                         // Note that CFMetaData.validateCompatibility already validate the change we're about to do. However, the error message it
                         // sends is a bit cryptic for a CQL3 user, so validating here for a sake of returning a better error message
@@ -203,7 +203,7 @@ public class AlterTableStatement extends SchemaAlteringStatement
                 switch (def.kind)
                 {
                     case PARTITION_KEY:
-                    case CLUSTERING_COLUMN:
+                    case CLUSTERING:
                         throw new InvalidRequestException(String.format("Cannot drop PRIMARY KEY part %s", columnName));
                     case REGULAR:
                     case STATIC:

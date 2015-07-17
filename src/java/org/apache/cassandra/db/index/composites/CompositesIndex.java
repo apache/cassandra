@@ -62,7 +62,7 @@ public abstract class CompositesIndex extends AbstractSimplePerColumnSecondaryIn
 
         switch (cfDef.kind)
         {
-            case CLUSTERING_COLUMN:
+            case CLUSTERING:
                 return new CompositesIndexOnClusteringKey();
             case REGULAR:
                 return new CompositesIndexOnRegular();

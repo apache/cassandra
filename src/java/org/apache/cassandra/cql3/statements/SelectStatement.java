@@ -633,7 +633,7 @@ public class SelectStatement implements CQLStatement
                     case PARTITION_KEY:
                         result.add(keyComponents[def.position()]);
                         break;
-                    case CLUSTERING_COLUMN:
+                    case CLUSTERING:
                         result.add(row.clustering().get(def.position()));
                         break;
                     case REGULAR:

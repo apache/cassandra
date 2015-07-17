@@ -329,7 +329,7 @@ public abstract class ModificationStatement implements CQLStatement
 
     private void addKeyValues(ColumnDefinition def, Restriction values) throws InvalidRequestException
     {
-        if (def.kind == ColumnDefinition.Kind.CLUSTERING_COLUMN)
+        if (def.kind == ColumnDefinition.Kind.CLUSTERING)
             hasNoClusteringColumns = false;
         if (processedKeys.put(def.name, values) != null)
             throw new InvalidRequestException(String.format("Multiple definitions found for PRIMARY KEY part %s", def.name));
@@ -362,7 +362,7 @@ public abstract class ModificationStatement implements CQLStatement
             switch (def.kind)
             {
                 case PARTITION_KEY:
-                case CLUSTERING_COLUMN:
+                case CLUSTERING:
                     Restriction restriction;
 
                     if (rel.isEQ() || (def.isPartitionKey() && rel.isIN()))
@@ -899,7 +899,7 @@ public abstract class ModificationStatement implements CQLStatement
                         switch (def.kind)
                         {
                             case PARTITION_KEY:
-                            case CLUSTERING_COLUMN:
+                            case CLUSTERING:
                                 throw new InvalidRequestException(String.format("PRIMARY KEY column '%s' cannot have IF conditions", id));
                             default:
                                 stmt.addCondition(condition);
