@@ -241,12 +241,39 @@ public class LegacySchemaMigratorTest
                                                                            + "PRIMARY KEY((bar, baz), qux, quz) ) "
                                                                            + "WITH COMPACT STORAGE", ks_cql))));
 
+        keyspaces.add(keyspaceWithDroppedCollections());
         keyspaces.add(keyspaceWithTriggers());
         keyspaces.add(keyspaceWithUDTs());
         keyspaces.add(keyspaceWithUDFs());
         keyspaces.add(keyspaceWithUDAs());
 
         return keyspaces;
+    }
+
+    private static KeyspaceMetadata keyspaceWithDroppedCollections()
+    {
+        String keyspace = KEYSPACE_PREFIX + "DroppedCollections";
+
+        CFMetaData table =
+            CFMetaData.compile("CREATE TABLE dropped_columns ("
+                               + "foo text,"
+                               + "bar text,"
+                               + "map1 map<text, text>,"
+                               + "map2 map<int, int>,"
+                               + "set1 set<ascii>,"
+                               + "list1 list<blob>,"
+                               + "PRIMARY KEY ((foo), bar))",
+                               keyspace);
+
+        String[] collectionColumnNames = { "map1", "map2", "set1", "list1" };
+        for (String name : collectionColumnNames)
+        {
+            ColumnDefinition column = table.getColumnDefinition(bytes(name));
+            table.recordColumnDrop(column);
+            table.removeColumnDefinition(column);
+        }
+
+        return KeyspaceMetadata.create(keyspace, KeyspaceParams.simple(1), Tables.of(table));
     }
 
     private static KeyspaceMetadata keyspaceWithTriggers()

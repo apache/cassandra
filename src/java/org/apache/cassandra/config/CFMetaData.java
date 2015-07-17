@@ -27,6 +27,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ThreadLocalRandom;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.MoreObjects;
 import com.google.common.base.Objects;
 import com.google.common.base.Strings;
 import com.google.common.collect.*;
@@ -1193,7 +1194,7 @@ public final class CFMetaData
 
     public void recordColumnDrop(ColumnDefinition def)
     {
-        droppedColumns.put(def.name.bytes, new DroppedColumn(def.type, FBUtilities.timestampMicros()));
+        droppedColumns.put(def.name.bytes, new DroppedColumn(def.name.toString(), def.type, FBUtilities.timestampMicros()));
     }
 
     public void renameColumn(ColumnIdentifier from, ColumnIdentifier to) throws InvalidRequestException
@@ -1256,6 +1257,14 @@ public final class CFMetaData
     public boolean hasCollectionColumns()
     {
         for (ColumnDefinition def : partitionColumns())
+            if (def.type instanceof CollectionType && def.type.isMultiCell())
+                return true;
+        return false;
+    }
+
+    public boolean hasDroppedCollectionColumns()
+    {
+        for (DroppedColumn def : getDroppedColumns().values())
             if (def.type instanceof CollectionType && def.type.isMultiCell())
                 return true;
         return false;
@@ -1536,13 +1545,48 @@ public final class CFMetaData
 
     public static class DroppedColumn
     {
+        // we only allow dropping REGULAR columns, from CQL-native tables, so the names are always of UTF8Type
+        public final String name;
         public final AbstractType<?> type;
+
+        // drop timestamp, in microseconds, yet with millisecond granularity
         public final long droppedTime;
 
-        public DroppedColumn(AbstractType<?> type, long droppedTime)
+        public DroppedColumn(String name, AbstractType<?> type, long droppedTime)
         {
+            this.name = name;
             this.type = type;
             this.droppedTime = droppedTime;
+        }
+
+        @Override
+        public boolean equals(Object o)
+        {
+            if (this == o)
+                return true;
+
+            if (!(o instanceof DroppedColumn))
+                return false;
+
+            DroppedColumn dc = (DroppedColumn) o;
+
+            return name.equals(dc.name) && type.equals(dc.type) && droppedTime == dc.droppedTime;
+        }
+
+        @Override
+        public int hashCode()
+        {
+            return Objects.hashCode(name, type, droppedTime);
+        }
+
+        @Override
+        public String toString()
+        {
+            return MoreObjects.toStringHelper(this)
+                              .add("name", name)
+                              .add("type", type)
+                              .add("droppedTime", droppedTime)
+                              .toString();
         }
     }
 }

@@ -41,6 +41,8 @@ import org.apache.cassandra.thrift.ColumnDef;
 import org.apache.cassandra.utils.*;
 import org.apache.hadoop.io.serializer.Serialization;
 
+import static org.apache.cassandra.utils.ByteBufferUtil.bytes;
+
 /**
  * Functions to deal with the old format.
  */
@@ -67,7 +69,7 @@ public abstract class LegacyLayout
             return comparator.subtype(0);
         }
 
-        boolean hasCollections = metadata.hasCollectionColumns();
+        boolean hasCollections = metadata.hasCollectionColumns() || metadata.hasDroppedCollectionColumns();
         List<AbstractType<?>> types = new ArrayList<>(comparator.size() + (metadata.isDense() ? 0 : 1) + (hasCollections ? 1 : 0));
 
         types.addAll(comparator.subtypes());
@@ -75,14 +77,19 @@ public abstract class LegacyLayout
         if (!metadata.isDense())
         {
             types.add(UTF8Type.instance);
+
             if (hasCollections)
             {
                 Map<ByteBuffer, CollectionType> defined = new HashMap<>();
-                for (ColumnDefinition def : metadata.partitionColumns())
-                {
+
+                for (CFMetaData.DroppedColumn def : metadata.getDroppedColumns().values())
                     if (def.type instanceof CollectionType && def.type.isMultiCell())
-                        defined.put(def.name.bytes, (CollectionType)def.type);
-                }
+                        defined.put(bytes(def.name), (CollectionType) def.type);
+
+                for (ColumnDefinition def : metadata.partitionColumns())
+                    if (def.type instanceof CollectionType && def.type.isMultiCell())
+                        defined.put(def.name.bytes, (CollectionType) def.type);
+
                 types.add(ColumnToCollectionType.getInstance(defined));
             }
         }

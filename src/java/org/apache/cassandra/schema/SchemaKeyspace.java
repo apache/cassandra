@@ -74,6 +74,7 @@ public final class SchemaKeyspace
     public static final String KEYSPACES = "keyspaces";
     public static final String TABLES = "tables";
     public static final String COLUMNS = "columns";
+    public static final String DROPPED_COLUMNS = "dropped_columns";
     public static final String TRIGGERS = "triggers";
     public static final String TYPES = "types";
     public static final String FUNCTIONS = "functions";
@@ -97,7 +98,6 @@ public final class SchemaKeyspace
                 "CREATE TABLE %s ("
                 + "keyspace_name text,"
                 + "table_name text,"
-                + "id uuid,"
                 + "bloom_filter_fp_chance double,"
                 + "caching map<text, text>,"
                 + "comment text,"
@@ -107,16 +107,12 @@ public final class SchemaKeyspace
                 + "default_time_to_live int,"
                 + "flags set<text>," // SUPER, COUNTER, DENSE, COMPOUND
                 + "gc_grace_seconds int,"
+                + "id uuid,"
                 + "max_index_interval int,"
                 + "memtable_flush_period_in_ms int,"
                 + "min_index_interval int,"
                 + "read_repair_chance double,"
                 + "speculative_retry text,"
-
-                // TODO: move into a separate table
-                + "dropped_columns map<text, bigint>,"
-                + "dropped_columns_types map<text, text>,"
-
                 + "PRIMARY KEY ((keyspace_name), table_name))");
 
     private static final CFMetaData Columns =
@@ -133,6 +129,17 @@ public final class SchemaKeyspace
                 + "index_type text,"
                 + "type text,"
                 + "validator text,"
+                + "PRIMARY KEY ((keyspace_name), table_name, column_name))");
+
+    private static final CFMetaData DroppedColumns =
+        compile(DROPPED_COLUMNS,
+                "dropped column registry",
+                "CREATE TABLE %s ("
+                + "keyspace_name text,"
+                + "table_name text,"
+                + "column_name text,"
+                + "dropped_time timestamp,"
+                + "type text,"
                 + "PRIMARY KEY ((keyspace_name), table_name, column_name))");
 
     private static final CFMetaData Triggers =
@@ -186,7 +193,7 @@ public final class SchemaKeyspace
                 + "PRIMARY KEY ((keyspace_name), aggregate_name, signature))");
 
     public static final List<CFMetaData> All =
-        ImmutableList.of(Keyspaces, Tables, Columns, Triggers, Types, Functions, Aggregates);
+        ImmutableList.of(Keyspaces, Tables, Columns, DroppedColumns, Triggers, Types, Functions, Aggregates);
 
     private static CFMetaData compile(String name, String description, String schema)
     {
@@ -810,27 +817,20 @@ public final class SchemaKeyspace
              .map("caching", table.getCaching().asMap())
              .map("compaction", buildCompactionMap(table))
              .map("compression", table.compressionParameters().asMap())
-             .set("flags", flagsToStrings(table.flags()));
-
-        for (Map.Entry<ByteBuffer, CFMetaData.DroppedColumn> entry : table.getDroppedColumns().entrySet())
-        {
-            String name = UTF8Type.instance.getString(entry.getKey());
-            CFMetaData.DroppedColumn column = entry.getValue();
-            adder.addMapEntry("dropped_columns", name, column.droppedTime);
-            if (column.type != null)
-                adder.addMapEntry("dropped_columns_types", name, column.type.toString());
-        }
+             .set("flags", flagsToStrings(table.flags()))
+             .build();
 
         if (withColumnsAndTriggers)
         {
             for (ColumnDefinition column : table.allColumns())
                 addColumnToSchemaMutation(table, column, timestamp, mutation);
 
+            for (CFMetaData.DroppedColumn column : table.getDroppedColumns().values())
+                addDroppedColumnToSchemaMutation(table, column, timestamp, mutation);
+
             for (TriggerMetadata trigger : table.getTriggers())
                 addTriggerToSchemaMutation(table, trigger, timestamp, mutation);
         }
-
-        adder.build();
     }
 
     /*
@@ -885,7 +885,7 @@ public final class SchemaKeyspace
         {
             // Thrift only knows about the REGULAR ColumnDefinition type, so don't consider other type
             // are being deleted just because they are not here.
-            if (fromThrift && column.kind != ColumnDefinition.Kind.REGULAR)
+            if (fromThrift && column.kind != ColumnDefinition.Kind.REGULAR) // TODO FIXME
                 continue;
 
             dropColumnFromSchemaMutation(oldTable, column, timestamp, mutation);
@@ -898,6 +898,18 @@ public final class SchemaKeyspace
         // old columns with updated attributes
         for (ByteBuffer name : columnDiff.entriesDiffering().keySet())
             addColumnToSchemaMutation(newTable, newTable.getColumnDefinition(name), timestamp, mutation);
+
+        // dropped columns
+        MapDifference<ByteBuffer, CFMetaData.DroppedColumn> droppedColumnDiff =
+            Maps.difference(oldTable.getDroppedColumns(), newTable.getDroppedColumns());
+
+        // newly dropped columns
+        for (CFMetaData.DroppedColumn column : droppedColumnDiff.entriesOnlyOnRight().values())
+            addDroppedColumnToSchemaMutation(newTable, column, timestamp, mutation);
+
+        // columns added then dropped again
+        for (ByteBuffer name : droppedColumnDiff.entriesDiffering().keySet())
+            addDroppedColumnToSchemaMutation(newTable, newTable.getDroppedColumns().get(name), timestamp, mutation);
 
         MapDifference<String, TriggerMetadata> triggerDiff = triggersDiff(oldTable.getTriggers(), newTable.getTriggers());
 
@@ -994,10 +1006,14 @@ public final class SchemaKeyspace
         List<ColumnDefinition> columns =
             readSchemaPartitionForTableAndApply(COLUMNS, keyspace, table, SchemaKeyspace::createColumnsFromColumnsPartition);
 
+        Map<ByteBuffer, CFMetaData.DroppedColumn> droppedColumns =
+            readSchemaPartitionForTableAndApply(DROPPED_COLUMNS, keyspace, table, SchemaKeyspace::createDroppedColumnsFromDroppedColumnsPartition);
+
         Triggers triggers =
             readSchemaPartitionForTableAndApply(TRIGGERS, keyspace, table, SchemaKeyspace::createTriggersFromTriggersPartition);
 
-        return createTableFromTableRowAndColumns(row, columns).triggers(triggers);
+        return createTableFromTableRowAndColumns(row, columns).droppedColumns(droppedColumns)
+                                                              .triggers(triggers);
     }
 
     public static CFMetaData createTableFromTableRowAndColumns(UntypedResultSet.Row row, List<ColumnDefinition> columns)
@@ -1046,14 +1062,6 @@ public final class SchemaKeyspace
            .readRepairChance(row.getDouble("read_repair_chance"))
            .speculativeRetry(CFMetaData.SpeculativeRetry.fromString(row.getString("speculative_retry")));
 
-        if (row.has("dropped_columns"))
-        {
-            Map<String, String> types = row.has("dropped_columns_types")
-                                      ? row.getTextMap("dropped_columns_types")
-                                      : Collections.<String, String>emptyMap();
-            addDroppedColumns(cfm, row.getMap("dropped_columns", UTF8Type.instance, LongType.instance), types);
-        }
-
         return cfm;
     }
 
@@ -1071,17 +1079,6 @@ public final class SchemaKeyspace
                     .map(CFMetaData.Flag::toString)
                     .map(String::toLowerCase)
                     .collect(toSet());
-    }
-
-    private static void addDroppedColumns(CFMetaData cfm, Map<String, Long> droppedTimes, Map<String, String> types)
-    {
-        for (Map.Entry<String, Long> entry : droppedTimes.entrySet())
-        {
-            String name = entry.getKey();
-            long time = entry.getValue();
-            AbstractType<?> type = types.containsKey(name) ? TypeParser.parse(types.get(name)) : null;
-            cfm.getDroppedColumns().put(UTF8Type.instance.decompose(name), new CFMetaData.DroppedColumn(type, time));
-        }
     }
 
     /*
@@ -1143,6 +1140,44 @@ public final class SchemaKeyspace
             indexName = row.getString("index_name");
 
         return new ColumnDefinition(keyspace, table, name, validator, indexType, indexOptions, indexName, componentIndex, kind);
+    }
+
+    /*
+     * Dropped column metadata serialization/deserialization.
+     */
+
+    private static void addDroppedColumnToSchemaMutation(CFMetaData table, CFMetaData.DroppedColumn column, long timestamp, Mutation mutation)
+    {
+        RowUpdateBuilder adder = new RowUpdateBuilder(DroppedColumns, timestamp, mutation).clustering(table.cfName, column.name);
+
+        adder.add("dropped_time", new Date(TimeUnit.MICROSECONDS.toMillis(column.droppedTime)))
+             .add("type", column.type.toString())
+             .build();
+    }
+
+    private static Map<ByteBuffer, CFMetaData.DroppedColumn> createDroppedColumnsFromDroppedColumnsPartition(RowIterator serializedColumns)
+    {
+        String query = String.format("SELECT * FROM %s.%s", NAME, DROPPED_COLUMNS);
+        Map<ByteBuffer, CFMetaData.DroppedColumn> columns = new HashMap<>();
+        for (CFMetaData.DroppedColumn column : createDroppedColumnsFromDroppedColumnRows(QueryProcessor.resultify(query, serializedColumns)))
+            columns.put(UTF8Type.instance.decompose(column.name), column);
+        return columns;
+    }
+
+    private static List<CFMetaData.DroppedColumn> createDroppedColumnsFromDroppedColumnRows(UntypedResultSet rows)
+    {
+        List<CFMetaData.DroppedColumn> columns = new ArrayList<>(rows.size());
+        rows.forEach(row -> columns.add(createDroppedColumnFromDroppedColumnRow(row)));
+        return columns;
+    }
+
+    private static CFMetaData.DroppedColumn createDroppedColumnFromDroppedColumnRow(UntypedResultSet.Row row)
+    {
+        String name = row.getString("column_name");
+        AbstractType type = TypeParser.parse(row.getString("type"));
+        long droppedTime = TimeUnit.MILLISECONDS.toMicros(row.getLong("dropped_time"));
+
+        return new CFMetaData.DroppedColumn(name, type, droppedTime);
     }
 
     /*
