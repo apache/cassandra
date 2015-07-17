@@ -20,15 +20,17 @@
 
 
 2.2.0-rc3
+ * Don't wrap byte arrays in SequentialWriter (CASSANDRA-9797)
+ * sum() and avg() functions missing for smallint and tinyint types (CASSANDRA-9671)
  * Revert CASSANDRA-9542 (allow native functions in UDA) (CASSANDRA-9771)
 Merged from 2.1:
  * Fix broken logging for "empty" flushes in Memtable (CASSANDRA-9837)
- * Complete CASSANDRA-8448 fix (CASSANDRA-9519)
  * Handle corrupt files on startup (CASSANDRA-9686)
  * Fix clientutil jar and tests (CASSANDRA-9760)
  * (cqlsh) Allow the SSL protocol version to be specified through the
     config file or environment variables (CASSANDRA-9544)
 Merged from 2.0:
+ * Complete CASSANDRA-8448 fix (CASSANDRA-9519)
  * Don't include auth credentials in debug log (CASSANDRA-9682)
  * Can't transition from write survey to normal mode (CASSANDRA-9740)
  * Scrub (recover) sstables even when -Index.db is missing (CASSANDRA-9591)
