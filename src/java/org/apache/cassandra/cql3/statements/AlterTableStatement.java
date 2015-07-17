@@ -125,14 +125,20 @@ public class AlterTableStatement extends SchemaAlteringStatement
                     if (cfm.isSuper())
                         throw new InvalidRequestException("Cannot use non-frozen collections with super column families");
 
-                    // If there used to be a collection column with the same name (that has been dropped), we could still have
-                    // some data using the old type, and so we can't allow adding a collection with the same name unless
-                    // the types are compatible (see #6276).
+                    // If there used to be a non-frozen collection column with the same name (that has been dropped),
+                    // we could still have some data using the old type, and so we can't allow adding a collection
+                    // with the same name unless the types are compatible (see #6276).
                     CFMetaData.DroppedColumn dropped = cfm.getDroppedColumns().get(columnName.bytes);
-                    if (dropped != null && dropped.type instanceof CollectionType && !type.isCompatibleWith(dropped.type))
-                        throw new InvalidRequestException(String.format("Cannot add a collection with the name %s " +
-                                    "because a collection with the same name and a different type%s has already been used in the past",
-                                    columnName, " (" + dropped.type.asCQL3Type() + ')'));
+                    if (dropped != null && dropped.type instanceof CollectionType
+                        && dropped.type.isMultiCell() && !type.isCompatibleWith(dropped.type))
+                    {
+                        String message =
+                            String.format("Cannot add a collection with the name %s because a collection with the same name"
+                                          + " and a different type (%s) has already been used in the past",
+                                          columnName,
+                                          dropped.type.asCQL3Type());
+                        throw new InvalidRequestException(message);
+                    }
                 }
 
                 Integer componentIndex = cfm.isCompound() ? cfm.comparator.size() : null;

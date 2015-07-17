@@ -585,4 +585,13 @@ public class CollectionsTest extends CQLTester
         assertInvalid("alter table %s add v set<int>");
     }
 
+    @Test
+    public void testDropAndReaddDroppedCollection() throws Throwable
+    {
+        createTable("create table %s (k int primary key, v frozen<set<text>>, x int)");
+        execute("insert into %s (k, v) VALUES (0, {'fffffffff'})");
+        flush();
+        execute("alter table %s drop v");
+        execute("alter table %s add v set<int>");
+    }
 }
