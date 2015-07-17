@@ -1,8 +1,14 @@
+cassandra (2.2.0) unstable; urgency=medium
+
+  * New release
+
+ -- Jake Luciani <jake@apache.org>  Fri, 17 Jul 2015 13:06:22 -0400
+
 cassandra (2.2.0~rc2) unstable; urgency=medium
 
   * New RC release
 
- -- Jake Luciani <jake@jakebook>  Tue, 30 Jun 2015 09:43:38 -0400
+ -- Jake Luciani <jake@apache.org>  Tue, 30 Jun 2015 09:43:38 -0400
 
 cassandra (2.2.0~rc1) unstable; urgency=medium
 

@@ -1,4 +1,4 @@
-2.2.0-rc3
+2.2.0
  * Fix cqlsh copy methods and other windows specific issues (CASSANDRA-9795) 
  * Don't wrap byte arrays in SequentialWriter (CASSANDRA-9797)
  * sum() and avg() functions missing for smallint and tinyint types (CASSANDRA-9671)
