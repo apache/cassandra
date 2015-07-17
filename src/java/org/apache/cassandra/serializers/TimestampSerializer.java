@@ -29,6 +29,9 @@ import org.apache.commons.lang3.time.DateUtils;
 
 public class TimestampSerializer implements TypeSerializer<Date>
 {
+
+    //NOTE: This list is used below and if you change the order
+    //      you need to update the default format and json formats in the code below.
     private static final String[] dateStringPatterns = new String[] {
             "yyyy-MM-dd HH:mm",
             "yyyy-MM-dd HH:mm:ss",
@@ -82,7 +85,7 @@ public class TimestampSerializer implements TypeSerializer<Date>
             "yyyy-MM-ddXXX"
     };
 
-    private static final String DEFAULT_FORMAT = dateStringPatterns[3];
+    private static final String DEFAULT_FORMAT = dateStringPatterns[6];
     private static final Pattern timestampPattern = Pattern.compile("^-?\\d+$");
 
     private static final ThreadLocal<SimpleDateFormat> FORMATTER = new ThreadLocal<SimpleDateFormat>()
@@ -93,7 +96,7 @@ public class TimestampSerializer implements TypeSerializer<Date>
         }
     };
 
-    public static final SimpleDateFormat TO_JSON_FORMAT = new SimpleDateFormat(dateStringPatterns[8]);
+    public static final SimpleDateFormat TO_JSON_FORMAT = new SimpleDateFormat(dateStringPatterns[15]);
 
     public static final TimestampSerializer instance = new TimestampSerializer();
 
