@@ -17,8 +17,6 @@
  */
 package org.apache.cassandra.cql3.validation.operations;
 
-import com.google.common.collect.ImmutableMap;
-
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
@@ -144,22 +142,18 @@ public class AlterTest extends CQLTester
         execute("ALTER KEYSPACE ks2 WITH durable_writes=true");
 
         assertRows(execute("SELECT keyspace_name, durable_writes, replication FROM system_schema.keyspaces"),
-                   row("ks1", false, ImmutableMap.of("class", "org.apache.cassandra.locator.NetworkTopologyStrategy",
-                                                     "dc1", "1")),
-                   row(KEYSPACE, true, ImmutableMap.of("class", "org.apache.cassandra.locator.SimpleStrategy",
-                                                       "replication_factor", "1")),
-                   row(KEYSPACE_PER_TEST, true, ImmutableMap.of("class", "org.apache.cassandra.locator.SimpleStrategy",
-                                                                "replication_factor", "1")),
-                   row("ks2", true, ImmutableMap.of("class", "org.apache.cassandra.locator.SimpleStrategy",
-                                                    "replication_factor", "1")));
+                   row("ks1", false, map("class", "org.apache.cassandra.locator.NetworkTopologyStrategy", "dc1", "1")),
+                   row(KEYSPACE, true, map("class", "org.apache.cassandra.locator.SimpleStrategy", "replication_factor", "1")),
+                   row(KEYSPACE_PER_TEST, true, map("class", "org.apache.cassandra.locator.SimpleStrategy", "replication_factor", "1")),
+                   row("ks2", true, map("class", "org.apache.cassandra.locator.SimpleStrategy", "replication_factor", "1")));
 
         execute("USE ks1");
 
         assertInvalidThrow(ConfigurationException.class, "CREATE TABLE cf1 (a int PRIMARY KEY, b int) WITH compaction = { 'min_threshold' : 4 }");
 
         execute("CREATE TABLE cf1 (a int PRIMARY KEY, b int) WITH compaction = { 'class' : 'SizeTieredCompactionStrategy', 'min_threshold' : 7 }");
-        assertRows(execute("SELECT table_name, min_compaction_threshold FROM system_schema.tables WHERE keyspace_name='ks1'"),
-                   row("cf1", 7));
+        assertRows(execute("SELECT table_name, compaction FROM system_schema.tables WHERE keyspace_name='ks1'"),
+                   row("cf1", map("class", "org.apache.cassandra.db.compaction.SizeTieredCompactionStrategy", "min_threshold", "7")));
 
         // clean-up
         execute("DROP KEYSPACE ks1");
@@ -217,49 +211,49 @@ public class AlterTest extends CQLTester
     {
         createTable("CREATE TABLE %s (a text, b int, c int, primary key (a, b))");
 
-        assertRows(execute(format("SELECT compression_parameters FROM %s.%s WHERE keyspace_name = ? and table_name = ?;",
+        assertRows(execute(format("SELECT compression FROM %s.%s WHERE keyspace_name = ? and table_name = ?;",
                                   SchemaKeyspace.NAME,
                                   SchemaKeyspace.TABLES),
                            KEYSPACE,
                            currentTable()),
-                   row("{\"chunk_length_in_kb\":\"64\",\"class\":\"org.apache.cassandra.io.compress.LZ4Compressor\"}"));
+                   row(map("chunk_length_in_kb", "64", "class", "org.apache.cassandra.io.compress.LZ4Compressor")));
 
         execute("ALTER TABLE %s WITH compression = { 'class' : 'SnappyCompressor', 'chunk_length_in_kb' : 32 };");
 
-        assertRows(execute(format("SELECT compression_parameters FROM %s.%s WHERE keyspace_name = ? and table_name = ?;",
+        assertRows(execute(format("SELECT compression FROM %s.%s WHERE keyspace_name = ? and table_name = ?;",
                                   SchemaKeyspace.NAME,
                                   SchemaKeyspace.TABLES),
                            KEYSPACE,
                            currentTable()),
-                   row("{\"chunk_length_in_kb\":\"32\",\"class\":\"org.apache.cassandra.io.compress.SnappyCompressor\"}"));
+                   row(map("chunk_length_in_kb", "32", "class", "org.apache.cassandra.io.compress.SnappyCompressor")));
 
         execute("ALTER TABLE %s WITH compression = { 'sstable_compression' : 'LZ4Compressor', 'chunk_length_kb' : 64 };");
 
-        assertRows(execute(format("SELECT compression_parameters FROM %s.%s WHERE keyspace_name = ? and table_name = ?;",
+        assertRows(execute(format("SELECT compression FROM %s.%s WHERE keyspace_name = ? and table_name = ?;",
                                   SchemaKeyspace.NAME,
                                   SchemaKeyspace.TABLES),
                            KEYSPACE,
                            currentTable()),
-                   row("{\"chunk_length_in_kb\":\"64\",\"class\":\"org.apache.cassandra.io.compress.LZ4Compressor\"}"));
+                   row(map("chunk_length_in_kb", "64", "class", "org.apache.cassandra.io.compress.LZ4Compressor")));
 
         execute("ALTER TABLE %s WITH compression = { 'sstable_compression' : '', 'chunk_length_kb' : 32 };");
 
-        assertRows(execute(format("SELECT compression_parameters FROM %s.%s WHERE keyspace_name = ? and table_name = ?;",
+        assertRows(execute(format("SELECT compression FROM %s.%s WHERE keyspace_name = ? and table_name = ?;",
                                   SchemaKeyspace.NAME,
                                   SchemaKeyspace.TABLES),
                            KEYSPACE,
                            currentTable()),
-                   row("{\"enabled\":\"false\"}"));
+                   row(map("enabled", "false")));
 
         execute("ALTER TABLE %s WITH compression = { 'class' : 'SnappyCompressor', 'chunk_length_in_kb' : 32 };");
         execute("ALTER TABLE %s WITH compression = { 'enabled' : 'false'};");
 
-        assertRows(execute(format("SELECT compression_parameters FROM %s.%s WHERE keyspace_name = ? and table_name = ?;",
+        assertRows(execute(format("SELECT compression FROM %s.%s WHERE keyspace_name = ? and table_name = ?;",
                                   SchemaKeyspace.NAME,
                                   SchemaKeyspace.TABLES),
                            KEYSPACE,
                            currentTable()),
-                   row("{\"enabled\":\"false\"}"));
+                   row(map("enabled", "false")));
 
         assertThrowsConfigurationException("Missing sub-option 'class' for the 'compression' option.",
                                            "ALTER TABLE %s WITH  compression = {'chunk_length_in_kb' : 32};");

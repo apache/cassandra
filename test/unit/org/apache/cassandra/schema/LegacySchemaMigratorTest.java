@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.schema;
 
+import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -27,6 +28,7 @@ import org.junit.Test;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.cache.CachingOptions;
 import org.apache.cassandra.config.*;
+import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.functions.*;
 import org.apache.cassandra.db.*;
@@ -56,8 +58,10 @@ public class LegacySchemaMigratorTest
      * 5. Validate that the legacy schema tables are now empty
      */
     @Test
-    public void testMigrate()
+    public void testMigrate() throws IOException
     {
+        CQLTester.cleanupAndLeaveDirs();
+
         List<KeyspaceMetadata> expected = keyspaceToMigrate();
         expected.sort((k1, k2) -> k1.name.compareTo(k2.name));
 
@@ -71,9 +75,6 @@ public class LegacySchemaMigratorTest
         List<KeyspaceMetadata> actual = SchemaKeyspace.readSchemaFromSystemTables();
         actual.sort((k1, k2) -> k1.name.compareTo(k2.name));
 
-        // make sure that we've read *exactly* the same set of keyspaces/tables/types/functions
-        assertEquals(expected, actual);
-
         // need to load back CFMetaData of those tables (CFS instances will still be loaded)
         loadLegacySchemaTables();
 
@@ -84,6 +85,9 @@ public class LegacySchemaMigratorTest
             //noinspection ConstantConditions
             assertTrue(executeOnceInternal(query).isEmpty());
         }
+
+        // make sure that we've read *exactly* the same set of keyspaces/tables/types/functions
+        assertEquals(expected, actual);
     }
 
     private static void loadLegacySchemaTables()

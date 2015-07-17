@@ -37,8 +37,10 @@ import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.cql3.functions.*;
+import org.apache.cassandra.cql3.statements.CFPropDefs;
 import org.apache.cassandra.db.ClusteringComparator;
 import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.compaction.AbstractCompactionStrategy;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.db.partitions.*;
 import org.apache.cassandra.db.rows.*;
@@ -49,6 +51,8 @@ import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.concurrent.OpOrder;
+
+import static java.util.stream.Collectors.toSet;
 
 import static org.apache.cassandra.cql3.QueryProcessor.executeOnceInternal;
 import static org.apache.cassandra.utils.FBUtilities.fromJsonMap;
@@ -93,31 +97,26 @@ public final class SchemaKeyspace
                 "CREATE TABLE %s ("
                 + "keyspace_name text,"
                 + "table_name text,"
+                + "id uuid,"
                 + "bloom_filter_fp_chance double,"
-                + "caching text,"
-                + "cf_id uuid," // post-2.1 UUID cfid
+                + "caching map<text, text>,"
                 + "comment text,"
-                + "compaction_strategy_class text,"
-                + "compaction_strategy_options text,"
-                + "comparator text,"
-                + "compression_parameters text,"
+                + "compaction map<text, text>,"
+                + "compression map<text, text>,"
+                + "dclocal_read_repair_chance double,"
                 + "default_time_to_live int,"
-                + "default_validator text,"
-                + "dropped_columns map<text, bigint>,"
-                + "dropped_columns_types map<text, text>,"
+                + "flags set<text>," // SUPER, COUNTER, DENSE, COMPOUND
                 + "gc_grace_seconds int,"
-                + "is_dense boolean,"
-                + "key_validator text,"
-                + "local_read_repair_chance double,"
-                + "max_compaction_threshold int,"
                 + "max_index_interval int,"
                 + "memtable_flush_period_in_ms int,"
-                + "min_compaction_threshold int,"
                 + "min_index_interval int,"
                 + "read_repair_chance double,"
                 + "speculative_retry text,"
-                + "subcomparator text,"
-                + "type text,"
+
+                // TODO: move into a separate table
+                + "dropped_columns map<text, bigint>,"
+                + "dropped_columns_types map<text, text>,"
+
                 + "PRIMARY KEY ((keyspace_name), table_name))");
 
     private static final CFMetaData Columns =
@@ -127,6 +126,7 @@ public final class SchemaKeyspace
                 + "keyspace_name text,"
                 + "table_name text,"
                 + "column_name text,"
+                + "column_name_bytes blob,"
                 + "component_index int,"
                 + "index_name text,"
                 + "index_options text,"
@@ -416,8 +416,7 @@ public final class SchemaKeyspace
 
     private static boolean isSystemKeyspaceSchemaPartition(DecoratedKey partitionKey)
     {
-        return getSchemaKSKey(SystemKeyspace.NAME).equals(partitionKey.getKey()) ||
-               getSchemaKSKey(NAME).equals(partitionKey.getKey());
+        return Schema.isSystemKeyspace(UTF8Type.instance.compose(partitionKey.getKey()));
     }
 
     /**
@@ -659,14 +658,9 @@ public final class SchemaKeyspace
     public static Mutation makeCreateKeyspaceMutation(String name, KeyspaceParams params, long timestamp)
     {
         RowUpdateBuilder adder = new RowUpdateBuilder(Keyspaces, timestamp, name).clustering();
-
-        adder.add("durable_writes", params.durableWrites);
-
-        adder.resetCollection("replication");
-        for (Map.Entry<String, String> option : params.replication.asMap().entrySet())
-            adder.addMapEntry("replication", option.getKey(), option.getValue());
-
-        return adder.build();
+        return adder.add(KeyspaceParams.Option.DURABLE_WRITES.toString(), params.durableWrites)
+                    .map(KeyspaceParams.Option.REPLICATION.toString(), params.replication.asMap())
+                    .build();
     }
 
     public static Mutation makeCreateKeyspaceMutation(KeyspaceMetadata keyspace, long timestamp)
@@ -720,10 +714,8 @@ public final class SchemaKeyspace
         String query = String.format("SELECT * FROM %s.%s", NAME, KEYSPACES);
         UntypedResultSet.Row row = QueryProcessor.resultify(query, partition).one();
 
-        boolean durableWrites = row.getBoolean("durable_writes");
-        Map<String, String> replication= row.getMap("replication", UTF8Type.instance, UTF8Type.instance);
-
-        return KeyspaceParams.create(durableWrites, replication);
+        return KeyspaceParams.create(row.getBoolean(KeyspaceParams.Option.DURABLE_WRITES.toString()),
+                                     row.getTextMap(KeyspaceParams.Option.REPLICATION.toString()));
     }
 
     /*
@@ -802,44 +794,23 @@ public final class SchemaKeyspace
 
     static void addTableToSchemaMutation(CFMetaData table, long timestamp, boolean withColumnsAndTriggers, Mutation mutation)
     {
-        // For property that can be null (and can be changed), we insert tombstones, to make sure
-        // we don't keep a property the user has removed
-        RowUpdateBuilder adder = new RowUpdateBuilder(Tables, timestamp, mutation)
-                                 .clustering(table.cfName);
-
-        adder.add("cf_id", table.cfId)
-             .add("type", table.isSuper() ? "Super" : "Standard");
-
-        if (table.isSuper())
-        {
-            // We need to continue saving the comparator and subcomparator separatly, otherwise
-            // we won't know at deserialization if the subcomparator should be taken into account
-            // TODO: we should implement an on-start migration if we want to get rid of that.
-            adder.add("comparator", table.comparator.subtype(0).toString())
-                 .add("subcomparator", ((MapType)table.compactValueColumn().type).getKeysType().toString());
-        }
-        else
-        {
-            adder.add("comparator", LegacyLayout.makeLegacyComparator(table).toString());
-        }
+        RowUpdateBuilder adder = new RowUpdateBuilder(Tables, timestamp, mutation).clustering(table.cfName);
 
         adder.add("bloom_filter_fp_chance", table.getBloomFilterFpChance())
-             .add("caching", table.getCaching().toString())
              .add("comment", table.getComment())
-             .add("compaction_strategy_class", table.compactionStrategyClass.getName())
-             .add("compaction_strategy_options", json(table.compactionStrategyOptions))
-             .add("compression_parameters", json(table.compressionParameters.asMap()))
+             .add("dclocal_read_repair_chance", table.getDcLocalReadRepairChance())
              .add("default_time_to_live", table.getDefaultTimeToLive())
              .add("gc_grace_seconds", table.getGcGraceSeconds())
-             .add("key_validator", table.getKeyValidator().toString())
-             .add("local_read_repair_chance", table.getDcLocalReadRepairChance())
-             .add("max_compaction_threshold", table.getMaxCompactionThreshold())
+             .add("id", table.cfId)
              .add("max_index_interval", table.getMaxIndexInterval())
              .add("memtable_flush_period_in_ms", table.getMemtableFlushPeriod())
-             .add("min_compaction_threshold", table.getMinCompactionThreshold())
              .add("min_index_interval", table.getMinIndexInterval())
              .add("read_repair_chance", table.getReadRepairChance())
-             .add("speculative_retry", table.getSpeculativeRetry().toString());
+             .add("speculative_retry", table.getSpeculativeRetry().toString())
+             .map("caching", table.getCaching().asMap())
+             .map("compaction", buildCompactionMap(table))
+             .map("compression", table.compressionParameters().asMap())
+             .set("flags", flagsToStrings(table.flags()));
 
         for (Map.Entry<ByteBuffer, CFMetaData.DroppedColumn> entry : table.getDroppedColumns().entrySet())
         {
@@ -849,10 +820,6 @@ public final class SchemaKeyspace
             if (column.type != null)
                 adder.addMapEntry("dropped_columns_types", name, column.type.toString());
         }
-
-        adder.add("is_dense", table.isDense());
-
-        adder.add("default_validator", table.makeLegacyDefaultValidator().toString());
 
         if (withColumnsAndTriggers)
         {
@@ -864,6 +831,40 @@ public final class SchemaKeyspace
         }
 
         adder.build();
+    }
+
+    /*
+     * The method is needed - temporarily - to migrate max_compaction_threshold and min_compaction_threshold
+     * to the compaction map, where they belong.
+     *
+     * We must use reflection to validate the options because not every compaction strategy respects and supports
+     * the threshold params (LCS doesn't, STCS and DTCS don't).
+     */
+    @SuppressWarnings("unchecked")
+    private static Map<String, String> buildCompactionMap(CFMetaData cfm)
+    {
+        Map<String, String> options = new HashMap<>(cfm.compactionStrategyOptions);
+
+        Map<String, String> optionsWithThresholds = new HashMap<>(options);
+        options.putIfAbsent(CFPropDefs.KW_MINCOMPACTIONTHRESHOLD, Integer.toString(cfm.getMinCompactionThreshold()));
+        options.putIfAbsent(CFPropDefs.KW_MAXCOMPACTIONTHRESHOLD, Integer.toString(cfm.getMaxCompactionThreshold()));
+
+        try
+        {
+            Map<String, String> unrecognizedOptions = (Map<String, String>) cfm.compactionStrategyClass
+                                                                               .getMethod("validateOptions", Map.class)
+                                                                               .invoke(null, optionsWithThresholds);
+            if (unrecognizedOptions.isEmpty())
+                options = optionsWithThresholds;
+        }
+        catch (Exception e)
+        {
+            throw new RuntimeException(e);
+        }
+
+        options.put("class", cfm.compactionStrategyClass.getName());
+
+        return options;
     }
 
     public static Mutation makeUpdateTableMutation(KeyspaceMetadata keyspace,
@@ -960,16 +961,10 @@ public final class SchemaKeyspace
         return tables.build();
     }
 
-    public static CFMetaData createTableFromTablePartitionAndColumnsPartition(RowIterator serializedTable, RowIterator serializedColumns)
-    {
-        String query = String.format("SELECT * FROM %s.%s", NAME, TABLES);
-        return createTableFromTableRowAndColumnsPartition(QueryProcessor.resultify(query, serializedTable).one(), serializedColumns);
-    }
-
-    private static CFMetaData createTableFromTableRowAndColumnsPartition(UntypedResultSet.Row tableRow, RowIterator serializedColumns)
+    private static List<ColumnDefinition> createColumnsFromColumnsPartition(RowIterator serializedColumns)
     {
         String query = String.format("SELECT * FROM %s.%s", NAME, COLUMNS);
-        return createTableFromTableRowAndColumnRows(tableRow, QueryProcessor.resultify(query, serializedColumns));
+        return createColumnsFromColumnRows(QueryProcessor.resultify(query, serializedColumns));
     }
 
     private static CFMetaData createTableFromTablePartition(RowIterator partition)
@@ -978,92 +973,104 @@ public final class SchemaKeyspace
         return createTableFromTableRow(QueryProcessor.resultify(query, partition).one());
     }
 
+    public static CFMetaData createTableFromTablePartitionAndColumnsPartition(RowIterator tablePartition,
+                                                                              RowIterator columnsPartition)
+    {
+        List<ColumnDefinition> columns = createColumnsFromColumnsPartition(columnsPartition);
+        String query = String.format("SELECT * FROM %s.%s", NAME, TABLES);
+        return createTableFromTableRowAndColumns(QueryProcessor.resultify(query, tablePartition).one(), columns);
+    }
+
     /**
      * Deserialize table metadata from low-level representation
      *
      * @return Metadata deserialized from schema
      */
-    private static CFMetaData createTableFromTableRow(UntypedResultSet.Row result)
+    private static CFMetaData createTableFromTableRow(UntypedResultSet.Row row)
     {
-        String ksName = result.getString("keyspace_name");
-        String cfName = result.getString("table_name");
+        String keyspace = row.getString("keyspace_name");
+        String table = row.getString("table_name");
 
-        CFMetaData cfm = readSchemaPartitionForTableAndApply(COLUMNS, ksName, cfName, partition -> createTableFromTableRowAndColumnsPartition(result, partition));
+        List<ColumnDefinition> columns =
+            readSchemaPartitionForTableAndApply(COLUMNS, keyspace, table, SchemaKeyspace::createColumnsFromColumnsPartition);
 
-        readSchemaPartitionForTableAndApply(TRIGGERS, ksName, cfName, partition -> cfm.triggers(createTriggersFromTriggersPartition(partition)));
+        Triggers triggers =
+            readSchemaPartitionForTableAndApply(TRIGGERS, keyspace, table, SchemaKeyspace::createTriggersFromTriggersPartition);
+
+        return createTableFromTableRowAndColumns(row, columns).triggers(triggers);
+    }
+
+    public static CFMetaData createTableFromTableRowAndColumns(UntypedResultSet.Row row, List<ColumnDefinition> columns)
+    {
+        String keyspace = row.getString("keyspace_name");
+        String table = row.getString("table_name");
+        UUID id = row.getUUID("id");
+
+        Set<CFMetaData.Flag> flags = row.has("flags")
+                                   ? flagsFromStrings(row.getSet("flags", UTF8Type.instance))
+                                   : Collections.emptySet();
+
+        boolean isSuper = flags.contains(CFMetaData.Flag.SUPER);
+        boolean isCounter = flags.contains(CFMetaData.Flag.COUNTER);
+        boolean isDense = flags.contains(CFMetaData.Flag.DENSE);
+        boolean isCompound = flags.contains(CFMetaData.Flag.COMPOUND);
+
+        CFMetaData cfm = CFMetaData.create(keyspace, table, id, isDense, isCompound, isSuper, isCounter, columns);
+
+        Map<String, String> compaction = new HashMap<>(row.getTextMap("compaction"));
+        Class<? extends AbstractCompactionStrategy> compactionStrategyClass =
+            CFMetaData.createCompactionStrategy(compaction.remove("class"));
+
+        int minCompactionThreshold = compaction.containsKey(CFPropDefs.KW_MINCOMPACTIONTHRESHOLD)
+                                   ? Integer.parseInt(compaction.get(CFPropDefs.KW_MINCOMPACTIONTHRESHOLD))
+                                   : CFMetaData.DEFAULT_MIN_COMPACTION_THRESHOLD;
+
+        int maxCompactionThreshold = compaction.containsKey(CFPropDefs.KW_MAXCOMPACTIONTHRESHOLD)
+                                   ? Integer.parseInt(compaction.get(CFPropDefs.KW_MAXCOMPACTIONTHRESHOLD))
+                                   : CFMetaData.DEFAULT_MAX_COMPACTION_THRESHOLD;
+
+        cfm.bloomFilterFpChance(row.getDouble("bloom_filter_fp_chance"))
+           .caching(CachingOptions.fromMap(row.getTextMap("caching")))
+           .comment(row.getString("comment"))
+           .compactionStrategyClass(compactionStrategyClass)
+           .compactionStrategyOptions(compaction)
+           .compressionParameters(CompressionParameters.fromMap(row.getTextMap("compression")))
+           .dcLocalReadRepairChance(row.getDouble("dclocal_read_repair_chance"))
+           .defaultTimeToLive(row.getInt("default_time_to_live"))
+           .gcGraceSeconds(row.getInt("gc_grace_seconds"))
+           .maxCompactionThreshold(maxCompactionThreshold)
+           .maxIndexInterval(row.getInt("max_index_interval"))
+           .memtableFlushPeriod(row.getInt("memtable_flush_period_in_ms"))
+           .minCompactionThreshold(minCompactionThreshold)
+           .minIndexInterval(row.getInt("min_index_interval"))
+           .readRepairChance(row.getDouble("read_repair_chance"))
+           .speculativeRetry(CFMetaData.SpeculativeRetry.fromString(row.getString("speculative_retry")));
+
+        if (row.has("dropped_columns"))
+        {
+            Map<String, String> types = row.has("dropped_columns_types")
+                                      ? row.getTextMap("dropped_columns_types")
+                                      : Collections.<String, String>emptyMap();
+            addDroppedColumns(cfm, row.getMap("dropped_columns", UTF8Type.instance, LongType.instance), types);
+        }
 
         return cfm;
     }
 
-    public static CFMetaData createTableFromTableRowAndColumnRows(UntypedResultSet.Row result,
-                                                                  UntypedResultSet serializedColumnDefinitions)
+    public static Set<CFMetaData.Flag> flagsFromStrings(Set<String> strings)
     {
-        String ksName = result.getString("keyspace_name");
-        String cfName = result.getString("table_name");
+        return strings.stream()
+                      .map(String::toUpperCase)
+                      .map(CFMetaData.Flag::valueOf)
+                      .collect(toSet());
+    }
 
-        AbstractType<?> rawComparator = TypeParser.parse(result.getString("comparator"));
-        AbstractType<?> subComparator = result.has("subcomparator") ? TypeParser.parse(result.getString("subcomparator")) : null;
-
-        boolean isSuper = "super".equals(result.getString("type").toLowerCase());
-        boolean isDense = result.getBoolean("is_dense");
-        boolean isCompound = rawComparator instanceof CompositeType;
-
-        // We don't really use the default validator but as we have it for backward compatibility, we use it to know if it's a counter table
-        AbstractType<?> defaultValidator = TypeParser.parse(result.getString("default_validator"));
-        boolean isCounter = defaultValidator instanceof CounterColumnType;
-
-        UUID cfId = result.getUUID("cf_id");
-
-        boolean isCQLTable = !isSuper && !isDense && isCompound;
-
-        List<ColumnDefinition> columnDefs = createColumnsFromColumnRows(serializedColumnDefinitions,
-                                                                        ksName,
-                                                                        cfName,
-                                                                        rawComparator,
-                                                                        subComparator,
-                                                                        isSuper,
-                                                                        isCQLTable);
-
-        CFMetaData cfm = CFMetaData.create(ksName, cfName, cfId, isDense, isCompound, isSuper, isCounter, columnDefs);
-
-        cfm.readRepairChance(result.getDouble("read_repair_chance"));
-        cfm.dcLocalReadRepairChance(result.getDouble("local_read_repair_chance"));
-        cfm.gcGraceSeconds(result.getInt("gc_grace_seconds"));
-        cfm.minCompactionThreshold(result.getInt("min_compaction_threshold"));
-        cfm.maxCompactionThreshold(result.getInt("max_compaction_threshold"));
-        if (result.has("comment"))
-            cfm.comment(result.getString("comment"));
-        if (result.has("memtable_flush_period_in_ms"))
-            cfm.memtableFlushPeriod(result.getInt("memtable_flush_period_in_ms"));
-        cfm.caching(CachingOptions.fromString(result.getString("caching")));
-        if (result.has("default_time_to_live"))
-            cfm.defaultTimeToLive(result.getInt("default_time_to_live"));
-        if (result.has("speculative_retry"))
-            cfm.speculativeRetry(CFMetaData.SpeculativeRetry.fromString(result.getString("speculative_retry")));
-        cfm.compactionStrategyClass(CFMetaData.createCompactionStrategy(result.getString("compaction_strategy_class")));
-        cfm.compressionParameters(CompressionParameters.fromMap(fromJsonMap(result.getString("compression_parameters"))));
-        cfm.compactionStrategyOptions(fromJsonMap(result.getString("compaction_strategy_options")));
-
-        if (result.has("min_index_interval"))
-            cfm.minIndexInterval(result.getInt("min_index_interval"));
-
-        if (result.has("max_index_interval"))
-            cfm.maxIndexInterval(result.getInt("max_index_interval"));
-
-        if (result.has("bloom_filter_fp_chance"))
-            cfm.bloomFilterFpChance(result.getDouble("bloom_filter_fp_chance"));
-        else
-            cfm.bloomFilterFpChance(cfm.getBloomFilterFpChance());
-
-        if (result.has("dropped_columns"))
-        {
-            Map<String, String> types = result.has("dropped_columns_types")
-                                      ? result.getMap("dropped_columns_types", UTF8Type.instance, UTF8Type.instance) 
-                                      : Collections.<String, String>emptyMap();
-            addDroppedColumns(cfm, result.getMap("dropped_columns", UTF8Type.instance, LongType.instance), types);
-        }
-
-        return cfm;
+    private static Set<String> flagsToStrings(Set<CFMetaData.Flag> flags)
+    {
+        return flags.stream()
+                    .map(CFMetaData.Flag::toString)
+                    .map(String::toLowerCase)
+                    .collect(toSet());
     }
 
     private static void addDroppedColumns(CFMetaData cfm, Map<String, Long> droppedTimes, Map<String, String> types)
@@ -1083,37 +1090,16 @@ public final class SchemaKeyspace
 
     private static void addColumnToSchemaMutation(CFMetaData table, ColumnDefinition column, long timestamp, Mutation mutation)
     {
-        RowUpdateBuilder adder = new RowUpdateBuilder(Columns, timestamp, mutation)
-                                 .clustering(table.cfName, column.name.toString());
+        RowUpdateBuilder adder = new RowUpdateBuilder(Columns, timestamp, mutation).clustering(table.cfName, column.name.toString());
 
-        adder.add("validator", column.type.toString())
-             .add("type", serializeKind(column.kind, table.isDense()))
+        adder.add("column_name_bytes", column.name.bytes)
+             .add("validator", column.type.toString())
+             .add("type", column.kind.toString().toLowerCase())
              .add("component_index", column.isOnAllComponents() ? null : column.position())
              .add("index_name", column.getIndexName())
              .add("index_type", column.getIndexType() == null ? null : column.getIndexType().toString())
              .add("index_options", json(column.getIndexOptions()))
              .build();
-    }
-
-    private static String serializeKind(ColumnDefinition.Kind kind, boolean isDense)
-    {
-        // For backward compatibility, we special case CLUSTERING and the case where the table is dense.
-        if (kind == ColumnDefinition.Kind.CLUSTERING)
-            return "clustering_key";
-
-        if (kind == ColumnDefinition.Kind.REGULAR && isDense)
-            return "compact_value";
-
-        return kind.toString().toLowerCase();
-    }
-
-    public static ColumnDefinition.Kind deserializeKind(String kind)
-    {
-        if ("clustering_key".equalsIgnoreCase(kind))
-            return ColumnDefinition.Kind.CLUSTERING;
-        if ("compact_value".equalsIgnoreCase(kind))
-            return ColumnDefinition.Kind.REGULAR;
-        return Enum.valueOf(ColumnDefinition.Kind.class, kind.toUpperCase());
     }
 
     private static void dropColumnFromSchemaMutation(CFMetaData table, ColumnDefinition column, long timestamp, Mutation mutation)
@@ -1122,40 +1108,25 @@ public final class SchemaKeyspace
         RowUpdateBuilder.deleteRow(Columns, timestamp, mutation, table.cfName, column.name.toString());
     }
 
-    private static List<ColumnDefinition> createColumnsFromColumnRows(UntypedResultSet rows,
-                                                                      String keyspace,
-                                                                      String table,
-                                                                      AbstractType<?> rawComparator,
-                                                                      AbstractType<?> rawSubComparator,
-                                                                      boolean isSuper,
-                                                                      boolean isCQLTable)
-    {
-        List<ColumnDefinition> columns = new ArrayList<>();
-        for (UntypedResultSet.Row row : rows)
-            columns.add(createColumnFromColumnRow(row, keyspace, table, rawComparator, rawSubComparator, isSuper, isCQLTable));
+    private static List<ColumnDefinition> createColumnsFromColumnRows(UntypedResultSet rows)
+{
+        List<ColumnDefinition> columns = new ArrayList<>(rows.size());
+        rows.forEach(row -> columns.add(createColumnFromColumnRow(row)));
         return columns;
     }
 
-    private static ColumnDefinition createColumnFromColumnRow(UntypedResultSet.Row row,
-                                                              String keyspace,
-                                                              String table,
-                                                              AbstractType<?> rawComparator,
-                                                              AbstractType<?> rawSubComparator,
-                                                              boolean isSuper,
-                                                              boolean isCQLTable)
+    private static ColumnDefinition createColumnFromColumnRow(UntypedResultSet.Row row)
     {
-        ColumnDefinition.Kind kind = deserializeKind(row.getString("type"));
+        String keyspace = row.getString("keyspace_name");
+        String table = row.getString("table_name");
+
+        ColumnIdentifier name = ColumnIdentifier.getInterned(row.getBytes("column_name_bytes"), row.getString("column_name"));
+
+        ColumnDefinition.Kind kind = ColumnDefinition.Kind.valueOf(row.getString("type").toUpperCase());
 
         Integer componentIndex = null;
         if (row.has("component_index"))
             componentIndex = row.getInt("component_index");
-
-        // Note: we save the column name as string, but we should not assume that it is an UTF8 name, we
-        // we need to use the comparator fromString method
-        AbstractType<?> comparator = isCQLTable
-                                   ? UTF8Type.instance
-                                   : CompactTables.columnDefinitionComparator(kind, isSuper, rawComparator, rawSubComparator);
-        ColumnIdentifier name = ColumnIdentifier.getInterned(comparator.fromString(row.getString("column_name")), comparator);
 
         AbstractType<?> validator = parseType(row.getString("validator"));
 
@@ -1208,7 +1179,7 @@ public final class SchemaKeyspace
     private static TriggerMetadata createTriggerFromTriggerRow(UntypedResultSet.Row row)
     {
         String name = row.getString("trigger_name");
-        String classOption = row.getMap("trigger_options", UTF8Type.instance, UTF8Type.instance).get("class");
+        String classOption = row.getTextMap("trigger_options").get("class");
         return new TriggerMetadata(name, classOption);
     }
 

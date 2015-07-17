@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.thrift;
 
-import java.nio.ByteBuffer;
 import java.util.*;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -32,7 +31,6 @@ import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.Operator;
-import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.db.CompactTables;
 import org.apache.cassandra.db.LegacyLayout;
 import org.apache.cassandra.db.WriteType;
@@ -42,20 +40,13 @@ import org.apache.cassandra.exceptions.*;
 import org.apache.cassandra.io.compress.CompressionParameters;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.locator.LocalStrategy;
-import org.apache.cassandra.schema.KeyspaceMetadata;
-import org.apache.cassandra.schema.KeyspaceParams;
-import org.apache.cassandra.schema.SchemaKeyspace;
-import org.apache.cassandra.schema.Tables;
-import org.apache.cassandra.schema.TriggerMetadata;
-import org.apache.cassandra.schema.Triggers;
+import org.apache.cassandra.schema.*;
 import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.UUIDGen;
 
 /**
  * Static utility methods to convert internal structure to and from thrift ones.
- *
- * 
  */
 public class ThriftConversion
 {
@@ -270,7 +261,7 @@ public class ThriftConversion
             if (cfId == null)
                 cfId = UUIDGen.getTimeUUID();
 
-            boolean isCompound = isSuper ? false : (rawComparator instanceof CompositeType);
+            boolean isCompound = !isSuper && (rawComparator instanceof CompositeType);
             boolean isCounter = defaultValidator instanceof CounterColumnType;
 
             // If it's a thrift table creation, adds the default CQL metadata for the new table
@@ -374,7 +365,8 @@ public class ThriftConversion
         }
     }
 
-    /** applies implicit defaults to cf definition. useful in updates */
+    /* applies implicit defaults to cf definition. useful in updates */
+    @SuppressWarnings("deprecation")
     private static void applyImplicitDefaults(org.apache.cassandra.thrift.CfDef cf_def)
     {
         if (!cf_def.isSetComment())
@@ -408,32 +400,6 @@ public class ThriftConversion
             // ensure the max is at least as large as the min
             cf_def.setMax_index_interval(Math.max(cf_def.min_index_interval, CFMetaData.DEFAULT_MAX_INDEX_INTERVAL));
         }
-    }
-
-    /**
-     * Create CFMetaData from thrift {@link CqlRow} that contains columns from schema_columnfamilies.
-     *
-     * @param columnsRes CqlRow containing columns from schema_columnfamilies.
-     * @return CFMetaData derived from CqlRow
-     */
-    public static CFMetaData fromThriftCqlRow(CqlRow cf, CqlResult columnsRes)
-    {
-        UntypedResultSet.Row cfRow = new UntypedResultSet.Row(convertThriftCqlRow(cf));
-
-        List<Map<String, ByteBuffer>> cols = new ArrayList<>(columnsRes.rows.size());
-        for (CqlRow row : columnsRes.rows)
-            cols.add(convertThriftCqlRow(row));
-        UntypedResultSet colsRows = UntypedResultSet.create(cols);
-
-        return SchemaKeyspace.createTableFromTableRowAndColumnRows(cfRow, colsRows);
-    }
-
-    private static Map<String, ByteBuffer> convertThriftCqlRow(CqlRow row)
-    {
-        Map<String, ByteBuffer> m = new HashMap<>();
-        for (org.apache.cassandra.thrift.Column column : row.getColumns())
-            m.put(UTF8Type.instance.getString(column.bufferForName()), column.value);
-        return m;
     }
 
     public static CfDef toThrift(CFMetaData cfm)
@@ -574,6 +540,7 @@ public class ThriftConversion
         return thriftDefs;
     }
 
+    @SuppressWarnings("deprecation")
     public static Map<String, String> compressionParametersToThrift(CompressionParameters parameters)
     {
         if (!parameters.isEnabled())

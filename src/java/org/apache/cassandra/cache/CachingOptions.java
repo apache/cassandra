@@ -17,18 +17,16 @@
  */
 package org.apache.cassandra.cache;
 
+import java.util.*;
 
-import java.util.Arrays;
-import java.util.HashSet;
-import java.util.Map;
-import java.util.Set;
 import org.apache.commons.lang3.StringUtils;
 
 import org.apache.cassandra.exceptions.ConfigurationException;
+
 import static org.apache.cassandra.utils.FBUtilities.fromJsonMap;
 
 /*
-CQL: { 'keys' : 'ALL|NONE', 'rows_per_partition': '200|NONE|ALL' }
+ * CQL: { 'keys' : 'ALL|NONE', 'rows_per_partition': '200|NONE|ALL' }
  */
 public class CachingOptions
 {
@@ -65,6 +63,14 @@ public class CachingOptions
             return CachingOptions.KEYS_ONLY;
 
         return new CachingOptions(KeyCache.fromString(cacheConfig.get("keys")), RowCache.fromString(cacheConfig.get("rows_per_partition")));
+    }
+
+    public Map<String, String> asMap()
+    {
+        Map<String, String> map = new HashMap<>(2);
+        map.put("keys", keyCache.toString());
+        map.put("rows_per_partition", rowCache.toString());
+        return map;
     }
 
     private static void validateCacheConfig(Map<String, String> cacheConfig) throws ConfigurationException

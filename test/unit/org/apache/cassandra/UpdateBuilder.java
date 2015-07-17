@@ -79,7 +79,7 @@ public class UpdateBuilder
     public IMutation makeMutation()
     {
         Mutation m = new Mutation(build());
-        return update.metadata().isCounter
+        return update.metadata().isCounter()
              ? new CounterMutation(m, ConsistencyLevel.ONE)
              : m;
     }
@@ -87,7 +87,7 @@ public class UpdateBuilder
     public void apply()
     {
         Mutation m = new Mutation(build());
-        if (update.metadata().isCounter)
+        if (update.metadata().isCounter())
             new CounterMutation(m, ConsistencyLevel.ONE).apply();
         else
             m.apply();
@@ -95,7 +95,7 @@ public class UpdateBuilder
 
     public void applyUnsafe()
     {
-        assert !update.metadata().isCounter : "Counters have currently no applyUnsafe() option";
+        assert !update.metadata().isCounter() : "Counters have currently no applyUnsafe() option";
         new Mutation(build()).applyUnsafe();
     }
 

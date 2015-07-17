@@ -484,7 +484,7 @@ public final class LegacySchemaMigrator
     private static TriggerMetadata createTriggerFromTriggerRow(UntypedResultSet.Row row)
     {
         String name = row.getString("trigger_name");
-        String classOption = row.getMap("trigger_options", UTF8Type.instance, UTF8Type.instance).get("class");
+        String classOption = row.getTextMap("trigger_options").get("class");
         return new TriggerMetadata(name, classOption);
     }
 

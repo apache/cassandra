@@ -25,7 +25,6 @@ import com.datastax.driver.core.*;
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.cql3.ColumnIdentifier;
-import org.apache.cassandra.db.CompactTables;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.dht.*;
 import org.apache.cassandra.dht.Token;
@@ -95,43 +94,38 @@ public class NativeSSTableLoaderClient extends SSTableLoader.Client
         tables.put(cfm.cfName, cfm);
     }
 
+    /*
+     * The following is a slightly simplified but otherwise duplicated version of
+     * SchemaKeyspace.createTableFromTableRowAndColumnRows().
+     * It might be safer to have a simple wrapper of the driver ResultSet/Row implementing
+     * UntypedResultSet/UntypedResultSet.Row and reuse the original method.
+     */
     private static Map<String, CFMetaData> fetchTablesMetadata(String keyspace, Session session)
     {
         Map<String, CFMetaData> tables = new HashMap<>();
+        String query = String.format("SELECT * FROM %s.%s WHERE keyspace_name = ?", SchemaKeyspace.NAME, SchemaKeyspace.TABLES);
 
-        String query = String.format("SELECT table_name, cf_id, type, comparator, subcomparator, is_dense, default_validator FROM %s.%s WHERE keyspace_name = '%s'",
-                                     SchemaKeyspace.NAME,
-                                     SchemaKeyspace.TABLES,
-                                     keyspace);
-
-
-        // The following is a slightly simplified but otherwise duplicated version of LegacySchemaTables.createTableFromTableRowAndColumnRows. It might
-        // be safer to have a simple wrapper of the driver ResultSet/Row implementing UntypedResultSet/UntypedResultSet.Row and reuse the original method.
-        for (Row row : session.execute(query))
+        for (Row row : session.execute(query, keyspace))
         {
             String name = row.getString("table_name");
-            UUID id = row.getUUID("cf_id");
-            boolean isSuper = row.getString("type").toLowerCase().equals("super");
-            AbstractType rawComparator = TypeParser.parse(row.getString("comparator"));
-            AbstractType subComparator = row.isNull("subcomparator")
-                                       ? null
-                                       : TypeParser.parse(row.getString("subcomparator"));
-            boolean isDense = row.getBool("is_dense");
-            boolean isCompound = rawComparator instanceof CompositeType;
+            UUID id = row.getUUID("id");
 
-            AbstractType<?> defaultValidator = TypeParser.parse(row.getString("default_validator"));
-            boolean isCounter =  defaultValidator instanceof CounterColumnType;
-            boolean isCQLTable = !isSuper && !isDense && isCompound;
+            Set<CFMetaData.Flag> flags = row.isNull("flags")
+                                       ? Collections.emptySet()
+                                       : SchemaKeyspace.flagsFromStrings(row.getSet("flags", String.class));
 
-            String columnsQuery = String.format("SELECT column_name, component_index, type, validator FROM %s.%s WHERE keyspace_name='%s' AND table_name='%s'",
+            boolean isSuper = flags.contains(CFMetaData.Flag.SUPER);
+            boolean isCounter = flags.contains(CFMetaData.Flag.COUNTER);
+            boolean isDense = flags.contains(CFMetaData.Flag.DENSE);
+            boolean isCompound = flags.contains(CFMetaData.Flag.COMPOUND);
+
+            String columnsQuery = String.format("SELECT * FROM %s.%s WHERE keyspace_name = ? AND table_name = ?",
                                                 SchemaKeyspace.NAME,
-                                                SchemaKeyspace.COLUMNS,
-                                                keyspace,
-                                                name);
+                                                SchemaKeyspace.COLUMNS);
 
             List<ColumnDefinition> defs = new ArrayList<>();
-            for (Row colRow : session.execute(columnsQuery))
-                defs.add(createDefinitionFromRow(colRow, keyspace, name, rawComparator, subComparator, isSuper, isCQLTable));
+            for (Row colRow : session.execute(columnsQuery, keyspace, name))
+                defs.add(createDefinitionFromRow(colRow, keyspace, name));
 
             tables.put(name, CFMetaData.create(keyspace, name, id, isDense, isCompound, isSuper, isCounter, defs));
         }
@@ -139,27 +133,15 @@ public class NativeSSTableLoaderClient extends SSTableLoader.Client
         return tables;
     }
 
-    // A slightly simplified version of LegacySchemaTables.
-    private static ColumnDefinition createDefinitionFromRow(Row row,
-                                                            String keyspace,
-                                                            String table,
-                                                            AbstractType<?> rawComparator,
-                                                            AbstractType<?> rawSubComparator,
-                                                            boolean isSuper,
-                                                            boolean isCQLTable)
+    private static ColumnDefinition createDefinitionFromRow(Row row, String keyspace, String table)
     {
-        ColumnDefinition.Kind kind = SchemaKeyspace.deserializeKind(row.getString("type"));
+        ColumnIdentifier name = ColumnIdentifier.getInterned(row.getBytes("column_name_bytes"), row.getString("column_name"));
+
+        ColumnDefinition.Kind kind = ColumnDefinition.Kind.valueOf(row.getString("type").toUpperCase());
 
         Integer componentIndex = null;
         if (!row.isNull("component_index"))
             componentIndex = row.getInt("component_index");
-
-        // Note: we save the column name as string, but we should not assume that it is an UTF8 name, we
-        // we need to use the comparator fromString method
-        AbstractType<?> comparator = isCQLTable
-                                   ? UTF8Type.instance
-                                   : CompactTables.columnDefinitionComparator(kind, isSuper, rawComparator, rawSubComparator);
-        ColumnIdentifier name = ColumnIdentifier.getInterned(comparator.fromString(row.getString("column_name")), comparator);
 
         AbstractType<?> validator = TypeParser.parse(row.getString("validator"));
 

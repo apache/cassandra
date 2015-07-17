@@ -335,6 +335,11 @@ public abstract class UntypedResultSet implements Iterable<UntypedResultSet.Row>
             return raw == null ? null : MapType.getInstance(keyType, valueType, true).compose(raw);
         }
 
+        public Map<String, String> getTextMap(String column)
+        {
+            return getMap(column, UTF8Type.instance, UTF8Type.instance);
+        }
+
         public List<ColumnSpecification> getColumns()
         {
             return columns;
