@@ -390,7 +390,7 @@ public class Memtable
                 }
                 else
                 {
-                    logger.info("Completed flushing %s; nothing needed to be retained.  Commitlog position was {}",
+                    logger.info("Completed flushing {}; nothing needed to be retained.  Commitlog position was {}",
                                 writer.getFilename(), context);
                     writer.abort();
                     ssTable = null;
