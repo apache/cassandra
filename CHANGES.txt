@@ -2,6 +2,7 @@
  * sum() and avg() functions missing for smallint and tinyint types (CASSANDRA-9671)
  * Revert CASSANDRA-9542 (allow native functions in UDA) (CASSANDRA-9771)
 Merged from 2.1:
+ * Fix broken logging for "empty" flushes in Memtable (CASSANDRA-9837)
  * Complete CASSANDRA-8448 fix (CASSANDRA-9519)
  * Handle corrupt files on startup (CASSANDRA-9686)
  * Fix clientutil jar and tests (CASSANDRA-9760)
