@@ -61,8 +61,8 @@ public class BufferCell extends AbstractCell
 
     public static BufferCell live(CFMetaData metadata, ColumnDefinition column, long timestamp, ByteBuffer value, CellPath path)
     {
-        if (metadata.getDefaultTimeToLive() != NO_TTL)
-            return expiring(column, timestamp, metadata.getDefaultTimeToLive(), FBUtilities.nowInSeconds(), value, path);
+        if (metadata.params.defaultTimeToLive != NO_TTL)
+            return expiring(column, timestamp, metadata.params.defaultTimeToLive, FBUtilities.nowInSeconds(), value, path);
 
         return new BufferCell(column, timestamp, NO_TTL, NO_DELETION_TIME, value, path);
     }

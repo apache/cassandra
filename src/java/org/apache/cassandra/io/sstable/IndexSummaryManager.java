@@ -332,8 +332,8 @@ public class IndexSummaryManager implements IndexSummaryManagerMBean
         long remainingSpace = memoryPoolCapacity;
         for (SSTableReader sstable : sstables)
         {
-            int minIndexInterval = sstable.metadata.getMinIndexInterval();
-            int maxIndexInterval = sstable.metadata.getMaxIndexInterval();
+            int minIndexInterval = sstable.metadata.params.minIndexInterval;
+            int maxIndexInterval = sstable.metadata.params.maxIndexInterval;
 
             double readsPerSec = sstable.getReadMeter() == null ? 0.0 : sstable.getReadMeter().fifteenMinuteRate();
             long idealSpace = Math.round(remainingSpace * (readsPerSec / totalReadsPerSec));

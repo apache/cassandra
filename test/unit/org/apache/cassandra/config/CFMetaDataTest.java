@@ -29,7 +29,7 @@ import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.db.rows.UnfilteredRowIterators;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.exceptions.ConfigurationException;
-import org.apache.cassandra.io.compress.*;
+import org.apache.cassandra.schema.CompressionParams;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.SchemaKeyspace;
@@ -125,7 +125,7 @@ public class CFMetaDataTest
 
                 // Testing with compression to catch #3558
                 CFMetaData withCompression = cfm.copy();
-                withCompression.compressionParameters(CompressionParameters.snappy(32768));
+                withCompression.compression(CompressionParams.snappy(32768));
                 checkInverses(withCompression);
             }
         }

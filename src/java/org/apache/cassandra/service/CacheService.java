@@ -421,7 +421,7 @@ public class CacheService implements CacheServiceMBean
         public Future<Pair<RowCacheKey, IRowCacheEntry>> deserialize(DataInputPlus in, final ColumnFamilyStore cfs) throws IOException
         {
             final ByteBuffer buffer = ByteBufferUtil.readWithLength(in);
-            final int rowsToCache = cfs.metadata.getCaching().rowCache.rowsToCache;
+            final int rowsToCache = cfs.metadata.params.caching.rowsPerPartitionToCache();
 
             return StageManager.getStage(Stage.READ).submit(new Callable<Pair<RowCacheKey, IRowCacheEntry>>()
             {

@@ -123,7 +123,7 @@ public class RowUpdateBuilder
 
     public RowUpdateBuilder(CFMetaData metadata, int localDeletionTime, long timestamp, Object partitionKey)
     {
-        this(metadata, localDeletionTime, timestamp, metadata.getDefaultTimeToLive(), partitionKey);
+        this(metadata, localDeletionTime, timestamp, metadata.params.defaultTimeToLive, partitionKey);
     }
 
     public RowUpdateBuilder(CFMetaData metadata, long timestamp, int ttl, Object partitionKey)

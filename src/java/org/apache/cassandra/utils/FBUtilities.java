@@ -19,17 +19,13 @@ package org.apache.cassandra.utils;
 
 import java.io.*;
 import java.lang.reflect.Field;
-import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Method;
 import java.math.BigInteger;
 import java.net.*;
 import java.nio.ByteBuffer;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
-import java.text.NumberFormat;
 import java.util.*;
 import java.util.concurrent.*;
-import java.util.zip.Adler32;
 import java.util.zip.Checksum;
 
 import com.google.common.base.Joiner;
@@ -48,7 +44,7 @@ import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.IVersionedSerializer;
-import org.apache.cassandra.io.compress.CompressionParameters;
+import org.apache.cassandra.schema.CompressionParams;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.util.DataOutputBufferFixed;
 import org.apache.cassandra.io.util.FileUtils;
@@ -604,7 +600,7 @@ public class FBUtilities
         @Override
         protected byte[] initialValue()
         {
-            return new byte[CompressionParameters.DEFAULT_CHUNK_LENGTH];
+            return new byte[CompressionParams.DEFAULT_CHUNK_LENGTH];
         }
     };
 

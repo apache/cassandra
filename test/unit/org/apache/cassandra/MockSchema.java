@@ -26,7 +26,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import com.google.common.collect.ImmutableSet;
 
-import org.apache.cassandra.cache.CachingOptions;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.*;
@@ -45,6 +44,7 @@ import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.io.util.Memory;
 import org.apache.cassandra.io.util.RandomAccessReader;
 import org.apache.cassandra.io.util.SegmentedFile;
+import org.apache.cassandra.schema.CachingParams;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.utils.AlwaysPresentFilter;
@@ -150,7 +150,7 @@ public class MockSchema
                                                 .addRegularColumn("value", UTF8Type.instance)
                                                 .withPartitioner(Murmur3Partitioner.instance)
                                                 .build();
-        metadata.caching(CachingOptions.NONE);
+        metadata.caching(CachingParams.CACHE_NOTHING);
         return metadata;
     }
 

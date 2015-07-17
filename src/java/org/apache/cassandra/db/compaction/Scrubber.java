@@ -124,7 +124,7 @@ public class Scrubber implements Closeable
         }
         this.checkData = checkData && !this.isIndex; //LocalByPartitionerType does not support validation
         this.expectedBloomFilterSize = Math.max(
-            cfs.metadata.getMinIndexInterval(),
+            cfs.metadata.params.minIndexInterval,
             hasIndexFile ? SSTableReader.getApproximateKeyCount(toScrub) : 0);
 
         // loop through each row, deserializing to check for damage.

@@ -38,7 +38,6 @@ import org.apache.cassandra.config.*;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.UpdateBuilder;
 import org.apache.cassandra.db.compaction.CompactionManager;
-import org.apache.cassandra.db.compaction.SizeTieredCompactionStrategy;
 import org.apache.cassandra.db.filter.*;
 import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.db.partitions.*;
@@ -467,7 +466,6 @@ public class RangeTombstoneTest
         // remove any existing sstables before starting
         cfs.truncateBlocking();
         cfs.disableAutoCompaction();
-        cfs.setCompactionStrategyClass(SizeTieredCompactionStrategy.class.getCanonicalName());
 
         UpdateBuilder builder = UpdateBuilder.create(cfs.metadata, key).withTimestamp(0);
         for (int i = 0; i < 10; i += 2)
@@ -512,7 +510,6 @@ public class RangeTombstoneTest
 
         cfs.truncateBlocking();
         cfs.disableAutoCompaction();
-        cfs.setCompactionStrategyClass(SizeTieredCompactionStrategy.class.getCanonicalName());
 
         ColumnDefinition cd = cfs.metadata.getColumnDefinition(indexedColumnName).copy();
         cd.setIndex("test_index", IndexType.CUSTOM, ImmutableMap.of(SecondaryIndex.CUSTOM_INDEX_OPTION_NAME, TestIndex.class.getName()));
@@ -549,8 +546,6 @@ public class RangeTombstoneTest
 
         cfs.truncateBlocking();
         cfs.disableAutoCompaction();
-        cfs.setCompactionStrategyClass(SizeTieredCompactionStrategy.class.getCanonicalName());
-
 
         ColumnDefinition cd = cfs.metadata.getColumnDefinition(indexedColumnName).copy();
         cd.setIndex("test_index", IndexType.CUSTOM, ImmutableMap.of(SecondaryIndex.CUSTOM_INDEX_OPTION_NAME, TestIndex.class.getName()));

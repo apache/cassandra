@@ -21,34 +21,42 @@ import java.util.*;
 
 import com.google.common.collect.ImmutableSet;
 
-import org.apache.cassandra.exceptions.*;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.KeyspaceParams.Option;
-import org.apache.cassandra.schema.KeyspaceParams.Replication;
+import org.apache.cassandra.schema.ReplicationParams;
 
-public class KeyspaceAttributes extends PropertyDefinitions
+public final class KeyspaceAttributes extends PropertyDefinitions
 {
-    private static final Set<String> keywords = ImmutableSet.of(Option.DURABLE_WRITES.toString(), Option.REPLICATION.toString());
-    private static final Set<String> obsoleteKeywords = ImmutableSet.of();
+    private static final Set<String> validKeywords;
+    private static final Set<String> obsoleteKeywords;
 
-    public void validate() throws SyntaxException
+    static
     {
-        validate(keywords, obsoleteKeywords);
+        ImmutableSet.Builder<String> validBuilder = ImmutableSet.builder();
+        for (Option option : Option.values())
+            validBuilder.add(option.toString());
+        validKeywords = validBuilder.build();
+        obsoleteKeywords = ImmutableSet.of();
+    }
+
+    public void validate()
+    {
+        validate(validKeywords, obsoleteKeywords);
     }
 
     public String getReplicationStrategyClass()
     {
-        return getAllReplicationOptions().get(Replication.CLASS);
+        return getAllReplicationOptions().get(ReplicationParams.CLASS);
     }
 
-    public Map<String, String> getReplicationOptions() throws SyntaxException
+    public Map<String, String> getReplicationOptions()
     {
         Map<String, String> replication = new HashMap<>(getAllReplicationOptions());
-        replication.remove(Replication.CLASS);
+        replication.remove(ReplicationParams.CLASS);
         return replication;
     }
 
-    public Map<String, String> getAllReplicationOptions() throws SyntaxException
+    public Map<String, String> getAllReplicationOptions()
     {
         Map<String, String> replication = getMap(Option.REPLICATION.toString());
         return replication == null
@@ -65,9 +73,9 @@ public class KeyspaceAttributes extends PropertyDefinitions
     public KeyspaceParams asAlteredKeyspaceParams(KeyspaceParams previous)
     {
         boolean durableWrites = getBoolean(Option.DURABLE_WRITES.toString(), previous.durableWrites);
-        Replication replication = getReplicationStrategyClass() == null
-                                ? previous.replication
-                                : Replication.fromMap(getAllReplicationOptions());
+        ReplicationParams replication = getReplicationStrategyClass() == null
+                                      ? previous.replication
+                                      : ReplicationParams.fromMap(getAllReplicationOptions());
         return new KeyspaceParams(durableWrites, replication);
     }
 }

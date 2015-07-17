@@ -15,10 +15,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.apache.cassandra.cql3.statements;
 
-import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
@@ -28,7 +26,7 @@ import org.apache.cassandra.db.marshal.ReversedType;
 
 public class CFProperties
 {
-    public final CFPropDefs properties = new CFPropDefs();
+    public final TableAttributes properties = new TableAttributes();
     final Map<ColumnIdentifier, Boolean> definedOrdering = new LinkedHashMap<>(); // Insertion ordering is important
     boolean useCompactStorage = false;
 

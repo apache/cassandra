@@ -1845,8 +1845,7 @@ public class CassandraServer implements Cassandra.Iface
         requestScheduler.release();
     }
 
-    public String system_add_column_family(CfDef cf_def)
-    throws InvalidRequestException, SchemaDisagreementException, TException
+    public String system_add_column_family(CfDef cf_def) throws TException
     {
         logger.debug("add_column_family");
 
@@ -1857,7 +1856,7 @@ public class CassandraServer implements Cassandra.Iface
             cState.hasKeyspaceAccess(keyspace, Permission.CREATE);
             cf_def.unsetId(); // explicitly ignore any id set by client (Hector likes to set zero)
             CFMetaData cfm = ThriftConversion.fromThrift(cf_def);
-            CFMetaData.validateCompactionOptions(cfm.compactionStrategyClass, cfm.compactionStrategyOptions);
+            cfm.params.compaction.validate();
             cfm.addDefaultIndexNames();
 
             if (!cfm.getTriggers().isEmpty())
@@ -2007,7 +2006,7 @@ public class CassandraServer implements Cassandra.Iface
                 throw new InvalidRequestException("Cannot modify CQL3 table " + oldCfm.cfName + " as it may break the schema. You should use cqlsh to modify CQL3 tables instead.");
 
             CFMetaData cfm = ThriftConversion.fromThriftForUpdate(cf_def, oldCfm);
-            CFMetaData.validateCompactionOptions(cfm.compactionStrategyClass, cfm.compactionStrategyOptions);
+            cfm.params.compaction.validate();
             cfm.addDefaultIndexNames();
 
             if (!oldCfm.getTriggers().equals(cfm.getTriggers()))

@@ -1,4 +1,3 @@
-
 /*
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
@@ -38,6 +37,7 @@ import org.apache.cassandra.locator.PropertyFileSnitch;
 import org.apache.cassandra.locator.TokenMetadata;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
+import org.apache.cassandra.schema.ReplicationParams;
 import org.apache.cassandra.service.StorageService;
 
 public class MaterializedViewUtilsTest
@@ -65,7 +65,7 @@ public class MaterializedViewUtilsTest
         metadata.updateNormalToken(new StringToken("D"), InetAddress.getByName("127.0.0.5"));
 
         Map<String, String> replicationMap = new HashMap<>();
-        replicationMap.put(KeyspaceParams.Replication.CLASS, NetworkTopologyStrategy.class.getName());
+        replicationMap.put(ReplicationParams.CLASS, NetworkTopologyStrategy.class.getName());
 
         replicationMap.put("DC1", "1");
         replicationMap.put("DC2", "1");
@@ -97,7 +97,7 @@ public class MaterializedViewUtilsTest
         metadata.updateNormalToken(new StringToken("D"), InetAddress.getByName("127.0.0.5"));
 
         Map<String, String> replicationMap = new HashMap<>();
-        replicationMap.put(KeyspaceParams.Replication.CLASS, NetworkTopologyStrategy.class.getName());
+        replicationMap.put(ReplicationParams.CLASS, NetworkTopologyStrategy.class.getName());
 
         replicationMap.put("DC1", "2");
         replicationMap.put("DC2", "2");

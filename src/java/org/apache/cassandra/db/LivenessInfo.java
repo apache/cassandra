@@ -48,7 +48,7 @@ public class LivenessInfo
 
     public static LivenessInfo create(CFMetaData metadata, long timestamp, int nowInSec)
     {
-        int defaultTTL = metadata.getDefaultTimeToLive();
+        int defaultTTL = metadata.params.defaultTimeToLive;
         if (defaultTTL != NO_TTL)
             return expiring(timestamp, defaultTTL, nowInSec);
 

@@ -35,6 +35,7 @@ import org.apache.cassandra.db.marshal.AsciiType;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.dht.*;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.schema.CompactionParams;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
@@ -63,14 +64,17 @@ public class CompactionsTest
 
         SchemaLoader.createKeyspace(KEYSPACE1,
                                     KeyspaceParams.simple(1),
-                                    SchemaLoader.denseCFMD(KEYSPACE1, CF_DENSE1).compactionStrategyOptions(compactionOptions),
-                                    SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARD1).compactionStrategyOptions(compactionOptions),
+                                    SchemaLoader.denseCFMD(KEYSPACE1, CF_DENSE1)
+                                                .compaction(CompactionParams.scts(compactionOptions)),
+                                    SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARD1)
+                                                .compaction(CompactionParams.scts(compactionOptions)),
                                     SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARD2),
                                     SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARD3),
                                     SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARD4),
                                     SchemaLoader.superCFMD(KEYSPACE1, CF_SUPER1, AsciiType.instance),
                                     SchemaLoader.superCFMD(KEYSPACE1, CF_SUPER5, AsciiType.instance),
-                                    SchemaLoader.superCFMD(KEYSPACE1, CF_SUPERGC, AsciiType.instance).gcGraceSeconds(0));
+                                    SchemaLoader.superCFMD(KEYSPACE1, CF_SUPERGC, AsciiType.instance)
+                                                .gcGraceSeconds(0));
     }
 
     public ColumnFamilyStore testSingleSSTableCompaction(String strategyClassName) throws Exception
@@ -79,7 +83,6 @@ public class CompactionsTest
         ColumnFamilyStore store = keyspace.getColumnFamilyStore(CF_DENSE1);
         store.clearUnsafe();
         store.metadata.gcGraceSeconds(1);
-        store.setCompactionStrategyClass(strategyClassName);
 
         // disable compaction while flushing
         store.disableAutoCompaction();

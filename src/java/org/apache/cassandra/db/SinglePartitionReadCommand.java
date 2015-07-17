@@ -292,7 +292,7 @@ public abstract class SinglePartitionReadCommand<F extends ClusteringIndexFilter
         cfs.metric.rowCacheMiss.inc();
         Tracing.trace("Row cache miss");
 
-        boolean cacheFullPartitions = metadata().getCaching().rowCache.cacheFullPartitions();
+        boolean cacheFullPartitions = metadata().params.caching.cacheAllRows();
 
         // To be able to cache what we read, what we read must at least covers what the cache holds, that
         // is the 'rowsToCache' first rows of the partition. We could read those 'rowsToCache' first rows
@@ -309,7 +309,7 @@ public abstract class SinglePartitionReadCommand<F extends ClusteringIndexFilter
 
             try
             {
-                int rowsToCache = cacheFullPartitions ? Integer.MAX_VALUE : metadata().getCaching().rowCache.rowsToCache;
+                int rowsToCache = metadata().params.caching.rowsPerPartitionToCache();
                 @SuppressWarnings("resource") // we close on exception or upon closing the result of this method
                 UnfilteredRowIterator iter = SinglePartitionReadCommand.fullPartitionRead(metadata(), nowInSec(), partitionKey()).queryMemtableAndDisk(cfs, readOp);
                 try

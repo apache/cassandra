@@ -26,13 +26,11 @@ import com.google.common.collect.ImmutableList;
 import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
-import org.apache.cassandra.cache.CachingOptions;
 import org.apache.cassandra.config.*;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.functions.*;
 import org.apache.cassandra.db.*;
-import org.apache.cassandra.db.compaction.LeveledCompactionStrategy;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.thrift.ThriftConversion;
 
@@ -122,13 +120,14 @@ public class LegacySchemaMigratorTest
         // Make it easy to test compaction
         Map<String, String> compactionOptions = new HashMap<>();
         compactionOptions.put("tombstone_compaction_interval", "1");
+
         Map<String, String> leveledOptions = new HashMap<>();
         leveledOptions.put("sstable_size_in_mb", "1");
 
         keyspaces.add(KeyspaceMetadata.create(ks1,
                                               KeyspaceParams.simple(1),
                                               Tables.of(SchemaLoader.standardCFMD(ks1, "Standard1")
-                                                                    .compactionStrategyOptions(compactionOptions),
+                                                                    .compaction(CompactionParams.scts(compactionOptions)),
                                                         SchemaLoader.standardCFMD(ks1, "StandardGCGS0").gcGraceSeconds(0),
                                                         SchemaLoader.standardCFMD(ks1, "StandardLong1"),
                                                         SchemaLoader.superCFMD(ks1, "Super1", LongType.instance),
@@ -145,15 +144,13 @@ public class LegacySchemaMigratorTest
                                                         SchemaLoader.jdbcCFMD(ks1, "JdbcBytes", BytesType.instance),
                                                         SchemaLoader.jdbcCFMD(ks1, "JdbcAscii", AsciiType.instance),
                                                         SchemaLoader.standardCFMD(ks1, "StandardLeveled")
-                                                                    .compactionStrategyClass(LeveledCompactionStrategy.class)
-                                                                    .compactionStrategyOptions(leveledOptions),
+                                                                    .compaction(CompactionParams.lcs(leveledOptions)),
                                                         SchemaLoader.standardCFMD(ks1, "legacyleveled")
-                                                                    .compactionStrategyClass(LeveledCompactionStrategy.class)
-                                                                    .compactionStrategyOptions(leveledOptions),
+                                                                    .compaction(CompactionParams.lcs(leveledOptions)),
                                                         SchemaLoader.standardCFMD(ks1, "StandardLowIndexInterval")
                                                                     .minIndexInterval(8)
                                                                     .maxIndexInterval(256)
-                                                                    .caching(CachingOptions.NONE))));
+                                                                    .caching(CachingParams.CACHE_NOTHING))));
 
         // Keyspace 2
         keyspaces.add(KeyspaceMetadata.create(ks2,
@@ -184,6 +181,7 @@ public class LegacySchemaMigratorTest
         keyspaces.add(KeyspaceMetadata.create(ks5,
                                               KeyspaceParams.simple(2),
                                               Tables.of(SchemaLoader.standardCFMD(ks5, "Standard1"))));
+
         // Keyspace 6
         keyspaces.add(KeyspaceMetadata.create(ks6,
                                               KeyspaceParams.simple(1),
@@ -193,13 +191,11 @@ public class LegacySchemaMigratorTest
         keyspaces.add(KeyspaceMetadata.create(ks_rcs,
                                               KeyspaceParams.simple(1),
                                               Tables.of(SchemaLoader.standardCFMD(ks_rcs, "CFWithoutCache")
-                                                                    .caching(CachingOptions.NONE),
+                                                                    .caching(CachingParams.CACHE_NOTHING),
                                                         SchemaLoader.standardCFMD(ks_rcs, "CachedCF")
-                                                                    .caching(CachingOptions.ALL),
+                                                                    .caching(CachingParams.CACHE_EVERYTHING),
                                                         SchemaLoader.standardCFMD(ks_rcs, "CachedIntCF")
-                                                                    .caching(new CachingOptions(new CachingOptions.KeyCache(CachingOptions.KeyCache.Type.ALL),
-                                                                                                new CachingOptions.RowCache(CachingOptions.RowCache.Type.HEAD, 100))))));
-
+                                                                    .caching(new CachingParams(true, 100)))));
 
         keyspaces.add(KeyspaceMetadata.create(ks_nocommit,
                                               KeyspaceParams.simpleTransient(1),
@@ -423,23 +419,23 @@ public class LegacySchemaMigratorTest
             adder.add("comparator", LegacyLayout.makeLegacyComparator(table).toString());
         }
 
-        adder.add("bloom_filter_fp_chance", table.getBloomFilterFpChance())
-             .add("caching", table.getCaching().toString())
-             .add("comment", table.getComment())
-             .add("compaction_strategy_class", table.compactionStrategyClass.getName())
-             .add("compaction_strategy_options", json(table.compactionStrategyOptions))
-             .add("compression_parameters", json(ThriftConversion.compressionParametersToThrift(table.compressionParameters)))
-             .add("default_time_to_live", table.getDefaultTimeToLive())
-             .add("gc_grace_seconds", table.getGcGraceSeconds())
+        adder.add("bloom_filter_fp_chance", table.params.bloomFilterFpChance)
+             .add("caching", cachingToString(table.params.caching))
+             .add("comment", table.params.comment)
+             .add("compaction_strategy_class", table.params.compaction.klass().getName())
+             .add("compaction_strategy_options", json(table.params.compaction.options()))
+             .add("compression_parameters", json(ThriftConversion.compressionParametersToThrift(table.params.compression)))
+             .add("default_time_to_live", table.params.defaultTimeToLive)
+             .add("gc_grace_seconds", table.params.gcGraceSeconds)
              .add("key_validator", table.getKeyValidator().toString())
-             .add("local_read_repair_chance", table.getDcLocalReadRepairChance())
-             .add("max_compaction_threshold", table.getMaxCompactionThreshold())
-             .add("max_index_interval", table.getMaxIndexInterval())
-             .add("memtable_flush_period_in_ms", table.getMemtableFlushPeriod())
-             .add("min_compaction_threshold", table.getMinCompactionThreshold())
-             .add("min_index_interval", table.getMinIndexInterval())
-             .add("read_repair_chance", table.getReadRepairChance())
-             .add("speculative_retry", table.getSpeculativeRetry().toString());
+             .add("local_read_repair_chance", table.params.dcLocalReadRepairChance)
+             .add("max_compaction_threshold", table.params.compaction.maxCompactionThreshold())
+             .add("max_index_interval", table.params.maxIndexInterval)
+             .add("memtable_flush_period_in_ms", table.params.memtableFlushPeriodInMs)
+             .add("min_compaction_threshold", table.params.compaction.minCompactionThreshold())
+             .add("min_index_interval", table.params.minIndexInterval)
+             .add("read_repair_chance", table.params.readRepairChance)
+             .add("speculative_retry", table.params.speculativeRetry.toString());
 
         for (Map.Entry<ByteBuffer, CFMetaData.DroppedColumn> entry : table.getDroppedColumns().entrySet())
         {
@@ -462,6 +458,13 @@ public class LegacySchemaMigratorTest
         }
 
         adder.build();
+    }
+
+    private static String cachingToString(CachingParams caching)
+    {
+        return format("{\"keys\":\"%s\", \"rows_per_partition\":\"%s\"}",
+                      caching.keysAsString(),
+                      caching.rowsPerPartitionAsString());
     }
 
     private static void addColumnToSchemaMutation(CFMetaData table, ColumnDefinition column, long timestamp, Mutation mutation)

@@ -27,6 +27,7 @@ import java.util.Set;
 import com.google.common.annotations.VisibleForTesting;
 import net.jpountz.lz4.LZ4Exception;
 import net.jpountz.lz4.LZ4Factory;
+import org.apache.cassandra.schema.CompressionParams;
 
 public class LZ4Compressor implements ICompressor
 {
@@ -126,7 +127,7 @@ public class LZ4Compressor implements ICompressor
 
     public Set<String> supportedOptions()
     {
-        return new HashSet<>(Arrays.asList(CompressionParameters.CRC_CHECK_CHANCE));
+        return new HashSet<>(Arrays.asList(CompressionParams.CRC_CHECK_CHANCE));
     }
 
     public BufferType preferredBufferType()

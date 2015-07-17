@@ -29,7 +29,7 @@ import org.apache.cassandra.io.FSReadError;
 import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.io.compress.BufferType;
 import org.apache.cassandra.io.compress.CompressedSequentialWriter;
-import org.apache.cassandra.io.compress.CompressionParameters;
+import org.apache.cassandra.schema.CompressionParams;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
 import org.apache.cassandra.utils.CLibrary;
@@ -168,7 +168,7 @@ public class SequentialWriter extends OutputStream implements WritableByteChanne
 
     public static CompressedSequentialWriter open(String dataFilePath,
                                                   String offsetsPath,
-                                                  CompressionParameters parameters,
+                                                  CompressionParams parameters,
                                                   MetadataCollector sstableMetadataCollector)
     {
         return new CompressedSequentialWriter(new File(dataFilePath), offsetsPath, parameters, sstableMetadataCollector);

@@ -28,7 +28,6 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
-import org.apache.cassandra.cache.CachingOptions;
 import org.apache.cassandra.cache.RowCacheKey;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.Schema;
@@ -40,6 +39,7 @@ import org.apache.cassandra.db.partitions.CachedPartition;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.dht.ByteOrderedPartitioner.BytesToken;
 import org.apache.cassandra.locator.TokenMetadata;
+import org.apache.cassandra.schema.CachingParams;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.service.CacheService;
 import org.apache.cassandra.service.StorageService;
@@ -59,10 +59,9 @@ public class RowCacheTest
         SchemaLoader.prepareServer();
         SchemaLoader.createKeyspace(KEYSPACE_CACHED,
                                     KeyspaceParams.simple(1),
-                                    SchemaLoader.standardCFMD(KEYSPACE_CACHED, CF_CACHED).caching(CachingOptions.ALL),
+                                    SchemaLoader.standardCFMD(KEYSPACE_CACHED, CF_CACHED).caching(CachingParams.CACHE_EVERYTHING),
                                     SchemaLoader.standardCFMD(KEYSPACE_CACHED, CF_CACHEDINT, 1, IntegerType.instance)
-                                                .caching(new CachingOptions(new CachingOptions.KeyCache(CachingOptions.KeyCache.Type.ALL),
-                                                                            new CachingOptions.RowCache(CachingOptions.RowCache.Type.HEAD, 100))));
+                                                .caching(new CachingParams(true, 100)));
     }
 
     @AfterClass

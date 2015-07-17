@@ -26,7 +26,6 @@ import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
-import org.apache.cassandra.cache.CachingOptions;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.UntypedResultSet;
@@ -36,13 +35,13 @@ import org.apache.cassandra.db.partitions.ArrayBackedPartition;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.schema.CachingParams;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 
-import static org.apache.cassandra.Util.dk;
 import static org.junit.Assert.*;
-
+import static org.apache.cassandra.Util.dk;
 
 public class CompactionsPurgeTest
 {
@@ -68,7 +67,7 @@ public class CompactionsPurgeTest
                                     SchemaLoader.standardCFMD(KEYSPACE2, CF_STANDARD1));
         SchemaLoader.createKeyspace(KEYSPACE_CACHED,
                                     KeyspaceParams.simple(1),
-                                    SchemaLoader.standardCFMD(KEYSPACE_CACHED, CF_CACHED).caching(CachingOptions.ALL));
+                                    SchemaLoader.standardCFMD(KEYSPACE_CACHED, CF_CACHED).caching(CachingParams.CACHE_EVERYTHING));
         SchemaLoader.createKeyspace(KEYSPACE_CQL,
                                     KeyspaceParams.simple(1),
                                     CFMetaData.compile("CREATE TABLE " + CF_CQL + " ("

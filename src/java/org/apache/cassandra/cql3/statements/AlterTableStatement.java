@@ -29,6 +29,7 @@ import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.exceptions.*;
+import org.apache.cassandra.schema.TableParams;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.MigrationManager;
 import org.apache.cassandra.transport.Event;
@@ -37,7 +38,7 @@ import static org.apache.cassandra.thrift.ThriftValidation.validateColumnFamily;
 
 public class AlterTableStatement extends SchemaAlteringStatement
 {
-    public static enum Type
+    public enum Type
     {
         ADD, ALTER, DROP, OPTS, RENAME
     }
@@ -45,7 +46,7 @@ public class AlterTableStatement extends SchemaAlteringStatement
     public final Type oType;
     public final CQL3Type.Raw validator;
     public final ColumnIdentifier.Raw rawColumnName;
-    private final CFPropDefs cfProps;
+    private final TableAttributes attrs;
     private final Map<ColumnIdentifier.Raw, ColumnIdentifier.Raw> renames;
     private final boolean isStatic; // Only for ALTER ADD
 
@@ -53,7 +54,7 @@ public class AlterTableStatement extends SchemaAlteringStatement
                                Type type,
                                ColumnIdentifier.Raw columnName,
                                CQL3Type.Raw validator,
-                               CFPropDefs cfProps,
+                               TableAttributes attrs,
                                Map<ColumnIdentifier.Raw, ColumnIdentifier.Raw> renames,
                                boolean isStatic)
     {
@@ -61,7 +62,7 @@ public class AlterTableStatement extends SchemaAlteringStatement
         this.oType = type;
         this.rawColumnName = columnName;
         this.validator = validator; // used only for ADD/ALTER commands
-        this.cfProps = cfProps;
+        this.attrs = attrs;
         this.renames = renames;
         this.isStatic = isStatic;
     }
@@ -284,15 +285,17 @@ public class AlterTableStatement extends SchemaAlteringStatement
                                                                     builder.toString()));
                 break;
             case OPTS:
-                if (cfProps == null)
+                if (attrs == null)
                     throw new InvalidRequestException("ALTER TABLE WITH invoked, but no parameters found");
+                attrs.validate();
 
-                cfProps.validate();
+                TableParams params = attrs.asAlteredTableParams(cfm.params);
 
-                if (meta.isCounter() && cfProps.getDefaultTimeToLive() > 0)
+                if (meta.isCounter() && params.defaultTimeToLive > 0)
                     throw new InvalidRequestException("Cannot set default_time_to_live on a table with counters");
 
-                cfProps.applyToCFMetadata(cfm);
+                cfm.params(params);
+
                 break;
             case RENAME:
                 for (Map.Entry<ColumnIdentifier.Raw, ColumnIdentifier.Raw> entry : renames.entrySet())

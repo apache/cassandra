@@ -28,7 +28,6 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.concurrent.StageManager;
-import org.apache.cassandra.config.CFMetaData.SpeculativeRetry.RetryType;
 import org.apache.cassandra.config.ReadRepairDecision;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.ConsistencyLevel;
@@ -42,10 +41,10 @@ import org.apache.cassandra.exceptions.UnavailableException;
 import org.apache.cassandra.metrics.ReadRepairMetrics;
 import org.apache.cassandra.net.MessageOut;
 import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.schema.SpeculativeRetryParam;
 import org.apache.cassandra.service.StorageProxy.LocalReadRunnable;
 import org.apache.cassandra.tracing.TraceState;
 import org.apache.cassandra.tracing.Tracing;
-import org.apache.cassandra.utils.FBUtilities;
 
 /**
  * Sends a read request to the replicas needed to satisfy a given ConsistencyLevel.
@@ -159,10 +158,10 @@ public abstract class AbstractReadExecutor
         }
 
         ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(command.metadata().cfId);
-        RetryType retryType = cfs.metadata.getSpeculativeRetry().type;
+        SpeculativeRetryParam retry = cfs.metadata.params.speculativeRetry;
 
         // Speculative retry is disabled *OR* there are simply no extra replicas to speculate.
-        if (retryType == RetryType.NONE || consistencyLevel.blockFor(keyspace) == allReplicas.size())
+        if (retry.equals(SpeculativeRetryParam.NONE) || consistencyLevel.blockFor(keyspace) == allReplicas.size())
             return new NeverSpeculatingReadExecutor(keyspace, command, consistencyLevel, targetReplicas);
 
         if (targetReplicas.size() == allReplicas.size())
@@ -190,7 +189,7 @@ public abstract class AbstractReadExecutor
         }
         targetReplicas.add(extraReplica);
 
-        if (retryType == RetryType.ALWAYS)
+        if (retry.equals(SpeculativeRetryParam.ALWAYS))
             return new AlwaysSpeculatingReadExecutor(keyspace, cfs, command, consistencyLevel, targetReplicas);
         else // PERCENTILE or CUSTOM.
             return new SpeculatingReadExecutor(keyspace, cfs, command, consistencyLevel, targetReplicas);

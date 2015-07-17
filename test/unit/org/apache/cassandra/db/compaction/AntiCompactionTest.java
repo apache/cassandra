@@ -209,7 +209,6 @@ public class AntiCompactionTest
     {
         Keyspace keyspace = Keyspace.open(KEYSPACE1);
         ColumnFamilyStore store = keyspace.getColumnFamilyStore(CF);
-        store.setCompactionStrategyClass(compactionStrategy);
         store.disableAutoCompaction();
 
         for (int table = 0; table < 10; table++)

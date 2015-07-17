@@ -17,9 +17,8 @@
  */
 package org.apache.cassandra.db.compaction;
 
-import java.util.HashMap;
+import java.util.Collections;
 import java.util.HashSet;
-import java.util.Map;
 import java.util.Set;
 
 import org.junit.BeforeClass;
@@ -31,6 +30,7 @@ import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.RowUpdateBuilder;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.schema.CompactionParams;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
@@ -46,12 +46,11 @@ public class OneCompactionTest
     @BeforeClass
     public static void defineSchema() throws ConfigurationException
     {
-        Map<String, String> leveledOptions = new HashMap<>();
-        leveledOptions.put("sstable_size_in_mb", "1");
         SchemaLoader.prepareServer();
         SchemaLoader.createKeyspace(KEYSPACE1,
                                     KeyspaceParams.simple(1),
-                                    SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARD1).compactionStrategyOptions(leveledOptions),
+                                    SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARD1)
+                                                .compaction(CompactionParams.lcs(Collections.singletonMap("sstable_size_in_mb", "1"))),
                                     SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARD2));
     }
 

@@ -444,7 +444,7 @@ public class SelectOrderedPartitionerTest extends CQLTester
     @Test
     public void testTruncateWithCaching() throws Throwable
     {
-        createTable("CREATE TABLE %s (k int PRIMARY KEY, v1 int, v2 int,) WITH CACHING = ALL;");
+        createTable("CREATE TABLE %s (k int PRIMARY KEY, v1 int, v2 int) WITH CACHING = { 'keys': 'ALL', 'rows_per_partition': 'ALL' };");
 
         for (int i = 0; i < 3; i++)
             execute("INSERT INTO %s (k, v1, v2) VALUES (?, ?, ?)", i, i, i * 2);

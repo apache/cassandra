@@ -21,10 +21,10 @@ New features
    - Materialized Views, which allow for server-side denormalization, is now
      available. Materialized views provide an alternative to secondary indexes
      for non-primary key queries, and perform much better for indexing high
-     cardinality columns. 
-     See http://www.datastax.com/dev/blog/new-in-cassandra-3-0-materialized-views 
+     cardinality columns.
+     See http://www.datastax.com/dev/blog/new-in-cassandra-3-0-materialized-views
 
-   
+
 Upgrading
 ---------
    - 3.0 requires Java 8u20 or later.
@@ -56,6 +56,8 @@ Upgrading
    - The `sstable_compression` and `chunk_length_kb` compression options have been deprecated.
      The new options are `class` and `chunk_length_in_kb`. Disabling compression should now
      be done by setting the new option `enabled` to `false`.
+   - Only map syntax is now allowed for caching options. ALL/NONE/KEYS_ONLY/ROWS_ONLY syntax
+     has been deprecated since 2.1.0 and is being removed in 3.0.0.
 
 
 2.2

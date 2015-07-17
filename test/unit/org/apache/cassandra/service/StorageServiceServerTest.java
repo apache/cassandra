@@ -49,6 +49,7 @@ import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.locator.PropertyFileSnitch;
 import org.apache.cassandra.locator.TokenMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
+import org.apache.cassandra.schema.ReplicationParams;
 import org.apache.cassandra.schema.SchemaKeyspace;
 import org.apache.cassandra.utils.FBUtilities;
 
@@ -192,7 +193,7 @@ public class StorageServiceServerTest
         Map<String, String> configOptions = new HashMap<>();
         configOptions.put("DC1", "1");
         configOptions.put("DC2", "1");
-        configOptions.put(KeyspaceParams.Replication.CLASS, "NetworkTopologyStrategy");
+        configOptions.put(ReplicationParams.CLASS, "NetworkTopologyStrategy");
 
         Keyspace.clear("Keyspace1");
         KeyspaceMetadata meta = KeyspaceMetadata.create("Keyspace1", KeyspaceParams.create(false, configOptions));
@@ -235,7 +236,7 @@ public class StorageServiceServerTest
         Map<String, String> configOptions = new HashMap<>();
         configOptions.put("DC1", "1");
         configOptions.put("DC2", "1");
-        configOptions.put(KeyspaceParams.Replication.CLASS, "NetworkTopologyStrategy");
+        configOptions.put(ReplicationParams.CLASS, "NetworkTopologyStrategy");
 
         Keyspace.clear("Keyspace1");
         KeyspaceMetadata meta = KeyspaceMetadata.create("Keyspace1", KeyspaceParams.create(false, configOptions));
@@ -272,7 +273,7 @@ public class StorageServiceServerTest
 
         Map<String, String> configOptions = new HashMap<>();
         configOptions.put("DC2", "2");
-        configOptions.put(KeyspaceParams.Replication.CLASS, "NetworkTopologyStrategy");
+        configOptions.put(ReplicationParams.CLASS, "NetworkTopologyStrategy");
 
         Keyspace.clear("Keyspace1");
         KeyspaceMetadata meta = KeyspaceMetadata.create("Keyspace1", KeyspaceParams.create(false, configOptions));
@@ -311,7 +312,7 @@ public class StorageServiceServerTest
 
         Map<String, String> configOptions = new HashMap<>();
         configOptions.put("DC2", "2");
-        configOptions.put(KeyspaceParams.Replication.CLASS, "NetworkTopologyStrategy");
+        configOptions.put(ReplicationParams.CLASS, "NetworkTopologyStrategy");
 
         Keyspace.clear("Keyspace1");
         KeyspaceMetadata meta = KeyspaceMetadata.create("Keyspace1", KeyspaceParams.create(false, configOptions));
@@ -363,7 +364,7 @@ public class StorageServiceServerTest
 
         Map<String, String> configOptions = new HashMap<>();
         configOptions.put("DC2", "2");
-        configOptions.put(KeyspaceParams.Replication.CLASS, "NetworkTopologyStrategy");
+        configOptions.put(ReplicationParams.CLASS, "NetworkTopologyStrategy");
 
         Keyspace.clear("Keyspace1");
         KeyspaceMetadata meta = KeyspaceMetadata.create("Keyspace1", KeyspaceParams.create(false, configOptions));
@@ -430,7 +431,7 @@ public class StorageServiceServerTest
         Map<String, String> configOptions = new HashMap<>();
         configOptions.put("DC1", "1");
         configOptions.put("DC2", "2");
-        configOptions.put(KeyspaceParams.Replication.CLASS, "NetworkTopologyStrategy");
+        configOptions.put(ReplicationParams.CLASS, "NetworkTopologyStrategy");
 
         Keyspace.clear("Keyspace1");
         KeyspaceMetadata meta = KeyspaceMetadata.create("Keyspace1", KeyspaceParams.create(false, configOptions));

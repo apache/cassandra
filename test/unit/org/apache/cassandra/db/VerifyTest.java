@@ -29,11 +29,11 @@ import org.apache.cassandra.db.marshal.UUIDType;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.WriteTimeoutException;
 import org.apache.cassandra.io.FSWriteError;
-import org.apache.cassandra.io.compress.*;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.CorruptSSTableException;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.schema.CompressionParams;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.commons.lang3.StringUtils;
@@ -70,19 +70,19 @@ public class VerifyTest
     @BeforeClass
     public static void defineSchema() throws ConfigurationException
     {
-        CompressionParameters compressionParameters = CompressionParameters.snappy(32768);
+        CompressionParams compressionParameters = CompressionParams.snappy(32768);
 
         SchemaLoader.loadSchema();
         SchemaLoader.createKeyspace(KEYSPACE,
                                     KeyspaceParams.simple(1),
-                                    SchemaLoader.standardCFMD(KEYSPACE, CF).compressionParameters(compressionParameters),
-                                    SchemaLoader.standardCFMD(KEYSPACE, CF2).compressionParameters(compressionParameters),
+                                    SchemaLoader.standardCFMD(KEYSPACE, CF).compression(compressionParameters),
+                                    SchemaLoader.standardCFMD(KEYSPACE, CF2).compression(compressionParameters),
                                     SchemaLoader.standardCFMD(KEYSPACE, CF3),
                                     SchemaLoader.standardCFMD(KEYSPACE, CF4),
                                     SchemaLoader.standardCFMD(KEYSPACE, CORRUPT_CF),
                                     SchemaLoader.standardCFMD(KEYSPACE, CORRUPT_CF2),
-                                    SchemaLoader.counterCFMD(KEYSPACE, COUNTER_CF).compressionParameters(compressionParameters),
-                                    SchemaLoader.counterCFMD(KEYSPACE, COUNTER_CF2).compressionParameters(compressionParameters),
+                                    SchemaLoader.counterCFMD(KEYSPACE, COUNTER_CF).compression(compressionParameters),
+                                    SchemaLoader.counterCFMD(KEYSPACE, COUNTER_CF2).compression(compressionParameters),
                                     SchemaLoader.counterCFMD(KEYSPACE, COUNTER_CF3),
                                     SchemaLoader.counterCFMD(KEYSPACE, COUNTER_CF4),
                                     SchemaLoader.counterCFMD(KEYSPACE, CORRUPTCOUNTER_CF),

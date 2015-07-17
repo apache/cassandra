@@ -112,12 +112,12 @@ public class AlterTest extends CQLTester
         ColumnFamilyStore cfs = Keyspace.open(KEYSPACE).getColumnFamilyStore(tableName);
 
         alterTable("ALTER TABLE %s WITH min_index_interval=256 AND max_index_interval=512");
-        assertEquals(256, cfs.metadata.getMinIndexInterval());
-        assertEquals(512, cfs.metadata.getMaxIndexInterval());
+        assertEquals(256, cfs.metadata.params.minIndexInterval);
+        assertEquals(512, cfs.metadata.params.maxIndexInterval);
 
-        alterTable("ALTER TABLE %s WITH caching = 'none'");
-        assertEquals(256, cfs.metadata.getMinIndexInterval());
-        assertEquals(512, cfs.metadata.getMaxIndexInterval());
+        alterTable("ALTER TABLE %s WITH caching = {}");
+        assertEquals(256, cfs.metadata.params.minIndexInterval);
+        assertEquals(512, cfs.metadata.params.maxIndexInterval);
     }
 
     /**
@@ -153,7 +153,9 @@ public class AlterTest extends CQLTester
 
         execute("CREATE TABLE cf1 (a int PRIMARY KEY, b int) WITH compaction = { 'class' : 'SizeTieredCompactionStrategy', 'min_threshold' : 7 }");
         assertRows(execute("SELECT table_name, compaction FROM system_schema.tables WHERE keyspace_name='ks1'"),
-                   row("cf1", map("class", "org.apache.cassandra.db.compaction.SizeTieredCompactionStrategy", "min_threshold", "7")));
+                   row("cf1", map("class", "org.apache.cassandra.db.compaction.SizeTieredCompactionStrategy",
+                                  "min_threshold", "7",
+                                  "max_threshold", "32")));
 
         // clean-up
         execute("DROP KEYSPACE ks1");

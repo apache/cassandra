@@ -30,7 +30,7 @@ public class RowCacheCQLTest extends CQLTester
     public void test7636() throws Throwable
     {
         CacheService.instance.setRowCacheCapacityInMB(1);
-        createTable("CREATE TABLE %s (p1 bigint, c1 int, v int, PRIMARY KEY (p1, c1)) WITH caching = '{\"keys\":\"NONE\", \"rows_per_partition\":\"ALL\"}'");
+        createTable("CREATE TABLE %s (p1 bigint, c1 int, v int, PRIMARY KEY (p1, c1)) WITH caching = { 'keys': 'NONE', 'rows_per_partition': 'ALL' }");
         execute("INSERT INTO %s (p1, c1, v) VALUES (?, ?, ?)", 123L, 10, 12);
         assertEmpty(execute("SELECT * FROM %s WHERE p1 = ? and c1 > ?", 123L, 1000));
         UntypedResultSet res = execute("SELECT * FROM %s WHERE p1 = ? and c1 > ?", 123L, 0);

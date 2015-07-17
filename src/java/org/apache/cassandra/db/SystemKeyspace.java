@@ -31,6 +31,7 @@ import com.google.common.io.ByteStreams;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.QueryProcessor;
@@ -39,7 +40,6 @@ import org.apache.cassandra.cql3.functions.*;
 import org.apache.cassandra.db.partitions.*;
 import org.apache.cassandra.db.commitlog.ReplayPosition;
 import org.apache.cassandra.db.compaction.CompactionHistoryTabularData;
-import org.apache.cassandra.db.compaction.LeveledCompactionStrategy;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Range;
@@ -53,18 +53,17 @@ import org.apache.cassandra.io.util.NIODataInputStream;
 import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.metrics.RestorableMeter;
 import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.schema.Functions;
-import org.apache.cassandra.schema.KeyspaceMetadata;
-import org.apache.cassandra.schema.KeyspaceParams;
-import org.apache.cassandra.schema.SchemaKeyspace;
+import org.apache.cassandra.schema.*;
 import org.apache.cassandra.schema.Tables;
-import org.apache.cassandra.schema.Types;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.paxos.Commit;
 import org.apache.cassandra.service.paxos.PaxosState;
 import org.apache.cassandra.thrift.cassandraConstants;
 import org.apache.cassandra.transport.Server;
 import org.apache.cassandra.utils.*;
+
+import static java.util.Collections.emptyMap;
+import static java.util.Collections.singletonMap;
 
 import static org.apache.cassandra.cql3.QueryProcessor.executeInternal;
 import static org.apache.cassandra.cql3.QueryProcessor.executeOnceInternal;
@@ -121,7 +120,7 @@ public final class SystemKeyspace
                 + "mutation blob,"
                 + "PRIMARY KEY ((target_id), hint_id, message_version)) "
                 + "WITH COMPACT STORAGE")
-                .compactionStrategyOptions(Collections.singletonMap("enabled", "false"))
+                .compaction(CompactionParams.scts(singletonMap("enabled", "false")))
                 .gcGraceSeconds(0);
 
     public static final CFMetaData Batchlog =
@@ -133,7 +132,7 @@ public final class SystemKeyspace
                 + "version int,"
                 + "written_at timestamp,"
                 + "PRIMARY KEY ((id)))")
-                .compactionStrategyOptions(Collections.singletonMap("min_threshold", "2"))
+                .compaction(CompactionParams.scts(singletonMap("min_threshold", "2")))
                 .gcGraceSeconds(0);
 
     private static final CFMetaData Paxos =
@@ -150,7 +149,7 @@ public final class SystemKeyspace
                 + "proposal_ballot timeuuid,"
                 + "proposal_version int,"
                 + "PRIMARY KEY ((row_key), cf_id))")
-                .compactionStrategyClass(LeveledCompactionStrategy.class);
+                .compaction(CompactionParams.lcs(emptyMap()));
 
     private static final CFMetaData BuiltIndexes =
         compile(BUILT_INDEXES,
@@ -610,7 +609,7 @@ public final class SystemKeyspace
         {
             ReplayPosition.serializer.serialize(position, out);
             out.writeLong(truncatedAt);
-            return Collections.singletonMap(cfs.metadata.cfId, ByteBuffer.wrap(out.getData(), 0, out.getLength()));
+            return singletonMap(cfs.metadata.cfId, ByteBuffer.wrap(out.getData(), 0, out.getLength()));
         }
         catch (IOException e)
         {
@@ -1093,7 +1092,7 @@ public final class SystemKeyspace
     private static int paxosTtl(CFMetaData metadata)
     {
         // keep paxos state around for at least 3h
-        return Math.max(3 * 3600, metadata.getGcGraceSeconds());
+        return Math.max(3 * 3600, metadata.params.gcGraceSeconds);
     }
 
     public static void savePaxosCommit(Commit commit)

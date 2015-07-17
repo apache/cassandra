@@ -15,12 +15,10 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.apache.cassandra.cql3.statements;
 
 import org.apache.cassandra.auth.Permission;
 import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.cql3.CFName;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.RequestValidationException;
@@ -33,13 +31,12 @@ import static org.apache.cassandra.thrift.ThriftValidation.validateColumnFamily;
 
 public class AlterMaterializedViewStatement extends SchemaAlteringStatement
 {
-    private final CFPropDefs cfProps;
+    private final TableAttributes attrs;
 
-    public AlterMaterializedViewStatement(CFName name,
-                                          CFPropDefs cfProps)
+    public AlterMaterializedViewStatement(CFName name, TableAttributes attrs)
     {
         super(name);
-        this.cfProps = cfProps;
+        this.attrs = attrs;
     }
 
     public void checkAccess(ClientState state) throws UnauthorizedException, InvalidRequestException
@@ -60,13 +57,12 @@ public class AlterMaterializedViewStatement extends SchemaAlteringStatement
 
         CFMetaData cfm = meta.copy();
 
-
-        if (cfProps == null)
+        if (attrs == null)
             throw new InvalidRequestException("ALTER MATERIALIZED VIEW WITH invoked, but no parameters found");
 
-        cfProps.validate();
+        attrs.validate();
+        cfm.params(attrs.asAlteredTableParams(cfm.params));
 
-        cfProps.applyToCFMetadata(cfm);
         MigrationManager.announceColumnFamilyUpdate(cfm, false, isLocalOnly);
         return true;
     }

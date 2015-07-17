@@ -24,21 +24,20 @@ import java.util.*;
 import org.junit.After;
 import org.junit.BeforeClass;
 
-import org.apache.cassandra.cache.CachingOptions;
 import org.apache.cassandra.config.*;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.commitlog.CommitLog;
-import org.apache.cassandra.db.compaction.LeveledCompactionStrategy;
 import org.apache.cassandra.db.index.PerRowSecondaryIndexTest;
 import org.apache.cassandra.db.index.SecondaryIndex;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.gms.Gossiper;
-import org.apache.cassandra.io.compress.CompressionParameters;
-import org.apache.cassandra.io.compress.SnappyCompressor;
+import org.apache.cassandra.schema.CompressionParams;
 import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.schema.CachingParams;
+import org.apache.cassandra.schema.CompactionParams;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.Tables;
@@ -118,7 +117,7 @@ public class SchemaLoader
                 KeyspaceParams.simple(1),
                 Tables.of(
                 // Column Families
-                standardCFMD(ks1, "Standard1").compactionStrategyOptions(compactionOptions),
+                standardCFMD(ks1, "Standard1").compaction(CompactionParams.scts(compactionOptions)),
                 standardCFMD(ks1, "Standard2"),
                 standardCFMD(ks1, "Standard3"),
                 standardCFMD(ks1, "Standard4"),
@@ -147,15 +146,11 @@ public class SchemaLoader
                 //CFMetaData.Builder.create(ks1, "StandardComposite", false, true, false).withColumnNameComparator(composite).build(),
                 //CFMetaData.Builder.create(ks1, "StandardComposite2", false, true, false).withColumnNameComparator(compositeMaxMin).build(),
                 //CFMetaData.Builder.create(ks1, "StandardDynamicComposite", false, true, false).withColumnNameComparator(dynamicComposite).build(),
-                standardCFMD(ks1, "StandardLeveled")
-                        .compactionStrategyClass(LeveledCompactionStrategy.class)
-                        .compactionStrategyOptions(leveledOptions),
-                standardCFMD(ks1, "legacyleveled")
-                        .compactionStrategyClass(LeveledCompactionStrategy.class)
-                        .compactionStrategyOptions(leveledOptions),
+                standardCFMD(ks1, "StandardLeveled").compaction(CompactionParams.lcs(leveledOptions)),
+                standardCFMD(ks1, "legacyleveled").compaction(CompactionParams.lcs(leveledOptions)),
                 standardCFMD(ks1, "StandardLowIndexInterval").minIndexInterval(8)
-                        .maxIndexInterval(256)
-                        .caching(CachingOptions.NONE)
+                                                             .maxIndexInterval(256)
+                                                             .caching(CachingParams.CACHE_NOTHING)
                 //CFMetaData.Builder.create(ks1, "UUIDKeys").addPartitionKey("key",UUIDType.instance).build(),
                 //CFMetaData.Builder.create(ks1, "MixedTypes").withColumnNameComparator(LongType.instance).addPartitionKey("key", UUIDType.instance).build(),
                 //CFMetaData.Builder.create(ks1, "MixedTypesComposite", false, true, false).withColumnNameComparator(composite).addPartitionKey("key", composite).build(),
@@ -213,11 +208,10 @@ public class SchemaLoader
         schema.add(KeyspaceMetadata.create(ks_rcs,
                 KeyspaceParams.simple(1),
                 Tables.of(
-                standardCFMD(ks_rcs, "CFWithoutCache").caching(CachingOptions.NONE),
-                standardCFMD(ks_rcs, "CachedCF").caching(CachingOptions.ALL),
+                standardCFMD(ks_rcs, "CFWithoutCache").caching(CachingParams.CACHE_NOTHING),
+                standardCFMD(ks_rcs, "CachedCF").caching(CachingParams.CACHE_EVERYTHING),
                 standardCFMD(ks_rcs, "CachedIntCF").
-                        caching(new CachingOptions(new CachingOptions.KeyCache(CachingOptions.KeyCache.Type.ALL),
-                                new CachingOptions.RowCache(CachingOptions.RowCache.Type.HEAD, 100))))));
+                        caching(new CachingParams(true, 100)))));
 
         // CounterCacheSpace
         /*schema.add(KeyspaceMetadata.testMetadata(ks_ccs,
@@ -323,7 +317,7 @@ public class SchemaLoader
     {
         for (KeyspaceMetadata ksm : schema)
             for (CFMetaData cfm : ksm.tables)
-                cfm.compressionParameters(CompressionParameters.snappy());
+                cfm.compression(CompressionParams.snappy());
     }
 
     public static CFMetaData counterCFMD(String ksName, String cfName)
@@ -334,7 +328,7 @@ public class SchemaLoader
                 .addRegularColumn("val", CounterColumnType.instance)
                 .addRegularColumn("val2", CounterColumnType.instance)
                 .build()
-                .compressionParameters(getCompressionParameters());
+                .compression(getCompressionParameters());
     }
 
     public static CFMetaData standardCFMD(String ksName, String cfName)
@@ -363,7 +357,7 @@ public class SchemaLoader
             builder.addRegularColumn("val" + i, AsciiType.instance);
 
         return builder.build()
-               .compressionParameters(getCompressionParameters());
+               .compression(getCompressionParameters());
     }
 
     public static CFMetaData denseCFMD(String ksName, String cfName)
@@ -385,7 +379,7 @@ public class SchemaLoader
             .addClusteringColumn("cols", comp)
             .addRegularColumn("val", AsciiType.instance)
             .build()
-            .compressionParameters(getCompressionParameters());
+            .compression(getCompressionParameters());
     }
 
     // TODO: Fix superCFMD failing on legacy table creation. Seems to be applying composite comparator to partition key
@@ -424,7 +418,7 @@ public class SchemaLoader
             cfm.getColumnDefinition(new ColumnIdentifier("birthdate", true))
                .setIndex("birthdate_key_index", IndexType.COMPOSITES, Collections.EMPTY_MAP);
 
-        return cfm.compressionParameters(getCompressionParameters());
+        return cfm.compression(getCompressionParameters());
     }
     public static CFMetaData keysIndexCFMD(String ksName, String cfName, boolean withIndex) throws ConfigurationException
     {
@@ -440,27 +434,27 @@ public class SchemaLoader
             cfm.getColumnDefinition(new ColumnIdentifier("birthdate", true))
                .setIndex("birthdate_composite_index", IndexType.KEYS, Collections.EMPTY_MAP);
 
-        return cfm.compressionParameters(getCompressionParameters());
+        return cfm.compression(getCompressionParameters());
     }
     
     public static CFMetaData jdbcCFMD(String ksName, String cfName, AbstractType comp)
     {
         return CFMetaData.Builder.create(ksName, cfName).addPartitionKey("key", BytesType.instance)
                                                         .build()
-                                                        .compressionParameters(getCompressionParameters());
+                                                        .compression(getCompressionParameters());
     }
 
-    public static CompressionParameters getCompressionParameters()
+    public static CompressionParams getCompressionParameters()
     {
         return getCompressionParameters(null);
     }
 
-    public static CompressionParameters getCompressionParameters(Integer chunkSize)
+    public static CompressionParams getCompressionParameters(Integer chunkSize)
     {
         if (Boolean.parseBoolean(System.getProperty("cassandra.test.compression", "false")))
-            return CompressionParameters.snappy(chunkSize);
+            return CompressionParams.snappy(chunkSize);
 
-        return CompressionParameters.noCompression();
+        return CompressionParams.noCompression();
     }
 
     public static void cleanupAndLeaveDirs() throws IOException

@@ -34,19 +34,13 @@ import com.google.common.base.*;
 import com.google.common.base.Throwables;
 import com.google.common.collect.*;
 import com.google.common.util.concurrent.*;
-
-import org.apache.cassandra.db.lifecycle.*;
-import org.apache.cassandra.io.FSWriteError;
-import org.apache.cassandra.metrics.TableMetrics;
-import org.json.simple.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.clearspring.analytics.stream.Counter;
 import org.apache.cassandra.cache.*;
 import org.apache.cassandra.concurrent.*;
 import org.apache.cassandra.config.*;
-import org.apache.cassandra.config.CFMetaData.SpeculativeRetry;
-import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.commitlog.ReplayPosition;
 import org.apache.cassandra.db.compaction.*;
@@ -54,24 +48,28 @@ import org.apache.cassandra.db.filter.*;
 import org.apache.cassandra.db.index.SecondaryIndex;
 import org.apache.cassandra.db.index.SecondaryIndexManager;
 import org.apache.cassandra.db.view.MaterializedViewManager;
+import org.apache.cassandra.db.lifecycle.*;
 import org.apache.cassandra.db.partitions.*;
+import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.dht.*;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.exceptions.ConfigurationException;
-import org.apache.cassandra.io.compress.CompressionParameters;
-import org.apache.cassandra.io.sstable.Descriptor;
+import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.io.sstable.*;
+import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.format.*;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.metrics.TableMetrics.Sampler;
+import org.apache.cassandra.metrics.TableMetrics;
+import org.apache.cassandra.schema.*;
 import org.apache.cassandra.service.CacheService;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.*;
-import org.apache.cassandra.utils.concurrent.*;
 import org.apache.cassandra.utils.TopKSampler.SamplerResult;
+import org.apache.cassandra.utils.concurrent.*;
 import org.apache.cassandra.utils.memory.MemtableAllocator;
+import org.json.simple.*;
 
-import com.clearspring.analytics.stream.Counter;
 
 import static org.apache.cassandra.utils.Throwables.maybeFail;
 
@@ -185,10 +183,10 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         // only update these runtime-modifiable settings if they have not been modified.
         if (!minCompactionThreshold.isModified())
             for (ColumnFamilyStore cfs : concatWithIndexes())
-                cfs.minCompactionThreshold = new DefaultInteger(metadata.getMinCompactionThreshold());
+                cfs.minCompactionThreshold = new DefaultInteger(metadata.params.compaction.minCompactionThreshold());
         if (!maxCompactionThreshold.isModified())
             for (ColumnFamilyStore cfs : concatWithIndexes())
-                cfs.maxCompactionThreshold = new DefaultInteger(metadata.getMaxCompactionThreshold());
+                cfs.maxCompactionThreshold = new DefaultInteger(metadata.params.compaction.maxCompactionThreshold());
 
         compactionStrategyManager.maybeReload(metadata);
 
@@ -205,7 +203,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     void scheduleFlush()
     {
-        int period = metadata.getMemtableFlushPeriod();
+        int period = metadata.params.memtableFlushPeriodInMs;
         if (period > 0)
         {
             logger.debug("scheduling flush in {} ms", period);
@@ -252,33 +250,25 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     public void setCompactionStrategyClass(String compactionStrategyClass)
     {
-        try
-        {
-            metadata.compactionStrategyClass = CFMetaData.createCompactionStrategy(compactionStrategyClass);
-            compactionStrategyManager.maybeReload(metadata);
-        }
-        catch (ConfigurationException e)
-        {
-            throw new IllegalArgumentException(e.getMessage());
-        }
+        throw new UnsupportedOperationException("ColumnFamilyStore.setCompactionStrategyClass() method is no longer supported");
     }
 
     public String getCompactionStrategyClass()
     {
-        return metadata.compactionStrategyClass.getName();
+        return metadata.params.compaction.klass().getName();
     }
 
     public Map<String,String> getCompressionParameters()
     {
-        return metadata.compressionParameters().asMap();
+        return metadata.params.compression.asMap();
     }
 
     public void setCompressionParameters(Map<String,String> opts)
     {
         try
         {
-            metadata.compressionParameters = CompressionParameters.fromMap(opts);
-            metadata.compressionParameters.validate();
+            metadata.compression(CompressionParams.fromMap(opts));
+            metadata.params.compression.validate();
         }
         catch (ConfigurationException e)
         {
@@ -326,8 +316,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         this.keyspace = keyspace;
         name = columnFamilyName;
         this.metadata = metadata;
-        this.minCompactionThreshold = new DefaultInteger(metadata.getMinCompactionThreshold());
-        this.maxCompactionThreshold = new DefaultInteger(metadata.getMaxCompactionThreshold());
+        this.minCompactionThreshold = new DefaultInteger(metadata.params.compaction.minCompactionThreshold());
+        this.maxCompactionThreshold = new DefaultInteger(metadata.params.compaction.maxCompactionThreshold());
         this.directories = directories;
         this.indexManager = new SecondaryIndexManager(this);
         this.materializedViewManager = new MaterializedViewManager(this);
@@ -335,7 +325,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         fileIndexGenerator.set(generation);
         sampleLatencyNanos = DatabaseDescriptor.getReadRpcTimeout() / 2;
 
-        CachingOptions caching = metadata.getCaching();
+        CachingParams caching = metadata.params.caching;
 
         logger.info("Initializing {}.{}", keyspace.getName(), name);
 
@@ -349,7 +339,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             data.addInitialSSTables(sstables);
         }
 
-        if (caching.keyCache.isEnabled())
+        if (caching.cacheKeys())
             CacheService.instance.keyCache.loadSaved(this);
 
         // compaction strategy should be created after the CFS has been prepared
@@ -390,21 +380,20 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             {
                 throw new RuntimeException(e);
             }
-            logger.debug("retryPolicy for {} is {}", name, this.metadata.getSpeculativeRetry());
+            logger.debug("retryPolicy for {} is {}", name, this.metadata.params.speculativeRetry);
             latencyCalculator = ScheduledExecutors.optionalTasks.scheduleWithFixedDelay(new Runnable()
             {
                 public void run()
                 {
-                    SpeculativeRetry retryPolicy = ColumnFamilyStore.this.metadata.getSpeculativeRetry();
-                    switch (retryPolicy.type)
+                    SpeculativeRetryParam retryPolicy = ColumnFamilyStore.this.metadata.params.speculativeRetry;
+                    switch (retryPolicy.kind())
                     {
                         case PERCENTILE:
                             // get percentile in nanos
-                            sampleLatencyNanos = (long) (metric.coordinatorReadLatency.getSnapshot().getValue(retryPolicy.value) * 1000d);
+                            sampleLatencyNanos = (long) (metric.coordinatorReadLatency.getSnapshot().getValue(retryPolicy.threshold()) * 1000d);
                             break;
                         case CUSTOM:
-                            // convert to nanos, since configuration is in millisecond
-                            sampleLatencyNanos = (long) (retryPolicy.value * 1000d * 1000d);
+                            sampleLatencyNanos = (long) retryPolicy.threshold();
                             break;
                         default:
                             sampleLatencyNanos = Long.MAX_VALUE;
@@ -1386,7 +1375,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         // what we're caching. Wen doing that, we should be careful about expiring cells: we should count
         // something expired that wasn't when the partition was cached, or we could decide that the whole
         // partition is cached when it's not. This is why we use CachedPartition#cachedLiveRows.
-        if (cached.cachedLiveRows() < metadata.getCaching().rowCache.rowsToCache)
+        if (cached.cachedLiveRows() < metadata.params.caching.rowsPerPartitionToCache())
             return true;
 
         // If the whole partition isn't cached, then we must guarantee that the filter cannot select data that
@@ -1398,7 +1387,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     public int gcBefore(int nowInSec)
     {
-        return nowInSec - metadata.getGcGraceSeconds();
+        return nowInSec - metadata.params.gcGraceSeconds;
     }
 
     @SuppressWarnings("resource")
@@ -2153,7 +2142,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     public boolean isRowCacheEnabled()
     {
-        return metadata.getCaching().rowCache.isEnabled() && CacheService.instance.rowCache.getCapacity() > 0;
+        return metadata.params.caching.cacheRows() && CacheService.instance.rowCache.getCapacity() > 0;
     }
 
     /**
@@ -2193,7 +2182,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
         for (SSTableReader sstable : getSSTables(SSTableSet.LIVE))
         {
-            allDroppable += sstable.getDroppableTombstonesBefore(localTime - sstable.metadata.getGcGraceSeconds());
+            allDroppable += sstable.getDroppableTombstonesBefore(localTime - sstable.metadata.params.gcGraceSeconds);
             allColumns += sstable.getEstimatedColumnCount().mean() * sstable.getEstimatedColumnCount().count();
         }
         return allColumns > 0 ? allDroppable / allColumns : 0;

@@ -31,10 +31,6 @@ import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.marshal.AsciiType;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.exceptions.ConfigurationException;
-import org.apache.cassandra.io.compress.*;
-import org.apache.cassandra.schema.KeyspaceMetadata;
-import org.apache.cassandra.schema.KeyspaceParams;
-import org.apache.cassandra.schema.SchemaKeyspace;
 import org.apache.cassandra.thrift.CfDef;
 import org.apache.cassandra.thrift.ColumnDef;
 import org.apache.cassandra.thrift.IndexType;
@@ -126,7 +122,7 @@ public class SchemaKeyspaceTest
 
                 // Testing with compression to catch #3558
                 CFMetaData withCompression = cfm.copy();
-                withCompression.compressionParameters(CompressionParameters.snappy(32768));
+                withCompression.compression(CompressionParams.snappy(32768));
                 checkInverses(withCompression);
             }
         }
