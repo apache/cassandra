@@ -1,3 +1,6 @@
+2.2.1
+ * UDF / UDA execution time in trace (CASSANDRA-9723)
+
 2.2.0
  * Fix cqlsh copy methods and other windows specific issues (CASSANDRA-9795) 
  * Don't wrap byte arrays in SequentialWriter (CASSANDRA-9797)
