@@ -29,6 +29,7 @@ import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.schema.Functions;
+import org.apache.cassandra.tracing.Tracing;
 
 /**
  * Base class for user-defined-aggregates.
@@ -144,6 +145,9 @@ public class UDAggregate extends AbstractFunction implements AggregateFunction
     {
         return new Aggregate()
         {
+            private long stateFunctionCount;
+            private long stateFunctionDuration;
+
             private ByteBuffer state;
             {
                 reset();
@@ -151,6 +155,8 @@ public class UDAggregate extends AbstractFunction implements AggregateFunction
 
             public void addInput(int protocolVersion, List<ByteBuffer> values) throws InvalidRequestException
             {
+                long startTime = System.nanoTime();
+                stateFunctionCount++;
                 List<ByteBuffer> fArgs = new ArrayList<>(values.size() + 1);
                 fArgs.add(state);
                 fArgs.addAll(values);
@@ -164,19 +170,26 @@ public class UDAggregate extends AbstractFunction implements AggregateFunction
                 {
                     state = stateFunction.execute(protocolVersion, fArgs);
                 }
+                stateFunctionDuration += (System.nanoTime() - startTime) / 1000;
             }
 
             public ByteBuffer compute(int protocolVersion) throws InvalidRequestException
             {
+                // final function is traced in UDFunction
+                Tracing.trace("Executed UDA {}: {} call(s) to state function {} in {}\u03bcs", name(), stateFunctionCount, stateFunction.name(), stateFunctionDuration);
                 if (finalFunction == null)
                     return state;
+
                 List<ByteBuffer> fArgs = Collections.singletonList(state);
-                return finalFunction.execute(protocolVersion, fArgs);
+                ByteBuffer result = finalFunction.execute(protocolVersion, fArgs);
+                return result;
             }
 
             public void reset()
             {
                 state = initcond != null ? initcond.duplicate() : null;
+                stateFunctionDuration = 0;
+                stateFunctionCount = 0;
             }
         };
     }

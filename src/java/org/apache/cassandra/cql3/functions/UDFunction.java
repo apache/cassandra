@@ -35,6 +35,7 @@ import org.apache.cassandra.exceptions.*;
 import org.apache.cassandra.schema.Functions;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.service.MigrationManager;
+import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 /**
@@ -141,7 +142,11 @@ public abstract class UDFunction extends AbstractFunction implements ScalarFunct
 
         if (!isCallableWrtNullable(parameters))
             return null;
-        return executeUserDefined(protocolVersion, parameters);
+
+        long tStart = System.nanoTime();
+        ByteBuffer result = executeUserDefined(protocolVersion, parameters);
+        Tracing.trace("Executed UDF {} in {}\u03bcs", name(), (System.nanoTime() - tStart) / 1000);
+        return result;
     }
 
     public boolean isCallableWrtNullable(List<ByteBuffer> parameters)

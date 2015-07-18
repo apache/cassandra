@@ -1939,7 +1939,7 @@ User-defined aggregates can be used in "@SELECT@":#selectStmt statement.
 A complete working example for user-defined aggregates (assuming that a keyspace has been selected using the "@USE@":#useStmt statement):
 
 bc(sample).. 
-CREATE FUNCTION averageState ( state tuple<int,bigint>, val int )
+CREATE OR REPLACE FUNCTION averageState ( state tuple<int,bigint>, val int )
   CALLED ON NULL INPUT
   RETURNS tuple<int,bigint>
   LANGUAGE java
@@ -1951,7 +1951,7 @@ CREATE FUNCTION averageState ( state tuple<int,bigint>, val int )
     return state;
   ';
 
-CREATE FUNCTION averageFinal ( state tuple<int,bigint> )
+CREATE OR REPLACE FUNCTION averageFinal ( state tuple<int,bigint> )
   CALLED ON NULL INPUT
   RETURNS double
   LANGUAGE java
@@ -1963,7 +1963,7 @@ CREATE FUNCTION averageFinal ( state tuple<int,bigint> )
     return Double.valueOf(r);
   ';
 
-CREATE AGGREGATE average ( int )
+CREATE OR REPLACE AGGREGATE average ( int )
   SFUNC averageState
   STYPE tuple<int,bigint>
   FINALFUNC averageFinal
