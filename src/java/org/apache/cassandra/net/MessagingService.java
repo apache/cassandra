@@ -934,8 +934,21 @@ public final class MessagingService implements MessagingServiceMBean
         void close() throws IOException
         {
             logger.debug("Closing accept() thread");
-            server.close();
-            for (Closeable connection : connections) 
+
+            try
+            {
+                server.close();
+            }
+            catch (IOException e)
+            {
+                // dirty hack for clean shutdown on OSX w/ Java >= 1.8.0_20
+                // see https://issues.apache.org/jira/browse/CASSANDRA-8220
+                // see https://bugs.openjdk.java.net/browse/JDK-8050499
+                if (!"Unknown error: 316".equals(e.getMessage()) || !"Mac OS X".equals(System.getProperty("os.name")))
+                    throw e;
+            }
+
+            for (Closeable connection : connections)
             {
                 connection.close();
             }
