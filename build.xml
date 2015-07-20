@@ -380,12 +380,21 @@
           	<exclusion groupId="org.eclipse.jdt" artifactId="core"/>
 		    <exclusion groupId="ant" artifactId="ant"/>
           </dependency>
-          <dependency groupId="org.apache.hadoop" artifactId="hadoop-minicluster" version="1.0.3"/>
-          <dependency groupId="org.apache.pig" artifactId="pig" version="0.12.1"/>
+          <dependency groupId="org.apache.hadoop" artifactId="hadoop-minicluster" version="1.0.3">
+		    <exclusion groupId="asm" artifactId="asm"/> <!-- this is the outdated version 3.1 -->
+          </dependency>
+          <dependency groupId="org.apache.pig" artifactId="pig" version="0.12.1">
+          	<exclusion groupId="org.mortbay.jetty" artifactId="jetty"/>
+            <exclusion groupId="hsqldb" artifactId="hsqldb"/> <!-- outdated version -->
+            <exclusion groupId="antlr" artifactId="antlr"/> <!-- outdated version -->
+          </dependency>
           <dependency groupId="net.java.dev.jna" artifactId="jna" version="4.0.0"/>
 
           <dependency groupId="net.sourceforge.cobertura" artifactId="cobertura" version="${cobertura.version}">
             <exclusion groupId="xerces" artifactId="xercesImpl"/>
+          	<exclusion groupId="org.mortbay.jetty" artifactId="jetty"/> <!-- older version, also via hadoop-core + pig -->
+          	<exclusion groupId="org.mortbay.jetty" artifactId="jetty-util"/> <!-- older version, also via hadoop-core + pig -->
+            <exclusion groupId="org.apache.ant" artifactId="ant"/> <!-- older version 1.8.3 -->
           </dependency>
           <dependency groupId="org.jacoco" artifactId="org.jacoco.agent" version="${jacoco.version}"/>
           <dependency groupId="org.jacoco" artifactId="org.jacoco.ant" version="${jacoco.version}"/>
@@ -463,6 +472,33 @@
         <dependency groupId="org.eclipse.jdt.core.compiler" artifactId="ecj"/>
         <dependency groupId="org.caffinitas.ohc" artifactId="ohc-core" version="0.4" />
         <dependency groupId="org.caffinitas.ohc" artifactId="ohc-core-j8" version="0.4" />
+        <dependency groupId="org.openjdk.jmh" artifactId="jmh-core"/>
+        <dependency groupId="org.openjdk.jmh" artifactId="jmh-generator-annprocess"/>
+        <dependency groupId="net.ju-n.compile-command-annotations" artifactId="compile-command-annotations"/>
+        <dependency groupId="org.apache.ant" artifactId="ant-junit" version="1.9.4" />
+      </artifact:pom>
+      <!-- this build-deps-pom-sources "artifact" is the same as build-deps-pom but only with those
+           artifacts that have "-source.jar" files -->
+      <artifact:pom id="build-deps-pom-sources"
+                    artifactId="cassandra-build-deps">
+        <parent groupId="org.apache.cassandra"
+                artifactId="cassandra-parent"
+                version="${version}"/>
+        <dependency groupId="junit" artifactId="junit"/>
+        <dependency groupId="org.apache.pig" artifactId="pig">
+          <exclusion groupId="xmlenc" artifactId="xmlenc"/>
+          <exclusion groupId="tomcat" artifactId="jasper-runtime"/>
+          <exclusion groupId="tomcat" artifactId="jasper-compiler"/>
+          <exclusion groupId="org.eclipse.jdt" artifactId="core"/>
+          <exclusion groupId="net.sf.kosmosfs" artifactId="kfs"/>
+          <exclusion groupId="hsqldb" artifactId="hsqldb"/>
+          <exclusion groupId="antlr" artifactId="antlr"/>
+        </dependency>
+        <!-- TODO CASSANDRA-9543
+        <dependency groupId="com.datastax.cassandra" artifactId="cassandra-driver-core" classifier="shaded"/>
+        -->
+        <dependency groupId="org.eclipse.jdt.core.compiler" artifactId="ecj"/>
+        <dependency groupId="org.caffinitas.ohc" artifactId="ohc-core"/>
         <dependency groupId="org.openjdk.jmh" artifactId="jmh-core"/>
         <dependency groupId="org.openjdk.jmh" artifactId="jmh-generator-annprocess"/>
         <dependency groupId="net.ju-n.compile-command-annotations" artifactId="compile-command-annotations"/>
@@ -589,11 +625,20 @@
     </target>
 
     <target name="maven-ant-tasks-retrieve-build" depends="maven-declare-dependencies" unless="without.maven">
+      <!-- retrieve artifacts -->
       <artifact:dependencies pomRefId="build-deps-pom"
-                             filesetId="build-dependency-jars" 
-                             sourcesFilesetId="build-dependency-sources" 
-                             cacheDependencyRefs="true" 
+                             filesetId="build-dependency-jars"
+                             cacheDependencyRefs="true"
                              dependencyRefsBuildFile="${build.dir}/build-dependencies.xml">
+          <remoteRepository refid="central"/>
+          <remoteRepository refid="apache"/>
+          <remoteRepository refid="java.net2"/>
+      </artifact:dependencies>
+      <!-- retrieve -source.jar artifacts using the reference-pom with the artifacts that have these -->
+      <artifact:dependencies pomRefId="build-deps-pom-sources"
+                             sourcesFilesetId="build-dependency-sources"
+                             cacheDependencyRefs="true"
+                             dependencyRefsBuildFile="${build.dir}/build-dependencies-sources.xml">
           <remoteRepository refid="central"/>
           <remoteRepository refid="apache"/>
           <remoteRepository refid="java.net2"/>
